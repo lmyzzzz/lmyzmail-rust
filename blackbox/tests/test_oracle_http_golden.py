@@ -20,6 +20,7 @@ from lmyzmail_blackbox.runtime import (
     WRITE_ONLY_API_KEY,
     JavaOracleRuntime,
 )
+from lmyzmail_blackbox.smtp_contract import SMTP_SCENARIOS
 from lmyzmail_blackbox.snapshots import (
     HeaderRule,
     http_bytes_snapshot,
@@ -437,16 +438,17 @@ def test_all_protected_routes_reach_their_declared_auth_boundary() -> None:
 @pytest.mark.integration
 @pytest.mark.oracle
 @pytest.mark.timeout(180)
-def test_managed_java_http_golden(record_java_golden: bool) -> None:
+def test_managed_java_http_and_smtp_golden(record_java_golden: bool) -> None:
     paths = JavaOracleRuntime().paths
     runner = DifferentialRunner(
         paths.repository,
-        paths.repository / "blackbox/golden/java/managed-basic-v6",
+        paths.repository / "blackbox/golden/java/managed-basic-v10",
         "managed-basic",
         record_java=record_java_golden,
     )
+    scenarios = HTTP_SCENARIOS + SMTP_SCENARIOS
     with JavaOracleRuntime(paths=paths) as oracle:
         if record_java_golden:
-            runner.record_from_java(HTTP_SCENARIOS, oracle)
+            runner.record_from_java(scenarios, oracle)
         else:
-            runner.verify_java(HTTP_SCENARIOS, oracle)
+            runner.verify_java(scenarios, oracle)

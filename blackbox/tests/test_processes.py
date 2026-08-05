@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import subprocess
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
+from lmyzmail_blackbox import processes as processes_module
 from lmyzmail_blackbox.errors import ProcessStartError
 from lmyzmail_blackbox.processes import ManagedProcess, kill_managed_processes
 from lmyzmail_blackbox.runtime import JavaOracleRuntime
@@ -88,6 +92,61 @@ def test_postgres_readiness_waits_until_connections_are_accepted(
     assert calls[0][0].endswith("/pg_isready")
     assert "--dbname=postgres" in calls[0]
     assert "--timeout=1" in calls[0]
+
+
+def test_tcp_readiness_connect_and_sleep_share_exact_deadline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class _RunningProcess:
+        @staticmethod
+        def poll() -> None:
+            return None
+
+    process = ManagedProcess("deadline-probe", ["unused"], tmp_path / "deadline.log")
+    process._process = cast(subprocess.Popen[bytes], _RunningProcess())
+    clock = 100.0
+    connect_timeouts: list[float] = []
+    sleeps: list[float] = []
+
+    def monotonic() -> float:
+        return clock
+
+    def failed_connect(_address: tuple[str, int], *, timeout: float) -> None:
+        nonlocal clock
+        connect_timeouts.append(timeout)
+        clock += min(0.03, timeout)
+        raise OSError("not ready")
+
+    def sleep(duration: float) -> None:
+        nonlocal clock
+        sleeps.append(duration)
+        clock += duration
+
+    monkeypatch.setattr(
+        processes_module,
+        "time",
+        SimpleNamespace(monotonic=monotonic, sleep=sleep),
+    )
+    monkeypatch.setattr(
+        processes_module,
+        "socket",
+        SimpleNamespace(create_connection=failed_connect),
+    )
+
+    with pytest.raises(ProcessStartError, match="within 0.1s"):
+        process.wait_for_tcp("127.0.0.1", 1025, timeout=0.1)
+
+    assert clock == pytest.approx(100.1)
+    assert connect_timeouts == pytest.approx([0.1, 0.02])
+    assert sleeps == pytest.approx([0.05])
+
+
+@pytest.mark.parametrize("timeout", [0.0, -1.0, float("inf"), float("nan")])
+def test_tcp_readiness_rejects_invalid_timeout(tmp_path: Path, timeout: float) -> None:
+    process = ManagedProcess("deadline-probe", ["unused"], tmp_path / "deadline.log")
+    process._process = cast(subprocess.Popen[bytes], object())
+    with pytest.raises(ValueError, match="finite and positive"):
+        process.wait_for_tcp("127.0.0.1", 1025, timeout=timeout)
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="process-group contract is Linux-only")

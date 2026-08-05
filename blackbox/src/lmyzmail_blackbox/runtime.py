@@ -12,10 +12,10 @@ from typing import Self
 
 import httpx
 
-from .errors import HarnessError, ProcessStartError
+from .errors import HarnessError, ProcessStartError, ProtocolError
 from .ports import PortAllocator, PortSet
 from .processes import ManagedProcess, stop_managed_processes
-from .protocols import connect_bounded
+from .protocols import connect_bounded, read_smtp_reply
 
 QA_ADDRESS = "qa@example.test"
 # Public, isolated fixture credential specified by the compatibility contract.
@@ -396,6 +396,16 @@ class JavaOracleRuntime:
             *ports.honeypots,
         )
 
+    @staticmethod
+    def _probe_smtp_readiness(host: str, port: int, *, timeout: float) -> None:
+        stream = connect_bounded(host, port, timeout=timeout, max_received=64 * 1024)
+        try:
+            greeting = read_smtp_reply(stream)
+            if not greeting or greeting[0][:3] != b"220":
+                raise ProtocolError(f"SMTP server did not greet with 220: {greeting!r}")
+        finally:
+            stream.sock.close()
+
     def _start_application(self) -> None:
         workspace, ports = self._require_state()
         if self._port_allocator is None:
@@ -422,22 +432,61 @@ class JavaOracleRuntime:
             inherit_env=False,
         )
         self._application.start()
-        self._application.wait_for_tcp("127.0.0.1", ports.http, timeout=self.startup_timeout)
         deadline = time.monotonic() + self.startup_timeout
+
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ProcessStartError(
+                f"{self.target_kind} startup deadline expired before HTTP listen"
+            )
+        self._application.wait_for_tcp("127.0.0.1", ports.http, timeout=remaining)
+
         health_url = f"http://127.0.0.1:{ports.http}/api/health"
         last_error: Exception | None = None
         with httpx.Client(trust_env=False, timeout=1.0) as client:
-            while time.monotonic() < deadline:
+            health_ready = False
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
                 try:
-                    response = client.get(health_url)
+                    response = client.get(health_url, timeout=min(1.0, remaining))
                     if response.status_code == 200:
-                        return
+                        health_ready = True
+                        break
                     last_error = RuntimeError(f"health returned {response.status_code}")
                 except httpx.HTTPError as error:
                     last_error = error
-                time.sleep(0.1)
+                sleep_for = min(0.1, deadline - time.monotonic())
+                if sleep_for > 0:
+                    time.sleep(sleep_for)
+
+        if not health_ready:
+            raise ProcessStartError(
+                f"{self.target_kind} HTTP health did not become ready: {last_error}; "
+                f"tail:\n{self._application.log_tail()}"
+            )
+
+        last_error = None
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            try:
+                self._probe_smtp_readiness(
+                    "127.0.0.1",
+                    ports.smtp,
+                    timeout=min(1.0, remaining),
+                )
+                return
+            except (OSError, ProtocolError) as error:
+                last_error = error
+            sleep_for = min(0.1, deadline - time.monotonic())
+            if sleep_for > 0:
+                time.sleep(sleep_for)
+
         raise ProcessStartError(
-            f"{self.target_kind} health did not become ready: {last_error}; "
+            f"{self.target_kind} SMTP readiness did not become ready: {last_error}; "
             f"tail:\n{self._application.log_tail()}"
         )
 

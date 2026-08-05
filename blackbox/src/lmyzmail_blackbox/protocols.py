@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import socket
 import ssl
 import struct
 import time
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Never
 
@@ -21,6 +22,8 @@ class BoundedSocket:
         deadline: float,
         max_received: int = 8 * 1024 * 1024,
     ) -> None:
+        if max_received < 1:
+            raise ValueError("receive budget must be positive")
         self.sock = sock
         self.deadline = deadline
         self.max_received = max_received
@@ -34,6 +37,8 @@ class BoundedSocket:
         return remaining
 
     def recv_some(self, max_bytes: int = 65_536) -> bytes:
+        if max_bytes < 1:
+            raise ValueError("receive size must be positive")
         self.sock.settimeout(self._remaining())
         chunk = self.sock.recv(min(max_bytes, self.max_received - self.received + 1))
         if not chunk:
@@ -44,6 +49,8 @@ class BoundedSocket:
         return chunk
 
     def read_line(self, *, max_line: int = 65_536) -> bytes:
+        if max_line < 1:
+            raise ValueError("line budget must be positive")
         while True:
             end = self.buffer.find(b"\n")
             if end >= 0:
@@ -72,6 +79,8 @@ class BoundedSocket:
     def read_until(self, delimiter: bytes, *, max_bytes: int) -> bytes:
         if not delimiter:
             raise ValueError("delimiter must not be empty")
+        if max_bytes < 1:
+            raise ValueError("delimiter search budget must be positive")
         while True:
             end = self.buffer.find(delimiter)
             if end >= 0:
@@ -91,25 +100,199 @@ class BoundedSocket:
         self.sock.sendall(data)
 
 
-def connect_bounded(host: str, port: int, *, timeout: float) -> BoundedSocket:
+def connect_bounded(
+    host: str,
+    port: int,
+    *,
+    timeout: float,
+    max_received: int = 8 * 1024 * 1024,
+) -> BoundedSocket:
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("protocol timeout must be finite and positive")
+    if max_received < 1:
+        raise ValueError("receive budget must be positive")
     deadline = time.monotonic() + timeout
     sock = socket.create_connection((host, port), timeout=timeout)
-    return BoundedSocket(sock, deadline=deadline)
+    return BoundedSocket(sock, deadline=deadline, max_received=max_received)
 
 
-def _smtp_reply(stream: BoundedSocket) -> list[bytes]:
+def read_smtp_reply(
+    stream: BoundedSocket,
+    *,
+    max_lines: int = 100,
+) -> tuple[bytes, ...]:
+    if max_lines < 1:
+        raise ValueError("SMTP reply line budget must be positive")
     first = stream.read_line()
-    if len(first) < 4 or not first[:3].isdigit() or first[3:4] not in (b" ", b"-"):
+    if (
+        not first.endswith(b"\r\n")
+        or len(first) < 5
+        or not first[:3].isdigit()
+        or first[3:4] not in (b" ", b"-")
+    ):
         raise ProtocolError(f"invalid SMTP reply: {first!r}")
     code = first[:3]
+    if code[:1] not in (b"2", b"3", b"4", b"5"):
+        raise ProtocolError(f"invalid SMTP reply code: {first!r}")
     lines = [first]
     if first[3:4] == b"-":
-        while True:
+        while len(lines) < max_lines:
             line = stream.read_line()
+            if not line.endswith(b"\r\n") or len(line) < 5:
+                raise ProtocolError(f"invalid SMTP continuation: {line!r}")
             lines.append(line)
             if line.startswith(code + b" "):
                 break
-    return lines
+            if not line.startswith(code + b"-"):
+                raise ProtocolError(f"SMTP continuation changed reply code or separator: {line!r}")
+        else:
+            raise ProtocolError(f"SMTP reply exceeded {max_lines} lines")
+    return tuple(lines)
+
+
+def _validate_smtp_message(message: bytes) -> None:
+    without_crlf = message.replace(b"\r\n", b"")
+    if b"\r" in without_crlf or b"\n" in without_crlf:
+        raise ValueError("SMTP message must use CRLF line endings")
+
+
+def _encode_smtp_data(message: bytes) -> bytes:
+    _validate_smtp_message(message)
+    if not message:
+        return b".\r\n"
+    encoded = b"\r\n".join(
+        b"." + line if line.startswith(b".") else line for line in message.split(b"\r\n")
+    )
+    if not encoded.endswith(b"\r\n"):
+        encoded += b"\r\n"
+    return encoded + b".\r\n"
+
+
+@dataclass(slots=True)
+class RawSmtpClient:
+    stream: BoundedSocket
+    greeting: tuple[bytes, ...]
+    _closed: bool = False
+
+    @classmethod
+    def connect(
+        cls,
+        host: str,
+        port: int,
+        *,
+        timeout: float = 10.0,
+        max_received: int = 8 * 1024 * 1024,
+    ) -> RawSmtpClient:
+        stream = connect_bounded(
+            host,
+            port,
+            timeout=timeout,
+            max_received=max_received,
+        )
+        try:
+            greeting = read_smtp_reply(stream)
+            if greeting[0][:3] != b"220":
+                raise ProtocolError(f"SMTP server did not greet with 220: {greeting!r}")
+            return cls(stream=stream, greeting=greeting)
+        except BaseException:
+            stream.sock.close()
+            raise
+
+    @staticmethod
+    def _command_bytes(command: bytes) -> bytes:
+        if not command or b"\r" in command or b"\n" in command or b"\x00" in command:
+            raise ValueError("SMTP command must be one non-empty line without CR, LF, or NUL")
+        if len(command) > 510:
+            raise ValueError("SMTP command exceeds the 512-octet line limit")
+        return command + b"\r\n"
+
+    def _require_open(self) -> None:
+        if self._closed:
+            raise ProtocolError("SMTP client is closed")
+
+    def command(self, command: bytes) -> tuple[bytes, ...]:
+        self._require_open()
+        self.stream.sendall(self._command_bytes(command))
+        return read_smtp_reply(self.stream)
+
+    def pipeline(self, commands: Sequence[bytes]) -> tuple[tuple[bytes, ...], ...]:
+        self._require_open()
+        if not commands:
+            raise ValueError("SMTP pipeline must contain at least one command")
+        if len(commands) > 100:
+            raise ValueError("SMTP pipeline exceeds the 100-command budget")
+        payload = b"".join(self._command_bytes(command) for command in commands)
+        self.stream.sendall(payload)
+        return tuple(read_smtp_reply(self.stream) for _ in commands)
+
+    def data(self, message: bytes) -> tuple[tuple[bytes, ...], tuple[bytes, ...]]:
+        data_ready = self.command(b"DATA")
+        if not data_ready[0].startswith(b"354 "):
+            raise ProtocolError(f"SMTP DATA was not accepted: {data_ready!r}")
+        return data_ready, self.data_body(message)
+
+    def data_body(self, message: bytes) -> tuple[bytes, ...]:
+        self._require_open()
+        self.stream.sendall(_encode_smtp_data(message))
+        return read_smtp_reply(self.stream)
+
+    def bdat(self, chunk: bytes, *, last: bool = False) -> tuple[bytes, ...]:
+        self._require_open()
+        suffix = b" LAST" if last else b""
+        command = b"BDAT " + str(len(chunk)).encode("ascii") + suffix
+        self.stream.sendall(self._command_bytes(command) + chunk)
+        return read_smtp_reply(self.stream)
+
+    def start_tls(
+        self,
+        context: ssl.SSLContext,
+        *,
+        server_hostname: str,
+    ) -> tuple[bytes, ...]:
+        response = self.command(b"STARTTLS")
+        if not response[0].startswith(b"220 "):
+            raise ProtocolError(f"SMTP STARTTLS was not accepted: {response!r}")
+        if self.stream.buffer:
+            self.close()
+            raise ProtocolError("SMTP plaintext bytes remained buffered before TLS")
+        try:
+            self.stream.sock.settimeout(self.stream._remaining())
+            self.stream.sock = context.wrap_socket(
+                self.stream.sock,
+                server_hostname=server_hostname,
+            )
+        except BaseException:
+            self.close()
+            raise
+        return response
+
+    def quit(self) -> tuple[bytes, ...]:
+        try:
+            response = self.command(b"QUIT")
+            if response[0][:3] != b"221":
+                raise ProtocolError(f"SMTP QUIT was not accepted: {response!r}")
+            if self.stream.buffer:
+                raise ProtocolError("SMTP server sent bytes after the 221 reply")
+            try:
+                trailing = self.stream.recv_some()
+            except TimeoutError as error:
+                raise ProtocolError("SMTP server did not close after the 221 reply") from error
+            if trailing:
+                raise ProtocolError("SMTP server sent bytes after the 221 reply")
+            return response
+        finally:
+            self.close()
+
+    def close(self) -> None:
+        if not self._closed:
+            self._closed = True
+            self.stream.sock.close()
+
+    def __enter__(self) -> RawSmtpClient:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,42 +315,22 @@ def smtp_data_transaction(
     message: bytes,
     timeout: float = 10.0,
 ) -> SmtpTranscript:
-    without_crlf = message.replace(b"\r\n", b"")
-    if b"\r" in without_crlf or b"\n" in without_crlf:
-        raise ValueError("SMTP message must use CRLF line endings")
-    stream = connect_bounded(host, port, timeout=timeout)
-    try:
-        greeting = _smtp_reply(stream)
-        stream.sendall(b"EHLO blackbox.example\r\n")
-        ehlo = _smtp_reply(stream)
-        stream.sendall(f"MAIL FROM:<{sender}>\r\n".encode("ascii"))
-        mail_from = _smtp_reply(stream)
-        stream.sendall(f"RCPT TO:<{recipient}>\r\n".encode("ascii"))
-        rcpt_to = _smtp_reply(stream)
-        stream.sendall(b"DATA\r\n")
-        data_ready = _smtp_reply(stream)
-        if not data_ready[0].startswith(b"354"):
-            raise ProtocolError(f"SMTP DATA was not accepted: {data_ready!r}")
-        encoded_message = b"\r\n".join(
-            b"." + line if line.startswith(b".") else line for line in message.split(b"\r\n")
-        )
-        if not encoded_message.endswith(b"\r\n"):
-            encoded_message += b"\r\n"
-        stream.sendall(encoded_message + b".\r\n")
-        accepted = _smtp_reply(stream)
-        stream.sendall(b"QUIT\r\n")
-        quit_reply = _smtp_reply(stream)
+    _validate_smtp_message(message)
+    with RawSmtpClient.connect(host, port, timeout=timeout) as client:
+        ehlo = client.command(b"EHLO blackbox.example")
+        mail_from = client.command(f"MAIL FROM:<{sender}>".encode("ascii"))
+        rcpt_to = client.command(f"RCPT TO:<{recipient}>".encode("ascii"))
+        data_ready, accepted = client.data(message)
+        quit_reply = client.quit()
         return SmtpTranscript(
-            greeting=tuple(greeting),
-            ehlo=tuple(ehlo),
-            mail_from=tuple(mail_from),
-            rcpt_to=tuple(rcpt_to),
-            data_ready=tuple(data_ready),
-            accepted=tuple(accepted),
-            quit=tuple(quit_reply),
+            greeting=client.greeting,
+            ehlo=ehlo,
+            mail_from=mail_from,
+            rcpt_to=rcpt_to,
+            data_ready=data_ready,
+            accepted=accepted,
+            quit=quit_reply,
         )
-    finally:
-        stream.sock.close()
 
 
 def raw_exchange(

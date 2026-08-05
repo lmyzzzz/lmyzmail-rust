@@ -21,5 +21,21 @@ inputs, and must never be overwritten in place.
   A pre-index CRLF manifest made its definition hash non-reproducible after a clean
   checkout, so it is retained and no longer consumed by tests.
 - `managed-basic-v6/` additionally normalizes every attested text definition to the
-  repository LF policy. It is the accepted, clean-checkout-reproducible HTTP set
-  consumed by tests at this milestone.
+  repository LF policy. It is the accepted, clean-checkout-reproducible HTTP-only set
+  from the preceding milestone and is retained unchanged.
+- `managed-basic-v7/` extends the same managed profile with raw SMTP DATA,
+  PIPELINING, and BDAT observations. Each SMTP acceptance is followed through to its
+  exact normalized Maildir bytes, asynchronous PostgreSQL `email_index` row, and
+  Redis mail-count value/type/no-TTL contract. It was the active HTTP+SMTP set for the
+  preceding harness revision and is retained unchanged.
+- `managed-basic-v8/` keeps the v7 wire scenarios while requiring server-driven EOF
+  after QUIT, strict Java RFC 1123 and UTC filename timestamps, and jointly converged
+  exactly-once PostgreSQL/Redis/Maildir state with no orphan, temp, or symlink residue.
+  It is retained unchanged after deadline and pre-existing-file integrity review.
+- `managed-basic-v9/` additionally carries one absolute deadline through PostgreSQL
+  statement waits, Redis I/O, Maildir hashing, and final verification. Maildir baselines
+  bind each existing file's length and SHA-256 so later deliveries cannot mutate prior
+  messages. It is retained unchanged after strengthening the integrity regression.
+- `managed-basic-v10/` keeps the v9 behavior while proving that an equal-length mutation
+  of a pre-existing Maildir message is rejected by its SHA-256 identity. It is the active
+  HTTP+SMTP set consumed by tests at this milestone.

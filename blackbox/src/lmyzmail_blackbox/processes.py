@@ -61,20 +61,27 @@ class ManagedProcess:
     def wait_for_tcp(self, host: str, port: int, *, timeout: float) -> None:
         if self._process is None:
             raise RuntimeError(f"{self.name} has not started")
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError("TCP readiness timeout must be finite and positive")
         deadline = time.monotonic() + timeout
         last_error: OSError | None = None
-        while time.monotonic() < deadline:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
             exit_code = self._process.poll()
             if exit_code is not None:
                 raise ProcessStartError(
                     f"{self.name} exited with {exit_code}; tail:\n{self.log_tail()}"
                 )
             try:
-                with socket.create_connection((host, port), timeout=0.25):
+                with socket.create_connection((host, port), timeout=min(0.25, remaining)):
                     return
             except OSError as error:
                 last_error = error
-                time.sleep(0.05)
+                remaining = deadline - time.monotonic()
+                if remaining > 0:
+                    time.sleep(min(0.05, remaining))
         raise ProcessStartError(
             f"{self.name} did not listen on {host}:{port} within {timeout}s: {last_error}; "
             f"tail:\n{self.log_tail()}"
