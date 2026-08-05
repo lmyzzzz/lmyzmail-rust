@@ -1,0 +1,17 @@
+{
+  "differences": [
+    {
+      "candidate_requirement": "Write to a same-filesystem temporary file, flush data, atomically rename to the final .eml path, and fsync the containing directory before publication is acknowledged.",
+      "evidence": {
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "source": "src/main/java/net/lmyz/lmyzmail/inbound/MailFileStore.java",
+        "source_sha256": "17c3dafb3bc6283c5daf00e13aff441f51ef29347353da03ae44da8b653dbc3e"
+      },
+      "id": "maildir-atomic-publication",
+      "oracle_behavior": "The final .eml is created and then written or copied directly; a failed or killed write can expose a partial final file and no file or directory fsync is performed.",
+      "reason": "The frozen behavior is a crash-consistency bug explicitly excluded from bug-for-bug replication.",
+      "scope": "Maildir publication ordering only; final successful message bytes, layout, folder, shard, index and count semantics remain differential requirements."
+    }
+  ],
+  "schema_version": 1
+}

@@ -1,0 +1,7 @@
+* text=auto eol=lf
+*.ico binary
+*.eml binary
+*.jar binary
+*.mp4 binary
+*.png binary
+*.safetensors binary

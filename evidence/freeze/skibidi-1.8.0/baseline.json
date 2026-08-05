@@ -1,0 +1,40 @@
+{
+    "schema_version":  1,
+    "version":  "1.8.0",
+    "branch":  "codex/skibidi-1.8.0-freeze",
+    "commit":  "4bc484c15b780d578ee8e53cab968f2819958215",
+    "parent":  "92143bd3f1388affa5adb5e899ff7a6e05c03ee5",
+    "patch_sha256":  "2ebbf878bee89496b2e5775b435c7861ed93f6ea348c1736a7e38dedded6f5e4",
+    "verified_worktree_sha256":  {
+                                     "skibidi_avx.c":  "7e8e7f3ee5bea0ac8d0857bd5bc8d806b44e5142c17ec8b5b6583db7c62fc613",
+                                     "skibidi_avx.h":  "bde8e9d19d6668c644aba1cdd81fb9f56c2236ff827ddd16fb366369bc68bbea"
+                                 },
+    "source_inventory":  "source-inventory.csv",
+    "verification":  [
+                         {
+                             "command":  "./tests/run-tests.sh",
+                             "modes":  [
+                                           "avx2",
+                                           "scalar"
+                                       ],
+                             "result":  "pass"
+                         },
+                         {
+                             "command":  "./tests/run-sanitizers.sh",
+                             "sanitizers":  [
+                                                "asan",
+                                                "ubsan"
+                                            ],
+                             "modes":  [
+                                           "avx2",
+                                           "scalar"
+                                       ],
+                             "result":  "pass"
+                         }
+                     ],
+    "excluded":  [
+                     "build directory",
+                     "compiled binaries and libraries",
+                     "secrets"
+                 ]
+}

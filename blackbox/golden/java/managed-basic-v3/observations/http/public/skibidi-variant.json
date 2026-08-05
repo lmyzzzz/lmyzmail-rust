@@ -1,0 +1,32 @@
+{
+  "attestation": {
+    "harness": {
+      "pyproject_sha256": "76a97fcf76b2831da05f418f6a22aa6ba1779370011af76ee08228ecf6015eac",
+      "runtime_lock_sha256": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04",
+      "source_tree_sha256": "94d7850108becf8c9d7b43fc657a8640946513cb3c4eac3fd751365a721c4f73"
+    },
+    "normalizers": [
+      "random:/api/skibidi:documented-variant-set",
+      "json:timestamp"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-basic"
+  },
+  "observation": {
+    "accepted_status_codes": [
+      200,
+      418
+    ],
+    "accepted_variants": [
+      "lore-member",
+      "teapot"
+    ],
+    "lore_count": 233,
+    "lore_manifest_sha256": "f280ca5273732b6575cbf83cc36f0ed6e0d4988732475ec84a33a08cb11a59d1",
+    "timestamp_contract": "current-utc-within-30s"
+  },
+  "schema_version": 1
+}

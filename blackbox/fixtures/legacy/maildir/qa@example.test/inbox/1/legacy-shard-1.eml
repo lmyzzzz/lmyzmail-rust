@@ -1,0 +1,12 @@
+Received: from legacy-client.example ([192.0.2.11]) by mail.example.test with ESMTP id legacy-shard-1; Tue, 02 Jan 2024 00:00:00 +0000
+Authentication-Results: mail.example.test; spf=pass smtp.mailfrom=sender.example; dkim=none; dmarc=pass header.from=sender.example
+From: Legacy Sender <sender@sender.example>
+To: qa@example.test
+Date: Tue, 02 Jan 2024 00:00:00 +0000
+Message-ID: <legacy-shard-1@sender.example>
+Subject: Legacy shard one
+MIME-Version: 1.0
+Content-Type: text/plain; charset=us-ascii
+Content-Transfer-Encoding: 7bit
+
+Legacy shard one body.

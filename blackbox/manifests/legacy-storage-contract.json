@@ -1,0 +1,120 @@
+{
+  "maildir": {
+    "address_sanitization": "trim-lowercase-control-strip-path-danger-replacement",
+    "allowed_folders": [
+      "inbox",
+      "sent",
+      "spam",
+      "drafts",
+      "trash"
+    ],
+    "count_key_pattern": "mail:count:{sanitized-address}:{folder}",
+    "filename_contract": "UTC-yyyyMMddHHmmss.SSS-nanotime-process-counter.eml",
+    "layout": "{base}/{sanitized-address}/{folder}/[{positive-decimal-shard}/]{file}.eml",
+    "legacy_root_subdirectory": 0,
+    "manifest": "blackbox/fixtures/legacy/maildir.json",
+    "max_files_per_directory_property": "botmail.maildir.max-files-per-directory",
+    "sharding_enabled_when": "max-files-per-directory > 0",
+    "source": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "mail_file_store_sha256": "17c3dafb3bc6283c5daf00e13aff441f51ef29347353da03ae44da8b653dbc3e",
+      "mail_store_properties_sha256": "08144dcb4a55a0d07229858a6ab422b14455361b8628137bfd3b5756d479ddaa"
+    }
+  },
+  "postgres": {
+    "schema_fixture": "blackbox/fixtures/legacy/postgres-schema.sql",
+    "schema_sha256": "4c3c9a57a29b66fda11b098368c5342e0c2477de709c79a47dc4760d8abd5463",
+    "seed_fixture": "blackbox/fixtures/legacy/postgres-seed.sql",
+    "table_count": 13
+  },
+  "redis": {
+    "key_contracts": [
+      {
+        "pattern": "botmail:mail:queue:pending",
+        "ttl_seconds": null,
+        "type": "list"
+      },
+      {
+        "pattern": "botmail:mail:queue:processing",
+        "ttl_seconds": null,
+        "type": "set"
+      },
+      {
+        "pattern": "botmail:mail:queue:processing_time",
+        "ttl_seconds": null,
+        "type": "hash"
+      },
+      {
+        "pattern": "botmail:mail:queue:retry",
+        "ttl_seconds": null,
+        "type": "zset"
+      },
+      {
+        "pattern": "botmail:mail:queue:task:{task-id}",
+        "ttl_seconds": 604800,
+        "type": "string"
+      },
+      {
+        "pattern": "botmail:mail:queue:domains:{task-id}",
+        "ttl_seconds": 604800,
+        "type": "hash"
+      },
+      {
+        "pattern": "botmail:mail:queue:seq",
+        "ttl_seconds": null,
+        "type": "string"
+      },
+      {
+        "pattern": "botmail:mail:queue:status_updates",
+        "ttl_seconds": null,
+        "type": "list"
+      },
+      {
+        "pattern": "botmail:mail:queue:archive",
+        "ttl_seconds": null,
+        "type": "list"
+      },
+      {
+        "pattern": "botmail:mail:queue:sentfile_index",
+        "ttl_seconds": null,
+        "type": "hash"
+      },
+      {
+        "pattern": "mail:count:{sanitized-address}:{folder}",
+        "ttl_seconds": null,
+        "type": "string"
+      },
+      {
+        "pattern": "dns:{spf|dmarc|dkim|dkim-multi}:{lookup}",
+        "ttl_seconds": 1800,
+        "type": "string"
+      },
+      {
+        "pattern": "dns:{ptr|addr}:{lookup}",
+        "ttl_seconds": 900,
+        "type": "string"
+      },
+      {
+        "pattern": "dns:mx:{domain}",
+        "ttl_seconds": 1800,
+        "type": "string"
+      },
+      {
+        "pattern": "dns:mx:{fallback-domain}",
+        "ttl_seconds": 300,
+        "type": "string"
+      },
+      {
+        "pattern": "mta-sts:{domain}",
+        "ttl_seconds": "min(policy-max-age,604800); invalid=300",
+        "type": "string"
+      }
+    ],
+    "seed_fixture": "blackbox/fixtures/legacy/redis-seed.json",
+    "source": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "mail_queue_redis_service_sha256": "f9abffe3fbc98e314db34fcf38d894fd200d93ad74ff933f2c0f57e2717f1bf4"
+    }
+  },
+  "schema_version": 1
+}

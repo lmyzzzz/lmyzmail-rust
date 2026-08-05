@@ -1,0 +1,50 @@
+{
+  "attestation": {
+    "harness": {
+      "pyproject_sha256": "76a97fcf76b2831da05f418f6a22aa6ba1779370011af76ee08228ecf6015eac",
+      "runtime_lock_sha256": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+    },
+    "normalizers": [
+      "header:date:http-date"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-basic"
+  },
+  "observation": {
+    "body_json": {
+      "domains": [
+        "example.test"
+      ],
+      "maxAttachmentSizeBytes": 10485760,
+      "maxAttachmentSizeMB": 10,
+      "maxEmailSizeBytes": 15728640,
+      "maxEmailSizeMB": 15,
+      "maxTotalAttachmentsSizeBytes": 15728640,
+      "sendableDomains": [
+        "example.test"
+      ],
+      "showInternetNlBadge": false
+    },
+    "headers": [
+      [
+        "content-type",
+        "application/json; charset=UTF-8"
+      ],
+      [
+        "content-length",
+        "239"
+      ]
+    ],
+    "normalized_body_wire": {
+      "base64": "eyJtYXhUb3RhbEF0dGFjaG1lbnRzU2l6ZUJ5dGVzIjoxNTcyODY0MCwic2hvd0ludGVybmV0TmxCYWRnZSI6ZmFsc2UsIm1heEF0dGFjaG1lbnRTaXplQnl0ZXMiOjEwNDg1NzYwLCJtYXhFbWFpbFNpemVCeXRlcyI6MTU3Mjg2NDAsInNlbmRhYmxlRG9tYWlucyI6WyJleGFtcGxlLnRlc3QiXSwiZG9tYWlucyI6WyJleGFtcGxlLnRlc3QiXSwibWF4RW1haWxTaXplTUIiOjE1LCJtYXhBdHRhY2htZW50U2l6ZU1CIjoxMH0=",
+      "length": 239,
+      "sha256": "2b3c97e91e8fe87c8543c981802da00f9c93021128b480d9c197068ccf434afc"
+    },
+    "status_code": 200,
+    "status_line": "HTTP/1.1 200 OK"
+  },
+  "schema_version": 1
+}

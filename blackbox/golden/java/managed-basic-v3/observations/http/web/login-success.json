@@ -1,0 +1,43 @@
+{
+  "attestation": {
+    "harness": {
+      "pyproject_sha256": "76a97fcf76b2831da05f418f6a22aa6ba1779370011af76ee08228ecf6015eac",
+      "runtime_lock_sha256": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04",
+      "source_tree_sha256": "94d7850108becf8c9d7b43fc657a8640946513cb3c4eac3fd751365a721c4f73"
+    },
+    "normalizers": [
+      "header:date:http-date",
+      "json:session-token",
+      "header:content-length:normalized-json"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-basic"
+  },
+  "observation": {
+    "body_json": {
+      "address": "qa@example.test",
+      "token": "<session-token>"
+    },
+    "headers": [
+      [
+        "content-type",
+        "application/json; charset=UTF-8"
+      ],
+      [
+        "content-length",
+        "55"
+      ]
+    ],
+    "normalized_body_wire": {
+      "base64": "eyJ0b2tlbiI6IjxzZXNzaW9uLXRva2VuPiIsImFkZHJlc3MiOiJxYUBleGFtcGxlLnRlc3QifQ==",
+      "length": 55,
+      "sha256": "a34a4d890a7d389f3134b0bb55daa1158ac4c8108ba65212ef8cd4d9340bc373"
+    },
+    "status_code": 200,
+    "status_line": "HTTP/1.1 200 OK"
+  },
+  "schema_version": 1
+}

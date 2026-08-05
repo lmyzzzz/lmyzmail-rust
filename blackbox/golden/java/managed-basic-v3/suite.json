@@ -1,0 +1,363 @@
+{
+  "attestation": {
+    "harness": {
+      "pyproject_sha256": "76a97fcf76b2831da05f418f6a22aa6ba1779370011af76ee08228ecf6015eac",
+      "runtime_lock_sha256": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04",
+      "source_tree_sha256": "94d7850108becf8c9d7b43fc657a8640946513cb3c4eac3fd751365a721c4f73"
+    },
+    "normalizers": [
+      "suite-manifest-v1"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-basic"
+  },
+  "observation": {
+    "profile": "managed-basic",
+    "scenarios": [
+      {
+        "contract": {
+          "headers": [],
+          "json": null,
+          "method": "GET",
+          "protocol": "http",
+          "target": "/api/health"
+        },
+        "name": "http/public/health",
+        "normalizers": [
+          "header:date:http-date",
+          "json:timestamp",
+          "header:content-length:normalized-json"
+        ]
+      },
+      {
+        "contract": {
+          "lore_manifest_sha256": "f280ca5273732b6575cbf83cc36f0ed6e0d4988732475ec84a33a08cb11a59d1",
+          "method": "GET",
+          "protocol": "http",
+          "random_contract": "teapot-or-member-of-frozen-233-lore-set",
+          "target": "/api/skibidi"
+        },
+        "name": "http/public/skibidi-variant",
+        "normalizers": [
+          "random:/api/skibidi:documented-variant-set",
+          "json:timestamp"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [],
+          "json": {},
+          "method": "POST",
+          "protocol": "http",
+          "target": "/api/status"
+        },
+        "name": "http/api/missing-key",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [
+            [
+              "X-API-Key",
+              "wrong-key"
+            ]
+          ],
+          "json": {},
+          "method": "POST",
+          "protocol": "http",
+          "target": "/api/status"
+        },
+        "name": "http/api/wrong-key",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [
+            [
+              "X-API-Key",
+              "blackbox-admin-key"
+            ]
+          ],
+          "json": {},
+          "method": "POST",
+          "protocol": "http",
+          "target": "/api/status"
+        },
+        "name": "http/api/status",
+        "normalizers": [
+          "header:date:http-date",
+          "json:timestamp",
+          "header:content-length:normalized-json"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [],
+          "json": null,
+          "method": "GET",
+          "protocol": "http",
+          "target": "/api/does-not-exist"
+        },
+        "name": "http/api/unknown-before-routing",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [],
+          "json": null,
+          "method": "GET",
+          "protocol": "http",
+          "target": "/does-not-exist"
+        },
+        "name": "http/routing/not-found",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [],
+          "json": {},
+          "method": "POST",
+          "protocol": "http",
+          "target": "/api/health"
+        },
+        "name": "http/routing/wrong-method-is-not-found",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "body": "empty",
+          "headers": [
+            [
+              "Origin",
+              "<allowed-origin:ephemeral-port>"
+            ],
+            [
+              "Access-Control-Request-Method",
+              "POST"
+            ]
+          ],
+          "method": "OPTIONS",
+          "protocol": "http",
+          "target": "/api/status"
+        },
+        "name": "http/cors/allowed-preflight",
+        "normalizers": [
+          "header:date:http-date",
+          "header:access-control-allow-origin:ephemeral-port"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [
+            [
+              "Origin",
+              "https://evil.example"
+            ]
+          ],
+          "json": null,
+          "method": "OPTIONS",
+          "protocol": "http",
+          "target": "/api/status"
+        },
+        "name": "http/cors/rejected-preflight",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [],
+          "json": {
+            "address": "qa@example.test",
+            "password": "BlackboxPass123!"
+          },
+          "method": "POST",
+          "protocol": "http",
+          "target": "/web/login"
+        },
+        "name": "http/web/login-success",
+        "normalizers": [
+          "header:date:http-date",
+          "json:session-token",
+          "header:content-length:normalized-json"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [],
+          "json": {
+            "address": "qa@example.test",
+            "password": "wrong-password"
+          },
+          "method": "POST",
+          "protocol": "http",
+          "target": "/web/login"
+        },
+        "name": "http/web/login-invalid",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [],
+          "json": {
+            "address": "qa@example.test",
+            "password": "BlackboxPass123!"
+          },
+          "method": "POST",
+          "protocol": "http",
+          "target": "/web/register"
+        },
+        "name": "http/web/register-existing",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [],
+          "json": {},
+          "method": "POST",
+          "protocol": "http",
+          "target": "/web/logout"
+        },
+        "name": "http/web/logout-without-token",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [],
+          "json": null,
+          "method": "GET",
+          "protocol": "http",
+          "target": "/web/domains"
+        },
+        "name": "http/web/domains",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [],
+          "json": null,
+          "method": "GET",
+          "protocol": "http",
+          "target": "/web/config"
+        },
+        "name": "http/web/config",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "body": "empty",
+          "headers": [],
+          "method": "GET",
+          "protocol": "http",
+          "target": "/"
+        },
+        "name": "http/static/index",
+        "normalizers": [
+          "header:date:http-date"
+        ]
+      },
+      {
+        "contract": {
+          "body": "empty",
+          "headers": [],
+          "method": "GET",
+          "protocol": "http",
+          "target": "/index.html"
+        },
+        "name": "http/static/index-alias",
+        "normalizers": [
+          "header:date:http-date"
+        ]
+      },
+      {
+        "contract": {
+          "body": "empty",
+          "headers": [],
+          "method": "GET",
+          "protocol": "http",
+          "target": "/cringe.html"
+        },
+        "name": "http/static/cringe",
+        "normalizers": [
+          "header:date:http-date"
+        ]
+      },
+      {
+        "contract": {
+          "body": "empty",
+          "headers": [],
+          "method": "GET",
+          "protocol": "http",
+          "target": "/favicon.ico"
+        },
+        "name": "http/static/favicon",
+        "normalizers": [
+          "header:date:http-date"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [],
+          "json": null,
+          "method": "GET",
+          "protocol": "http",
+          "target": "/%2e%2e/application.properties"
+        },
+        "name": "http/static/path-traversal",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "api_strategy": "opposite-permission-key-must-match-route-and-return-403",
+          "manifest_sha256": "3dc87b126779f99cfd27dc9821daa40740c4feb3067c6486569411166ec0fdbc",
+          "operation": "route-auth-permission-matrix",
+          "protocol": "http",
+          "session_strategy": "missing-token-must-match-route-and-return-401"
+        },
+        "name": "http/routes/auth-permission-matrix",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      }
+    ]
+  },
+  "schema_version": 1
+}

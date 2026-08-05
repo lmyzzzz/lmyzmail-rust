@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "lmyzmail-blackbox"
+version = "0.1.0"
+description = "Implementation-independent differential harness for lmyzmail"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "cryptography==45.0.6",
+  "httpx==0.28.1",
+  "playwright==1.54.0",
+  "psycopg[binary]==3.2.9",
+  "pydantic==2.11.7",
+  "pytest==8.4.1",
+  "pytest-asyncio==1.1.0",
+  "pytest-timeout==2.4.0",
+  "redis==6.2.0",
+  "sqlglot==27.4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "editables==0.5",
+  "hatchling==1.27.0",
+  "mypy==1.17.1",
+  "pip==25.2",
+  "ruff==0.12.7",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lmyzmail_blackbox"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+asyncio_mode = "strict"
+testpaths = ["tests"]
+timeout = 30
+markers = [
+  "integration: starts isolated external processes",
+  "oracle: requires the frozen Java artifact",
+  "candidate: requires the Rust candidate",
+  "playwright: performs browser rendering checks",
+  "soak: long-running bounded-resource validation",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true

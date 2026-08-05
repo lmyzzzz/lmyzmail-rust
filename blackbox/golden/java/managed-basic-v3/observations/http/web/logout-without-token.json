@@ -1,0 +1,41 @@
+{
+  "attestation": {
+    "harness": {
+      "pyproject_sha256": "76a97fcf76b2831da05f418f6a22aa6ba1779370011af76ee08228ecf6015eac",
+      "runtime_lock_sha256": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04",
+      "source_tree_sha256": "94d7850108becf8c9d7b43fc657a8640946513cb3c4eac3fd751365a721c4f73"
+    },
+    "normalizers": [
+      "header:date:http-date",
+      "json-object-order:jdk-map-of"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-basic"
+  },
+  "observation": {
+    "body_json": {
+      "success": true
+    },
+    "headers": [
+      [
+        "content-type",
+        "application/json; charset=UTF-8"
+      ],
+      [
+        "content-length",
+        "16"
+      ]
+    ],
+    "normalized_body_wire": {
+      "base64": "eyJzdWNjZXNzIjp0cnVlfQ==",
+      "length": 16,
+      "sha256": "c955e57777ec0d73639dca6748560d00aa5eb8e12f13ebb2ed9656add3908f97"
+    },
+    "status_code": 200,
+    "status_line": "HTTP/1.1 200 OK"
+  },
+  "schema_version": 1
+}

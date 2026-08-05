@@ -1,0 +1,13 @@
+# kind name version-or-url sha256
+jdk oracle-jdk-22.0.2 https://download.oracle.com/java/22/archive/jdk-22.0.2_linux-x64_bin.tar.gz cbc13aaa2618659f44cb261f820f179832d611f0df35dd30a78d7dea6d717858
+deb postgresql-16 16.2-1ubuntu4 7f25383e8f39ca99f4886b7b2cbb31c62534ac924e3a61da3f0e8e6456091e69
+deb postgresql-client-16 16.2-1ubuntu4 d9f308ba17d9ac027d3a44fd07e5464e3d69407fb609a7d3ecd6e81937e5282d
+deb libpq5 16.2-1ubuntu4 1e0fc42cdf4de9323e454a7bb3ccdf3efc087784b396a094da92d79ba3a707d5
+deb libllvm17t64 1:17.0.6-9ubuntu1 1863b5459ca4a6691f5e039e76157f074ee08b48176267642ee4dfea065f5db4
+deb libldap2 2.6.10+dfsg-0ubuntu0.24.04.1 7f3f8e565401256f21d5aa562c9f92dbb63537b73aaea6283e4db5264f1598f4
+deb libxslt1.1 1.1.39-0exp1ubuntu0.24.04.3 e716daf96ea2526cab92e5cc4708739d5f2f4b89fb76782dfda7f49283eeeb40
+deb redis-server 5:7.0.15-1ubuntu0.24.04.4 ac40bf48eefdbe285e62e3f183f95af5c3145bf141a545cb6de291dc51f5f0c0
+deb redis-tools 5:7.0.15-1ubuntu0.24.04.4 4e5afacdbaccf14d875ed61194a411d57c679744afd9be1946b481c2dbb2b425
+deb libjemalloc2 5.3.0-2build1 0cccf7701765b5a633b964ed551c2bd1c074cad17daea8fa20a4e9cad0adb5a8
+deb liblua5.4-0 5.4.6-3build2 6a520259e5b06e86191a25af6d448387cdd2b3d291a0aa956ce272e84d071260
+deb liblzf1 3.6-4 253182d4718271565d6c24125f27dd93da56fce34b34d8226615cb3553bbe73f

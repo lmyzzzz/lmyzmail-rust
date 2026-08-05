@@ -1,0 +1,77 @@
+{
+  "database": 0,
+  "keys": [
+    {
+      "key": "mail:count:qa@example.test:inbox",
+      "ttl_seconds": null,
+      "type": "string",
+      "value": "3"
+    },
+    {
+      "key": "botmail:mail:queue:seq",
+      "ttl_seconds": null,
+      "type": "string",
+      "value": "2101"
+    },
+    {
+      "key": "botmail:mail:queue:task:2101",
+      "ttl_seconds": 604800,
+      "type": "string",
+      "value": {
+        "createdAt": "2024-01-01T00:00:00Z",
+        "id": 2101,
+        "lastError": "Cancelled before migration fixture",
+        "maxRetries": 5,
+        "messageFilePath": null,
+        "messageId": "<legacy-outbound@example.test>",
+        "nextRetryAt": "2100-01-01T00:00:00Z",
+        "recipientsJson": "[\"recipient@example.invalid\"]",
+        "retryCount": 0,
+        "senderAddress": "qa@example.test",
+        "sentFileName": null,
+        "sentSubdirectory": null,
+        "signedContentBase64": "RnJvbTogcWFAZXhhbXBsZS50ZXN0DQpUbzogcmVjaXBpZW50QGV4YW1wbGUuaW52YWxpZA0KU3ViamVjdDogTGVnYWN5IGNhbmNlbGxlZCBvdXRib3VuZCB0YXNrDQoNCkxlZ2FjeSBvdXRib3VuZCBib2R5Lg0K",
+        "status": "CANCELLED",
+        "subject": "Legacy cancelled outbound task"
+      },
+      "value_encoding": "json-compact"
+    },
+    {
+      "fields": {
+        "example.invalid": {
+          "domain": "example.invalid",
+          "error": "Cancelled before delivery",
+          "recipients": [
+            "recipient@example.invalid"
+          ],
+          "status": "FAILED",
+          "updatedAt": "2024-01-01T00:00:00Z"
+        }
+      },
+      "field_encoding": "json-compact",
+      "key": "botmail:mail:queue:domains:2101",
+      "ttl_seconds": 604800,
+      "type": "hash"
+    },
+    {
+      "fields": {
+        "legacy-sent.eml": "2101"
+      },
+      "key": "botmail:mail:queue:sentfile_index",
+      "ttl_seconds": null,
+      "type": "hash"
+    },
+    {
+      "key": "botmail:mail:queue:retry",
+      "members": [
+        {
+          "member": "2101",
+          "score": 4102444800
+        }
+      ],
+      "ttl_seconds": null,
+      "type": "zset"
+    }
+  ],
+  "schema_version": 1
+}

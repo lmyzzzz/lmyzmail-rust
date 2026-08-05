@@ -1,0 +1,24 @@
+{
+  "files": [
+    {
+      "path": "qa@example.test/inbox/legacy-root.eml",
+      "sha256": "efb0f52aabfe37a8b0a5433487e2487d58a9574482d254a41c034fba5f35b939",
+      "size": 561,
+      "subdirectory": 0
+    },
+    {
+      "path": "qa@example.test/inbox/1/legacy-shard-1.eml",
+      "sha256": "906bb58c1dc3bbd66aa6ffec9c3716100c968a72eafe4ea623d4dca748ce59d9",
+      "size": 567,
+      "subdirectory": 1
+    },
+    {
+      "path": "qa@example.test/inbox/2/legacy-shard-2.eml",
+      "sha256": "cfade6e0aa4d378f11dc914ed611384414b05d69b76c153cc4cbf7425c3bec75",
+      "size": 869,
+      "subdirectory": 2
+    }
+  ],
+  "schema_version": 1,
+  "total_bytes": 1997
+}

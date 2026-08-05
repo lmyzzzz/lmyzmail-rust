@@ -1,0 +1,1174 @@
+{
+  "columns": [
+    {
+      "character_maximum_length": null,
+      "column": "created_at",
+      "data_type": "timestamp with time zone",
+      "nullable": false,
+      "table": "contact",
+      "udt_name": "timestamptz"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "id",
+      "data_type": "bigint",
+      "nullable": false,
+      "table": "contact",
+      "udt_name": "int8"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "updated_at",
+      "data_type": "timestamp with time zone",
+      "nullable": false,
+      "table": "contact",
+      "udt_name": "timestamptz"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "email",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "contact",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "mailbox_address",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "contact",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "name",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "contact",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "notes",
+      "data_type": "text",
+      "nullable": true,
+      "table": "contact",
+      "udt_name": "text"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "has_attachments",
+      "data_type": "boolean",
+      "nullable": false,
+      "table": "email_index",
+      "udt_name": "bool"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "subdirectory",
+      "data_type": "integer",
+      "nullable": true,
+      "table": "email_index",
+      "udt_name": "int4"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "id",
+      "data_type": "bigint",
+      "nullable": false,
+      "table": "email_index",
+      "udt_name": "int8"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "indexed_at",
+      "data_type": "timestamp with time zone",
+      "nullable": false,
+      "table": "email_index",
+      "udt_name": "timestamptz"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "received_at",
+      "data_type": "timestamp with time zone",
+      "nullable": false,
+      "table": "email_index",
+      "udt_name": "timestamptz"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "size_bytes",
+      "data_type": "bigint",
+      "nullable": true,
+      "table": "email_index",
+      "udt_name": "int8"
+    },
+    {
+      "character_maximum_length": 50,
+      "column": "folder",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "email_index",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 500,
+      "column": "from_address",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "email_index",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 500,
+      "column": "message_id",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "email_index",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 1000,
+      "column": "subject",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "email_index",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 2000,
+      "column": "to_addresses",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "email_index",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "file_name",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "email_index",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "mailbox_address",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "email_index",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "created_at",
+      "data_type": "timestamp with time zone",
+      "nullable": false,
+      "table": "email_label",
+      "udt_name": "timestamptz"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "id",
+      "data_type": "bigint",
+      "nullable": false,
+      "table": "email_label",
+      "udt_name": "int8"
+    },
+    {
+      "character_maximum_length": 20,
+      "column": "color",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "email_label",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 100,
+      "column": "label_name",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "email_label",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "mailbox_address",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "email_label",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "assigned_at",
+      "data_type": "timestamp with time zone",
+      "nullable": false,
+      "table": "email_label_assignment",
+      "udt_name": "timestamptz"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "id",
+      "data_type": "bigint",
+      "nullable": false,
+      "table": "email_label_assignment",
+      "udt_name": "int8"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "label_id",
+      "data_type": "bigint",
+      "nullable": false,
+      "table": "email_label_assignment",
+      "udt_name": "int8"
+    },
+    {
+      "character_maximum_length": 50,
+      "column": "folder",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "email_label_assignment",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "email_file_name",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "email_label_assignment",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "mailbox_address",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "email_label_assignment",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "message_count",
+      "data_type": "integer",
+      "nullable": false,
+      "table": "inbound_dmarc_log",
+      "udt_name": "int4"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "report_date",
+      "data_type": "date",
+      "nullable": false,
+      "table": "inbound_dmarc_log",
+      "udt_name": "date"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "id",
+      "data_type": "bigint",
+      "nullable": false,
+      "table": "inbound_dmarc_log",
+      "udt_name": "int8"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "received_at",
+      "data_type": "timestamp with time zone",
+      "nullable": false,
+      "table": "inbound_dmarc_log",
+      "udt_name": "timestamptz"
+    },
+    {
+      "character_maximum_length": 10,
+      "column": "dkim_alignment",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "inbound_dmarc_log",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 10,
+      "column": "dmarc_result",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "inbound_dmarc_log",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 10,
+      "column": "spf_alignment",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "inbound_dmarc_log",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 15,
+      "column": "disposition",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "inbound_dmarc_log",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 15,
+      "column": "dmarc_policy",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "inbound_dmarc_log",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 20,
+      "column": "dkim_result",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "inbound_dmarc_log",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 20,
+      "column": "spf_result",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "inbound_dmarc_log",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 45,
+      "column": "source_ip",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "inbound_dmarc_log",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "dkim_domain",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "inbound_dmarc_log",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "dkim_selector",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "inbound_dmarc_log",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "envelope_from_domain",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "inbound_dmarc_log",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "header_from_domain",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "inbound_dmarc_log",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "spf_domain",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "inbound_dmarc_log",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "created_at",
+      "data_type": "timestamp with time zone",
+      "nullable": false,
+      "table": "mailbox",
+      "udt_name": "timestamptz"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "id",
+      "data_type": "bigint",
+      "nullable": false,
+      "table": "mailbox",
+      "udt_name": "int8"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "address",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "mailbox",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "password_hash",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "mailbox",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "max_retries",
+      "data_type": "integer",
+      "nullable": false,
+      "table": "outbound_mail_queue",
+      "udt_name": "int4"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "retry_count",
+      "data_type": "integer",
+      "nullable": false,
+      "table": "outbound_mail_queue",
+      "udt_name": "int4"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "sent_subdirectory",
+      "data_type": "integer",
+      "nullable": true,
+      "table": "outbound_mail_queue",
+      "udt_name": "int4"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "created_at",
+      "data_type": "timestamp with time zone",
+      "nullable": false,
+      "table": "outbound_mail_queue",
+      "udt_name": "timestamptz"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "id",
+      "data_type": "bigint",
+      "nullable": false,
+      "table": "outbound_mail_queue",
+      "udt_name": "int8"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "next_retry_at",
+      "data_type": "timestamp with time zone",
+      "nullable": false,
+      "table": "outbound_mail_queue",
+      "udt_name": "timestamptz"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "processing_started_at",
+      "data_type": "timestamp with time zone",
+      "nullable": true,
+      "table": "outbound_mail_queue",
+      "udt_name": "timestamptz"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "sent_at",
+      "data_type": "timestamp with time zone",
+      "nullable": true,
+      "table": "outbound_mail_queue",
+      "udt_name": "timestamptz"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "updated_at",
+      "data_type": "timestamp with time zone",
+      "nullable": false,
+      "table": "outbound_mail_queue",
+      "udt_name": "timestamptz"
+    },
+    {
+      "character_maximum_length": 20,
+      "column": "status",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "outbound_mail_queue",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 100,
+      "column": "processor_id",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "outbound_mail_queue",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 1000,
+      "column": "subject",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "outbound_mail_queue",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "attachments_json",
+      "data_type": "text",
+      "nullable": true,
+      "table": "outbound_mail_queue",
+      "udt_name": "text"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "body_html",
+      "data_type": "text",
+      "nullable": true,
+      "table": "outbound_mail_queue",
+      "udt_name": "text"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "body_text",
+      "data_type": "text",
+      "nullable": true,
+      "table": "outbound_mail_queue",
+      "udt_name": "text"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "failed_domains_json",
+      "data_type": "text",
+      "nullable": true,
+      "table": "outbound_mail_queue",
+      "udt_name": "text"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "last_error",
+      "data_type": "text",
+      "nullable": true,
+      "table": "outbound_mail_queue",
+      "udt_name": "text"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "message_id",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "outbound_mail_queue",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "recipients_json",
+      "data_type": "text",
+      "nullable": false,
+      "table": "outbound_mail_queue",
+      "udt_name": "text"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "sender_address",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "outbound_mail_queue",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "sent_domains_json",
+      "data_type": "text",
+      "nullable": true,
+      "table": "outbound_mail_queue",
+      "udt_name": "text"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "sent_file_name",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "outbound_mail_queue",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "connection_count",
+      "data_type": "integer",
+      "nullable": false,
+      "table": "outbound_tls_log",
+      "udt_name": "int4"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "mta_sts_enforced",
+      "data_type": "boolean",
+      "nullable": false,
+      "table": "outbound_tls_log",
+      "udt_name": "bool"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "report_date",
+      "data_type": "date",
+      "nullable": false,
+      "table": "outbound_tls_log",
+      "udt_name": "date"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "target_port",
+      "data_type": "integer",
+      "nullable": true,
+      "table": "outbound_tls_log",
+      "udt_name": "int4"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "tls_success",
+      "data_type": "boolean",
+      "nullable": false,
+      "table": "outbound_tls_log",
+      "udt_name": "bool"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "id",
+      "data_type": "bigint",
+      "nullable": false,
+      "table": "outbound_tls_log",
+      "udt_name": "int8"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "logged_at",
+      "data_type": "timestamp with time zone",
+      "nullable": false,
+      "table": "outbound_tls_log",
+      "udt_name": "timestamptz"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "sts_max_age",
+      "data_type": "bigint",
+      "nullable": true,
+      "table": "outbound_tls_log",
+      "udt_name": "int8"
+    },
+    {
+      "character_maximum_length": 20,
+      "column": "mta_sts_mode",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "outbound_tls_log",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 20,
+      "column": "sts_policy_mode",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "outbound_tls_log",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 20,
+      "column": "sts_policy_version",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "outbound_tls_log",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 20,
+      "column": "tls_protocol",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "outbound_tls_log",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 45,
+      "column": "target_ip",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "outbound_tls_log",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 50,
+      "column": "failure_type",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "outbound_tls_log",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 100,
+      "column": "cipher_suite",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "outbound_tls_log",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 500,
+      "column": "failure_reason",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "outbound_tls_log",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "mx_host",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "outbound_tls_log",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "recipient_domain",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "outbound_tls_log",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "sts_mx_patterns",
+      "data_type": "text",
+      "nullable": true,
+      "table": "outbound_tls_log",
+      "udt_name": "text"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "activity_count",
+      "data_type": "integer",
+      "nullable": false,
+      "table": "skibidi_cringe_ip",
+      "udt_name": "int4"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "auth_probe_count",
+      "data_type": "integer",
+      "nullable": true,
+      "table": "skibidi_cringe_ip",
+      "udt_name": "int4"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "current_score",
+      "data_type": "integer",
+      "nullable": false,
+      "table": "skibidi_cringe_ip",
+      "udt_name": "int4"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "honeypot_hit_count",
+      "data_type": "integer",
+      "nullable": true,
+      "table": "skibidi_cringe_ip",
+      "udt_name": "int4"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "http_on_smtp_count",
+      "data_type": "integer",
+      "nullable": true,
+      "table": "skibidi_cringe_ip",
+      "udt_name": "int4"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "http_port_scanning_count",
+      "data_type": "integer",
+      "nullable": true,
+      "table": "skibidi_cringe_ip",
+      "udt_name": "int4"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "illegal_domain_count",
+      "data_type": "integer",
+      "nullable": true,
+      "table": "skibidi_cringe_ip",
+      "udt_name": "int4"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "open_relay_count",
+      "data_type": "integer",
+      "nullable": true,
+      "table": "skibidi_cringe_ip",
+      "udt_name": "int4"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "other_count",
+      "data_type": "integer",
+      "nullable": true,
+      "table": "skibidi_cringe_ip",
+      "udt_name": "int4"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "self_spoofing_count",
+      "data_type": "integer",
+      "nullable": true,
+      "table": "skibidi_cringe_ip",
+      "udt_name": "int4"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "spamhaus_count",
+      "data_type": "integer",
+      "nullable": true,
+      "table": "skibidi_cringe_ip",
+      "udt_name": "int4"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "ssh_bruteforce_count",
+      "data_type": "integer",
+      "nullable": true,
+      "table": "skibidi_cringe_ip",
+      "udt_name": "int4"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "ssh_on_smtp_count",
+      "data_type": "integer",
+      "nullable": true,
+      "table": "skibidi_cringe_ip",
+      "udt_name": "int4"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "total_score",
+      "data_type": "integer",
+      "nullable": false,
+      "table": "skibidi_cringe_ip",
+      "udt_name": "int4"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "first_seen_at",
+      "data_type": "timestamp with time zone",
+      "nullable": false,
+      "table": "skibidi_cringe_ip",
+      "udt_name": "timestamptz"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "last_decay_at",
+      "data_type": "timestamp with time zone",
+      "nullable": true,
+      "table": "skibidi_cringe_ip",
+      "udt_name": "timestamptz"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "last_seen_at",
+      "data_type": "timestamp with time zone",
+      "nullable": false,
+      "table": "skibidi_cringe_ip",
+      "udt_name": "timestamptz"
+    },
+    {
+      "character_maximum_length": 45,
+      "column": "ip_address",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "skibidi_cringe_ip",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "score",
+      "data_type": "integer",
+      "nullable": false,
+      "table": "skibidi_cringe_ip_activity",
+      "udt_name": "int4"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "id",
+      "data_type": "bigint",
+      "nullable": false,
+      "table": "skibidi_cringe_ip_activity",
+      "udt_name": "int8"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "timestamp",
+      "data_type": "timestamp with time zone",
+      "nullable": false,
+      "table": "skibidi_cringe_ip_activity",
+      "udt_name": "timestamptz"
+    },
+    {
+      "character_maximum_length": 32,
+      "column": "activity_type",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "skibidi_cringe_ip_activity",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 45,
+      "column": "ip_address",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "skibidi_cringe_ip_activity",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 64,
+      "column": "session_id",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "skibidi_cringe_ip_activity",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 512,
+      "column": "response_message",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "skibidi_cringe_ip_activity",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 1024,
+      "column": "metadata",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "skibidi_cringe_ip_activity",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "helo_name",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "skibidi_cringe_ip_activity",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "mail_from",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "skibidi_cringe_ip_activity",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "rcpt_to",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "skibidi_cringe_ip_activity",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "id",
+      "data_type": "bigint",
+      "nullable": false,
+      "table": "starred_email",
+      "udt_name": "int8"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "starred_at",
+      "data_type": "timestamp with time zone",
+      "nullable": false,
+      "table": "starred_email",
+      "udt_name": "timestamptz"
+    },
+    {
+      "character_maximum_length": 50,
+      "column": "folder",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "starred_email",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "email_file_name",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "starred_email",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "mailbox_address",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "starred_email",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "created_at",
+      "data_type": "timestamp with time zone",
+      "nullable": false,
+      "table": "user_preference",
+      "udt_name": "timestamptz"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "id",
+      "data_type": "bigint",
+      "nullable": false,
+      "table": "user_preference",
+      "udt_name": "int8"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "updated_at",
+      "data_type": "timestamp with time zone",
+      "nullable": false,
+      "table": "user_preference",
+      "udt_name": "timestamptz"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "mailbox_address",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "user_preference",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "preferences_json",
+      "data_type": "text",
+      "nullable": true,
+      "table": "user_preference",
+      "udt_name": "text"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "created_at",
+      "data_type": "timestamp with time zone",
+      "nullable": false,
+      "table": "user_session",
+      "udt_name": "timestamptz"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "expires_at",
+      "data_type": "timestamp with time zone",
+      "nullable": false,
+      "table": "user_session",
+      "udt_name": "timestamptz"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "id",
+      "data_type": "bigint",
+      "nullable": false,
+      "table": "user_session",
+      "udt_name": "int8"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "last_used_at",
+      "data_type": "timestamp with time zone",
+      "nullable": true,
+      "table": "user_session",
+      "udt_name": "timestamptz"
+    },
+    {
+      "character_maximum_length": 8,
+      "column": "token_prefix",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "user_session",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 45,
+      "column": "created_ip",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "user_session",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 64,
+      "column": "token_hash",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "user_session",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 500,
+      "column": "user_agent",
+      "data_type": "character varying",
+      "nullable": true,
+      "table": "user_session",
+      "udt_name": "varchar"
+    },
+    {
+      "character_maximum_length": 255,
+      "column": "mailbox_address",
+      "data_type": "character varying",
+      "nullable": false,
+      "table": "user_session",
+      "udt_name": "varchar"
+    }
+  ],
+  "compatibility_repairs": [
+    {
+      "initial_tables": [
+        "contact",
+        "email_index",
+        "email_label",
+        "email_label_assignment",
+        "inbound_dmarc_log",
+        "mailbox",
+        "outbound_tls_log",
+        "skibidi_cringe_ip",
+        "skibidi_cringe_ip_activity",
+        "starred_email",
+        "user_preference",
+        "user_session"
+      ],
+      "kind": "hibernate-longtext-to-postgres-text",
+      "postgres_sha256": "35bf707fb73b86686b4fb0199e9656e0e2f5a4b3286e808755995f49aa5105e0",
+      "source_sha256": "7efaa140acb3d72ca89da720b175811a1ecde102fde32b71fbdb90fb64a6265c",
+      "source_statement_count": 5,
+      "table": "outbound_mail_queue"
+    }
+  ],
+  "oracle_profile": "managed-basic",
+  "roundtrip_schema_sha256": "32a20945b5e79f3a9244302375e933f06a7e7a876dcfab9e71f9033cac36d4ff",
+  "schema_sha256": "4c3c9a57a29b66fda11b098368c5342e0c2477de709c79a47dc4760d8abd5463",
+  "schema_version": 1,
+  "tables": [
+    "contact",
+    "email_index",
+    "email_label",
+    "email_label_assignment",
+    "inbound_dmarc_log",
+    "mailbox",
+    "outbound_mail_queue",
+    "outbound_tls_log",
+    "skibidi_cringe_ip",
+    "skibidi_cringe_ip_activity",
+    "starred_email",
+    "user_preference",
+    "user_session"
+  ]
+}

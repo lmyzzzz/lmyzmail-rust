@@ -1,0 +1,35 @@
+{
+    "schema_version":  1,
+    "branch":  "codex/java-oracle-freeze",
+    "commit":  "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "parent":  "17c227c7315fc044fe628d5372da126aef7bedb9",
+    "patch_sha256":  "2daa0c6074b393f46736d81e86a82578f60f1a15b22e487c73c417f783d6dca0",
+    "configuration":  {
+                          "git_blob":  "f4ec72830a16c8c4c8e8e859cc3db91b77650546",
+                          "canonical_sha256":  "cc411d9d6fe38dcd990b02ca315201fb66e9d25c916572769e105b033941e981",
+                          "sanitized_file":  "application.properties.redacted"
+                      },
+    "oracle_jar":  {
+                       "local_name":  "lmyzmail-java-oracle.jar",
+                       "bytes":  220386558,
+                       "provided_pre_rebuild_sha256":  "040bfa648cd0b3a1826ca61811dd6c71c8f2bd906578392f914020eb766fb70e",
+                       "forced_rebuild_sha256":  "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc",
+                       "selected_sha256":  "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc",
+                       "resource_inventory":  "jar-resources.csv",
+                       "reproducibility_observation":  "Gradle bootJar preserved compile and resource timestamps, so a forced rebuild did not reproduce the provided pre-rebuild hash."
+                   },
+    "verification":  {
+                         "command":  ".\\gradlew.bat clean test bootJar --rerun-tasks --no-daemon",
+                         "gradle":  "8.14.3",
+                         "java":  "22",
+                         "tests":  93,
+                         "failures":  0,
+                         "errors":  0,
+                         "skipped":  0
+                     },
+    "excluded":  [
+                     "build products and ignored artifacts",
+                     "secrets and production credentials",
+                     "asciiart_linux/ffmpeg_src Windows executable-bit-only changes"
+                 ]
+}

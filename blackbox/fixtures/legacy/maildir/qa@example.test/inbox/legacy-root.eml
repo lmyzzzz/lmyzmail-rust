@@ -1,0 +1,12 @@
+Received: from legacy-client.example ([192.0.2.10]) by mail.example.test with ESMTP id legacy-root; Mon, 01 Jan 2024 00:00:00 +0000
+Authentication-Results: mail.example.test; spf=pass smtp.mailfrom=sender.example; dkim=none; dmarc=pass header.from=sender.example
+From: Legacy Sender <sender@sender.example>
+To: qa@example.test
+Date: Mon, 01 Jan 2024 00:00:00 +0000
+Message-ID: <legacy-root@sender.example>
+Subject: Legacy root mail
+MIME-Version: 1.0
+Content-Type: text/plain; charset=us-ascii
+Content-Transfer-Encoding: 7bit
+
+Legacy root mail body.

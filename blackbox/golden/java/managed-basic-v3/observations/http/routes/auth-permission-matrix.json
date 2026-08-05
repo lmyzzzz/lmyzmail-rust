@@ -1,0 +1,1878 @@
+{
+  "attestation": {
+    "harness": {
+      "pyproject_sha256": "76a97fcf76b2831da05f418f6a22aa6ba1779370011af76ee08228ecf6015eac",
+      "runtime_lock_sha256": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04",
+      "source_tree_sha256": "94d7850108becf8c9d7b43fc657a8640946513cb3c4eac3fd751365a721c4f73"
+    },
+    "normalizers": [
+      "header:date:http-date",
+      "json-object-order:jdk-map-of"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-basic"
+  },
+  "observation": {
+    "route_count": 65,
+    "routes": [
+      {
+        "auth": "session",
+        "controller": "WebMailController",
+        "method": "GET",
+        "path": "/web/mail/list/{folder}",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "WebMailController",
+        "method": "GET",
+        "path": "/web/mail/list",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "WebMailController",
+        "method": "GET",
+        "path": "/web/mail/detail/{folder}/{file}",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "WebMailController",
+        "method": "GET",
+        "path": "/web/mail/raw/{folder}/{file}",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "WebMailController",
+        "method": "GET",
+        "path": "/web/mail/headers/{folder}/{file}",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "WebMailController",
+        "method": "GET",
+        "path": "/web/mail/attachment/{folder}/{file}/{index}",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "WebMailController",
+        "method": "POST",
+        "path": "/web/mail/send",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "WebMailController",
+        "method": "POST",
+        "path": "/web/mail/send/multipart",
+        "response": {
+          "body": {
+            "base64": "",
+            "length": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "headers": [
+            [
+              "content-length",
+              "0"
+            ],
+            [
+              "connection",
+              "close"
+            ]
+          ],
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "WebMailController",
+        "method": "GET",
+        "path": "/web/mail/send/status/{queueId}",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "WebMailController",
+        "method": "GET",
+        "path": "/web/mail/send/status/file/{fileName}",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "WebMailController",
+        "method": "DELETE",
+        "path": "/web/mail/{folder}/{file}",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "WebMailController",
+        "method": "POST",
+        "path": "/web/mail/star/{folder}/{file}",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "WebMailController",
+        "method": "GET",
+        "path": "/web/mail/quota",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "UserDataController",
+        "method": "GET",
+        "path": "/web/userdata/preferences",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "UserDataController",
+        "method": "POST",
+        "path": "/web/userdata/preferences",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "UserDataController",
+        "method": "GET",
+        "path": "/web/userdata/contacts",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "UserDataController",
+        "method": "POST",
+        "path": "/web/userdata/contacts",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "UserDataController",
+        "method": "PUT",
+        "path": "/web/userdata/contacts/{id}",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "UserDataController",
+        "method": "DELETE",
+        "path": "/web/userdata/contacts/{id}",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "UserDataController",
+        "method": "GET",
+        "path": "/web/userdata/stars/{folder}",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "UserDataController",
+        "method": "POST",
+        "path": "/web/userdata/stars/{folder}/{fileName}",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "UserDataController",
+        "method": "GET",
+        "path": "/web/userdata/labels",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "UserDataController",
+        "method": "POST",
+        "path": "/web/userdata/labels",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "UserDataController",
+        "method": "PUT",
+        "path": "/web/userdata/labels/{id}",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "UserDataController",
+        "method": "DELETE",
+        "path": "/web/userdata/labels/{id}",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "UserDataController",
+        "method": "GET",
+        "path": "/web/userdata/labels/email/{folder}/{fileName}",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "UserDataController",
+        "method": "POST",
+        "path": "/web/userdata/labels/email/{folder}/{fileName}/{labelId}",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "session",
+        "controller": "UserDataController",
+        "method": "DELETE",
+        "path": "/web/userdata/labels/email/{folder}/{fileName}/{labelId}",
+        "response": {
+          "body_json": {
+            "error": "invalid_token"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "25"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6ImludmFsaWRfdG9rZW4ifQ==",
+            "length": 25,
+            "sha256": "b0c01f0f0fc139dabb2a6433f1335a1beaec00d5b9fae671c82ec3b25c6b7de4"
+          },
+          "status_code": 401,
+          "status_line": "HTTP/1.1 401 Unauthorized"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "ApiStatusController",
+        "method": "POST",
+        "path": "/api/status",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_write",
+        "controller": "MailboxController",
+        "method": "POST",
+        "path": "/api/mailboxes",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have write permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "85"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHdyaXRlIHBlcm1pc3Npb24ifQ==",
+            "length": 85,
+            "sha256": "32107ee217d8f6bf694dbf509a82534f15826fe78e97624819be0503c063980b"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "MailboxController",
+        "method": "GET",
+        "path": "/api/mailboxes/{address}/exists",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "MailPollController",
+        "method": "POST",
+        "path": "/api/mail/poll",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "MailPollController",
+        "method": "POST",
+        "path": "/api/mail/raw",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "MailPollController",
+        "method": "POST",
+        "path": "/api/mail/rawDecoded",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_write",
+        "controller": "MailSendController",
+        "method": "POST",
+        "path": "/api/mail/send",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have write permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "85"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHdyaXRlIHBlcm1pc3Npb24ifQ==",
+            "length": 85,
+            "sha256": "32107ee217d8f6bf694dbf509a82534f15826fe78e97624819be0503c063980b"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "MailSendController",
+        "method": "GET",
+        "path": "/api/mail/status/{queueId}",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "MailSendController",
+        "method": "GET",
+        "path": "/api/mail/status/message/{messageId}",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "MailSendController",
+        "method": "GET",
+        "path": "/api/mail/quota",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_write",
+        "controller": "ReportController",
+        "method": "POST",
+        "path": "/api/reports/trigger",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have write permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "85"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHdyaXRlIHBlcm1pc3Npb24ifQ==",
+            "length": 85,
+            "sha256": "32107ee217d8f6bf694dbf509a82534f15826fe78e97624819be0503c063980b"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_write",
+        "controller": "ReportController",
+        "method": "POST",
+        "path": "/api/reports/domain/{domain}",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have write permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "85"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHdyaXRlIHBlcm1pc3Npb24ifQ==",
+            "length": 85,
+            "sha256": "32107ee217d8f6bf694dbf509a82534f15826fe78e97624819be0503c063980b"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "ReportController",
+        "method": "GET",
+        "path": "/api/reports/addresses/{domain}",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "ReportController",
+        "method": "GET",
+        "path": "/api/reports/domains",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "ReportController",
+        "method": "GET",
+        "path": "/api/reports/status",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_write",
+        "controller": "StressTestController",
+        "method": "POST",
+        "path": "/api/stress/start",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have write permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "85"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHdyaXRlIHBlcm1pc3Npb24ifQ==",
+            "length": 85,
+            "sha256": "32107ee217d8f6bf694dbf509a82534f15826fe78e97624819be0503c063980b"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_write",
+        "controller": "StressTestController",
+        "method": "POST",
+        "path": "/api/stress/reset",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have write permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "85"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHdyaXRlIHBlcm1pc3Npb24ifQ==",
+            "length": 85,
+            "sha256": "32107ee217d8f6bf694dbf509a82534f15826fe78e97624819be0503c063980b"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "StressTestController",
+        "method": "POST",
+        "path": "/api/stress/status",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_write",
+        "controller": "StressTestController",
+        "method": "POST",
+        "path": "/api/stress/cleanup",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have write permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "85"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHdyaXRlIHBlcm1pc3Npb24ifQ==",
+            "length": 85,
+            "sha256": "32107ee217d8f6bf694dbf509a82534f15826fe78e97624819be0503c063980b"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "XdpFirewallController",
+        "method": "GET",
+        "path": "/api/xdp-firewall/status",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_write",
+        "controller": "XdpFirewallController",
+        "method": "POST",
+        "path": "/api/xdp-firewall/ban",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have write permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "85"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHdyaXRlIHBlcm1pc3Npb24ifQ==",
+            "length": 85,
+            "sha256": "32107ee217d8f6bf694dbf509a82534f15826fe78e97624819be0503c063980b"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_write",
+        "controller": "XdpFirewallController",
+        "method": "POST",
+        "path": "/api/xdp-firewall/unban",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have write permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "85"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHdyaXRlIHBlcm1pc3Npb24ifQ==",
+            "length": 85,
+            "sha256": "32107ee217d8f6bf694dbf509a82534f15826fe78e97624819be0503c063980b"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "XdpFirewallController",
+        "method": "GET",
+        "path": "/api/xdp-firewall/check",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "XdpFirewallController",
+        "method": "GET",
+        "path": "/api/xdp-firewall/whitelist/check",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_write",
+        "controller": "XdpFirewallController",
+        "method": "POST",
+        "path": "/api/xdp-firewall/sync",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have write permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "85"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHdyaXRlIHBlcm1pc3Npb24ifQ==",
+            "length": 85,
+            "sha256": "32107ee217d8f6bf694dbf509a82534f15826fe78e97624819be0503c063980b"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_write",
+        "controller": "XdpFirewallController",
+        "method": "DELETE",
+        "path": "/api/xdp-firewall/clear",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have write permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "85"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHdyaXRlIHBlcm1pc3Npb24ifQ==",
+            "length": 85,
+            "sha256": "32107ee217d8f6bf694dbf509a82534f15826fe78e97624819be0503c063980b"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "XdpFirewallController",
+        "method": "GET",
+        "path": "/api/xdp-firewall/stats",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "SkibidiCringeIPController",
+        "method": "GET",
+        "path": "/api/cringe-ips",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "SkibidiCringeIPController",
+        "method": "GET",
+        "path": "/api/cringe-ips/above-score/{minScore}",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "SkibidiCringeIPController",
+        "method": "GET",
+        "path": "/api/cringe-ips/insults",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "SkibidiCringeIPController",
+        "method": "GET",
+        "path": "/api/cringe-ips/{ipAddress}",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "SkibidiCringeIPController",
+        "method": "GET",
+        "path": "/api/cringe-ips/{ipAddress}/activities",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "SkibidiCringeIPController",
+        "method": "GET",
+        "path": "/api/cringe-ips/stats",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_write",
+        "controller": "SkibidiCringeIPController",
+        "method": "POST",
+        "path": "/api/cringe-ips/decay",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have write permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "85"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHdyaXRlIHBlcm1pc3Npb24ifQ==",
+            "length": 85,
+            "sha256": "32107ee217d8f6bf694dbf509a82534f15826fe78e97624819be0503c063980b"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "SkibidiCringeIPController",
+        "method": "GET",
+        "path": "/api/cringe-ips/export",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "SkibidiCringeIPController",
+        "method": "GET",
+        "path": "/api/cringe-ips/decay-config",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      },
+      {
+        "auth": "api_read",
+        "controller": "SkibidiCringeIPController",
+        "method": "GET",
+        "path": "/api/cringe-ips/{ipAddress}/decay-estimate",
+        "response": {
+          "body_json": {
+            "error": "permission_denied",
+            "message": "This API key does not have read permission"
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "84"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+            "length": 84,
+            "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+          },
+          "status_code": 403,
+          "status_line": "HTTP/1.1 403 Forbidden"
+        }
+      }
+    ]
+  },
+  "schema_version": 1
+}

@@ -1,0 +1,143 @@
+{
+  "attestation": {
+    "harness": {
+      "pyproject_sha256": "76a97fcf76b2831da05f418f6a22aa6ba1779370011af76ee08228ecf6015eac",
+      "runtime_lock_sha256": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+    },
+    "normalizers": [
+      "suite-manifest-v1"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-basic"
+  },
+  "observation": {
+    "profile": "managed-basic",
+    "scenarios": [
+      {
+        "name": "http/public/health",
+        "normalizers": [
+          "header:date:http-date",
+          "json:timestamp",
+          "header:content-length:normalized-json"
+        ]
+      },
+      {
+        "name": "http/api/missing-key",
+        "normalizers": [
+          "header:date:http-date"
+        ]
+      },
+      {
+        "name": "http/api/wrong-key",
+        "normalizers": [
+          "header:date:http-date"
+        ]
+      },
+      {
+        "name": "http/api/status",
+        "normalizers": [
+          "header:date:http-date",
+          "json:timestamp",
+          "header:content-length:normalized-json"
+        ]
+      },
+      {
+        "name": "http/api/unknown-before-routing",
+        "normalizers": [
+          "header:date:http-date"
+        ]
+      },
+      {
+        "name": "http/routing/not-found",
+        "normalizers": [
+          "header:date:http-date"
+        ]
+      },
+      {
+        "name": "http/routing/wrong-method-is-not-found",
+        "normalizers": [
+          "header:date:http-date"
+        ]
+      },
+      {
+        "name": "http/cors/allowed-preflight",
+        "normalizers": [
+          "header:date:http-date",
+          "header:access-control-allow-origin:ephemeral-port"
+        ]
+      },
+      {
+        "name": "http/cors/rejected-preflight",
+        "normalizers": [
+          "header:date:http-date"
+        ]
+      },
+      {
+        "name": "http/web/login-success",
+        "normalizers": [
+          "header:date:http-date",
+          "json:session-token",
+          "header:content-length:normalized-json"
+        ]
+      },
+      {
+        "name": "http/web/login-invalid",
+        "normalizers": [
+          "header:date:http-date"
+        ]
+      },
+      {
+        "name": "http/web/logout-without-token",
+        "normalizers": [
+          "header:date:http-date"
+        ]
+      },
+      {
+        "name": "http/web/domains",
+        "normalizers": [
+          "header:date:http-date"
+        ]
+      },
+      {
+        "name": "http/web/config",
+        "normalizers": [
+          "header:date:http-date"
+        ]
+      },
+      {
+        "name": "http/static/index",
+        "normalizers": [
+          "header:date:http-date"
+        ]
+      },
+      {
+        "name": "http/static/index-alias",
+        "normalizers": [
+          "header:date:http-date"
+        ]
+      },
+      {
+        "name": "http/static/cringe",
+        "normalizers": [
+          "header:date:http-date"
+        ]
+      },
+      {
+        "name": "http/static/favicon",
+        "normalizers": [
+          "header:date:http-date"
+        ]
+      },
+      {
+        "name": "http/static/path-traversal",
+        "normalizers": [
+          "header:date:http-date"
+        ]
+      }
+    ]
+  },
+  "schema_version": 1
+}
