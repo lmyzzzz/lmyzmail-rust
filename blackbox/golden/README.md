@@ -44,15 +44,34 @@ inputs, and must never be overwritten in place.
   removing the ephemeral keystore password from the Java process command line.
 - `managed-basic-v12/` re-attests the unchanged HTTP and plaintext SMTP observations
   after the STARTTLS runtime moved its password to a non-inherited environment variable.
-  It is the active basic set consumed by tests at this milestone.
+  It is retained after the AUTH contract was added to the harness definition.
+- `managed-basic-v13/` re-attests the unchanged HTTP and plaintext SMTP observations
+  after the isolated AUTH profiles and their raw-socket contract were added. It is the
+  active basic set consumed by tests at this milestone.
 - `managed-starttls-v1/` freezes normal STARTTLS advertisement, certificate semantics,
   TLS 1.2/1.3 negotiation, TLS 1.1 rejection, state reset, malformed-handshake recovery,
   and a storage-backed TLS DATA delivery. It is retained after password transport
   hardening changed the harness definition.
 - `managed-starttls-oracle-evidence-v1/` records the frozen Java plaintext-command
   smuggling behavior under that preceding definition and is retained unchanged.
-- `managed-starttls-v2/` is the active normal STARTTLS differential set with the PKCS12
-  password absent from argv and supplied only through the isolated process environment.
-- `managed-starttls-oracle-evidence-v2/` is the corresponding active evidence set for the
-  approved plaintext-command smuggling difference. It must never be used as the candidate
-  expectation.
+- `managed-starttls-v2/` is the preceding normal STARTTLS differential set with the PKCS12
+  password absent from argv and supplied only through the isolated process environment. It
+  is retained after the AUTH contract was added.
+- `managed-starttls-oracle-evidence-v2/` is the corresponding retained evidence set for
+  the approved plaintext-command smuggling difference. It must never be used as the
+  candidate expectation.
+- `managed-starttls-v3/` re-attests the unchanged normal STARTTLS observations after the
+  AUTH contract was added to the harness definition. It is the active STARTTLS set.
+- `managed-starttls-oracle-evidence-v3/` re-attests the unchanged smuggling evidence under
+  the same definition and remains evidence only, never a candidate expectation.
+- `managed-smtp-auth-v1/` freezes the first isolated plaintext AUTH recording. It is retained
+  as create-once evidence after the contract was strengthened with line-length and partial-
+  disconnect recovery checks.
+- `managed-smtp-auth-starttls-v1/` freezes the first isolated AUTH-over-STARTTLS recording
+  and is retained for the same reason.
+- `managed-smtp-auth-v2/` is the active plaintext AUTH profile: AUTH is not advertised,
+  all mechanism-shaped inputs return the exact 502 probe sink, the 20th failure blocks a
+  later MAIL command, loopback Cringe persistence remains absent, and line/disconnect
+  recovery is bounded.
+- `managed-smtp-auth-starttls-v2/` is the active AUTH-over-STARTTLS profile, including the
+  post-upgrade EHLO reset and absence of AUTH advertisement on both sides of TLS.
