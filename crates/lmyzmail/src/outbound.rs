@@ -1,26 +1,54 @@
-use std::{collections::BTreeSet, fmt, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
+};
 
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use deadpool_postgres::Pool;
+use deadpool_redis::Pool as RedisPool;
 use getrandom::fill as fill_random;
 use idna::domain_to_ascii_strict;
 use mail_parser::MessageParser;
 use serde::{Deserialize, Serialize};
-use tokio::time::timeout;
+use tokio::{
+    sync::Semaphore,
+    task::spawn_blocking,
+    time::{MissedTickBehavior, interval, timeout},
+};
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     auth::{AuthError, AuthService, CredentialOutcome},
     config::RuntimeConfig,
+    outbound_message::{
+        MaterializedMessage, MessageAttachment, MessageBuildError, MessageInput,
+        OutboundMessageBuilder,
+    },
+    outbound_queue::{DomainStatus, LegacyOutboundQueue, TaskDetail},
 };
 
 const DATABASE_TIMEOUT: Duration = Duration::from_secs(8);
+const STORAGE_TIMEOUT: Duration = Duration::from_secs(60);
+const STORAGE_CANCEL_GRACE: Duration = Duration::from_secs(5);
+const OUTBOUND_BLOCKING_TASKS: usize = 4;
+const RECONCILE_INTERVAL: Duration = Duration::from_secs(5);
+const RECONCILE_BATCH_SIZE: i64 = 128;
 const DEFAULT_MAX_PENDING_TASKS: i64 = 10_000;
 const DEFAULT_MAX_RETRIES: i32 = 5;
 const DEFAULT_MAX_EMAILS_PER_ACCOUNT: i64 = 100;
 const DEFAULT_RATE_WINDOW_HOURS: i64 = 3;
 const MAX_RECIPIENTS: usize = 1_000;
+const MAX_ATTACHMENTS: usize = 256;
 const MAX_ADDRESS_BYTES: usize = 254;
 const MAX_SUBJECT_BYTES: usize = 1_000;
+const MAX_ATTACHMENT_FILENAME_BYTES: usize = 255;
+const MAX_CONTENT_TYPE_BYTES: usize = 255;
+const MAX_CONTENT_ID_BYTES: usize = 998;
 
 #[derive(Debug)]
 pub enum OutboundError {
@@ -60,12 +88,14 @@ impl std::error::Error for OutboundError {}
 #[derive(Clone)]
 pub struct OutboundService {
     pool: Pool,
+    queue: LegacyOutboundQueue,
+    message_builder: OutboundMessageBuilder,
+    blocking_permits: Arc<Semaphore>,
     domain: Arc<str>,
     max_pending_tasks: i64,
     max_retries: i32,
     max_emails_per_account: i64,
     rate_window: ChronoDuration,
-    max_email_size_bytes: u64,
     max_attachment_size_bytes: u64,
     max_total_attachments_size_bytes: u64,
 }
@@ -112,6 +142,8 @@ pub struct QueueResponse {
     pub status: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    #[serde(skip)]
+    pub sent_file_name: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -172,8 +204,27 @@ struct StatusRow {
     next_retry_at: Option<DateTime<Utc>>,
 }
 
+struct ReconcileRow {
+    id: i64,
+    sender_address: String,
+    recipients_json: String,
+    subject: Option<String>,
+    message_id: Option<String>,
+    max_retries: i32,
+    retry_count: i32,
+    sent_file_name: Option<String>,
+    sent_subdirectory: Option<i32>,
+    created_at: DateTime<Utc>,
+    next_retry_at: DateTime<Utc>,
+    last_error: Option<String>,
+}
+
 impl OutboundService {
-    pub fn from_config(config: &RuntimeConfig, pool: Pool) -> Result<Self, OutboundError> {
+    pub fn from_config(
+        config: &RuntimeConfig,
+        pool: Pool,
+        redis_pool: RedisPool,
+    ) -> Result<Self, OutboundError> {
         let max_pending_tasks = parse_bounded_i64(
             config,
             "lmyzmail.outbound.max-pending-tasks",
@@ -206,14 +257,18 @@ impl OutboundService {
             1,
             24 * 365,
         )?;
+        let message_builder =
+            OutboundMessageBuilder::from_config(config).map_err(map_message_build_error)?;
         Ok(Self {
             pool,
+            queue: LegacyOutboundQueue::new(redis_pool),
+            message_builder,
+            blocking_permits: Arc::new(Semaphore::new(OUTBOUND_BLOCKING_TASKS)),
             domain: Arc::from(config.domain.as_str()),
             max_pending_tasks,
             max_retries,
             max_emails_per_account,
             rate_window: ChronoDuration::hours(rate_window_hours),
-            max_email_size_bytes: config.limits.max_email_size_bytes,
             max_attachment_size_bytes: config.limits.max_attachment_size_bytes,
             max_total_attachments_size_bytes: config.limits.max_total_attachments_size_bytes,
         })
@@ -227,48 +282,48 @@ impl OutboundService {
         if request.asynchronous == Some(false) {
             return Err(OutboundError::SynchronousUnsupported);
         }
+        let SendRequest {
+            from,
+            password,
+            to,
+            cc,
+            bcc,
+            subject,
+            text,
+            html,
+            attachments,
+            ..
+        } = request;
         let sender = normalize_address(
-            request
-                .from
-                .as_deref()
+            from.as_deref()
                 .ok_or(OutboundError::InvalidInput("from_required"))?,
         )?;
         if sender.rsplit_once('@').map(|(_, value)| value) != Some(self.domain.as_ref()) {
             return Err(OutboundError::InvalidInput("sending_not_allowed"));
         }
         if credentials.is_some()
-            && request
-                .password
+            && password
                 .as_deref()
                 .is_none_or(|value| value.trim().is_empty())
         {
             return Err(OutboundError::InvalidInput("password_required"));
         }
-        self.validate_sizes(&request)?;
-        let recipients = ValidatedRecipients::new(request.to, request.cc, request.bcc)?;
+        let recipients = ValidatedRecipients::new(to, cc, bcc)?;
         let subject = sanitize_subject(
-            request
-                .subject
+            subject
                 .as_deref()
                 .ok_or(OutboundError::InvalidInput("subject_required"))?,
         )?;
-        if request
-            .text
-            .as_deref()
-            .is_none_or(|value| value.trim().is_empty())
-            && request
-                .html
-                .as_deref()
-                .is_none_or(|value| value.trim().is_empty())
+        if text.as_deref().is_none_or(|value| value.trim().is_empty())
+            && html.as_deref().is_none_or(|value| value.trim().is_empty())
         {
             return Err(OutboundError::InvalidInput("body_required"));
         }
+        let attachments = self.validate_attachments(attachments)?;
         let recipients_json =
             serde_json::to_string(&recipients).map_err(|_| OutboundError::Unavailable)?;
-        let attachments_json =
-            serde_json::to_string(&request.attachments).map_err(|_| OutboundError::Unavailable)?;
         if let Some((auth, client_ip)) = credentials {
-            let password = request.password.as_deref().unwrap_or_default();
+            let password = password.as_deref().unwrap_or_default();
             match auth
                 .verify_mailbox_credentials(&sender, password, client_ip)
                 .await
@@ -280,9 +335,152 @@ impl OutboundService {
                 }
             }
         }
-        let now = Utc::now();
+        let now = postgres_timestamp(Utc::now());
         let message_id = new_message_id(self.domain.as_ref())?;
-        let next_retry_at = now;
+        let id_client = timeout(DATABASE_TIMEOUT, self.pool.get())
+            .await
+            .map_err(|_| OutboundError::Unavailable)?
+            .map_err(|error| OutboundError::Database(error.to_string()))?;
+        let max_id: i64 = timeout(
+            DATABASE_TIMEOUT,
+            id_client.query_one("SELECT COALESCE(max(id), 0) FROM outbound_mail_queue", &[]),
+        )
+        .await
+        .map_err(|_| OutboundError::Unavailable)?
+        .map_err(db_error)?
+        .get(0);
+        drop(id_client);
+        let queue_id = self
+            .queue
+            .reserve_task_id(max_id)
+            .await
+            .map_err(|_| OutboundError::Unavailable)?;
+        let input = MessageInput {
+            task_id: queue_id,
+            sender,
+            to: recipients.to,
+            cc: recipients.cc,
+            bcc: recipients.bcc,
+            subject,
+            text,
+            html,
+            attachments,
+            message_id: message_id.clone(),
+            created_at: now,
+        };
+        let (materialized, input) = self.materialize_message(input).await?;
+        let attachments_json =
+            serde_json::to_string(&input.attachments).map_err(|_| OutboundError::Unavailable)?;
+        let to_addresses = index_to_addresses(&input.to)?;
+        let domain_statuses = pending_domain_statuses(&input, now)?;
+
+        let persistence = self
+            .persist_materialized(
+                &input,
+                &recipients_json,
+                &attachments_json,
+                &to_addresses,
+                &materialized,
+                now,
+            )
+            .await;
+        if let Err(error) = persistence {
+            self.rollback_materialized(materialized).await;
+            return Err(error);
+        }
+
+        let message_file_path = if materialized.signed_content_base64.is_none() {
+            Some(
+                materialized
+                    .spool_path
+                    .to_str()
+                    .ok_or(OutboundError::Unavailable)?
+                    .to_owned(),
+            )
+        } else {
+            None
+        };
+        let task = TaskDetail {
+            id: queue_id,
+            sender_address: input.sender,
+            recipients_json,
+            subject: input.subject,
+            message_id: input.message_id,
+            max_retries: self.max_retries,
+            retry_count: 0,
+            sent_file_name: Some(materialized.sent_file_name.clone()),
+            sent_subdirectory: Some(materialized.sent_subdirectory),
+            message_file_path,
+            signed_content_base64: materialized.signed_content_base64.clone(),
+            created_at: instant(now),
+            next_retry_at: None,
+            last_error: None,
+            status: "PENDING".into(),
+        };
+        self.queue
+            .publish(&task, &domain_statuses)
+            .await
+            .map_err(|_| OutboundError::Unavailable)?;
+        self.cleanup_published(materialized.clone()).await;
+        Ok(QueueResponse {
+            queued: true,
+            queue_id,
+            message_id,
+            status: "PENDING",
+            error: None,
+            sent_file_name: materialized.sent_file_name,
+        })
+    }
+
+    async fn materialize_message(
+        &self,
+        input: MessageInput,
+    ) -> Result<(MaterializedMessage, MessageInput), OutboundError> {
+        let permit = timeout(
+            STORAGE_TIMEOUT,
+            self.blocking_permits.clone().acquire_owned(),
+        )
+        .await
+        .map_err(|_| OutboundError::Unavailable)?
+        .map_err(|_| OutboundError::Unavailable)?;
+        let builder = self.message_builder.clone();
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let task_cancelled = Arc::clone(&cancelled);
+        let mut task = spawn_blocking(move || {
+            let _permit = permit;
+            let result = builder.materialize(&input, &task_cancelled);
+            if task_cancelled.load(Ordering::Acquire)
+                && let Ok(message) = result.as_ref()
+            {
+                let _ = builder.rollback_unpublished(message);
+                return (Err(MessageBuildError::Cancelled), input);
+            }
+            (result, input)
+        });
+        match timeout(STORAGE_TIMEOUT, &mut task).await {
+            Ok(Ok((result, input))) => result
+                .map(|materialized| (materialized, input))
+                .map_err(map_message_build_error),
+            Ok(Err(_)) => Err(OutboundError::Unavailable),
+            Err(_) => {
+                cancelled.store(true, Ordering::Release);
+                let _ = timeout(STORAGE_CANCEL_GRACE, task).await;
+                Err(OutboundError::Unavailable)
+            }
+        }
+    }
+
+    async fn persist_materialized(
+        &self,
+        input: &MessageInput,
+        recipients_json: &str,
+        attachments_json: &str,
+        to_addresses: &str,
+        materialized: &MaterializedMessage,
+        now: DateTime<Utc>,
+    ) -> Result<(), OutboundError> {
+        let message_bytes = i64::try_from(materialized.message_bytes)
+            .map_err(|_| OutboundError::InvalidInput("email_too_large"))?;
         let mut client = timeout(DATABASE_TIMEOUT, self.pool.get())
             .await
             .map_err(|_| OutboundError::Unavailable)?
@@ -291,7 +489,7 @@ impl OutboundService {
             .await
             .map_err(|_| OutboundError::Unavailable)?
             .map_err(db_error)?;
-        for lock_name in ["lmyzmail:outbound:queue", sender.as_str()] {
+        for lock_name in ["lmyzmail:outbound:queue", input.sender.as_str()] {
             timeout(
                 DATABASE_TIMEOUT,
                 transaction.query_one(
@@ -303,18 +501,28 @@ impl OutboundService {
             .map_err(|_| OutboundError::Unavailable)?
             .map_err(db_error)?;
         }
-        let pending: i64 = timeout(
+        let pending_rows = timeout(
             DATABASE_TIMEOUT,
-            transaction.query_one(
-                "SELECT count(*) FROM outbound_mail_queue WHERE status IN ('PENDING','PROCESSING')",
-                &[],
+            transaction.query(
+                "SELECT id FROM outbound_mail_queue
+                 WHERE status IN ('PENDING','PROCESSING') LIMIT $1",
+                &[&(self.max_pending_tasks + 1)],
             ),
         )
         .await
         .map_err(|_| OutboundError::Unavailable)?
-        .map_err(db_error)?
-        .get(0);
-        if pending >= self.max_pending_tasks {
+        .map_err(db_error)?;
+        let mut active_ids = pending_rows
+            .into_iter()
+            .map(|row| row.get::<_, i64>(0).to_string())
+            .collect::<BTreeSet<_>>();
+        active_ids.extend(
+            self.queue
+                .active_task_ids(self.max_pending_tasks as usize + 1)
+                .await
+                .map_err(|_| OutboundError::Unavailable)?,
+        );
+        if active_ids.len() >= self.max_pending_tasks as usize {
             return Err(OutboundError::QueueFull);
         }
         let window_start = now - self.rate_window;
@@ -322,7 +530,7 @@ impl OutboundService {
             DATABASE_TIMEOUT,
             transaction.query_one(
                 "SELECT count(*) FROM outbound_mail_queue WHERE sender_address=$1 AND created_at >= $2",
-                &[&sender, &window_start],
+                &[&input.sender, &window_start],
             ),
         )
         .await
@@ -332,24 +540,28 @@ impl OutboundService {
         if used >= self.max_emails_per_account {
             return Err(OutboundError::RateLimited { remaining: 0 });
         }
+        let next_retry_at = now;
         let row = timeout(
             DATABASE_TIMEOUT,
             transaction.query_one(
                 "INSERT INTO outbound_mail_queue
-                 (sender_address,recipients_json,subject,body_text,body_html,attachments_json,
+                 (id,sender_address,recipients_json,subject,body_text,body_html,attachments_json,
                   message_id,sent_file_name,sent_subdirectory,status,retry_count,max_retries,
                   next_retry_at,last_error,sent_domains_json,failed_domains_json,created_at,
                   updated_at,sent_at,processing_started_at,processor_id)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7,NULL,NULL,'PENDING',0,$8,$9,NULL,'[]','{}',$10,$10,NULL,NULL,NULL)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'PENDING',0,$11,$12,NULL,'[]','{}',$13,$13,NULL,NULL,NULL)
                  RETURNING id",
                 &[
-                    &sender,
+                    &input.task_id,
+                    &input.sender,
                     &recipients_json,
-                    &subject,
-                    &request.text,
-                    &request.html,
+                    &input.subject,
+                    &input.text,
+                    &input.html,
                     &attachments_json,
-                    &message_id,
+                    &input.message_id,
+                    &materialized.sent_file_name,
+                    &materialized.sent_subdirectory,
                     &self.max_retries,
                     &next_retry_at,
                     &now,
@@ -359,18 +571,305 @@ impl OutboundService {
         .await
         .map_err(|_| OutboundError::Unavailable)?
         .map_err(db_error)?;
-        let queue_id: i64 = row.get(0);
+        if row.get::<_, i64>(0) != input.task_id {
+            return Err(OutboundError::Unavailable);
+        }
+        let sequence_row = timeout(
+            DATABASE_TIMEOUT,
+            transaction.query_one(
+                "SELECT setval(
+                    pg_get_serial_sequence('outbound_mail_queue','id'),
+                    GREATEST($1,(SELECT COALESCE(max(id),0) FROM outbound_mail_queue)),
+                    true
+                 )",
+                &[&input.task_id],
+            ),
+        )
+        .await
+        .map_err(|_| OutboundError::Unavailable)?
+        .map_err(db_error)?;
+        if sequence_row.get::<_, Option<i64>>(0).is_none() {
+            return Err(OutboundError::Unavailable);
+        }
+        timeout(
+            DATABASE_TIMEOUT,
+            transaction.execute(
+                "INSERT INTO email_index
+                 (has_attachments,subdirectory,indexed_at,received_at,size_bytes,folder,
+                  from_address,message_id,subject,to_addresses,file_name,mailbox_address)
+                 VALUES ($1,$2,$3,$3,$4,'sent',$5,$6,$7,$8,$9,$5)",
+                &[
+                    &(!input.attachments.is_empty()),
+                    &materialized.sent_subdirectory,
+                    &now,
+                    &message_bytes,
+                    &input.sender,
+                    &input.message_id,
+                    &input.subject,
+                    &to_addresses,
+                    &materialized.sent_file_name,
+                ],
+            ),
+        )
+        .await
+        .map_err(|_| OutboundError::Unavailable)?
+        .map_err(db_error)?;
         timeout(DATABASE_TIMEOUT, transaction.commit())
             .await
             .map_err(|_| OutboundError::Unavailable)?
-            .map_err(db_error)?;
-        Ok(QueueResponse {
-            queued: true,
-            queue_id,
+            .map_err(db_error)
+    }
+
+    async fn rollback_materialized(&self, materialized: MaterializedMessage) {
+        let Ok(Ok(permit)) = timeout(
+            STORAGE_TIMEOUT,
+            self.blocking_permits.clone().acquire_owned(),
+        )
+        .await
+        else {
+            eprintln!("lmyzmail outbound rollback could not acquire a blocking slot");
+            return;
+        };
+        let builder = self.message_builder.clone();
+        match timeout(
+            STORAGE_TIMEOUT,
+            spawn_blocking(move || {
+                let _permit = permit;
+                builder.rollback_unpublished(&materialized)
+            }),
+        )
+        .await
+        {
+            Ok(Ok(Ok(()))) => {}
+            _ => eprintln!("lmyzmail outbound unpublished-message rollback failed"),
+        }
+    }
+
+    async fn cleanup_published(&self, materialized: MaterializedMessage) {
+        let Ok(Ok(permit)) = timeout(
+            STORAGE_TIMEOUT,
+            self.blocking_permits.clone().acquire_owned(),
+        )
+        .await
+        else {
+            eprintln!("lmyzmail outbound spool cleanup could not acquire a blocking slot");
+            return;
+        };
+        let builder = self.message_builder.clone();
+        match timeout(
+            STORAGE_TIMEOUT,
+            spawn_blocking(move || {
+                let _permit = permit;
+                builder.cleanup_small_spool(&materialized)
+            }),
+        )
+        .await
+        {
+            Ok(Ok(Ok(()))) => {}
+            _ => eprintln!("lmyzmail outbound small-message spool cleanup failed"),
+        }
+    }
+
+    pub async fn run_reconciler(&self, cancellation: CancellationToken) {
+        let mut ticker = interval(RECONCILE_INTERVAL);
+        ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        let mut after_id = 0_i64;
+        loop {
+            tokio::select! {
+                _ = cancellation.cancelled() => break,
+                _ = ticker.tick() => {
+                    match self.reconcile_batch(after_id, &cancellation).await {
+                        Ok((next_id, count)) => {
+                            after_id = if count < RECONCILE_BATCH_SIZE as usize {
+                                0
+                            } else {
+                                next_id
+                            };
+                        }
+                        Err(error) => {
+                            eprintln!("lmyzmail outbound reconciliation failed: {error}");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    async fn reconcile_batch(
+        &self,
+        after_id: i64,
+        cancellation: &CancellationToken,
+    ) -> Result<(i64, usize), OutboundError> {
+        let client = timeout(DATABASE_TIMEOUT, self.pool.get())
+            .await
+            .map_err(|_| OutboundError::Unavailable)?
+            .map_err(|error| OutboundError::Database(error.to_string()))?;
+        let rows = timeout(
+            DATABASE_TIMEOUT,
+            client.query(
+                "SELECT id,sender_address,recipients_json,subject,message_id,max_retries,
+                        retry_count,sent_file_name,sent_subdirectory,created_at,next_retry_at,last_error
+                 FROM outbound_mail_queue
+                 WHERE status='PENDING' AND id > $1 ORDER BY id LIMIT $2",
+                &[&after_id, &RECONCILE_BATCH_SIZE],
+            ),
+        )
+        .await
+        .map_err(|_| OutboundError::Unavailable)?
+        .map_err(db_error)?;
+        drop(client);
+        let count = rows.len();
+        let mut next_id = after_id;
+        for row in rows {
+            if cancellation.is_cancelled() {
+                break;
+            }
+            let row = ReconcileRow {
+                id: row.get(0),
+                sender_address: row.get(1),
+                recipients_json: row.get(2),
+                subject: row.get(3),
+                message_id: row.get(4),
+                max_retries: row.get(5),
+                retry_count: row.get(6),
+                sent_file_name: row.get(7),
+                sent_subdirectory: row.get(8),
+                created_at: row.get(9),
+                next_retry_at: row.get(10),
+                last_error: row.get(11),
+            };
+            next_id = row.id;
+            if let Err(error) = self.reconcile_row(row, cancellation).await {
+                if cancellation.is_cancelled() {
+                    break;
+                }
+                eprintln!("lmyzmail outbound task {next_id} could not be reconciled: {error}");
+            }
+        }
+        Ok((next_id, count))
+    }
+
+    async fn reconcile_row(
+        &self,
+        row: ReconcileRow,
+        cancellation: &CancellationToken,
+    ) -> Result<(), OutboundError> {
+        let sent_file_name = row
+            .sent_file_name
+            .clone()
+            .filter(|value| !value.is_empty())
+            .ok_or(OutboundError::Unavailable)?;
+        let sent_subdirectory = row
+            .sent_subdirectory
+            .filter(|value| *value > 0)
+            .ok_or(OutboundError::Unavailable)?;
+        if self
+            .queue
+            .is_complete_task(row.id, &sent_file_name)
+            .await
+            .map_err(|_| OutboundError::Unavailable)?
+        {
+            return Ok(());
+        }
+        let recipients: ValidatedRecipients =
+            serde_json::from_str(&row.recipients_json).map_err(|_| OutboundError::Unavailable)?;
+        let subject = row.subject.ok_or(OutboundError::Unavailable)?;
+        let message_id = row.message_id.ok_or(OutboundError::Unavailable)?;
+        let materialized = self
+            .recover_message(
+                row.id,
+                &row.sender_address,
+                &sent_file_name,
+                sent_subdirectory,
+                cancellation,
+            )
+            .await?;
+        let statuses = pending_domain_statuses_for_recipients(
+            &recipients.to,
+            &recipients.cc,
+            &recipients.bcc,
+            row.created_at,
+        )?;
+        let message_file_path = if materialized.signed_content_base64.is_none() {
+            Some(
+                materialized
+                    .spool_path
+                    .to_str()
+                    .ok_or(OutboundError::Unavailable)?
+                    .to_owned(),
+            )
+        } else {
+            None
+        };
+        let task = TaskDetail {
+            id: row.id,
+            sender_address: row.sender_address,
+            recipients_json: row.recipients_json,
+            subject,
             message_id,
-            status: "PENDING",
-            error: None,
-        })
+            max_retries: row.max_retries,
+            retry_count: row.retry_count,
+            sent_file_name: Some(sent_file_name),
+            sent_subdirectory: Some(sent_subdirectory),
+            message_file_path,
+            signed_content_base64: materialized.signed_content_base64.clone(),
+            created_at: instant(row.created_at),
+            next_retry_at: (row.retry_count > 0).then(|| instant(row.next_retry_at)),
+            last_error: row.last_error,
+            status: "PENDING".into(),
+        };
+        self.queue
+            .publish(&task, &statuses)
+            .await
+            .map_err(|_| OutboundError::Unavailable)?;
+        self.cleanup_published(materialized).await;
+        Ok(())
+    }
+
+    async fn recover_message(
+        &self,
+        task_id: i64,
+        sender: &str,
+        sent_file_name: &str,
+        sent_subdirectory: i32,
+        cancellation: &CancellationToken,
+    ) -> Result<MaterializedMessage, OutboundError> {
+        let permit = tokio::select! {
+            _ = cancellation.cancelled() => return Err(OutboundError::Unavailable),
+            permit = timeout(STORAGE_TIMEOUT, self.blocking_permits.clone().acquire_owned()) => {
+                permit
+                    .map_err(|_| OutboundError::Unavailable)?
+                    .map_err(|_| OutboundError::Unavailable)?
+            }
+        };
+        let builder = self.message_builder.clone();
+        let sender = sender.to_owned();
+        let sent_file_name = sent_file_name.to_owned();
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let task_cancelled = Arc::clone(&cancelled);
+        let mut task = spawn_blocking(move || {
+            let _permit = permit;
+            builder.recover(
+                task_id,
+                &sender,
+                &sent_file_name,
+                sent_subdirectory,
+                &task_cancelled,
+            )
+        });
+        tokio::select! {
+            result = timeout(STORAGE_TIMEOUT, &mut task) => {
+                result
+                    .map_err(|_| OutboundError::Unavailable)?
+                    .map_err(|_| OutboundError::Unavailable)?
+                    .map_err(map_message_build_error)
+            }
+            _ = cancellation.cancelled() => {
+                cancelled.store(true, Ordering::Release);
+                let _ = timeout(STORAGE_CANCEL_GRACE, task).await;
+                Err(OutboundError::Unavailable)
+            }
+        }
     }
 
     pub async fn api_status_by_id(
@@ -495,31 +994,121 @@ impl OutboundService {
         }))
     }
 
-    fn validate_sizes(&self, request: &SendRequest) -> Result<(), OutboundError> {
+    fn validate_attachments(
+        &self,
+        attachments: Vec<AttachmentInput>,
+    ) -> Result<Vec<MessageAttachment>, OutboundError> {
+        if attachments.len() > MAX_ATTACHMENTS {
+            return Err(OutboundError::InvalidInput("too_many_attachments"));
+        }
         let mut total = 0_u64;
-        for attachment in &request.attachments {
-            let Some(content) = attachment.content_base64.as_deref() else {
-                continue;
-            };
-            let size = decoded_base64_size(content)?;
+        let mut validated = Vec::with_capacity(attachments.len());
+        for attachment in attachments {
+            let content = attachment.content_base64.unwrap_or_default();
+            let size = decoded_base64_size(&content)?;
             if size > self.max_attachment_size_bytes {
                 return Err(OutboundError::InvalidInput("attachment_too_large"));
             }
             total = total
                 .checked_add(size)
                 .ok_or(OutboundError::InvalidInput("attachments_too_large"))?;
+            let filename = attachment.filename.unwrap_or_else(|| "attachment".into());
+            if filename.len() > MAX_ATTACHMENT_FILENAME_BYTES
+                || filename.chars().any(char::is_control)
+            {
+                return Err(OutboundError::InvalidInput("invalid_attachment"));
+            }
+            let content_type = attachment
+                .content_type
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or_else(|| "application/octet-stream".into());
+            if content_type.len() > MAX_CONTENT_TYPE_BYTES {
+                return Err(OutboundError::InvalidInput("invalid_attachment"));
+            }
+            let content_type = content_type
+                .parse::<mime::Mime>()
+                .map_err(|_| OutboundError::InvalidInput("invalid_attachment"))?
+                .to_string();
+            let content_id = attachment.content_id.map(validate_content_id).transpose()?;
+            validated.push(MessageAttachment {
+                filename,
+                content_type,
+                content_base64: content,
+                inline: attachment.inline,
+                content_id,
+            });
         }
         if total > self.max_total_attachments_size_bytes {
             return Err(OutboundError::InvalidInput("attachments_too_large"));
         }
-        let estimated = request.text.as_ref().map_or(0, String::len) as u64
-            + request.html.as_ref().map_or(0, String::len) as u64
-            + total.saturating_mul(4).div_ceil(3)
-            + 4_096;
-        if estimated > self.max_email_size_bytes {
-            return Err(OutboundError::InvalidInput("email_too_large"));
-        }
-        Ok(())
+        Ok(validated)
+    }
+}
+
+fn validate_content_id(value: String) -> Result<String, OutboundError> {
+    if value.is_empty()
+        || value.len() > MAX_CONTENT_ID_BYTES
+        || value
+            .chars()
+            .any(|character| character.is_control() || character.is_whitespace())
+        || value.contains(['<', '>'])
+    {
+        return Err(OutboundError::InvalidInput("invalid_attachment"));
+    }
+    Ok(value)
+}
+
+fn index_to_addresses(addresses: &[String]) -> Result<String, OutboundError> {
+    let mut json = serde_json::to_string(addresses).map_err(|_| OutboundError::Unavailable)?;
+    if let Some((index, _)) = json.char_indices().nth(2_000) {
+        json.truncate(index);
+    }
+    Ok(json)
+}
+
+fn pending_domain_statuses(
+    input: &MessageInput,
+    now: DateTime<Utc>,
+) -> Result<BTreeMap<String, DomainStatus>, OutboundError> {
+    pending_domain_statuses_for_recipients(&input.to, &input.cc, &input.bcc, now)
+}
+
+fn pending_domain_statuses_for_recipients(
+    to: &[String],
+    cc: &[String],
+    bcc: &[String],
+    now: DateTime<Utc>,
+) -> Result<BTreeMap<String, DomainStatus>, OutboundError> {
+    let updated_at = instant(now);
+    let mut statuses = BTreeMap::<String, DomainStatus>::new();
+    for address in to.iter().chain(cc).chain(bcc) {
+        let (_, domain) = address
+            .rsplit_once('@')
+            .ok_or(OutboundError::InvalidInput("invalid_address"))?;
+        statuses
+            .entry(domain.to_owned())
+            .or_insert_with(|| DomainStatus {
+                domain: domain.to_owned(),
+                status: "PENDING".into(),
+                error: None,
+                recipients: Vec::new(),
+                updated_at: updated_at.clone(),
+            })
+            .recipients
+            .push(address.clone());
+    }
+    if statuses.is_empty() {
+        return Err(OutboundError::InvalidInput("to_required"));
+    }
+    Ok(statuses)
+}
+
+fn map_message_build_error(error: MessageBuildError) -> OutboundError {
+    match error {
+        MessageBuildError::InvalidInput(code) => OutboundError::InvalidInput(code),
+        MessageBuildError::Cancelled
+        | MessageBuildError::Configuration(_)
+        | MessageBuildError::Io(_) => OutboundError::Unavailable,
     }
 }
 
@@ -578,7 +1167,7 @@ fn visible_next_retry(row: &StatusRow) -> Option<String> {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Deserialize, Serialize)]
 struct ValidatedRecipients {
     to: Vec<String>,
     cc: Vec<String>,
@@ -744,6 +1333,11 @@ fn instant(value: DateTime<Utc>) -> String {
     value.to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true)
 }
 
+fn postgres_timestamp(value: DateTime<Utc>) -> DateTime<Utc> {
+    DateTime::from_timestamp_micros(value.timestamp_micros())
+        .expect("an existing UTC timestamp remains valid at microsecond precision")
+}
+
 fn parse_bounded_i64(
     config: &RuntimeConfig,
     new_key: &str,
@@ -780,6 +1374,7 @@ fn map_auth_error(error: AuthError) -> OutboundError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::{TimeZone, Timelike};
 
     #[test]
     fn recipients_are_normalized_bounded_and_unique() {
@@ -845,5 +1440,28 @@ mod tests {
         assert!(value.starts_with('<'));
         assert!(value.ends_with("@example.test>"));
         assert_eq!(value.len(), 51);
+    }
+
+    #[test]
+    fn attachment_content_ids_are_bounded_and_header_safe() {
+        assert_eq!(
+            validate_content_id("part.1@example.test".into()).unwrap(),
+            "part.1@example.test"
+        );
+        for invalid in ["", "part id", "<part>", "part\r\nX-Evil: 1"] {
+            assert!(validate_content_id(invalid.into()).is_err());
+        }
+    }
+
+    #[test]
+    fn outbound_timestamps_are_stable_across_postgres_round_trips() {
+        let value = Utc
+            .with_ymd_and_hms(2026, 8, 6, 1, 2, 3)
+            .unwrap()
+            .with_nanosecond(123_456_789)
+            .unwrap();
+        let normalized = postgres_timestamp(value);
+        assert_eq!(normalized.nanosecond(), 123_456_000);
+        assert_eq!(instant(normalized), "2026-08-06T01:02:03.123456Z");
     }
 }

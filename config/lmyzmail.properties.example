@@ -13,7 +13,14 @@ lmyzmail.postgres.password=
 lmyzmail.redis.host=localhost
 lmyzmail.redis.port=6379
 lmyzmail.redis.database=0
+# Leave username/password empty for Redis instances without ACL authentication.
+lmyzmail.redis.username=
+lmyzmail.redis.password=
+lmyzmail.redis.tls-enabled=false
 lmyzmail.maildir.base=/var/lib/lmyzmail/data/mail
+# Large outbound messages remain here until their durable queue result is archived.
+lmyzmail.outbound.spool-dir=/var/lib/lmyzmail/data/mail/.lmyzmail-outbound
+lmyzmail.maildir.max-files-per-directory=10000
 lmyzmail.domain=lmyz.net
 lmyzmail.allowed-origins[0]=https://mail.example.com
 

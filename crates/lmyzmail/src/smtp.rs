@@ -13,6 +13,7 @@ use std::{
 
 use chrono::{DateTime, Datelike, Timelike, Utc, Weekday};
 use deadpool_postgres::Pool;
+use deadpool_redis::Pool as RedisPool;
 use getrandom::fill as fill_random;
 use openssl::pkcs12::Pkcs12;
 use rustls::{
@@ -38,7 +39,6 @@ const MAX_RECIPIENTS: usize = 100;
 const MAX_CONNECTIONS: usize = 256;
 const STORAGE_TIMEOUT: Duration = Duration::from_secs(15);
 const DATABASE_TIMEOUT: Duration = Duration::from_secs(8);
-const REDIS_TIMEOUT: Duration = Duration::from_secs(5);
 const TLS_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(15);
 const MAX_TLS_KEYSTORE_BYTES: u64 = 16 * 1024 * 1024;
 const SMTP_QUEUE_CAPACITY: usize = 256;
@@ -65,13 +65,18 @@ impl std::error::Error for SmtpError {}
 pub struct SmtpService {
     config: Arc<RuntimeConfig>,
     pool: Pool,
+    redis_pool: RedisPool,
     blocking_permits: Arc<Semaphore>,
     delivery_queue: Arc<Semaphore>,
     tls_acceptor: Option<TlsAcceptor>,
 }
 
 impl SmtpService {
-    pub fn from_config(config: Arc<RuntimeConfig>, pool: Pool) -> Result<Self, SmtpError> {
+    pub fn from_config(
+        config: Arc<RuntimeConfig>,
+        pool: Pool,
+        redis_pool: RedisPool,
+    ) -> Result<Self, SmtpError> {
         let tls_acceptor = if config.tls.enabled {
             let path = config.tls.keystore_path.as_deref().ok_or_else(|| {
                 SmtpError::InvalidConfig("TLS keystore path is not configured".into())
@@ -157,6 +162,7 @@ impl SmtpService {
         Ok(Self {
             config,
             pool,
+            redis_pool,
             blocking_permits: Arc::new(Semaphore::new(4)),
             delivery_queue: Arc::new(Semaphore::new(SMTP_QUEUE_CAPACITY)),
             tls_acceptor,
@@ -318,7 +324,7 @@ impl SmtpService {
             }
         }
         let redis_key = format!("mail:count:{mailbox}:{folder}");
-        if let Err(error) = redis_increment(&self.config.redis, &redis_key).await {
+        if let Err(error) = crate::redis::increment(&self.redis_pool, &redis_key).await {
             let _ = timeout(
                 DATABASE_TIMEOUT,
                 client.execute(
@@ -373,11 +379,13 @@ impl SmtpService {
 pub async fn serve_smtp(
     config: Arc<RuntimeConfig>,
     database_pool: Pool,
+    redis_pool: RedisPool,
     cancellation: CancellationToken,
 ) -> io::Result<()> {
     let listener = TcpListener::bind((config.listen.host.as_str(), config.listen.smtp)).await?;
     let service = Arc::new(
-        SmtpService::from_config(Arc::clone(&config), database_pool).map_err(io::Error::other)?,
+        SmtpService::from_config(Arc::clone(&config), database_pool, redis_pool)
+            .map_err(io::Error::other)?,
     );
     let connections = Arc::new(Semaphore::new(MAX_CONNECTIONS));
     let mut tasks = JoinSet::new();
@@ -1145,59 +1153,6 @@ fn remove_published_file(path: &Path) -> io::Result<()> {
         .ok_or_else(|| io::Error::other("published Maildir path has no parent"))?;
     std::fs::remove_file(path)?;
     std::fs::File::open(parent)?.sync_all()
-}
-
-async fn redis_increment(config: &crate::config::RedisConfig, key: &str) -> io::Result<i64> {
-    let mut stream = timeout(
-        REDIS_TIMEOUT,
-        TcpStream::connect((&*config.host, config.port)),
-    )
-    .await
-    .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "Redis connect timeout"))??;
-    if config.database != 0 {
-        write_resp_command(&mut stream, &["SELECT", &config.database.to_string()]).await?;
-        let _ = read_redis_line(&mut stream).await?;
-    }
-    write_resp_command(&mut stream, &["INCR", key]).await?;
-    let line = read_redis_line(&mut stream).await?;
-    line.strip_prefix(b":")
-        .and_then(|value| std::str::from_utf8(value.trim_ascii_end()).ok())
-        .and_then(|value| value.parse::<i64>().ok())
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid Redis INCR reply"))
-}
-
-async fn write_resp_command(stream: &mut TcpStream, parts: &[&str]) -> io::Result<()> {
-    let mut request = format!("*{}\r\n", parts.len()).into_bytes();
-    for part in parts {
-        request.extend_from_slice(format!("${}\r\n{}\r\n", part.len(), part).as_bytes());
-    }
-    stream.write_all(&request).await
-}
-
-async fn read_redis_line(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
-    let mut line = Vec::new();
-    loop {
-        let mut byte = [0_u8; 1];
-        if timeout(REDIS_TIMEOUT, stream.read_exact(&mut byte))
-            .await
-            .is_err()
-        {
-            return Err(io::Error::new(
-                io::ErrorKind::TimedOut,
-                "Redis read timeout",
-            ));
-        }
-        line.push(byte[0]);
-        if line.ends_with(b"\r\n") {
-            return Ok(line);
-        }
-        if line.len() > 1024 {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "Redis reply too long",
-            ));
-        }
-    }
 }
 
 #[cfg(test)]

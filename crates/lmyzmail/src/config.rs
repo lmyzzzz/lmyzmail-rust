@@ -245,6 +245,12 @@ struct JsonRedisConfig {
     host: String,
     port: u16,
     database: u8,
+    #[serde(default)]
+    username: String,
+    #[serde(default)]
+    password: String,
+    #[serde(default)]
+    tls: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -467,6 +473,16 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
     properties.insert(
         "lmyzmail.redis.database".to_owned(),
         value.redis.database.to_string(),
+    )?;
+    if !value.redis.username.is_empty() {
+        properties.insert("lmyzmail.redis.username".to_owned(), value.redis.username)?;
+    }
+    if !value.redis.password.is_empty() {
+        properties.insert("lmyzmail.redis.password".to_owned(), value.redis.password)?;
+    }
+    properties.insert(
+        "lmyzmail.redis.tls-enabled".to_owned(),
+        value.redis.tls.to_string(),
     )?;
     properties.insert("lmyzmail.maildir.base".to_owned(), value.maildir)?;
     properties.insert("lmyzmail.domain".to_owned(), value.domain)?;
@@ -722,6 +738,9 @@ pub struct RedisConfig {
     pub host: String,
     pub port: u16,
     pub database: u8,
+    pub username: Option<String>,
+    pub password: Option<String>,
+    pub tls: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -883,8 +902,28 @@ impl RuntimeConfig {
                 &["spring.data.redis.database"],
                 0,
             )?,
+            username: preferred(
+                &properties,
+                &["lmyzmail.redis.username"],
+                &["spring.data.redis.username", "spring.redis.username"],
+            )
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned),
+            password: preferred(
+                &properties,
+                &["lmyzmail.redis.password"],
+                &["spring.data.redis.password", "spring.redis.password"],
+            )
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned),
+            tls: preferred_bool(
+                &properties,
+                &["lmyzmail.redis.tls-enabled", "lmyzmail.redis.ssl.enabled"],
+                &["spring.data.redis.ssl.enabled", "spring.redis.ssl"],
+                false,
+            )?,
         };
-        validate_host(&redis.host, "redis.host")?;
+        validate_redis(&redis)?;
 
         let maildir = preferred(
             &properties,
@@ -1500,6 +1539,24 @@ fn validate_database(value: &DatabaseConfig) -> Result<(), ConfigError> {
     Ok(())
 }
 
+fn validate_redis(value: &RedisConfig) -> Result<(), ConfigError> {
+    validate_host(&value.host, "redis.host")?;
+    validate_port(value.port, "redis.port", false)?;
+    if let Some(username) = value.username.as_deref() {
+        validate_simple(username, 128, "redis.username")?;
+    }
+    if value
+        .password
+        .as_deref()
+        .is_some_and(|password| password.contains(['\0', '\r', '\n']))
+    {
+        return Err(ConfigError::Invalid(
+            "redis.password contains a control separator".into(),
+        ));
+    }
+    Ok(())
+}
+
 fn validate_limits(value: &LimitConfig) -> Result<(), ConfigError> {
     if value.redis_pool == 0 || value.redis_pool > MAX_POOL_SIZE {
         return Err(ConfigError::Invalid(format!(
@@ -1719,6 +1776,36 @@ mod tests {
         assert_eq!(config.limits.max_http_connections, 256);
         assert_eq!(config.limits.http_deadline_ms, 60_000);
         assert!(config.api_keys.is_empty());
+    }
+
+    #[test]
+    fn redis_credentials_and_tls_accept_legacy_aliases_with_new_precedence() {
+        let properties = Properties::parse(
+            b"spring.data.redis.username=legacy-user\n\
+spring.data.redis.password=legacy-password\n\
+spring.data.redis.ssl.enabled=false\n\
+lmyzmail.redis.username=new-user\n\
+lmyzmail.redis.password=new-password\n\
+lmyzmail.redis.tls-enabled=true\n",
+        )
+        .unwrap();
+        let config = RuntimeConfig::from_properties(properties).unwrap();
+        assert_eq!(config.redis.username.as_deref(), Some("new-user"));
+        assert_eq!(config.redis.password.as_deref(), Some("new-password"));
+        assert!(config.redis.tls);
+
+        let legacy = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"spring.data.redis.username=legacy-user\n\
+spring.data.redis.password=legacy-password\n\
+spring.data.redis.ssl.enabled=true\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(legacy.redis.username.as_deref(), Some("legacy-user"));
+        assert_eq!(legacy.redis.password.as_deref(), Some("legacy-password"));
+        assert!(legacy.redis.tls);
     }
 
     #[test]

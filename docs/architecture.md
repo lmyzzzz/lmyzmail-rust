@@ -22,3 +22,10 @@ The process creates one PostgreSQL pool at startup and clones its handle into
 HTTP authentication, mailbox, outbound, and SMTP modules. Consequently,
 `lmyzmail.postgres.pool.max-size` (or the legacy Hikari alias) is a process-wide
 connection ceiling rather than a per-module multiplier.
+
+The same ownership rule applies to Redis. One bounded authenticated/TLS-aware
+pool is shared by SMTP counters and the outbound queue. The outbound producer
+uses a four-slot blocking pool for MIME, DKIM, and Maildir work; it does not
+hold a PostgreSQL transaction while generating message bytes. PostgreSQL is
+the durable outbox, while the legacy Redis task/domain/list/hash surface is the
+delivery index consumed by queue workers.

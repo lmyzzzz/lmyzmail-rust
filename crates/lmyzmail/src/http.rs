@@ -2,6 +2,7 @@ use std::{io, net::IpAddr, sync::Arc, time::Duration};
 
 use chrono::Utc;
 use deadpool_postgres::Pool;
+use deadpool_redis::Pool as RedisPool;
 use percent_encoding::percent_decode_str;
 use serde::{Deserialize, Serialize};
 use subtle::ConstantTimeEq;
@@ -101,6 +102,7 @@ impl ServerLimits {
 pub async fn serve_http(
     config: Arc<RuntimeConfig>,
     database_pool: Pool,
+    redis_pool: RedisPool,
     cancellation: CancellationToken,
 ) -> io::Result<()> {
     let listener = TcpListener::bind((config.listen.host.as_str(), config.listen.http)).await?;
@@ -108,8 +110,17 @@ pub async fn serve_http(
         AuthService::from_config(&config, database_pool.clone()).map_err(io::Error::other)?,
     );
     let mailbox = Arc::new(MailboxService::from_config(&config, database_pool.clone()));
-    let outbound =
-        Arc::new(OutboundService::from_config(&config, database_pool).map_err(io::Error::other)?);
+    let outbound = Arc::new(
+        OutboundService::from_config(&config, database_pool, redis_pool)
+            .map_err(io::Error::other)?,
+    );
+    let reconciliation_outbound = Arc::clone(&outbound);
+    let reconciliation_cancellation = cancellation.clone();
+    let reconciliation_task = tokio::spawn(async move {
+        reconciliation_outbound
+            .run_reconciler(reconciliation_cancellation)
+            .await;
+    });
     let limits = ServerLimits::from_config(&config);
     let permits = Arc::new(Semaphore::new(limits.max_connections));
     let mut tasks = JoinSet::new();
@@ -162,6 +173,7 @@ pub async fn serve_http(
         while tasks.join_next().await.is_some() {}
     })
     .await;
+    let _ = timeout(SHUTDOWN_DEADLINE, reconciliation_task).await;
     Ok(())
 }
 
@@ -554,7 +566,7 @@ async fn handle_authenticated_request(
                             queue_id: result.queue_id,
                             message_id: &result.message_id,
                             status: result.status,
-                            sent_file_name: None,
+                            sent_file_name: Some(&result.sent_file_name),
                         },
                     )
                     .await

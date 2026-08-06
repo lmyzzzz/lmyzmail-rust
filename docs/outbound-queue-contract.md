@@ -74,6 +74,39 @@ The observed sequence is:
    after the database write, but a task that was already marked complete can
    have no Redis body left when archive persistence later runs.
 
+## Rust Producer And Outbox
+
+The Rust producer now applies the following bounded order:
+
+1. Validate sender, recipients, subject, attachment count/bytes, canonical
+   Base64, filename, MIME type, and Content-ID before allocating a task ID.
+2. Raise the legacy Redis sequence above the current PostgreSQL maximum using
+   decimal-string comparison, then increment it without converting the 64-bit
+   value through a Lua floating-point number.
+3. Build and optionally DKIM-sign MIME in a four-slot blocking pool with a
+   60-second deadline and cancellation checks. Small messages use Redis Base64;
+   large messages retain a file below the configured lmyzmail spool directory.
+4. Publish the Sent copy with a same-filesystem temporary file, file `fsync`,
+   atomic no-clobber hard link, temporary unlink, and directory `fsync`.
+5. Under PostgreSQL advisory admission locks, atomically insert the complete
+   `outbound_mail_queue` row and Sent `email_index` row. The identity sequence
+   is advanced to the explicit legacy task ID so a rollback to Java/default
+   inserts cannot collide. Timestamps are fixed to PostgreSQL microsecond
+   precision before the first Redis serialization.
+6. Atomically create the exact legacy task JSON, domain-status hash, sent-file
+   index, and pending reference in Redis. Repeated publication succeeds only
+   when the task and every domain JSON value are identical.
+7. Delete a small-message spool only after Redis publication succeeds. A Redis
+   failure leaves PostgreSQL, Sent Maildir, and message bytes intact for replay.
+
+The in-process outbox reconciler starts immediately and scans at most 128
+pending rows every five seconds using an ID cursor. Complete Redis tasks have
+their task/domain TTL renewed without reading message bytes. Missing state is
+rebuilt from the Sent copy: small messages are Base64-encoded with a bounded
+read, while a missing large-message spool is atomically reconstructed at the
+same stable path. The same path runs after process restart and does not depend
+on Java or an in-memory request object.
+
 ## Required Rust Invariants
 
 The candidate must preserve the legacy key names and successful status/body
@@ -101,7 +134,7 @@ semantics while closing the reliability gaps above:
   the Rust runtime.
 - Message bytes and the sent Maildir copy are retained until the durable send
   result is archived. Publication uses a same-filesystem temporary file,
-  flush, atomic rename, and directory fsync.
+  flush, atomic no-clobber link, temporary unlink, and directory fsync.
 - Permanent SMTP failures must keep the frozen queue status fields and also
   feed the candidate's standards-compliant DSN/bounce path. Absence of a Java
   DSN is not permission to omit the required Rust feature.
