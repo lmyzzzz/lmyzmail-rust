@@ -1,7 +1,7 @@
 #![cfg(target_os = "linux")]
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fs,
     net::{TcpListener, TcpStream},
     path::{Path, PathBuf},
@@ -319,6 +319,7 @@ async fn domain_statuses_are_bounded_validated_and_lease_fenced() {
 
     let id = 9_007_199_254_741_100_i64;
     let initial = two_domains();
+    let expected = initial.keys().cloned().collect::<BTreeSet<_>>();
     assert!(queue.publish(&task(id), &initial).await.unwrap());
     let claim = queue
         .claim_next(
@@ -329,7 +330,10 @@ async fn domain_statuses_are_bounded_validated_and_lease_fenced() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(queue.read_domain_statuses(&claim).await.unwrap(), initial);
+    assert_eq!(
+        queue.read_domain_statuses(&claim, &expected).await.unwrap(),
+        initial
+    );
 
     let key = format!("botmail:mail:queue:domains:{id}");
     let updated = DomainStatus {
@@ -351,10 +355,10 @@ async fn domain_statuses_are_bounded_validated_and_lease_fenced() {
         assert_eq!(expired, 1);
     }
     queue
-        .update_domain_statuses(&claim, &updates)
+        .update_domain_statuses(&claim, &expected, &updates)
         .await
         .unwrap();
-    let statuses = queue.read_domain_statuses(&claim).await.unwrap();
+    let statuses = queue.read_domain_statuses(&claim, &expected).await.unwrap();
     assert_eq!(statuses["remote.test"], updated);
     assert_eq!(statuses["other.test"], initial["other.test"]);
     {
@@ -373,7 +377,10 @@ async fn domain_statuses_are_bounded_validated_and_lease_fenced() {
         task: claim.task.clone(),
     };
     assert_eq!(
-        queue.read_domain_statuses(&forged).await.unwrap_err(),
+        queue
+            .read_domain_statuses(&forged, &expected)
+            .await
+            .unwrap_err(),
         QueueError::StaleClaim
     );
     let before_forged = {
@@ -384,23 +391,27 @@ async fn domain_statuses_are_bounded_validated_and_lease_fenced() {
             .query_async(&mut connection)
             .await
             .unwrap();
-        redis::cmd("HGETALL")
+        redis::cmd("HMGET")
             .arg(&key)
-            .query_async::<BTreeMap<String, String>>(&mut connection)
+            .arg("other.test")
+            .arg("remote.test")
+            .query_async::<Vec<String>>(&mut connection)
             .await
             .unwrap()
     };
     assert_eq!(
         queue
-            .update_domain_statuses(&forged, &updates)
+            .update_domain_statuses(&forged, &expected, &updates)
             .await
             .unwrap_err(),
         QueueError::StaleClaim
     );
     {
         let mut connection = pool.get().await.unwrap();
-        let after: BTreeMap<String, String> = redis::cmd("HGETALL")
+        let after: Vec<String> = redis::cmd("HMGET")
             .arg(&key)
+            .arg("other.test")
+            .arg("remote.test")
             .query_async(&mut connection)
             .await
             .unwrap();
@@ -422,7 +433,7 @@ async fn domain_statuses_are_bounded_validated_and_lease_fenced() {
     }
     assert_eq!(
         queue
-            .update_domain_statuses(&claim, &updates)
+            .update_domain_statuses(&claim, &expected, &updates)
             .await
             .unwrap_err(),
         QueueError::StaleClaim
@@ -455,10 +466,18 @@ async fn domain_statuses_are_bounded_validated_and_lease_fenced() {
         .collect::<BTreeMap<_, _>>();
     assert_eq!(
         queue
-            .update_domain_statuses(&claim, &too_many)
+            .update_domain_statuses(&claim, &expected, &too_many)
             .await
             .unwrap_err(),
         QueueError::InvalidTask("invalid domain status update bound")
+    );
+    let too_many_expected = too_many.keys().cloned().collect::<BTreeSet<_>>();
+    assert_eq!(
+        queue
+            .read_domain_statuses(&claim, &too_many_expected)
+            .await
+            .unwrap_err(),
+        QueueError::InvalidTask("invalid expected domain set")
     );
 
     let atomic_remote = DomainStatus {
@@ -479,18 +498,27 @@ async fn domain_statuses_are_bounded_validated_and_lease_fenced() {
     ]);
     assert_eq!(
         queue
-            .update_domain_statuses(&claim, &invalid_batch)
+            .update_domain_statuses(&claim, &expected, &invalid_batch)
             .await
             .unwrap_err(),
-        QueueError::CorruptDomainStatuses
+        QueueError::InvalidTask("invalid domain status update")
     );
     assert_eq!(
-        queue.read_domain_statuses(&claim).await.unwrap(),
+        queue.read_domain_statuses(&claim, &expected).await.unwrap(),
         statuses,
         "a rejected batch must not partially update its existing fields"
     );
 
     let good_remote_json = serde_json::to_string(&statuses["remote.test"]).unwrap();
+    let good_other_json = serde_json::to_string(&statuses["other.test"]).unwrap();
+    let other_updates = BTreeMap::from([(
+        "other.test".into(),
+        DomainStatus {
+            status: "SENT".into(),
+            updated_at: "2026-08-07T00:02:00Z".into(),
+            ..statuses["other.test"].clone()
+        },
+    )]);
     {
         let mut connection = pool.get().await.unwrap();
         let _: i64 = redis::cmd("HSET")
@@ -508,12 +536,15 @@ async fn domain_statuses_are_bounded_validated_and_lease_fenced() {
             .unwrap();
     }
     assert_eq!(
-        queue.read_domain_statuses(&claim).await.unwrap_err(),
+        queue
+            .read_domain_statuses(&claim, &expected)
+            .await
+            .unwrap_err(),
         QueueError::CorruptDomainStatuses
     );
     assert_eq!(
         queue
-            .update_domain_statuses(&claim, &updates)
+            .update_domain_statuses(&claim, &expected, &other_updates)
             .await
             .unwrap_err(),
         QueueError::CorruptDomainStatuses
@@ -526,12 +557,19 @@ async fn domain_statuses_are_bounded_validated_and_lease_fenced() {
             .query_async(&mut connection)
             .await
             .unwrap();
+        let unchanged_other: String = redis::cmd("HGET")
+            .arg(&key)
+            .arg("other.test")
+            .query_async(&mut connection)
+            .await
+            .unwrap();
         let ttl: i64 = redis::cmd("TTL")
             .arg(&key)
             .query_async(&mut connection)
             .await
             .unwrap();
         assert_eq!(malformed, "{not-json");
+        assert_eq!(unchanged_other, good_other_json);
         assert!((1..=5).contains(&ttl));
         let _: i64 = redis::cmd("HSET")
             .arg(&key)
@@ -558,12 +596,15 @@ async fn domain_statuses_are_bounded_validated_and_lease_fenced() {
             .unwrap();
     }
     assert_eq!(
-        queue.read_domain_statuses(&claim).await.unwrap_err(),
+        queue
+            .read_domain_statuses(&claim, &expected)
+            .await
+            .unwrap_err(),
         QueueError::CorruptDomainStatuses
     );
     assert_eq!(
         queue
-            .update_domain_statuses(&claim, &updates)
+            .update_domain_statuses(&claim, &expected, &updates)
             .await
             .unwrap_err(),
         QueueError::CorruptDomainStatuses
@@ -586,44 +627,147 @@ async fn domain_statuses_are_bounded_validated_and_lease_fenced() {
             .unwrap();
     }
 
+    let unexpected = DomainStatus {
+        domain: "unexpected.test".into(),
+        status: "PENDING".into(),
+        error: None,
+        recipients: vec!["user@unexpected.test".into()],
+        updated_at: "2026-08-07T00:00:00Z".into(),
+    };
+    let unexpected_json = serde_json::to_string(&unexpected).unwrap();
     {
-        let mut command = redis::cmd("HSET");
-        command.arg(&key);
-        for index in 0..999 {
-            let domain = format!("overflow-{index}.test");
-            let status = DomainStatus {
-                domain: domain.clone(),
-                status: "PENDING".into(),
-                error: None,
-                recipients: Vec::new(),
-                updated_at: "2026-08-07T00:00:00Z".into(),
-            };
-            command
-                .arg(domain)
-                .arg(serde_json::to_string(&status).unwrap());
-        }
         let mut connection = pool.get().await.unwrap();
-        let _: i64 = command.query_async(&mut connection).await.unwrap();
+        let added: i64 = redis::cmd("HSET")
+            .arg(&key)
+            .arg("unexpected.test")
+            .arg(&unexpected_json)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        assert_eq!(added, 1);
     }
     assert_eq!(
-        queue.read_domain_statuses(&claim).await.unwrap_err(),
+        queue
+            .read_domain_statuses(&claim, &expected)
+            .await
+            .unwrap_err(),
         QueueError::CorruptDomainStatuses
     );
     assert_eq!(
         queue
-            .update_domain_statuses(&claim, &updates)
+            .update_domain_statuses(&claim, &expected, &updates)
             .await
             .unwrap_err(),
         QueueError::CorruptDomainStatuses
     );
     {
         let mut connection = pool.get().await.unwrap();
-        let count: i64 = redis::cmd("HLEN")
+        let removed: i64 = redis::cmd("HDEL")
             .arg(&key)
+            .arg("unexpected.test")
             .query_async(&mut connection)
             .await
             .unwrap();
-        assert_eq!(count, 1_001);
+        assert_eq!(removed, 1);
+
+        let removed: i64 = redis::cmd("HDEL")
+            .arg(&key)
+            .arg("remote.test")
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        assert_eq!(removed, 1);
+        let added: i64 = redis::cmd("HSET")
+            .arg(&key)
+            .arg("unexpected.test")
+            .arg(&unexpected_json)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        assert_eq!(added, 1);
+    }
+    assert_eq!(
+        queue
+            .read_domain_statuses(&claim, &expected)
+            .await
+            .unwrap_err(),
+        QueueError::CorruptDomainStatuses,
+        "an equal-sized hash with the wrong field set must be rejected"
+    );
+    assert_eq!(
+        queue
+            .update_domain_statuses(&claim, &expected, &updates)
+            .await
+            .unwrap_err(),
+        QueueError::CorruptDomainStatuses
+    );
+    {
+        let mut connection = pool.get().await.unwrap();
+        let _: i64 = redis::cmd("HDEL")
+            .arg(&key)
+            .arg("unexpected.test")
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        let _: i64 = redis::cmd("HSET")
+            .arg(&key)
+            .arg("remote.test")
+            .arg(&good_remote_json)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+    }
+
+    let oversized = "x".repeat(2 * 1024 * 1024 + 1);
+    {
+        let mut connection = pool.get().await.unwrap();
+        let _: i64 = redis::cmd("HSET")
+            .arg(&key)
+            .arg("remote.test")
+            .arg(&oversized)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        redis::cmd("ACL")
+            .arg("SETUSER")
+            .arg("default")
+            .arg("-HGET")
+            .query_async::<()>(&mut connection)
+            .await
+            .unwrap();
+    }
+    assert_eq!(
+        queue
+            .read_domain_statuses(&claim, &expected)
+            .await
+            .unwrap_err(),
+        QueueError::CorruptDomainStatuses,
+        "oversized values must be rejected by HSTRLEN before HGET"
+    );
+    assert_eq!(
+        queue
+            .update_domain_statuses(&claim, &expected, &updates)
+            .await
+            .unwrap_err(),
+        QueueError::CorruptDomainStatuses,
+        "updates must not HGET an oversized existing value"
+    );
+    {
+        let mut connection = pool.get().await.unwrap();
+        redis::cmd("ACL")
+            .arg("SETUSER")
+            .arg("default")
+            .arg("+HGET")
+            .query_async::<()>(&mut connection)
+            .await
+            .unwrap();
+        let value_bytes: i64 = redis::cmd("HSTRLEN")
+            .arg(&key)
+            .arg("remote.test")
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        assert_eq!(value_bytes, 2 * 1024 * 1024 + 1);
         let deleted: i64 = redis::cmd("DEL")
             .arg(&key)
             .query_async(&mut connection)
@@ -632,12 +776,15 @@ async fn domain_statuses_are_bounded_validated_and_lease_fenced() {
         assert_eq!(deleted, 1);
     }
     assert_eq!(
-        queue.read_domain_statuses(&claim).await.unwrap_err(),
+        queue
+            .read_domain_statuses(&claim, &expected)
+            .await
+            .unwrap_err(),
         QueueError::MissingDomainStatuses
     );
     assert_eq!(
         queue
-            .update_domain_statuses(&claim, &updates)
+            .update_domain_statuses(&claim, &expected, &updates)
             .await
             .unwrap_err(),
         QueueError::MissingDomainStatuses

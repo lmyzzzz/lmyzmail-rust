@@ -157,6 +157,40 @@ pub struct DeliveryResult {
     pub pipelining: bool,
 }
 
+pub enum DeliveryPreparation {
+    Complete(DeliveryResult),
+    CommitReady(PreparedDelivery),
+}
+
+impl fmt::Debug for DeliveryPreparation {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Complete(result) => formatter.debug_tuple("Complete").field(result).finish(),
+            Self::CommitReady(_) => formatter.write_str("CommitReady(<SMTP transaction>)"),
+        }
+    }
+}
+
+pub struct PreparedDelivery {
+    session: SmtpSession,
+    recipients: Vec<RecipientResult>,
+    tls: bool,
+    smtp_utf8: bool,
+    pipelining: bool,
+}
+
+impl fmt::Debug for PreparedDelivery {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("PreparedDelivery")
+            .field("recipient_count", &self.recipients.len())
+            .field("tls", &self.tls)
+            .field("smtp_utf8", &self.smtp_utf8)
+            .field("pipelining", &self.pipelining)
+            .finish_non_exhaustive()
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DeliveryErrorKind {
     Configuration,
@@ -269,21 +303,32 @@ impl OutboundSmtpClient {
         request: &DeliveryRequest,
         cancellation: &CancellationToken,
     ) -> Result<DeliveryResult, DeliveryError> {
+        match self.prepare(request, cancellation).await? {
+            DeliveryPreparation::Complete(result) => Ok(result),
+            DeliveryPreparation::CommitReady(prepared) => prepared.commit().await,
+        }
+    }
+
+    pub async fn prepare(
+        &self,
+        request: &DeliveryRequest,
+        cancellation: &CancellationToken,
+    ) -> Result<DeliveryPreparation, DeliveryError> {
         validate_request(request)?;
         let session_deadline = Instant::now() + self.session_timeout;
-        self.deliver_with_tls_policy(request, cancellation, session_deadline)
+        self.prepare_with_tls_policy(request, cancellation, session_deadline)
             .await
     }
 
-    async fn deliver_with_tls_policy(
+    async fn prepare_with_tls_policy(
         &self,
         request: &DeliveryRequest,
         cancellation: &CancellationToken,
         session_deadline: Instant,
-    ) -> Result<DeliveryResult, DeliveryError> {
+    ) -> Result<DeliveryPreparation, DeliveryError> {
         let attempt_tls = request.tls_mode != TlsMode::Disabled;
         match self
-            .deliver_once(request, cancellation, attempt_tls, session_deadline)
+            .prepare_once(request, cancellation, attempt_tls, session_deadline)
             .await
         {
             Err(failure)
@@ -291,20 +336,20 @@ impl OutboundSmtpClient {
                     && failure.kind == DeliveryErrorKind::Temporary
                     && failure.stage == DeliveryStage::StartTls =>
             {
-                self.deliver_once(request, cancellation, false, session_deadline)
+                self.prepare_once(request, cancellation, false, session_deadline)
                     .await
             }
             result => result,
         }
     }
 
-    async fn deliver_once(
+    async fn prepare_once(
         &self,
         request: &DeliveryRequest,
         cancellation: &CancellationToken,
         attempt_tls: bool,
         session_deadline: Instant,
-    ) -> Result<DeliveryResult, DeliveryError> {
+    ) -> Result<DeliveryPreparation, DeliveryError> {
         let stream = io_deadline(
             cancellation,
             self.connect_timeout,
@@ -439,7 +484,7 @@ impl OutboundSmtpClient {
             .filter(|result| result.status == RecipientStatus::Accepted)
             .count();
         if accepted == 0 {
-            return Ok(DeliveryResult {
+            return Ok(DeliveryPreparation::Complete(DeliveryResult {
                 recipients: recipient_results,
                 data_status: DataStatus::NotAttempted,
                 data_code: None,
@@ -447,7 +492,7 @@ impl OutboundSmtpClient {
                 tls: tls_active,
                 smtp_utf8: envelope.smtp_utf8,
                 pipelining,
-            });
+            }));
         }
 
         let mut message = session
@@ -471,7 +516,7 @@ impl OutboundSmtpClient {
                 failure.recipients = recipient_results;
                 return Err(failure);
             };
-            return Ok(DeliveryResult {
+            return Ok(DeliveryPreparation::Complete(DeliveryResult {
                 recipients: recipient_results,
                 data_status: status,
                 data_code: Some(data_ready.code),
@@ -479,10 +524,10 @@ impl OutboundSmtpClient {
                 tls: tls_active,
                 smtp_utf8: envelope.smtp_utf8,
                 pipelining,
-            });
+            }));
         }
         session
-            .write_message(&mut message, request.max_message_bytes)
+            .write_message_body(&mut message, request.max_message_bytes)
             .await
             .map_err(|mut failure| {
                 if failure.stage == DeliveryStage::Request {
@@ -491,27 +536,47 @@ impl OutboundSmtpClient {
                 failure.recipients = recipient_results.clone();
                 failure
             })?;
-        let data_result = session.read_reply(true).await.map_err(|mut failure| {
+        Ok(DeliveryPreparation::CommitReady(PreparedDelivery {
+            session,
+            recipients: recipient_results,
+            tls: tls_active,
+            smtp_utf8: envelope.smtp_utf8,
+            pipelining,
+        }))
+    }
+}
+
+impl PreparedDelivery {
+    pub async fn commit(mut self) -> Result<DeliveryResult, DeliveryError> {
+        self.session
+            .write_all(b".\r\n", true)
+            .await
+            .map_err(|mut failure| {
+                failure.stage = DeliveryStage::DataFinal;
+                failure.recipients = self.recipients.clone();
+                failure
+            })?;
+        let data_result = self.session.read_reply(true).await.map_err(|mut failure| {
             failure.stage = DeliveryStage::DataFinal;
-            failure.recipients = recipient_results.clone();
+            failure.recipients = self.recipients.clone();
             failure
         })?;
         let Some(status) = final_data_status(data_result.code) else {
             let mut failure = protocol_error(true, "unexpected final DATA reply code")
                 .at(DeliveryStage::DataFinal)
                 .with_smtp_code(data_result.code);
-            failure.recipients = recipient_results;
+            failure.recipients = self.recipients;
             return Err(failure);
         };
-        let _ = session.command("QUIT").await;
+        let _ = self.session.command("QUIT").await;
         Ok(DeliveryResult {
-            recipients: recipient_results,
+            recipients: self.recipients,
             data_status: status,
             data_code: Some(data_result.code),
             data_reply: Some(data_result.summary()),
-            tls: tls_active,
-            smtp_utf8: envelope.smtp_utf8,
-            pipelining,
+            tls: self.tls,
+            smtp_utf8: self.smtp_utf8,
+            pipelining: self.pipelining,
         })
     }
 }
@@ -856,7 +921,7 @@ impl SmtpSession {
         }
     }
 
-    async fn write_message(
+    async fn write_message_body(
         &mut self,
         source: &mut PreparedMessage<'_>,
         max_message_bytes: u64,
@@ -905,9 +970,7 @@ impl SmtpSession {
         if !ending.is_empty() {
             self.write_all(&ending, false).await?;
         }
-        self.write_all(b".\r\n", true)
-            .await
-            .map_err(|failure| failure.at(DeliveryStage::DataFinal))
+        Ok(())
     }
 
     async fn file_deadline<T, F>(&self, future: F, operation: &str) -> Result<T, DeliveryError>

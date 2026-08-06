@@ -132,11 +132,16 @@ the mutation script, so a concurrent renewal wins.
 Per-domain status reads and writes use the same lease token and also require
 the task ID to remain in the legacy `processing` set. The scripts reject a
 missing, non-hash, oversized, malformed, or internally inconsistent domain
-map before returning data or applying any update. Batch updates validate the
-complete existing hash and the complete resulting byte and recipient budgets,
-then apply all fields and refresh the legacy seven-day TTL in one Lua
-execution. A stale worker therefore cannot overwrite a replacement worker's
-domain outcome or extend its status lifetime.
+map before returning data or applying any update. The caller supplies the
+bounded domain set derived from the durable recipient list. Lua first requires
+`HLEN` to match that set, then checks `HEXISTS` and `HSTRLEN` for every expected
+field and the aggregate byte budget before executing any `HGET`; it never uses
+`HGETALL`, `HKEYS`, or `HSCAN`. Batch updates validate the complete existing
+hash and the complete resulting byte and recipient budgets, then apply all
+fields and refresh the legacy seven-day TTL in one Lua execution. A stale
+worker therefore cannot overwrite a replacement worker's domain outcome or
+extend its status lifetime, and an oversized corrupt value is rejected before
+Redis copies it into the script.
 
 ## Rust PostgreSQL Delivery Fence
 
@@ -204,7 +209,11 @@ STARTTLS followed by a fresh EHLO, SMTPUTF8 negotiation with IDN-only
 downgrade, bounded MAIL/RCPT PIPELINING, and per-recipient 2xx/4xx/5xx
 classification. It opens and validates file sources before issuing DATA,
 waits for exactly `354`, streams in 16 KiB chunks, normalizes CR/LF/CRLF to
-CRLF, and dot-stuffs across chunk boundaries. Reply lines, aggregate replies,
+CRLF, and dot-stuffs across chunk boundaries. `prepare` stops after the
+normalized body-ending CRLF and retains the live SMTP session without sending
+the `.<CRLF>` terminator. After the coordinator durably records
+`COMMIT_ARMED`, consuming `commit` sends the terminator and reads the final
+reply. Reply lines, aggregate replies,
 recipient count, command-pipeline bytes, remote summaries, message input, and
 all temporary buffers have explicit limits.
 
@@ -239,9 +248,12 @@ semantics while closing the reliability gaps above:
   PostgreSQL archive transaction commits.
 - An active send needs a renewable lease or fencing token. Recovery must not
   start a second sender while the first still owns the task. A remote SMTP
-  acceptance followed by a local crash remains an inherently ambiguous
-  two-system outcome; retries use stable task/message IDs and the ambiguity is
-  surfaced rather than pretending to provide exactly-once SMTP delivery.
+acceptance followed by a local crash remains an inherently ambiguous
+two-system outcome; retries use stable task/message IDs and the ambiguity is
+surfaced rather than pretending to provide exactly-once SMTP delivery. Once
+the durable commit barrier is armed, cancellation, timeout, disconnect, or a
+crash is never converted back to an ordinary retry, even if the process cannot
+prove whether the terminator reached the peer.
 - Archive and status-update consumers need a recoverable in-flight state and
   idempotent database writes. The Rust process must be able to restart with
   Redis and PostgreSQL unavailable, then resume without silently dropping IDs.

@@ -7,8 +7,8 @@ use std::{
 };
 
 use lmyzmail::outbound_smtp::{
-    DataStatus, DeliveryErrorKind, DeliveryRequest, DeliveryStage, MessageSource,
-    OutboundSmtpClient, RecipientStatus, SmtpEndpoint, TlsMode,
+    DataStatus, DeliveryErrorKind, DeliveryPreparation, DeliveryRequest, DeliveryStage,
+    MessageSource, OutboundSmtpClient, RecipientStatus, SmtpEndpoint, TlsMode,
 };
 use openssl::{
     asn1::Asn1Time,
@@ -135,6 +135,175 @@ fn temporary_message_path() -> PathBuf {
         "lmyzmail-outbound-smtp-{}-{nonce}.eml",
         std::process::id()
     ))
+}
+
+#[tokio::test]
+async fn prepare_stops_before_data_terminator_until_commit() {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let (body_ready, wait_for_body) = oneshot::channel();
+    let (barrier_checked, wait_for_barrier) = oneshot::channel();
+    let server = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let mut reader = BufReader::new(stream);
+        reader
+            .get_mut()
+            .write_all(b"220 fixture.example ESMTP\r\n")
+            .await
+            .unwrap();
+        assert_eq!(read_line(&mut reader).await, b"EHLO mail.example.test\r\n");
+        reader
+            .get_mut()
+            .write_all(b"250 fixture.example\r\n")
+            .await
+            .unwrap();
+        assert_eq!(
+            read_line(&mut reader).await,
+            b"MAIL FROM:<sender@example.test>\r\n"
+        );
+        reader
+            .get_mut()
+            .write_all(b"250 2.1.0 sender accepted\r\n")
+            .await
+            .unwrap();
+        assert_eq!(
+            read_line(&mut reader).await,
+            b"RCPT TO:<accepted@example.test>\r\n"
+        );
+        reader
+            .get_mut()
+            .write_all(b"250 2.1.5 recipient accepted\r\n")
+            .await
+            .unwrap();
+        assert_eq!(read_line(&mut reader).await, b"DATA\r\n");
+        reader
+            .get_mut()
+            .write_all(b"354 send message\r\n")
+            .await
+            .unwrap();
+
+        let expected = b"Subject: barrier\r\n\r\nbody\r\n";
+        let mut body = vec![0_u8; expected.len()];
+        reader.read_exact(&mut body).await.unwrap();
+        assert_eq!(body, expected);
+        body_ready.send(()).unwrap();
+        assert!(
+            tokio::time::timeout(Duration::from_millis(100), read_line(&mut reader))
+                .await
+                .is_err(),
+            "DATA terminator crossed the durable commit barrier"
+        );
+        barrier_checked.send(()).unwrap();
+        assert_eq!(read_line(&mut reader).await, b".\r\n");
+        reader
+            .get_mut()
+            .write_all(b"250 2.0.0 accepted\r\n")
+            .await
+            .unwrap();
+        assert_eq!(read_line(&mut reader).await, b"QUIT\r\n");
+        reader
+            .get_mut()
+            .write_all(b"221 2.0.0 bye\r\n")
+            .await
+            .unwrap();
+    });
+
+    let message = MessageSource::Bytes(Arc::from(&b"Subject: barrier\r\n\r\nbody\r\n"[..]));
+    let cancellation = CancellationToken::new();
+    let preparation = OutboundSmtpClient::default()
+        .prepare(
+            &request(port, message, vec!["accepted@example.test"]),
+            &cancellation,
+        )
+        .await
+        .unwrap();
+    wait_for_body.await.unwrap();
+    let DeliveryPreparation::CommitReady(prepared) = preparation else {
+        panic!("accepted recipient did not produce a commit-ready transaction");
+    };
+    wait_for_barrier.await.unwrap();
+    let result = prepared.commit().await.unwrap();
+    server.await.unwrap();
+    assert_eq!(result.data_status, DataStatus::Accepted);
+}
+
+#[tokio::test]
+async fn cancellation_after_commit_barrier_is_ambiguous() {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let (body_ready, wait_for_body) = oneshot::channel();
+    let server = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let mut reader = BufReader::new(stream);
+        reader
+            .get_mut()
+            .write_all(b"220 fixture.example ESMTP\r\n")
+            .await
+            .unwrap();
+        assert_eq!(read_line(&mut reader).await, b"EHLO mail.example.test\r\n");
+        reader
+            .get_mut()
+            .write_all(b"250 fixture.example\r\n")
+            .await
+            .unwrap();
+        assert_eq!(
+            read_line(&mut reader).await,
+            b"MAIL FROM:<sender@example.test>\r\n"
+        );
+        reader
+            .get_mut()
+            .write_all(b"250 2.1.0 sender accepted\r\n")
+            .await
+            .unwrap();
+        assert_eq!(
+            read_line(&mut reader).await,
+            b"RCPT TO:<accepted@example.test>\r\n"
+        );
+        reader
+            .get_mut()
+            .write_all(b"250 2.1.5 recipient accepted\r\n")
+            .await
+            .unwrap();
+        assert_eq!(read_line(&mut reader).await, b"DATA\r\n");
+        reader
+            .get_mut()
+            .write_all(b"354 send message\r\n")
+            .await
+            .unwrap();
+        let expected = b"Subject: barrier\r\n\r\nbody\r\n";
+        let mut body = vec![0_u8; expected.len()];
+        reader.read_exact(&mut body).await.unwrap();
+        assert_eq!(body, expected);
+        body_ready.send(()).unwrap();
+        let mut trailing = Vec::new();
+        tokio::time::timeout(Duration::from_secs(2), reader.read_to_end(&mut trailing))
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(trailing.is_empty() || trailing == b".\r\n");
+    });
+
+    let cancellation = CancellationToken::new();
+    let preparation = OutboundSmtpClient::default()
+        .prepare(
+            &request(
+                port,
+                MessageSource::Bytes(Arc::from(&b"Subject: barrier\r\n\r\nbody\r\n"[..])),
+                vec!["accepted@example.test"],
+            ),
+            &cancellation,
+        )
+        .await
+        .unwrap();
+    wait_for_body.await.unwrap();
+    let DeliveryPreparation::CommitReady(prepared) = preparation else {
+        panic!("accepted recipient did not produce a commit-ready transaction");
+    };
+    cancellation.cancel();
+    let failure = prepared.commit().await.unwrap_err();
+    assert_eq!(failure.kind, DeliveryErrorKind::Ambiguous);
+    assert_eq!(failure.stage, DeliveryStage::DataFinal);
+    server.await.unwrap();
 }
 
 #[tokio::test]
