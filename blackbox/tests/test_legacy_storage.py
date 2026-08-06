@@ -71,6 +71,7 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "smtp-bdat-coalesced-prerequisite-state-stall",
         "smtp-command-control-byte-reflection",
         "smtp-fragmented-overlong-double-error",
+        "outbound-starttls-hostname-verification",
     }
     starttls = next(
         entry

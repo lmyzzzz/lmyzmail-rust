@@ -133,6 +133,47 @@ it may call Redis acknowledgement only after the PostgreSQL terminal-state
 transaction commits. These primitives deliberately are not wired to a sender
 until that durable database transition and real SMTP delivery exist together.
 
+## Rust SMTP Delivery Adapter
+
+The standalone Tokio adapter accepts a pinned `SocketAddr`, never a hostname
+that it could resolve again during connect. Direct-MX callers must construct an
+endpoint through `SmtpEndpoint::public_mx`, which rejects loopback, private,
+link-local, documentation, benchmark, multicast, reserved, Teredo, and unsafe
+6to4 targets. Only an administrator-controlled relay may use the explicit
+`trusted_relay` constructor. DNS resolution, full-answer-set validation, and
+MX ordering remain outside the adapter so that the eventual resolver can pin
+the exact reviewed address without a DNS-rebinding window.
+
+The client performs bounded multiline reply parsing, EHLO-to-HELO fallback,
+STARTTLS followed by a fresh EHLO, SMTPUTF8 negotiation with IDN-only
+downgrade, bounded MAIL/RCPT PIPELINING, and per-recipient 2xx/4xx/5xx
+classification. It opens and validates file sources before issuing DATA,
+waits for exactly `354`, streams in 16 KiB chunks, normalizes CR/LF/CRLF to
+CRLF, and dot-stuffs across chunk boundaries. Reply lines, aggregate replies,
+recipient count, command-pipeline bytes, remote summaries, message input, and
+all temporary buffers have explicit limits.
+
+One absolute session deadline is shared by the TLS attempt and any permitted
+plaintext retry. Each connect, command, TLS handshake, file operation, and
+message chunk also has an operation deadline and cancellation branch. A
+failure before the DATA terminator is retryable or cancelled; a timeout,
+cancellation, malformed reply, or disconnect after the terminator may have
+followed remote acceptance and is therefore returned as `Ambiguous` with the
+known recipient outcomes. The worker must durably record that distinction and
+must not turn it into an ordinary automatic retry. Errors carry a structured
+SMTP stage and optional reply code; worker policy never parses display text.
+Missing or invalid local content is permanent, while deadlines and unknown
+resource/filesystem errors remain retryable.
+
+The default trust roots come from the Linux native certificate store, with the
+compiled WebPKI set only as a fallback for an empty store. TLS server-name
+verification is always enabled. The frozen Java client enables endpoint-name
+verification only for MTA-STS enforce mode; this identity-validation defect is
+recorded as `outbound-starttls-hostname-verification` in the approved behavior
+difference manifest. Opportunistic TLS still follows the oracle by retrying a
+fresh plaintext connection after a TLS negotiation failure, while required
+TLS never downgrades.
+
 ## Required Rust Invariants
 
 The candidate must preserve the legacy key names and successful status/body

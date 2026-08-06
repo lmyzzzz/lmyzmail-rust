@@ -21,6 +21,14 @@
     "service": {
       "path": "src/main/java/net/lmyz/lmyzmail/outbound/OutboundMailService.java",
       "sha256": "4364488928d307a31e5bdabaa7355db3f0d146607cace085f8900faa364b99ba"
+    },
+    "smtp_client": {
+      "path": "src/main/java/net/lmyz/lmyzmail/outbound/SmtpClient.java",
+      "sha256": "49b380ceee47c23f70cd2bcd953507378ba70f457c22d0bccb2c62b9fd0c7754"
+    },
+    "network_validator": {
+      "path": "src/main/java/net/lmyz/lmyzmail/util/NetworkValidator.java",
+      "sha256": "1a46e5938bdfdc4b0f7cd6d8e2377ea157b7181768a392c954e037f04442e063"
     }
   },
   "redis": {
@@ -50,6 +58,24 @@
       "expired_recovery": ["verify-lease-absent", "srem:processing", "hdel:processing_time", "rpush:pending"]
     }
   },
+  "smtp_adapter": {
+    "connect_target": "validated-pinned-socket-address",
+    "dns_resolution_inside_adapter": false,
+    "public_mx_rejects_special_addresses": true,
+    "trusted_private_relay_requires_explicit_constructor": true,
+    "native_trust_roots": true,
+    "tls_name_verification": "all-starttls-modes",
+    "reply_line_bytes": 2048,
+    "reply_total_bytes": 65536,
+    "reply_lines": 100,
+    "recipient_count": 1000,
+    "pipeline_bytes": 524288,
+    "message_chunk_bytes": 16384,
+    "data_line_endings": "crlf-normalized",
+    "post_terminator_failures": "ambiguous",
+    "structured_error_fields": ["stage", "smtp_code", "recipients"],
+    "unknown_file_errors": "temporary"
+  },
   "requirements": {
     "legacy_key_interop": true,
     "ack_archive_only_after_postgres_commit": true,
@@ -58,7 +84,10 @@
     "bounded_status_update_drain": true,
     "active_references_must_not_expire": true,
     "stable_message_id_on_ambiguous_smtp_result": true,
-    "dsn_on_permanent_failure": true
+    "dsn_on_permanent_failure": true,
+    "pinned_and_filtered_mx_address": true,
+    "bounded_incremental_smtp_io": true,
+    "post_data_ambiguity_preserved": true
   },
   "observed_legacy_gaps": [
     "archive-lpop-before-postgres-commit",

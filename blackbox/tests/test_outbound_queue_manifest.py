@@ -26,6 +26,8 @@ def test_outbound_manifest_binds_frozen_oracle_and_legacy_key_surface() -> None:
         "persister": "f5ba8596cf36f2fdb8af7bbde2133f9f352e9db2c073eacbf5bb8277e87b6360",
         "sender": "c7f10f2416ae308335e9f6f77ffe00140b64904b0b2e8dc7eb04ed74394c603e",
         "service": "4364488928d307a31e5bdabaa7355db3f0d146607cace085f8900faa364b99ba",
+        "smtp_client": "49b380ceee47c23f70cd2bcd953507378ba70f457c22d0bccb2c62b9fd0c7754",
+        "network_validator": "1a46e5938bdfdc4b0f7cd6d8e2377ea157b7181768a392c954e037f04442e063",
     }
     assert manifest["redis"]["prefix"] == "botmail:mail:queue:"
     keys = manifest["redis"]["keys"]
@@ -62,6 +64,17 @@ def test_outbound_manifest_binds_frozen_oracle_and_legacy_key_surface() -> None:
     fenced_operations = ("renew", "retry", "acknowledge")
     assert all("compare-token" in lease[operation] for operation in fenced_operations)
     assert lease["expired_recovery"][0] == "verify-lease-absent"
+    smtp = manifest["smtp_adapter"]
+    assert smtp["connect_target"] == "validated-pinned-socket-address"
+    assert smtp["dns_resolution_inside_adapter"] is False
+    assert smtp["public_mx_rejects_special_addresses"] is True
+    assert smtp["tls_name_verification"] == "all-starttls-modes"
+    assert smtp["reply_total_bytes"] == 65536
+    assert smtp["pipeline_bytes"] == 524288
+    assert smtp["message_chunk_bytes"] == 16384
+    assert smtp["post_terminator_failures"] == "ambiguous"
+    assert smtp["structured_error_fields"] == ["stage", "smtp_code", "recipients"]
+    assert smtp["unknown_file_errors"] == "temporary"
 
 
 def test_outbound_manifest_requires_durable_candidate_boundaries() -> None:

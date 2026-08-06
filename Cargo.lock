@@ -1165,6 +1165,7 @@ dependencies = [
  "openssl",
  "percent-encoding",
  "rustls",
+ "rustls-native-certs",
  "serde",
  "serde_json",
  "sha2",
@@ -1174,6 +1175,7 @@ dependencies = [
  "tokio-rustls",
  "tokio-util",
  "url",
+ "webpki-roots",
 ]
 
 [[package]]

@@ -1,6 +1,18 @@
 {
   "differences": [
     {
+      "candidate_requirement": "Validate both the certificate chain and the configured MX TLS name on every outbound STARTTLS handshake, regardless of MTA-STS mode. Preserve the separately specified opportunistic retry policy only after the validated handshake fails.",
+      "evidence": {
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "source": "src/main/java/net/lmyz/lmyzmail/outbound/SmtpClient.java",
+        "source_sha256": "49b380ceee47c23f70cd2bcd953507378ba70f457c22d0bccb2c62b9fd0c7754"
+      },
+      "id": "outbound-starttls-hostname-verification",
+      "oracle_behavior": "The frozen Java client uses the system trust manager for every outbound STARTTLS handshake but sets HTTPS endpoint identification only when the MTA-STS policy is enforce. In none or testing mode, a chain-trusted certificate for the wrong MX name can be accepted as TLS.",
+      "reason": "Accepting a certificate for a different server identity is an authentication defect explicitly excluded from bug-for-bug replication.",
+      "scope": "Only outbound STARTTLS hostname mismatch in non-enforce modes. Trust-chain validation, MTA-STS enforce behavior, STARTTLS advertisement and response handling, fresh-connection opportunistic fallback, and successful SMTP bytes remain compatibility requirements."
+    },
+    {
       "candidate_requirement": "Write to a same-filesystem temporary file, flush data, atomically rename to the final .eml path, and fsync the containing directory before publication is acknowledged.",
       "evidence": {
         "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
