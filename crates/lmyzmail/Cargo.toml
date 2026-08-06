@@ -17,11 +17,14 @@ chrono = { version = "0.4.41", default-features = false, features = ["clock", "s
 deadpool-postgres = "0.14.1"
 getrandom = "0.4.3"
 ipnet = "2.11.0"
+openssl = "0.10.81"
+rustls = { version = "0.23.37", default-features = false, features = ["ring", "std", "tls12"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 sha2 = "0.11.0"
 subtle = "2.6.1"
 tokio = { version = "1.47.1", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time", "io-util"] }
+tokio-rustls = { version = "0.26.4", default-features = false, features = ["ring", "tls12"] }
 tokio-util = { version = "0.7.16", features = ["rt"] }
 tokio-postgres = { version = "0.7.18", features = ["with-chrono-0_4"] }
 url = "2.5.7"

@@ -204,6 +204,8 @@ struct JsonRuntimeConfig {
     #[serde(default)]
     features: JsonFeatureConfig,
     #[serde(default)]
+    tls: JsonTlsConfig,
+    #[serde(default)]
     limits: JsonLimitConfig,
 }
 
@@ -294,6 +296,17 @@ impl Default for JsonFeatureConfig {
             show_internet_nl_badge: false,
         }
     }
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct JsonTlsConfig {
+    #[serde(default)]
+    enabled: bool,
+    #[serde(default)]
+    keystore_path: String,
+    #[serde(default)]
+    keystore_password: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -507,6 +520,22 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         value.features.show_internet_nl_badge.to_string(),
     )?;
     properties.insert(
+        "lmyzmail.ssl.use-custom-certificate".to_owned(),
+        value.tls.enabled.to_string(),
+    )?;
+    if !value.tls.keystore_path.is_empty() {
+        properties.insert(
+            "lmyzmail.ssl.keystore-path".to_owned(),
+            value.tls.keystore_path,
+        )?;
+    }
+    if !value.tls.keystore_password.is_empty() {
+        properties.insert(
+            "lmyzmail.ssl.keystore-password".to_owned(),
+            value.tls.keystore_password,
+        )?;
+    }
+    properties.insert(
         "lmyzmail.redis.pool.max-active".to_owned(),
         value.limits.redis_pool.to_string(),
     )?;
@@ -658,6 +687,7 @@ pub struct RuntimeConfig {
     pub trusted_proxies: Vec<IpNet>,
     pub api_keys: Vec<ApiKeyConfig>,
     pub features: FeatureConfig,
+    pub tls: TlsConfig,
     pub limits: LimitConfig,
 }
 
@@ -713,6 +743,13 @@ pub struct FeatureConfig {
     pub fail2ban: bool,
     pub report_delivery: bool,
     pub show_internet_nl_badge: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct TlsConfig {
+    pub enabled: bool,
+    pub keystore_path: Option<PathBuf>,
+    pub keystore_password: String,
 }
 
 #[derive(Clone, Debug)]
@@ -926,6 +963,43 @@ impl RuntimeConfig {
             )?,
         };
 
+        let tls_enabled = preferred_bool(
+            &properties,
+            &["lmyzmail.ssl.use-custom-certificate"],
+            &["botmail.ssl.use-custom-certificate"],
+            false,
+        )?;
+        let tls_keystore_path = preferred(
+            &properties,
+            &["lmyzmail.ssl.keystore-path"],
+            &["botmail.ssl.keystore-path"],
+        )
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from);
+        if let Some(path) = tls_keystore_path.as_deref() {
+            validate_path(
+                path.to_str()
+                    .ok_or_else(|| ConfigError::Invalid("TLS keystore path is not UTF-8".into()))?,
+                "ssl.keystore-path",
+            )?;
+        }
+        if tls_enabled && tls_keystore_path.is_none() {
+            return Err(ConfigError::Invalid(
+                "TLS is enabled but no PKCS#12 keystore path is configured".into(),
+            ));
+        }
+        let tls = TlsConfig {
+            enabled: tls_enabled,
+            keystore_path: tls_keystore_path,
+            keystore_password: preferred(
+                &properties,
+                &["lmyzmail.ssl.keystore-password"],
+                &["botmail.ssl.keystore-password"],
+            )
+            .unwrap_or("")
+            .to_owned(),
+        };
+
         let limits = LimitConfig {
             redis_pool: preferred_u32(
                 &properties,
@@ -1019,6 +1093,7 @@ impl RuntimeConfig {
             trusted_proxies,
             api_keys,
             features,
+            tls,
             limits,
         })
     }
@@ -1750,5 +1825,28 @@ botmail.show-internet-nl-badge=true\n",
             .unwrap(),
             18080
         );
+    }
+
+    #[test]
+    fn tls_pkcs12_configuration_accepts_legacy_aliases_with_new_precedence() {
+        let properties = Properties::parse(
+            b"botmail.ssl.use-custom-certificate=false\n\
+botmail.ssl.keystore-path=/legacy/server.pfx\n\
+lmyzmail.ssl.use-custom-certificate=true\n\
+lmyzmail.ssl.keystore-path=/new/server.p12\n\
+lmyzmail.ssl.keystore-password=test-password\n",
+        )
+        .unwrap();
+        let config = RuntimeConfig::from_properties(properties).unwrap();
+        assert!(config.tls.enabled);
+        assert_eq!(
+            config.tls.keystore_path,
+            Some(PathBuf::from("/new/server.p12"))
+        );
+        assert_eq!(config.tls.keystore_password, "test-password");
+
+        let missing_path = Properties::parse(b"botmail.ssl.use-custom-certificate=true\n")
+            .and_then(RuntimeConfig::from_properties);
+        assert!(missing_path.is_err());
     }
 }
