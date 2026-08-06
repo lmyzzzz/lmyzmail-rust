@@ -1,6 +1,7 @@
 use std::{io, net::IpAddr, sync::Arc, time::Duration};
 
 use chrono::Utc;
+use percent_encoding::percent_decode_str;
 use serde::{Deserialize, Serialize};
 use subtle::ConstantTimeEq;
 use tokio::{
@@ -16,6 +17,7 @@ use url::Url;
 use crate::{
     auth::{AuthError, AuthService, LoginOutcome},
     config::RuntimeConfig,
+    mailbox::{AttachmentMeta, EmailDetail, MailboxError, MailboxService},
 };
 
 const DEFAULT_MAX_REQUEST_BYTES: usize = 16 * 1024;
@@ -97,6 +99,7 @@ pub async fn serve_http(
 ) -> io::Result<()> {
     let listener = TcpListener::bind((config.listen.host.as_str(), config.listen.http)).await?;
     let auth = Arc::new(AuthService::from_config(&config).map_err(io::Error::other)?);
+    let mailbox = Arc::new(MailboxService::from_config(&config).map_err(io::Error::other)?);
     let limits = ServerLimits::from_config(&config);
     let permits = Arc::new(Semaphore::new(limits.max_connections));
     let mut tasks = JoinSet::new();
@@ -116,11 +119,19 @@ pub async fn serve_http(
                 };
                 let config = Arc::clone(&config);
                 let auth = Arc::clone(&auth);
+                let mailbox = Arc::clone(&mailbox);
                 tasks.spawn(async move {
                     let _permit = permit;
                     let result = timeout(
                         limits.request_deadline,
-                        handle_connection(stream, peer.ip(), limits.max_request_bytes, &config, &auth),
+                        handle_connection(
+                            stream,
+                            peer.ip(),
+                            limits.max_request_bytes,
+                            &config,
+                            &auth,
+                            &mailbox,
+                        ),
                     )
                     .await;
                     match result {
@@ -156,6 +167,7 @@ async fn handle_connection(
     max_request_bytes: usize,
     config: &RuntimeConfig,
     auth: &AuthService,
+    mailbox: &MailboxService,
 ) -> io::Result<()> {
     let request = read_request(&mut stream, max_request_bytes).await?;
     let client_ip = extract_client_ip(&request, peer_ip, config);
@@ -298,14 +310,8 @@ async fn handle_connection(
             write_response(stream, Status::Ok, br#"{"success":true}"#, "application/json; charset=UTF-8").await
         }
         ParsedRequest::SessionToken(token) => match auth.validate_token(&token).await {
-            Ok(Some(_)) => {
-                write_response(
-                    stream,
-                    Status::NotFound,
-                    br#"{"error":"not_found"}"#,
-                    "application/json; charset=UTF-8",
-                )
-                .await
+            Ok(Some(address)) => {
+                handle_authenticated_request(stream, &request, &address, mailbox).await
             }
             Ok(None) => write_invalid_session(stream).await,
             Err(_) => write_response(
@@ -383,6 +389,271 @@ async fn handle_connection(
             .await
         }
     }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+enum AuthenticatedRoute {
+    List {
+        folder: String,
+        page: i32,
+        size: i32,
+        starred_only: bool,
+    },
+    Detail {
+        folder: String,
+        file: String,
+    },
+    Raw {
+        folder: String,
+        file: String,
+    },
+    Headers {
+        folder: String,
+        file: String,
+    },
+}
+
+async fn handle_authenticated_request(
+    stream: TcpStream,
+    request: &[u8],
+    mailbox_address: &str,
+    mailbox: &MailboxService,
+) -> io::Result<()> {
+    let route = match authenticated_route(request) {
+        Ok(Some(route)) => route,
+        Ok(None) => {
+            return write_response(
+                stream,
+                Status::NotFound,
+                br#"{"error":"not_found"}"#,
+                "application/json; charset=UTF-8",
+            )
+            .await;
+        }
+        Err(()) => {
+            return write_response(
+                stream,
+                Status::BadRequest,
+                br#"{"error":"bad_request"}"#,
+                "application/json; charset=UTF-8",
+            )
+            .await;
+        }
+    };
+    match route {
+        AuthenticatedRoute::List {
+            folder,
+            page,
+            size,
+            starred_only,
+        } => {
+            match mailbox
+                .list_folder(mailbox_address, &folder, page, size, starred_only)
+                .await
+            {
+                Ok(page) => write_json_response(stream, Status::Ok, &page).await,
+                Err(MailboxError::InvalidInput(message)) => {
+                    write_invalid_input(stream, &message).await
+                }
+                Err(MailboxError::InvalidFileName) => write_not_found(stream).await,
+                Err(_) => {
+                    write_response(
+                        stream,
+                        Status::InternalServerError,
+                        br#"{"error":"mailbox_unavailable"}"#,
+                        "application/json; charset=UTF-8",
+                    )
+                    .await
+                }
+            }
+        }
+        AuthenticatedRoute::Detail { folder, file } => {
+            match mailbox.read_detail(mailbox_address, &folder, &file).await {
+                Ok(detail) => write_email_detail(stream, &folder, &file, detail).await,
+                Err(MailboxError::InvalidInput(message)) => {
+                    write_invalid_input(stream, &message).await
+                }
+                Err(MailboxError::InvalidFileName) => write_not_found(stream).await,
+                Err(_) => {
+                    write_response(
+                        stream,
+                        Status::NotFound,
+                        br#"{"error":"not_found"}"#,
+                        "application/json; charset=UTF-8",
+                    )
+                    .await
+                }
+            }
+        }
+        AuthenticatedRoute::Raw { folder, file } => {
+            match mailbox.open_raw(mailbox_address, &folder, &file).await {
+                Ok((body, length)) => write_raw_mail_response(stream, body, length).await,
+                Err(MailboxError::InvalidInput(message)) => {
+                    write_invalid_input(stream, &message).await
+                }
+                Err(MailboxError::InvalidFileName) => write_not_found(stream).await,
+                Err(_) => {
+                    write_response(
+                        stream,
+                        Status::NotFound,
+                        br#"{"error":"not_found"}"#,
+                        "application/json; charset=UTF-8",
+                    )
+                    .await
+                }
+            }
+        }
+        AuthenticatedRoute::Headers { folder, file } => {
+            match mailbox.read_headers(mailbox_address, &folder, &file).await {
+                Ok(raw_headers) => {
+                    write_json_response(stream, Status::Ok, &RawHeadersResponse { raw_headers })
+                        .await
+                }
+                Err(MailboxError::InvalidInput(message)) => {
+                    write_invalid_input(stream, &message).await
+                }
+                Err(_) => {
+                    write_response(
+                        stream,
+                        Status::NotFound,
+                        br#"{"error":"not_found"}"#,
+                        "application/json; charset=UTF-8",
+                    )
+                    .await
+                }
+            }
+        }
+    }
+}
+
+async fn write_invalid_input(stream: TcpStream, message: &str) -> io::Result<()> {
+    write_json_response(
+        stream,
+        Status::BadRequest,
+        &InvalidInputResponse {
+            error: "invalid_input",
+            message,
+        },
+    )
+    .await
+}
+
+async fn write_not_found(stream: TcpStream) -> io::Result<()> {
+    write_response(
+        stream,
+        Status::NotFound,
+        br#"{"error":"not_found"}"#,
+        "application/json; charset=UTF-8",
+    )
+    .await
+}
+
+async fn write_email_detail(
+    stream: TcpStream,
+    folder: &str,
+    file: &str,
+    detail: EmailDetail,
+) -> io::Result<()> {
+    let response = EmailDetailResponse {
+        file_name: file,
+        folder,
+        subject: detail.subject,
+        from: detail.from,
+        reply_to: detail.reply_to,
+        to: detail.to,
+        cc: detail.cc,
+        date: detail.date,
+        text: detail.text,
+        html: detail.html,
+        message_id: detail.message_id,
+        in_reply_to: detail.in_reply_to,
+        references: detail.references,
+        starred: detail.starred,
+        labels: detail.labels,
+        raw_headers: detail.raw_headers,
+        attachments: detail.attachments,
+    };
+    write_json_response(stream, Status::Ok, &response).await
+}
+
+fn authenticated_route(request: &[u8]) -> Result<Option<AuthenticatedRoute>, ()> {
+    let header_end = request
+        .windows(4)
+        .position(|window| window == b"\r\n\r\n")
+        .ok_or(())?;
+    let line = std::str::from_utf8(&request[..header_end])
+        .map_err(|_| ())?
+        .lines()
+        .next()
+        .ok_or(())?;
+    let mut fields = line.split(' ');
+    let method = fields.next().ok_or(())?;
+    let target = fields.next().ok_or(())?;
+    if fields.next() != Some("HTTP/1.1") || fields.next().is_some() {
+        return Err(());
+    }
+    let (path, query) = target.split_once('?').map_or((target, ""), |parts| parts);
+    let segments = path.split('/').skip(1).collect::<Vec<_>>();
+    let decode = |value: &str| {
+        percent_decode_str(value)
+            .decode_utf8()
+            .map(|value| value.into_owned())
+            .map_err(|_| ())
+    };
+    let parse_folder_file = |segments: &[&str]| -> Result<(String, String), ()> {
+        if segments.len() != 5 {
+            return Err(());
+        }
+        Ok((decode(segments[3])?, decode(segments[4])?))
+    };
+    match (method, segments.as_slice()) {
+        ("GET", ["web", "mail", "list"]) => {
+            let (page, size, starred_only) = list_query(query)?;
+            Ok(Some(AuthenticatedRoute::List {
+                folder: "inbox".into(),
+                page,
+                size,
+                starred_only,
+            }))
+        }
+        ("GET", ["web", "mail", "list", folder]) => {
+            let (page, size, starred_only) = list_query(query)?;
+            Ok(Some(AuthenticatedRoute::List {
+                folder: decode(folder)?,
+                page,
+                size,
+                starred_only,
+            }))
+        }
+        ("GET", ["web", "mail", "detail", ..]) => {
+            let (folder, file) = parse_folder_file(&segments)?;
+            Ok(Some(AuthenticatedRoute::Detail { folder, file }))
+        }
+        ("GET", ["web", "mail", "raw", ..]) => {
+            let (folder, file) = parse_folder_file(&segments)?;
+            Ok(Some(AuthenticatedRoute::Raw { folder, file }))
+        }
+        ("GET", ["web", "mail", "headers", ..]) => {
+            let (folder, file) = parse_folder_file(&segments)?;
+            Ok(Some(AuthenticatedRoute::Headers { folder, file }))
+        }
+        _ => Ok(None),
+    }
+}
+
+fn list_query(query: &str) -> Result<(i32, i32, bool), ()> {
+    let mut page = 0_i32;
+    let mut size = 50_i32;
+    let mut starred_only = false;
+    for (key, value) in url::form_urlencoded::parse(query.as_bytes()) {
+        match key.as_ref() {
+            "page" => page = value.parse().map_err(|_| ())?,
+            "size" => size = value.parse().map_err(|_| ())?,
+            "starredOnly" => starred_only = value.parse().map_err(|_| ())?,
+            _ => {}
+        }
+    }
+    Ok((page, size, starred_only))
 }
 
 async fn read_request(stream: &mut TcpStream, max_request_bytes: usize) -> io::Result<Vec<u8>> {
@@ -549,6 +820,7 @@ fn parse_request(
     if version != "HTTP/1.1" || path.bytes().any(|byte| byte <= 0x1f || byte == 0x7f) {
         return ParsedRequest::BadRequest;
     }
+    let routing_path = path.split_once('?').map_or(path, |(path, _)| path);
 
     let mut declared_length = None;
     let mut api_key = None;
@@ -607,7 +879,7 @@ fn parse_request(
             ParsedRequest::CorsRejected
         };
     }
-    match (method, path) {
+    match (method, routing_path) {
         ("GET", "/api/health") => ParsedRequest::Health,
         ("GET", "/api/skibidi") => ParsedRequest::Skibidi,
         ("GET", "/web/domains") => ParsedRequest::WebDomains,
@@ -615,8 +887,8 @@ fn parse_request(
         ("POST", "/web/login") => ParsedRequest::WebLogin,
         ("POST", "/web/register") => ParsedRequest::WebRegister,
         ("POST", "/web/logout") => ParsedRequest::WebLogout,
-        _ if is_session_route(method, path) => {
-            if method == "POST" && path == "/web/mail/send/multipart" {
+        _ if is_session_route(method, routing_path) => {
+            if method == "POST" && routing_path == "/web/mail/send/multipart" {
                 ParsedRequest::MultipartSession
             } else {
                 session_token
@@ -627,10 +899,10 @@ fn parse_request(
             }
         }
         (_, "/api/health" | "/api/skibidi") => ParsedRequest::NotFound,
-        _ if path.starts_with("/api/") => {
-            match api_permission(config, api_key, is_api_write_route(method, path)) {
+        _ if routing_path.starts_with("/api/") => {
+            match api_permission(config, api_key, is_api_write_route(method, routing_path)) {
                 ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
-                ApiPermission::Forbidden if is_api_write_route(method, path) => {
+                ApiPermission::Forbidden if is_api_write_route(method, routing_path) => {
                     ParsedRequest::ForbiddenWrite
                 }
                 ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
@@ -860,6 +1132,49 @@ struct IpBannedResponse<'a> {
     expires_at: &'a str,
 }
 
+#[derive(Serialize)]
+struct RawHeadersResponse {
+    #[serde(rename = "rawHeaders")]
+    raw_headers: String,
+}
+
+#[derive(Serialize)]
+struct InvalidInputResponse<'a> {
+    error: &'static str,
+    message: &'a str,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EmailDetailResponse<'a> {
+    file_name: &'a str,
+    folder: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    subject: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    from: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reply_to: Option<String>,
+    to: Vec<String>,
+    cc: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    html: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    in_reply_to: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    references: Option<String>,
+    starred: bool,
+    labels: Vec<i64>,
+    raw_headers: String,
+    attachments: Vec<AttachmentMeta>,
+}
+
 const SKIBIDI_LORE: &str =
     "The G-Man Toilet initiated a Skibidi dop dop dop yes yes attack on the city center.";
 
@@ -887,6 +1202,33 @@ async fn write_json_response<T: Serialize>(
 ) -> io::Result<()> {
     let body = serde_json::to_vec(value).map_err(io::Error::other)?;
     write_response(stream, status, &body, "application/json; charset=UTF-8").await
+}
+
+async fn write_raw_mail_response(
+    mut stream: TcpStream,
+    mut body: tokio::fs::File,
+    length: u64,
+) -> io::Result<()> {
+    let head = format!(
+        "HTTP/1.1 200 OK\r\ncontent-length: {}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n",
+        length
+    );
+    stream.write_all(head.as_bytes()).await?;
+    let mut remaining = length;
+    let mut buffer = [0_u8; 16 * 1024];
+    while remaining > 0 {
+        let to_read = remaining.min(buffer.len() as u64) as usize;
+        let read = body.read(&mut buffer[..to_read]).await?;
+        if read == 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "raw mail file ended before its declared length",
+            ));
+        }
+        stream.write_all(&buffer[..read]).await?;
+        remaining -= read as u64;
+    }
+    Ok(())
 }
 
 async fn write_invalid_session(stream: TcpStream) -> io::Result<()> {
@@ -1033,6 +1375,13 @@ lmyzmail.public-registration-enabled=true\n",
         );
         assert_eq!(
             parse(
+                b"GET /web/mail/list?page=0&size=2 HTTP/1.1\r\nX-Session-Token: token\r\n\r\n",
+                1024,
+            ),
+            ParsedRequest::SessionToken("token".to_owned())
+        );
+        assert_eq!(
+            parse(
                 b"GET /web/userdata/contacts HTTP/1.1\r\nX-Session-Token: token\r\n\r\n",
                 1024,
             ),
@@ -1048,6 +1397,29 @@ lmyzmail.public-registration-enabled=true\n",
         assert_eq!(
             parse(b"POST /web/mail/send/multipart HTTP/1.1\r\n\r\n", 1024,),
             ParsedRequest::MultipartSession
+        );
+    }
+
+    #[test]
+    fn authenticated_mail_routes_decode_paths_and_bound_pagination() {
+        assert_eq!(
+            authenticated_route(b"GET /web/mail/list/inbox?page=-2&size=500 HTTP/1.1\r\n\r\n"),
+            Ok(Some(AuthenticatedRoute::List {
+                folder: "inbox".into(),
+                page: -2,
+                size: 500,
+                starred_only: false,
+            }))
+        );
+        assert_eq!(
+            authenticated_route(b"GET /web/mail/detail/inbox/message%40one.eml HTTP/1.1\r\n\r\n"),
+            Ok(Some(AuthenticatedRoute::Detail {
+                folder: "inbox".into(),
+                file: "message@one.eml".into(),
+            }))
+        );
+        assert!(
+            authenticated_route(b"GET /web/mail/detail/inbox/%FF.eml HTTP/1.1\r\n\r\n").is_err()
         );
     }
 

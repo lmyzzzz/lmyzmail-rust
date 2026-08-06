@@ -41,7 +41,7 @@ def test_managed_java_outbound_queue_golden(record_java_golden: bool) -> None:
             f"{result.returncode}:\nstdout={result.stdout}\nstderr={result.stderr}"
         )
     observed = json.loads(result.stdout)
-    path = repository / "blackbox/golden/java/managed-outbound-queue-v10.json"
+    path = repository / "blackbox/golden/java/managed-outbound-queue-v11.json"
     attestation = GoldenAttestation.from_repository(
         repository,
         profile="managed-outbound-queue",

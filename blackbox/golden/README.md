@@ -189,7 +189,7 @@ The following retained historical sets are bound to
 - `managed-smtp-data-oracle-evidence-v8/`
 - `managed-smtp-mime-v8/`
 
-The current active sets are bound to
+The following retained historical sets are bound to
 `attestation.harness.definition_tree_sha256`
 `aeef79516587832136169c710c59d5992f8d0f6a7993e66c88b9ad027f292810`:
 
@@ -206,16 +206,40 @@ The current active sets are bound to
 - `managed-smtp-data-oracle-evidence-v10/`
 - `managed-smtp-mime-v10/`
 
+The following retained mail-read recording is bound to
+`attestation.harness.definition_tree_sha256`
+`6e4ea8542bbc43fd4eab7d1833c8a37eb888b7b4afb5fb443ab891890478507f`:
+
+- `managed-mail-read-v1/`
+
+The current active sets are bound to
+`attestation.harness.definition_tree_sha256`
+`2dfe8ac1f80acb8a0088fc6ef40a4883cbe58818409c7f2bc7d6271567913dba`:
+
+- `managed-candidate-public-config-v5/`
+- `managed-basic-v27/`
+- `managed-candidate-auth-v4/`
+- `managed-mail-read-v2/`
+- `managed-starttls-v15/`
+- `managed-starttls-oracle-evidence-v15/`
+- `managed-smtp-auth-v14/`
+- `managed-smtp-auth-starttls-v14/`
+- `managed-smtp-command-v12/`
+- `managed-smtp-command-oracle-evidence-v12/`
+- `managed-smtp-data-v11/`
+- `managed-smtp-data-oracle-evidence-v11/`
+- `managed-smtp-mime-v11/`
+
 The earlier candidate-health v1-v4, candidate-public-http v1,
 candidate-api-status v1, candidate-public-config v1-v3, candidate-auth v1-v2,
 HTTP v19-v25, SMTP v5-v12, and outbound v5-v9 recordings are retained as
 create-once provenance; none is consumed by the tests.
 
-The active outbound attestation is `managed-outbound-queue-v10.json`, using the
+The active outbound attestation is `managed-outbound-queue-v11.json`, using the
 field-scoped `outbound:generated-sent-filename` normalizer. The rejected raw
 `v1` recording is never used as an expectation. The intermediate `v3` recording
-predates the final active test-path attestation and is retained as historical
-evidence only.
+predates the final active test-path attestation, and `v10` is retained as
+historical evidence only.
 
 The `oracle-evidence` sets remain evidence only and are never candidate
 expectations.
