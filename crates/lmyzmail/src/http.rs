@@ -17,7 +17,7 @@ use url::Url;
 use crate::{
     auth::{AuthError, AuthService, LoginOutcome},
     config::RuntimeConfig,
-    mailbox::{AttachmentMeta, EmailDetail, MailboxError, MailboxService},
+    mailbox::{AttachmentData, AttachmentMeta, EmailDetail, MailboxError, MailboxService},
 };
 
 const DEFAULT_MAX_REQUEST_BYTES: usize = 16 * 1024;
@@ -411,6 +411,11 @@ enum AuthenticatedRoute {
         folder: String,
         file: String,
     },
+    Attachment {
+        folder: String,
+        file: String,
+        index: i32,
+    },
     Stars {
         folder: String,
     },
@@ -554,6 +559,23 @@ async fn handle_authenticated_request(
                     )
                     .await
                 }
+            }
+        }
+        AuthenticatedRoute::Attachment {
+            folder,
+            file,
+            index,
+        } => {
+            match mailbox
+                .read_attachment(mailbox_address, &folder, &file, index)
+                .await
+            {
+                Ok(attachment) => write_attachment_response(stream, attachment).await,
+                Err(MailboxError::InvalidInput(message)) => {
+                    write_invalid_input(stream, &message).await
+                }
+                Err(MailboxError::InvalidFileName) => write_not_found(stream).await,
+                Err(_) => write_not_found(stream).await,
             }
         }
         AuthenticatedRoute::Stars { folder } => {
@@ -865,6 +887,13 @@ fn authenticated_route(request: &[u8]) -> Result<Option<AuthenticatedRoute>, ()>
         ("GET", ["web", "mail", "headers", ..]) => {
             let (folder, file) = parse_folder_file(&segments)?;
             Ok(Some(AuthenticatedRoute::Headers { folder, file }))
+        }
+        ("GET", ["web", "mail", "attachment", folder, file, index]) => {
+            Ok(Some(AuthenticatedRoute::Attachment {
+                folder: decode(folder)?,
+                file: decode(file)?,
+                index: index.parse().map_err(|_| ())?,
+            }))
         }
         ("GET", ["web", "userdata", "stars", folder]) => Ok(Some(AuthenticatedRoute::Stars {
             folder: decode(folder)?,
@@ -1535,6 +1564,71 @@ async fn write_raw_mail_response(
     Ok(())
 }
 
+async fn write_attachment_response(
+    mut stream: TcpStream,
+    attachment: AttachmentData,
+) -> io::Result<()> {
+    let content_type = safe_attachment_content_type(attachment.content_type.as_deref());
+    let disposition = attachment_disposition(&attachment.filename);
+    let head = format!(
+        "HTTP/1.1 200 OK\r\n\
+transfer-encoding: chunked\r\n\
+Content-Type: {content_type}\r\n\
+Content-Disposition: {disposition}\r\n\
+X-Content-Type-Options: nosniff\r\n\
+Content-Security-Policy: sandbox; default-src 'none'; frame-ancestors 'none'\r\n\
+Referrer-Policy: no-referrer\r\n\
+Cache-Control: private, no-store\r\n\r\n"
+    );
+    stream.write_all(head.as_bytes()).await?;
+    for chunk in attachment.body.chunks(16 * 1024) {
+        stream
+            .write_all(format!("{:X}\r\n", chunk.len()).as_bytes())
+            .await?;
+        stream.write_all(chunk).await?;
+        stream.write_all(b"\r\n").await?;
+    }
+    stream.write_all(b"0\r\n\r\n").await
+}
+
+fn safe_attachment_content_type(declared: Option<&str>) -> &str {
+    const ACTIVE_TYPES: &[&str] = &[
+        "text/html",
+        "application/xhtml+xml",
+        "image/svg+xml",
+        "application/xml",
+        "text/xml",
+        "application/javascript",
+        "text/javascript",
+        "application/ecmascript",
+        "text/ecmascript",
+        "application/pdf",
+    ];
+    let Some(declared) = declared.filter(|value| !value.trim().is_empty()) else {
+        return "application/octet-stream";
+    };
+    if declared.bytes().any(|byte| byte <= 0x20 || byte >= 0x7f) {
+        return "application/octet-stream";
+    }
+    let base_type = declared
+        .split_once(';')
+        .map_or(declared, |(base, _)| base)
+        .trim()
+        .to_ascii_lowercase();
+    if ACTIVE_TYPES.contains(&base_type.as_str()) || base_type.ends_with("+xml") {
+        "application/octet-stream"
+    } else {
+        declared
+    }
+}
+
+fn attachment_disposition(filename: &str) -> String {
+    let encoded = url::form_urlencoded::byte_serialize(filename.as_bytes())
+        .collect::<String>()
+        .replace('+', "%20");
+    format!("attachment; filename*=UTF-8''{encoded}")
+}
+
 async fn write_invalid_session(stream: TcpStream) -> io::Result<()> {
     write_response(
         stream,
@@ -1737,6 +1831,45 @@ lmyzmail.public-registration-enabled=true\n",
                 folder: "inbox".into(),
                 file: "legacy-root.eml".into(),
             }))
+        );
+        assert_eq!(
+            authenticated_route(
+                b"GET /web/mail/attachment/inbox/message%40one.eml/3 HTTP/1.1\r\n\r\n"
+            ),
+            Ok(Some(AuthenticatedRoute::Attachment {
+                folder: "inbox".into(),
+                file: "message@one.eml".into(),
+                index: 3,
+            }))
+        );
+        assert_eq!(
+            authenticated_route(b"GET /web/mail/attachment/inbox/message.eml/-1 HTTP/1.1\r\n\r\n"),
+            Ok(Some(AuthenticatedRoute::Attachment {
+                folder: "inbox".into(),
+                file: "message.eml".into(),
+                index: -1,
+            }))
+        );
+    }
+
+    #[test]
+    fn attachment_headers_encode_filenames_and_downgrade_active_types() {
+        assert_eq!(
+            attachment_disposition("report 100%~.txt"),
+            "attachment; filename*=UTF-8''report%20100%25%7E.txt"
+        );
+        assert_eq!(
+            safe_attachment_content_type(Some("image/svg+xml")),
+            "application/octet-stream"
+        );
+        assert_eq!(
+            safe_attachment_content_type(Some("application/atom+xml")),
+            "application/octet-stream"
+        );
+        assert_eq!(safe_attachment_content_type(Some("image/png")), "image/png");
+        assert_eq!(
+            safe_attachment_content_type(Some("image/png\r\nX-Evil: yes")),
+            "application/octet-stream"
         );
     }
 

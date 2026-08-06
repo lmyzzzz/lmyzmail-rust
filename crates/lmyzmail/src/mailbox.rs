@@ -1,6 +1,8 @@
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet},
-    fmt, io,
+    fmt,
+    io::{self, Read},
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -60,6 +62,8 @@ pub struct MailboxService {
     pool: Pool,
     base_dir: Arc<PathBuf>,
     max_email_size: u64,
+    max_attachment_size: u64,
+    max_total_attachments_size: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -105,6 +109,13 @@ pub struct AttachmentMeta {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_id: Option<String>,
     pub inline: bool,
+}
+
+#[derive(Debug)]
+pub struct AttachmentData {
+    pub filename: String,
+    pub content_type: Option<String>,
+    pub body: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -156,6 +167,8 @@ impl MailboxService {
             pool,
             base_dir: Arc::new(config.maildir.clone()),
             max_email_size: config.limits.max_email_size_bytes,
+            max_attachment_size: config.limits.max_attachment_size_bytes,
+            max_total_attachments_size: config.limits.max_total_attachments_size_bytes,
         })
     }
 
@@ -693,6 +706,31 @@ impl MailboxService {
         Ok((file, length))
     }
 
+    pub async fn read_attachment(
+        &self,
+        mailbox: &str,
+        folder: &str,
+        file_name: &str,
+        index: i32,
+    ) -> Result<AttachmentData, MailboxError> {
+        let path = self.authorized_path(mailbox, folder, file_name).await?;
+        let index = usize::try_from(index).map_err(|_| MailboxError::NotFound)?;
+        let max_email_size = self.max_email_size.clamp(1, MAX_RAW_BYTES);
+        let max_attachment_size = self.max_attachment_size.min(max_email_size);
+        let max_total_attachments_size = self.max_total_attachments_size.min(max_email_size);
+        spawn_blocking(move || {
+            parse_attachment(
+                &path,
+                index,
+                max_email_size,
+                max_attachment_size,
+                max_total_attachments_size,
+            )
+        })
+        .await
+        .map_err(|error| MailboxError::Database(format!("attachment task failed: {error}")))?
+    }
+
     pub async fn delete_email(
         &self,
         mailbox: &str,
@@ -1041,6 +1079,108 @@ fn parse_detail(path: &Path, max_size: u64) -> Result<EmailDetail, MailboxError>
     })
 }
 
+fn parse_attachment(
+    path: &Path,
+    index: usize,
+    max_email_size: u64,
+    max_attachment_size: u64,
+    max_total_attachments_size: u64,
+) -> Result<AttachmentData, MailboxError> {
+    let bytes = read_bounded(path, max_email_size)?;
+    parse_attachment_bytes(
+        &bytes,
+        index,
+        max_attachment_size,
+        max_total_attachments_size,
+    )
+}
+
+fn read_bounded(path: &Path, max_size: u64) -> Result<Vec<u8>, MailboxError> {
+    let mut file = std::fs::File::open(path).map_err(|_| MailboxError::NotFound)?;
+    if file.metadata().map_err(MailboxError::Io)?.len() > max_size {
+        return Err(MailboxError::TooLarge);
+    }
+    let read_limit = max_size.checked_add(1).ok_or(MailboxError::TooLarge)?;
+    let mut bytes = Vec::new();
+    file.by_ref()
+        .take(read_limit)
+        .read_to_end(&mut bytes)
+        .map_err(MailboxError::Io)?;
+    if u64::try_from(bytes.len()).map_or(true, |length| length > max_size) {
+        return Err(MailboxError::TooLarge);
+    }
+    Ok(bytes)
+}
+
+fn parse_attachment_bytes(
+    bytes: &[u8],
+    index: usize,
+    max_attachment_size: u64,
+    max_total_attachments_size: u64,
+) -> Result<AttachmentData, MailboxError> {
+    let mut message = MessageParser::default()
+        .parse(bytes)
+        .ok_or(MailboxError::NotFound)?;
+    let mut total_size = 0_u64;
+    for part_id in &message.attachments {
+        let part = message
+            .parts
+            .get(*part_id as usize)
+            .ok_or(MailboxError::NotFound)?;
+        let part_size = u64::try_from(part.len()).map_err(|_| MailboxError::TooLarge)?;
+        if part_size > max_attachment_size {
+            return Err(MailboxError::TooLarge);
+        }
+        total_size = total_size
+            .checked_add(part_size)
+            .ok_or(MailboxError::TooLarge)?;
+        if total_size > max_total_attachments_size {
+            return Err(MailboxError::TooLarge);
+        }
+    }
+
+    let part_id = *message
+        .attachments
+        .get(index)
+        .ok_or(MailboxError::NotFound)? as usize;
+    let part = message
+        .parts
+        .get_mut(part_id)
+        .ok_or(MailboxError::NotFound)?;
+    let filename = part
+        .content_disposition()
+        .and_then(|value| value.attribute("filename"))
+        .or_else(|| {
+            part.content_type()
+                .and_then(|value| value.attribute("name"))
+        })
+        .map(str::to_owned)
+        .unwrap_or_else(|| format!("attachment_{index}"));
+    let content_type = part.content_type().map(|value| {
+        format!(
+            "{}{}",
+            value.ctype(),
+            value
+                .subtype()
+                .map_or(String::new(), |subtype| format!("/{subtype}"))
+        )
+    });
+    let body = match std::mem::take(&mut part.body) {
+        PartType::Binary(value) | PartType::InlineBinary(value) => value.into_owned(),
+        PartType::Text(Cow::Owned(value)) | PartType::Html(Cow::Owned(value)) => value.into_bytes(),
+        PartType::Text(Cow::Borrowed(value)) | PartType::Html(Cow::Borrowed(value)) => {
+            value.as_bytes().to_vec()
+        }
+        PartType::Message(value) => value.raw_message.into_owned(),
+        PartType::Multipart(_) => return Err(MailboxError::NotFound),
+    };
+    Ok(AttachmentData {
+        filename,
+        content_type,
+        body,
+    })
+}
+
 fn display_address(address: &mail_parser::Addr<'_>) -> String {
     match (address.name(), address.address.as_deref()) {
         (Some(name), Some(value)) => format!("{name} <{value}>"),
@@ -1139,5 +1279,48 @@ mod tests {
             "qa____example.test"
         );
         assert_eq!(sanitize_address_for_path(""), "unknown");
+    }
+
+    #[test]
+    fn attachment_parser_decodes_bounded_mime_content() {
+        let message = b"From: sender@example.test\r\n\
+To: qa@example.test\r\n\
+MIME-Version: 1.0\r\n\
+Content-Type: multipart/mixed; boundary=x\r\n\r\n\
+--x\r\nContent-Type: text/plain\r\n\r\nbody\r\n\
+--x\r\nContent-Type: application/octet-stream; name=fixture.txt\r\n\
+Content-Disposition: attachment; filename=fixture.txt\r\n\
+Content-Transfer-Encoding: base64\r\n\r\nZml4dHVyZQo=\r\n\
+--x--\r\n";
+        let attachment = parse_attachment_bytes(message, 0, 1024, 1024).unwrap();
+        assert_eq!(attachment.filename, "fixture.txt");
+        assert_eq!(
+            attachment.content_type.as_deref(),
+            Some("application/octet-stream")
+        );
+        assert_eq!(attachment.body, b"fixture\n");
+        assert!(matches!(
+            parse_attachment_bytes(message, 1, 1024, 1024),
+            Err(MailboxError::NotFound)
+        ));
+    }
+
+    #[test]
+    fn attachment_parser_enforces_individual_and_total_budgets() {
+        let message = b"MIME-Version: 1.0\r\n\
+Content-Type: multipart/mixed; boundary=x\r\n\r\n\
+--x\r\nContent-Type: application/octet-stream\r\n\
+Content-Disposition: attachment; filename=one.bin\r\n\r\n1234\r\n\
+--x\r\nContent-Type: application/octet-stream\r\n\
+Content-Disposition: attachment; filename=two.bin\r\n\r\n5678\r\n\
+--x--\r\n";
+        assert!(matches!(
+            parse_attachment_bytes(message, 0, 3, 1024),
+            Err(MailboxError::TooLarge)
+        ));
+        assert!(matches!(
+            parse_attachment_bytes(message, 0, 1024, 7),
+            Err(MailboxError::TooLarge)
+        ));
     }
 }

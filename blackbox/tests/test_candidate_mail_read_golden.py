@@ -95,6 +95,34 @@ def _capture_raw(path: str) -> Callable[[RuntimeTarget], dict[str, Any]]:
     return capture
 
 
+def _capture_attachment(
+    path: str,
+    *,
+    headers: tuple[tuple[str, str], ...] = _SESSION_HEADERS,
+) -> Callable[[RuntimeTarget], dict[str, Any]]:
+    def capture(target: RuntimeTarget) -> dict[str, Any]:
+        assert target.ports is not None
+        response = http_exchange(
+            "127.0.0.1",
+            target.ports.http,
+            "GET",
+            path,
+            headers=headers,
+            timeout=10.0,
+        )
+        return http_bytes_snapshot(response)
+
+    cast(Any, capture).__lmyzmail_contract__ = {
+        "protocol": "http",
+        "method": "GET",
+        "target": path,
+        "headers": [list(header) for header in headers],
+        "state": "attested legacy PostgreSQL seed and Maildir fixture",
+        "body": "exact bytes and attachment security headers",
+    }
+    return capture
+
+
 MAIL_READ_SCENARIOS = (
     Scenario(
         "http/mail/list-inbox",
@@ -140,6 +168,28 @@ MAIL_READ_SCENARIOS = (
     Scenario(
         "http/mail/missing-index",
         _capture_json("/web/mail/detail/inbox/missing.eml"),
+    ),
+)
+
+MAIL_ATTACHMENT_SCENARIOS = (
+    Scenario(
+        "http/mail/attachment-valid",
+        _capture_attachment(
+            "/web/mail/attachment/inbox/legacy-shard-2.eml/0",
+        ),
+    ),
+    Scenario(
+        "http/mail/attachment-index-out-of-range",
+        _capture_attachment(
+            "/web/mail/attachment/inbox/legacy-shard-2.eml/1",
+        ),
+    ),
+    Scenario(
+        "http/mail/attachment-query-token-rejected",
+        _capture_attachment(
+            f"/web/mail/attachment/inbox/legacy-shard-2.eml/0?token={LEGACY_SESSION_TOKEN}",
+            headers=(),
+        ),
     ),
 )
 
@@ -431,7 +481,7 @@ def test_frozen_java_mail_read_golden(
     record_java_golden: bool,
 ) -> None:
     repository = Path(__file__).resolve().parents[2]
-    golden = repository / "blackbox/golden/java/managed-mail-read-v6"
+    golden = repository / "blackbox/golden/java/managed-mail-read-v7"
     runner = DifferentialRunner(
         repository,
         golden,
@@ -454,9 +504,45 @@ def test_rust_candidate_mail_read_matches_frozen_java_golden() -> None:
     with _candidate(repository) as candidate:
         DifferentialRunner(
             repository,
-            repository / "blackbox/golden/java/managed-mail-read-v6",
+            repository / "blackbox/golden/java/managed-mail-read-v7",
             "managed-mail-read",
         ).verify_candidate(MAIL_READ_SCENARIOS, candidate)
+
+
+@pytest.mark.integration
+@pytest.mark.oracle
+@pytest.mark.timeout(180)
+def test_frozen_java_mail_attachment_golden(
+    tmp_path: Path,
+    record_java_golden: bool,
+) -> None:
+    repository = Path(__file__).resolve().parents[2]
+    golden = repository / "blackbox/golden/java/managed-mail-attachment-v2"
+    runner = DifferentialRunner(
+        repository,
+        golden,
+        "managed-mail-attachment",
+        record_java=record_java_golden,
+    )
+    with PersistentJavaOracleRuntime(tmp_path / "java-mail-attachment") as oracle:
+        target = _OracleTarget(oracle)
+        if record_java_golden:
+            runner.record_from_java(MAIL_ATTACHMENT_SCENARIOS, target)
+        else:
+            runner.verify_java(MAIL_ATTACHMENT_SCENARIOS, target)
+
+
+@pytest.mark.integration
+@pytest.mark.candidate
+@pytest.mark.timeout(180)
+def test_rust_candidate_mail_attachment_matches_frozen_java_golden() -> None:
+    repository = Path(__file__).resolve().parents[2]
+    with _candidate(repository) as candidate:
+        DifferentialRunner(
+            repository,
+            repository / "blackbox/golden/java/managed-mail-attachment-v2",
+            "managed-mail-attachment",
+        ).verify_candidate(MAIL_ATTACHMENT_SCENARIOS, candidate)
 
 
 @pytest.mark.integration
@@ -467,7 +553,7 @@ def test_frozen_java_mail_state_golden(
     record_java_golden: bool,
 ) -> None:
     repository = Path(__file__).resolve().parents[2]
-    golden = repository / "blackbox/golden/java/managed-mail-state-v4"
+    golden = repository / "blackbox/golden/java/managed-mail-state-v5"
     runner = DifferentialRunner(
         repository,
         golden,
@@ -490,7 +576,7 @@ def test_rust_candidate_mail_state_matches_frozen_java_golden() -> None:
     with _candidate(repository) as candidate:
         DifferentialRunner(
             repository,
-            repository / "blackbox/golden/java/managed-mail-state-v4",
+            repository / "blackbox/golden/java/managed-mail-state-v5",
             "managed-mail-state",
         ).verify_candidate(MAIL_STATE_SCENARIOS, candidate)
 
@@ -503,7 +589,7 @@ def test_frozen_java_mail_mutations_golden(
     record_java_golden: bool,
 ) -> None:
     repository = Path(__file__).resolve().parents[2]
-    golden = repository / "blackbox/golden/java/managed-mail-mutations-v3"
+    golden = repository / "blackbox/golden/java/managed-mail-mutations-v4"
     runner = DifferentialRunner(
         repository,
         golden,
@@ -526,7 +612,7 @@ def test_rust_candidate_mail_mutations_match_frozen_java_golden() -> None:
     with _candidate(repository) as candidate:
         DifferentialRunner(
             repository,
-            repository / "blackbox/golden/java/managed-mail-mutations-v3",
+            repository / "blackbox/golden/java/managed-mail-mutations-v4",
             "managed-mail-mutations",
         ).verify_candidate(MAIL_MUTATION_SCENARIOS, candidate)
 
@@ -539,7 +625,7 @@ def test_frozen_java_delete_email_golden(
     record_java_golden: bool,
 ) -> None:
     repository = Path(__file__).resolve().parents[2]
-    golden = repository / "blackbox/golden/java/managed-mail-delete-v3"
+    golden = repository / "blackbox/golden/java/managed-mail-delete-v4"
     runner = DifferentialRunner(
         repository,
         golden,
@@ -562,7 +648,7 @@ def test_rust_candidate_delete_email_matches_frozen_java_golden() -> None:
     with _candidate(repository) as candidate:
         DifferentialRunner(
             repository,
-            repository / "blackbox/golden/java/managed-mail-delete-v3",
+            repository / "blackbox/golden/java/managed-mail-delete-v4",
             "managed-mail-delete",
         ).verify_candidate(MAIL_DELETE_SCENARIOS, candidate)
 
