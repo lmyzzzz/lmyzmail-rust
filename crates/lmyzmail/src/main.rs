@@ -28,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cancellation = CancellationToken::new();
     let signal_cancellation = cancellation.clone();
     let signal_task = tokio::spawn(lifecycle::wait_for_shutdown(signal_cancellation));
-    http::serve_health(config, cancellation).await?;
+    http::serve_http(config, cancellation).await?;
     signal_task.abort();
     Ok(())
 }

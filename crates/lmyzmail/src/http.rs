@@ -70,7 +70,7 @@ impl ServerLimits {
     }
 }
 
-pub async fn serve_health(
+pub async fn serve_http(
     config: Arc<RuntimeConfig>,
     cancellation: CancellationToken,
 ) -> io::Result<()> {
@@ -143,6 +143,20 @@ async fn handle_connection(mut stream: TcpStream, max_request_bytes: usize) -> i
             )
             .await
         }
+        ParsedRequest::Skibidi => {
+            let body = format!(
+                "{{\"status\":\"skibidi\",\"lore\":\"{}\",\"timestamp\":\"{}\"}}",
+                SKIBIDI_LORE,
+                Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+            );
+            write_response(
+                stream,
+                Status::Ok,
+                body.as_bytes(),
+                "application/json; charset=UTF-8",
+            )
+            .await
+        }
         ParsedRequest::NotFound => {
             write_response(
                 stream,
@@ -195,6 +209,7 @@ async fn read_headers(stream: &mut TcpStream, max_request_bytes: usize) -> io::R
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 enum ParsedRequest {
     Health,
+    Skibidi,
     NotFound,
     BadRequest,
     PayloadTooLarge,
@@ -221,10 +236,7 @@ fn parse_request(request: &[u8], max_request_bytes: usize) -> ParsedRequest {
     else {
         return ParsedRequest::BadRequest;
     };
-    if version != "HTTP/1.1"
-        || method != "GET"
-        || path.bytes().any(|byte| byte <= 0x1f || byte == 0x7f)
-    {
+    if version != "HTTP/1.1" || path.bytes().any(|byte| byte <= 0x1f || byte == 0x7f) {
         return ParsedRequest::BadRequest;
     }
 
@@ -252,18 +264,26 @@ fn parse_request(request: &[u8], max_request_bytes: usize) -> ParsedRequest {
             declared_length = Some(length);
         }
     }
+    // The frozen router returns its normal 404 for a syntactically valid but
+    // unsupported method before applying an endpoint's body contract.
+    if method != "GET" {
+        return ParsedRequest::NotFound;
+    }
     if declared_length.unwrap_or(0) > max_request_bytes {
         return ParsedRequest::PayloadTooLarge;
     }
     if declared_length.unwrap_or(0) != 0 {
         return ParsedRequest::BadRequest;
     }
-    if path == "/api/health" {
-        ParsedRequest::Health
-    } else {
-        ParsedRequest::NotFound
+    match path {
+        "/api/health" => ParsedRequest::Health,
+        "/api/skibidi" => ParsedRequest::Skibidi,
+        _ => ParsedRequest::NotFound,
     }
 }
+
+const SKIBIDI_LORE: &str =
+    "The G-Man Toilet initiated a Skibidi dop dop dop yes yes attack on the city center.";
 
 async fn write_response(
     mut stream: TcpStream,
@@ -297,6 +317,24 @@ mod tests {
         assert_eq!(
             parse_request(b"GET /api/health HTTP/1.1\r\nHost: localhost\r\n\r\n", 1024),
             ParsedRequest::Health
+        );
+    }
+
+    #[test]
+    fn parser_routes_public_skibidi_and_wrong_methods_to_not_found() {
+        assert_eq!(
+            parse_request(
+                b"GET /api/skibidi HTTP/1.1\r\nHost: localhost\r\n\r\n",
+                1024
+            ),
+            ParsedRequest::Skibidi
+        );
+        assert_eq!(
+            parse_request(
+                b"POST /api/health HTTP/1.1\r\nContent-Length: 2\r\n\r\n{}",
+                1024,
+            ),
+            ParsedRequest::NotFound
         );
     }
 
