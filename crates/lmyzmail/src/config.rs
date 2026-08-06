@@ -18,9 +18,12 @@ const MAX_PROPERTY_VALUE_BYTES: usize = 1_048_576;
 const MAX_HOST_BYTES: usize = 253;
 const MAX_PATH_BYTES: usize = 4_096;
 const MAX_API_KEY_BYTES: usize = 4_096;
+const MAX_ALLOWED_ORIGINS: usize = 256;
+const MAX_ORIGIN_BYTES: usize = 2_048;
 const MAX_POOL_SIZE: u32 = 4_096;
 const MAX_HONEYPOT_DELAY_MS: u64 = 3_600_000;
 const MAX_HONEYPOTS: usize = 256;
+const MAX_MESSAGE_BYTES: u64 = 1024 * 1024 * 1024;
 
 #[derive(Debug)]
 pub enum ConfigError {
@@ -191,6 +194,8 @@ struct JsonRuntimeConfig {
     maildir: String,
     domain: String,
     #[serde(default)]
+    allowed_origins: Vec<String>,
+    #[serde(default)]
     api_keys: Vec<JsonApiKeyConfig>,
     #[serde(default)]
     features: JsonFeatureConfig,
@@ -267,6 +272,8 @@ struct JsonFeatureConfig {
     fail2ban: bool,
     #[serde(default)]
     report_delivery: bool,
+    #[serde(default)]
+    show_internet_nl_badge: bool,
 }
 
 impl Default for JsonFeatureConfig {
@@ -280,6 +287,7 @@ impl Default for JsonFeatureConfig {
             xdp: false,
             fail2ban: false,
             report_delivery: false,
+            show_internet_nl_badge: false,
         }
     }
 }
@@ -301,6 +309,12 @@ struct JsonLimitConfig {
     honeypot_initial_delay_ms: u64,
     #[serde(default = "default_honeypot_post_banner_timeout_ms")]
     honeypot_post_banner_timeout_ms: u64,
+    #[serde(default = "default_max_email_size_bytes")]
+    max_email_size_bytes: u64,
+    #[serde(default = "default_max_attachment_size_bytes")]
+    max_attachment_size_bytes: u64,
+    #[serde(default = "default_max_total_attachments_size_bytes")]
+    max_total_attachments_size_bytes: u64,
 }
 
 impl Default for JsonLimitConfig {
@@ -313,6 +327,9 @@ impl Default for JsonLimitConfig {
             http_deadline_ms: default_http_deadline_ms(),
             honeypot_initial_delay_ms: default_honeypot_initial_delay_ms(),
             honeypot_post_banner_timeout_ms: default_honeypot_post_banner_timeout_ms(),
+            max_email_size_bytes: default_max_email_size_bytes(),
+            max_attachment_size_bytes: default_max_attachment_size_bytes(),
+            max_total_attachments_size_bytes: default_max_total_attachments_size_bytes(),
         }
     }
 }
@@ -359,6 +376,18 @@ fn default_honeypot_initial_delay_ms() -> u64 {
 
 fn default_honeypot_post_banner_timeout_ms() -> u64 {
     10_000
+}
+
+fn default_max_email_size_bytes() -> u64 {
+    15 * 1024 * 1024
+}
+
+fn default_max_attachment_size_bytes() -> u64 {
+    10 * 1024 * 1024
+}
+
+fn default_max_total_attachments_size_bytes() -> u64 {
+    15 * 1024 * 1024
 }
 
 fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
@@ -424,6 +453,9 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
     )?;
     properties.insert("lmyzmail.maildir.base".to_owned(), value.maildir)?;
     properties.insert("lmyzmail.domain".to_owned(), value.domain)?;
+    for (index, origin) in value.allowed_origins.into_iter().enumerate() {
+        properties.insert(format!("lmyzmail.allowed-origins[{index}]"), origin)?;
+    }
     for (index, api_key) in value.api_keys.into_iter().enumerate() {
         let prefix = format!("lmyzmail.api-keys[{index}]");
         properties.insert(format!("{prefix}.key"), api_key.key)?;
@@ -464,6 +496,10 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         value.features.report_delivery.to_string(),
     )?;
     properties.insert(
+        "lmyzmail.show-internet-nl-badge".to_owned(),
+        value.features.show_internet_nl_badge.to_string(),
+    )?;
+    properties.insert(
         "lmyzmail.redis.pool.max-active".to_owned(),
         value.limits.redis_pool.to_string(),
     )?;
@@ -490,6 +526,18 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
     properties.insert(
         "lmyzmail.honeypot.post-banner-timeout-ms".to_owned(),
         value.limits.honeypot_post_banner_timeout_ms.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.max-email-size-bytes".to_owned(),
+        value.limits.max_email_size_bytes.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.max-attachment-size-bytes".to_owned(),
+        value.limits.max_attachment_size_bytes.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.max-total-attachments-size-bytes".to_owned(),
+        value.limits.max_total_attachments_size_bytes.to_string(),
     )?;
     Ok(properties)
 }
@@ -599,6 +647,7 @@ pub struct RuntimeConfig {
     pub redis: RedisConfig,
     pub maildir: PathBuf,
     pub domain: String,
+    pub allowed_origins: Vec<String>,
     pub api_keys: Vec<ApiKeyConfig>,
     pub features: FeatureConfig,
     pub limits: LimitConfig,
@@ -655,6 +704,7 @@ pub struct FeatureConfig {
     pub xdp: bool,
     pub fail2ban: bool,
     pub report_delivery: bool,
+    pub show_internet_nl_badge: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -666,6 +716,9 @@ pub struct LimitConfig {
     pub http_deadline_ms: u64,
     pub honeypot_initial_delay_ms: u64,
     pub honeypot_post_banner_timeout_ms: u64,
+    pub max_email_size_bytes: u64,
+    pub max_attachment_size_bytes: u64,
+    pub max_total_attachments_size_bytes: u64,
 }
 
 impl RuntimeConfig {
@@ -804,6 +857,7 @@ impl RuntimeConfig {
         .unwrap_or("lmyz.net")
         .to_owned();
         validate_host(&domain, "domain")?;
+        let allowed_origins = parse_allowed_origins(&properties)?;
 
         let features = FeatureConfig {
             public_registration: preferred_bool(
@@ -855,6 +909,12 @@ impl RuntimeConfig {
                 &["botmail.reporting.http-delivery-enabled"],
                 false,
             )?,
+            show_internet_nl_badge: preferred_bool(
+                &properties,
+                &["lmyzmail.show-internet-nl-badge"],
+                &["botmail.show-internet-nl-badge"],
+                false,
+            )?,
         };
 
         let limits = LimitConfig {
@@ -898,6 +958,24 @@ impl RuntimeConfig {
                 &["botmail.honeypot.post-banner-timeout-ms"],
                 10_000,
             )?,
+            max_email_size_bytes: preferred_u64(
+                &properties,
+                &["lmyzmail.max-email-size-bytes"],
+                &["botmail.max-email-size-bytes"],
+                default_max_email_size_bytes(),
+            )?,
+            max_attachment_size_bytes: preferred_u64(
+                &properties,
+                &["lmyzmail.max-attachment-size-bytes"],
+                &["botmail.max-attachment-size-bytes"],
+                default_max_attachment_size_bytes(),
+            )?,
+            max_total_attachments_size_bytes: preferred_u64(
+                &properties,
+                &["lmyzmail.max-total-attachments-size-bytes"],
+                &["botmail.max-total-attachments-size-bytes"],
+                default_max_total_attachments_size_bytes(),
+            )?,
         };
         validate_limits(&limits)?;
 
@@ -928,6 +1006,7 @@ impl RuntimeConfig {
             redis,
             maildir: PathBuf::from(maildir),
             domain,
+            allowed_origins,
             api_keys,
             features,
             limits,
@@ -1075,6 +1154,58 @@ fn preferred_bool(
             "invalid boolean value: {value}"
         ))),
     }
+}
+
+fn parse_allowed_origins(properties: &Properties) -> Result<Vec<String>, ConfigError> {
+    let mut origins = Vec::new();
+    for index in 0..MAX_ALLOWED_ORIGINS {
+        let new_key = format!("lmyzmail.allowed-origins[{index}]");
+        let legacy_key = format!("botmail.allowed-origins[{index}]");
+        let Some(origin) = preferred(properties, &[&new_key], &[&legacy_key]) else {
+            break;
+        };
+        validate_origin_pattern(origin)?;
+        origins.push(origin.to_owned());
+    }
+    Ok(origins)
+}
+
+fn validate_origin_pattern(value: &str) -> Result<(), ConfigError> {
+    if value.is_empty() || value.len() > MAX_ORIGIN_BYTES || value == "*" {
+        return Err(ConfigError::Invalid(
+            "allowed origin is empty, too long, or an unsafe wildcard".into(),
+        ));
+    }
+    let normalized = if let Some((scheme, host)) = value.split_once("://*.") {
+        if host.contains('*') || !host.contains('.') {
+            return Err(ConfigError::Invalid(
+                "allowed origin wildcard must cover a specific subdomain suffix".into(),
+            ));
+        }
+        format!("{scheme}://wildcard.{host}")
+    } else {
+        if value.contains('*') {
+            return Err(ConfigError::Invalid(
+                "allowed origin contains an unsupported wildcard".into(),
+            ));
+        }
+        value.to_owned()
+    };
+    let parsed = Url::parse(&normalized)
+        .map_err(|_| ConfigError::Invalid("allowed origin is not a valid URL origin".into()))?;
+    if !matches!(parsed.scheme(), "http" | "https")
+        || parsed.host_str().is_none()
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.path() != "/"
+        || parsed.query().is_some()
+        || parsed.fragment().is_some()
+    {
+        return Err(ConfigError::Invalid(
+            "allowed origin must contain only an HTTP(S) scheme, host, and optional port".into(),
+        ));
+    }
+    Ok(())
 }
 
 fn parse_api_keys(properties: &Properties) -> Result<Vec<ApiKeyConfig>, ConfigError> {
@@ -1255,6 +1386,17 @@ fn validate_limits(value: &LimitConfig) -> Result<(), ConfigError> {
         return Err(ConfigError::Invalid(format!(
             "honeypot deadlines must not exceed {MAX_HONEYPOT_DELAY_MS} ms"
         )));
+    }
+    if value.max_email_size_bytes == 0
+        || value.max_email_size_bytes > MAX_MESSAGE_BYTES
+        || value.max_attachment_size_bytes == 0
+        || value.max_attachment_size_bytes > value.max_email_size_bytes
+        || value.max_total_attachments_size_bytes == 0
+        || value.max_total_attachments_size_bytes > value.max_email_size_bytes
+    {
+        return Err(ConfigError::Invalid(
+            "mail and attachment size limits are outside the safe bound".into(),
+        ));
     }
     Ok(())
 }
@@ -1467,6 +1609,33 @@ mod tests {
         let properties =
             Properties::parse(b"lmyzmail.http.port=8080\nlmyzmail.smtp.port=8080\n").unwrap();
         assert!(RuntimeConfig::from_properties(properties).is_err());
+    }
+
+    #[test]
+    fn web_limits_and_allowed_origins_accept_legacy_aliases_with_new_precedence() {
+        let properties = Properties::parse(
+            b"botmail.allowed-origins[0]=https://old.example\n\
+lmyzmail.allowed-origins[0]=https://mail.example\n\
+botmail.max-email-size-bytes=20971520\n\
+botmail.max-attachment-size-bytes=5242880\n\
+botmail.max-total-attachments-size-bytes=10485760\n\
+botmail.show-internet-nl-badge=true\n",
+        )
+        .unwrap();
+        let config = RuntimeConfig::from_properties(properties).unwrap();
+        assert_eq!(config.allowed_origins, ["https://mail.example"]);
+        assert_eq!(config.limits.max_email_size_bytes, 20 * 1024 * 1024);
+        assert_eq!(config.limits.max_attachment_size_bytes, 5 * 1024 * 1024);
+        assert_eq!(
+            config.limits.max_total_attachments_size_bytes,
+            10 * 1024 * 1024
+        );
+        assert!(config.features.show_internet_nl_badge);
+        assert!(
+            Properties::parse(b"lmyzmail.allowed-origins[0]=*\n")
+                .and_then(RuntimeConfig::from_properties)
+                .is_err()
+        );
     }
 
     #[test]

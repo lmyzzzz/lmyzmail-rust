@@ -15,10 +15,14 @@ lmyzmail.redis.port=6379
 lmyzmail.redis.database=0
 lmyzmail.maildir.base=/var/lib/lmyzmail/data/mail
 lmyzmail.domain=lmyz.net
+lmyzmail.allowed-origins[0]=https://mail.example.com
 
 lmyzmail.http.max-request-bytes=10485760
 lmyzmail.http.max-connections=256
 lmyzmail.http.request-timeout-ms=10000
+lmyzmail.max-email-size-bytes=15728640
+lmyzmail.max-attachment-size-bytes=10485760
+lmyzmail.max-total-attachments-size-bytes=15728640
 lmyzmail.redis.pool.max-active=32
 lmyzmail.postgres.pool.max-size=32
 lmyzmail.public-registration-enabled=false
@@ -29,6 +33,7 @@ lmyzmail.smtp.skibidi-generator-mode=AUTO_SAFE
 lmyzmail.xdp.enabled=false
 lmyzmail.fail2ban.enabled=false
 lmyzmail.reporting.http-delivery-enabled=false
+lmyzmail.show-internet-nl-badge=false
 
 # API keys are intentionally absent from this example. Inject them through a
 # protected deployment-specific file or command-line property override.

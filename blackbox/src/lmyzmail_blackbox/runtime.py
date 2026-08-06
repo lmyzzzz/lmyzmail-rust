@@ -706,6 +706,7 @@ class CandidateRuntime(JavaOracleRuntime):
             "redis": {"host": "127.0.0.1", "port": ports.redis, "database": 0},
             "maildir": str(workspace / "maildir"),
             "domain": "example.test",
+            "allowed_origins": [f"http://127.0.0.1:{ports.http}"],
             "api_keys": [
                 {
                     "key": API_KEY,

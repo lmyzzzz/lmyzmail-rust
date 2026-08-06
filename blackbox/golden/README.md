@@ -174,11 +174,10 @@ The following retained historical sets are bound to
 - `managed-smtp-data-oracle-evidence-v7/`
 - `managed-smtp-mime-v7/`
 
-The current active sets are bound to
+The following retained historical sets are bound to
 `attestation.harness.definition_tree_sha256`
 `734ba1889bc691971e9c4ff052580ad7edc5310cab7ebb60579d4a74b33752d9`:
 
-- `managed-candidate-api-status-v1/`
 - `managed-basic-v22/`
 - `managed-starttls-v12/`
 - `managed-starttls-oracle-evidence-v12/`
@@ -190,11 +189,28 @@ The current active sets are bound to
 - `managed-smtp-data-oracle-evidence-v8/`
 - `managed-smtp-mime-v8/`
 
-The earlier candidate-health v1-v4, candidate-public-http v1, HTTP v19-v21,
-SMTP v5-v11, and outbound v5-v7 recordings are retained as create-once
-provenance; none is consumed by the tests.
+The current active sets are bound to
+`attestation.harness.definition_tree_sha256`
+`95c8cf8a27e686f5c1ab96d42191453f43f7abfc000c958593084abc9fbf99bc`:
 
-The active outbound attestation is `managed-outbound-queue-v8.json`, using the
+- `managed-candidate-public-config-v1/`
+- `managed-basic-v23/`
+- `managed-starttls-v13/`
+- `managed-starttls-oracle-evidence-v13/`
+- `managed-smtp-auth-v12/`
+- `managed-smtp-auth-starttls-v12/`
+- `managed-smtp-command-v10/`
+- `managed-smtp-command-oracle-evidence-v10/`
+- `managed-smtp-data-v9/`
+- `managed-smtp-data-oracle-evidence-v9/`
+- `managed-smtp-mime-v9/`
+
+The earlier candidate-health v1-v4, candidate-public-http v1,
+candidate-api-status v1, HTTP v19-v22, SMTP v5-v12, and outbound v5-v8
+recordings are retained as create-once provenance; none is consumed by the
+tests.
+
+The active outbound attestation is `managed-outbound-queue-v9.json`, using the
 field-scoped `outbound:generated-sent-filename` normalizer. The rejected raw
 `v1` recording is never used as an expectation. The intermediate `v3` recording
 predates the final active test-path attestation and is retained as historical

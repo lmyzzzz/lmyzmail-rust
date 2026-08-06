@@ -11,6 +11,7 @@ use tokio::{
     time::timeout,
 };
 use tokio_util::sync::CancellationToken;
+use url::Url;
 
 use crate::config::RuntimeConfig;
 
@@ -190,6 +191,52 @@ async fn handle_connection(
             )
             .await
         }
+        ParsedRequest::WebDomains => {
+            let body = serde_json::to_vec(&WebDomainsResponse {
+                receivable: [&config.domain],
+                registration_enabled: config.features.public_registration,
+                sendable: [&config.domain],
+            })
+            .map_err(io::Error::other)?;
+            write_response(
+                stream,
+                Status::Ok,
+                &body,
+                "application/json; charset=UTF-8",
+            )
+            .await
+        }
+        ParsedRequest::WebConfig => {
+            let limits = &config.limits;
+            let body = serde_json::to_vec(&WebConfigResponse {
+                domains: [&config.domain],
+                max_attachment_size_bytes: limits.max_attachment_size_bytes,
+                max_attachment_size_mb: limits.max_attachment_size_bytes / (1024 * 1024),
+                max_email_size_bytes: limits.max_email_size_bytes,
+                max_email_size_mb: limits.max_email_size_bytes / (1024 * 1024),
+                max_total_attachments_size_bytes: limits.max_total_attachments_size_bytes,
+                sendable_domains: [&config.domain],
+                show_internet_nl_badge: config.features.show_internet_nl_badge,
+            })
+            .map_err(io::Error::other)?;
+            write_response(
+                stream,
+                Status::Ok,
+                &body,
+                "application/json; charset=UTF-8",
+            )
+            .await
+        }
+        ParsedRequest::CorsPreflight(origin) => write_cors_preflight(stream, &origin).await,
+        ParsedRequest::CorsRejected => {
+            write_response(
+                stream,
+                Status::Forbidden,
+                br#"{"error":"cors_rejected"}"#,
+                "application/json; charset=UTF-8",
+            )
+            .await
+        }
         ParsedRequest::Unauthorized => {
             write_response(
                 stream,
@@ -257,11 +304,15 @@ async fn read_headers(stream: &mut TcpStream, max_request_bytes: usize) -> io::R
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 enum ParsedRequest {
     Health,
     Skibidi,
     ApiStatus,
+    WebDomains,
+    WebConfig,
+    CorsPreflight(String),
+    CorsRejected,
     Unauthorized,
     Forbidden,
     NotFound,
@@ -300,6 +351,7 @@ fn parse_request(
 
     let mut declared_length = None;
     let mut api_key = None;
+    let mut origin = None;
     for line in lines {
         let Some((name, value)) = line.split_once(':') else {
             return ParsedRequest::BadRequest;
@@ -328,13 +380,30 @@ fn parse_request(
             }
             api_key = Some(value.trim());
         }
+        if name.eq_ignore_ascii_case("origin") {
+            if origin.is_some() {
+                return ParsedRequest::BadRequest;
+            }
+            origin = Some(value.trim());
+        }
     }
     if declared_length.unwrap_or(0) > max_request_bytes {
         return ParsedRequest::PayloadTooLarge;
     }
+    if method == "OPTIONS"
+        && let Some(origin) = origin
+    {
+        return if is_origin_allowed(config, origin) {
+            ParsedRequest::CorsPreflight(origin.to_owned())
+        } else {
+            ParsedRequest::CorsRejected
+        };
+    }
     match (method, path) {
         ("GET", "/api/health") => ParsedRequest::Health,
         ("GET", "/api/skibidi") => ParsedRequest::Skibidi,
+        ("GET", "/web/domains") => ParsedRequest::WebDomains,
+        ("GET", "/web/config") => ParsedRequest::WebConfig,
         (_, "/api/health" | "/api/skibidi") => ParsedRequest::NotFound,
         _ if path.starts_with("/api/") => match api_read_permission(config, api_key) {
             ApiReadPermission::Unauthorized => ParsedRequest::Unauthorized,
@@ -350,6 +419,44 @@ fn parse_request(
         _ if declared_length.unwrap_or(0) != 0 => ParsedRequest::BadRequest,
         _ => ParsedRequest::NotFound,
     }
+}
+
+fn is_origin_allowed(config: &RuntimeConfig, origin: &str) -> bool {
+    config
+        .allowed_origins
+        .iter()
+        .any(|pattern| origin_matches(origin, pattern))
+}
+
+fn origin_matches(origin: &str, pattern: &str) -> bool {
+    if origin == pattern {
+        return true;
+    }
+    let Some((scheme, suffix)) = pattern.split_once("://*.") else {
+        return false;
+    };
+    let Ok(origin_url) = Url::parse(origin) else {
+        return false;
+    };
+    let Ok(pattern_url) = Url::parse(&format!("{scheme}://wildcard.{suffix}")) else {
+        return false;
+    };
+    if origin_url.scheme() != pattern_url.scheme()
+        || origin_url.port_or_known_default() != pattern_url.port_or_known_default()
+        || origin_url.path() != "/"
+        || origin_url.query().is_some()
+        || origin_url.fragment().is_some()
+    {
+        return false;
+    }
+    let (Some(origin_host), Some(pattern_host)) = (origin_url.host_str(), pattern_url.host_str())
+    else {
+        return false;
+    };
+    let suffix_host = pattern_host
+        .strip_prefix("wildcard.")
+        .unwrap_or(pattern_host);
+    origin_host != suffix_host && origin_host.ends_with(&format!(".{suffix_host}"))
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -395,6 +502,29 @@ struct ApiDomains<'a> {
     sendable: [&'a str; 1],
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WebDomainsResponse<'a> {
+    receivable: [&'a str; 1],
+    registration_enabled: bool,
+    sendable: [&'a str; 1],
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WebConfigResponse<'a> {
+    domains: [&'a str; 1],
+    max_attachment_size_bytes: u64,
+    #[serde(rename = "maxAttachmentSizeMB")]
+    max_attachment_size_mb: u64,
+    max_email_size_bytes: u64,
+    #[serde(rename = "maxEmailSizeMB")]
+    max_email_size_mb: u64,
+    max_total_attachments_size_bytes: u64,
+    sendable_domains: [&'a str; 1],
+    show_internet_nl_badge: bool,
+}
+
 const SKIBIDI_LORE: &str =
     "The G-Man Toilet initiated a Skibidi dop dop dop yes yes attack on the city center.";
 
@@ -415,6 +545,19 @@ async fn write_response(
     stream.write_all(body).await
 }
 
+async fn write_cors_preflight(mut stream: TcpStream, origin: &str) -> io::Result<()> {
+    let head = format!(
+        "HTTP/1.1 200 OK\r\n\
+Access-Control-Allow-Origin: {origin}\r\n\
+Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\n\
+Access-Control-Allow-Headers: Authorization, Content-Type, X-Requested-With, Accept, Origin, Access-Control-Request-Method, Access-Control-Request-Headers, X-API-Key, X-Session-Token\r\n\
+Access-Control-Allow-Credentials: true\r\n\
+Access-Control-Max-Age: 3600\r\n\
+Content-Length: 0\r\n\r\n"
+    );
+    stream.write_all(head.as_bytes()).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -430,7 +573,9 @@ mod tests {
                 b"lmyzmail.api-keys[0].key=read-key\n\
 lmyzmail.api-keys[0].read=true\n\
 lmyzmail.api-keys[1].key=write-key\n\
-lmyzmail.api-keys[1].read=false\n",
+lmyzmail.api-keys[1].read=false\n\
+lmyzmail.allowed-origins[0]=http://127.0.0.1:18080\n\
+lmyzmail.public-registration-enabled=true\n",
             )
             .unwrap(),
         )
@@ -492,6 +637,43 @@ lmyzmail.api-keys[1].read=false\n",
             parse_request(request("read-key").as_bytes(), 1024, &config),
             ParsedRequest::ApiStatus
         );
+    }
+
+    #[test]
+    fn cors_preflight_and_public_web_routes_follow_config() {
+        let config = config_with_api_keys();
+        assert_eq!(
+            parse_request(
+                b"OPTIONS /api/status HTTP/1.1\r\nOrigin: http://127.0.0.1:18080\r\n\r\n",
+                1024,
+                &config,
+            ),
+            ParsedRequest::CorsPreflight("http://127.0.0.1:18080".to_owned())
+        );
+        assert_eq!(
+            parse_request(
+                b"OPTIONS /api/status HTTP/1.1\r\nOrigin: https://evil.example\r\n\r\n",
+                1024,
+                &config,
+            ),
+            ParsedRequest::CorsRejected
+        );
+        assert_eq!(
+            parse_request(b"GET /web/domains HTTP/1.1\r\n\r\n", 1024, &config),
+            ParsedRequest::WebDomains
+        );
+        assert_eq!(
+            parse_request(b"GET /web/config HTTP/1.1\r\n\r\n", 1024, &config),
+            ParsedRequest::WebConfig
+        );
+        assert!(origin_matches(
+            "https://mx.mail.example",
+            "https://*.mail.example"
+        ));
+        assert!(!origin_matches(
+            "https://mail.example.evil.test",
+            "https://*.mail.example"
+        ));
     }
 
     #[test]

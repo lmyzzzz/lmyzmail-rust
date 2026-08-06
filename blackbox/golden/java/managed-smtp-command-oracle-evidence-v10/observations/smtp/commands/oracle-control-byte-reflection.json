@@ -1,0 +1,107 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "95c8cf8a27e686f5c1ab96d42191453f43f7abfc000c958593084abc9fbf99bc",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "smtp:greeting-skibidi-grammar",
+      "smtp:server-hostname"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-smtp-command-oracle-evidence"
+  },
+  "observation": {
+    "cases": [
+      {
+        "case": "tab_in_command",
+        "payload": {
+          "base64": "Tk9PUAlmb28NCg==",
+          "length": 10,
+          "sha256": "dcf5ade8f5c06b1f9604017a37c3d0d790998820ab6d7df7ab6c36b57e85a090"
+        },
+        "reply": {
+          "base64": "NTAwIDUuNS4xIENvbW1hbmQgbm90IHJlY29nbml6ZWQ6IE5PT1AJRk9PDQo=",
+          "length": 44,
+          "sha256": "9a154d1110428ef84984585d79c5ae2849899b3c88c3968bbbae619c50891649"
+        }
+      },
+      {
+        "case": "nul_in_command",
+        "payload": {
+          "base64": "Tk9PUABBUkcNCg==",
+          "length": 10,
+          "sha256": "0f05f0407caddbb9a3ca42486817fdd22f83a7af817fc0f2b6294a31ecea7010"
+        },
+        "reply": {
+          "base64": "NTAwIDUuNS4xIENvbW1hbmQgbm90IHJlY29nbml6ZWQ6IE5PT1AAQVJHDQo=",
+          "length": 44,
+          "sha256": "5910fb7471b0e0315aaeef4c79fdd2dfaeb4f0d3a94a6f2a4448f5ce17122adf"
+        }
+      },
+      {
+        "case": "invalid_utf8_replaced_then_ascii_encoded",
+        "payload": {
+          "base64": "WP9ZDQo=",
+          "length": 5,
+          "sha256": "429985d1b384140255732d0b4607fb3fc296a00a47c2dece9ab90520c68e110c"
+        },
+        "reply": {
+          "base64": "NTAwIDUuNS4xIENvbW1hbmQgbm90IHJlY29nbml6ZWQ6IFg/WQ0K",
+          "length": 39,
+          "sha256": "b070177871e6b8aff7c83ca1a4ca7a0c0ce6cc8fae83a0d597b972e049ba6880"
+        }
+      },
+      {
+        "case": "bare_cr_reflected",
+        "payload": {
+          "base64": "Tk9PUA1YDQo=",
+          "length": 8,
+          "sha256": "61d26b3287520c467472c88a8fa64a2cb4f490edefb4a9ed3be404f9f7e3db07"
+        },
+        "reply": {
+          "base64": "NTAwIDUuNS4xIENvbW1hbmQgbm90IHJlY29nbml6ZWQ6IE5PT1ANWA0K",
+          "length": 42,
+          "sha256": "05fdb4bac7fd04bd3be0a526039b6b10fd47a6dd2fec3791a4070b329a75e264"
+        }
+      },
+      {
+        "case": "bare_lf_reflected",
+        "payload": {
+          "base64": "Tk9PUApYDQo=",
+          "length": 8,
+          "sha256": "ad35e1174188e932d0d46776783ee1a99b62b62ee03f79a10e8a8e7b8b6bb13f"
+        },
+        "reply": {
+          "base64": "NTAwIDUuNS4xIENvbW1hbmQgbm90IHJlY29nbml6ZWQ6IE5PT1AKWA0K",
+          "length": 42,
+          "sha256": "d2ac343a3446ad6f2f44ef722ebd6e440b674192672fceaa50df06f2b724ee4f"
+        }
+      }
+    ],
+    "greeting": [
+      "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+    ],
+    "quit": [
+      "221 2.0.0 <hostname> closing connection\r\n"
+    ],
+    "session_recovery": [
+      "250 OK\r\n"
+    ]
+  },
+  "schema_version": 2
+}
