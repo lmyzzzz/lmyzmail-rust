@@ -26,6 +26,8 @@ These are required Java parity behaviors, not approved security differences.
   without delivery.
 - MIME indexing scans only the first body part. Consequently, a multipart body
   before its attachment is indexed with `has_attachments=false`.
+- A missing session token on `POST /web/mail/send/multipart` returns `401` with
+  an empty body, `Content-Length: 0`, and `Connection: close`.
 
 ## Approved security differences
 

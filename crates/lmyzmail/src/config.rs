@@ -8,6 +8,7 @@ use std::{
     str,
 };
 
+use ipnet::IpNet;
 use serde::Deserialize;
 use url::Url;
 
@@ -19,6 +20,7 @@ const MAX_HOST_BYTES: usize = 253;
 const MAX_PATH_BYTES: usize = 4_096;
 const MAX_API_KEY_BYTES: usize = 4_096;
 const MAX_ALLOWED_ORIGINS: usize = 256;
+const MAX_TRUSTED_PROXIES: usize = 256;
 const MAX_ORIGIN_BYTES: usize = 2_048;
 const MAX_POOL_SIZE: u32 = 4_096;
 const MAX_HONEYPOT_DELAY_MS: u64 = 3_600_000;
@@ -195,6 +197,8 @@ struct JsonRuntimeConfig {
     domain: String,
     #[serde(default)]
     allowed_origins: Vec<String>,
+    #[serde(default)]
+    trusted_proxies: Vec<String>,
     #[serde(default)]
     api_keys: Vec<JsonApiKeyConfig>,
     #[serde(default)]
@@ -456,6 +460,9 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
     for (index, origin) in value.allowed_origins.into_iter().enumerate() {
         properties.insert(format!("lmyzmail.allowed-origins[{index}]"), origin)?;
     }
+    for (index, proxy) in value.trusted_proxies.into_iter().enumerate() {
+        properties.insert(format!("lmyzmail.http.trusted-proxies[{index}]"), proxy)?;
+    }
     for (index, api_key) in value.api_keys.into_iter().enumerate() {
         let prefix = format!("lmyzmail.api-keys[{index}]");
         properties.insert(format!("{prefix}.key"), api_key.key)?;
@@ -648,6 +655,7 @@ pub struct RuntimeConfig {
     pub maildir: PathBuf,
     pub domain: String,
     pub allowed_origins: Vec<String>,
+    pub trusted_proxies: Vec<IpNet>,
     pub api_keys: Vec<ApiKeyConfig>,
     pub features: FeatureConfig,
     pub limits: LimitConfig,
@@ -858,6 +866,7 @@ impl RuntimeConfig {
         .to_owned();
         validate_host(&domain, "domain")?;
         let allowed_origins = parse_allowed_origins(&properties)?;
+        let trusted_proxies = parse_trusted_proxies(&properties)?;
 
         let features = FeatureConfig {
             public_registration: preferred_bool(
@@ -1007,6 +1016,7 @@ impl RuntimeConfig {
             maildir: PathBuf::from(maildir),
             domain,
             allowed_origins,
+            trusted_proxies,
             api_keys,
             features,
             limits,
@@ -1168,6 +1178,67 @@ fn parse_allowed_origins(properties: &Properties) -> Result<Vec<String>, ConfigE
         origins.push(origin.to_owned());
     }
     Ok(origins)
+}
+
+fn parse_trusted_proxies(properties: &Properties) -> Result<Vec<IpNet>, ConfigError> {
+    let scalar_new = preferred(
+        properties,
+        &[
+            "lmyzmail.http.trusted-proxies",
+            "lmyzmail.netty.http.trusted-proxies",
+        ],
+        &[],
+    );
+    let indexed_new = properties.get("lmyzmail.http.trusted-proxies[0]").is_some();
+    let scalar_legacy = properties.get("botmail.netty.http.trusted-proxies");
+    let indexed_legacy = properties
+        .get("botmail.netty.http.trusted-proxies[0]")
+        .is_some();
+
+    let raw_values = if let Some(value) = scalar_new {
+        if value.trim().is_empty() {
+            Vec::new()
+        } else {
+            value.split(',').map(str::trim).collect::<Vec<_>>()
+        }
+    } else if indexed_new {
+        (0..MAX_TRUSTED_PROXIES)
+            .map_while(|index| properties.get(&format!("lmyzmail.http.trusted-proxies[{index}]")))
+            .collect()
+    } else if let Some(value) = scalar_legacy {
+        if value.trim().is_empty() {
+            Vec::new()
+        } else {
+            value.split(',').map(str::trim).collect::<Vec<_>>()
+        }
+    } else if indexed_legacy {
+        (0..MAX_TRUSTED_PROXIES)
+            .map_while(|index| {
+                properties.get(&format!("botmail.netty.http.trusted-proxies[{index}]"))
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    if raw_values.len() > MAX_TRUSTED_PROXIES {
+        return Err(ConfigError::Invalid(format!(
+            "trusted proxy list exceeds {MAX_TRUSTED_PROXIES} entries"
+        )));
+    }
+    let mut proxies = Vec::with_capacity(raw_values.len());
+    for value in raw_values {
+        if value.is_empty() {
+            return Err(ConfigError::Invalid("trusted proxy entry is empty".into()));
+        }
+        let network = value
+            .parse::<IpNet>()
+            .or_else(|_| value.parse::<IpAddr>().map(IpNet::from))
+            .map_err(|_| ConfigError::Invalid(format!("invalid trusted proxy: {value}")))?;
+        if !proxies.contains(&network) {
+            proxies.push(network);
+        }
+    }
+    Ok(proxies)
 }
 
 fn validate_origin_pattern(value: &str) -> Result<(), ConfigError> {
@@ -1576,6 +1647,20 @@ mod tests {
     }
 
     #[test]
+    fn trusted_proxy_aliases_parse_cidr_and_new_config_wins() {
+        let properties = Properties::parse(
+            b"botmail.netty.http.trusted-proxies=192.0.2.0/24\n\
+lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
+        )
+        .unwrap();
+        let config = RuntimeConfig::from_properties(properties).unwrap();
+        assert_eq!(config.trusted_proxies.len(), 2);
+        assert!(config.trusted_proxies[0].contains(&"127.0.0.1".parse::<IpAddr>().unwrap()));
+        assert!(config.trusted_proxies[1].contains(&"10.4.3.2".parse::<IpAddr>().unwrap()));
+        assert!(!config.trusted_proxies[1].contains(&"192.0.2.1".parse::<IpAddr>().unwrap()));
+    }
+
+    #[test]
     fn malformed_or_oversized_input_is_rejected() {
         assert!(Properties::parse(&vec![b'x'; MAX_CONFIG_BYTES + 1]).is_err());
         assert!(Properties::parse(b"bad=\\u12zz\n").is_err());
@@ -1592,6 +1677,7 @@ mod tests {
             "redis": {"host": "localhost", "port": 16379, "database": 0},
             "maildir": "/tmp/lmyzmail-mail",
             "domain": "example.test",
+            "trusted_proxies": ["127.0.0.1", "10.0.0.0/8"],
             "features": {"smtp_skibidi_mode": "JAVA"},
             "limits": {"max_http_request_bytes": 65536}
         }"#;
@@ -1602,6 +1688,7 @@ mod tests {
         assert_eq!(config.postgres.port, 15432);
         assert_eq!(config.redis.port, 16379);
         assert_eq!(config.limits.max_http_request_bytes, 65536);
+        assert_eq!(config.trusted_proxies.len(), 2);
     }
 
     #[test]

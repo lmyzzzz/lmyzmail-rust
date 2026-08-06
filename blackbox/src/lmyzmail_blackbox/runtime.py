@@ -646,7 +646,37 @@ class CandidateRuntime(JavaOracleRuntime):
 
     @property
     def requires_qa_account(self) -> bool:
-        return False
+        return True
+
+    def _start_postgres(self) -> None:
+        JavaOracleRuntime._start_postgres(self)
+        workspace, ports = self._require_state()
+        root = self.paths.runtime / "postgres-root"
+        bin_dir = root / "usr/lib/postgresql/16/bin"
+        fixture_root = self.paths.repository / "blackbox/fixtures/legacy"
+        schema = fixture_root / "postgres-schema.sql"
+        metadata = json.loads(
+            (fixture_root / "postgres-schema.json").read_text(encoding="utf-8")
+        )
+        with schema.open("rb") as stream:
+            digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        if digest != metadata["schema_sha256"]:
+            raise HarnessError("candidate PostgreSQL schema fixture is not attested")
+        self._run_checked(
+            [
+                str(bin_dir / "psql"),
+                "--host=127.0.0.1",
+                f"--port={ports.postgres}",
+                "--username=lmyzmail_test",
+                "--dbname=lmyzmail",
+                "--single-transaction",
+                "--set=ON_ERROR_STOP=1",
+                '--command=DROP SCHEMA "public";',
+                f"--file={schema}",
+            ],
+            env=self._postgres_env(),
+            log_path=workspace / "postgres.log",
+        )
 
     @classmethod
     def from_environment(cls) -> CandidateRuntime:
@@ -707,6 +737,7 @@ class CandidateRuntime(JavaOracleRuntime):
             "maildir": str(workspace / "maildir"),
             "domain": "example.test",
             "allowed_origins": [f"http://127.0.0.1:{ports.http}"],
+            "trusted_proxies": ["127.0.0.1", "::1"],
             "api_keys": [
                 {
                     "key": API_KEY,

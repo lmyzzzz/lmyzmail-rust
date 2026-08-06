@@ -1,7 +1,7 @@
-use std::{io, sync::Arc, time::Duration};
+use std::{io, net::IpAddr, sync::Arc, time::Duration};
 
 use chrono::Utc;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use subtle::ConstantTimeEq;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -13,7 +13,10 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 use url::Url;
 
-use crate::config::RuntimeConfig;
+use crate::{
+    auth::{AuthError, AuthService, LoginOutcome},
+    config::RuntimeConfig,
+};
 
 const DEFAULT_MAX_REQUEST_BYTES: usize = 16 * 1024;
 const DEFAULT_MAX_CONNECTIONS: usize = 256;
@@ -27,7 +30,10 @@ enum Status {
     Forbidden,
     NotFound,
     PayloadTooLarge,
+    TooManyRequests,
     ServiceUnavailable,
+    Created,
+    InternalServerError,
 }
 
 impl Status {
@@ -39,7 +45,10 @@ impl Status {
             Self::Forbidden => 403,
             Self::NotFound => 404,
             Self::PayloadTooLarge => 413,
+            Self::TooManyRequests => 429,
             Self::ServiceUnavailable => 503,
+            Self::Created => 201,
+            Self::InternalServerError => 500,
         }
     }
 
@@ -51,7 +60,10 @@ impl Status {
             Self::Forbidden => "Forbidden",
             Self::NotFound => "Not Found",
             Self::PayloadTooLarge => "Payload Too Large",
+            Self::TooManyRequests => "Too Many Requests",
             Self::ServiceUnavailable => "Service Unavailable",
+            Self::Created => "Created",
+            Self::InternalServerError => "Internal Server Error",
         }
     }
 }
@@ -84,6 +96,7 @@ pub async fn serve_http(
     cancellation: CancellationToken,
 ) -> io::Result<()> {
     let listener = TcpListener::bind((config.listen.host.as_str(), config.listen.http)).await?;
+    let auth = Arc::new(AuthService::from_config(&config).map_err(io::Error::other)?);
     let limits = ServerLimits::from_config(&config);
     let permits = Arc::new(Semaphore::new(limits.max_connections));
     let mut tasks = JoinSet::new();
@@ -93,7 +106,7 @@ pub async fn serve_http(
         tokio::select! {
             _ = cancellation.cancelled() => break,
             accepted = listener.accept() => {
-                let (stream, _) = accepted?;
+                let (stream, peer) = accepted?;
                 let Some(permit) = permits.clone().try_acquire_owned().ok() else {
                     let _ = timeout(
                         limits.request_deadline,
@@ -102,11 +115,12 @@ pub async fn serve_http(
                     continue;
                 };
                 let config = Arc::clone(&config);
+                let auth = Arc::clone(&auth);
                 tasks.spawn(async move {
                     let _permit = permit;
                     let result = timeout(
                         limits.request_deadline,
-                        handle_connection(stream, limits.max_request_bytes, &config),
+                        handle_connection(stream, peer.ip(), limits.max_request_bytes, &config, &auth),
                     )
                     .await;
                     match result {
@@ -138,11 +152,29 @@ fn reap_finished(tasks: &mut JoinSet<Result<(), io::Error>>) {
 
 async fn handle_connection(
     mut stream: TcpStream,
+    peer_ip: IpAddr,
     max_request_bytes: usize,
     config: &RuntimeConfig,
+    auth: &AuthService,
 ) -> io::Result<()> {
-    let request = read_headers(&mut stream, max_request_bytes).await?;
+    let request = read_request(&mut stream, max_request_bytes).await?;
+    let client_ip = extract_client_ip(&request, peer_ip, config);
     let response = parse_request(&request, max_request_bytes, config);
+    if let Some(expires_at) = auth.ban_expiry(&client_ip).await {
+        let body = serde_json::to_vec(&IpBannedResponse {
+            error: "ip_banned",
+            message: "Your IP has been temporarily banned due to suspicious activity.",
+            expires_at: &expires_at.to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true),
+        })
+        .map_err(io::Error::other)?;
+        return write_response(
+            stream,
+            Status::Forbidden,
+            &body,
+            "application/json; charset=UTF-8",
+        )
+        .await;
+    }
     match response {
         ParsedRequest::Health => {
             let body = format!(
@@ -227,6 +259,65 @@ async fn handle_connection(
             )
             .await
         }
+        ParsedRequest::WebLogin | ParsedRequest::WebRegister => {
+            let body = request_body(&request).and_then(|body| serde_json::from_slice::<Credentials>(body).ok());
+            let Some(credentials) = body else {
+                return write_response(stream, Status::BadRequest, br#"{"error":"bad_request"}"#, "application/json; charset=UTF-8").await;
+            };
+            match response {
+                ParsedRequest::WebLogin => {
+                    let address = credentials.address.unwrap_or_default();
+                    let password = credentials.password.unwrap_or_default();
+                    match auth.login(&address, &password, &client_ip, None).await {
+                        Ok((LoginOutcome::Success, Some(login))) => write_json_response(stream, Status::Ok, &login).await,
+                        Ok((LoginOutcome::Invalid { ip_banned: true }, _)) => write_response(stream, Status::Forbidden, br#"{"error":"ip_banned","message":"Too many failed attempts. Please try again later."}"#, "application/json; charset=UTF-8").await,
+                        Ok((LoginOutcome::Invalid { ip_banned: false }, _)) => write_response(stream, Status::Unauthorized, br#"{"error":"invalid_credentials"}"#, "application/json; charset=UTF-8").await,
+                        Ok((LoginOutcome::Success, None)) => write_response(stream, Status::InternalServerError, br#"{"error":"login_failed"}"#, "application/json; charset=UTF-8").await,
+                        Err(_) => write_response(stream, Status::InternalServerError, br#"{"error":"login_failed"}"#, "application/json; charset=UTF-8").await,
+                    }
+                }
+                ParsedRequest::WebRegister => {
+                    let address = credentials.address.unwrap_or_default();
+                    let password = credentials.password.unwrap_or_default();
+                    match auth.register(&address, &password, &client_ip).await {
+                        Ok(register) => write_json_response(stream, Status::Created, &register).await,
+                        Err(AuthError::InvalidInput(message)) if message == "registration_disabled" => write_response(stream, Status::Forbidden, br#"{"error":"registration_disabled","message":"Public registration is not available."}"#, "application/json; charset=UTF-8").await,
+                        Err(AuthError::InvalidInput(message)) if message == "rate_limit_exceeded" => write_response(stream, Status::TooManyRequests, br#"{"error":"rate_limit_exceeded","message":"Too many registration attempts. Please try again later."}"#, "application/json; charset=UTF-8").await,
+                        Err(AuthError::InvalidInput(message)) if message == "address_required" => write_response(stream, Status::BadRequest, br#"{"error":"address_required"}"#, "application/json; charset=UTF-8").await,
+                        Err(AuthError::InvalidInput(message)) if message == "password_too_short" => write_response(stream, Status::BadRequest, br#"{"error":"password_too_short","message":"Password must be at least 8 characters."}"#, "application/json; charset=UTF-8").await,
+                        Err(AuthError::InvalidInput(message)) => write_json_response(stream, Status::BadRequest, &RegistrationFailure { error: "registration_failed", message: &message }).await,
+                        Err(_) => write_response(stream, Status::InternalServerError, br#"{"error":"registration_failed","message":"An error occurred."}"#, "application/json; charset=UTF-8").await,
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+        ParsedRequest::WebLogout => {
+            let token = request_header(&request, "x-session-token");
+            let _ = auth.logout(token.as_deref()).await;
+            write_response(stream, Status::Ok, br#"{"success":true}"#, "application/json; charset=UTF-8").await
+        }
+        ParsedRequest::SessionToken(token) => match auth.validate_token(&token).await {
+            Ok(Some(_)) => {
+                write_response(
+                    stream,
+                    Status::NotFound,
+                    br#"{"error":"not_found"}"#,
+                    "application/json; charset=UTF-8",
+                )
+                .await
+            }
+            Ok(None) => write_invalid_session(stream).await,
+            Err(_) => write_response(
+                stream,
+                Status::InternalServerError,
+                br#"{"error":"session_validation_failed"}"#,
+                "application/json; charset=UTF-8",
+            )
+            .await,
+        },
+        ParsedRequest::MultipartSession => write_empty_unauthorized(stream).await,
+        ParsedRequest::InvalidSession => write_invalid_session(stream).await,
         ParsedRequest::CorsPreflight(origin) => write_cors_preflight(stream, &origin).await,
         ParsedRequest::CorsRejected => {
             write_response(
@@ -246,11 +337,20 @@ async fn handle_connection(
             )
             .await
         }
-        ParsedRequest::Forbidden => {
+        ParsedRequest::ForbiddenRead => {
             write_response(
                 stream,
                 Status::Forbidden,
                 br#"{"error":"permission_denied","message":"This API key does not have read permission"}"#,
+                "application/json; charset=UTF-8",
+            )
+            .await
+        }
+        ParsedRequest::ForbiddenWrite => {
+            write_response(
+                stream,
+                Status::Forbidden,
+                br#"{"error":"permission_denied","message":"This API key does not have write permission"}"#,
                 "application/json; charset=UTF-8",
             )
             .await
@@ -285,7 +385,7 @@ async fn handle_connection(
     }
 }
 
-async fn read_headers(stream: &mut TcpStream, max_request_bytes: usize) -> io::Result<Vec<u8>> {
+async fn read_request(stream: &mut TcpStream, max_request_bytes: usize) -> io::Result<Vec<u8>> {
     let mut request = Vec::with_capacity(1024.min(max_request_bytes));
     let mut chunk = [0_u8; 1024];
     loop {
@@ -298,10 +398,104 @@ async fn read_headers(stream: &mut TcpStream, max_request_bytes: usize) -> io::R
             return Ok(request);
         }
         request.extend_from_slice(&chunk[..count]);
-        if request.windows(4).any(|window| window == b"\r\n\r\n") {
-            return Ok(request);
+        if let Some(header_end) = request.windows(4).position(|window| window == b"\r\n\r\n") {
+            let length = header_content_length(&request[..header_end]).unwrap_or(0);
+            let required = header_end.saturating_add(4).saturating_add(length);
+            if length > max_request_bytes || required > max_request_bytes.saturating_add(4 * 1024) {
+                return Ok(vec![0; max_request_bytes.saturating_add(1)]);
+            }
+            if request.len() >= required {
+                request.truncate(required);
+                return Ok(request);
+            }
         }
     }
+}
+
+fn header_content_length(headers: &[u8]) -> Option<usize> {
+    let text = std::str::from_utf8(headers).ok()?;
+    text.split("\r\n").skip(1).find_map(|line| {
+        let (name, value) = line.split_once(':')?;
+        name.eq_ignore_ascii_case("content-length")
+            .then(|| value.trim().parse().ok())
+            .flatten()
+    })
+}
+
+fn request_body(request: &[u8]) -> Option<&[u8]> {
+    let index = request
+        .windows(4)
+        .position(|window| window == b"\r\n\r\n")?;
+    request.get(index + 4..)
+}
+
+fn request_header(request: &[u8], wanted: &str) -> Option<String> {
+    let index = request
+        .windows(4)
+        .position(|window| window == b"\r\n\r\n")?;
+    let text = std::str::from_utf8(&request[..index]).ok()?;
+    text.split("\r\n").skip(1).find_map(|line| {
+        let (name, value) = line.split_once(':')?;
+        name.eq_ignore_ascii_case(wanted)
+            .then(|| value.trim().to_owned())
+    })
+}
+
+fn extract_client_ip(request: &[u8], peer_ip: IpAddr, config: &RuntimeConfig) -> String {
+    if !is_trusted_proxy(config, peer_ip) {
+        return peer_ip.to_string();
+    }
+    let Some(header_end) = request.windows(4).position(|window| window == b"\r\n\r\n") else {
+        return peer_ip.to_string();
+    };
+    let Ok(headers) = std::str::from_utf8(&request[..header_end]) else {
+        return peer_ip.to_string();
+    };
+    let mut forwarded = Vec::new();
+    let mut real_ip = None;
+    for line in headers.split("\r\n").skip(1) {
+        let Some((name, value)) = line.split_once(':') else {
+            return peer_ip.to_string();
+        };
+        if name.eq_ignore_ascii_case("x-forwarded-for") {
+            forwarded.push(value);
+        } else if name.eq_ignore_ascii_case("x-real-ip") && real_ip.is_none() {
+            real_ip = Some(value);
+        }
+    }
+    if !forwarded.is_empty() {
+        for value in forwarded.into_iter().rev() {
+            for hop in value.split(',').rev() {
+                let Some(hop) = normalize_ip_literal(hop) else {
+                    return peer_ip.to_string();
+                };
+                if !is_trusted_proxy(config, hop) {
+                    return hop.to_string();
+                }
+            }
+        }
+        return peer_ip.to_string();
+    }
+    real_ip
+        .and_then(normalize_ip_literal)
+        .unwrap_or(peer_ip)
+        .to_string()
+}
+
+fn normalize_ip_literal(value: &str) -> Option<IpAddr> {
+    let value = value.trim();
+    let value = value
+        .strip_prefix('[')
+        .and_then(|value| value.strip_suffix(']'))
+        .unwrap_or(value);
+    value.parse().ok()
+}
+
+fn is_trusted_proxy(config: &RuntimeConfig, address: IpAddr) -> bool {
+    config
+        .trusted_proxies
+        .iter()
+        .any(|network| network.contains(&address))
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -311,10 +505,17 @@ enum ParsedRequest {
     ApiStatus,
     WebDomains,
     WebConfig,
+    WebLogin,
+    WebRegister,
+    WebLogout,
+    SessionToken(String),
+    MultipartSession,
+    InvalidSession,
     CorsPreflight(String),
     CorsRejected,
     Unauthorized,
-    Forbidden,
+    ForbiddenRead,
+    ForbiddenWrite,
     NotFound,
     BadRequest,
     PayloadTooLarge,
@@ -351,6 +552,7 @@ fn parse_request(
 
     let mut declared_length = None;
     let mut api_key = None;
+    let mut session_token = None;
     let mut origin = None;
     for line in lines {
         let Some((name, value)) = line.split_once(':') else {
@@ -380,6 +582,12 @@ fn parse_request(
             }
             api_key = Some(value.trim());
         }
+        if name.eq_ignore_ascii_case("x-session-token") {
+            if session_token.is_some() {
+                return ParsedRequest::BadRequest;
+            }
+            session_token = Some(value.trim());
+        }
         if name.eq_ignore_ascii_case("origin") {
             if origin.is_some() {
                 return ParsedRequest::BadRequest;
@@ -404,15 +612,34 @@ fn parse_request(
         ("GET", "/api/skibidi") => ParsedRequest::Skibidi,
         ("GET", "/web/domains") => ParsedRequest::WebDomains,
         ("GET", "/web/config") => ParsedRequest::WebConfig,
-        (_, "/api/health" | "/api/skibidi") => ParsedRequest::NotFound,
-        _ if path.starts_with("/api/") => match api_read_permission(config, api_key) {
-            ApiReadPermission::Unauthorized => ParsedRequest::Unauthorized,
-            ApiReadPermission::Forbidden => ParsedRequest::Forbidden,
-            ApiReadPermission::Granted if method == "POST" && path == "/api/status" => {
-                ParsedRequest::ApiStatus
+        ("POST", "/web/login") => ParsedRequest::WebLogin,
+        ("POST", "/web/register") => ParsedRequest::WebRegister,
+        ("POST", "/web/logout") => ParsedRequest::WebLogout,
+        _ if is_session_route(method, path) => {
+            if method == "POST" && path == "/web/mail/send/multipart" {
+                ParsedRequest::MultipartSession
+            } else {
+                session_token
+                    .filter(|value| !value.is_empty())
+                    .map_or(ParsedRequest::InvalidSession, |value| {
+                        ParsedRequest::SessionToken(value.to_owned())
+                    })
             }
-            ApiReadPermission::Granted => ParsedRequest::NotFound,
-        },
+        }
+        (_, "/api/health" | "/api/skibidi") => ParsedRequest::NotFound,
+        _ if path.starts_with("/api/") => {
+            match api_permission(config, api_key, is_api_write_route(method, path)) {
+                ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+                ApiPermission::Forbidden if is_api_write_route(method, path) => {
+                    ParsedRequest::ForbiddenWrite
+                }
+                ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
+                ApiPermission::Granted if method == "POST" && path == "/api/status" => {
+                    ParsedRequest::ApiStatus
+                }
+                ApiPermission::Granted => ParsedRequest::NotFound,
+            }
+        }
         // The frozen router returns its normal 404 for a syntactically valid
         // unsupported method before applying an endpoint's body contract.
         _ if method != "GET" => ParsedRequest::NotFound,
@@ -459,16 +686,100 @@ fn origin_matches(origin: &str, pattern: &str) -> bool {
     origin_host != suffix_host && origin_host.ends_with(&format!(".{suffix_host}"))
 }
 
+const SESSION_ROUTES: &[(&str, &str)] = &[
+    ("GET", "/web/mail/list/{folder}"),
+    ("GET", "/web/mail/list"),
+    ("GET", "/web/mail/detail/{folder}/{file}"),
+    ("GET", "/web/mail/raw/{folder}/{file}"),
+    ("GET", "/web/mail/headers/{folder}/{file}"),
+    ("GET", "/web/mail/attachment/{folder}/{file}/{index}"),
+    ("POST", "/web/mail/send"),
+    ("POST", "/web/mail/send/multipart"),
+    ("GET", "/web/mail/send/status/{queueId}"),
+    ("GET", "/web/mail/send/status/file/{fileName}"),
+    ("DELETE", "/web/mail/{folder}/{file}"),
+    ("POST", "/web/mail/star/{folder}/{file}"),
+    ("GET", "/web/mail/quota"),
+    ("GET", "/web/userdata/preferences"),
+    ("POST", "/web/userdata/preferences"),
+    ("GET", "/web/userdata/contacts"),
+    ("POST", "/web/userdata/contacts"),
+    ("PUT", "/web/userdata/contacts/{id}"),
+    ("DELETE", "/web/userdata/contacts/{id}"),
+    ("GET", "/web/userdata/stars/{folder}"),
+    ("POST", "/web/userdata/stars/{folder}/{fileName}"),
+    ("GET", "/web/userdata/labels"),
+    ("POST", "/web/userdata/labels"),
+    ("PUT", "/web/userdata/labels/{id}"),
+    ("DELETE", "/web/userdata/labels/{id}"),
+    ("GET", "/web/userdata/labels/email/{folder}/{fileName}"),
+    (
+        "POST",
+        "/web/userdata/labels/email/{folder}/{fileName}/{labelId}",
+    ),
+    (
+        "DELETE",
+        "/web/userdata/labels/email/{folder}/{fileName}/{labelId}",
+    ),
+];
+
+const API_WRITE_ROUTES: &[(&str, &str)] = &[
+    ("POST", "/api/mailboxes"),
+    ("POST", "/api/mail/send"),
+    ("POST", "/api/reports/trigger"),
+    ("POST", "/api/reports/domain/{domain}"),
+    ("POST", "/api/stress/start"),
+    ("POST", "/api/stress/reset"),
+    ("POST", "/api/stress/cleanup"),
+    ("POST", "/api/xdp-firewall/ban"),
+    ("POST", "/api/xdp-firewall/unban"),
+    ("POST", "/api/xdp-firewall/sync"),
+    ("DELETE", "/api/xdp-firewall/clear"),
+    ("POST", "/api/cringe-ips/decay"),
+];
+
+fn is_session_route(method: &str, path: &str) -> bool {
+    SESSION_ROUTES
+        .iter()
+        .any(|(route_method, pattern)| *route_method == method && route_matches(pattern, path))
+}
+
+fn is_api_write_route(method: &str, path: &str) -> bool {
+    API_WRITE_ROUTES
+        .iter()
+        .any(|(route_method, pattern)| *route_method == method && route_matches(pattern, path))
+}
+
+fn route_matches(pattern: &str, path: &str) -> bool {
+    let mut expected = pattern.split('/');
+    let mut actual = path.split('/');
+    loop {
+        match (expected.next(), actual.next()) {
+            (None, None) => return true,
+            (Some(expected), Some(actual))
+                if expected == actual
+                    || !actual.is_empty()
+                        && expected.starts_with('{')
+                        && expected.ends_with('}') => {}
+            _ => return false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-enum ApiReadPermission {
+enum ApiPermission {
     Unauthorized,
     Forbidden,
     Granted,
 }
 
-fn api_read_permission(config: &RuntimeConfig, supplied: Option<&str>) -> ApiReadPermission {
+fn api_permission(
+    config: &RuntimeConfig,
+    supplied: Option<&str>,
+    write_required: bool,
+) -> ApiPermission {
     let Some(supplied) = supplied.filter(|value| !value.is_empty()) else {
-        return ApiReadPermission::Unauthorized;
+        return ApiPermission::Unauthorized;
     };
     let mut matched = false;
     let mut granted = false;
@@ -476,14 +787,19 @@ fn api_read_permission(config: &RuntimeConfig, supplied: Option<&str>) -> ApiRea
         let is_match = configured.key.len() == supplied.len()
             && bool::from(configured.key.as_bytes().ct_eq(supplied.as_bytes()));
         matched |= is_match;
-        granted |= is_match && configured.read;
+        granted |= is_match
+            && if write_required {
+                configured.write
+            } else {
+                configured.read
+            };
     }
     if granted {
-        ApiReadPermission::Granted
+        ApiPermission::Granted
     } else if matched {
-        ApiReadPermission::Forbidden
+        ApiPermission::Forbidden
     } else {
-        ApiReadPermission::Unauthorized
+        ApiPermission::Unauthorized
     }
 }
 
@@ -525,6 +841,25 @@ struct WebConfigResponse<'a> {
     show_internet_nl_badge: bool,
 }
 
+#[derive(Debug, Deserialize)]
+struct Credentials {
+    address: Option<String>,
+    password: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct RegistrationFailure<'a> {
+    error: &'static str,
+    message: &'a str,
+}
+
+#[derive(Serialize)]
+struct IpBannedResponse<'a> {
+    error: &'static str,
+    message: &'static str,
+    expires_at: &'a str,
+}
+
 const SKIBIDI_LORE: &str =
     "The G-Man Toilet initiated a Skibidi dop dop dop yes yes attack on the city center.";
 
@@ -543,6 +878,31 @@ async fn write_response(
     );
     stream.write_all(head.as_bytes()).await?;
     stream.write_all(body).await
+}
+
+async fn write_json_response<T: Serialize>(
+    stream: TcpStream,
+    status: Status,
+    value: &T,
+) -> io::Result<()> {
+    let body = serde_json::to_vec(value).map_err(io::Error::other)?;
+    write_response(stream, status, &body, "application/json; charset=UTF-8").await
+}
+
+async fn write_invalid_session(stream: TcpStream) -> io::Result<()> {
+    write_response(
+        stream,
+        Status::Unauthorized,
+        br#"{"error":"invalid_token"}"#,
+        "application/json; charset=UTF-8",
+    )
+    .await
+}
+
+async fn write_empty_unauthorized(mut stream: TcpStream) -> io::Result<()> {
+    stream
+        .write_all(b"HTTP/1.1 401 Unauthorized\r\ncontent-length: 0\r\nconnection: close\r\n\r\n")
+        .await
 }
 
 async fn write_cors_preflight(mut stream: TcpStream, origin: &str) -> io::Result<()> {
@@ -574,7 +934,9 @@ mod tests {
 lmyzmail.api-keys[0].read=true\n\
 lmyzmail.api-keys[1].key=write-key\n\
 lmyzmail.api-keys[1].read=false\n\
+lmyzmail.api-keys[1].write=true\n\
 lmyzmail.allowed-origins[0]=http://127.0.0.1:18080\n\
+lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n\
 lmyzmail.public-registration-enabled=true\n",
             )
             .unwrap(),
@@ -618,6 +980,20 @@ lmyzmail.public-registration-enabled=true\n",
     }
 
     #[test]
+    fn parser_routes_auth_posts_and_keeps_body_bytes_separate() {
+        let request = b"POST /web/login HTTP/1.1\r\nContent-Length: 35\r\n\r\n{\"address\":\"a\",\"password\":\"b\"}";
+        assert_eq!(parse(request, 1024), ParsedRequest::WebLogin);
+        assert_eq!(
+            request_body(request),
+            Some(b"{\"address\":\"a\",\"password\":\"b\"}".as_slice())
+        );
+        assert_eq!(
+            parse(b"GET /web/login HTTP/1.1\r\n\r\n", 1024),
+            ParsedRequest::NotFound
+        );
+    }
+
+    #[test]
     fn api_status_distinguishes_invalid_and_insufficient_keys() {
         let config = config_with_api_keys();
         let request = |key: &str| {
@@ -631,11 +1007,77 @@ lmyzmail.public-registration-enabled=true\n",
         );
         assert_eq!(
             parse_request(request("write-key").as_bytes(), 1024, &config),
-            ParsedRequest::Forbidden
+            ParsedRequest::ForbiddenRead
         );
         assert_eq!(
             parse_request(request("read-key").as_bytes(), 1024, &config),
             ParsedRequest::ApiStatus
+        );
+        let write_request =
+            |key: &str| format!("POST /api/mailboxes HTTP/1.1\r\nX-API-Key: {key}\r\n\r\n");
+        assert_eq!(
+            parse_request(write_request("read-key").as_bytes(), 1024, &config),
+            ParsedRequest::ForbiddenWrite
+        );
+        assert_eq!(
+            parse_request(write_request("write-key").as_bytes(), 1024, &config),
+            ParsedRequest::NotFound
+        );
+    }
+
+    #[test]
+    fn session_routes_require_and_capture_a_single_token() {
+        assert_eq!(
+            parse(b"GET /web/mail/list HTTP/1.1\r\n\r\n", 1024),
+            ParsedRequest::InvalidSession
+        );
+        assert_eq!(
+            parse(
+                b"GET /web/userdata/contacts HTTP/1.1\r\nX-Session-Token: token\r\n\r\n",
+                1024,
+            ),
+            ParsedRequest::SessionToken("token".to_owned())
+        );
+        assert_eq!(
+            parse(
+                b"GET /web/userdata/contacts HTTP/1.1\r\nX-Session-Token: a\r\nX-Session-Token: b\r\n\r\n",
+                1024,
+            ),
+            ParsedRequest::BadRequest
+        );
+        assert_eq!(
+            parse(b"POST /web/mail/send/multipart HTTP/1.1\r\n\r\n", 1024,),
+            ParsedRequest::MultipartSession
+        );
+    }
+
+    #[test]
+    fn trusted_proxy_chain_walks_from_the_socket_side_and_fails_closed() {
+        let trusted_config = config_with_api_keys();
+        let peer = "127.0.0.1".parse().unwrap();
+        assert_eq!(
+            extract_client_ip(
+                b"GET / HTTP/1.1\r\nX-Forwarded-For: 198.51.100.7, 10.0.0.8\r\n\r\n",
+                peer,
+                &trusted_config,
+            ),
+            "198.51.100.7"
+        );
+        assert_eq!(
+            extract_client_ip(
+                b"GET / HTTP/1.1\r\nX-Forwarded-For: invalid\r\nX-Real-IP: 198.51.100.8\r\n\r\n",
+                peer,
+                &trusted_config,
+            ),
+            "127.0.0.1"
+        );
+        assert_eq!(
+            extract_client_ip(
+                b"GET / HTTP/1.1\r\nX-Forwarded-For: 198.51.100.9\r\n\r\n",
+                peer,
+                &config(),
+            ),
+            "127.0.0.1"
         );
     }
 
