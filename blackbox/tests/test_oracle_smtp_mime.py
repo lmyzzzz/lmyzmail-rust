@@ -14,7 +14,7 @@ def test_managed_java_smtp_mime_goldens(record_java_golden: bool) -> None:
     paths = JavaOracleRuntime().paths
     differential = DifferentialRunner(
         paths.repository,
-        paths.repository / "blackbox/golden/java/managed-smtp-mime-v4",
+        paths.repository / "blackbox/golden/java/managed-smtp-mime-v6",
         "managed-smtp-mime",
         record_java=record_java_golden,
     )

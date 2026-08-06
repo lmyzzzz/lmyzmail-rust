@@ -272,7 +272,7 @@ async fn write_response(
     content_type: &str,
 ) -> io::Result<()> {
     let head = format!(
-        "HTTP/1.1 {} {}\r\ncontent-type: {}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+        "HTTP/1.1 {} {}\r\ncontent-type: {}\r\ncontent-length: {}\r\n\r\n",
         status.code(),
         status.reason(),
         content_type,

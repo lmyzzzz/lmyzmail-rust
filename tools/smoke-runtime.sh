@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repository="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
-binary="${LMYZMAIL_BINARY:-$repository/target/release/lmyzmail}"
+binary="${LMYZMAIL_BINARY:-$repository/target/x86_64-unknown-linux-gnu/release/lmyzmail}"
 config="${LMYZMAIL_CONFIG:-$repository/config/lmyzmail.properties.example}"
 http_port="${LMYZMAIL_SMOKE_HTTP_PORT:-18080}"
 log_path="$(mktemp "${TMPDIR:-/tmp}/lmyzmail-smoke.XXXXXX.log")"

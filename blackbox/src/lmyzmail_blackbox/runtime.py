@@ -65,6 +65,16 @@ class JavaOracleRuntime:
     def target_kind(self) -> str:
         return "java-oracle"
 
+    @property
+    def requires_smtp_readiness(self) -> bool:
+        """Whether startup must prove the full SMTP listener is available."""
+        return True
+
+    @property
+    def requires_qa_account(self) -> bool:
+        """Whether startup should provision the HTTP QA mailbox."""
+        return True
+
     def _verify_backend_inputs(self) -> None:
         required = (
             self.paths.runtime / "postgres-root" / "usr/lib/postgresql/16/bin/initdb",
@@ -468,6 +478,9 @@ class JavaOracleRuntime:
                 f"tail:\n{self._application.log_tail()}"
             )
 
+        if not self.requires_smtp_readiness:
+            return
+
         last_error = None
         while True:
             remaining = deadline - time.monotonic()
@@ -525,7 +538,8 @@ class JavaOracleRuntime:
             self._start_postgres()
             self._start_redis()
             self._start_application()
-            self._create_qa_account()
+            if self.requires_qa_account:
+                self._create_qa_account()
         except BaseException:
             self.stop()
             raise
@@ -625,6 +639,14 @@ class CandidateRuntime(JavaOracleRuntime):
     @property
     def target_kind(self) -> str:
         return "rust-candidate"
+
+    @property
+    def requires_smtp_readiness(self) -> bool:
+        return False
+
+    @property
+    def requires_qa_account(self) -> bool:
+        return False
 
     @classmethod
     def from_environment(cls) -> CandidateRuntime:
