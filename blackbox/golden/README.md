@@ -37,5 +37,22 @@ inputs, and must never be overwritten in place.
   bind each existing file's length and SHA-256 so later deliveries cannot mutate prior
   messages. It is retained unchanged after strengthening the integrity regression.
 - `managed-basic-v10/` keeps the v9 behavior while proving that an equal-length mutation
-  of a pre-existing Maildir message is rejected by its SHA-256 identity. It is the active
-  HTTP+SMTP set consumed by tests at this milestone.
+  of a pre-existing Maildir message is rejected by its SHA-256 identity. It is retained
+  unchanged after introducing the isolated STARTTLS profile.
+- `managed-basic-v11/` re-attests the unchanged HTTP and plaintext SMTP observations to
+  the harness definition that adds the isolated STARTTLS profile. It is retained after
+  removing the ephemeral keystore password from the Java process command line.
+- `managed-basic-v12/` re-attests the unchanged HTTP and plaintext SMTP observations
+  after the STARTTLS runtime moved its password to a non-inherited environment variable.
+  It is the active basic set consumed by tests at this milestone.
+- `managed-starttls-v1/` freezes normal STARTTLS advertisement, certificate semantics,
+  TLS 1.2/1.3 negotiation, TLS 1.1 rejection, state reset, malformed-handshake recovery,
+  and a storage-backed TLS DATA delivery. It is retained after password transport
+  hardening changed the harness definition.
+- `managed-starttls-oracle-evidence-v1/` records the frozen Java plaintext-command
+  smuggling behavior under that preceding definition and is retained unchanged.
+- `managed-starttls-v2/` is the active normal STARTTLS differential set with the PKCS12
+  password absent from argv and supplied only through the isolated process environment.
+- `managed-starttls-oracle-evidence-v2/` is the corresponding active evidence set for the
+  approved plaintext-command smuggling difference. It must never be used as the candidate
+  expectation.

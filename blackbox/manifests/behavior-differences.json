@@ -11,6 +11,21 @@
       "oracle_behavior": "The final .eml is created and then written or copied directly; a failed or killed write can expose a partial final file and no file or directory fsync is performed.",
       "reason": "The frozen behavior is a crash-consistency bug explicitly excluded from bug-for-bug replication.",
       "scope": "Maildir publication ordering only; final successful message bytes, layout, folder, shard, index and count semantics remain differential requirements."
+    },
+    {
+      "candidate_requirement": "After sending the 220 STARTTLS readiness reply, close the connection if any plaintext command bytes were already buffered beyond the STARTTLS line. Do not parse, execute, or carry a plaintext reply across the TLS boundary.",
+      "evidence": {
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "oracle_golden": "blackbox/golden/java/managed-starttls-oracle-evidence-v2/observations/smtp/starttls/plaintext-command-smuggling.json",
+        "source": "src/main/java/net/lmyz/lmyzmail/netty/smtp/command/handlers/StartTlsHandler.java",
+        "source_sha256": "962c5796efc4be630ec2916b0470a49c4835279370c4ca18cfcc477e6d64abfb",
+        "state_source": "src/main/java/net/lmyz/lmyzmail/netty/smtp/channel/SmtpConnectionHandler.java",
+        "state_source_sha256": "5f205da2fe05b589556d4c879c1fba0a16c0c916d7445f60c9faa9726fa5a86e"
+      },
+      "id": "starttls-buffered-plaintext-command",
+      "oracle_behavior": "When STARTTLS and NOOP arrive in one plaintext write, the frozen Java oracle accepts STARTTLS, executes the already-decoded NOOP before the handshake completes, and sends that command's 250 OK as unsolicited encrypted application data after the handshake.",
+      "reason": "Executing a command across the STARTTLS security boundary is a command-smuggling vulnerability explicitly excluded from bug-for-bug replication.",
+      "scope": "Only plaintext bytes buffered after the STARTTLS command. Normal STARTTLS advertisement, 220 reply, TLS handshake, post-handshake state reset, certificate, version, cipher, delivery, and error behavior remain differential requirements."
     }
   ],
   "schema_version": 1

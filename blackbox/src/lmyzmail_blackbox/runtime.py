@@ -16,6 +16,7 @@ from .errors import HarnessError, ProcessStartError, ProtocolError
 from .ports import PortAllocator, PortSet
 from .processes import ManagedProcess, stop_managed_processes
 from .protocols import connect_bounded, read_smtp_reply
+from .tls_fixture import EphemeralTlsMaterial, provision_ephemeral_tls_material
 
 QA_ADDRESS = "qa@example.test"
 # Public, isolated fixture credential specified by the compatibility contract.
@@ -564,6 +565,51 @@ class JavaOracleRuntime:
 
     def __exit__(self, *_: object) -> None:
         self.stop()
+
+
+@dataclass(slots=True)
+class JavaOracleTlsRuntime(JavaOracleRuntime):
+    _tls_material: EphemeralTlsMaterial | None = field(default=None, init=False, repr=False)
+
+    @property
+    def tls_certificate_pem(self) -> bytes:
+        if self._tls_material is None:
+            raise HarnessError("managed Java STARTTLS runtime is not started")
+        return self._tls_material.certificate_pem
+
+    @property
+    def tls_keystore_path(self) -> Path:
+        if self._tls_material is None:
+            raise HarnessError("managed Java STARTTLS runtime is not started")
+        return self._tls_material.keystore_path
+
+    def _application_arguments(self) -> list[str]:
+        workspace, _ = self._require_state()
+        if self._tls_material is None:
+            self._tls_material = provision_ephemeral_tls_material(workspace)
+
+        arguments = JavaOracleRuntime._application_arguments(self)
+        disabled = "--botmail.ssl.use-custom-certificate=false"
+        try:
+            index = arguments.index(disabled)
+        except ValueError as error:
+            raise HarnessError("managed Java arguments lost the explicit TLS default") from error
+        arguments[index] = "--botmail.ssl.use-custom-certificate=true"
+        arguments.append(f"--botmail.ssl.keystore-path={self._tls_material.keystore_path}")
+        return arguments
+
+    def _application_environment(self) -> dict[str, str]:
+        environment = JavaOracleRuntime._application_environment(self)
+        if self._tls_material is None:
+            raise HarnessError("managed Java STARTTLS material is not provisioned")
+        environment["BOTMAIL_SSL_KEYSTORE_PASSWORD"] = self._tls_material.keystore_password
+        return environment
+
+    def stop(self) -> None:
+        try:
+            JavaOracleRuntime.stop(self)
+        finally:
+            self._tls_material = None
 
 
 @dataclass(slots=True)

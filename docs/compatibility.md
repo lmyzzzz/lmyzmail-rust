@@ -15,3 +15,17 @@ Only genuine nondeterminism such as wall-clock time, random identifiers, and
 ephemeral ports may be normalized. Each normalizer is field-scoped and tested;
 there is no whole-response masking or assertion weakening.
 
+## Approved security differences
+
+The authoritative allowlist is
+`blackbox/manifests/behavior-differences.json`. Every entry binds the frozen
+commit and source hash, describes the exact scope, and states a stricter
+candidate requirement. An allowlisted difference never relaxes surrounding
+wire, state, storage, or recovery assertions.
+
+- Maildir publication must use a flushed same-filesystem temporary file,
+  atomic rename, and directory fsync instead of exposing a partially written
+  final file.
+- STARTTLS must close without executing plaintext command bytes buffered after
+  the STARTTLS line. The frozen Java oracle executes such a command across the
+  TLS boundary; its isolated evidence golden is not a candidate expectation.

@@ -7,9 +7,9 @@ import httpx
 import pytest
 
 from lmyzmail_blackbox import runtime as runtime_module
-from lmyzmail_blackbox.errors import ProcessStartError, ProtocolError
+from lmyzmail_blackbox.errors import HarnessError, ProcessStartError, ProtocolError
 from lmyzmail_blackbox.ports import PortSet
-from lmyzmail_blackbox.runtime import JavaOracleRuntime
+from lmyzmail_blackbox.runtime import JavaOracleRuntime, JavaOracleTlsRuntime
 
 
 @dataclass
@@ -194,3 +194,26 @@ def test_start_application_fails_when_http_health_is_not_ready(
         runtime._start_application()
 
     assert not smtp_probed
+
+
+def test_tls_runtime_replaces_disabled_flag_with_ephemeral_keystore(tmp_path: Path) -> None:
+    runtime = JavaOracleTlsRuntime()
+    runtime.workspace = tmp_path
+    runtime.ports = PortSet(15432, 16379, 18080, 1025, 18888, 25575, tuple(range(20000, 20008)))
+
+    arguments = runtime._application_arguments()
+
+    assert "--botmail.ssl.use-custom-certificate=false" not in arguments
+    assert "--botmail.ssl.use-custom-certificate=true" in arguments
+    assert f"--botmail.ssl.keystore-path={runtime.tls_keystore_path}" in arguments
+    assert not any(
+        argument.startswith("--botmail.ssl.keystore-password=") for argument in arguments
+    )
+    environment = runtime._application_environment()
+    assert len(environment["BOTMAIL_SSL_KEYSTORE_PASSWORD"]) >= 32
+    assert runtime.tls_keystore_path.is_file()
+    assert runtime.tls_certificate_pem.startswith(b"-----BEGIN CERTIFICATE-----\n")
+
+    runtime.stop()
+    with pytest.raises(HarnessError, match="not started"):
+        _ = runtime.tls_certificate_pem

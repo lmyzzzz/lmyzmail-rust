@@ -64,7 +64,17 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
     assert contract["schema_version"] == 1
     assert contract["postgres"]["table_count"] == 13
     assert contract["maildir"]["source"]["commit"] == ("5dac2ab2922c30c726c4a83d7626c95ad4e231c8")
-    assert differences["differences"][0]["id"] == "maildir-atomic-publication"
+    assert {entry["id"] for entry in differences["differences"]} == {
+        "maildir-atomic-publication",
+        "starttls-buffered-plaintext-command",
+    }
+    starttls = next(
+        entry
+        for entry in differences["differences"]
+        if entry["id"] == "starttls-buffered-plaintext-command"
+    )
+    assert starttls["evidence"]["commit"] == "5dac2ab2922c30c726c4a83d7626c95ad4e231c8"
+    assert starttls["candidate_requirement"].startswith("After sending the 220 STARTTLS")
 
 
 def test_postgres_seed_is_structurally_valid_postgres_sql() -> None:

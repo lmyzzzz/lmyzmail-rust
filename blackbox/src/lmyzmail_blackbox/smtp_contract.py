@@ -6,7 +6,7 @@ import os
 import re
 import stat
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
@@ -33,7 +33,7 @@ _ACCEPTED = re.compile(
 _FILE_NAME = re.compile(
     rb"(?P<timestamp>\d{14}\.\d{3})-(?P<monotonic>\d+)-(?P<counter>\d+)\.eml"
 )
-_RECEIVED_ID = re.compile(rb"( with ESMTP id )[0-9A-F]{14}(\r\n)")
+_RECEIVED_ID = re.compile(rb"( with (?P<protocol>ESMTPS?) id )[0-9A-F]{14}(\r\n)")
 _RECEIVED_AT = re.compile(rb"(;\r\n\t)(?P<value>[^\r\n]+)(\r\nAuthentication-Results:)")
 _JAVA_RFC_1123 = re.compile(
     rb"(?P<weekday>Mon|Tue|Wed|Thu|Fri|Sat|Sun), "
@@ -70,6 +70,7 @@ _MAILDIR_HASH_CHUNK_BYTES = 1024 * 1024
 _MAX_CAPTURED_MESSAGE_BYTES = 16 * 1024 * 1024
 
 type _MaildirSnapshot = dict[str, tuple[int, str]]
+type SmtpSessionSetup = Callable[[RuntimeTarget, RawSmtpClient, bytes], dict[str, Any]]
 
 
 def _check(condition: bool, details: object) -> None:
@@ -93,7 +94,7 @@ def _endpoint(target: RuntimeTarget) -> tuple[str, int]:
     return "127.0.0.1", ports.smtp
 
 
-def _open_client(target: RuntimeTarget) -> tuple[RawSmtpClient, bytes]:
+def open_smtp_client(target: RuntimeTarget) -> tuple[RawSmtpClient, bytes]:
     host, port = _endpoint(target)
     client = RawSmtpClient.connect(host, port, timeout=10.0)
     try:
@@ -107,7 +108,7 @@ def _open_client(target: RuntimeTarget) -> tuple[RawSmtpClient, bytes]:
         raise
 
 
-def _reply_snapshot(
+def smtp_reply_snapshot(
     reply: tuple[bytes, ...],
     hostname: bytes,
     *,
@@ -121,24 +122,35 @@ def _reply_snapshot(
     return [line.decode("ascii", errors="strict") for line in normalized]
 
 
-def _greeting_snapshot() -> list[str]:
+def smtp_greeting_snapshot() -> list[str]:
     return ["220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"]
 
 
-def _ehlo(client: RawSmtpClient, hostname: bytes) -> tuple[bytes, ...]:
+def smtp_ehlo(
+    client: RawSmtpClient,
+    hostname: bytes,
+    *,
+    advertise_starttls: bool = False,
+) -> tuple[bytes, ...]:
     reply = client.command(b"EHLO blackbox.example")
-    _check(
-        reply
-        == (
-            b"250-" + hostname + b" Hello blackbox.example\r\n",
-            b"250-PIPELINING\r\n",
-            b"250-SIZE 15728640\r\n",
-            b"250-8BITMIME\r\n",
-            b"250-CHUNKING\r\n",
+    extensions = [
+        b"250-" + hostname + b" Hello blackbox.example\r\n",
+        b"250-PIPELINING\r\n",
+        b"250-SIZE 15728640\r\n",
+        b"250-8BITMIME\r\n",
+        b"250-CHUNKING\r\n",
+    ]
+    if advertise_starttls:
+        extensions.append(b"250-STARTTLS\r\n")
+    extensions.extend(
+        (
             b"250-ENHANCEDSTATUSCODES\r\n",
             b"250-SMTPUTF8\r\n",
             b"250 SKIBIDITOILET\r\n",
-        ),
+        )
+    )
+    _check(
+        reply == tuple(extensions),
         reply,
     )
     return reply
@@ -496,6 +508,7 @@ def _normalized_mail_snapshot(
     *,
     hostname: bytes,
     message: bytes,
+    received_protocol: bytes,
     started_at: datetime,
     observed_at: datetime,
 ) -> dict[str, Any]:
@@ -511,12 +524,10 @@ def _normalized_mail_snapshot(
         b"Authentication-Results: " + hostname + b";",
         b"Authentication-Results: <hostname>;",
     )
-    prefix, received_id_count = _RECEIVED_ID.subn(
-        rb"\1<received-id>\2",
-        prefix,
-        count=1,
-    )
-    _check(received_id_count == 1, prefix[:1000])
+    received_id_matches = tuple(_RECEIVED_ID.finditer(prefix))
+    _check(len(received_id_matches) == 1, prefix[:1000])
+    _check(received_id_matches[0].group("protocol") == received_protocol, prefix[:1000])
+    prefix = _RECEIVED_ID.sub(rb"\1<received-id>\3", prefix, count=1)
 
     received_at_match = _RECEIVED_AT.search(prefix)
     if received_at_match is None:
@@ -546,6 +557,7 @@ def _storage_snapshot(
     subject: str,
     message: bytes,
     hostname: bytes,
+    received_protocol: bytes,
     maildir_before: Mapping[str, tuple[int, str]],
     redis_before: int | None,
     started_at: datetime,
@@ -640,6 +652,7 @@ def _storage_snapshot(
         raw,
         hostname=hostname,
         message=message,
+        received_protocol=received_protocol,
         started_at=started_at,
         observed_at=observed_at,
     )
@@ -713,17 +726,20 @@ _BDAT_MESSAGE = _message(
 )
 
 
-def _capture_delivery(
+def capture_delivery(
     target: RuntimeTarget,
     *,
     mode: str,
     subject: str,
     message_id: str,
     message: bytes,
+    session_setup: SmtpSessionSetup | None = None,
+    received_protocol: bytes = b"ESMTP",
 ) -> dict[str, Any]:
     workspace = target.workspace
     if workspace is None:
         raise AssertionError("SMTP target is not started")
+    _check(received_protocol in {b"ESMTP", b"ESMTPS"}, received_protocol)
     preflight_deadline = time.monotonic() + 5.0
     maildir_before = _maildir_files(workspace, deadline=preflight_deadline)
     _check(
@@ -737,22 +753,23 @@ def _capture_delivery(
     )[0]
 
     started_at = datetime.now(UTC)
-    client, hostname = _open_client(target)
+    client, hostname = open_smtp_client(target)
     with client:
-        wire: dict[str, Any] = {
-            "greeting": _greeting_snapshot(),
-            "ehlo": _reply_snapshot(_ehlo(client, hostname), hostname),
-        }
+        wire: dict[str, Any] = {"greeting": smtp_greeting_snapshot()}
+        if session_setup is None:
+            wire["ehlo"] = smtp_reply_snapshot(smtp_ehlo(client, hostname), hostname)
+        else:
+            wire.update(session_setup(target, client, hostname))
         if mode == "data":
             mail_from = client.command(b"MAIL FROM:<>")
             rcpt_to = client.command(b"RCPT TO:<qa@example.test>")
             data_ready, accepted = client.data(message)
             wire.update(
                 {
-                    "mail_from": _reply_snapshot(mail_from, hostname),
-                    "rcpt_to": _reply_snapshot(rcpt_to, hostname),
-                    "data_ready": _reply_snapshot(data_ready, hostname),
-                    "accepted": _reply_snapshot(accepted, hostname, accepted=True),
+                    "mail_from": smtp_reply_snapshot(mail_from, hostname),
+                    "rcpt_to": smtp_reply_snapshot(rcpt_to, hostname),
+                    "data_ready": smtp_reply_snapshot(data_ready, hostname),
+                    "accepted": smtp_reply_snapshot(accepted, hostname, accepted=True),
                 }
             )
         elif mode == "pipeline":
@@ -768,8 +785,8 @@ def _capture_delivery(
                 replies,
             )
             accepted = client.data_body(message)
-            wire["pipeline"] = [_reply_snapshot(reply, hostname) for reply in replies]
-            wire["accepted"] = _reply_snapshot(accepted, hostname, accepted=True)
+            wire["pipeline"] = [smtp_reply_snapshot(reply, hostname) for reply in replies]
+            wire["accepted"] = smtp_reply_snapshot(accepted, hostname, accepted=True)
         elif mode == "bdat":
             replies = client.pipeline(
                 (
@@ -780,12 +797,12 @@ def _capture_delivery(
             split_at = len(message) // 2
             first = client.bdat(message[:split_at])
             accepted = client.bdat(message[split_at:], last=True)
-            wire["pipeline"] = [_reply_snapshot(reply, hostname) for reply in replies]
-            wire["bdat_chunk"] = _reply_snapshot(first, hostname)
-            wire["accepted"] = _reply_snapshot(accepted, hostname, accepted=True)
+            wire["pipeline"] = [smtp_reply_snapshot(reply, hostname) for reply in replies]
+            wire["bdat_chunk"] = smtp_reply_snapshot(first, hostname)
+            wire["accepted"] = smtp_reply_snapshot(accepted, hostname, accepted=True)
         else:
             raise AssertionError(f"unsupported SMTP capture mode: {mode}")
-        wire["quit"] = _reply_snapshot(client.quit(), hostname)
+        wire["quit"] = smtp_reply_snapshot(client.quit(), hostname)
 
     return {
         "mode": mode,
@@ -796,6 +813,7 @@ def _capture_delivery(
             subject=subject,
             message=message,
             hostname=hostname,
+            received_protocol=received_protocol,
             maildir_before=maildir_before,
             redis_before=redis_before,
             started_at=started_at,
@@ -804,7 +822,7 @@ def _capture_delivery(
 
 
 def _capture_data(target: RuntimeTarget) -> dict[str, Any]:
-    return _capture_delivery(
+    return capture_delivery(
         target,
         mode="data",
         subject=_DATA_SUBJECT,
@@ -814,7 +832,7 @@ def _capture_data(target: RuntimeTarget) -> dict[str, Any]:
 
 
 def _capture_pipeline(target: RuntimeTarget) -> dict[str, Any]:
-    return _capture_delivery(
+    return capture_delivery(
         target,
         mode="pipeline",
         subject=_PIPELINE_SUBJECT,
@@ -824,7 +842,7 @@ def _capture_pipeline(target: RuntimeTarget) -> dict[str, Any]:
 
 
 def _capture_bdat(target: RuntimeTarget) -> dict[str, Any]:
-    return _capture_delivery(
+    return capture_delivery(
         target,
         mode="bdat",
         subject=_BDAT_SUBJECT,
