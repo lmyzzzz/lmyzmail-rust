@@ -114,7 +114,7 @@ The following retained historical sets are bound to the old
 - `managed-smtp-data-oracle-evidence-v1/`
 - `managed-smtp-mime-v1/`
 
-The current active sets are bound to
+The following retained historical sets are bound to
 `attestation.harness.definition_tree_sha256`
 `df8f7cae03892b566a36d9e77b8eb930a237af21896ac18418b06120d2d9dbae`:
 
@@ -129,9 +129,26 @@ The current active sets are bound to
 - `managed-smtp-data-oracle-evidence-v3/`
 - `managed-smtp-mime-v3/`
 
-The active outbound attestation is `managed-outbound-queue-v2.json`, using the
+The current active sets are bound to
+`attestation.harness.definition_tree_sha256`
+`bcd157754e50c30e6d5273df5974e25944cedaf23fb849397bc6d823faad43a4`:
+
+- `managed-basic-v18/`
+- `managed-starttls-v8/`
+- `managed-starttls-oracle-evidence-v8/`
+- `managed-smtp-auth-v7/`
+- `managed-smtp-auth-starttls-v7/`
+- `managed-smtp-command-v5/`
+- `managed-smtp-command-oracle-evidence-v5/`
+- `managed-smtp-data-v4/`
+- `managed-smtp-data-oracle-evidence-v4/`
+- `managed-smtp-mime-v4/`
+
+The active outbound attestation is `managed-outbound-queue-v4.json`, using the
 field-scoped `outbound:generated-sent-filename` normalizer. The rejected raw
-`v1` recording is never used as an expectation.
+`v1` recording is never used as an expectation. The intermediate `v3` recording
+predates the final active test-path attestation and is retained as historical
+evidence only.
 
 The `oracle-evidence` sets remain evidence only and are never candidate
 expectations.

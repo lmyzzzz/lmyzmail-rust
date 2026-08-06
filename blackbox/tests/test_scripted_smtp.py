@@ -312,3 +312,8 @@ def test_invalid_scenarios_fail_before_listening() -> None:
         SmtpScenario(max_message_bytes=2, max_session_bytes=1)
     with pytest.raises(ValueError, match="finite and positive"):
         SmtpScenario(connection_timeout_seconds=float("inf"))
+
+
+def test_scripted_server_rejects_ipv6_bind_host_before_listening() -> None:
+    with pytest.raises(ValueError, match="IPv4"):
+        ScriptedSmtpServer(bind_host="::1")

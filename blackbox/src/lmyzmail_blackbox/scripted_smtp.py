@@ -238,6 +238,8 @@ class ScriptedSmtpServer:
             raise ValueError("scripted SMTP bind host must be a numeric IP address") from error
         if parsed_bind_host.is_unspecified or parsed_bind_host.is_multicast:
             raise ValueError("scripted SMTP bind host must be a specific unicast address")
+        if parsed_bind_host.version != 4:
+            raise ValueError("scripted SMTP bind host must be an IPv4 address")
         if isinstance(bind_port, bool) or not 0 <= bind_port <= 65_535:
             raise ValueError("scripted SMTP bind port must be between 0 and 65535")
         self._bind_host = bind_host
