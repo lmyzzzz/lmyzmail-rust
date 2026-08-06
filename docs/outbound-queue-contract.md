@@ -107,6 +107,32 @@ read, while a missing large-message spool is atomically reconstructed at the
 same stable path. The same path runs after process restart and does not depend
 on Java or an in-memory request object.
 
+## Rust Claim And Lease Primitive
+
+Rust claims preserve the three legacy observations (`LPOP pending`, membership
+in `processing`, and the millisecond value in `processing_time`) while adding a
+per-task fencing key named `lmyzmail:mail:queue:lease:<id>`. The value is an
+opaque, bounded owner token and the key always has a millisecond TTL. A claim
+sets that key with `NX PX` in the same Lua execution that updates the legacy
+structures. A duplicate pending reference cannot create a second owner.
+
+Renewal, release, retry scheduling, and acknowledgement compare the opaque
+token inside their Lua script. A stale owner therefore cannot extend, requeue,
+or acknowledge a task after its lease has been replaced. Renewal also refreshes
+the legacy processing timestamp and the seven-day task/domain TTLs. Retry
+scheduling atomically replaces the Java-compatible task JSON, removes the
+processing claim, and inserts the ID into the legacy retry sorted set. A
+bounded script moves due retry IDs back to pending without duplicating an
+already pending or processing ID.
+
+Expired-claim discovery uses bounded `SSCAN` pages and only reports processing
+members whose Rust lease key is absent. Recovery checks absence again inside
+the mutation script, so a concurrent renewal wins. The future delivery worker
+must additionally fence the corresponding PostgreSQL row with `processor_id`;
+it may call Redis acknowledgement only after the PostgreSQL terminal-state
+transaction commits. These primitives deliberately are not wired to a sender
+until that durable database transition and real SMTP delivery exist together.
+
 ## Required Rust Invariants
 
 The candidate must preserve the legacy key names and successful status/body

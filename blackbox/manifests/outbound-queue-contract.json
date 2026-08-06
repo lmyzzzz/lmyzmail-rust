@@ -38,7 +38,17 @@
     ],
     "claim": ["lpop:pending", "sadd:processing", "hset:processing_time"],
     "retry": ["srem:processing", "hdel:processing_time", "zadd:retry"],
-    "task_detail_ttl_is_seconds": 604800
+    "task_detail_ttl_is_seconds": 604800,
+    "candidate_lease": {
+      "key": "lmyzmail:mail:queue:lease:<id>",
+      "type": "string-token",
+      "ttl": "per-claim",
+      "claim": ["lpop:pending", "set:nx:px", "sadd:processing", "hset:processing_time"],
+      "renew": ["compare-token", "pexpire", "hset:processing_time", "expire:task-and-domains"],
+      "retry": ["compare-token", "set:task", "srem:processing", "hdel:processing_time", "zadd:retry"],
+      "acknowledge": ["compare-token", "srem:processing", "hdel:processing_time", "zrem:retry", "del:task"],
+      "expired_recovery": ["verify-lease-absent", "srem:processing", "hdel:processing_time", "rpush:pending"]
+    }
   },
   "requirements": {
     "legacy_key_interop": true,

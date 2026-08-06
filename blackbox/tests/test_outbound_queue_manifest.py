@@ -49,6 +49,19 @@ def test_outbound_manifest_binds_frozen_oracle_and_legacy_key_surface() -> None:
         "sadd:processing",
         "hset:processing_time",
     ]
+    lease = manifest["redis"]["candidate_lease"]
+    assert lease["key"] == "lmyzmail:mail:queue:lease:<id>"
+    assert lease["type"] == "string-token"
+    assert lease["ttl"] == "per-claim"
+    assert lease["claim"] == [
+        "lpop:pending",
+        "set:nx:px",
+        "sadd:processing",
+        "hset:processing_time",
+    ]
+    fenced_operations = ("renew", "retry", "acknowledge")
+    assert all("compare-token" in lease[operation] for operation in fenced_operations)
+    assert lease["expired_recovery"][0] == "verify-lease-absent"
 
 
 def test_outbound_manifest_requires_durable_candidate_boundaries() -> None:

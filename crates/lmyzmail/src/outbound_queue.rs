@@ -11,9 +11,13 @@ const PROCESSING_TIME_KEY: &str = "botmail:mail:queue:processing_time";
 const RETRY_KEY: &str = "botmail:mail:queue:retry";
 const SEQUENCE_KEY: &str = "botmail:mail:queue:seq";
 const SENT_FILE_INDEX_KEY: &str = "botmail:mail:queue:sentfile_index";
+const LEASE_PREFIX: &str = "lmyzmail:mail:queue:lease:";
 const TASK_TTL_SECONDS: u64 = 7 * 24 * 60 * 60;
 const POOL_TIMEOUT: Duration = Duration::from_secs(5);
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
+const MIN_LEASE_MILLIS: u64 = 1_000;
+const MAX_LEASE_MILLIS: u64 = 60 * 60 * 1_000;
+const MAX_LEASE_TOKEN_BYTES: usize = 256;
 
 const RESERVE_ID_SCRIPT: &str = r#"
 local current = redis.call('GET', KEYS[1]) or '0'
@@ -158,6 +162,130 @@ redis.call('EXPIRE', KEYS[2], ttl)
 return 1
 "#;
 
+const CLAIM_SCRIPT: &str = r#"
+local task_id = redis.call('LPOP', KEYS[1])
+if not task_id then return {} end
+
+local lease_key = ARGV[4] .. task_id
+local acquired = redis.call('SET', lease_key, ARGV[1], 'NX', 'PX', ARGV[2])
+if not acquired then
+  return {task_id, '', '0'}
+end
+
+redis.call('SADD', KEYS[2], task_id)
+redis.call('HSET', KEYS[3], task_id, ARGV[3])
+local task_key = ARGV[5] .. task_id
+local domain_key = ARGV[6] .. task_id
+local task_json = redis.call('GET', task_key) or ''
+if task_json ~= '' then redis.call('EXPIRE', task_key, ARGV[7]) end
+if redis.call('EXISTS', domain_key) == 1 then redis.call('EXPIRE', domain_key, ARGV[7]) end
+return {task_id, task_json, '1'}
+"#;
+
+const RENEW_CLAIM_SCRIPT: &str = r#"
+local task_id = ARGV[1]
+local lease_key = ARGV[5] .. task_id
+if redis.call('GET', lease_key) ~= ARGV[2] then return 0 end
+if redis.call('SISMEMBER', KEYS[1], task_id) ~= 1 then return 0 end
+
+redis.call('PEXPIRE', lease_key, ARGV[3])
+redis.call('HSET', KEYS[2], task_id, ARGV[4])
+local task_key = ARGV[6] .. task_id
+local domain_key = ARGV[7] .. task_id
+if redis.call('EXISTS', task_key) == 1 then redis.call('EXPIRE', task_key, ARGV[8]) end
+if redis.call('EXISTS', domain_key) == 1 then redis.call('EXPIRE', domain_key, ARGV[8]) end
+return 1
+"#;
+
+const RELEASE_CLAIM_SCRIPT: &str = r#"
+local task_id = ARGV[1]
+local lease_key = ARGV[4] .. task_id
+if redis.call('GET', lease_key) ~= ARGV[2] then return 0 end
+
+redis.call('DEL', lease_key)
+redis.call('SREM', KEYS[2], task_id)
+redis.call('HDEL', KEYS[3], task_id)
+if ARGV[3] == '1'
+  and redis.call('LPOS', KEYS[1], task_id) == false
+  and redis.call('ZSCORE', KEYS[4], task_id) == false then
+  redis.call('RPUSH', KEYS[1], task_id)
+end
+return 1
+"#;
+
+const SCHEDULE_RETRY_SCRIPT: &str = r#"
+local task_id = ARGV[1]
+local lease_key = ARGV[6] .. task_id
+if redis.call('GET', lease_key) ~= ARGV[2] then return 0 end
+
+local task_key = ARGV[7] .. task_id
+redis.call('SET', task_key, ARGV[3], 'EX', ARGV[5])
+redis.call('DEL', lease_key)
+redis.call('SREM', KEYS[2], task_id)
+redis.call('HDEL', KEYS[3], task_id)
+redis.call('LREM', KEYS[1], 0, task_id)
+redis.call('ZADD', KEYS[4], tonumber(ARGV[4]) / 1000, task_id)
+return 1
+"#;
+
+const ACKNOWLEDGE_SCRIPT: &str = r#"
+local task_id = ARGV[1]
+local lease_key = ARGV[3] .. task_id
+if redis.call('GET', lease_key) ~= ARGV[2] then return 0 end
+
+redis.call('DEL', lease_key)
+redis.call('SREM', KEYS[2], task_id)
+redis.call('HDEL', KEYS[3], task_id)
+redis.call('LREM', KEYS[1], 0, task_id)
+redis.call('ZREM', KEYS[4], task_id)
+redis.call('DEL', ARGV[4] .. task_id)
+return 1
+"#;
+
+const MOVE_DUE_RETRIES_SCRIPT: &str = r#"
+local ids = redis.call(
+  'ZRANGEBYSCORE', KEYS[1], '-inf', tonumber(ARGV[1]) / 1000,
+  'LIMIT', 0, ARGV[2]
+)
+local moved = {}
+for _, task_id in ipairs(ids) do
+  if redis.call('ZREM', KEYS[1], task_id) == 1 then
+    if redis.call('SISMEMBER', KEYS[3], task_id) ~= 1
+      and redis.call('LPOS', KEYS[2], task_id) == false then
+      redis.call('RPUSH', KEYS[2], task_id)
+      table.insert(moved, task_id)
+    end
+  end
+end
+return moved
+"#;
+
+const SCAN_EXPIRED_CLAIMS_SCRIPT: &str = r#"
+local scan = redis.call('SSCAN', KEYS[1], ARGV[1], 'COUNT', ARGV[2])
+local expired = {}
+for _, task_id in ipairs(scan[2]) do
+  if redis.call('EXISTS', ARGV[3] .. task_id) == 0 then
+    table.insert(expired, task_id)
+  end
+end
+return {scan[1], expired}
+"#;
+
+const RECOVER_EXPIRED_CLAIM_SCRIPT: &str = r#"
+local task_id = ARGV[1]
+if redis.call('EXISTS', ARGV[3] .. task_id) == 1 then return 0 end
+if redis.call('SISMEMBER', KEYS[2], task_id) ~= 1 then return 0 end
+
+redis.call('SREM', KEYS[2], task_id)
+redis.call('HDEL', KEYS[3], task_id)
+if ARGV[2] == '1'
+  and redis.call('LPOS', KEYS[1], task_id) == false
+  and redis.call('ZSCORE', KEYS[4], task_id) == false then
+  redis.call('RPUSH', KEYS[1], task_id)
+end
+return 1
+"#;
+
 #[derive(Clone)]
 pub struct LegacyOutboundQueue {
     pool: Pool,
@@ -167,6 +295,19 @@ pub struct LegacyOutboundQueue {
 pub enum QueueError {
     InvalidTask(&'static str),
     Unavailable,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QueueClaim {
+    pub task_id: i64,
+    pub lease_token: String,
+    pub task: Option<TaskDetail>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ExpiredClaimPage {
+    pub next_cursor: u64,
+    pub task_ids: Vec<i64>,
 }
 
 impl fmt::Display for QueueError {
@@ -389,6 +530,257 @@ impl LegacyOutboundQueue {
         Ok(complete == 1)
     }
 
+    pub async fn claim_next(
+        &self,
+        lease_token: &str,
+        lease_duration: Duration,
+        now_epoch_millis: i64,
+    ) -> Result<Option<QueueClaim>, QueueError> {
+        validate_lease(lease_token, lease_duration, now_epoch_millis)?;
+        let mut connection = self.connection().await?;
+        let values: Vec<String> = self
+            .query(
+                redis::cmd("EVAL")
+                    .arg(CLAIM_SCRIPT)
+                    .arg(3)
+                    .arg(PENDING_KEY)
+                    .arg(PROCESSING_KEY)
+                    .arg(PROCESSING_TIME_KEY)
+                    .arg(lease_token)
+                    .arg(lease_duration.as_millis())
+                    .arg(now_epoch_millis)
+                    .arg(LEASE_PREFIX)
+                    .arg(format!("{KEY_PREFIX}task:"))
+                    .arg(format!("{KEY_PREFIX}domains:"))
+                    .arg(TASK_TTL_SECONDS),
+                &mut connection,
+            )
+            .await?;
+        if values.is_empty() {
+            return Ok(None);
+        }
+        if values.len() != 3 {
+            return Err(QueueError::Unavailable);
+        }
+        let task_id = parse_task_id(&values[0])?;
+        if values[2] != "1" {
+            return Ok(None);
+        }
+        let task = if values[1].is_empty() {
+            None
+        } else {
+            let task: TaskDetail =
+                serde_json::from_str(&values[1]).map_err(|_| QueueError::Unavailable)?;
+            if task.id != task_id {
+                return Err(QueueError::Unavailable);
+            }
+            Some(task)
+        };
+        Ok(Some(QueueClaim {
+            task_id,
+            lease_token: lease_token.to_owned(),
+            task,
+        }))
+    }
+
+    pub async fn renew_claim(
+        &self,
+        claim: &QueueClaim,
+        lease_duration: Duration,
+        now_epoch_millis: i64,
+    ) -> Result<bool, QueueError> {
+        validate_claim(claim, lease_duration, now_epoch_millis)?;
+        let mut connection = self.connection().await?;
+        let renewed: i64 = self
+            .query(
+                redis::cmd("EVAL")
+                    .arg(RENEW_CLAIM_SCRIPT)
+                    .arg(2)
+                    .arg(PROCESSING_KEY)
+                    .arg(PROCESSING_TIME_KEY)
+                    .arg(claim.task_id)
+                    .arg(&claim.lease_token)
+                    .arg(lease_duration.as_millis())
+                    .arg(now_epoch_millis)
+                    .arg(LEASE_PREFIX)
+                    .arg(format!("{KEY_PREFIX}task:"))
+                    .arg(format!("{KEY_PREFIX}domains:"))
+                    .arg(TASK_TTL_SECONDS),
+                &mut connection,
+            )
+            .await?;
+        Ok(renewed == 1)
+    }
+
+    pub async fn release_claim(
+        &self,
+        claim: &QueueClaim,
+        requeue: bool,
+    ) -> Result<bool, QueueError> {
+        validate_claim_identity(claim)?;
+        let mut connection = self.connection().await?;
+        let released: i64 = self
+            .query(
+                redis::cmd("EVAL")
+                    .arg(RELEASE_CLAIM_SCRIPT)
+                    .arg(4)
+                    .arg(PENDING_KEY)
+                    .arg(PROCESSING_KEY)
+                    .arg(PROCESSING_TIME_KEY)
+                    .arg(RETRY_KEY)
+                    .arg(claim.task_id)
+                    .arg(&claim.lease_token)
+                    .arg(i64::from(requeue))
+                    .arg(LEASE_PREFIX),
+                &mut connection,
+            )
+            .await?;
+        Ok(released == 1)
+    }
+
+    pub async fn schedule_retry(
+        &self,
+        claim: &QueueClaim,
+        task: &TaskDetail,
+        retry_at_epoch_millis: i64,
+    ) -> Result<bool, QueueError> {
+        validate_claim_identity(claim)?;
+        task.validate()?;
+        if task.id != claim.task_id || retry_at_epoch_millis <= 0 {
+            return Err(QueueError::InvalidTask("retry task does not match claim"));
+        }
+        let task_json = serde_json::to_string(task).map_err(|_| QueueError::Unavailable)?;
+        let mut connection = self.connection().await?;
+        let scheduled: i64 = self
+            .query(
+                redis::cmd("EVAL")
+                    .arg(SCHEDULE_RETRY_SCRIPT)
+                    .arg(4)
+                    .arg(PENDING_KEY)
+                    .arg(PROCESSING_KEY)
+                    .arg(PROCESSING_TIME_KEY)
+                    .arg(RETRY_KEY)
+                    .arg(claim.task_id)
+                    .arg(&claim.lease_token)
+                    .arg(task_json)
+                    .arg(retry_at_epoch_millis)
+                    .arg(TASK_TTL_SECONDS)
+                    .arg(LEASE_PREFIX)
+                    .arg(format!("{KEY_PREFIX}task:")),
+                &mut connection,
+            )
+            .await?;
+        Ok(scheduled == 1)
+    }
+
+    pub async fn acknowledge(&self, claim: &QueueClaim) -> Result<bool, QueueError> {
+        validate_claim_identity(claim)?;
+        let mut connection = self.connection().await?;
+        let acknowledged: i64 = self
+            .query(
+                redis::cmd("EVAL")
+                    .arg(ACKNOWLEDGE_SCRIPT)
+                    .arg(4)
+                    .arg(PENDING_KEY)
+                    .arg(PROCESSING_KEY)
+                    .arg(PROCESSING_TIME_KEY)
+                    .arg(RETRY_KEY)
+                    .arg(claim.task_id)
+                    .arg(&claim.lease_token)
+                    .arg(LEASE_PREFIX)
+                    .arg(format!("{KEY_PREFIX}task:")),
+                &mut connection,
+            )
+            .await?;
+        Ok(acknowledged == 1)
+    }
+
+    pub async fn move_due_retries(
+        &self,
+        now_epoch_millis: i64,
+        limit: usize,
+    ) -> Result<Vec<i64>, QueueError> {
+        if now_epoch_millis <= 0 || limit == 0 || limit > 10_000 {
+            return Err(QueueError::InvalidTask("invalid retry move bound"));
+        }
+        let mut connection = self.connection().await?;
+        let values: Vec<String> = self
+            .query(
+                redis::cmd("EVAL")
+                    .arg(MOVE_DUE_RETRIES_SCRIPT)
+                    .arg(3)
+                    .arg(RETRY_KEY)
+                    .arg(PENDING_KEY)
+                    .arg(PROCESSING_KEY)
+                    .arg(now_epoch_millis)
+                    .arg(limit),
+                &mut connection,
+            )
+            .await?;
+        values
+            .into_iter()
+            .map(|value| parse_task_id(&value))
+            .collect()
+    }
+
+    pub async fn scan_expired_claims(
+        &self,
+        cursor: u64,
+        count: usize,
+    ) -> Result<ExpiredClaimPage, QueueError> {
+        if count == 0 || count > 10_000 {
+            return Err(QueueError::InvalidTask("invalid claim scan bound"));
+        }
+        let mut connection = self.connection().await?;
+        let (next_cursor, values): (u64, Vec<String>) = self
+            .query(
+                redis::cmd("EVAL")
+                    .arg(SCAN_EXPIRED_CLAIMS_SCRIPT)
+                    .arg(1)
+                    .arg(PROCESSING_KEY)
+                    .arg(cursor)
+                    .arg(count)
+                    .arg(LEASE_PREFIX),
+                &mut connection,
+            )
+            .await?;
+        let task_ids = values
+            .into_iter()
+            .map(|value| parse_task_id(&value))
+            .collect::<Result<_, _>>()?;
+        Ok(ExpiredClaimPage {
+            next_cursor,
+            task_ids,
+        })
+    }
+
+    pub async fn recover_expired_claim(
+        &self,
+        task_id: i64,
+        requeue: bool,
+    ) -> Result<bool, QueueError> {
+        if task_id <= 0 {
+            return Err(QueueError::InvalidTask("task ID must be positive"));
+        }
+        let mut connection = self.connection().await?;
+        let recovered: i64 = self
+            .query(
+                redis::cmd("EVAL")
+                    .arg(RECOVER_EXPIRED_CLAIM_SCRIPT)
+                    .arg(4)
+                    .arg(PENDING_KEY)
+                    .arg(PROCESSING_KEY)
+                    .arg(PROCESSING_TIME_KEY)
+                    .arg(RETRY_KEY)
+                    .arg(task_id)
+                    .arg(i64::from(requeue))
+                    .arg(LEASE_PREFIX),
+                &mut connection,
+            )
+            .await?;
+        Ok(recovered == 1)
+    }
+
     async fn connection(&self) -> Result<deadpool_redis::Connection, QueueError> {
         timeout(POOL_TIMEOUT, self.pool.get())
             .await
@@ -406,6 +798,50 @@ impl LegacyOutboundQueue {
             .map_err(|_| QueueError::Unavailable)?
             .map_err(|_| QueueError::Unavailable)
     }
+}
+
+fn validate_lease(
+    lease_token: &str,
+    lease_duration: Duration,
+    now_epoch_millis: i64,
+) -> Result<(), QueueError> {
+    if lease_token.is_empty()
+        || lease_token.len() > MAX_LEASE_TOKEN_BYTES
+        || !lease_token.is_ascii()
+        || lease_token.bytes().any(|value| value.is_ascii_control())
+    {
+        return Err(QueueError::InvalidTask("invalid lease token"));
+    }
+    let lease_millis = u64::try_from(lease_duration.as_millis())
+        .map_err(|_| QueueError::InvalidTask("invalid lease duration"))?;
+    if !(MIN_LEASE_MILLIS..=MAX_LEASE_MILLIS).contains(&lease_millis) || now_epoch_millis <= 0 {
+        return Err(QueueError::InvalidTask("invalid lease duration"));
+    }
+    Ok(())
+}
+
+fn validate_claim(
+    claim: &QueueClaim,
+    lease_duration: Duration,
+    now_epoch_millis: i64,
+) -> Result<(), QueueError> {
+    validate_claim_identity(claim)?;
+    validate_lease(&claim.lease_token, lease_duration, now_epoch_millis)
+}
+
+fn validate_claim_identity(claim: &QueueClaim) -> Result<(), QueueError> {
+    if claim.task_id <= 0 {
+        return Err(QueueError::InvalidTask("task ID must be positive"));
+    }
+    validate_lease(&claim.lease_token, Duration::from_secs(1), 1)
+}
+
+fn parse_task_id(value: &str) -> Result<i64, QueueError> {
+    value
+        .parse::<i64>()
+        .ok()
+        .filter(|value| *value > 0)
+        .ok_or(QueueError::Unavailable)
 }
 
 #[cfg(test)]
