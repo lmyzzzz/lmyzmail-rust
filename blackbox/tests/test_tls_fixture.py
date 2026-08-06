@@ -10,7 +10,10 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 from lmyzmail_blackbox.errors import HarnessError
-from lmyzmail_blackbox.tls_fixture import provision_ephemeral_tls_material
+from lmyzmail_blackbox.tls_fixture import (
+    create_server_ssl_context,
+    provision_ephemeral_tls_material,
+)
 
 
 def test_ephemeral_pkcs12_is_private_and_has_expected_certificate(tmp_path: Path) -> None:
@@ -59,3 +62,11 @@ def test_ephemeral_pkcs12_rejects_reuse_and_symlink_workspace(tmp_path: Path) ->
     linked_workspace.symlink_to(real_workspace, target_is_directory=True)
     with pytest.raises(HarnessError, match="real directory"):
         provision_ephemeral_tls_material(linked_workspace)
+
+
+def test_server_context_loads_pkcs12_without_leaving_pem_keys(tmp_path: Path) -> None:
+    material = provision_ephemeral_tls_material(tmp_path)
+    context = create_server_ssl_context(material)
+
+    assert context.minimum_version.name == "TLSv1_2"
+    assert tuple(material.keystore_path.parent.iterdir()) == (material.keystore_path,)

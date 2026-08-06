@@ -3,6 +3,7 @@ from __future__ import annotations
 import ipaddress
 import os
 import secrets
+import ssl
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -26,6 +27,44 @@ class EphemeralTlsMaterial:
     keystore_path: Path
     keystore_password: str
     certificate_pem: bytes
+
+
+def create_server_ssl_context(material: EphemeralTlsMaterial) -> ssl.SSLContext:
+    """Load the ephemeral PKCS#12 identity without leaving PEM key material behind."""
+    keystore = material.keystore_path
+    if keystore.is_symlink() or not keystore.is_file():
+        raise HarnessError(f"TLS keystore must be a real file: {keystore}")
+
+    private_key, certificate, additional = pkcs12.load_key_and_certificates(
+        keystore.read_bytes(),
+        material.keystore_password.encode("ascii"),
+    )
+    if private_key is None or certificate is None:
+        raise HarnessError("TLS keystore does not contain a private key and certificate")
+
+    suffix = secrets.token_hex(16)
+    certificate_path = keystore.parent / f".server-certificate-{suffix}.pem"
+    private_key_path = keystore.parent / f".server-private-key-{suffix}.pem"
+    certificate_bytes = certificate.public_bytes(serialization.Encoding.PEM)
+    certificate_bytes += b"".join(
+        value.public_bytes(serialization.Encoding.PEM) for value in additional
+    )
+    private_key_bytes = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+
+    try:
+        _write_private_file(certificate_path, certificate_bytes)
+        _write_private_file(private_key_path, private_key_bytes)
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        context.load_cert_chain(certificate_path, private_key_path)
+        return context
+    finally:
+        certificate_path.unlink(missing_ok=True)
+        private_key_path.unlink(missing_ok=True)
 
 
 def _write_private_file(path: Path, value: bytes) -> None:
