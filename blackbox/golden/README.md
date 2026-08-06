@@ -48,6 +48,9 @@ inputs, and must never be overwritten in place.
 - `managed-basic-v13/` re-attests the unchanged HTTP and plaintext SMTP observations
   after the isolated AUTH profiles and their raw-socket contract were added. It is the
   active basic set consumed by tests at this milestone.
+- `managed-basic-v14/` re-attests the unchanged HTTP and plaintext SMTP observations
+  after the SMTP command/state, parser-limit, error-budget, and security-evidence
+  profiles were added. It is the active basic set for the command-contract milestone.
 - `managed-starttls-v1/` freezes normal STARTTLS advertisement, certificate semantics,
   TLS 1.2/1.3 negotiation, TLS 1.1 rejection, state reset, malformed-handshake recovery,
   and a storage-backed TLS DATA delivery. It is retained after password transport
@@ -64,6 +67,11 @@ inputs, and must never be overwritten in place.
   AUTH contract was added to the harness definition. It is the active STARTTLS set.
 - `managed-starttls-oracle-evidence-v3/` re-attests the unchanged smuggling evidence under
   the same definition and remains evidence only, never a candidate expectation.
+- `managed-starttls-v4/` re-attests the unchanged normal STARTTLS observations after the
+  SMTP command/security contract was added. It is the active STARTTLS set for this
+  milestone.
+- `managed-starttls-oracle-evidence-v4/` re-attests the unchanged smuggling evidence under
+  the same definition and remains evidence only, never a candidate expectation.
 - `managed-smtp-auth-v1/` freezes the first isolated plaintext AUTH recording. It is retained
   as create-once evidence after the contract was strengthened with line-length and partial-
   disconnect recovery checks.
@@ -75,3 +83,13 @@ inputs, and must never be overwritten in place.
   recovery is bounded.
 - `managed-smtp-auth-starttls-v2/` is the active AUTH-over-STARTTLS profile, including the
   post-upgrade EHLO reset and absence of AUTH advertisement on both sides of TLS.
+- `managed-smtp-auth-v3/` re-attests the unchanged plaintext AUTH profile after the SMTP
+  command/security contract was added.
+- `managed-smtp-auth-starttls-v3/` re-attests the unchanged AUTH-over-STARTTLS profile
+  after the SMTP command/security contract was added.
+- `managed-smtp-command-v1/` is the active command profile: utility-command state rules,
+  permissive MAIL/RCPT envelope parsing, 1000-byte line framing, handler-vs-dispatcher
+  error accounting, the ten-error `421` close, and fresh-connection recovery.
+- `managed-smtp-command-oracle-evidence-v1/` records Java-only evidence for control-byte
+  reflection and fragmented-overlong double errors. It is evidence for documented
+  security differences and never a candidate expectation.

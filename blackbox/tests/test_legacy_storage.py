@@ -67,6 +67,8 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
     assert {entry["id"] for entry in differences["differences"]} == {
         "maildir-atomic-publication",
         "starttls-buffered-plaintext-command",
+        "smtp-command-control-byte-reflection",
+        "smtp-fragmented-overlong-double-error",
     }
     starttls = next(
         entry

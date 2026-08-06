@@ -17,7 +17,7 @@ def test_managed_java_smtp_auth_goldens(record_java_golden: bool) -> None:
     paths = JavaOracleRuntime().paths
     differential = DifferentialRunner(
         paths.repository,
-        paths.repository / "blackbox/golden/java/managed-smtp-auth-v2",
+        paths.repository / "blackbox/golden/java/managed-smtp-auth-v3",
         "managed-smtp-auth",
         record_java=record_java_golden,
     )
@@ -36,7 +36,7 @@ def test_managed_java_smtp_auth_starttls_goldens(record_java_golden: bool) -> No
     paths = JavaOracleRuntime().paths
     differential = DifferentialRunner(
         paths.repository,
-        paths.repository / "blackbox/golden/java/managed-smtp-auth-starttls-v2",
+        paths.repository / "blackbox/golden/java/managed-smtp-auth-starttls-v3",
         "managed-smtp-auth-starttls",
         record_java=record_java_golden,
     )
