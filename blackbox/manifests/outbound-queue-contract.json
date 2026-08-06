@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "oracle_commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+  "sources": {
+    "scheduler": {
+      "path": "src/main/java/net/lmyz/lmyzmail/outbound/MailQueueScheduler.java",
+      "sha256": "06b64256a19e0f8589ca12599181ee5a2b2b2176005c13c213d32e5e19b2ee02"
+    },
+    "redis": {
+      "path": "src/main/java/net/lmyz/lmyzmail/outbound/MailQueueRedisService.java",
+      "sha256": "f9abffe3fbc98e314db34fcf38d894fd200d93ad74ff933f2c0f57e2717f1bf4"
+    },
+    "persister": {
+      "path": "src/main/java/net/lmyz/lmyzmail/outbound/MailQueuePersister.java",
+      "sha256": "f5ba8596cf36f2fdb8af7bbde2133f9f352e9db2c073eacbf5bb8277e87b6360"
+    },
+    "sender": {
+      "path": "src/main/java/net/lmyz/lmyzmail/outbound/AsyncMailSender.java",
+      "sha256": "c7f10f2416ae308335e9f6f77ffe00140b64904b0b2e8dc7eb04ed74394c603e"
+    },
+    "service": {
+      "path": "src/main/java/net/lmyz/lmyzmail/outbound/OutboundMailService.java",
+      "sha256": "4364488928d307a31e5bdabaa7355db3f0d146607cace085f8900faa364b99ba"
+    }
+  },
+  "redis": {
+    "prefix": "botmail:mail:queue:",
+    "keys": [
+      {"name": "pending", "type": "list", "ttl_seconds": null},
+      {"name": "processing", "type": "set", "ttl_seconds": null},
+      {"name": "retry", "type": "zset", "ttl_seconds": null},
+      {"name": "processing_time", "type": "hash", "ttl_seconds": null},
+      {"name": "task:<id>", "type": "string-json", "ttl_seconds": 604800},
+      {"name": "domains:<id>", "type": "hash-json-values", "ttl_seconds": 604800},
+      {"name": "sentfile_index", "type": "hash", "ttl_seconds": null},
+      {"name": "status_updates", "type": "list", "ttl_seconds": null},
+      {"name": "archive", "type": "list", "ttl_seconds": null}
+    ],
+    "claim": ["lpop:pending", "sadd:processing", "hset:processing_time"],
+    "retry": ["srem:processing", "hdel:processing_time", "zadd:retry"],
+    "task_detail_ttl_is_seconds": 604800
+  },
+  "requirements": {
+    "legacy_key_interop": true,
+    "ack_archive_only_after_postgres_commit": true,
+    "recoverable_archive_inflight": true,
+    "renewable_processing_lease": true,
+    "bounded_status_update_drain": true,
+    "active_references_must_not_expire": true,
+    "stable_message_id_on_ambiguous_smtp_result": true,
+    "dsn_on_permanent_failure": true
+  },
+  "observed_legacy_gaps": [
+    "archive-lpop-before-postgres-commit",
+    "processing-timeout-without-send-heartbeat",
+    "task-detail-ttl-shorter-than-queue-reference",
+    "status-updates-write-only-in-production",
+    "permanent-failure-without-dsn"
+  ]
+}

@@ -28,4 +28,5 @@ Maildir, certificate, and port state and can produce a repeatable Java golden.
 - `native/lmyzmail-skibidi/`: source pinned to the frozen 1.8.0 commit.
 - `oracle/artifacts/`: ignored local Java oracle artifact, verified by manifest.
 - `docs/`: architecture, compatibility, security, and acceptance records.
-
+- `docs/outbound-queue-contract.md`: frozen Redis/queue lifecycle and required
+  crash-recovery invariants for outbound delivery takeover.
