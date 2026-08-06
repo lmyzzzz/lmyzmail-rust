@@ -1,6 +1,8 @@
 use std::{io, sync::Arc, time::Duration};
 
 use chrono::Utc;
+use serde::Serialize;
+use subtle::ConstantTimeEq;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
@@ -20,6 +22,8 @@ const SHUTDOWN_DEADLINE: Duration = Duration::from_secs(5);
 enum Status {
     Ok,
     BadRequest,
+    Unauthorized,
+    Forbidden,
     NotFound,
     PayloadTooLarge,
     ServiceUnavailable,
@@ -30,6 +34,8 @@ impl Status {
         match self {
             Self::Ok => 200,
             Self::BadRequest => 400,
+            Self::Unauthorized => 401,
+            Self::Forbidden => 403,
             Self::NotFound => 404,
             Self::PayloadTooLarge => 413,
             Self::ServiceUnavailable => 503,
@@ -40,6 +46,8 @@ impl Status {
         match self {
             Self::Ok => "OK",
             Self::BadRequest => "Bad Request",
+            Self::Unauthorized => "Unauthorized",
+            Self::Forbidden => "Forbidden",
             Self::NotFound => "Not Found",
             Self::PayloadTooLarge => "Payload Too Large",
             Self::ServiceUnavailable => "Service Unavailable",
@@ -92,11 +100,12 @@ pub async fn serve_http(
                     ).await;
                     continue;
                 };
+                let config = Arc::clone(&config);
                 tasks.spawn(async move {
                     let _permit = permit;
                     let result = timeout(
                         limits.request_deadline,
-                        handle_connection(stream, limits.max_request_bytes),
+                        handle_connection(stream, limits.max_request_bytes, &config),
                     )
                     .await;
                     match result {
@@ -126,9 +135,13 @@ fn reap_finished(tasks: &mut JoinSet<Result<(), io::Error>>) {
     }
 }
 
-async fn handle_connection(mut stream: TcpStream, max_request_bytes: usize) -> io::Result<()> {
+async fn handle_connection(
+    mut stream: TcpStream,
+    max_request_bytes: usize,
+    config: &RuntimeConfig,
+) -> io::Result<()> {
     let request = read_headers(&mut stream, max_request_bytes).await?;
-    let response = parse_request(&request, max_request_bytes);
+    let response = parse_request(&request, max_request_bytes, config);
     match response {
         ParsedRequest::Health => {
             let body = format!(
@@ -153,6 +166,44 @@ async fn handle_connection(mut stream: TcpStream, max_request_bytes: usize) -> i
                 stream,
                 Status::Ok,
                 body.as_bytes(),
+                "application/json; charset=UTF-8",
+            )
+            .await
+        }
+        ParsedRequest::ApiStatus => {
+            let body = serde_json::to_vec(&ApiStatusResponse {
+                status: "ok",
+                message: "API connection successful",
+                timestamp: Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+                version: "2.8.0",
+                domains: ApiDomains {
+                    receivable: [&config.domain],
+                    sendable: [&config.domain],
+                },
+            })
+            .map_err(io::Error::other)?;
+            write_response(
+                stream,
+                Status::Ok,
+                &body,
+                "application/json; charset=UTF-8",
+            )
+            .await
+        }
+        ParsedRequest::Unauthorized => {
+            write_response(
+                stream,
+                Status::Unauthorized,
+                br#"{"error":"invalid_api_key","message":"Missing or invalid API key. Please provide a valid X-API-Key header."}"#,
+                "application/json; charset=UTF-8",
+            )
+            .await
+        }
+        ParsedRequest::Forbidden => {
+            write_response(
+                stream,
+                Status::Forbidden,
+                br#"{"error":"permission_denied","message":"This API key does not have read permission"}"#,
                 "application/json; charset=UTF-8",
             )
             .await
@@ -210,12 +261,19 @@ async fn read_headers(stream: &mut TcpStream, max_request_bytes: usize) -> io::R
 enum ParsedRequest {
     Health,
     Skibidi,
+    ApiStatus,
+    Unauthorized,
+    Forbidden,
     NotFound,
     BadRequest,
     PayloadTooLarge,
 }
 
-fn parse_request(request: &[u8], max_request_bytes: usize) -> ParsedRequest {
+fn parse_request(
+    request: &[u8],
+    max_request_bytes: usize,
+    config: &RuntimeConfig,
+) -> ParsedRequest {
     if request.len() > max_request_bytes {
         return ParsedRequest::PayloadTooLarge;
     }
@@ -241,6 +299,7 @@ fn parse_request(request: &[u8], max_request_bytes: usize) -> ParsedRequest {
     }
 
     let mut declared_length = None;
+    let mut api_key = None;
     for line in lines {
         let Some((name, value)) = line.split_once(':') else {
             return ParsedRequest::BadRequest;
@@ -263,23 +322,77 @@ fn parse_request(request: &[u8], max_request_bytes: usize) -> ParsedRequest {
             }
             declared_length = Some(length);
         }
-    }
-    // The frozen router returns its normal 404 for a syntactically valid but
-    // unsupported method before applying an endpoint's body contract.
-    if method != "GET" {
-        return ParsedRequest::NotFound;
+        if name.eq_ignore_ascii_case("x-api-key") {
+            if api_key.is_some() {
+                return ParsedRequest::BadRequest;
+            }
+            api_key = Some(value.trim());
+        }
     }
     if declared_length.unwrap_or(0) > max_request_bytes {
         return ParsedRequest::PayloadTooLarge;
     }
-    if declared_length.unwrap_or(0) != 0 {
-        return ParsedRequest::BadRequest;
-    }
-    match path {
-        "/api/health" => ParsedRequest::Health,
-        "/api/skibidi" => ParsedRequest::Skibidi,
+    match (method, path) {
+        ("GET", "/api/health") => ParsedRequest::Health,
+        ("GET", "/api/skibidi") => ParsedRequest::Skibidi,
+        (_, "/api/health" | "/api/skibidi") => ParsedRequest::NotFound,
+        _ if path.starts_with("/api/") => match api_read_permission(config, api_key) {
+            ApiReadPermission::Unauthorized => ParsedRequest::Unauthorized,
+            ApiReadPermission::Forbidden => ParsedRequest::Forbidden,
+            ApiReadPermission::Granted if method == "POST" && path == "/api/status" => {
+                ParsedRequest::ApiStatus
+            }
+            ApiReadPermission::Granted => ParsedRequest::NotFound,
+        },
+        // The frozen router returns its normal 404 for a syntactically valid
+        // unsupported method before applying an endpoint's body contract.
+        _ if method != "GET" => ParsedRequest::NotFound,
+        _ if declared_length.unwrap_or(0) != 0 => ParsedRequest::BadRequest,
         _ => ParsedRequest::NotFound,
     }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+enum ApiReadPermission {
+    Unauthorized,
+    Forbidden,
+    Granted,
+}
+
+fn api_read_permission(config: &RuntimeConfig, supplied: Option<&str>) -> ApiReadPermission {
+    let Some(supplied) = supplied.filter(|value| !value.is_empty()) else {
+        return ApiReadPermission::Unauthorized;
+    };
+    let mut matched = false;
+    let mut granted = false;
+    for configured in &config.api_keys {
+        let is_match = configured.key.len() == supplied.len()
+            && bool::from(configured.key.as_bytes().ct_eq(supplied.as_bytes()));
+        matched |= is_match;
+        granted |= is_match && configured.read;
+    }
+    if granted {
+        ApiReadPermission::Granted
+    } else if matched {
+        ApiReadPermission::Forbidden
+    } else {
+        ApiReadPermission::Unauthorized
+    }
+}
+
+#[derive(Serialize)]
+struct ApiStatusResponse<'a> {
+    status: &'static str,
+    message: &'static str,
+    timestamp: String,
+    version: &'static str,
+    domains: ApiDomains<'a>,
+}
+
+#[derive(Serialize)]
+struct ApiDomains<'a> {
+    receivable: [&'a str; 1],
+    sendable: [&'a str; 1],
 }
 
 const SKIBIDI_LORE: &str =
@@ -307,15 +420,36 @@ mod tests {
     use super::*;
     use crate::config::{Properties, RuntimeConfig};
 
+    fn config() -> RuntimeConfig {
+        RuntimeConfig::from_properties(Properties::default()).unwrap()
+    }
+
+    fn config_with_api_keys() -> RuntimeConfig {
+        RuntimeConfig::from_properties(
+            Properties::parse(
+                b"lmyzmail.api-keys[0].key=read-key\n\
+lmyzmail.api-keys[0].read=true\n\
+lmyzmail.api-keys[1].key=write-key\n\
+lmyzmail.api-keys[1].read=false\n",
+            )
+            .unwrap(),
+        )
+        .unwrap()
+    }
+
+    fn parse(request: &[u8], max_request_bytes: usize) -> ParsedRequest {
+        parse_request(request, max_request_bytes, &config())
+    }
+
     fn limits() -> ServerLimits {
-        let config = RuntimeConfig::from_properties(Properties::default()).unwrap();
+        let config = config();
         ServerLimits::from_config(&config)
     }
 
     #[test]
     fn parser_accepts_crlf_request_line() {
         assert_eq!(
-            parse_request(b"GET /api/health HTTP/1.1\r\nHost: localhost\r\n\r\n", 1024),
+            parse(b"GET /api/health HTTP/1.1\r\nHost: localhost\r\n\r\n", 1024),
             ParsedRequest::Health
         );
     }
@@ -323,14 +457,14 @@ mod tests {
     #[test]
     fn parser_routes_public_skibidi_and_wrong_methods_to_not_found() {
         assert_eq!(
-            parse_request(
+            parse(
                 b"GET /api/skibidi HTTP/1.1\r\nHost: localhost\r\n\r\n",
                 1024
             ),
             ParsedRequest::Skibidi
         );
         assert_eq!(
-            parse_request(
+            parse(
                 b"POST /api/health HTTP/1.1\r\nContent-Length: 2\r\n\r\n{}",
                 1024,
             ),
@@ -339,27 +473,49 @@ mod tests {
     }
 
     #[test]
+    fn api_status_distinguishes_invalid_and_insufficient_keys() {
+        let config = config_with_api_keys();
+        let request = |key: &str| {
+            format!(
+                "POST /api/status HTTP/1.1\r\nX-API-Key: {key}\r\nContent-Length: 2\r\n\r\n{{}}"
+            )
+        };
+        assert_eq!(
+            parse_request(request("missing").as_bytes(), 1024, &config),
+            ParsedRequest::Unauthorized
+        );
+        assert_eq!(
+            parse_request(request("write-key").as_bytes(), 1024, &config),
+            ParsedRequest::Forbidden
+        );
+        assert_eq!(
+            parse_request(request("read-key").as_bytes(), 1024, &config),
+            ParsedRequest::ApiStatus
+        );
+    }
+
+    #[test]
     fn parser_rejects_invalid_utf8_and_oversized_content_length() {
         assert_eq!(
-            parse_request(b"GET /api/health HTTP/1.1\r\nX: \xff\r\n\r\n", 1024),
+            parse(b"GET /api/health HTTP/1.1\r\nX: \xff\r\n\r\n", 1024),
             ParsedRequest::BadRequest
         );
         assert_eq!(
-            parse_request(
+            parse(
                 b"GET /api/health HTTP/1.1\r\nContent-Length: 2048\r\n\r\n",
                 1024
             ),
             ParsedRequest::PayloadTooLarge
         );
         assert_eq!(
-            parse_request(
+            parse(
                 b"GET /api/health HTTP/1.1\r\nContent-Length: 1\r\nContent-Length: 2\r\n\r\n",
                 1024,
             ),
             ParsedRequest::BadRequest
         );
         assert_eq!(
-            parse_request(&vec![b'x'; 1025], 1024),
+            parse(&vec![b'x'; 1025], 1024),
             ParsedRequest::PayloadTooLarge
         );
     }

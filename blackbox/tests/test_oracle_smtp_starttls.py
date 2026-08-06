@@ -17,13 +17,13 @@ def test_managed_java_starttls_goldens(record_java_golden: bool) -> None:
     paths = JavaOracleRuntime().paths
     differential = DifferentialRunner(
         paths.repository,
-        paths.repository / "blackbox/golden/java/managed-starttls-v11",
+        paths.repository / "blackbox/golden/java/managed-starttls-v12",
         "managed-starttls",
         record_java=record_java_golden,
     )
     oracle_evidence = DifferentialRunner(
         paths.repository,
-        paths.repository / "blackbox/golden/java/managed-starttls-oracle-evidence-v11",
+        paths.repository / "blackbox/golden/java/managed-starttls-oracle-evidence-v12",
         "managed-starttls-oracle-evidence",
         record_java=record_java_golden,
     )
