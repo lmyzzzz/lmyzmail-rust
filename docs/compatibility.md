@@ -15,6 +15,18 @@ Only genuine nondeterminism such as wall-clock time, random identifiers, and
 ephemeral ports may be normalized. Each normalizer is field-scoped and tested;
 there is no whole-response masking or assertion weakening.
 
+## Java parity edge cases
+
+These are required Java parity behaviors, not approved security differences.
+
+- An isolated `BDAT 0 LAST` is acknowledged with `250 2.0.0 0 bytes received`
+  and does not deliver a message.
+- A nonzero non-`LAST` BDAT is acknowledged; a following `BDAT 0 LAST` is also
+  acknowledged, resets the transaction, and discards the complete message
+  without delivery.
+- MIME indexing scans only the first body part. Consequently, a multipart body
+  before its attachment is indexed with `has_attachments=false`.
+
 ## Approved security differences
 
 The authoritative allowlist is
@@ -29,6 +41,13 @@ wire, state, storage, or recovery assertions.
 - STARTTLS must close without executing plaintext command bytes buffered after
   the STARTTLS line. The frozen Java oracle executes such a command across the
   TLS boundary; its isolated evidence golden is not a candidate expectation.
+- DATA framing must return bytes after the terminator to the bounded command
+  parser. The frozen oracle can silently drop a coalesced pipelined command;
+  the isolated evidence profile records that packetization-dependent desync.
+- Coalesced `MAIL`/`RCPT`/`BDAT LAST` must apply prerequisite state in wire
+  order, reply and deliver within fixed deadlines, and use a hard-bounded
+  pending queue. The frozen oracle can wedge the connection after the first
+  two replies; that liveness evidence is not a candidate expectation.
 
 ## SMTP AUTH oracle behavior
 

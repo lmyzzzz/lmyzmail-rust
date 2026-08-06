@@ -561,6 +561,9 @@ def _storage_snapshot(
     maildir_before: Mapping[str, tuple[int, str]],
     redis_before: int | None,
     started_at: datetime,
+    expected_from_address: str | None = None,
+    expected_to_addresses: str = "[]",
+    expected_has_attachments: bool = False,
 ) -> dict[str, Any]:
     deadline = time.monotonic() + _STORAGE_TIMEOUT_SECONDS
     with _connect_postgres(target, deadline=deadline) as connection:
@@ -602,8 +605,8 @@ def _storage_snapshot(
         file_timestamp,
     )
     _check(actual_subject == subject, actual_subject)
-    _check(from_address is None, from_address)
-    _check(to_addresses == "[]", to_addresses)
+    _check(from_address == expected_from_address, from_address)
+    _check(to_addresses == expected_to_addresses, to_addresses)
     _check(isinstance(received_at, datetime) and received_at.tzinfo is not None, received_at)
     _check(isinstance(indexed_at, datetime) and indexed_at.tzinfo is not None, indexed_at)
     _check(
@@ -614,7 +617,7 @@ def _storage_snapshot(
         started_at - timedelta(seconds=5) <= indexed_at.astimezone(UTC) <= observed_at,
         indexed_at,
     )
-    _check(has_attachments is False, has_attachments)
+    _check(has_attachments is expected_has_attachments, has_attachments)
     _check(isinstance(size_bytes, int) and size_bytes > len(message), size_bytes)
     _check(actual_message_id == message_id, actual_message_id)
 
@@ -735,6 +738,9 @@ def capture_delivery(
     message: bytes,
     session_setup: SmtpSessionSetup | None = None,
     received_protocol: bytes = b"ESMTP",
+    expected_from_address: str | None = None,
+    expected_to_addresses: str = "[]",
+    expected_has_attachments: bool = False,
 ) -> dict[str, Any]:
     workspace = target.workspace
     if workspace is None:
@@ -817,6 +823,9 @@ def capture_delivery(
             maildir_before=maildir_before,
             redis_before=redis_before,
             started_at=started_at,
+            expected_from_address=expected_from_address,
+            expected_to_addresses=expected_to_addresses,
+            expected_has_attachments=expected_has_attachments,
         ),
     }
 

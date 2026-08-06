@@ -67,6 +67,8 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
     assert {entry["id"] for entry in differences["differences"]} == {
         "maildir-atomic-publication",
         "starttls-buffered-plaintext-command",
+        "smtp-data-terminator-command-loss",
+        "smtp-bdat-coalesced-prerequisite-state-stall",
         "smtp-command-control-byte-reflection",
         "smtp-fragmented-overlong-double-error",
     }
@@ -77,6 +79,15 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
     )
     assert starttls["evidence"]["commit"] == "5dac2ab2922c30c726c4a83d7626c95ad4e231c8"
     assert starttls["candidate_requirement"].startswith("After sending the 220 STARTTLS")
+    by_id = {entry["id"]: entry for entry in differences["differences"]}
+    data_tail = by_id["smtp-data-terminator-command-loss"]
+    assert data_tail["evidence"]["source_sha256"] == (
+        "bccb53816f461a247df9072cfe1e75c383e37291529e478ea43c242fa15e735a"
+    )
+    bdat_stall = by_id["smtp-bdat-coalesced-prerequisite-state-stall"]
+    assert bdat_stall["candidate_requirement"].startswith(
+        "For a valid EHLO session receiving coalesced MAIL"
+    )
 
 
 def test_postgres_seed_is_structurally_valid_postgres_sql() -> None:

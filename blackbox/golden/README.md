@@ -93,3 +93,45 @@ inputs, and must never be overwritten in place.
 - `managed-smtp-command-oracle-evidence-v1/` records Java-only evidence for control-byte
   reflection and fragmented-overlong double errors. It is evidence for documented
   security differences and never a candidate expectation.
+- `managed-outbound-queue-v1.json` is the rejected first outbound recording. It
+  exposed generated sent-filenames before field-scoped normalization and is
+  retained only as historical evidence.
+
+## Attestation generations
+
+The following retained historical sets are bound to the old
+`attestation.harness.definition_tree_sha256`
+`c736c362b0caca8562368a51cab6b1f9b0150c2c39e3c2c28f9f95a6fb6199b3`:
+
+- `managed-basic-v15/`
+- `managed-starttls-v5/`
+- `managed-starttls-oracle-evidence-v5/`
+- `managed-smtp-auth-v4/`
+- `managed-smtp-auth-starttls-v4/`
+- `managed-smtp-command-v2/`
+- `managed-smtp-command-oracle-evidence-v2/`
+- `managed-smtp-data-v1/`
+- `managed-smtp-data-oracle-evidence-v1/`
+- `managed-smtp-mime-v1/`
+
+The current active sets are bound to
+`attestation.harness.definition_tree_sha256`
+`df8f7cae03892b566a36d9e77b8eb930a237af21896ac18418b06120d2d9dbae`:
+
+- `managed-basic-v17/`
+- `managed-starttls-v7/`
+- `managed-starttls-oracle-evidence-v7/`
+- `managed-smtp-auth-v6/`
+- `managed-smtp-auth-starttls-v6/`
+- `managed-smtp-command-v4/`
+- `managed-smtp-command-oracle-evidence-v4/`
+- `managed-smtp-data-v3/`
+- `managed-smtp-data-oracle-evidence-v3/`
+- `managed-smtp-mime-v3/`
+
+The active outbound attestation is `managed-outbound-queue-v2.json`, using the
+field-scoped `outbound:generated-sent-filename` normalizer. The rejected raw
+`v1` recording is never used as an expectation.
+
+The `oracle-evidence` sets remain evidence only and are never candidate
+expectations.

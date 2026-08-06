@@ -28,6 +28,36 @@
       "scope": "Only plaintext bytes buffered after the STARTTLS command. Normal STARTTLS advertisement, 220 reply, TLS handshake, post-handshake state reset, certificate, version, cipher, delivery, and error behavior remain differential requirements."
     },
     {
+      "candidate_requirement": "Consume only through the DATA terminator, preserve every following octet in the bounded command parser, and process a coalesced NOOP after the message acceptance reply under the normal SMTP state and error-budget rules.",
+      "evidence": {
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "oracle_golden": "blackbox/golden/java/managed-smtp-data-oracle-evidence-v2/observations/smtp/data/oracle-terminator-tail-command-loss.json",
+        "source": "src/main/java/net/lmyz/lmyzmail/netty/smtp/channel/SmtpDataContentHandler.java",
+        "source_sha256": "bccb53816f461a247df9072cfe1e75c383e37291529e478ea43c242fa15e735a"
+      },
+      "id": "smtp-data-terminator-command-loss",
+      "oracle_behavior": "When the final DATA bytes and a following NOOP arrive in one socket write, the frozen Java handler accepts and delivers the message but releases the whole input buffer at the terminator. The coalesced NOOP receives no reply, while a separately written NOOP still succeeds.",
+      "reason": "Dropping unread bytes after a recognized frame boundary makes legal PIPELINING behavior depend on TCP packetization and asynchronous scheduling, creating a command/reply desynchronization primitive.",
+      "scope": "Only octets following the DATA terminator in the same input buffer. DATA transparency, size limits, accepted message bytes, storage effects, subsequent command semantics, and error accounting remain differential requirements."
+    },
+    {
+      "candidate_requirement": "For a valid EHLO session receiving coalesced MAIL, RCPT, BDAT LAST, and its exact declared payload, apply prerequisite state changes in wire order, return all three successful replies within 5000 ms, deliver the message exactly once, and keep every pending-command queue hard-bounded and cancellable.",
+      "evidence": {
+        "bdat_source": "src/main/java/net/lmyz/lmyzmail/netty/smtp/command/handlers/BdatHandler.java",
+        "bdat_source_sha256": "685592c155f97f38eabdfffaa54b64863a604a0670b6aa148f92ad725145f09f",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "oracle_golden": "blackbox/golden/java/managed-smtp-data-oracle-evidence-v2/observations/smtp/bdat/oracle-coalesced-prerequisite-state-stall.json",
+        "source": "src/main/java/net/lmyz/lmyzmail/netty/smtp/codec/SmtpLineDecoder.java",
+        "source_sha256": "d82035fdedd1e67d5f5fbec0fde0e3c41377d06584d95834b4eb19b4fa82242c",
+        "state_source": "src/main/java/net/lmyz/lmyzmail/netty/smtp/channel/SmtpConnectionHandler.java",
+        "state_source_sha256": "5f205da2fe05b589556d4c879c1fba0a16c0c916d7445f60c9faa9726fa5a86e"
+      },
+      "id": "smtp-bdat-coalesced-prerequisite-state-stall",
+      "oracle_behavior": "After EHLO, one write containing valid MAIL, RCPT, BDAT LAST, and the exact payload receives the MAIL and RCPT 250 replies, then produces no BDAT or later NOOP reply and no storage side effect because the connection remains wedged in stale prerequisite state.",
+      "reason": "A stale-state framing decision combined with an unbounded pending-command queue permits a valid pipelined request to stall a connection indefinitely, violating the required deadline, cancellation, and hard-bound invariants.",
+      "scope": "Only BDAT whose MAIL and RCPT prerequisites precede it in the same coalesced input. Separately acknowledged prerequisites, exact BDAT octet framing, ordinary multi-chunk replies, size limits, storage, and recovery remain differential requirements."
+    },
+    {
       "candidate_requirement": "Reject SMTP command lines containing embedded NUL, bare CR, bare LF, internal control separators, or invalid UTF-8 with exactly one fixed `500 5.5.2 Syntax error` reply that contains no attacker-controlled command bytes. The session may continue within the normal per-connection error budget.",
       "evidence": {
         "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
