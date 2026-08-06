@@ -5,6 +5,7 @@ pub mod http;
 pub mod lifecycle;
 pub mod mailbox;
 pub mod outbound;
+pub mod outbound_delivery;
 pub mod outbound_message;
 pub mod outbound_queue;
 pub mod outbound_smtp;

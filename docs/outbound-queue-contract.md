@@ -127,11 +127,57 @@ already pending or processing ID.
 
 Expired-claim discovery uses bounded `SSCAN` pages and only reports processing
 members whose Rust lease key is absent. Recovery checks absence again inside
-the mutation script, so a concurrent renewal wins. The future delivery worker
-must additionally fence the corresponding PostgreSQL row with `processor_id`;
-it may call Redis acknowledgement only after the PostgreSQL terminal-state
-transaction commits. These primitives deliberately are not wired to a sender
-until that durable database transition and real SMTP delivery exist together.
+the mutation script, so a concurrent renewal wins.
+
+## Rust PostgreSQL Delivery Fence
+
+The database-side delivery state now uses the existing `processor_id` column
+as a second fencing token. Every claim combines the bounded worker ID with a
+fresh 128-bit random nonce; reusing a worker ID can never make a stale claim
+valid again. A claim is one conditional `PENDING` to `PROCESSING` update and
+succeeds only when `next_retry_at` is due and no database owner is present.
+Heartbeat, release, retry, and terminal updates all compare the same opaque
+token. A recovered or replaced owner therefore cannot mutate a new owner's row
+even if it still has an old in-memory claim.
+
+The frozen schema has no range check on `retry_count` or `max_retries`. The
+claim statement therefore validates `0 <= retry_count <= max_retries` while it
+holds the row lock. An invalid due row is atomically quarantined as `FAILED`
+with no owner and a fixed diagnostic instead of entering a claim/recovery loop.
+
+Retry increments, next retry time, bounded error summary, owner release, and
+status change commit in one statement. Terminal writes atomically store the
+canonical sent/failed domain outcome, clear processing ownership, and set
+`sent_at` only for `SENT` or `PARTIAL_SUCCESS`. Recovery only resets a
+`PROCESSING` row whose heartbeat predates the caller's cutoff. A legacy
+`PROCESSING` row with a null heartbeat is also recoverable. The conditional
+update races safely with a concurrent monotonic heartbeat.
+
+Every operation shares one bounded deadline across pool admission and the
+database request; production uses eight seconds and tests may select a shorter
+validated duration. A timeout or connection failure during a mutation is
+reported as `OutcomeUnknown`, never as an ordinary availability failure: the
+server may already have committed. A bounded read-only snapshot exposes status,
+retry state, timestamps, owner presence, and whether a supplied claim still
+owns the row, without returning the token. Callers must reconcile an unknown
+outcome through that snapshot before touching the Redis lease. Local permanent
+failures may preserve the Java-compatible `FAILED` row with null domain JSON,
+but require a bounded non-empty error summary. Externally visible `last_error`
+uses the oracle's 1000 UTF-16-code-unit limit and appends `...` when truncated;
+Rust stops before a supplementary-plane character that would be split into an
+invalid unpaired surrogate.
+
+The Linux integration test starts an isolated PostgreSQL process, loads the
+frozen legacy DDL with the required `LONGTEXT` to `TEXT` translation, and
+exercises concurrent claims through separate pooled connections, random-token
+stale-owner fencing, retry exhaustion, partial and local terminal states, and
+timeout recovery including a null legacy heartbeat. Row-lock fault injection
+forces unknown claim, retry, and terminal outcomes and verifies both permitted
+snapshot reconciliation branches. Poisoned negative, inverted, and negative
+maximum retry counters are also exercised. The
+delivery worker may call Redis acknowledgement only after the PostgreSQL
+terminal-state transaction commits. The Redis and database primitives remain
+unwired to SMTP until that complete ordering is implemented together.
 
 ## Rust SMTP Delivery Adapter
 

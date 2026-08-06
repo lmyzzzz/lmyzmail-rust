@@ -75,6 +75,25 @@ def test_outbound_manifest_binds_frozen_oracle_and_legacy_key_surface() -> None:
     assert smtp["post_terminator_failures"] == "ambiguous"
     assert smtp["structured_error_fields"] == ["stage", "smtp_code", "recipients"]
     assert smtp["unknown_file_errors"] == "temporary"
+    database_fence = manifest["postgres_delivery_fence"]
+    assert database_fence == {
+        "table": "outbound_mail_queue",
+        "owner_column": "processor_id",
+        "heartbeat_column": "processing_started_at",
+        "claim_transition": "PENDING->PROCESSING",
+        "claim_nonce_bits": 128,
+        "owner_compared_operations": ["heartbeat", "release", "retry", "terminal"],
+        "terminal_statuses": ["SENT", "PARTIAL_SUCCESS", "FAILED"],
+        "operation_timeout_seconds": 8,
+        "retry_increment_atomic": True,
+        "invalid_retry_state": "atomic-failed-quarantine",
+        "stale_owner_mutation_rejected": True,
+        "mutation_timeout": "outcome-unknown-requires-snapshot",
+        "mutation_fault_injection": ["claim", "retry", "terminal"],
+        "null_legacy_heartbeat_recoverable": True,
+        "last_error_truncation": "1000-utf16-code-units-plus-ellipsis",
+        "legacy_schema_integration_test": True,
+    }
 
 
 def test_outbound_manifest_requires_durable_candidate_boundaries() -> None:
