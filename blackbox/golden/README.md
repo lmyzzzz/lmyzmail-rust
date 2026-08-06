@@ -230,7 +230,7 @@ The following retained historical sets are bound to
 - `managed-smtp-data-oracle-evidence-v11/`
 - `managed-smtp-mime-v11/`
 
-The current active sets are bound to
+The following retained historical sets are bound to
 `attestation.harness.definition_tree_sha256`
 `7613d070973c6ca423156f2fdce69a8dc34fb0cd076a2b2e71067cefebd4aecf`:
 
@@ -249,16 +249,73 @@ The current active sets are bound to
 - `managed-smtp-data-oracle-evidence-v12/`
 - `managed-smtp-mime-v12/`
 
+Later create-once generations through the pre-outbound HTTP milestone remain
+under `blackbox/golden/java/` with their exact attestation envelopes. They are
+historical and are not consumed by the current tests.
+
+The first outbound HTTP recording under definition-tree hash
+`d427c2c16e71da43b28bf3403b7325a3e9b2ad8109ce14a372e1ee037b7c5f23`
+is retained as evidence that the frozen Java quota response uses nondeterministic
+`Map.of` wire ordering. Its generations are `managed-basic-v33`,
+`managed-candidate-public-config-v11`, `managed-candidate-auth-v10`,
+`managed-mail-read-v8`, `managed-mail-attachment-v3`, `managed-mail-state-v6`,
+`managed-mail-mutations-v5`, `managed-mail-delete-v5`, `managed-starttls-v21`,
+`managed-starttls-oracle-evidence-v21`, `managed-smtp-auth-v20`,
+`managed-smtp-auth-starttls-v20`, `managed-smtp-command-v18`,
+`managed-smtp-command-oracle-evidence-v18`, `managed-smtp-data-v17`,
+`managed-smtp-data-oracle-evidence-v17`, `managed-smtp-mime-v17`,
+`managed-outbound-http-v1`, and `managed-outbound-queue-v17.json`.
+
+The second recording under definition-tree hash
+`2a9e5d77a5452f2ac86dda28808b08a487677c2018d280e9033172af864b8efa`
+canonicalized the standalone quota scenario but proved that the quota response
+captured after API admission has the same Java-only ordering instability. Its
+corresponding generations advance the sets above by one: `managed-basic-v34`,
+`managed-candidate-public-config-v12`, `managed-candidate-auth-v11`,
+`managed-mail-read-v9`, `managed-mail-attachment-v4`, `managed-mail-state-v7`,
+`managed-mail-mutations-v6`, `managed-mail-delete-v6`, `managed-starttls-v22`,
+`managed-starttls-oracle-evidence-v22`, `managed-smtp-auth-v21`,
+`managed-smtp-auth-starttls-v21`, `managed-smtp-command-v19`,
+`managed-smtp-command-oracle-evidence-v19`, `managed-smtp-data-v18`,
+`managed-smtp-data-oracle-evidence-v18`, `managed-smtp-mime-v18`,
+`managed-outbound-http-v2`, and `managed-outbound-queue-v18.json`.
+
+The current active sets are bound to
+`attestation.harness.definition_tree_sha256`
+`44c18bbec88ceec3d34b71bfbe62e34852f18aaec204248e6cc27cce24d16844`:
+
+- `managed-candidate-public-config-v13/`
+- `managed-basic-v35/`
+- `managed-candidate-auth-v12/`
+- `managed-mail-read-v10/`
+- `managed-mail-attachment-v5/`
+- `managed-mail-state-v8/`
+- `managed-mail-mutations-v7/`
+- `managed-mail-delete-v7/`
+- `managed-starttls-v23/`
+- `managed-starttls-oracle-evidence-v23/`
+- `managed-smtp-auth-v22/`
+- `managed-smtp-auth-starttls-v22/`
+- `managed-smtp-command-v20/`
+- `managed-smtp-command-oracle-evidence-v20/`
+- `managed-smtp-data-v19/`
+- `managed-smtp-data-oracle-evidence-v19/`
+- `managed-smtp-mime-v19/`
+- `managed-outbound-http-v3/`
+- `managed-outbound-queue-v19.json`
+
 The earlier candidate-health v1-v4, candidate-public-http v1,
 candidate-api-status v1, candidate-public-config v1-v3, candidate-auth v1-v2,
 HTTP v19-v25, SMTP v5-v12, and outbound v5-v9 recordings are retained as
 create-once provenance; none is consumed by the tests.
 
-The active outbound attestation is `managed-outbound-queue-v12.json`, using the
-field-scoped `outbound:generated-sent-filename` normalizer. The rejected raw
-`v1` recording is never used as an expectation. The intermediate `v3` recording
-predates the final active test-path attestation, and `v10` and `v11` are retained
-as historical evidence only.
+The active outbound queue attestation is `managed-outbound-queue-v19.json`,
+using the field-scoped `outbound:generated-sent-filename` normalizer. The active
+outbound HTTP attestation is `managed-outbound-http-v3`; only its two quota
+subresponses canonicalize Java `Map.of` object ordering. Status codes, headers,
+field values, and every other response retain exact wire assertions. Rejected or
+superseded outbound generations remain create-once historical evidence and are
+never candidate expectations.
 
 The `oracle-evidence` sets remain evidence only and are never candidate
 expectations.

@@ -18,6 +18,7 @@ use crate::{
     auth::{AuthError, AuthService, LoginOutcome},
     config::RuntimeConfig,
     mailbox::{AttachmentData, AttachmentMeta, EmailDetail, MailboxError, MailboxService},
+    outbound::{OutboundError, OutboundService, SendRequest},
 };
 
 const DEFAULT_MAX_REQUEST_BYTES: usize = 16 * 1024;
@@ -35,6 +36,7 @@ enum Status {
     TooManyRequests,
     ServiceUnavailable,
     Created,
+    Accepted,
     InternalServerError,
 }
 
@@ -50,6 +52,7 @@ impl Status {
             Self::TooManyRequests => 429,
             Self::ServiceUnavailable => 503,
             Self::Created => 201,
+            Self::Accepted => 202,
             Self::InternalServerError => 500,
         }
     }
@@ -65,6 +68,7 @@ impl Status {
             Self::TooManyRequests => "Too Many Requests",
             Self::ServiceUnavailable => "Service Unavailable",
             Self::Created => "Created",
+            Self::Accepted => "Accepted",
             Self::InternalServerError => "Internal Server Error",
         }
     }
@@ -100,6 +104,7 @@ pub async fn serve_http(
     let listener = TcpListener::bind((config.listen.host.as_str(), config.listen.http)).await?;
     let auth = Arc::new(AuthService::from_config(&config).map_err(io::Error::other)?);
     let mailbox = Arc::new(MailboxService::from_config(&config).map_err(io::Error::other)?);
+    let outbound = Arc::new(OutboundService::from_config(&config).map_err(io::Error::other)?);
     let limits = ServerLimits::from_config(&config);
     let permits = Arc::new(Semaphore::new(limits.max_connections));
     let mut tasks = JoinSet::new();
@@ -120,6 +125,7 @@ pub async fn serve_http(
                 let config = Arc::clone(&config);
                 let auth = Arc::clone(&auth);
                 let mailbox = Arc::clone(&mailbox);
+                let outbound = Arc::clone(&outbound);
                 tasks.spawn(async move {
                     let _permit = permit;
                     let result = timeout(
@@ -131,6 +137,7 @@ pub async fn serve_http(
                             &config,
                             &auth,
                             &mailbox,
+                            &outbound,
                         ),
                     )
                     .await;
@@ -168,6 +175,7 @@ async fn handle_connection(
     config: &RuntimeConfig,
     auth: &AuthService,
     mailbox: &MailboxService,
+    outbound: &OutboundService,
 ) -> io::Result<()> {
     let request = read_request(&mut stream, max_request_bytes).await?;
     let client_ip = extract_client_ip(&request, peer_ip, config);
@@ -311,7 +319,7 @@ async fn handle_connection(
         }
         ParsedRequest::SessionToken(token) => match auth.validate_token(&token).await {
             Ok(Some(address)) => {
-                handle_authenticated_request(stream, &request, &address, mailbox).await
+                handle_authenticated_request(stream, &request, &address, mailbox, outbound).await
             }
             Ok(None) => write_invalid_session(stream).await,
             Err(_) => write_response(
@@ -323,6 +331,42 @@ async fn handle_connection(
             .await,
         },
         ParsedRequest::MultipartSession => write_empty_unauthorized(stream).await,
+        ParsedRequest::ApiSend => {
+            let Some(input) = parse_json_body::<SendRequest>(&request) else {
+                return write_json_error(stream, Status::BadRequest, "invalid_request").await;
+            };
+            match outbound.enqueue(input, true).await {
+                Ok(result) => write_json_response(stream, Status::Accepted, &result).await,
+                Err(error) => write_outbound_error(stream, error, true).await,
+            }
+        }
+        ParsedRequest::ApiStatusById(queue_id) => match outbound.api_status_by_id(queue_id).await {
+            Ok(Some(result)) => write_json_response(stream, Status::Ok, &result).await,
+            Ok(None) => write_not_found(stream).await,
+            Err(_) => write_json_error(stream, Status::InternalServerError, "outbound_unavailable").await,
+        },
+        ParsedRequest::ApiStatusByMessage(message_id) => {
+            match outbound.api_status_by_message_id(&message_id).await {
+                Ok(Some(result)) => write_json_response(stream, Status::Ok, &result).await,
+                Ok(None) => write_not_found(stream).await,
+                Err(_) => write_json_error(stream, Status::InternalServerError, "outbound_unavailable").await,
+            }
+        }
+        ParsedRequest::ApiQuota(address) => match outbound.remaining_quota(&address).await {
+            Ok(remaining_quota) => write_json_response(
+                stream,
+                Status::Ok,
+                &crate::outbound::QuotaResponse {
+                    address: &address,
+                    remaining_quota,
+                },
+            )
+            .await,
+            Err(_) => write_json_error(stream, Status::InternalServerError, "outbound_unavailable").await,
+        },
+        ParsedRequest::ApiQuotaMissing => {
+            write_json_error(stream, Status::BadRequest, "address_required").await
+        }
         ParsedRequest::InvalidSession => write_invalid_session(stream).await,
         ParsedRequest::CorsPreflight(origin) => write_cors_preflight(stream, &origin).await,
         ParsedRequest::CorsRejected => {
@@ -393,6 +437,10 @@ async fn handle_connection(
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 enum AuthenticatedRoute {
+    Send,
+    WebStatusId(i64),
+    WebStatusFile(String),
+    WebQuota,
     List {
         folder: String,
         page: i32,
@@ -456,6 +504,7 @@ async fn handle_authenticated_request(
     request: &[u8],
     mailbox_address: &str,
     mailbox: &MailboxService,
+    outbound: &OutboundService,
 ) -> io::Result<()> {
     let route = match authenticated_route(request) {
         Ok(Some(route)) => route,
@@ -479,6 +528,71 @@ async fn handle_authenticated_request(
         }
     };
     match route {
+        AuthenticatedRoute::Send => {
+            let Some(mut input) = parse_json_body::<SendRequest>(request) else {
+                return write_json_error(stream, Status::BadRequest, "invalid_request").await;
+            };
+            input.from = Some(mailbox_address.to_owned());
+            if input.to.is_empty() && input.cc.is_empty() && input.bcc.is_empty() {
+                return write_json_error(stream, Status::BadRequest, "recipients_required").await;
+            }
+            match outbound.enqueue(input, false).await {
+                Ok(result) => {
+                    write_json_response(
+                        stream,
+                        Status::Accepted,
+                        &WebQueueSuccess {
+                            queued: result.queued,
+                            queue_id: result.queue_id,
+                            message_id: &result.message_id,
+                            status: result.status,
+                            sent_file_name: None,
+                        },
+                    )
+                    .await
+                }
+                Err(error) => write_outbound_error(stream, error, false).await,
+            }
+        }
+        AuthenticatedRoute::WebStatusId(queue_id) => {
+            match outbound.web_status_by_id(queue_id, mailbox_address).await {
+                Ok(Some(result)) => write_json_response(stream, Status::Ok, &result).await,
+                Ok(None) => write_not_found(stream).await,
+                Err(_) => {
+                    write_json_error(stream, Status::InternalServerError, "outbound_unavailable")
+                        .await
+                }
+            }
+        }
+        AuthenticatedRoute::WebStatusFile(file_name) => {
+            match outbound
+                .web_status_by_file(&file_name, mailbox_address)
+                .await
+            {
+                Ok(Some(result)) => write_json_response(stream, Status::Ok, &result).await,
+                Ok(None) => write_not_found(stream).await,
+                Err(_) => {
+                    write_json_error(stream, Status::InternalServerError, "outbound_unavailable")
+                        .await
+                }
+            }
+        }
+        AuthenticatedRoute::WebQuota => match outbound.remaining_quota(mailbox_address).await {
+            Ok(remaining_quota) => {
+                write_json_response(
+                    stream,
+                    Status::Ok,
+                    &crate::outbound::QuotaResponse {
+                        address: mailbox_address,
+                        remaining_quota,
+                    },
+                )
+                .await
+            }
+            Err(_) => {
+                write_json_error(stream, Status::InternalServerError, "outbound_unavailable").await
+            }
+        },
         AuthenticatedRoute::List {
             folder,
             page,
@@ -858,6 +972,14 @@ fn authenticated_route(request: &[u8]) -> Result<Option<AuthenticatedRoute>, ()>
         Ok((decode(segments[3])?, decode(segments[4])?))
     };
     match (method, segments.as_slice()) {
+        ("POST", ["web", "mail", "send"]) => Ok(Some(AuthenticatedRoute::Send)),
+        ("GET", ["web", "mail", "send", "status", queue_id]) => Ok(Some(
+            AuthenticatedRoute::WebStatusId(queue_id.parse().map_err(|_| ())?),
+        )),
+        ("GET", ["web", "mail", "send", "status", "file", file_name]) => {
+            Ok(Some(AuthenticatedRoute::WebStatusFile(decode(file_name)?)))
+        }
+        ("GET", ["web", "mail", "quota"]) => Ok(Some(AuthenticatedRoute::WebQuota)),
         ("GET", ["web", "mail", "list"]) => {
             let (page, size, starred_only) = list_query(query)?;
             Ok(Some(AuthenticatedRoute::List {
@@ -1073,6 +1195,11 @@ enum ParsedRequest {
     Health,
     Skibidi,
     ApiStatus,
+    ApiSend,
+    ApiStatusById(i64),
+    ApiStatusByMessage(String),
+    ApiQuota(String),
+    ApiQuotaMissing,
     WebDomains,
     WebConfig,
     WebLogin,
@@ -1186,6 +1313,47 @@ fn parse_request(
         ("POST", "/web/login") => ParsedRequest::WebLogin,
         ("POST", "/web/register") => ParsedRequest::WebRegister,
         ("POST", "/web/logout") => ParsedRequest::WebLogout,
+        ("POST", "/api/mail/send") => match api_permission(config, api_key, true) {
+            ApiPermission::Granted => ParsedRequest::ApiSend,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenWrite,
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+        },
+        ("GET", path) if path.starts_with("/api/mail/status/") => {
+            match api_permission(config, api_key, false) {
+                ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+                ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
+                ApiPermission::Granted => {
+                    let suffix = path.strip_prefix("/api/mail/status/").unwrap_or_default();
+                    if let Some(value) = suffix.strip_prefix("message/") {
+                        percent_decode_str(value)
+                            .decode_utf8()
+                            .map(|value| ParsedRequest::ApiStatusByMessage(value.into_owned()))
+                            .unwrap_or(ParsedRequest::BadRequest)
+                    } else {
+                        suffix
+                            .parse::<i64>()
+                            .map(ParsedRequest::ApiStatusById)
+                            .unwrap_or(ParsedRequest::BadRequest)
+                    }
+                }
+            }
+        }
+        ("GET", "/api/mail/quota") => match api_permission(config, api_key, false) {
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
+            ApiPermission::Granted => {
+                let address = path
+                    .split_once('?')
+                    .map(|(_, query)| query)
+                    .unwrap_or_default();
+                let value = url::form_urlencoded::parse(address.as_bytes())
+                    .find(|(key, _)| key == "address")
+                    .map(|(_, value)| value.into_owned());
+                value
+                    .filter(|value| !value.trim().is_empty())
+                    .map_or(ParsedRequest::ApiQuotaMissing, ParsedRequest::ApiQuota)
+            }
+        },
         _ if is_session_route(method, routing_path) => {
             if method == "POST" && routing_path == "/web/mail/send/multipart" {
                 ParsedRequest::MultipartSession
@@ -1535,6 +1703,95 @@ async fn write_json_response<T: Serialize>(
 ) -> io::Result<()> {
     let body = serde_json::to_vec(value).map_err(io::Error::other)?;
     write_response(stream, status, &body, "application/json; charset=UTF-8").await
+}
+
+async fn write_json_error(
+    stream: TcpStream,
+    status: Status,
+    error: &'static str,
+) -> io::Result<()> {
+    #[derive(Serialize)]
+    struct ErrorResponse {
+        error: &'static str,
+    }
+    write_json_response(stream, status, &ErrorResponse { error }).await
+}
+
+async fn write_outbound_error(
+    stream: TcpStream,
+    error: OutboundError,
+    _api: bool,
+) -> io::Result<()> {
+    match error {
+        OutboundError::InvalidInput(code) => {
+            write_json_error(stream, Status::BadRequest, code).await
+        }
+        OutboundError::InvalidCredentials => {
+            write_json_response(
+                stream,
+                Status::Unauthorized,
+                &QueueFailureResponse {
+                    queued: false,
+                    queue_id: None,
+                    message_id: None,
+                    status: "REJECTED",
+                    error: "Invalid credentials",
+                },
+            )
+            .await
+        }
+        OutboundError::RateLimited { remaining } => {
+            #[derive(Serialize)]
+            #[serde(rename_all = "camelCase")]
+            struct RateLimitResponse {
+                error: &'static str,
+                remaining_quota: i64,
+            }
+            write_json_response(
+                stream,
+                Status::TooManyRequests,
+                &RateLimitResponse {
+                    error: "rate_limit_exceeded",
+                    remaining_quota: remaining,
+                },
+            )
+            .await
+        }
+        OutboundError::QueueFull => {
+            write_json_error(stream, Status::TooManyRequests, "queue_full").await
+        }
+        OutboundError::SynchronousUnsupported => {
+            write_json_error(
+                stream,
+                Status::InternalServerError,
+                "synchronous_send_unavailable",
+            )
+            .await
+        }
+        OutboundError::Database(_) | OutboundError::Unavailable => {
+            write_json_error(stream, Status::InternalServerError, "outbound_unavailable").await
+        }
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct QueueFailureResponse<'a> {
+    queued: bool,
+    queue_id: Option<i64>,
+    message_id: Option<&'a str>,
+    status: &'static str,
+    error: &'a str,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WebQueueSuccess<'a> {
+    queued: bool,
+    queue_id: i64,
+    message_id: &'a str,
+    status: &'static str,
+    sent_file_name: Option<&'a str>,
 }
 
 async fn write_raw_mail_response(

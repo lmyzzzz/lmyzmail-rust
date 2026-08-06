@@ -36,8 +36,16 @@ Maildir, certificate, and port state and can produce a repeatable Java golden.
 
 ## Current Runtime Milestone
 
-The first Rust milestone provides a bounded Tokio lifecycle, Java-properties
-and semantic-JSON configuration loader, `lmyzmail.*` over `botmail.*` alias
-precedence, graceful SIGTERM/CTRL-C shutdown, and an incrementally parsed
-`/api/health` listener. Business protocols are admitted only after their
-corresponding black-box contract and storage tests are in place.
+The Rust candidate now provides the bounded Tokio lifecycle and configuration
+alias contract together with incremental HTTP, authentication and session
+handling, trusted-proxy enforcement, mailbox reads and mutations, attachment
+downloads, and inbound SMTP persistence. Each admitted surface is exercised by
+the external Java/Rust differential harness.
+
+Outbound HTTP currently covers durable PostgreSQL admission, sender-scoped and
+API status lookup, and quota reporting. A `202` response is emitted only after a
+complete `PENDING` row commits; PostgreSQL advisory locks make queue-depth and
+per-sender quota decisions atomic, and password verification runs behind a
+bounded blocking-work permit. Redis queue interoperability, MIME/DKIM and Sent
+Maildir creation, and the outbound SMTP worker remain the next vertical module,
+so this milestone is not yet a complete production replacement.
