@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -469,19 +471,20 @@ def test_rust_candidate_enforces_outbound_queue_bound_atomically() -> None:
             "subject": "Bounded outbound queue",
             "text": "one pending task",
         }
-        first = _json_request(
-            candidate,
-            "POST",
-            "/api/mail/send",
-            headers=_API_HEADERS,
-            value=payload,
-        )
-        second = _json_request(
-            candidate,
-            "POST",
-            "/api/mail/send",
-            headers=_API_HEADERS,
-            value=payload,
-        )
-        assert first.status_code == 202
-        assert second.status_code == 429
+        barrier = threading.Barrier(3)
+
+        def send() -> Any:
+            barrier.wait(timeout=5)
+            return _json_request(
+                candidate,
+                "POST",
+                "/api/mail/send",
+                headers=_API_HEADERS,
+                value=payload,
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(send) for _ in range(2)]
+            barrier.wait(timeout=5)
+            responses = [future.result(timeout=30) for future in futures]
+        assert sorted(response.status_code for response in responses) == [202, 429]
