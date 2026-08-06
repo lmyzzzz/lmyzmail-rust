@@ -268,6 +268,97 @@ impl MailboxService {
         })
     }
 
+    pub async fn list_starred(
+        &self,
+        mailbox: &str,
+        folder: &str,
+    ) -> Result<Vec<String>, MailboxError> {
+        validate_folder(folder)?;
+        let mailbox = normalize_mailbox(mailbox)?;
+        let client = self.db().await?;
+        let rows = timeout(
+            DATABASE_TIMEOUT,
+            client.query(
+                "SELECT email_file_name FROM starred_email
+                 WHERE mailbox_address=$1 AND folder=$2 ORDER BY email_file_name",
+                &[&mailbox, &folder],
+            ),
+        )
+        .await
+        .map_err(|_| MailboxError::Database("query timeout".into()))?
+        .map_err(db_error)?;
+        Ok(rows.into_iter().map(|row| row.get(0)).collect())
+    }
+
+    pub async fn toggle_star(
+        &self,
+        mailbox: &str,
+        folder: &str,
+        file_name: &str,
+    ) -> Result<bool, MailboxError> {
+        validate_folder(folder)?;
+        validate_filename(file_name)?;
+        let mailbox = normalize_mailbox(mailbox)?;
+        let mut client = self.db().await?;
+        let transaction = timeout(DATABASE_TIMEOUT, client.transaction())
+            .await
+            .map_err(|_| MailboxError::Database("transaction timeout".into()))?
+            .map_err(db_error)?;
+        // Serialize toggles for one mailbox so concurrent insert/delete pairs
+        // cannot race the unique index on (mailbox_address, folder, file).
+        timeout(
+            DATABASE_TIMEOUT,
+            transaction.query_opt(
+                "SELECT id FROM mailbox WHERE address=$1 FOR UPDATE",
+                &[&mailbox],
+            ),
+        )
+        .await
+        .map_err(|_| MailboxError::Database("mailbox lock timeout".into()))?
+        .map_err(db_error)?;
+        let existing = timeout(
+            DATABASE_TIMEOUT,
+            transaction.query_opt(
+                "SELECT id FROM starred_email
+                 WHERE mailbox_address=$1 AND folder=$2 AND email_file_name=$3
+                 FOR UPDATE",
+                &[&mailbox, &folder, &file_name],
+            ),
+        )
+        .await
+        .map_err(|_| MailboxError::Database("query timeout".into()))?
+        .map_err(db_error)?;
+        let starred = if let Some(row) = existing {
+            let id: i64 = row.get(0);
+            timeout(
+                DATABASE_TIMEOUT,
+                transaction.execute("DELETE FROM starred_email WHERE id=$1", &[&id]),
+            )
+            .await
+            .map_err(|_| MailboxError::Database("delete timeout".into()))?
+            .map_err(db_error)?;
+            false
+        } else {
+            timeout(
+                DATABASE_TIMEOUT,
+                transaction.execute(
+                    "INSERT INTO starred_email (mailbox_address, folder, email_file_name, starred_at)
+                     VALUES ($1, $2, $3, CURRENT_TIMESTAMP)",
+                    &[&mailbox, &folder, &file_name],
+                ),
+            )
+            .await
+            .map_err(|_| MailboxError::Database("insert timeout".into()))?
+            .map_err(db_error)?;
+            true
+        };
+        timeout(DATABASE_TIMEOUT, transaction.commit())
+            .await
+            .map_err(|_| MailboxError::Database("commit timeout".into()))?
+            .map_err(db_error)?;
+        Ok(starred)
+    }
+
     pub async fn read_detail(
         &self,
         mailbox: &str,

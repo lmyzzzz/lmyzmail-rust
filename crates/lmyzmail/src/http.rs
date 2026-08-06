@@ -411,6 +411,13 @@ enum AuthenticatedRoute {
         folder: String,
         file: String,
     },
+    Stars {
+        folder: String,
+    },
+    ToggleStar {
+        folder: String,
+        file: String,
+    },
 }
 
 async fn handle_authenticated_request(
@@ -521,6 +528,27 @@ async fn handle_authenticated_request(
                     )
                     .await
                 }
+            }
+        }
+        AuthenticatedRoute::Stars { folder } => {
+            match mailbox.list_starred(mailbox_address, &folder).await {
+                Ok(stars) => write_json_response(stream, Status::Ok, &stars).await,
+                Err(MailboxError::InvalidInput(message)) => {
+                    write_invalid_input(stream, &message).await
+                }
+                Err(_) => write_not_found(stream).await,
+            }
+        }
+        AuthenticatedRoute::ToggleStar { folder, file } => {
+            match mailbox.toggle_star(mailbox_address, &folder, &file).await {
+                Ok(starred) => {
+                    write_json_response(stream, Status::Ok, &StarResponse { starred }).await
+                }
+                Err(MailboxError::InvalidInput(message)) => {
+                    write_invalid_input(stream, &message).await
+                }
+                Err(MailboxError::InvalidFileName) => write_not_found(stream).await,
+                Err(_) => write_not_found(stream).await,
             }
         }
     }
@@ -636,6 +664,13 @@ fn authenticated_route(request: &[u8]) -> Result<Option<AuthenticatedRoute>, ()>
         ("GET", ["web", "mail", "headers", ..]) => {
             let (folder, file) = parse_folder_file(&segments)?;
             Ok(Some(AuthenticatedRoute::Headers { folder, file }))
+        }
+        ("GET", ["web", "userdata", "stars", folder]) => Ok(Some(AuthenticatedRoute::Stars {
+            folder: decode(folder)?,
+        })),
+        ("POST", ["web", "mail", "star", ..]) => {
+            let (folder, file) = parse_folder_file(&segments)?;
+            Ok(Some(AuthenticatedRoute::ToggleStar { folder, file }))
         }
         _ => Ok(None),
     }
@@ -1139,6 +1174,11 @@ struct RawHeadersResponse {
 }
 
 #[derive(Serialize)]
+struct StarResponse {
+    starred: bool,
+}
+
+#[derive(Serialize)]
 struct InvalidInputResponse<'a> {
     error: &'static str,
     message: &'a str,
@@ -1420,6 +1460,19 @@ lmyzmail.public-registration-enabled=true\n",
         );
         assert!(
             authenticated_route(b"GET /web/mail/detail/inbox/%FF.eml HTTP/1.1\r\n\r\n").is_err()
+        );
+        assert_eq!(
+            authenticated_route(b"GET /web/userdata/stars/inbox HTTP/1.1\r\n\r\n"),
+            Ok(Some(AuthenticatedRoute::Stars {
+                folder: "inbox".into(),
+            }))
+        );
+        assert_eq!(
+            authenticated_route(b"POST /web/mail/star/inbox/legacy-root.eml HTTP/1.1\r\n\r\n",),
+            Ok(Some(AuthenticatedRoute::ToggleStar {
+                folder: "inbox".into(),
+                file: "legacy-root.eml".into(),
+            }))
         );
     }
 

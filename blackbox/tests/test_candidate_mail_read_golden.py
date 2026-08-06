@@ -42,6 +42,7 @@ class _OracleTarget:
 def _capture_json(
     path: str,
     *,
+    method: str = "GET",
     canonicalize_object_order: bool = False,
 ) -> Callable[[RuntimeTarget], dict[str, Any]]:
     def capture(target: RuntimeTarget) -> dict[str, Any]:
@@ -49,7 +50,7 @@ def _capture_json(
         response = http_exchange(
             "127.0.0.1",
             target.ports.http,
-            "GET",
+            method,
             path,
             headers=_SESSION_HEADERS,
             timeout=10.0,
@@ -61,7 +62,7 @@ def _capture_json(
 
     cast(Any, capture).__lmyzmail_contract__ = {
         "protocol": "http",
-        "method": "GET",
+        "method": method,
         "target": path,
         "headers": [["X-Session-Token", "<legacy-session-token>"]],
         "state": "attested legacy PostgreSQL seed and Maildir fixture",
@@ -141,6 +142,35 @@ MAIL_READ_SCENARIOS = (
     ),
 )
 
+MAIL_STATE_SCENARIOS = (
+    Scenario(
+        "http/mail/stars-before",
+        _capture_json("/web/userdata/stars/inbox"),
+    ),
+    Scenario(
+        "http/mail/toggle-star-off",
+        _capture_json(
+            "/web/mail/star/inbox/legacy-root.eml",
+            method="POST",
+        ),
+    ),
+    Scenario(
+        "http/mail/stars-after-off",
+        _capture_json("/web/userdata/stars/inbox"),
+    ),
+    Scenario(
+        "http/mail/toggle-star-on",
+        _capture_json(
+            "/web/mail/star/inbox/legacy-root.eml",
+            method="POST",
+        ),
+    ),
+    Scenario(
+        "http/mail/stars-after-on",
+        _capture_json("/web/userdata/stars/inbox"),
+    ),
+)
+
 
 class LegacyCandidateRuntime(CandidateRuntime):
     @property
@@ -196,7 +226,7 @@ def test_frozen_java_mail_read_golden(
     record_java_golden: bool,
 ) -> None:
     repository = Path(__file__).resolve().parents[2]
-    golden = repository / "blackbox/golden/java/managed-mail-read-v2"
+    golden = repository / "blackbox/golden/java/managed-mail-read-v3"
     runner = DifferentialRunner(
         repository,
         golden,
@@ -219,9 +249,45 @@ def test_rust_candidate_mail_read_matches_frozen_java_golden() -> None:
     with _candidate(repository) as candidate:
         DifferentialRunner(
             repository,
-            repository / "blackbox/golden/java/managed-mail-read-v2",
+            repository / "blackbox/golden/java/managed-mail-read-v3",
             "managed-mail-read",
         ).verify_candidate(MAIL_READ_SCENARIOS, candidate)
+
+
+@pytest.mark.integration
+@pytest.mark.oracle
+@pytest.mark.timeout(180)
+def test_frozen_java_mail_state_golden(
+    tmp_path: Path,
+    record_java_golden: bool,
+) -> None:
+    repository = Path(__file__).resolve().parents[2]
+    golden = repository / "blackbox/golden/java/managed-mail-state-v1"
+    runner = DifferentialRunner(
+        repository,
+        golden,
+        "managed-mail-state",
+        record_java=record_java_golden,
+    )
+    with PersistentJavaOracleRuntime(tmp_path / "java-mail-state") as oracle:
+        target = _OracleTarget(oracle)
+        if record_java_golden:
+            runner.record_from_java(MAIL_STATE_SCENARIOS, target)
+        else:
+            runner.verify_java(MAIL_STATE_SCENARIOS, target)
+
+
+@pytest.mark.integration
+@pytest.mark.candidate
+@pytest.mark.timeout(180)
+def test_rust_candidate_mail_state_matches_frozen_java_golden() -> None:
+    repository = Path(__file__).resolve().parents[2]
+    with _candidate(repository) as candidate:
+        DifferentialRunner(
+            repository,
+            repository / "blackbox/golden/java/managed-mail-state-v1",
+            "managed-mail-state",
+        ).verify_candidate(MAIL_STATE_SCENARIOS, candidate)
 
 
 @pytest.mark.integration
