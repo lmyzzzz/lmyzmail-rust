@@ -53,6 +53,8 @@
       "ttl": "per-claim",
       "claim": ["lpop:pending", "set:nx:px", "sadd:processing", "hset:processing_time"],
       "renew": ["compare-token", "pexpire", "hset:processing_time", "expire:task-and-domains"],
+      "domain_read": ["compare-token", "verify:processing", "bounded-hgetall", "validate-all"],
+      "domain_update": ["compare-token", "verify:processing", "validate-all", "hset-updates", "expire:domains"],
       "retry": ["compare-token", "set:task", "srem:processing", "hdel:processing_time", "zadd:retry"],
       "acknowledge": ["compare-token", "srem:processing", "hdel:processing_time", "zrem:retry", "del:task"],
       "expired_recovery": ["verify-lease-absent", "srem:processing", "hdel:processing_time", "rpush:pending"]
@@ -99,6 +101,7 @@
     "ack_archive_only_after_postgres_commit": true,
     "recoverable_archive_inflight": true,
     "renewable_processing_lease": true,
+    "fenced_domain_status_updates": true,
     "bounded_status_update_drain": true,
     "active_references_must_not_expire": true,
     "stable_message_id_on_ambiguous_smtp_result": true,

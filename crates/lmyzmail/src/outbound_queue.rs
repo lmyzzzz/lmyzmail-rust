@@ -18,6 +18,12 @@ const COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
 const MIN_LEASE_MILLIS: u64 = 1_000;
 const MAX_LEASE_MILLIS: u64 = 60 * 60 * 1_000;
 const MAX_LEASE_TOKEN_BYTES: usize = 256;
+const MAX_DOMAIN_STATUSES: usize = 1_000;
+const MAX_DOMAIN_RECIPIENTS: usize = 1_000;
+const MAX_DOMAIN_BYTES: usize = 253;
+const MAX_ADDRESS_BYTES: usize = 254;
+const MAX_DOMAIN_STATUS_JSON_BYTES: usize = 2 * 1024 * 1024;
+const MAX_DOMAIN_STATUS_ARCHIVE_BYTES: usize = 2 * 1024 * 1024;
 
 const RESERVE_ID_SCRIPT: &str = r#"
 local current = redis.call('GET', KEYS[1]) or '0'
@@ -286,14 +292,185 @@ end
 return 1
 "#;
 
+const READ_DOMAIN_STATUSES_SCRIPT: &str = r#"
+local task_id = ARGV[1]
+local lease_key = ARGV[2] .. task_id
+if redis.call('GET', lease_key) ~= ARGV[3]
+  or redis.call('SISMEMBER', KEYS[1], task_id) ~= 1 then
+  return {'STALE'}
+end
+
+local key_type = redis.call('TYPE', KEYS[2])
+if key_type.ok == 'none' then return {'MISSING'} end
+if key_type.ok ~= 'hash' then return {'CORRUPT'} end
+
+local max_domains = tonumber(ARGV[4])
+local max_recipients = tonumber(ARGV[5])
+local max_domain_bytes = tonumber(ARGV[6])
+local max_address_bytes = tonumber(ARGV[7])
+local max_json_bytes = tonumber(ARGV[8])
+local max_archive_bytes = tonumber(ARGV[9])
+local entries = redis.call('HGETALL', KEYS[2])
+if #entries == 0 or #entries / 2 > max_domains then return {'CORRUPT'} end
+
+local total_bytes = 0
+local total_recipients = 0
+for index = 1, #entries, 2 do
+  local field = entries[index]
+  local json = entries[index + 1]
+  total_bytes = total_bytes + string.len(field) + string.len(json)
+  if string.len(field) == 0 or string.len(field) > max_domain_bytes
+    or string.len(json) > max_json_bytes or total_bytes > max_archive_bytes
+    or string.find(field, '[%c%s]') then
+    return {'CORRUPT'}
+  end
+  local decoded_ok, decoded = pcall(cjson.decode, json)
+  if not decoded_ok or type(decoded) ~= 'table'
+    or decoded.domain ~= field
+    or type(decoded.status) ~= 'string'
+    or (decoded.status ~= 'PENDING' and decoded.status ~= 'SENDING'
+      and decoded.status ~= 'SENT' and decoded.status ~= 'FAILED')
+    or (decoded.error ~= nil and decoded.error ~= cjson.null
+      and type(decoded.error) ~= 'string')
+    or type(decoded.recipients) ~= 'table'
+    or type(decoded.updatedAt) ~= 'string' or decoded.updatedAt == ''
+    or string.len(decoded.updatedAt) > 128 then
+    return {'CORRUPT'}
+  end
+  local recipient_count = 0
+  for recipient_index, recipient in pairs(decoded.recipients) do
+    if type(recipient_index) ~= 'number' or recipient_index < 1
+      or recipient_index % 1 ~= 0 or type(recipient) ~= 'string'
+      or string.len(recipient) == 0 or string.len(recipient) > max_address_bytes
+      or string.find(recipient, '%c') then
+      return {'CORRUPT'}
+    end
+    recipient_count = recipient_count + 1
+  end
+  if recipient_count == 0 or recipient_count ~= #decoded.recipients then
+    return {'CORRUPT'}
+  end
+  total_recipients = total_recipients + recipient_count
+  if total_recipients > max_recipients then return {'CORRUPT'} end
+end
+
+local result = {'OK'}
+for index = 1, #entries do table.insert(result, entries[index]) end
+return result
+"#;
+
+const UPDATE_DOMAIN_STATUSES_SCRIPT: &str = r#"
+local task_id = ARGV[1]
+local lease_key = ARGV[2] .. task_id
+if redis.call('GET', lease_key) ~= ARGV[3]
+  or redis.call('SISMEMBER', KEYS[1], task_id) ~= 1 then
+  return 'STALE'
+end
+
+local key_type = redis.call('TYPE', KEYS[2])
+if key_type.ok == 'none' then return 'MISSING' end
+if key_type.ok ~= 'hash' then return 'CORRUPT' end
+
+local max_domains = tonumber(ARGV[4])
+local max_recipients = tonumber(ARGV[5])
+local max_domain_bytes = tonumber(ARGV[6])
+local max_address_bytes = tonumber(ARGV[7])
+local max_json_bytes = tonumber(ARGV[8])
+local max_archive_bytes = tonumber(ARGV[9])
+local ttl = tonumber(ARGV[10])
+local update_count = tonumber(ARGV[11])
+local entries = redis.call('HGETALL', KEYS[2])
+if #entries == 0 or #entries / 2 > max_domains
+  or update_count < 1 or update_count > max_domains then
+  return 'CORRUPT'
+end
+
+local function validate_status(field, json)
+  if string.len(field) == 0 or string.len(field) > max_domain_bytes
+    or string.len(json) > max_json_bytes or string.find(field, '[%c%s]') then
+    return false, 0
+  end
+  local decoded_ok, decoded = pcall(cjson.decode, json)
+  if not decoded_ok or type(decoded) ~= 'table'
+    or decoded.domain ~= field
+    or type(decoded.status) ~= 'string'
+    or (decoded.status ~= 'PENDING' and decoded.status ~= 'SENDING'
+      and decoded.status ~= 'SENT' and decoded.status ~= 'FAILED')
+    or (decoded.error ~= nil and decoded.error ~= cjson.null
+      and type(decoded.error) ~= 'string')
+    or type(decoded.recipients) ~= 'table'
+    or type(decoded.updatedAt) ~= 'string' or decoded.updatedAt == ''
+    or string.len(decoded.updatedAt) > 128 then
+    return false, 0
+  end
+  local recipient_count = 0
+  for recipient_index, recipient in pairs(decoded.recipients) do
+    if type(recipient_index) ~= 'number' or recipient_index < 1
+      or recipient_index % 1 ~= 0 or type(recipient) ~= 'string'
+      or string.len(recipient) == 0 or string.len(recipient) > max_address_bytes
+      or string.find(recipient, '%c') then
+      return false, 0
+    end
+    recipient_count = recipient_count + 1
+  end
+  if recipient_count == 0 or recipient_count ~= #decoded.recipients then return false, 0 end
+  return true, recipient_count
+end
+
+local total_bytes = 0
+local total_recipients = 0
+local recipient_counts = {}
+for index = 1, #entries, 2 do
+  local field = entries[index]
+  local json = entries[index + 1]
+  total_bytes = total_bytes + string.len(field) + string.len(json)
+  local valid, recipient_count = validate_status(field, json)
+  if not valid or total_bytes > max_archive_bytes then return 'CORRUPT' end
+  recipient_counts[field] = recipient_count
+  total_recipients = total_recipients + recipient_count
+  if total_recipients > max_recipients then return 'CORRUPT' end
+end
+
+local update_offset = 12
+local seen = {}
+local resulting_bytes = total_bytes
+local resulting_recipients = total_recipients
+for index = 1, update_count do
+  local field = ARGV[update_offset]
+  local json = ARGV[update_offset + 1]
+  local old_json = redis.call('HGET', KEYS[2], field)
+  local valid, recipient_count = validate_status(field, json)
+  if seen[field] or old_json == false or not valid then return 'CORRUPT' end
+  seen[field] = true
+  resulting_bytes = resulting_bytes - string.len(field) - string.len(old_json)
+    + string.len(field) + string.len(json)
+  resulting_recipients = resulting_recipients - recipient_counts[field] + recipient_count
+  if resulting_bytes > max_archive_bytes or resulting_recipients > max_recipients then
+    return 'CORRUPT'
+  end
+  update_offset = update_offset + 2
+end
+
+update_offset = 12
+for index = 1, update_count do
+  redis.call('HSET', KEYS[2], ARGV[update_offset], ARGV[update_offset + 1])
+  update_offset = update_offset + 2
+end
+redis.call('EXPIRE', KEYS[2], ttl)
+return 'OK'
+"#;
+
 #[derive(Clone)]
 pub struct LegacyOutboundQueue {
     pool: Pool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum QueueError {
     InvalidTask(&'static str),
+    StaleClaim,
+    MissingDomainStatuses,
+    CorruptDomainStatuses,
     Unavailable,
 }
 
@@ -314,6 +491,13 @@ impl fmt::Display for QueueError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidTask(message) => formatter.write_str(message),
+            Self::StaleClaim => formatter.write_str("outbound queue claim is stale"),
+            Self::MissingDomainStatuses => {
+                formatter.write_str("outbound domain statuses are missing")
+            }
+            Self::CorruptDomainStatuses => {
+                formatter.write_str("outbound domain statuses are corrupt")
+            }
             Self::Unavailable => formatter.write_str("Redis outbound queue unavailable"),
         }
     }
@@ -612,6 +796,112 @@ impl LegacyOutboundQueue {
         Ok(renewed == 1)
     }
 
+    pub async fn read_domain_statuses(
+        &self,
+        claim: &QueueClaim,
+    ) -> Result<BTreeMap<String, DomainStatus>, QueueError> {
+        validate_claim_identity(claim)?;
+        let domain_key = format!("{KEY_PREFIX}domains:{}", claim.task_id);
+        let mut connection = self.connection().await?;
+        let values: Vec<String> = self
+            .query(
+                redis::cmd("EVAL")
+                    .arg(READ_DOMAIN_STATUSES_SCRIPT)
+                    .arg(2)
+                    .arg(PROCESSING_KEY)
+                    .arg(domain_key)
+                    .arg(claim.task_id)
+                    .arg(LEASE_PREFIX)
+                    .arg(&claim.lease_token)
+                    .arg(MAX_DOMAIN_STATUSES)
+                    .arg(MAX_DOMAIN_RECIPIENTS)
+                    .arg(MAX_DOMAIN_BYTES)
+                    .arg(MAX_ADDRESS_BYTES)
+                    .arg(MAX_DOMAIN_STATUS_JSON_BYTES)
+                    .arg(MAX_DOMAIN_STATUS_ARCHIVE_BYTES),
+                &mut connection,
+            )
+            .await?;
+        decode_domain_statuses(values)
+    }
+
+    pub async fn update_domain_statuses(
+        &self,
+        claim: &QueueClaim,
+        updates: &BTreeMap<String, DomainStatus>,
+    ) -> Result<(), QueueError> {
+        validate_claim_identity(claim)?;
+        if updates.is_empty() || updates.len() > MAX_DOMAIN_STATUSES {
+            return Err(QueueError::InvalidTask(
+                "invalid domain status update bound",
+            ));
+        }
+
+        let mut serialized = Vec::with_capacity(updates.len());
+        let mut total_bytes = 0_usize;
+        let mut total_recipients = 0_usize;
+        for (domain, status) in updates {
+            if !valid_domain_status(domain, status) {
+                return Err(QueueError::InvalidTask("invalid domain status update"));
+            }
+            total_recipients = total_recipients
+                .checked_add(status.recipients.len())
+                .ok_or(QueueError::InvalidTask("invalid domain status update"))?;
+            let json = serde_json::to_string(status)
+                .map_err(|_| QueueError::InvalidTask("invalid domain status update"))?;
+            if json.len() > MAX_DOMAIN_STATUS_JSON_BYTES {
+                return Err(QueueError::InvalidTask(
+                    "domain status update exceeds its byte budget",
+                ));
+            }
+            total_bytes = total_bytes
+                .checked_add(domain.len())
+                .and_then(|value| value.checked_add(json.len()))
+                .ok_or(QueueError::InvalidTask(
+                    "domain status update exceeds its byte budget",
+                ))?;
+            serialized.push((domain, json));
+        }
+        if total_recipients > MAX_DOMAIN_RECIPIENTS || total_bytes > MAX_DOMAIN_STATUS_ARCHIVE_BYTES
+        {
+            return Err(QueueError::InvalidTask(
+                "domain status update exceeds its bound",
+            ));
+        }
+
+        let domain_key = format!("{KEY_PREFIX}domains:{}", claim.task_id);
+        let mut command = redis::cmd("EVAL");
+        command
+            .arg(UPDATE_DOMAIN_STATUSES_SCRIPT)
+            .arg(2)
+            .arg(PROCESSING_KEY)
+            .arg(domain_key)
+            .arg(claim.task_id)
+            .arg(LEASE_PREFIX)
+            .arg(&claim.lease_token)
+            .arg(MAX_DOMAIN_STATUSES)
+            .arg(MAX_DOMAIN_RECIPIENTS)
+            .arg(MAX_DOMAIN_BYTES)
+            .arg(MAX_ADDRESS_BYTES)
+            .arg(MAX_DOMAIN_STATUS_JSON_BYTES)
+            .arg(MAX_DOMAIN_STATUS_ARCHIVE_BYTES)
+            .arg(TASK_TTL_SECONDS)
+            .arg(serialized.len());
+        for (domain, json) in serialized {
+            command.arg(domain).arg(json);
+        }
+
+        let mut connection = self.connection().await?;
+        let result: String = self.query(&mut command, &mut connection).await?;
+        match result.as_str() {
+            "OK" => Ok(()),
+            "STALE" => Err(QueueError::StaleClaim),
+            "MISSING" => Err(QueueError::MissingDomainStatuses),
+            "CORRUPT" => Err(QueueError::CorruptDomainStatuses),
+            _ => Err(QueueError::Unavailable),
+        }
+    }
+
     pub async fn release_claim(
         &self,
         claim: &QueueClaim,
@@ -842,6 +1132,77 @@ fn parse_task_id(value: &str) -> Result<i64, QueueError> {
         .ok()
         .filter(|value| *value > 0)
         .ok_or(QueueError::Unavailable)
+}
+
+fn decode_domain_statuses(
+    values: Vec<String>,
+) -> Result<BTreeMap<String, DomainStatus>, QueueError> {
+    let Some(marker) = values.first().map(String::as_str) else {
+        return Err(QueueError::Unavailable);
+    };
+    match marker {
+        "STALE" => return Err(QueueError::StaleClaim),
+        "MISSING" => return Err(QueueError::MissingDomainStatuses),
+        "CORRUPT" => return Err(QueueError::CorruptDomainStatuses),
+        "OK" => {}
+        _ => return Err(QueueError::Unavailable),
+    }
+    if values.len() == 1 || !(values.len() - 1).is_multiple_of(2) {
+        return Err(QueueError::CorruptDomainStatuses);
+    }
+
+    let mut statuses = BTreeMap::new();
+    let mut total_bytes = 0_usize;
+    let mut total_recipients = 0_usize;
+    for pair in values[1..].chunks_exact(2) {
+        let domain = &pair[0];
+        let json = &pair[1];
+        total_bytes = total_bytes
+            .checked_add(domain.len())
+            .and_then(|value| value.checked_add(json.len()))
+            .ok_or(QueueError::CorruptDomainStatuses)?;
+        if json.len() > MAX_DOMAIN_STATUS_JSON_BYTES
+            || total_bytes > MAX_DOMAIN_STATUS_ARCHIVE_BYTES
+        {
+            return Err(QueueError::CorruptDomainStatuses);
+        }
+        let status: DomainStatus =
+            serde_json::from_str(json).map_err(|_| QueueError::CorruptDomainStatuses)?;
+        if !valid_domain_status(domain, &status) {
+            return Err(QueueError::CorruptDomainStatuses);
+        }
+        total_recipients = total_recipients
+            .checked_add(status.recipients.len())
+            .ok_or(QueueError::CorruptDomainStatuses)?;
+        if total_recipients > MAX_DOMAIN_RECIPIENTS
+            || statuses.insert(domain.clone(), status).is_some()
+            || statuses.len() > MAX_DOMAIN_STATUSES
+        {
+            return Err(QueueError::CorruptDomainStatuses);
+        }
+    }
+    Ok(statuses)
+}
+
+fn valid_domain_status(domain: &str, status: &DomainStatus) -> bool {
+    !domain.is_empty()
+        && domain.len() <= MAX_DOMAIN_BYTES
+        && !domain.chars().any(char::is_whitespace)
+        && !domain.chars().any(char::is_control)
+        && status.domain == domain
+        && matches!(
+            status.status.as_str(),
+            "PENDING" | "SENDING" | "SENT" | "FAILED"
+        )
+        && !status.recipients.is_empty()
+        && status.recipients.len() <= MAX_DOMAIN_RECIPIENTS
+        && status.recipients.iter().all(|recipient| {
+            !recipient.is_empty()
+                && recipient.len() <= MAX_ADDRESS_BYTES
+                && !recipient.chars().any(char::is_control)
+        })
+        && !status.updated_at.is_empty()
+        && status.updated_at.len() <= 128
 }
 
 #[cfg(test)]

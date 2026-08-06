@@ -129,6 +129,15 @@ Expired-claim discovery uses bounded `SSCAN` pages and only reports processing
 members whose Rust lease key is absent. Recovery checks absence again inside
 the mutation script, so a concurrent renewal wins.
 
+Per-domain status reads and writes use the same lease token and also require
+the task ID to remain in the legacy `processing` set. The scripts reject a
+missing, non-hash, oversized, malformed, or internally inconsistent domain
+map before returning data or applying any update. Batch updates validate the
+complete existing hash and the complete resulting byte and recipient budgets,
+then apply all fields and refresh the legacy seven-day TTL in one Lua
+execution. A stale worker therefore cannot overwrite a replacement worker's
+domain outcome or extend its status lifetime.
+
 ## Rust PostgreSQL Delivery Fence
 
 The database-side delivery state now uses the existing `processor_id` column

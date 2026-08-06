@@ -12,7 +12,7 @@ use std::{
 use deadpool_redis::redis;
 use lmyzmail::{
     config::{Properties, RuntimeConfig},
-    outbound_queue::{DomainStatus, LegacyOutboundQueue, QueueClaim, TaskDetail},
+    outbound_queue::{DomainStatus, LegacyOutboundQueue, QueueClaim, QueueError, TaskDetail},
     redis::create_pool,
 };
 
@@ -142,6 +142,31 @@ fn domains() -> BTreeMap<String, DomainStatus> {
             updated_at: "2026-08-06T00:00:00Z".into(),
         },
     )])
+}
+
+fn two_domains() -> BTreeMap<String, DomainStatus> {
+    BTreeMap::from([
+        (
+            "other.test".into(),
+            DomainStatus {
+                domain: "other.test".into(),
+                status: "PENDING".into(),
+                error: None,
+                recipients: vec!["other@other.test".into()],
+                updated_at: "2026-08-06T00:00:00Z".into(),
+            },
+        ),
+        (
+            "remote.test".into(),
+            DomainStatus {
+                domain: "remote.test".into(),
+                status: "PENDING".into(),
+                error: None,
+                recipients: vec!["user@remote.test".into()],
+                updated_at: "2026-08-06T00:00:00Z".into(),
+            },
+        ),
+    ])
 }
 
 fn now_millis() -> i64 {
@@ -276,4 +301,354 @@ async fn leases_fence_retry_recovery_and_acknowledgement() {
         .await
         .unwrap();
     assert_eq!((processing, pending), (0, 0));
+}
+
+#[tokio::test]
+async fn domain_statuses_are_bounded_validated_and_lease_fenced() {
+    let process = RedisProcess::start();
+    let mut properties = Properties::default();
+    properties
+        .insert("lmyzmail.redis.host".into(), "127.0.0.1".into())
+        .unwrap();
+    properties
+        .insert("lmyzmail.redis.port".into(), process.port().to_string())
+        .unwrap();
+    let config = RuntimeConfig::from_properties(properties).unwrap();
+    let pool = create_pool(&config).unwrap();
+    let queue = LegacyOutboundQueue::new(pool.clone());
+
+    let id = 9_007_199_254_741_100_i64;
+    let initial = two_domains();
+    assert!(queue.publish(&task(id), &initial).await.unwrap());
+    let claim = queue
+        .claim_next(
+            "worker-domain:token-1",
+            Duration::from_secs(30),
+            now_millis(),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(queue.read_domain_statuses(&claim).await.unwrap(), initial);
+
+    let key = format!("botmail:mail:queue:domains:{id}");
+    let updated = DomainStatus {
+        domain: "remote.test".into(),
+        status: "SENDING".into(),
+        error: None,
+        recipients: vec!["user@remote.test".into()],
+        updated_at: "2026-08-07T00:00:00.123Z".into(),
+    };
+    let updates = BTreeMap::from([("remote.test".into(), updated.clone())]);
+    {
+        let mut connection = pool.get().await.unwrap();
+        let expired: i64 = redis::cmd("EXPIRE")
+            .arg(&key)
+            .arg(5)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        assert_eq!(expired, 1);
+    }
+    queue
+        .update_domain_statuses(&claim, &updates)
+        .await
+        .unwrap();
+    let statuses = queue.read_domain_statuses(&claim).await.unwrap();
+    assert_eq!(statuses["remote.test"], updated);
+    assert_eq!(statuses["other.test"], initial["other.test"]);
+    {
+        let mut connection = pool.get().await.unwrap();
+        let ttl_millis: i64 = redis::cmd("PTTL")
+            .arg(&key)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        assert!((604_799_000..=604_800_000).contains(&ttl_millis));
+    }
+
+    let forged = QueueClaim {
+        task_id: id,
+        lease_token: "worker-domain:forged".into(),
+        task: claim.task.clone(),
+    };
+    assert_eq!(
+        queue.read_domain_statuses(&forged).await.unwrap_err(),
+        QueueError::StaleClaim
+    );
+    let before_forged = {
+        let mut connection = pool.get().await.unwrap();
+        let _: i64 = redis::cmd("EXPIRE")
+            .arg(&key)
+            .arg(5)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        redis::cmd("HGETALL")
+            .arg(&key)
+            .query_async::<BTreeMap<String, String>>(&mut connection)
+            .await
+            .unwrap()
+    };
+    assert_eq!(
+        queue
+            .update_domain_statuses(&forged, &updates)
+            .await
+            .unwrap_err(),
+        QueueError::StaleClaim
+    );
+    {
+        let mut connection = pool.get().await.unwrap();
+        let after: BTreeMap<String, String> = redis::cmd("HGETALL")
+            .arg(&key)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        let ttl: i64 = redis::cmd("TTL")
+            .arg(&key)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        assert_eq!(after, before_forged);
+        assert!((1..=5).contains(&ttl));
+
+        let removed: i64 = redis::cmd("SREM")
+            .arg("botmail:mail:queue:processing")
+            .arg(id)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        assert_eq!(removed, 1);
+    }
+    assert_eq!(
+        queue
+            .update_domain_statuses(&claim, &updates)
+            .await
+            .unwrap_err(),
+        QueueError::StaleClaim
+    );
+    {
+        let mut connection = pool.get().await.unwrap();
+        let added: i64 = redis::cmd("SADD")
+            .arg("botmail:mail:queue:processing")
+            .arg(id)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        assert_eq!(added, 1);
+    }
+
+    let too_many = (0..=1_000)
+        .map(|index| {
+            let domain = format!("d{index}.test");
+            (
+                domain.clone(),
+                DomainStatus {
+                    domain,
+                    status: "PENDING".into(),
+                    error: None,
+                    recipients: vec![format!("u{index}@d{index}.test")],
+                    updated_at: "2026-08-07T00:00:00Z".into(),
+                },
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    assert_eq!(
+        queue
+            .update_domain_statuses(&claim, &too_many)
+            .await
+            .unwrap_err(),
+        QueueError::InvalidTask("invalid domain status update bound")
+    );
+
+    let atomic_remote = DomainStatus {
+        status: "SENT".into(),
+        updated_at: "2026-08-07T00:01:00Z".into(),
+        ..statuses["remote.test"].clone()
+    };
+    let missing_domain = DomainStatus {
+        domain: "z-missing.test".into(),
+        status: "SENT".into(),
+        error: None,
+        recipients: vec!["user@z-missing.test".into()],
+        updated_at: "2026-08-07T00:01:00Z".into(),
+    };
+    let invalid_batch = BTreeMap::from([
+        ("remote.test".into(), atomic_remote),
+        ("z-missing.test".into(), missing_domain),
+    ]);
+    assert_eq!(
+        queue
+            .update_domain_statuses(&claim, &invalid_batch)
+            .await
+            .unwrap_err(),
+        QueueError::CorruptDomainStatuses
+    );
+    assert_eq!(
+        queue.read_domain_statuses(&claim).await.unwrap(),
+        statuses,
+        "a rejected batch must not partially update its existing fields"
+    );
+
+    let good_remote_json = serde_json::to_string(&statuses["remote.test"]).unwrap();
+    {
+        let mut connection = pool.get().await.unwrap();
+        let _: i64 = redis::cmd("HSET")
+            .arg(&key)
+            .arg("remote.test")
+            .arg("{not-json")
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        let _: i64 = redis::cmd("EXPIRE")
+            .arg(&key)
+            .arg(5)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+    }
+    assert_eq!(
+        queue.read_domain_statuses(&claim).await.unwrap_err(),
+        QueueError::CorruptDomainStatuses
+    );
+    assert_eq!(
+        queue
+            .update_domain_statuses(&claim, &updates)
+            .await
+            .unwrap_err(),
+        QueueError::CorruptDomainStatuses
+    );
+    {
+        let mut connection = pool.get().await.unwrap();
+        let malformed: String = redis::cmd("HGET")
+            .arg(&key)
+            .arg("remote.test")
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        let ttl: i64 = redis::cmd("TTL")
+            .arg(&key)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        assert_eq!(malformed, "{not-json");
+        assert!((1..=5).contains(&ttl));
+        let _: i64 = redis::cmd("HSET")
+            .arg(&key)
+            .arg("remote.test")
+            .arg(&good_remote_json)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+    }
+
+    let mismatched = DomainStatus {
+        domain: "forged.test".into(),
+        ..statuses["remote.test"].clone()
+    };
+    let mismatched_json = serde_json::to_string(&mismatched).unwrap();
+    {
+        let mut connection = pool.get().await.unwrap();
+        let _: i64 = redis::cmd("HSET")
+            .arg(&key)
+            .arg("remote.test")
+            .arg(&mismatched_json)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+    }
+    assert_eq!(
+        queue.read_domain_statuses(&claim).await.unwrap_err(),
+        QueueError::CorruptDomainStatuses
+    );
+    assert_eq!(
+        queue
+            .update_domain_statuses(&claim, &updates)
+            .await
+            .unwrap_err(),
+        QueueError::CorruptDomainStatuses
+    );
+    {
+        let mut connection = pool.get().await.unwrap();
+        let unchanged: String = redis::cmd("HGET")
+            .arg(&key)
+            .arg("remote.test")
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        assert_eq!(unchanged, mismatched_json);
+        let _: i64 = redis::cmd("HSET")
+            .arg(&key)
+            .arg("remote.test")
+            .arg(&good_remote_json)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+    }
+
+    {
+        let mut command = redis::cmd("HSET");
+        command.arg(&key);
+        for index in 0..999 {
+            let domain = format!("overflow-{index}.test");
+            let status = DomainStatus {
+                domain: domain.clone(),
+                status: "PENDING".into(),
+                error: None,
+                recipients: Vec::new(),
+                updated_at: "2026-08-07T00:00:00Z".into(),
+            };
+            command
+                .arg(domain)
+                .arg(serde_json::to_string(&status).unwrap());
+        }
+        let mut connection = pool.get().await.unwrap();
+        let _: i64 = command.query_async(&mut connection).await.unwrap();
+    }
+    assert_eq!(
+        queue.read_domain_statuses(&claim).await.unwrap_err(),
+        QueueError::CorruptDomainStatuses
+    );
+    assert_eq!(
+        queue
+            .update_domain_statuses(&claim, &updates)
+            .await
+            .unwrap_err(),
+        QueueError::CorruptDomainStatuses
+    );
+    {
+        let mut connection = pool.get().await.unwrap();
+        let count: i64 = redis::cmd("HLEN")
+            .arg(&key)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        assert_eq!(count, 1_001);
+        let deleted: i64 = redis::cmd("DEL")
+            .arg(&key)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        assert_eq!(deleted, 1);
+    }
+    assert_eq!(
+        queue.read_domain_statuses(&claim).await.unwrap_err(),
+        QueueError::MissingDomainStatuses
+    );
+    assert_eq!(
+        queue
+            .update_domain_statuses(&claim, &updates)
+            .await
+            .unwrap_err(),
+        QueueError::MissingDomainStatuses
+    );
+    {
+        let mut connection = pool.get().await.unwrap();
+        let exists: i64 = redis::cmd("EXISTS")
+            .arg(&key)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        assert_eq!(exists, 0);
+    }
 }
