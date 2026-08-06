@@ -1,0 +1,34 @@
+# lmyzmail development/installation example. Replace credentials before use.
+lmyzmail.listen.host=127.0.0.1
+lmyzmail.http.port=8080
+lmyzmail.smtp.port=25
+lmyzmail.htcpcp.port=8888
+lmyzmail.minecraft.port=25565
+
+lmyzmail.postgres.host=localhost
+lmyzmail.postgres.port=5432
+lmyzmail.postgres.database=lmyzmail
+lmyzmail.postgres.username=lmyzmail
+lmyzmail.postgres.password=
+lmyzmail.redis.host=localhost
+lmyzmail.redis.port=6379
+lmyzmail.redis.database=0
+lmyzmail.maildir.base=/var/lib/lmyzmail/data/mail
+lmyzmail.domain=lmyz.net
+
+lmyzmail.http.max-request-bytes=10485760
+lmyzmail.http.max-connections=256
+lmyzmail.http.request-timeout-ms=10000
+lmyzmail.redis.pool.max-active=32
+lmyzmail.postgres.pool.max-size=32
+lmyzmail.public-registration-enabled=false
+lmyzmail.smtp-security.tarpit-enabled=true
+lmyzmail.smtp-security.spamhaus-enabled=true
+lmyzmail.smtp.mta-sts-enabled=true
+lmyzmail.smtp.skibidi-generator-mode=AUTO_SAFE
+lmyzmail.xdp.enabled=false
+lmyzmail.fail2ban.enabled=false
+lmyzmail.reporting.http-delivery-enabled=false
+
+# API keys are intentionally absent from this example. Inject them through a
+# protected deployment-specific file or command-line property override.

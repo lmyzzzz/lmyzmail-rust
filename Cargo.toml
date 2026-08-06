@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
-members = []
+members = ["crates/lmyzmail"]
+default-members = ["crates/lmyzmail"]
 
 [workspace.package]
 version = "0.1.0"

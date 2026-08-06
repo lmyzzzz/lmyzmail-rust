@@ -30,3 +30,14 @@ Maildir, certificate, and port state and can produce a repeatable Java golden.
 - `docs/`: architecture, compatibility, security, and acceptance records.
 - `docs/outbound-queue-contract.md`: frozen Redis/queue lifecycle and required
   crash-recovery invariants for outbound delivery takeover.
+- `config/lmyzmail.properties.example`: non-secret installation configuration
+  using the new key namespace.
+- `deploy/lmyzmail.service`: bounded single-process systemd unit template.
+
+## Current Runtime Milestone
+
+The first Rust milestone provides a bounded Tokio lifecycle, Java-properties
+and semantic-JSON configuration loader, `lmyzmail.*` over `botmail.*` alias
+precedence, graceful SIGTERM/CTRL-C shutdown, and an incrementally parsed
+`/api/health` listener. Business protocols are admitted only after their
+corresponding black-box contract and storage tests are in place.

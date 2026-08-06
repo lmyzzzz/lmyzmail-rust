@@ -1,0 +1,22 @@
+[Unit]
+Description=lmyzmail mail service
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lmyzmail
+Group=lmyzmail
+WorkingDirectory=/var/lib/lmyzmail
+ExecStart=/usr/bin/lmyzmail --config /etc/lmyzmail/application.properties
+Restart=on-failure
+RestartSec=2s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/lmyzmail /var/log/lmyzmail
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
