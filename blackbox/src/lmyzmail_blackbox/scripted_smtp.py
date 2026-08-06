@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import math
 import re
 import socket
@@ -223,8 +224,24 @@ class _BoundedReader:
 
 
 class ScriptedSmtpServer:
-    def __init__(self, scenario: SmtpScenario | None = None) -> None:
+    def __init__(
+        self,
+        scenario: SmtpScenario | None = None,
+        *,
+        bind_host: str = "127.0.0.1",
+        bind_port: int = 0,
+    ) -> None:
         self.scenario = scenario if scenario is not None else SmtpScenario()
+        try:
+            parsed_bind_host = ipaddress.ip_address(bind_host)
+        except ValueError as error:
+            raise ValueError("scripted SMTP bind host must be a numeric IP address") from error
+        if parsed_bind_host.is_unspecified or parsed_bind_host.is_multicast:
+            raise ValueError("scripted SMTP bind host must be a specific unicast address")
+        if isinstance(bind_port, bool) or not 0 <= bind_port <= 65_535:
+            raise ValueError("scripted SMTP bind port must be between 0 and 65535")
+        self._bind_host = bind_host
+        self._bind_port = bind_port
         self._state_lock = threading.RLock()
         self._condition = threading.Condition(self._state_lock)
         self._stop_event = threading.Event()
@@ -249,7 +266,7 @@ class ScriptedSmtpServer:
 
     @property
     def host(self) -> str:
-        return "127.0.0.1"
+        return self._bind_host
 
     @property
     def port(self) -> int:
@@ -266,7 +283,7 @@ class ScriptedSmtpServer:
         listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            listener.bind((self.host, 0))
+            listener.bind((self.host, self._bind_port))
             listener.listen(min(self.scenario.max_connections, 128))
             listener.settimeout(0.1)
             with self._state_lock:
