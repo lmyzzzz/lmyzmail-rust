@@ -146,9 +146,11 @@ Redis copies it into the script.
 ## Rust PostgreSQL Delivery Fence
 
 The database-side delivery state now uses the existing `processor_id` column
-as a second fencing token. Every claim combines the bounded worker ID with a
-fresh 128-bit random nonce; reusing a worker ID can never make a stale claim
-valid again. A claim is one conditional `PENDING` to `PROCESSING` update and
+as a second fencing token. A `DeliveryAttemptId` binds one task ID to the
+bounded worker ID and a fresh 128-bit random nonce; reusing a worker ID can
+never make a stale claim valid again. The coordinator may generate that ID
+before either durable claim and pass the same opaque token to Redis and
+PostgreSQL. A claim is one conditional `PENDING` to `PROCESSING` update and
 succeeds only when `next_retry_at` is due and no database owner is present.
 Heartbeat, release, retry, and terminal updates all compare the same opaque
 token. A recovered or replaced owner therefore cannot mutate a new owner's row
@@ -174,7 +176,9 @@ reported as `OutcomeUnknown`, never as an ordinary availability failure: the
 server may already have committed. A bounded read-only snapshot exposes status,
 retry state, timestamps, owner presence, and whether a supplied claim still
 owns the row, without returning the token. Callers must reconcile an unknown
-outcome through that snapshot before touching the Redis lease. Local permanent
+outcome through that snapshot before touching the Redis lease. The read-only
+attempt snapshot accepts the caller-retained attempt ID even when an unknown
+claim response means no `DatabaseClaim` was returned. Local permanent
 failures may preserve the Java-compatible `FAILED` row with null domain JSON,
 but require a bounded non-empty error summary. Externally visible `last_error`
 uses the oracle's 1000 UTF-16-code-unit limit and appends `...` when truncated;

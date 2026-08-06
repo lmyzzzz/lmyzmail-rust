@@ -14,7 +14,8 @@ use lmyzmail::{
     config::{Properties, RuntimeConfig},
     database,
     outbound_delivery::{
-        DeliveryRowStatus, DeliveryStateError, PostgresDeliveryState, TerminalStatus,
+        DeliveryAttemptId, DeliveryRowStatus, DeliveryStateError, PostgresDeliveryState,
+        TerminalStatus,
     },
 };
 
@@ -197,14 +198,28 @@ async fn postgres_claims_fence_retries_terminal_state_and_recovery() {
     let now = timestamp(1_786_000_000);
     insert_pending(&pool, 4_001, 0, 2, now).await;
 
+    let attempt_a = DeliveryAttemptId::generate(4_001, "worker-a:claim-1").unwrap();
+    let attempt_b = DeliveryAttemptId::generate(4_001, "worker-b:claim-1").unwrap();
     let (claim_a, claim_b) = tokio::join!(
-        state.claim(4_001, "worker-a:claim-1", now),
-        state.claim(4_001, "worker-b:claim-1", now),
+        state.claim_with_attempt(&attempt_a, now),
+        state.claim_with_attempt(&attempt_b, now),
     );
     let claim_a = claim_a.unwrap();
     let claim_b = claim_b.unwrap();
     assert_ne!(claim_a.is_some(), claim_b.is_some());
-    let first_claim = claim_a.or(claim_b).unwrap();
+    let (first_claim, first_attempt) = match (claim_a, claim_b) {
+        (Some(claim), None) => (claim, &attempt_a),
+        (None, Some(claim)) => (claim, &attempt_b),
+        _ => unreachable!(),
+    };
+    let claimed_snapshot = state
+        .snapshot_attempt(first_attempt)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(claimed_snapshot.owned_by_claim);
+    assert_eq!(first_attempt.task_id(), 4_001);
+    assert!(!first_attempt.lease_token().is_empty());
 
     assert!(
         state
@@ -212,12 +227,9 @@ async fn postgres_claims_fence_retries_terminal_state_and_recovery() {
             .await
             .unwrap()
     );
+    let second_attempt = DeliveryAttemptId::generate(4_001, "worker-a:claim-1").unwrap();
     let second_claim = state
-        .claim(
-            4_001,
-            "worker-a:claim-1",
-            now + chrono::Duration::seconds(1),
-        )
+        .claim_with_attempt(&second_attempt, now + chrono::Duration::seconds(1))
         .await
         .unwrap()
         .unwrap();

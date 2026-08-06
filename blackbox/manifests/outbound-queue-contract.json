@@ -86,6 +86,8 @@
     "heartbeat_column": "processing_started_at",
     "claim_transition": "PENDING->PROCESSING",
     "claim_nonce_bits": 128,
+    "caller_generated_attempt_token": true,
+    "claim_unknown_snapshot_by_attempt": true,
     "owner_compared_operations": ["heartbeat", "release", "retry", "terminal"],
     "terminal_statuses": ["SENT", "PARTIAL_SUCCESS", "FAILED"],
     "operation_timeout_seconds": 8,

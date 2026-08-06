@@ -27,6 +27,40 @@ pub struct PostgresDeliveryState {
 }
 
 #[derive(Clone, Eq, PartialEq)]
+pub struct DeliveryAttemptId {
+    task_id: i64,
+    owner_token: String,
+}
+
+impl fmt::Debug for DeliveryAttemptId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("DeliveryAttemptId")
+            .field("task_id", &self.task_id)
+            .field("owner_token", &"<redacted>")
+            .finish()
+    }
+}
+
+impl DeliveryAttemptId {
+    pub fn generate(task_id: i64, worker_id: &str) -> Result<Self, DeliveryStateError> {
+        validate_worker_identity(task_id, worker_id)?;
+        Ok(Self {
+            task_id,
+            owner_token: unique_owner_token(worker_id)?,
+        })
+    }
+
+    pub fn task_id(&self) -> i64 {
+        self.task_id
+    }
+
+    pub fn lease_token(&self) -> &str {
+        &self.owner_token
+    }
+}
+
+#[derive(Clone, Eq, PartialEq)]
 pub struct DatabaseClaim {
     pub task_id: i64,
     pub retry_count: i32,
@@ -161,8 +195,18 @@ impl PostgresDeliveryState {
         worker_id: &str,
         now: DateTime<Utc>,
     ) -> Result<Option<DatabaseClaim>, DeliveryStateError> {
-        validate_worker_identity(task_id, worker_id)?;
-        let owner_token = unique_owner_token(worker_id)?;
+        let attempt = DeliveryAttemptId::generate(task_id, worker_id)?;
+        self.claim_with_attempt(&attempt, now).await
+    }
+
+    pub async fn claim_with_attempt(
+        &self,
+        attempt: &DeliveryAttemptId,
+        now: DateTime<Utc>,
+    ) -> Result<Option<DatabaseClaim>, DeliveryStateError> {
+        validate_attempt(attempt)?;
+        let task_id = attempt.task_id;
+        let owner_token = attempt.owner_token.clone();
         let now = postgres_timestamp(now)?;
         let deadline = Instant::now() + self.operation_timeout;
         let client = self.client(deadline).await?;
@@ -384,6 +428,24 @@ impl PostgresDeliveryState {
                 ));
             }
         }
+        self.snapshot_with_owner(task_id, claim.map(|claim| claim.owner_token.as_str()))
+            .await
+    }
+
+    pub async fn snapshot_attempt(
+        &self,
+        attempt: &DeliveryAttemptId,
+    ) -> Result<Option<DeliverySnapshot>, DeliveryStateError> {
+        validate_attempt(attempt)?;
+        self.snapshot_with_owner(attempt.task_id, Some(&attempt.owner_token))
+            .await
+    }
+
+    async fn snapshot_with_owner(
+        &self,
+        task_id: i64,
+        expected_owner: Option<&str>,
+    ) -> Result<Option<DeliverySnapshot>, DeliveryStateError> {
         let deadline = Instant::now() + self.operation_timeout;
         let client = self.client(deadline).await?;
         let row = read_deadline(
@@ -407,8 +469,7 @@ impl PostgresDeliveryState {
                 sent_at: row.get(4),
                 processing_started_at: row.get(5),
                 has_owner: owner.is_some(),
-                owned_by_claim: claim
-                    .is_some_and(|claim| owner.as_deref() == Some(claim.owner_token.as_str())),
+                owned_by_claim: expected_owner.is_some_and(|value| owner.as_deref() == Some(value)),
             })
         })
         .transpose()
@@ -490,6 +551,10 @@ fn validate_claim(claim: &DatabaseClaim) -> Result<(), DeliveryStateError> {
         ));
     }
     Ok(())
+}
+
+fn validate_attempt(attempt: &DeliveryAttemptId) -> Result<(), DeliveryStateError> {
+    validate_identity(attempt.task_id, &attempt.owner_token)
 }
 
 fn validate_terminal(
