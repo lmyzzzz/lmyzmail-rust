@@ -575,6 +575,43 @@ def http_exchange(
     return parse_http_response(raw, request_method=method)
 
 
+def json_http_exchange(
+    host: str,
+    port: int,
+    method: str,
+    target: str,
+    *,
+    value: object,
+    headers: Iterable[tuple[str, str]] = (),
+    timeout: float = 5.0,
+    max_request: int = 1 * 1024 * 1024,
+    max_response: int = 8 * 1024 * 1024,
+) -> RawHttpResponse:
+    """Send one compact, finite JSON request with an explicit body bound."""
+
+    try:
+        body = json.dumps(
+            value,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    except (TypeError, ValueError) as error:
+        raise ValueError("JSON request value is not finite and serializable") from error
+    if len(body) > max_request:
+        raise ValueError("JSON request body exceeds the configured bound")
+    return http_exchange(
+        host,
+        port,
+        method,
+        target,
+        headers=(("Content-Type", "application/json"), *tuple(headers)),
+        body=body,
+        timeout=timeout,
+        max_response=max_response,
+    )
+
+
 def encode_varint(value: int) -> bytes:
     if value < 0 or value > 0x7FFFFFFF:
         raise ValueError("Minecraft VarInt value out of supported range")

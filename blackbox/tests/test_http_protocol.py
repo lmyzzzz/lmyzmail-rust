@@ -10,6 +10,7 @@ from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.protocols import (
     build_http_request,
     http_exchange,
+    json_http_exchange,
     parse_http_response,
 )
 
@@ -97,4 +98,18 @@ def test_http_request_rejects_ambiguous_or_incorrect_framing() -> None:
             host="example.test",
             headers=(("Content-Length", "3"),),
             body=b"test",
+        )
+
+
+def test_json_http_exchange_is_compact_finite_and_bounded() -> None:
+    with pytest.raises(ValueError, match="finite"):
+        json_http_exchange("127.0.0.1", 1, "POST", "/", value={"number": float("nan")})
+    with pytest.raises(ValueError, match="bound"):
+        json_http_exchange(
+            "127.0.0.1",
+            1,
+            "POST",
+            "/",
+            value={"body": "x" * 32},
+            max_request=8,
         )

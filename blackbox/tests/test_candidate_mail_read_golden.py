@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import shutil
 from collections.abc import Callable
@@ -15,7 +16,7 @@ from lmyzmail_blackbox.persistent_runtime import (
     PersistentJavaOracleRuntime,
 )
 from lmyzmail_blackbox.ports import PortSet
-from lmyzmail_blackbox.protocols import http_exchange
+from lmyzmail_blackbox.protocols import http_exchange, json_http_exchange
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import http_bytes_snapshot, http_json_snapshot
 
@@ -172,6 +173,210 @@ MAIL_STATE_SCENARIOS = (
 )
 
 
+def _capture_mail_mutations(target: RuntimeTarget) -> dict[str, Any]:
+    assert target.ports is not None
+    port = target.ports.http
+
+    def request(
+        method: str,
+        path: str,
+        *,
+        value: object | None = None,
+        canonicalize: bool = False,
+    ) -> dict[str, Any]:
+        if value is None:
+            response = http_exchange(
+                "127.0.0.1",
+                port,
+                method,
+                path,
+                headers=_SESSION_HEADERS,
+                timeout=10.0,
+            )
+        else:
+            response = json_http_exchange(
+                "127.0.0.1",
+                port,
+                method,
+                path,
+                value=value,
+                headers=_SESSION_HEADERS,
+                timeout=10.0,
+            )
+        return http_json_snapshot(response, canonicalize_object_order=canonicalize)
+
+    before = request("GET", "/web/userdata/labels")
+    duplicate = request(
+        "POST",
+        "/web/userdata/labels",
+        value={"name": "Legacy", "color": "#ffffff"},
+        canonicalize=True,
+    )
+    created_response = json_http_exchange(
+        "127.0.0.1",
+        port,
+        "POST",
+        "/web/userdata/labels",
+        value={"name": "Blackbox", "color": "#123456"},
+        headers=_SESSION_HEADERS,
+        timeout=10.0,
+    )
+    created = http_json_snapshot(created_response, canonicalize_object_order=True)
+    created_body = json.loads(created_response.body)
+    label_id = created_body["id"]
+    assert isinstance(label_id, int) and label_id > 0
+
+    updated = request(
+        "PUT",
+        f"/web/userdata/labels/{label_id}",
+        value={"name": "Blackbox Renamed", "color": "#654321"},
+        canonicalize=True,
+    )
+    listed = request("GET", "/web/userdata/labels")
+    email_before = request("GET", "/web/userdata/labels/email/inbox/legacy-root.eml")
+    assigned = request(
+        "POST",
+        f"/web/userdata/labels/email/inbox/legacy-root.eml/{label_id}",
+    )
+    assigned_again = request(
+        "POST",
+        f"/web/userdata/labels/email/inbox/legacy-root.eml/{label_id}",
+    )
+    email_after_assign = request("GET", "/web/userdata/labels/email/inbox/legacy-root.eml")
+    removed = request(
+        "DELETE",
+        f"/web/userdata/labels/email/inbox/legacy-root.eml/{label_id}",
+    )
+    removed_again = request(
+        "DELETE",
+        f"/web/userdata/labels/email/inbox/legacy-root.eml/{label_id}",
+    )
+    email_after_remove = request("GET", "/web/userdata/labels/email/inbox/legacy-root.eml")
+    deleted = request("DELETE", f"/web/userdata/labels/{label_id}")
+    after = request("GET", "/web/userdata/labels")
+    missing_update = request(
+        "PUT",
+        "/web/userdata/labels/999999",
+        value={"name": "missing", "color": "#000000"},
+        canonicalize=True,
+    )
+    missing_delete = request(
+        "DELETE",
+        "/web/userdata/labels/999999",
+        canonicalize=True,
+    )
+    missing_assignment = request(
+        "POST",
+        "/web/userdata/labels/email/inbox/legacy-root.eml/999999",
+        canonicalize=True,
+    )
+    return {
+        "before": before,
+        "duplicate": duplicate,
+        "created": created,
+        "updated": updated,
+        "listed": listed,
+        "email_before": email_before,
+        "assigned": assigned,
+        "assigned_again": assigned_again,
+        "email_after_assign": email_after_assign,
+        "removed": removed,
+        "removed_again": removed_again,
+        "email_after_remove": email_after_remove,
+        "deleted": deleted,
+        "after": after,
+        "missing_update": missing_update,
+        "missing_delete": missing_delete,
+        "missing_assignment": missing_assignment,
+    }
+
+
+cast(Any, _capture_mail_mutations).__lmyzmail_contract__ = {
+    "protocol": "http",
+    "sequence": [
+        "list, reject duplicate, create, update, and list labels",
+        "assign and remove one label idempotently on the seeded email",
+        "delete the label and exercise missing-label errors",
+    ],
+    "headers": [
+        ["X-Session-Token", "<legacy-session-token>"],
+        ["Content-Type", "application/json"],
+    ],
+    "state": "attested legacy PostgreSQL seed and Maildir fixture",
+}
+
+
+def _capture_delete_email(target: RuntimeTarget) -> dict[str, Any]:
+    assert target.ports is not None
+    port = target.ports.http
+
+    def request(
+        method: str,
+        path: str,
+        *,
+        canonicalize: bool = False,
+    ) -> dict[str, Any]:
+        response = http_exchange(
+            "127.0.0.1",
+            port,
+            method,
+            path,
+            headers=_SESSION_HEADERS,
+            timeout=10.0,
+        )
+        if response.body.startswith((b"{", b"[")):
+            return http_json_snapshot(
+                response,
+                canonicalize_object_order=canonicalize,
+            )
+        return http_bytes_snapshot(response)
+
+    return {
+        "before_list": request("GET", "/web/mail/list/inbox?page=0&size=50"),
+        "before_stars": request("GET", "/web/userdata/stars/inbox"),
+        "before_labels": request("GET", "/web/userdata/labels/email/inbox/legacy-root.eml"),
+        "delete": request(
+            "DELETE",
+            "/web/mail/inbox/legacy-root.eml",
+            canonicalize=True,
+        ),
+        "after_list": request("GET", "/web/mail/list/inbox?page=0&size=50"),
+        "after_stars": request("GET", "/web/userdata/stars/inbox"),
+        "after_labels": request("GET", "/web/userdata/labels/email/inbox/legacy-root.eml"),
+        "after_detail": request("GET", "/web/mail/detail/inbox/legacy-root.eml"),
+        "after_raw": request("GET", "/web/mail/raw/inbox/legacy-root.eml"),
+        "delete_again": request("DELETE", "/web/mail/inbox/legacy-root.eml"),
+    }
+
+
+cast(Any, _capture_delete_email).__lmyzmail_contract__ = {
+    "protocol": "http",
+    "sequence": [
+        "observe seeded email, star, and label assignment",
+        "DELETE /web/mail/inbox/legacy-root.eml",
+        "observe list, star, label, detail, raw, and repeated-delete behavior",
+    ],
+    "headers": [["X-Session-Token", "<legacy-session-token>"]],
+    "state": "attested legacy PostgreSQL seed and Maildir fixture",
+}
+
+
+MAIL_MUTATION_SCENARIOS = (
+    Scenario(
+        "http/mail/labels-crud",
+        _capture_mail_mutations,
+        normalizers=("json-object-order:jdk-map-of:create-update",),
+    ),
+)
+MAIL_DELETE_SCENARIOS = (
+    Scenario(
+        "http/mail/delete-email",
+        _capture_delete_email,
+        normalizers=("json-object-order:jdk-map-of:delete-response",),
+    ),
+)
+
+
 class LegacyCandidateRuntime(CandidateRuntime):
     @property
     def requires_qa_account(self) -> bool:
@@ -226,7 +431,7 @@ def test_frozen_java_mail_read_golden(
     record_java_golden: bool,
 ) -> None:
     repository = Path(__file__).resolve().parents[2]
-    golden = repository / "blackbox/golden/java/managed-mail-read-v3"
+    golden = repository / "blackbox/golden/java/managed-mail-read-v6"
     runner = DifferentialRunner(
         repository,
         golden,
@@ -249,7 +454,7 @@ def test_rust_candidate_mail_read_matches_frozen_java_golden() -> None:
     with _candidate(repository) as candidate:
         DifferentialRunner(
             repository,
-            repository / "blackbox/golden/java/managed-mail-read-v3",
+            repository / "blackbox/golden/java/managed-mail-read-v6",
             "managed-mail-read",
         ).verify_candidate(MAIL_READ_SCENARIOS, candidate)
 
@@ -262,7 +467,7 @@ def test_frozen_java_mail_state_golden(
     record_java_golden: bool,
 ) -> None:
     repository = Path(__file__).resolve().parents[2]
-    golden = repository / "blackbox/golden/java/managed-mail-state-v1"
+    golden = repository / "blackbox/golden/java/managed-mail-state-v4"
     runner = DifferentialRunner(
         repository,
         golden,
@@ -285,9 +490,81 @@ def test_rust_candidate_mail_state_matches_frozen_java_golden() -> None:
     with _candidate(repository) as candidate:
         DifferentialRunner(
             repository,
-            repository / "blackbox/golden/java/managed-mail-state-v1",
+            repository / "blackbox/golden/java/managed-mail-state-v4",
             "managed-mail-state",
         ).verify_candidate(MAIL_STATE_SCENARIOS, candidate)
+
+
+@pytest.mark.integration
+@pytest.mark.oracle
+@pytest.mark.timeout(180)
+def test_frozen_java_mail_mutations_golden(
+    tmp_path: Path,
+    record_java_golden: bool,
+) -> None:
+    repository = Path(__file__).resolve().parents[2]
+    golden = repository / "blackbox/golden/java/managed-mail-mutations-v3"
+    runner = DifferentialRunner(
+        repository,
+        golden,
+        "managed-mail-mutations",
+        record_java=record_java_golden,
+    )
+    with PersistentJavaOracleRuntime(tmp_path / "java-mail-mutations") as oracle:
+        target = _OracleTarget(oracle)
+        if record_java_golden:
+            runner.record_from_java(MAIL_MUTATION_SCENARIOS, target)
+        else:
+            runner.verify_java(MAIL_MUTATION_SCENARIOS, target)
+
+
+@pytest.mark.integration
+@pytest.mark.candidate
+@pytest.mark.timeout(180)
+def test_rust_candidate_mail_mutations_match_frozen_java_golden() -> None:
+    repository = Path(__file__).resolve().parents[2]
+    with _candidate(repository) as candidate:
+        DifferentialRunner(
+            repository,
+            repository / "blackbox/golden/java/managed-mail-mutations-v3",
+            "managed-mail-mutations",
+        ).verify_candidate(MAIL_MUTATION_SCENARIOS, candidate)
+
+
+@pytest.mark.integration
+@pytest.mark.oracle
+@pytest.mark.timeout(180)
+def test_frozen_java_delete_email_golden(
+    tmp_path: Path,
+    record_java_golden: bool,
+) -> None:
+    repository = Path(__file__).resolve().parents[2]
+    golden = repository / "blackbox/golden/java/managed-mail-delete-v3"
+    runner = DifferentialRunner(
+        repository,
+        golden,
+        "managed-mail-delete",
+        record_java=record_java_golden,
+    )
+    with PersistentJavaOracleRuntime(tmp_path / "java-mail-delete") as oracle:
+        target = _OracleTarget(oracle)
+        if record_java_golden:
+            runner.record_from_java(MAIL_DELETE_SCENARIOS, target)
+        else:
+            runner.verify_java(MAIL_DELETE_SCENARIOS, target)
+
+
+@pytest.mark.integration
+@pytest.mark.candidate
+@pytest.mark.timeout(180)
+def test_rust_candidate_delete_email_matches_frozen_java_golden() -> None:
+    repository = Path(__file__).resolve().parents[2]
+    with _candidate(repository) as candidate:
+        DifferentialRunner(
+            repository,
+            repository / "blackbox/golden/java/managed-mail-delete-v3",
+            "managed-mail-delete",
+        ).verify_candidate(MAIL_DELETE_SCENARIOS, candidate)
 
 
 @pytest.mark.integration

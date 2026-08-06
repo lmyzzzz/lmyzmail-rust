@@ -442,7 +442,7 @@ def test_managed_java_http_and_smtp_golden(record_java_golden: bool) -> None:
     paths = JavaOracleRuntime().paths
     runner = DifferentialRunner(
         paths.repository,
-        paths.repository / "blackbox/golden/java/managed-basic-v28",
+        paths.repository / "blackbox/golden/java/managed-basic-v31",
         "managed-basic",
         record_java=record_java_golden,
     )

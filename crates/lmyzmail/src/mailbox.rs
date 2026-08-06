@@ -10,6 +10,7 @@ use ammonia::clean;
 use deadpool_postgres::{
     Config as DatabasePoolConfig, ManagerConfig, Pool, PoolConfig, RecyclingMethod, Runtime,
 };
+use getrandom::fill as fill_random;
 use mail_parser::{MessageParser, MimeHeaders, PartType};
 use serde::Serialize;
 use tokio::{task::spawn_blocking, time::timeout};
@@ -104,6 +105,13 @@ pub struct AttachmentMeta {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_id: Option<String>,
     pub inline: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct LabelRecord {
+    pub id: i64,
+    pub name: String,
+    pub color: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -359,6 +367,294 @@ impl MailboxService {
         Ok(starred)
     }
 
+    pub async fn list_labels(&self, mailbox: &str) -> Result<Vec<LabelRecord>, MailboxError> {
+        let mailbox = normalize_mailbox(mailbox)?;
+        let client = self.db().await?;
+        let rows = timeout(
+            DATABASE_TIMEOUT,
+            client.query(
+                "SELECT id, label_name, color FROM email_label
+                 WHERE mailbox_address=$1 ORDER BY label_name ASC, id ASC",
+                &[&mailbox],
+            ),
+        )
+        .await
+        .map_err(|_| MailboxError::Database("query timeout".into()))?
+        .map_err(db_error)?;
+        Ok(rows
+            .into_iter()
+            .map(|row| LabelRecord {
+                id: row.get(0),
+                name: row.get(1),
+                color: row.get(2),
+            })
+            .collect())
+    }
+
+    pub async fn create_label(
+        &self,
+        mailbox: &str,
+        name: &str,
+        color: Option<&str>,
+    ) -> Result<LabelRecord, MailboxError> {
+        let name = validate_label_name(name)?;
+        let color = validate_label_color(color)?;
+        let mailbox = normalize_mailbox(mailbox)?;
+        let mut client = self.db().await?;
+        let transaction = self.lock_mailbox(&mut client, &mailbox).await?;
+        let existing = timeout(
+            DATABASE_TIMEOUT,
+            transaction.query_opt(
+                "SELECT id FROM email_label WHERE mailbox_address=$1 AND label_name=$2",
+                &[&mailbox, &name],
+            ),
+        )
+        .await
+        .map_err(|_| MailboxError::Database("query timeout".into()))?
+        .map_err(db_error)?;
+        if existing.is_some() {
+            return Err(MailboxError::InvalidInput("Label already exists".into()));
+        }
+        let row = timeout(
+            DATABASE_TIMEOUT,
+            transaction.query_one(
+                "INSERT INTO email_label (mailbox_address, label_name, color, created_at)
+                 VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+                 RETURNING id, label_name, color",
+                &[&mailbox, &name, &color],
+            ),
+        )
+        .await
+        .map_err(|_| MailboxError::Database("insert timeout".into()))?
+        .map_err(db_error)?;
+        let label = LabelRecord {
+            id: row.get(0),
+            name: row.get(1),
+            color: row.get(2),
+        };
+        timeout(DATABASE_TIMEOUT, transaction.commit())
+            .await
+            .map_err(|_| MailboxError::Database("commit timeout".into()))?
+            .map_err(db_error)?;
+        Ok(label)
+    }
+
+    pub async fn update_label(
+        &self,
+        mailbox: &str,
+        id: i64,
+        name: &str,
+        color: Option<&str>,
+    ) -> Result<LabelRecord, MailboxError> {
+        let name = validate_label_name(name)?;
+        let color = validate_label_color(color)?;
+        let mailbox = normalize_mailbox(mailbox)?;
+        let mut client = self.db().await?;
+        let transaction = self.lock_mailbox(&mut client, &mailbox).await?;
+        let row = timeout(
+            DATABASE_TIMEOUT,
+            transaction.query_opt(
+                "UPDATE email_label SET label_name=$1, color=$2
+                 WHERE mailbox_address=$3 AND id=$4
+                 RETURNING id, label_name, color",
+                &[&name, &color, &mailbox, &id],
+            ),
+        )
+        .await
+        .map_err(|_| MailboxError::Database("update timeout".into()))?
+        .map_err(db_error)?
+        .ok_or_else(|| MailboxError::InvalidInput("Label not found".into()))?;
+        let label = LabelRecord {
+            id: row.get(0),
+            name: row.get(1),
+            color: row.get(2),
+        };
+        timeout(DATABASE_TIMEOUT, transaction.commit())
+            .await
+            .map_err(|_| MailboxError::Database("commit timeout".into()))?
+            .map_err(db_error)?;
+        Ok(label)
+    }
+
+    pub async fn delete_label(&self, mailbox: &str, id: i64) -> Result<(), MailboxError> {
+        let mailbox = normalize_mailbox(mailbox)?;
+        let mut client = self.db().await?;
+        let transaction = self.lock_mailbox(&mut client, &mailbox).await?;
+        let deleted = timeout(
+            DATABASE_TIMEOUT,
+            transaction.execute(
+                "DELETE FROM email_label_assignment WHERE mailbox_address=$1 AND label_id=$2",
+                &[&mailbox, &id],
+            ),
+        )
+        .await
+        .map_err(|_| MailboxError::Database("assignment delete timeout".into()))?
+        .map_err(db_error)?;
+        let _ = deleted;
+        let labels_deleted = timeout(
+            DATABASE_TIMEOUT,
+            transaction.execute(
+                "DELETE FROM email_label WHERE mailbox_address=$1 AND id=$2",
+                &[&mailbox, &id],
+            ),
+        )
+        .await
+        .map_err(|_| MailboxError::Database("label delete timeout".into()))?
+        .map_err(db_error)?;
+        if labels_deleted == 0 {
+            return Err(MailboxError::InvalidInput("Label not found".into()));
+        }
+        timeout(DATABASE_TIMEOUT, transaction.commit())
+            .await
+            .map_err(|_| MailboxError::Database("commit timeout".into()))?
+            .map_err(db_error)
+    }
+
+    pub async fn email_labels(
+        &self,
+        mailbox: &str,
+        folder: &str,
+        file_name: &str,
+    ) -> Result<Vec<i64>, MailboxError> {
+        validate_folder(folder)?;
+        validate_filename(file_name)?;
+        let mailbox = normalize_mailbox(mailbox)?;
+        let client = self.db().await?;
+        let rows = timeout(
+            DATABASE_TIMEOUT,
+            client.query(
+                "SELECT label_id FROM email_label_assignment
+                 WHERE mailbox_address=$1 AND folder=$2 AND email_file_name=$3
+                 ORDER BY label_id ASC",
+                &[&mailbox, &folder, &file_name],
+            ),
+        )
+        .await
+        .map_err(|_| MailboxError::Database("query timeout".into()))?
+        .map_err(db_error)?;
+        Ok(rows.into_iter().map(|row| row.get(0)).collect())
+    }
+
+    pub async fn assign_label(
+        &self,
+        mailbox: &str,
+        folder: &str,
+        file_name: &str,
+        label_id: i64,
+    ) -> Result<(), MailboxError> {
+        validate_folder(folder)?;
+        validate_filename(file_name)?;
+        let mailbox = normalize_mailbox(mailbox)?;
+        let mut client = self.db().await?;
+        let transaction = self.lock_mailbox(&mut client, &mailbox).await?;
+        let label_exists = timeout(
+            DATABASE_TIMEOUT,
+            transaction.query_opt(
+                "SELECT id FROM email_label WHERE mailbox_address=$1 AND id=$2",
+                &[&mailbox, &label_id],
+            ),
+        )
+        .await
+        .map_err(|_| MailboxError::Database("label query timeout".into()))?
+        .map_err(db_error)?
+        .is_some();
+        if !label_exists {
+            return Err(MailboxError::InvalidInput("Label not found".into()));
+        }
+        let assignment_exists = timeout(
+            DATABASE_TIMEOUT,
+            transaction.query_opt(
+                "SELECT id FROM email_label_assignment
+                 WHERE mailbox_address=$1 AND folder=$2 AND email_file_name=$3 AND label_id=$4",
+                &[&mailbox, &folder, &file_name, &label_id],
+            ),
+        )
+        .await
+        .map_err(|_| MailboxError::Database("assignment query timeout".into()))?
+        .map_err(db_error)?
+        .is_some();
+        if !assignment_exists {
+            timeout(
+                DATABASE_TIMEOUT,
+                transaction.execute(
+                    "INSERT INTO email_label_assignment
+                     (mailbox_address, folder, email_file_name, label_id, assigned_at)
+                     VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)",
+                    &[&mailbox, &folder, &file_name, &label_id],
+                ),
+            )
+            .await
+            .map_err(|_| MailboxError::Database("assignment insert timeout".into()))?
+            .map_err(db_error)?;
+        }
+        timeout(DATABASE_TIMEOUT, transaction.commit())
+            .await
+            .map_err(|_| MailboxError::Database("commit timeout".into()))?
+            .map_err(db_error)
+    }
+
+    pub async fn remove_label(
+        &self,
+        mailbox: &str,
+        folder: &str,
+        file_name: &str,
+        label_id: i64,
+    ) -> Result<(), MailboxError> {
+        validate_folder(folder)?;
+        validate_filename(file_name)?;
+        let mailbox = normalize_mailbox(mailbox)?;
+        let mut client = self.db().await?;
+        let transaction = self.lock_mailbox(&mut client, &mailbox).await?;
+        let row = timeout(
+            DATABASE_TIMEOUT,
+            transaction.query_opt(
+                "SELECT id FROM email_label_assignment
+                 WHERE mailbox_address=$1 AND folder=$2 AND email_file_name=$3 AND label_id=$4
+                 ORDER BY id ASC LIMIT 1",
+                &[&mailbox, &folder, &file_name, &label_id],
+            ),
+        )
+        .await
+        .map_err(|_| MailboxError::Database("assignment query timeout".into()))?
+        .map_err(db_error)?;
+        if let Some(row) = row {
+            let id: i64 = row.get(0);
+            timeout(
+                DATABASE_TIMEOUT,
+                transaction.execute("DELETE FROM email_label_assignment WHERE id=$1", &[&id]),
+            )
+            .await
+            .map_err(|_| MailboxError::Database("assignment delete timeout".into()))?
+            .map_err(db_error)?;
+        }
+        timeout(DATABASE_TIMEOUT, transaction.commit())
+            .await
+            .map_err(|_| MailboxError::Database("commit timeout".into()))?
+            .map_err(db_error)
+    }
+
+    async fn lock_mailbox<'a>(
+        &self,
+        client: &'a mut deadpool_postgres::Object,
+        mailbox: &str,
+    ) -> Result<deadpool_postgres::Transaction<'a>, MailboxError> {
+        let transaction = timeout(DATABASE_TIMEOUT, client.transaction())
+            .await
+            .map_err(|_| MailboxError::Database("transaction timeout".into()))?
+            .map_err(db_error)?;
+        timeout(
+            DATABASE_TIMEOUT,
+            transaction.query_opt(
+                "SELECT id FROM mailbox WHERE address=$1 FOR UPDATE",
+                &[&mailbox],
+            ),
+        )
+        .await
+        .map_err(|_| MailboxError::Database("mailbox lock timeout".into()))?
+        .map_err(db_error)?;
+        Ok(transaction)
+    }
+
     pub async fn read_detail(
         &self,
         mailbox: &str,
@@ -395,6 +691,37 @@ impl MailboxService {
             .await
             .map_err(MailboxError::Io)?;
         Ok((file, length))
+    }
+
+    pub async fn delete_email(
+        &self,
+        mailbox: &str,
+        folder: &str,
+        file_name: &str,
+    ) -> Result<(), MailboxError> {
+        let path = self.authorized_path(mailbox, folder, file_name).await?;
+        let parent = path.parent().ok_or(MailboxError::NotFound)?.to_owned();
+        let tombstone = deletion_tombstone(&parent)?;
+        tokio::fs::rename(&path, &tombstone)
+            .await
+            .map_err(|_| MailboxError::NotFound)?;
+        let result = self.remove_email_rows(mailbox, folder, file_name).await;
+        if let Err(error) = result {
+            let _ = tokio::fs::rename(&tombstone, &path).await;
+            return Err(error);
+        }
+        tokio::fs::remove_file(&tombstone)
+            .await
+            .map_err(MailboxError::Io)?;
+        let parent_for_sync = parent.clone();
+        spawn_blocking(move || {
+            let directory = std::fs::File::open(parent_for_sync)?;
+            directory.sync_all()
+        })
+        .await
+        .map_err(|error| MailboxError::Database(format!("directory sync task failed: {error}")))?
+        .map_err(MailboxError::Io)?;
+        Ok(())
     }
 
     pub async fn read_headers(
@@ -486,6 +813,46 @@ impl MailboxService {
         Ok((starred, labels))
     }
 
+    async fn remove_email_rows(
+        &self,
+        mailbox: &str,
+        folder: &str,
+        file_name: &str,
+    ) -> Result<(), MailboxError> {
+        let mailbox = normalize_mailbox(mailbox)?;
+        let mut client = self.db().await?;
+        let transaction = self.lock_mailbox(&mut client, &mailbox).await?;
+        let deleted = timeout(
+            DATABASE_TIMEOUT,
+            transaction.execute(
+                "DELETE FROM email_index
+                 WHERE mailbox_address=$1 AND folder=$2 AND file_name=$3",
+                &[&mailbox, &folder, &file_name],
+            ),
+        )
+        .await
+        .map_err(|_| MailboxError::Database("index delete timeout".into()))?
+        .map_err(db_error)?;
+        if deleted == 0 {
+            return Err(MailboxError::NotFound);
+        }
+        timeout(
+            DATABASE_TIMEOUT,
+            transaction.execute(
+                "DELETE FROM starred_email
+                 WHERE mailbox_address=$1 AND folder=$2 AND email_file_name=$3",
+                &[&mailbox, &folder, &file_name],
+            ),
+        )
+        .await
+        .map_err(|_| MailboxError::Database("star delete timeout".into()))?
+        .map_err(db_error)?;
+        timeout(DATABASE_TIMEOUT, transaction.commit())
+            .await
+            .map_err(|_| MailboxError::Database("commit timeout".into()))?
+            .map_err(db_error)
+    }
+
     async fn db(&self) -> Result<deadpool_postgres::Object, MailboxError> {
         timeout(DATABASE_TIMEOUT, self.pool.get())
             .await
@@ -543,6 +910,34 @@ fn validate_filename(file_name: &str) -> Result<(), MailboxError> {
         return Err(MailboxError::InvalidFileName);
     }
     Ok(())
+}
+
+fn validate_label_name(name: &str) -> Result<String, MailboxError> {
+    if name.is_empty() || name.len() > 100 || name.bytes().any(|byte| byte < 0x20 || byte == 0x7f) {
+        return Err(MailboxError::InvalidInput("Invalid label name".into()));
+    }
+    Ok(name.to_owned())
+}
+
+fn validate_label_color(color: Option<&str>) -> Result<Option<String>, MailboxError> {
+    let Some(color) = color else {
+        return Ok(None);
+    };
+    if color.len() > 20 || color.bytes().any(|byte| byte < 0x20 || byte == 0x7f) {
+        return Err(MailboxError::InvalidInput("Invalid label color".into()));
+    }
+    Ok(Some(color.to_owned()))
+}
+
+fn deletion_tombstone(parent: &Path) -> Result<PathBuf, MailboxError> {
+    let mut bytes = [0_u8; 16];
+    fill_random(&mut bytes).map_err(|error| MailboxError::Database(error.to_string()))?;
+    let mut suffix = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        use std::fmt::Write as _;
+        let _ = write!(suffix, "{byte:02x}");
+    }
+    Ok(parent.join(format!(".lmyzmail-delete-{suffix}.tmp")))
 }
 
 fn sanitize_address_for_path(address: &str) -> String {

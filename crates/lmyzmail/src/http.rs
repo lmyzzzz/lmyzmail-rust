@@ -418,6 +418,32 @@ enum AuthenticatedRoute {
         folder: String,
         file: String,
     },
+    DeleteEmail {
+        folder: String,
+        file: String,
+    },
+    Labels,
+    CreateLabel,
+    UpdateLabel {
+        id: i64,
+    },
+    DeleteLabel {
+        id: i64,
+    },
+    EmailLabels {
+        folder: String,
+        file: String,
+    },
+    AssignLabel {
+        folder: String,
+        file: String,
+        label_id: i64,
+    },
+    RemoveLabel {
+        folder: String,
+        file: String,
+        label_id: i64,
+    },
 }
 
 async fn handle_authenticated_request(
@@ -551,6 +577,158 @@ async fn handle_authenticated_request(
                 Err(_) => write_not_found(stream).await,
             }
         }
+        AuthenticatedRoute::DeleteEmail { folder, file } => {
+            match mailbox.delete_email(mailbox_address, &folder, &file).await {
+                Ok(()) => {
+                    write_json_response(
+                        stream,
+                        Status::Ok,
+                        &DeleteResponse {
+                            deleted: &file,
+                            success: true,
+                        },
+                    )
+                    .await
+                }
+                Err(MailboxError::InvalidInput(message)) => {
+                    write_invalid_input(stream, &message).await
+                }
+                Err(MailboxError::InvalidFileName) => write_not_found(stream).await,
+                Err(_) => write_not_found(stream).await,
+            }
+        }
+        AuthenticatedRoute::Labels => match mailbox.list_labels(mailbox_address).await {
+            Ok(labels) => write_json_response(stream, Status::Ok, &labels).await,
+            Err(_) => write_not_found(stream).await,
+        },
+        AuthenticatedRoute::CreateLabel => {
+            let Some(input) = parse_json_body::<LabelInput>(request) else {
+                return write_bad_request(stream).await;
+            };
+            let Some(name) = input.name.as_deref() else {
+                return write_invalid_input(stream, "Invalid label name").await;
+            };
+            match mailbox
+                .create_label(mailbox_address, name, input.color.as_deref())
+                .await
+            {
+                Ok(label) => {
+                    write_json_response(
+                        stream,
+                        Status::Created,
+                        &LabelWriteResponse {
+                            name: &label.name,
+                            id: label.id,
+                            color: label.color.as_deref(),
+                        },
+                    )
+                    .await
+                }
+                Err(MailboxError::InvalidInput(message)) => {
+                    write_label_error(stream, &message).await
+                }
+                Err(_) => {
+                    write_response(
+                        stream,
+                        Status::InternalServerError,
+                        br#"{"error":"label_unavailable"}"#,
+                        "application/json; charset=UTF-8",
+                    )
+                    .await
+                }
+            }
+        }
+        AuthenticatedRoute::UpdateLabel { id } => {
+            let Some(input) = parse_json_body::<LabelInput>(request) else {
+                return write_bad_request(stream).await;
+            };
+            let Some(name) = input.name.as_deref() else {
+                return write_invalid_input(stream, "Invalid label name").await;
+            };
+            match mailbox
+                .update_label(mailbox_address, id, name, input.color.as_deref())
+                .await
+            {
+                Ok(label) => {
+                    write_json_response(
+                        stream,
+                        Status::Ok,
+                        &LabelWriteResponse {
+                            name: &label.name,
+                            id: label.id,
+                            color: label.color.as_deref(),
+                        },
+                    )
+                    .await
+                }
+                Err(MailboxError::InvalidInput(message)) => {
+                    write_label_error(stream, &message).await
+                }
+                Err(_) => write_not_found(stream).await,
+            }
+        }
+        AuthenticatedRoute::DeleteLabel { id } => {
+            match mailbox.delete_label(mailbox_address, id).await {
+                Ok(()) => {
+                    write_json_response(stream, Status::Ok, &SuccessResponse { success: true })
+                        .await
+                }
+                Err(MailboxError::InvalidInput(message)) => {
+                    write_label_error(stream, &message).await
+                }
+                Err(_) => write_not_found(stream).await,
+            }
+        }
+        AuthenticatedRoute::EmailLabels { folder, file } => {
+            match mailbox.email_labels(mailbox_address, &folder, &file).await {
+                Ok(labels) => write_json_response(stream, Status::Ok, &labels).await,
+                Err(MailboxError::InvalidInput(message)) => {
+                    write_invalid_input(stream, &message).await
+                }
+                Err(MailboxError::InvalidFileName) => write_not_found(stream).await,
+                Err(_) => write_not_found(stream).await,
+            }
+        }
+        AuthenticatedRoute::AssignLabel {
+            folder,
+            file,
+            label_id,
+        } => {
+            match mailbox
+                .assign_label(mailbox_address, &folder, &file, label_id)
+                .await
+            {
+                Ok(()) => {
+                    write_json_response(stream, Status::Ok, &SuccessResponse { success: true })
+                        .await
+                }
+                Err(MailboxError::InvalidInput(message)) => {
+                    write_label_error(stream, &message).await
+                }
+                Err(MailboxError::InvalidFileName) => write_not_found(stream).await,
+                Err(_) => write_not_found(stream).await,
+            }
+        }
+        AuthenticatedRoute::RemoveLabel {
+            folder,
+            file,
+            label_id,
+        } => {
+            match mailbox
+                .remove_label(mailbox_address, &folder, &file, label_id)
+                .await
+            {
+                Ok(()) => {
+                    write_json_response(stream, Status::Ok, &SuccessResponse { success: true })
+                        .await
+                }
+                Err(MailboxError::InvalidInput(message)) => {
+                    write_invalid_input(stream, &message).await
+                }
+                Err(MailboxError::InvalidFileName) => write_not_found(stream).await,
+                Err(_) => write_not_found(stream).await,
+            }
+        }
     }
 }
 
@@ -564,6 +742,29 @@ async fn write_invalid_input(stream: TcpStream, message: &str) -> io::Result<()>
         },
     )
     .await
+}
+
+async fn write_label_error(stream: TcpStream, message: &str) -> io::Result<()> {
+    write_json_response(
+        stream,
+        Status::BadRequest,
+        &LabelErrorResponse { error: message },
+    )
+    .await
+}
+
+async fn write_bad_request(stream: TcpStream) -> io::Result<()> {
+    write_response(
+        stream,
+        Status::BadRequest,
+        br#"{"error":"bad_request"}"#,
+        "application/json; charset=UTF-8",
+    )
+    .await
+}
+
+fn parse_json_body<T: for<'de> Deserialize<'de>>(request: &[u8]) -> Option<T> {
+    serde_json::from_slice(request_body(request)?).ok()
 }
 
 async fn write_not_found(stream: TcpStream) -> io::Result<()> {
@@ -671,6 +872,40 @@ fn authenticated_route(request: &[u8]) -> Result<Option<AuthenticatedRoute>, ()>
         ("POST", ["web", "mail", "star", ..]) => {
             let (folder, file) = parse_folder_file(&segments)?;
             Ok(Some(AuthenticatedRoute::ToggleStar { folder, file }))
+        }
+        ("DELETE", ["web", "mail", folder, file]) => Ok(Some(AuthenticatedRoute::DeleteEmail {
+            folder: decode(folder)?,
+            file: decode(file)?,
+        })),
+        ("GET", ["web", "userdata", "labels"]) => Ok(Some(AuthenticatedRoute::Labels)),
+        ("POST", ["web", "userdata", "labels"]) => Ok(Some(AuthenticatedRoute::CreateLabel)),
+        ("PUT", ["web", "userdata", "labels", id]) => Ok(Some(AuthenticatedRoute::UpdateLabel {
+            id: id.parse().map_err(|_| ())?,
+        })),
+        ("DELETE", ["web", "userdata", "labels", id]) => {
+            Ok(Some(AuthenticatedRoute::DeleteLabel {
+                id: id.parse().map_err(|_| ())?,
+            }))
+        }
+        ("GET", ["web", "userdata", "labels", "email", folder, file]) => {
+            Ok(Some(AuthenticatedRoute::EmailLabels {
+                folder: decode(folder)?,
+                file: decode(file)?,
+            }))
+        }
+        ("POST", ["web", "userdata", "labels", "email", folder, file, label_id]) => {
+            Ok(Some(AuthenticatedRoute::AssignLabel {
+                folder: decode(folder)?,
+                file: decode(file)?,
+                label_id: label_id.parse().map_err(|_| ())?,
+            }))
+        }
+        ("DELETE", ["web", "userdata", "labels", "email", folder, file, label_id]) => {
+            Ok(Some(AuthenticatedRoute::RemoveLabel {
+                folder: decode(folder)?,
+                file: decode(file)?,
+                label_id: label_id.parse().map_err(|_| ())?,
+            }))
         }
         _ => Ok(None),
     }
@@ -1176,6 +1411,35 @@ struct RawHeadersResponse {
 #[derive(Serialize)]
 struct StarResponse {
     starred: bool,
+}
+
+#[derive(Serialize)]
+struct SuccessResponse {
+    success: bool,
+}
+
+#[derive(Serialize)]
+struct DeleteResponse<'a> {
+    deleted: &'a str,
+    success: bool,
+}
+
+#[derive(Serialize)]
+struct LabelWriteResponse<'a> {
+    name: &'a str,
+    id: i64,
+    color: Option<&'a str>,
+}
+
+#[derive(Serialize)]
+struct LabelErrorResponse<'a> {
+    error: &'a str,
+}
+
+#[derive(Debug, Deserialize)]
+struct LabelInput {
+    name: Option<String>,
+    color: Option<String>,
 }
 
 #[derive(Serialize)]

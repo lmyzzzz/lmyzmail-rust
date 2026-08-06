@@ -1,0 +1,466 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "54e4292344a678532bd80fd498ef6cacfd55365e2c3db564148d41edb3a766fb",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "suite-manifest-v1"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-basic"
+  },
+  "observation": {
+    "profile": "managed-basic",
+    "scenarios": [
+      {
+        "contract": {
+          "headers": [],
+          "json": null,
+          "method": "GET",
+          "protocol": "http",
+          "target": "/api/health"
+        },
+        "name": "http/public/health",
+        "normalizers": [
+          "header:date:http-date",
+          "json:timestamp",
+          "header:content-length:normalized-json"
+        ]
+      },
+      {
+        "contract": {
+          "lore_manifest_sha256": "c99c06cbbd5caace788afe085f1a0b8d83a07e99afebe549cb0305801039b09e",
+          "method": "GET",
+          "protocol": "http",
+          "random_contract": "teapot-or-member-of-frozen-233-lore-set",
+          "target": "/api/skibidi"
+        },
+        "name": "http/public/skibidi-variant",
+        "normalizers": [
+          "random:/api/skibidi:documented-variant-set",
+          "json:timestamp"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [],
+          "json": {},
+          "method": "POST",
+          "protocol": "http",
+          "target": "/api/status"
+        },
+        "name": "http/api/missing-key",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [
+            [
+              "X-API-Key",
+              "wrong-key"
+            ]
+          ],
+          "json": {},
+          "method": "POST",
+          "protocol": "http",
+          "target": "/api/status"
+        },
+        "name": "http/api/wrong-key",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [
+            [
+              "X-API-Key",
+              "blackbox-admin-key"
+            ]
+          ],
+          "json": {},
+          "method": "POST",
+          "protocol": "http",
+          "target": "/api/status"
+        },
+        "name": "http/api/status",
+        "normalizers": [
+          "header:date:http-date",
+          "json:timestamp",
+          "header:content-length:normalized-json"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [],
+          "json": null,
+          "method": "GET",
+          "protocol": "http",
+          "target": "/api/does-not-exist"
+        },
+        "name": "http/api/unknown-before-routing",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [],
+          "json": null,
+          "method": "GET",
+          "protocol": "http",
+          "target": "/does-not-exist"
+        },
+        "name": "http/routing/not-found",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [],
+          "json": {},
+          "method": "POST",
+          "protocol": "http",
+          "target": "/api/health"
+        },
+        "name": "http/routing/wrong-method-is-not-found",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "body": "empty",
+          "headers": [
+            [
+              "Origin",
+              "<allowed-origin:ephemeral-port>"
+            ],
+            [
+              "Access-Control-Request-Method",
+              "POST"
+            ]
+          ],
+          "method": "OPTIONS",
+          "protocol": "http",
+          "target": "/api/status"
+        },
+        "name": "http/cors/allowed-preflight",
+        "normalizers": [
+          "header:date:http-date",
+          "header:access-control-allow-origin:ephemeral-port"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [
+            [
+              "Origin",
+              "https://evil.example"
+            ]
+          ],
+          "json": null,
+          "method": "OPTIONS",
+          "protocol": "http",
+          "target": "/api/status"
+        },
+        "name": "http/cors/rejected-preflight",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [],
+          "json": {
+            "address": "qa@example.test",
+            "password": "BlackboxPass123!"
+          },
+          "method": "POST",
+          "protocol": "http",
+          "target": "/web/login"
+        },
+        "name": "http/web/login-success",
+        "normalizers": [
+          "header:date:http-date",
+          "json:session-token",
+          "header:content-length:normalized-json"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [],
+          "json": {
+            "address": "qa@example.test",
+            "password": "wrong-password"
+          },
+          "method": "POST",
+          "protocol": "http",
+          "target": "/web/login"
+        },
+        "name": "http/web/login-invalid",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [],
+          "json": {
+            "address": "qa@example.test",
+            "password": "BlackboxPass123!"
+          },
+          "method": "POST",
+          "protocol": "http",
+          "target": "/web/register"
+        },
+        "name": "http/web/register-existing",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [],
+          "json": {},
+          "method": "POST",
+          "protocol": "http",
+          "target": "/web/logout"
+        },
+        "name": "http/web/logout-without-token",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [],
+          "json": null,
+          "method": "GET",
+          "protocol": "http",
+          "target": "/web/domains"
+        },
+        "name": "http/web/domains",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [],
+          "json": null,
+          "method": "GET",
+          "protocol": "http",
+          "target": "/web/config"
+        },
+        "name": "http/web/config",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "body": "empty",
+          "headers": [],
+          "method": "GET",
+          "protocol": "http",
+          "target": "/"
+        },
+        "name": "http/static/index",
+        "normalizers": [
+          "header:date:http-date"
+        ]
+      },
+      {
+        "contract": {
+          "body": "empty",
+          "headers": [],
+          "method": "GET",
+          "protocol": "http",
+          "target": "/index.html"
+        },
+        "name": "http/static/index-alias",
+        "normalizers": [
+          "header:date:http-date"
+        ]
+      },
+      {
+        "contract": {
+          "body": "empty",
+          "headers": [],
+          "method": "GET",
+          "protocol": "http",
+          "target": "/cringe.html"
+        },
+        "name": "http/static/cringe",
+        "normalizers": [
+          "header:date:http-date"
+        ]
+      },
+      {
+        "contract": {
+          "body": "empty",
+          "headers": [],
+          "method": "GET",
+          "protocol": "http",
+          "target": "/favicon.ico"
+        },
+        "name": "http/static/favicon",
+        "normalizers": [
+          "header:date:http-date"
+        ]
+      },
+      {
+        "contract": {
+          "headers": [],
+          "json": null,
+          "method": "GET",
+          "protocol": "http",
+          "target": "/%2e%2e/application.properties"
+        },
+        "name": "http/static/path-traversal",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "api_strategy": "opposite-permission-key-must-match-route-and-return-403",
+          "manifest_sha256": "3dc87b126779f99cfd27dc9821daa40740c4feb3067c6486569411166ec0fdbc",
+          "operation": "route-auth-permission-matrix",
+          "protocol": "http",
+          "session_strategy": "missing-token-must-match-route-and-return-401"
+        },
+        "name": "http/routes/auth-permission-matrix",
+        "normalizers": [
+          "header:date:http-date",
+          "json-object-order:jdk-map-of"
+        ]
+      },
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "envelope_from": "<>",
+          "maildir_residue": "no-orphans-no-temp-no-symlinks-no-prior-file-mutation",
+          "message_id": "<bb-data-001@example.test>",
+          "message_sha256": "11e99ac1ed03b0a320db13ac1634fce4e9f7ba484c328a72ed6ddfa8ca6e7ec7",
+          "mode": "DATA",
+          "operation": "inbound-delivery",
+          "protocol": "smtp",
+          "recipient": "qa@example.test",
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ],
+          "storage_visibility": "joint-15-second-absolute-deadline"
+        },
+        "name": "smtp/inbound/data-storage",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:data-dot-unstuff"
+        ]
+      },
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "envelope_from": "<>",
+          "maildir_residue": "no-orphans-no-temp-no-symlinks-no-prior-file-mutation",
+          "message_id": "<bb-pipeline-001@example.test>",
+          "message_sha256": "eac3799b3aad3b9729a5e69952097439e3c49f51bc368287f4d3c35abd50a857",
+          "mode": "PIPELINING",
+          "operation": "inbound-delivery",
+          "protocol": "smtp",
+          "recipient": "qa@example.test",
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ],
+          "storage_visibility": "joint-15-second-absolute-deadline"
+        },
+        "name": "smtp/inbound/pipelining-storage",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:pipelining-data-waits-for-354"
+        ]
+      },
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "envelope_from": "<>",
+          "maildir_residue": "no-orphans-no-temp-no-symlinks-no-prior-file-mutation",
+          "message_id": "<bb-bdat-001@example.test>",
+          "message_sha256": "f7925dfe50e02c9c0acba64f4a36aa9a791a49eec7757b1b2d130732ac3c848e",
+          "mode": "BDAT",
+          "operation": "inbound-delivery",
+          "protocol": "smtp",
+          "recipient": "qa@example.test",
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ],
+          "storage_visibility": "joint-15-second-absolute-deadline"
+        },
+        "name": "smtp/inbound/bdat-storage",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:bdat-chunk-framing"
+        ]
+      }
+    ]
+  },
+  "schema_version": 2
+}
