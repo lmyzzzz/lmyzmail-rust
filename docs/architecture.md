@@ -18,3 +18,7 @@ Every cross-module request carries a deadline and cancellation token. Capacity
 is reserved before accepting work; admission failure is observable at the same
 protocol boundary where overload occurs.
 
+The process creates one PostgreSQL pool at startup and clones its handle into
+HTTP authentication, mailbox, outbound, and SMTP modules. Consequently,
+`lmyzmail.postgres.pool.max-size` (or the legacy Hikari alias) is a process-wide
+connection ceiling rather than a per-module multiplier.

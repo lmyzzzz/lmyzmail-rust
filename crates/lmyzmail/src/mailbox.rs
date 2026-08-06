@@ -9,14 +9,11 @@ use std::{
 };
 
 use ammonia::clean;
-use deadpool_postgres::{
-    Config as DatabasePoolConfig, ManagerConfig, Pool, PoolConfig, RecyclingMethod, Runtime,
-};
+use deadpool_postgres::Pool;
 use getrandom::fill as fill_random;
 use mail_parser::{MessageParser, MimeHeaders, PartType};
 use serde::Serialize;
 use tokio::{task::spawn_blocking, time::timeout};
-use tokio_postgres::NoTls;
 
 use crate::config::RuntimeConfig;
 
@@ -148,28 +145,14 @@ pub struct EmailDetail {
 }
 
 impl MailboxService {
-    pub fn from_config(config: &RuntimeConfig) -> Result<Self, MailboxError> {
-        let mut pool_config = DatabasePoolConfig::new();
-        pool_config.host = Some(config.postgres.host.clone());
-        pool_config.port = Some(config.postgres.port);
-        pool_config.dbname = Some(config.postgres.database.clone());
-        pool_config.user = Some(config.postgres.username.clone());
-        pool_config.password = Some(config.postgres.password.clone());
-        pool_config.connect_timeout = Some(DATABASE_TIMEOUT);
-        pool_config.manager = Some(ManagerConfig {
-            recycling_method: RecyclingMethod::Fast,
-        });
-        pool_config.pool = Some(PoolConfig::new(config.limits.postgres_pool as usize));
-        let pool = pool_config
-            .create_pool(Some(Runtime::Tokio1), NoTls)
-            .map_err(|error| MailboxError::Database(error.to_string()))?;
-        Ok(Self {
+    pub fn from_config(config: &RuntimeConfig, pool: Pool) -> Self {
+        Self {
             pool,
             base_dir: Arc::new(config.maildir.clone()),
             max_email_size: config.limits.max_email_size_bytes,
             max_attachment_size: config.limits.max_attachment_size_bytes,
             max_total_attachments_size: config.limits.max_total_attachments_size_bytes,
-        })
+        }
     }
 
     pub async fn list_folder(

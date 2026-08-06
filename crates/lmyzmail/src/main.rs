@@ -2,7 +2,7 @@ use std::{env, path::PathBuf, sync::Arc};
 
 use lmyzmail::{
     config::{Properties, RuntimeConfig},
-    http, lifecycle, smtp,
+    database, http, lifecycle, smtp,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -25,6 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         print_config_summary(&config, &config_path);
         return Ok(());
     }
+    let database_pool = database::create_pool(&config)?;
     let cancellation = CancellationToken::new();
     let signal_cancellation = cancellation.clone();
     let signal_task = tokio::spawn(lifecycle::wait_for_shutdown(signal_cancellation));
@@ -32,10 +33,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let smtp_config = Arc::clone(&config);
     let http_cancellation = cancellation.clone();
     let smtp_cancellation = cancellation.clone();
+    let http_pool = database_pool.clone();
     let http_task =
-        tokio::spawn(async move { http::serve_http(http_config, http_cancellation).await });
-    let smtp_task =
-        tokio::spawn(async move { smtp::serve_smtp(smtp_config, smtp_cancellation).await });
+        tokio::spawn(
+            async move { http::serve_http(http_config, http_pool, http_cancellation).await },
+        );
+    let smtp_task = tokio::spawn(async move {
+        smtp::serve_smtp(smtp_config, database_pool, smtp_cancellation).await
+    });
     tokio::select! {
         result = http_task => result??,
         result = smtp_task => result??,

@@ -12,9 +12,7 @@ use std::{
 };
 
 use chrono::{DateTime, Datelike, Timelike, Utc, Weekday};
-use deadpool_postgres::{
-    Config as DatabasePoolConfig, ManagerConfig, Pool, PoolConfig, RecyclingMethod, Runtime,
-};
+use deadpool_postgres::Pool;
 use getrandom::fill as fill_random;
 use openssl::pkcs12::Pkcs12;
 use rustls::{
@@ -28,7 +26,6 @@ use tokio::{
     task::{JoinSet, spawn_blocking},
     time::timeout,
 };
-use tokio_postgres::NoTls;
 use tokio_rustls::{TlsAcceptor, server::TlsStream};
 use tokio_util::sync::CancellationToken;
 
@@ -74,21 +71,7 @@ pub struct SmtpService {
 }
 
 impl SmtpService {
-    pub fn from_config(config: Arc<RuntimeConfig>) -> Result<Self, SmtpError> {
-        let mut pool_config = DatabasePoolConfig::new();
-        pool_config.host = Some(config.postgres.host.clone());
-        pool_config.port = Some(config.postgres.port);
-        pool_config.dbname = Some(config.postgres.database.clone());
-        pool_config.user = Some(config.postgres.username.clone());
-        pool_config.password = Some(config.postgres.password.clone());
-        pool_config.connect_timeout = Some(DATABASE_TIMEOUT);
-        pool_config.manager = Some(ManagerConfig {
-            recycling_method: RecyclingMethod::Fast,
-        });
-        pool_config.pool = Some(PoolConfig::new(config.limits.postgres_pool as usize));
-        let pool = pool_config
-            .create_pool(Some(Runtime::Tokio1), NoTls)
-            .map_err(|error| SmtpError::Database(error.to_string()))?;
+    pub fn from_config(config: Arc<RuntimeConfig>, pool: Pool) -> Result<Self, SmtpError> {
         let tls_acceptor = if config.tls.enabled {
             let path = config.tls.keystore_path.as_deref().ok_or_else(|| {
                 SmtpError::InvalidConfig("TLS keystore path is not configured".into())
@@ -389,11 +372,13 @@ impl SmtpService {
 
 pub async fn serve_smtp(
     config: Arc<RuntimeConfig>,
+    database_pool: Pool,
     cancellation: CancellationToken,
 ) -> io::Result<()> {
     let listener = TcpListener::bind((config.listen.host.as_str(), config.listen.smtp)).await?;
-    let service =
-        Arc::new(SmtpService::from_config(Arc::clone(&config)).map_err(io::Error::other)?);
+    let service = Arc::new(
+        SmtpService::from_config(Arc::clone(&config), database_pool).map_err(io::Error::other)?,
+    );
     let connections = Arc::new(Semaphore::new(MAX_CONNECTIONS));
     let mut tasks = JoinSet::new();
     loop {

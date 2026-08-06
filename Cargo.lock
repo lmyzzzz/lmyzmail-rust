@@ -679,6 +679,7 @@ dependencies = [
  "chrono",
  "deadpool-postgres",
  "getrandom 0.4.3",
+ "idna",
  "ipnet",
  "mail-parser",
  "openssl",

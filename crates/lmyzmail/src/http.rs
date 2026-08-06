@@ -1,6 +1,7 @@
 use std::{io, net::IpAddr, sync::Arc, time::Duration};
 
 use chrono::Utc;
+use deadpool_postgres::Pool;
 use percent_encoding::percent_decode_str;
 use serde::{Deserialize, Serialize};
 use subtle::ConstantTimeEq;
@@ -99,12 +100,16 @@ impl ServerLimits {
 
 pub async fn serve_http(
     config: Arc<RuntimeConfig>,
+    database_pool: Pool,
     cancellation: CancellationToken,
 ) -> io::Result<()> {
     let listener = TcpListener::bind((config.listen.host.as_str(), config.listen.http)).await?;
-    let auth = Arc::new(AuthService::from_config(&config).map_err(io::Error::other)?);
-    let mailbox = Arc::new(MailboxService::from_config(&config).map_err(io::Error::other)?);
-    let outbound = Arc::new(OutboundService::from_config(&config).map_err(io::Error::other)?);
+    let auth = Arc::new(
+        AuthService::from_config(&config, database_pool.clone()).map_err(io::Error::other)?,
+    );
+    let mailbox = Arc::new(MailboxService::from_config(&config, database_pool.clone()));
+    let outbound =
+        Arc::new(OutboundService::from_config(&config, database_pool).map_err(io::Error::other)?);
     let limits = ServerLimits::from_config(&config);
     let permits = Arc::new(Semaphore::new(limits.max_connections));
     let mut tasks = JoinSet::new();
@@ -335,7 +340,7 @@ async fn handle_connection(
             let Some(input) = parse_json_body::<SendRequest>(&request) else {
                 return write_json_error(stream, Status::BadRequest, "invalid_request").await;
             };
-            match outbound.enqueue(input, true).await {
+            match outbound.enqueue(input, Some((auth, &client_ip))).await {
                 Ok(result) => write_json_response(stream, Status::Accepted, &result).await,
                 Err(error) => write_outbound_error(stream, error, true).await,
             }
@@ -362,6 +367,9 @@ async fn handle_connection(
                 },
             )
             .await,
+            Err(OutboundError::InvalidInput(code)) => {
+                write_json_error(stream, Status::BadRequest, code).await
+            }
             Err(_) => write_json_error(stream, Status::InternalServerError, "outbound_unavailable").await,
         },
         ParsedRequest::ApiQuotaMissing => {
@@ -536,7 +544,7 @@ async fn handle_authenticated_request(
             if input.to.is_empty() && input.cc.is_empty() && input.bcc.is_empty() {
                 return write_json_error(stream, Status::BadRequest, "recipients_required").await;
             }
-            match outbound.enqueue(input, false).await {
+            match outbound.enqueue(input, None).await {
                 Ok(result) => {
                     write_json_response(
                         stream,

@@ -3,9 +3,7 @@ use std::{collections::HashMap, fmt, sync::Arc, time::Duration};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use bcrypt::{hash, verify};
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
-use deadpool_postgres::{
-    Config as DatabasePoolConfig, ManagerConfig, Pool, PoolConfig, RecyclingMethod, Runtime,
-};
+use deadpool_postgres::Pool;
 use getrandom::fill as fill_random;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -14,7 +12,6 @@ use tokio::{
     task::spawn_blocking,
     time::timeout,
 };
-use tokio_postgres::NoTls;
 
 use crate::config::RuntimeConfig;
 
@@ -64,6 +61,12 @@ pub struct RegisterResponse {
 pub enum LoginOutcome {
     Invalid { ip_banned: bool },
     Success,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum CredentialOutcome {
+    Invalid { ip_banned: bool },
+    Valid { address: String },
 }
 
 #[derive(Debug, Clone)]
@@ -122,22 +125,7 @@ pub struct AuthService {
 }
 
 impl AuthService {
-    pub fn from_config(config: &RuntimeConfig) -> Result<Self, AuthError> {
-        let mut pool_config = DatabasePoolConfig::new();
-        pool_config.host = Some(config.postgres.host.clone());
-        pool_config.port = Some(config.postgres.port);
-        pool_config.dbname = Some(config.postgres.database.clone());
-        pool_config.user = Some(config.postgres.username.clone());
-        pool_config.password = Some(config.postgres.password.clone());
-        pool_config.connect_timeout = Some(DB_TIMEOUT);
-        pool_config.manager = Some(ManagerConfig {
-            recycling_method: RecyclingMethod::Fast,
-        });
-        pool_config.pool = Some(PoolConfig::new(config.limits.postgres_pool as usize));
-        let pool = pool_config
-            .create_pool(Some(Runtime::Tokio1), NoTls)
-            .map_err(|error| AuthError::Database(error.to_string()))?;
-
+    pub fn from_config(config: &RuntimeConfig, pool: Pool) -> Result<Self, AuthError> {
         let session_expiry_days = config
             .preferred_value(
                 "lmyzmail.session.expiry-days",
@@ -235,24 +223,15 @@ impl AuthService {
         client_ip: &str,
         user_agent: Option<&str>,
     ) -> Result<(LoginOutcome, Option<LoginResponse>), AuthError> {
-        let address = normalize_login_address(address).unwrap_or_default();
-        let ip_banned = self.ban_expiry(client_ip).await.is_some();
-        if ip_banned {
-            return Ok((LoginOutcome::Invalid { ip_banned }, None));
-        }
-        let row = self.db_query_mailbox(&address).await?;
-        let (mailbox_id, password_hash) = match row {
-            Some(value) => (Some(value.0), value.1),
-            None => (None, DUMMY_BCRYPT.to_owned()),
+        let address = match self
+            .verify_mailbox_credentials(address, password, client_ip)
+            .await?
+        {
+            CredentialOutcome::Invalid { ip_banned } => {
+                return Ok((LoginOutcome::Invalid { ip_banned }, None));
+            }
+            CredentialOutcome::Valid { address } => address,
         };
-        let valid = self
-            .verify_password(password.to_owned(), password_hash)
-            .await?;
-        if !valid || mailbox_id.is_none() {
-            let banned = self.record_failure(client_ip, &address).await;
-            return Ok((LoginOutcome::Invalid { ip_banned: banned }, None));
-        }
-        self.clear_principal_failure(client_ip, &address).await;
         let token = generate_token()?;
         let token_hash = hash_token(&token);
         let now = Utc::now();
@@ -296,6 +275,32 @@ impl AuthService {
             LoginOutcome::Success,
             Some(LoginResponse { token, address }),
         ))
+    }
+
+    pub async fn verify_mailbox_credentials(
+        &self,
+        address: &str,
+        password: &str,
+        client_ip: &str,
+    ) -> Result<CredentialOutcome, AuthError> {
+        let address = normalize_login_address(address).unwrap_or_default();
+        if self.ban_expiry(client_ip).await.is_some() {
+            return Ok(CredentialOutcome::Invalid { ip_banned: true });
+        }
+        let row = self.db_query_mailbox(&address).await?;
+        let (mailbox_exists, password_hash) = match row {
+            Some((_, password_hash)) => (true, password_hash),
+            None => (false, DUMMY_BCRYPT.to_owned()),
+        };
+        let valid = self
+            .verify_password(password.to_owned(), password_hash)
+            .await?;
+        if !valid || !mailbox_exists {
+            let ip_banned = self.record_failure(client_ip, &address).await;
+            return Ok(CredentialOutcome::Invalid { ip_banned });
+        }
+        self.clear_principal_failure(client_ip, &address).await;
+        Ok(CredentialOutcome::Valid { address })
     }
 
     pub async fn register(

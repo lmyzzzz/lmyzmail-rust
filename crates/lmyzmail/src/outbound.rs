@@ -1,15 +1,17 @@
 use std::{collections::BTreeSet, fmt, sync::Arc, time::Duration};
 
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
-use deadpool_postgres::{
-    Config as DatabasePoolConfig, ManagerConfig, Pool, PoolConfig, RecyclingMethod, Runtime,
-};
+use deadpool_postgres::Pool;
 use getrandom::fill as fill_random;
+use idna::domain_to_ascii_strict;
+use mail_parser::MessageParser;
 use serde::{Deserialize, Serialize};
-use tokio::{sync::Semaphore, time::timeout};
-use tokio_postgres::NoTls;
+use tokio::time::timeout;
 
-use crate::config::RuntimeConfig;
+use crate::{
+    auth::{AuthError, AuthService, CredentialOutcome},
+    config::RuntimeConfig,
+};
 
 const DATABASE_TIMEOUT: Duration = Duration::from_secs(8);
 const DEFAULT_MAX_PENDING_TASKS: i64 = 10_000;
@@ -17,7 +19,7 @@ const DEFAULT_MAX_RETRIES: i32 = 5;
 const DEFAULT_MAX_EMAILS_PER_ACCOUNT: i64 = 100;
 const DEFAULT_RATE_WINDOW_HOURS: i64 = 3;
 const MAX_RECIPIENTS: usize = 1_000;
-const MAX_ADDRESS_BYTES: usize = 320;
+const MAX_ADDRESS_BYTES: usize = 254;
 const MAX_SUBJECT_BYTES: usize = 1_000;
 
 #[derive(Debug)]
@@ -66,7 +68,6 @@ pub struct OutboundService {
     max_email_size_bytes: u64,
     max_attachment_size_bytes: u64,
     max_total_attachments_size_bytes: u64,
-    password_permits: Arc<Semaphore>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -172,21 +173,7 @@ struct StatusRow {
 }
 
 impl OutboundService {
-    pub fn from_config(config: &RuntimeConfig) -> Result<Self, OutboundError> {
-        let mut pool_config = DatabasePoolConfig::new();
-        pool_config.host = Some(config.postgres.host.clone());
-        pool_config.port = Some(config.postgres.port);
-        pool_config.dbname = Some(config.postgres.database.clone());
-        pool_config.user = Some(config.postgres.username.clone());
-        pool_config.password = Some(config.postgres.password.clone());
-        pool_config.connect_timeout = Some(DATABASE_TIMEOUT);
-        pool_config.manager = Some(ManagerConfig {
-            recycling_method: RecyclingMethod::Fast,
-        });
-        pool_config.pool = Some(PoolConfig::new(config.limits.postgres_pool as usize));
-        let pool = pool_config
-            .create_pool(Some(Runtime::Tokio1), NoTls)
-            .map_err(|error| OutboundError::Database(error.to_string()))?;
+    pub fn from_config(config: &RuntimeConfig, pool: Pool) -> Result<Self, OutboundError> {
         let max_pending_tasks = parse_bounded_i64(
             config,
             "lmyzmail.outbound.max-pending-tasks",
@@ -229,16 +216,13 @@ impl OutboundService {
             max_email_size_bytes: config.limits.max_email_size_bytes,
             max_attachment_size_bytes: config.limits.max_attachment_size_bytes,
             max_total_attachments_size_bytes: config.limits.max_total_attachments_size_bytes,
-            password_permits: Arc::new(Semaphore::new(
-                (config.limits.postgres_pool as usize).clamp(1, 4),
-            )),
         })
     }
 
     pub async fn enqueue(
         &self,
         request: SendRequest,
-        require_password: bool,
+        credentials: Option<(&AuthService, &str)>,
     ) -> Result<QueueResponse, OutboundError> {
         if request.asynchronous == Some(false) {
             return Err(OutboundError::SynchronousUnsupported);
@@ -252,7 +236,7 @@ impl OutboundService {
         if sender.rsplit_once('@').map(|(_, value)| value) != Some(self.domain.as_ref()) {
             return Err(OutboundError::InvalidInput("sending_not_allowed"));
         }
-        if require_password
+        if credentials.is_some()
             && request
                 .password
                 .as_deref()
@@ -283,7 +267,19 @@ impl OutboundService {
             serde_json::to_string(&recipients).map_err(|_| OutboundError::Unavailable)?;
         let attachments_json =
             serde_json::to_string(&request.attachments).map_err(|_| OutboundError::Unavailable)?;
-        let password = request.password.unwrap_or_default();
+        if let Some((auth, client_ip)) = credentials {
+            let password = request.password.as_deref().unwrap_or_default();
+            match auth
+                .verify_mailbox_credentials(&sender, password, client_ip)
+                .await
+                .map_err(map_auth_error)?
+            {
+                CredentialOutcome::Valid { .. } => {}
+                CredentialOutcome::Invalid { .. } => {
+                    return Err(OutboundError::InvalidCredentials);
+                }
+            }
+        }
         let now = Utc::now();
         let message_id = new_message_id(self.domain.as_ref())?;
         let next_retry_at = now;
@@ -291,38 +287,6 @@ impl OutboundService {
             .await
             .map_err(|_| OutboundError::Unavailable)?
             .map_err(|error| OutboundError::Database(error.to_string()))?;
-        if require_password {
-            let row = timeout(
-                DATABASE_TIMEOUT,
-                client.query_opt(
-                    "SELECT password_hash FROM mailbox WHERE address=$1",
-                    &[&sender],
-                ),
-            )
-            .await
-            .map_err(|_| OutboundError::Unavailable)?
-            .map_err(db_error)?;
-            let Some(row) = row else {
-                return Err(OutboundError::InvalidCredentials);
-            };
-            let password_hash: String = row.get(0);
-            let permit = timeout(
-                DATABASE_TIMEOUT,
-                self.password_permits.clone().acquire_owned(),
-            )
-            .await
-            .map_err(|_| OutboundError::Unavailable)?
-            .map_err(|_| OutboundError::Unavailable)?;
-            let valid = tokio::task::spawn_blocking(move || {
-                let _permit = permit;
-                bcrypt::verify(password, &password_hash).unwrap_or(false)
-            })
-            .await
-            .map_err(|_| OutboundError::Unavailable)?;
-            if !valid {
-                return Err(OutboundError::InvalidCredentials);
-            }
-        }
         let transaction = timeout(DATABASE_TIMEOUT, client.transaction())
             .await
             .map_err(|_| OutboundError::Unavailable)?
@@ -653,27 +617,52 @@ impl ValidatedRecipients {
 }
 
 fn normalize_address(value: &str) -> Result<String, OutboundError> {
-    let value = value.trim().to_ascii_lowercase();
-    if value.is_empty()
-        || value.len() > MAX_ADDRESS_BYTES
-        || value.bytes().any(|byte| byte <= 0x20 || byte >= 0x7f)
-        || value.matches('@').count() != 1
-    {
+    let value = value.trim();
+    if value.is_empty() || value.len() > MAX_ADDRESS_BYTES || value.chars().any(char::is_control) {
         return Err(OutboundError::InvalidInput("invalid_address"));
     }
-    let (local, domain) = value.split_once('@').unwrap_or_default();
+    let synthetic = format!("From: {value}\r\n\r\n");
+    let message = MessageParser::default()
+        .parse(synthetic.as_bytes())
+        .ok_or(OutboundError::InvalidInput("invalid_address"))?;
+    let addresses = message
+        .from()
+        .ok_or(OutboundError::InvalidInput("invalid_address"))?;
+    let mut addresses = addresses.iter();
+    let address = addresses
+        .next()
+        .and_then(|address| address.address())
+        .ok_or(OutboundError::InvalidInput("invalid_address"))?;
+    if addresses.next().is_some() || address.len() > MAX_ADDRESS_BYTES {
+        return Err(OutboundError::InvalidInput("invalid_address"));
+    }
+    let (local, domain) = address
+        .rsplit_once('@')
+        .ok_or(OutboundError::InvalidInput("invalid_address"))?;
     if local.is_empty()
         || domain.is_empty()
+        || local.len() > 64
         || local.starts_with('.')
         || local.ends_with('.')
         || local.contains("..")
-        || domain.starts_with('.')
-        || domain.ends_with('.')
-        || domain.contains("..")
+        || !local.chars().all(valid_local_character)
     {
         return Err(OutboundError::InvalidInput("invalid_address"));
     }
-    Ok(value)
+    domain_to_ascii_strict(domain).map_err(|_| OutboundError::InvalidInput("invalid_address"))?;
+    if address.is_ascii() {
+        Ok(address.to_ascii_lowercase())
+    } else {
+        Ok(format!("{local}@{}", domain.to_lowercase()))
+    }
+}
+
+fn valid_local_character(character: char) -> bool {
+    if character.is_ascii() {
+        character.is_ascii_alphanumeric() || ".!#$%&'*+/=?^_`{|}~-".contains(character)
+    } else {
+        !character.is_control() && !character.is_whitespace()
+    }
 }
 
 fn sanitize_subject(value: &str) -> Result<String, OutboundError> {
@@ -688,17 +677,49 @@ fn sanitize_subject(value: &str) -> Result<String, OutboundError> {
 }
 
 fn decoded_base64_size(value: &str) -> Result<u64, OutboundError> {
-    if value
-        .bytes()
-        .any(|byte| !byte.is_ascii_alphanumeric() && !matches!(byte, b'+' | b'/' | b'='))
-    {
+    let bytes = value.as_bytes();
+    if bytes.is_empty() {
+        return Ok(0);
+    }
+    if !bytes.len().is_multiple_of(4) {
         return Err(OutboundError::InvalidInput("invalid_attachment"));
     }
-    let padding = value.bytes().rev().take_while(|byte| *byte == b'=').count();
-    if padding > 2 || !value.len().is_multiple_of(4) {
+    let (prefix, final_quantum) = bytes.split_at(bytes.len() - 4);
+    if !prefix.iter().all(|byte| is_base64_symbol(*byte)) {
         return Err(OutboundError::InvalidInput("invalid_attachment"));
     }
-    Ok((value.len() as u64 / 4) * 3 - padding as u64)
+    let padding = match final_quantum {
+        [a, b, c, d] if [*a, *b, *c, *d].into_iter().all(is_base64_symbol) => 0,
+        [a, b, c, b'=']
+            if [*a, *b, *c].into_iter().all(is_base64_symbol)
+                && base64_value(*c).is_some_and(|value| value & 0b11 == 0) =>
+        {
+            1
+        }
+        [a, b, b'=', b'=']
+            if [*a, *b].into_iter().all(is_base64_symbol)
+                && base64_value(*b).is_some_and(|value| value & 0b1111 == 0) =>
+        {
+            2
+        }
+        _ => return Err(OutboundError::InvalidInput("invalid_attachment")),
+    };
+    Ok((bytes.len() as u64 / 4) * 3 - padding)
+}
+
+fn is_base64_symbol(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'/')
+}
+
+fn base64_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'A'..=b'Z' => Some(byte - b'A'),
+        b'a'..=b'z' => Some(byte - b'a' + 26),
+        b'0'..=b'9' => Some(byte - b'0' + 52),
+        b'+' => Some(62),
+        b'/' => Some(63),
+        _ => None,
+    }
 }
 
 fn new_message_id(domain: &str) -> Result<String, OutboundError> {
@@ -749,6 +770,13 @@ fn db_error(error: tokio_postgres::Error) -> OutboundError {
     OutboundError::Database(error.to_string())
 }
 
+fn map_auth_error(error: AuthError) -> OutboundError {
+    match error {
+        AuthError::Database(message) => OutboundError::Database(message),
+        AuthError::InvalidInput(_) | AuthError::Unavailable => OutboundError::Unavailable,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -774,9 +802,41 @@ mod tests {
 
     #[test]
     fn attachment_size_rejects_malformed_padding() {
+        assert_eq!(decoded_base64_size("").unwrap(), 0);
         assert_eq!(decoded_base64_size("YWJjZA==").unwrap(), 4);
+        assert_eq!(decoded_base64_size("YWJj").unwrap(), 3);
         assert!(decoded_base64_size("abc").is_err());
         assert!(decoded_base64_size("a===").is_err());
+        assert!(decoded_base64_size("AA=A").is_err());
+        assert!(decoded_base64_size("====").is_err());
+        assert!(decoded_base64_size("YW=JjA==").is_err());
+        assert!(decoded_base64_size("AB==").is_err());
+        assert!(decoded_base64_size("AAB=").is_err());
+    }
+
+    #[test]
+    fn addresses_use_structural_and_strict_domain_validation() {
+        assert_eq!(
+            normalize_address("Display Name <A@Example.Test>").unwrap(),
+            "a@example.test"
+        );
+        assert_eq!(
+            normalize_address("用戶@例子.测试").unwrap(),
+            "用戶@例子.测试"
+        );
+        for invalid in [
+            "a@-example.test",
+            "a@example-.test",
+            "a@example/test",
+            "a<>@example.test",
+            "a@example.test, b@example.test",
+            "a b@example.test",
+            "a@example.test trailing",
+            "prefix a@example.test",
+        ] {
+            assert!(normalize_address(invalid).is_err(), "accepted {invalid:?}");
+        }
+        assert!(normalize_address(&format!("{}@example.test", "a".repeat(65))).is_err());
     }
 
     #[test]
