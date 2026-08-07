@@ -137,6 +137,21 @@ impl AcceptBackoff {
     }
 }
 
+#[derive(Debug)]
+enum AcceptOutcome<T> {
+    Accepted(T),
+    Retryable(io::Error),
+    Terminal(io::Error),
+    Cancelled,
+}
+
+#[derive(Debug)]
+enum ConnectionSetupOutcome<T> {
+    Ready(T),
+    Retry,
+    Cancelled,
+}
+
 impl ServerLimits {
     fn from_config(config: &RuntimeConfig) -> Self {
         Self {
@@ -186,86 +201,90 @@ pub async fn serve_http(
 
     loop {
         reap_finished(&mut tasks);
-        tokio::select! {
-            _ = cancellation.cancelled() => break,
-            accepted = listener.accept() => {
-                let (stream, peer) = match accepted {
-                    Ok(accepted) => {
-                        accept_backoff.reset();
-                        accepted
-                    }
-                    Err(error) if is_retryable_accept_error(&error) => {
-                        let delay = accept_backoff.next_delay();
-                        eprintln!(
-                            "lmyzmail HTTP accept failed; retrying in {} ms: {error}",
-                            delay.as_millis(),
-                        );
-                        if !wait_for_accept_retry(&cancellation, delay).await {
-                            break;
-                        }
-                        continue;
-                    }
-                    Err(error) => {
-                        terminal_accept_error = Some(error);
-                        break;
-                    }
-                };
-                let Some(permit) = connection_fd_permits
-                    .clone()
-                    .try_acquire_many_owned(HTTP_FDS_PER_CONNECTION)
-                    .ok()
-                else {
-                    let _ = timeout(
-                        limits.request_deadline,
-                        write_response(stream, Status::ServiceUnavailable, b"service unavailable\n", "text/plain; charset=utf-8"),
-                    ).await;
-                    continue;
-                };
-                let (stream, shutdown_stream) = match socket_with_shutdown_handle(stream) {
-                    Ok(streams) => streams,
-                    Err(error) => {
-                        eprintln!("lmyzmail HTTP connection setup failed: {error}");
-                        continue;
-                    }
-                };
-                let config = Arc::clone(&config);
-                let auth = Arc::clone(&auth);
-                let mailbox = Arc::clone(&mailbox);
-                let userdata = Arc::clone(&userdata);
-                let outbound = Arc::clone(&outbound);
-                let request_cancellation = cancellation.child_token();
-                tasks.spawn(async move {
-                    let _permit = permit;
-                    let result = run_request_until_joined(
-                        handle_connection(
-                            stream,
-                            peer.ip(),
-                            limits.max_request_bytes,
-                            &ConnectionContext {
-                                config: &config,
-                                auth: &auth,
-                                mailbox: &mailbox,
-                                userdata: &userdata,
-                                outbound: &outbound,
-                                cancellation: &request_cancellation,
-                            },
-                        ),
-                        &request_cancellation,
-                        limits.request_deadline,
-                        move || {
-                            let _ = shutdown_stream.shutdown(Shutdown::Both);
-                        },
-                    )
-                    .await;
-                    match result {
-                        Ok(()) => {}
-                        Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => {}
-                        Err(error) => return Err(error),
-                    }
-                    Ok::<(), io::Error>(())
-                });
+        let (stream, peer) = match select_accept(&cancellation, listener.accept()).await {
+            AcceptOutcome::Accepted(accepted) => accepted,
+            AcceptOutcome::Retryable(error) => {
+                let delay = accept_backoff.next_delay();
+                eprintln!(
+                    "lmyzmail HTTP accept failed; retrying in {} ms: {error}",
+                    delay.as_millis(),
+                );
+                if !wait_for_accept_retry(&cancellation, delay).await {
+                    break;
+                }
+                continue;
             }
-        }
+            AcceptOutcome::Terminal(error) => {
+                terminal_accept_error = Some(error);
+                break;
+            }
+            AcceptOutcome::Cancelled => break,
+        };
+        let Some(permit) = connection_fd_permits
+            .clone()
+            .try_acquire_many_owned(HTTP_FDS_PER_CONNECTION)
+            .ok()
+        else {
+            accept_backoff.reset();
+            let cancelled = tokio::select! {
+                biased;
+                _ = cancellation.cancelled() => true,
+                _ = timeout(
+                    limits.request_deadline,
+                    write_response(stream, Status::ServiceUnavailable, b"service unavailable\n", "text/plain; charset=utf-8"),
+                ) => false,
+            };
+            if cancelled {
+                break;
+            }
+            continue;
+        };
+        let (stream, shutdown_stream) =
+            match prepare_connection(&mut accept_backoff, &cancellation, || {
+                socket_with_shutdown_handle(stream)
+            })
+            .await
+            {
+                ConnectionSetupOutcome::Ready(streams) => streams,
+                ConnectionSetupOutcome::Retry => continue,
+                ConnectionSetupOutcome::Cancelled => break,
+            };
+        let config = Arc::clone(&config);
+        let auth = Arc::clone(&auth);
+        let mailbox = Arc::clone(&mailbox);
+        let userdata = Arc::clone(&userdata);
+        let outbound = Arc::clone(&outbound);
+        let request_cancellation = cancellation.child_token();
+        tasks.spawn(async move {
+            let _permit = permit;
+            let result = run_request_until_joined(
+                handle_connection(
+                    stream,
+                    peer.ip(),
+                    limits.max_request_bytes,
+                    &ConnectionContext {
+                        config: &config,
+                        auth: &auth,
+                        mailbox: &mailbox,
+                        userdata: &userdata,
+                        outbound: &outbound,
+                        cancellation: &request_cancellation,
+                    },
+                ),
+                &request_cancellation,
+                limits.request_deadline,
+                move || {
+                    let _ = shutdown_stream.shutdown(Shutdown::Both);
+                },
+            )
+            .await;
+            match result {
+                Ok(()) => {}
+                Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => {}
+                Err(error) => return Err(error),
+            }
+            Ok::<(), io::Error>(())
+        });
     }
 
     if timeout(SHUTDOWN_DEADLINE, async {
@@ -287,6 +306,26 @@ pub async fn serve_http(
     match terminal_accept_error {
         Some(error) => Err(error),
         None => Ok(()),
+    }
+}
+
+async fn select_accept<T, F>(cancellation: &CancellationToken, accepted: F) -> AcceptOutcome<T>
+where
+    F: Future<Output = io::Result<T>>,
+{
+    tokio::select! {
+        biased;
+        _ = cancellation.cancelled() => AcceptOutcome::Cancelled,
+        result = accepted => match result {
+            Ok(value) => AcceptOutcome::Accepted(value),
+            Err(error) if is_retryable_accept_error(&error) => {
+                AcceptOutcome::Retryable(error)
+            }
+            Err(error) => {
+                cancellation.cancel();
+                AcceptOutcome::Terminal(error)
+            }
+        }
     }
 }
 
@@ -333,8 +372,37 @@ fn is_retryable_accept_error(error: &io::Error) -> bool {
 
 async fn wait_for_accept_retry(cancellation: &CancellationToken, delay: Duration) -> bool {
     tokio::select! {
+        biased;
         _ = cancellation.cancelled() => false,
         _ = tokio::time::sleep(delay) => true,
+    }
+}
+
+async fn prepare_connection<T, F>(
+    backoff: &mut AcceptBackoff,
+    cancellation: &CancellationToken,
+    setup: F,
+) -> ConnectionSetupOutcome<T>
+where
+    F: FnOnce() -> io::Result<T>,
+{
+    match setup() {
+        Ok(value) => {
+            backoff.reset();
+            ConnectionSetupOutcome::Ready(value)
+        }
+        Err(error) => {
+            let delay = backoff.next_delay();
+            eprintln!(
+                "lmyzmail HTTP connection setup failed; retrying in {} ms: {error}",
+                delay.as_millis(),
+            );
+            if wait_for_accept_retry(cancellation, delay).await {
+                ConnectionSetupOutcome::Retry
+            } else {
+                ConnectionSetupOutcome::Cancelled
+            }
+        }
     }
 }
 
@@ -2583,16 +2651,65 @@ lmyzmail.public-registration-enabled=true\n",
     }
 
     #[tokio::test]
-    async fn accept_retry_delay_is_cancellation_aware() {
+    async fn accept_retry_delay_prioritizes_ready_cancellation() {
         let cancellation = CancellationToken::new();
         cancellation.cancel();
         let retry = timeout(
             Duration::from_millis(50),
-            wait_for_accept_retry(&cancellation, Duration::from_secs(60)),
+            wait_for_accept_retry(&cancellation, Duration::ZERO),
         )
         .await
         .expect("pre-cancelled retry wait must finish promptly");
         assert!(!retry);
+    }
+
+    #[tokio::test]
+    async fn cancelled_accept_wins_over_a_ready_connection() {
+        let cancellation = CancellationToken::new();
+        cancellation.cancel();
+        let outcome =
+            select_accept(&cancellation, std::future::ready(Ok::<_, io::Error>(42_u8))).await;
+        assert!(matches!(outcome, AcceptOutcome::Cancelled));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn fatal_accept_cancels_cleanup_before_returning_the_error() {
+        let cancellation = CancellationToken::new();
+        let outcome = select_accept(
+            &cancellation,
+            std::future::ready(Err::<(), _>(io::Error::from_raw_os_error(22))),
+        )
+        .await;
+        assert!(matches!(
+            outcome,
+            AcceptOutcome::Terminal(error) if error.raw_os_error() == Some(22)
+        ));
+        assert!(cancellation.is_cancelled());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn repeated_setup_emfile_backoff_persists_until_setup_succeeds() {
+        let cancellation = CancellationToken::new();
+        let mut backoff = AcceptBackoff::default();
+        let first = prepare_connection::<(), _>(&mut backoff, &cancellation, || {
+            Err(io::Error::from_raw_os_error(24))
+        })
+        .await;
+        assert!(matches!(first, ConnectionSetupOutcome::Retry));
+        assert_eq!(backoff.next_delay, Duration::from_millis(50));
+
+        let second = prepare_connection::<(), _>(&mut backoff, &cancellation, || {
+            Err(io::Error::from_raw_os_error(24))
+        })
+        .await;
+        assert!(matches!(second, ConnectionSetupOutcome::Retry));
+        assert_eq!(backoff.next_delay, Duration::from_millis(100));
+
+        let ready = prepare_connection(&mut backoff, &cancellation, || Ok(())).await;
+        assert!(matches!(ready, ConnectionSetupOutcome::Ready(())));
+        assert_eq!(backoff.next_delay, ACCEPT_RETRY_MIN_DELAY);
     }
 
     #[tokio::test]
