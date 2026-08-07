@@ -30,6 +30,8 @@ Maildir, certificate, and port state and can produce a repeatable Java golden.
 - `docs/`: architecture, compatibility, security, and acceptance records.
 - `docs/outbound-queue-contract.md`: frozen Redis/queue lifecycle and required
   crash-recovery invariants for outbound delivery takeover.
+- `docs/outbound-route-contract.md`: MX, MTA-STS, Redis cache, DNS pinning,
+  deadline, and cancellation rules for outbound routing.
 - `config/lmyzmail.properties.example`: non-secret installation configuration
   using the new key namespace.
 - `deploy/lmyzmail.service`: bounded single-process systemd unit template.
@@ -49,7 +51,8 @@ per-sender quota decisions atomic, and password verification runs behind a
 bounded blocking-work permit. The next outbound layer now includes fenced
 legacy Redis queue claims with reverse-token recovery, a PostgreSQL per-recipient
 commit ledger, and a streaming SMTP adapter with a durable pre-terminator
-barrier. These primitives are integration-tested but are not yet wired into a
-production worker: DNS/MX and MTA-STS routing, MIME/DKIM and Sent Maildir
-creation, and the coordinator remain the next vertical module. This milestone
-is not yet a complete production replacement.
+barrier. Bounded MX/address resolution, legacy DNS and MTA-STS caches, pinned
+policy HTTPS, policy filtering, and TLS-mode selection are also implemented and
+integration-tested. These primitives are not yet wired into a production
+worker: MIME/DKIM and Sent Maildir creation plus the coordinator remain the next
+vertical module. This milestone is not yet a complete production replacement.

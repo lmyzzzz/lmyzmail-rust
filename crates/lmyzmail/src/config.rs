@@ -702,6 +702,7 @@ pub struct RuntimeConfig {
     pub allowed_origins: Vec<String>,
     pub trusted_proxies: Vec<IpNet>,
     pub api_keys: Vec<ApiKeyConfig>,
+    pub outbound_route: OutboundRouteConfig,
     pub features: FeatureConfig,
     pub tls: TlsConfig,
     pub limits: LimitConfig,
@@ -749,6 +750,17 @@ pub struct ApiKeyConfig {
     pub label: String,
     pub read: bool,
     pub write: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct OutboundRouteConfig {
+    pub mx_l1_max_entries: u64,
+    pub mx_l1_ttl_minutes: u64,
+    pub mx_l2_ttl_minutes: u64,
+    pub mx_negative_ttl_minutes: u64,
+    pub dns_query_timeout_seconds: u64,
+    pub mta_sts_fetch_timeout_ms: u64,
+    pub resolution_deadline_seconds: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -944,6 +956,52 @@ impl RuntimeConfig {
         let allowed_origins = parse_allowed_origins(&properties)?;
         let trusted_proxies = parse_trusted_proxies(&properties)?;
 
+        let outbound_route = OutboundRouteConfig {
+            mx_l1_max_entries: preferred_u64(
+                &properties,
+                &["lmyzmail.outbound.dns.mx.l1-max-entries"],
+                &["dns.cache.mx.l1-max-size"],
+                10_000,
+            )?,
+            mx_l1_ttl_minutes: preferred_u64(
+                &properties,
+                &["lmyzmail.outbound.dns.mx.l1-ttl-minutes"],
+                &["dns.cache.mx.l1-ttl-minutes"],
+                15,
+            )?,
+            mx_l2_ttl_minutes: preferred_u64(
+                &properties,
+                &["lmyzmail.outbound.dns.mx.l2-ttl-minutes"],
+                &["dns.cache.mx.l2-ttl-minutes"],
+                30,
+            )?,
+            mx_negative_ttl_minutes: preferred_u64(
+                &properties,
+                &["lmyzmail.outbound.dns.mx.negative-ttl-minutes"],
+                &["dns.cache.mx.negative-ttl-minutes"],
+                5,
+            )?,
+            dns_query_timeout_seconds: preferred_u64(
+                &properties,
+                &["lmyzmail.outbound.dns.query-timeout-seconds"],
+                &["dns.cache.mx.query-timeout-seconds"],
+                15,
+            )?,
+            mta_sts_fetch_timeout_ms: preferred_u64(
+                &properties,
+                &["lmyzmail.smtp.mta-sts-fetch-timeout-ms"],
+                &["botmail.smtp.mta-sts-fetch-timeout-ms"],
+                10_000,
+            )?,
+            resolution_deadline_seconds: preferred_u64(
+                &properties,
+                &["lmyzmail.outbound.route-deadline-seconds"],
+                &[],
+                30,
+            )?,
+        };
+        validate_outbound_route(&outbound_route)?;
+
         let features = FeatureConfig {
             public_registration: preferred_bool(
                 &properties,
@@ -1131,6 +1189,7 @@ impl RuntimeConfig {
             allowed_origins,
             trusted_proxies,
             api_keys,
+            outbound_route,
             features,
             tls,
             limits,
@@ -1557,6 +1616,37 @@ fn validate_redis(value: &RedisConfig) -> Result<(), ConfigError> {
     Ok(())
 }
 
+fn validate_outbound_route(value: &OutboundRouteConfig) -> Result<(), ConfigError> {
+    if value.mx_l1_max_entries == 0 || value.mx_l1_max_entries > 100_000 {
+        return Err(ConfigError::Invalid(
+            "outbound MX cache capacity is outside the safe bound".into(),
+        ));
+    }
+    if value.mx_l1_ttl_minutes == 0
+        || value.mx_l1_ttl_minutes > 24 * 60
+        || value.mx_l2_ttl_minutes == 0
+        || value.mx_l2_ttl_minutes > 7 * 24 * 60
+        || value.mx_negative_ttl_minutes == 0
+        || value.mx_negative_ttl_minutes > 24 * 60
+    {
+        return Err(ConfigError::Invalid(
+            "outbound MX cache TTL is outside the safe bound".into(),
+        ));
+    }
+    if value.dns_query_timeout_seconds == 0
+        || value.dns_query_timeout_seconds > 5 * 60
+        || value.mta_sts_fetch_timeout_ms == 0
+        || value.mta_sts_fetch_timeout_ms > 5 * 60 * 1_000
+        || value.resolution_deadline_seconds == 0
+        || value.resolution_deadline_seconds > 15 * 60
+    {
+        return Err(ConfigError::Invalid(
+            "outbound route deadline is outside the safe bound".into(),
+        ));
+    }
+    Ok(())
+}
+
 fn validate_limits(value: &LimitConfig) -> Result<(), ConfigError> {
     if value.redis_pool == 0 || value.redis_pool > MAX_POOL_SIZE {
         return Err(ConfigError::Invalid(format!(
@@ -1758,6 +1848,49 @@ mod tests {
         let config = RuntimeConfig::from_properties(properties).unwrap();
         assert_eq!(config.listen.http, 18080);
         assert_eq!(config.listen.smtp, 2525);
+    }
+
+    #[test]
+    fn outbound_route_accepts_frozen_dns_keys_with_new_precedence() {
+        let properties = Properties::parse(
+            b"dns.cache.mx.l1-max-size=111\n\
+dns.cache.mx.l1-ttl-minutes=12\n\
+dns.cache.mx.l2-ttl-minutes=23\n\
+dns.cache.mx.negative-ttl-minutes=4\n\
+dns.cache.mx.query-timeout-seconds=9\n\
+botmail.smtp.mta-sts-fetch-timeout-ms=8000\n\
+lmyzmail.outbound.dns.mx.l1-max-entries=222\n\
+lmyzmail.outbound.dns.query-timeout-seconds=7\n\
+lmyzmail.smtp.mta-sts-fetch-timeout-ms=6000\n",
+        )
+        .unwrap();
+        let config = RuntimeConfig::from_properties(properties).unwrap();
+        assert_eq!(config.outbound_route.mx_l1_max_entries, 222);
+        assert_eq!(config.outbound_route.mx_l1_ttl_minutes, 12);
+        assert_eq!(config.outbound_route.mx_l2_ttl_minutes, 23);
+        assert_eq!(config.outbound_route.mx_negative_ttl_minutes, 4);
+        assert_eq!(config.outbound_route.dns_query_timeout_seconds, 7);
+        assert_eq!(config.outbound_route.mta_sts_fetch_timeout_ms, 6_000);
+        assert_eq!(config.outbound_route.resolution_deadline_seconds, 30);
+
+        let invalid = RuntimeConfig::from_properties(
+            Properties::parse(b"lmyzmail.outbound.dns.mx.l1-max-entries=0\n").unwrap(),
+        );
+        assert!(invalid.is_err());
+        for input in [
+            b"lmyzmail.outbound.dns.mx.l1-ttl-minutes=0\n".as_slice(),
+            b"lmyzmail.outbound.dns.mx.l2-ttl-minutes=10081\n".as_slice(),
+            b"lmyzmail.outbound.dns.mx.negative-ttl-minutes=1441\n".as_slice(),
+            b"lmyzmail.outbound.dns.query-timeout-seconds=301\n".as_slice(),
+            b"lmyzmail.smtp.mta-sts-fetch-timeout-ms=300001\n".as_slice(),
+            b"lmyzmail.outbound.route-deadline-seconds=901\n".as_slice(),
+        ] {
+            assert!(
+                RuntimeConfig::from_properties(Properties::parse(input).unwrap()).is_err(),
+                "accepted unsafe outbound route configuration: {}",
+                String::from_utf8_lossy(input)
+            );
+        }
     }
 
     #[test]

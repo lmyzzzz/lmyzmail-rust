@@ -112,6 +112,46 @@
       "oracle_behavior": "The frozen Java sender records a domain as SENDING before delivery and SENT only after the SMTP call returns. Stuck-task recovery requeues any task whose content still exists, and the next attempt resets every non-SENT, non-heuristically-permanent domain to PENDING. A crash after the remote server accepts DATA but before the SENT update can therefore resend the same recipients.",
       "reason": "Automatically repeating an SMTP transaction whose remote commit may already have succeeded can duplicate user mail. Treating the unknown result as an ordinary failure can also produce a false failure notification. This crash-consistency race is explicitly excluded from bug-for-bug replication.",
       "scope": "Only recipients whose SMTP DATA commit outcome cannot be proven, including stale pre-upgrade PROCESSING rows that have no durable barrier record. Proven pre-commit failures retain normal retry classification; proven 2xx, 4xx, and 5xx final replies retain delivered, retryable, and permanent semantics; stable Message-ID and all successful SMTP bytes remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Treat one MX record whose exchange is `.` as an explicit no-mail-service declaration and return a permanent route failure without direct-domain fallback, address lookup, or connection. Reject the complete MX set if a null MX coexists with any other MX record, regardless of DNS answer order.",
+      "evidence": {
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "source": "src/main/java/net/lmyz/lmyzmail/outbound/MxResolver.java",
+        "source_sha256": "0de7fa1c7999f9d6ce7e583a0d5d6be38c9f3619f7b319d564d933f48186b181"
+      },
+      "id": "outbound-null-mx-rejection",
+      "oracle_behavior": "The frozen Java resolver strips the trailing dot from every MX exchange, turning RFC 7505 null MX into an empty hostname. It neither recognizes the no-service declaration nor rejects a mixed null/ordinary MX set before later hostname handling.",
+      "reason": "A null MX explicitly forbids SMTP delivery. Treating it as a hostname can violate the domain owner's no-service declaration and can make empty-name resolver behavior part of a security-sensitive route decision.",
+      "scope": "Only null MX and mixed null/ordinary MX sets. Ordinary MX ordering, no-MX direct-domain fallback, DNS-error fallback, fixed cache TTLs, and per-host failover remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Bound one route resolution to at most 64 MX records, 16 A/AAAA addresses per hostname, 16 MTA-STS TXT records, 4096 aggregate TXT bytes, 64 policy MX patterns, and 65536 policy body bytes. Reject over-budget MX/address answers before SMTP use; treat over-budget MTA-STS discovery as no applicable policy without performing the policy HTTPS fetch.",
+      "evidence": {
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "mta_sts_source": "src/main/java/net/lmyz/lmyzmail/inbound/MtaStsService.java",
+        "mta_sts_source_sha256": "31f8a4d250152c4626bea26f6a5e3fea6f3359fc5ac42daaa205b55a46200d46",
+        "mx_source": "src/main/java/net/lmyz/lmyzmail/outbound/MxResolver.java",
+        "mx_source_sha256": "0de7fa1c7999f9d6ce7e583a0d5d6be38c9f3619f7b319d564d933f48186b181",
+        "network_source": "src/main/java/net/lmyz/lmyzmail/util/NetworkValidator.java",
+        "network_source_sha256": "1a46e5938bdfdc4b0f7cd6d8e2377ea157b7181768a392c954e037f04442e063"
+      },
+      "id": "outbound-route-dns-answer-budgets",
+      "oracle_behavior": "The frozen Java route has a 64 KiB MTA-STS HTTP body limit and validates every returned address, but it does not impose explicit MX-record, SMTP address-count, MTA-STS TXT-record, TXT-byte, or policy-pattern count ceilings.",
+      "reason": "The rewrite requires hard limits for every cache, queue, parser, and adversary-controlled fanout. Unbounded DNS answer processing and route fanout are excluded even when later validation would reject an individual value.",
+      "scope": "Only answers exceeding the stated ceilings. Every in-budget record retains Java ordering, TXT concatenation and selection, all-address public validation, first-address SMTP pinning, policy parsing, and MX failover semantics."
+    },
+    {
+      "candidate_requirement": "When an intact legacy `mta-sts:{domain}` NONE value has a positive Redis TTL, reuse it only for that remaining TTL, never longer than 300 seconds. Preserve the exact Java serialization, do not extend the TTL on read, and perform fresh DNS discovery after expiry.",
+      "evidence": {
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "source": "src/main/java/net/lmyz/lmyzmail/inbound/MtaStsService.java",
+        "source_sha256": "31f8a4d250152c4626bea26f6a5e3fea6f3359fc5ac42daaa205b55a46200d46"
+      },
+      "id": "mta-sts-negative-cache-restart",
+      "oracle_behavior": "The frozen Java service writes invalid/NONE policies to Redis with a five-minute TTL, but after a process restart its Redis loader computes semantic expiry from `max_age=0` and immediately discards the still-live negative entry. Repeated restarts or workers therefore repeat DNS discovery during the intended negative-cache window.",
+      "reason": "Honoring the already-persisted bounded TTL restores the oracle's explicit five-minute negative-cache contract and prevents restart-driven DNS/HTTPS amplification without extending policy staleness.",
+      "scope": "Only intact NONE entries with a positive remaining Redis TTL. Positive policy max-age, Redis bytes and key names, live-process L1 behavior, TXT selection, HTTPS validation, and post-expiry discovery remain compatibility requirements."
     }
   ],
   "schema_version": 1

@@ -1128,7 +1128,7 @@ fn validate_request(request: &DeliveryRequest) -> Result<(), DeliveryError> {
     Ok(())
 }
 
-fn is_public_smtp_ip(value: IpAddr) -> bool {
+pub(crate) fn is_public_smtp_ip(value: IpAddr) -> bool {
     match value {
         IpAddr::V4(value) => {
             let [first, second, third, _] = value.octets();

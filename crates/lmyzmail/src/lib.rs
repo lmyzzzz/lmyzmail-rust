@@ -8,6 +8,7 @@ pub mod outbound;
 pub mod outbound_delivery;
 pub mod outbound_message;
 pub mod outbound_queue;
+pub mod outbound_route;
 pub mod outbound_smtp;
 pub mod redis;
 pub mod smtp;
