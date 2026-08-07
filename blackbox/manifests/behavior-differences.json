@@ -165,6 +165,45 @@
       "oracle_behavior": "The frozen Java service writes invalid/NONE policies to Redis with a five-minute TTL, but after a process restart its Redis loader computes semantic expiry from `max_age=0` and immediately discards the still-live negative entry. Repeated restarts or workers therefore repeat DNS discovery during the intended negative-cache window.",
       "reason": "Honoring the already-persisted bounded TTL restores the oracle's explicit five-minute negative-cache contract and prevents restart-driven DNS/HTTPS amplification without extending policy staleness.",
       "scope": "Only intact NONE entries with a positive remaining Redis TTL. Positive policy max-age, Redis bytes and key names, live-process L1 behavior, TXT selection, HTTPS validation, and post-expiry discovery remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Reject malformed or non-object preferences JSON, non-numeric contact ids, missing or empty required contact names and emails, and contact names or emails longer than 255 Unicode scalar values with a bounded 400 JSON response. Perform all validation before any PostgreSQL mutation; a rejected request must leave preferences and contacts unchanged.",
+      "evidence": {
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "oracle_golden": "blackbox/golden/java/managed-userdata-oracle-evidence-v1/observations/http/userdata/oracle-malformed-write-side-effects.json",
+        "service_source": "src/main/java/net/lmyz/lmyzmail/userdata/service/UserDataService.java",
+        "service_source_sha256": "17ca3b701d24d40d971ab1f51410caf7db33c6d5f33dafd62682f731e35dfb01",
+        "source": "src/main/java/net/lmyz/lmyzmail/web/UserDataController.java",
+        "source_sha256": "eb6985f2eafec9a65a518c7c2bc8e46de61393761bad0981053561fcdeb21aaf"
+      },
+      "id": "userdata-malformed-write-rejection",
+      "oracle_behavior": "The frozen Java dispatcher reports malformed JSON and non-numeric ids as 500 internal_error. A contact without email also throws after dispatch, while a contact without name can be committed and only then fail with 500 when Map.of rejects the null response value. Null preferences are accepted and stored as the JSON literal null.",
+      "reason": "Authenticated malformed input must not trigger internal exceptions or transaction/response split-brain. Committing a write that the caller observes as a server failure invites unsafe retries and duplicate state, and is explicitly excluded from bug-for-bug replication.",
+      "scope": "Only syntactically malformed, wrong-shape, missing-required-field, non-numeric-id, and over-255-character contact inputs. Valid JSON under the oracle's content-type behavior, valid ids, optional notes, exact duplicate/not-found errors, successful persistence, and all legal response bytes remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Serialize contact creation per mailbox inside one PostgreSQL transaction so the case-normalized duplicate check and insert are atomic. Under concurrent requests for one mailbox and email, exactly one request may create one row and every loser must return the ordinary Contact already exists response within the HTTP deadline.",
+      "evidence": {
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "source": "src/main/java/net/lmyz/lmyzmail/userdata/service/UserDataService.java",
+        "source_sha256": "17ca3b701d24d40d971ab1f51410caf7db33c6d5f33dafd62682f731e35dfb01"
+      },
+      "id": "userdata-contact-admission-race",
+      "oracle_behavior": "The frozen Java service performs existsByMailboxAddressAndEmail and save as separate operations without a contact email unique constraint or mailbox lock. Concurrent equal-email requests can all pass the check and commit duplicate rows.",
+      "reason": "The check-then-insert race violates the endpoint's own Contact already exists contract and makes retry/concurrency timing alter durable user data. Races are explicitly excluded from bug-for-bug replication.",
+      "scope": "Only concurrent creation of the same case-normalized email for one mailbox. Different emails and mailboxes remain concurrent; sequential duplicate behavior, lowercase storage, ids, fields, status codes, and response bodies remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Within one repeatable-read snapshot, inspect at most 10001 contact rows ordered by name and id and at most 16777216 aggregate UTF-8 field bytes. Return at most 10000 rows with exact Java-compatible fields when both budgets hold; otherwise return `503 {\"error\":\"userdata_limit_exceeded\"}` without fetching, constructing, or serializing the over-budget field data.",
+      "evidence": {
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "source": "src/main/java/net/lmyz/lmyzmail/userdata/service/UserDataService.java",
+        "source_sha256": "17ca3b701d24d40d971ab1f51410caf7db33c6d5f33dafd62682f731e35dfb01"
+      },
+      "id": "userdata-contact-list-bound",
+      "oracle_behavior": "The frozen Java repository materializes every contact for the mailbox and the controller then constructs another complete list of response maps. There is no query limit, pagination, result-byte ceiling, or cancellation checkpoint.",
+      "reason": "A database-backed collection must not permit unbounded heap and response growth. The rewrite requires a hard limit on every adversary-influenced collection and cannot preserve this unbounded materialization behavior.",
+      "scope": "Only mailboxes with more than 10000 contacts or more than 16777216 aggregate UTF-8 bytes across id-independent response fields. Ordering and exact response content for all in-budget lists, including empty and legacy rows, remain differential requirements."
     }
   ],
   "schema_version": 1

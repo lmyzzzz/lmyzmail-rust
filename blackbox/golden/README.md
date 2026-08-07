@@ -304,7 +304,7 @@ The following retained historical sets are bound to
 - `managed-outbound-http-v3/`
 - `managed-outbound-queue-v19.json`
 
-The current active sets are bound to
+The preceding active sets were bound to
 `attestation.harness.definition_tree_sha256`
 `65da9f3ce4f1a51b77fff6732deb36ffb0bb086aa49ac4f6f06e47d7ad732ebb`:
 
@@ -329,14 +329,44 @@ The current active sets are bound to
 - `managed-outbound-http-v6/`
 - `managed-outbound-queue-v21.json`
 
+The current active sets are bound to
+`attestation.harness.definition_tree_sha256`
+`40b6e82187bceeb93d3f61dd6ddeeff72ce411ce5eaac8c11693bee94fd3ee4c`:
+
+- `managed-candidate-public-config-v15/`
+- `managed-basic-v37/`
+- `managed-candidate-auth-v14/`
+- `managed-mail-read-v12/`
+- `managed-mail-attachment-v7/`
+- `managed-mail-state-v10/`
+- `managed-mail-mutations-v9/`
+- `managed-mail-delete-v9/`
+- `managed-starttls-v25/`
+- `managed-starttls-oracle-evidence-v25/`
+- `managed-smtp-auth-v24/`
+- `managed-smtp-auth-starttls-v24/`
+- `managed-smtp-command-v22/`
+- `managed-smtp-command-oracle-evidence-v22/`
+- `managed-smtp-data-v21/`
+- `managed-smtp-data-oracle-evidence-v21/`
+- `managed-smtp-mime-v21/`
+- `managed-outbound-http-v7/`
+- `managed-outbound-queue-v22.json`
+- `managed-userdata-v5/`
+- `managed-userdata-oracle-evidence-v4/`
+
 The earlier candidate-health v1-v4, candidate-public-http v1,
 candidate-api-status v1, candidate-public-config v1-v3, candidate-auth v1-v2,
 HTTP v19-v25, SMTP v5-v12, and outbound v5-v9 recordings are retained as
 create-once provenance; none is consumed by the tests.
 
-The active outbound queue attestation is `managed-outbound-queue-v21.json`,
+The userdata v1-v4 and userdata oracle-evidence v1-v3 recordings are likewise
+retained as create-once provenance. Only userdata v5 and its evidence v4 are
+active under the current definition-tree attestation.
+
+The active outbound queue attestation is `managed-outbound-queue-v22.json`,
 using the field-scoped `outbound:generated-sent-filename` normalizer. The active
-outbound HTTP attestation is `managed-outbound-http-v6`; only its two quota
+outbound HTTP attestation is `managed-outbound-http-v7`; only its two quota
 subresponses canonicalize Java `Map.of` object ordering. Status codes, headers,
 field values, and every other response retain exact wire assertions. Rejected or
 superseded outbound generations remain create-once historical evidence and are

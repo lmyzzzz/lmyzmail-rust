@@ -17,3 +17,4 @@ pub mod outbound_takeover;
 pub mod outbound_worker;
 pub mod redis;
 pub mod smtp;
+pub mod userdata;

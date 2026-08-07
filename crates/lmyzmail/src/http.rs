@@ -1,16 +1,23 @@
-use std::{future::Future, io, net::IpAddr, sync::Arc, time::Duration};
+use std::{
+    future::Future,
+    io,
+    net::{IpAddr, Shutdown},
+    sync::{Arc, LazyLock},
+    time::Duration,
+};
 
 use chrono::Utc;
 use deadpool_postgres::Pool;
 use deadpool_redis::Pool as RedisPool;
 use percent_encoding::percent_decode_str;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use subtle::ConstantTimeEq;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
-    sync::Semaphore,
-    task::JoinSet,
+    sync::{OwnedSemaphorePermit, Semaphore, mpsc, oneshot},
+    task::{JoinHandle, JoinSet, spawn_blocking},
     time::timeout,
 };
 use tokio_util::sync::CancellationToken;
@@ -21,11 +28,19 @@ use crate::{
     config::RuntimeConfig,
     mailbox::{AttachmentData, AttachmentMeta, EmailDetail, MailboxError, MailboxService},
     outbound::{OutboundError, OutboundService, SendRequest},
+    userdata::{ContactRecord, UserDataError, UserDataService},
 };
 
 const DEFAULT_MAX_REQUEST_BYTES: usize = 16 * 1024;
 const DEFAULT_MAX_CONNECTIONS: usize = 256;
+const HTTP_FDS_PER_CONNECTION: u32 = 2;
 const SHUTDOWN_DEADLINE: Duration = Duration::from_secs(20);
+const CONTACT_RESPONSE_CONCURRENCY: usize = 4;
+const JSON_STREAM_CHUNK_BYTES: usize = 16 * 1024;
+const JSON_STREAM_CHANNEL_CHUNKS: usize = 4;
+const MAX_CONTACT_WIRE_BYTES: usize = 6 * 16 * 1024 * 1024 + 2 * 1024 * 1024;
+static CONTACT_RESPONSE_PERMITS: LazyLock<Arc<Semaphore>> =
+    LazyLock::new(|| Arc::new(Semaphore::new(CONTACT_RESPONSE_CONCURRENCY)));
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 enum Status {
@@ -87,6 +102,7 @@ struct ConnectionContext<'a> {
     config: &'a RuntimeConfig,
     auth: &'a AuthService,
     mailbox: &'a MailboxService,
+    userdata: &'a UserDataService,
     outbound: &'a OutboundService,
     cancellation: &'a CancellationToken,
 }
@@ -118,6 +134,7 @@ pub async fn serve_http(
         AuthService::from_config(&config, database_pool.clone()).map_err(io::Error::other)?,
     );
     let mailbox = Arc::new(MailboxService::from_config(&config, database_pool.clone()));
+    let userdata = Arc::new(UserDataService::new(database_pool.clone()));
     let outbound = Arc::new(
         OutboundService::from_config(&config, database_pool, redis_pool)
             .map_err(io::Error::other)?,
@@ -130,7 +147,9 @@ pub async fn serve_http(
             .await;
     });
     let limits = ServerLimits::from_config(&config);
-    let permits = Arc::new(Semaphore::new(limits.max_connections));
+    let connection_fd_permits = Arc::new(Semaphore::new(
+        limits.max_connections * HTTP_FDS_PER_CONNECTION as usize,
+    ));
     let mut tasks = JoinSet::new();
 
     loop {
@@ -139,16 +158,28 @@ pub async fn serve_http(
             _ = cancellation.cancelled() => break,
             accepted = listener.accept() => {
                 let (stream, peer) = accepted?;
-                let Some(permit) = permits.clone().try_acquire_owned().ok() else {
+                let Some(permit) = connection_fd_permits
+                    .clone()
+                    .try_acquire_many_owned(HTTP_FDS_PER_CONNECTION)
+                    .ok()
+                else {
                     let _ = timeout(
                         limits.request_deadline,
                         write_response(stream, Status::ServiceUnavailable, b"service unavailable\n", "text/plain; charset=utf-8"),
                     ).await;
                     continue;
                 };
+                let (stream, shutdown_stream) = match socket_with_shutdown_handle(stream) {
+                    Ok(streams) => streams,
+                    Err(error) => {
+                        eprintln!("lmyzmail HTTP connection setup failed: {error}");
+                        continue;
+                    }
+                };
                 let config = Arc::clone(&config);
                 let auth = Arc::clone(&auth);
                 let mailbox = Arc::clone(&mailbox);
+                let userdata = Arc::clone(&userdata);
                 let outbound = Arc::clone(&outbound);
                 let request_cancellation = cancellation.child_token();
                 tasks.spawn(async move {
@@ -162,12 +193,16 @@ pub async fn serve_http(
                                 config: &config,
                                 auth: &auth,
                                 mailbox: &mailbox,
+                                userdata: &userdata,
                                 outbound: &outbound,
                                 cancellation: &request_cancellation,
                             },
                         ),
                         &request_cancellation,
                         limits.request_deadline,
+                        move || {
+                            let _ = shutdown_stream.shutdown(Shutdown::Both);
+                        },
                     )
                     .await;
                     match result {
@@ -200,19 +235,33 @@ pub async fn serve_http(
     Ok(())
 }
 
-async fn run_request_until_joined<F>(
+fn socket_with_shutdown_handle(stream: TcpStream) -> io::Result<(TcpStream, std::net::TcpStream)> {
+    let stream = stream.into_std()?;
+    let shutdown_stream = stream.try_clone()?;
+    Ok((TcpStream::from_std(stream)?, shutdown_stream))
+}
+
+async fn run_request_until_joined<F, S>(
     request: F,
     cancellation: &CancellationToken,
     deadline: Duration,
+    shutdown_socket: S,
 ) -> io::Result<()>
 where
     F: Future<Output = io::Result<()>>,
+    S: FnOnce(),
 {
     tokio::pin!(request);
-    match timeout(deadline, &mut request).await {
-        Ok(result) => result,
-        Err(_) => {
+    tokio::select! {
+        biased;
+        result = request.as_mut() => result,
+        _ = cancellation.cancelled() => {
+            shutdown_socket();
+            request.await
+        }
+        _ = tokio::time::sleep(deadline) => {
             cancellation.cancel();
+            shutdown_socket();
             request.await
         }
     }
@@ -236,6 +285,7 @@ async fn handle_connection(
         config,
         auth,
         mailbox,
+        userdata,
         outbound,
         cancellation,
     } = *context;
@@ -386,6 +436,7 @@ async fn handle_connection(
                     &request,
                     &address,
                     mailbox,
+                    userdata,
                     outbound,
                     cancellation,
                 )
@@ -540,6 +591,16 @@ enum AuthenticatedRoute {
         file: String,
         index: i32,
     },
+    Preferences,
+    SavePreferences,
+    Contacts,
+    CreateContact,
+    UpdateContact {
+        id: i64,
+    },
+    DeleteContact {
+        id: i64,
+    },
     Stars {
         folder: String,
     },
@@ -580,6 +641,7 @@ async fn handle_authenticated_request(
     request: &[u8],
     mailbox_address: &str,
     mailbox: &MailboxService,
+    userdata: &UserDataService,
     outbound: &OutboundService,
     cancellation: &CancellationToken,
 ) -> io::Result<()> {
@@ -768,6 +830,132 @@ async fn handle_authenticated_request(
                 }
                 Err(MailboxError::InvalidFileName) => write_not_found(stream).await,
                 Err(_) => write_not_found(stream).await,
+            }
+        }
+        AuthenticatedRoute::Preferences => {
+            match userdata
+                .get_preferences(mailbox_address, cancellation)
+                .await
+            {
+                Ok(preferences) => write_json_response(stream, Status::Ok, &preferences).await,
+                Err(error) => write_userdata_error(stream, error).await,
+            }
+        }
+        AuthenticatedRoute::SavePreferences => {
+            let Some(Value::Object(preferences)) = parse_json_body::<Value>(request) else {
+                return write_bad_request(stream).await;
+            };
+            match userdata
+                .save_preferences(mailbox_address, preferences, cancellation)
+                .await
+            {
+                Ok(()) => {
+                    write_json_response(stream, Status::Ok, &SuccessResponse { success: true })
+                        .await
+                }
+                Err(error) => write_userdata_error(stream, error).await,
+            }
+        }
+        AuthenticatedRoute::Contacts => {
+            let permit = tokio::select! {
+                biased;
+                _ = cancellation.cancelled() => {
+                    return Err(io::Error::new(io::ErrorKind::Interrupted, "contact response cancelled"));
+                }
+                permit = Arc::clone(&CONTACT_RESPONSE_PERMITS).acquire_owned() => {
+                    permit.map_err(|_| io::Error::other("contact response pool closed"))?
+                }
+            };
+            match userdata.list_contacts(mailbox_address, cancellation).await {
+                Ok(contacts) => {
+                    write_contact_list_response(stream, contacts, permit, cancellation).await
+                }
+                Err(error) => write_userdata_error(stream, error).await,
+            }
+        }
+        AuthenticatedRoute::CreateContact => {
+            let Some(input) = parse_json_body::<ContactInput>(request) else {
+                return write_bad_request(stream).await;
+            };
+            match userdata
+                .add_contact(
+                    mailbox_address,
+                    input.name.as_deref(),
+                    input.email.as_deref(),
+                    input.notes.as_deref(),
+                    cancellation,
+                )
+                .await
+            {
+                Ok(contact) => {
+                    let Some(name) = contact.name.as_deref() else {
+                        return write_userdata_error(
+                            stream,
+                            UserDataError::Database("created contact lacked a name".into()),
+                        )
+                        .await;
+                    };
+                    write_json_response(
+                        stream,
+                        Status::Created,
+                        &ContactWriteResponse {
+                            id: contact.id,
+                            name,
+                            email: &contact.email,
+                        },
+                    )
+                    .await
+                }
+                Err(error) => write_userdata_error(stream, error).await,
+            }
+        }
+        AuthenticatedRoute::UpdateContact { id } => {
+            let Some(input) = parse_json_body::<ContactInput>(request) else {
+                return write_bad_request(stream).await;
+            };
+            match userdata
+                .update_contact(
+                    mailbox_address,
+                    id,
+                    input.name.as_deref(),
+                    input.email.as_deref(),
+                    input.notes.as_deref(),
+                    cancellation,
+                )
+                .await
+            {
+                Ok(contact) => {
+                    let Some(name) = contact.name.as_deref() else {
+                        return write_userdata_error(
+                            stream,
+                            UserDataError::Database("updated contact lacked a name".into()),
+                        )
+                        .await;
+                    };
+                    write_json_response(
+                        stream,
+                        Status::Ok,
+                        &ContactWriteResponse {
+                            id: contact.id,
+                            name,
+                            email: &contact.email,
+                        },
+                    )
+                    .await
+                }
+                Err(error) => write_userdata_error(stream, error).await,
+            }
+        }
+        AuthenticatedRoute::DeleteContact { id } => {
+            match userdata
+                .delete_contact(mailbox_address, id, cancellation)
+                .await
+            {
+                Ok(()) => {
+                    write_json_response(stream, Status::Ok, &SuccessResponse { success: true })
+                        .await
+                }
+                Err(error) => write_userdata_error(stream, error).await,
             }
         }
         AuthenticatedRoute::Stars { folder } => {
@@ -967,6 +1155,30 @@ async fn write_label_error(stream: TcpStream, message: &str) -> io::Result<()> {
     .await
 }
 
+async fn write_userdata_error(stream: TcpStream, error: UserDataError) -> io::Result<()> {
+    match error {
+        UserDataError::InvalidInput(message) => {
+            write_json_response(
+                stream,
+                Status::BadRequest,
+                &UserDataErrorResponse { error: &message },
+            )
+            .await
+        }
+        UserDataError::LimitExceeded => {
+            write_json_error(
+                stream,
+                Status::ServiceUnavailable,
+                "userdata_limit_exceeded",
+            )
+            .await
+        }
+        UserDataError::Cancelled | UserDataError::Database(_) | UserDataError::OutcomeUnknown => {
+            write_json_error(stream, Status::InternalServerError, "userdata_unavailable").await
+        }
+    }
+}
+
 async fn write_bad_request(stream: TcpStream) -> io::Result<()> {
     write_response(
         stream,
@@ -1093,6 +1305,22 @@ fn authenticated_route(request: &[u8]) -> Result<Option<AuthenticatedRoute>, ()>
                 folder: decode(folder)?,
                 file: decode(file)?,
                 index: index.parse().map_err(|_| ())?,
+            }))
+        }
+        ("GET", ["web", "userdata", "preferences"]) => Ok(Some(AuthenticatedRoute::Preferences)),
+        ("POST", ["web", "userdata", "preferences"]) => {
+            Ok(Some(AuthenticatedRoute::SavePreferences))
+        }
+        ("GET", ["web", "userdata", "contacts"]) => Ok(Some(AuthenticatedRoute::Contacts)),
+        ("POST", ["web", "userdata", "contacts"]) => Ok(Some(AuthenticatedRoute::CreateContact)),
+        ("PUT", ["web", "userdata", "contacts", id]) => {
+            Ok(Some(AuthenticatedRoute::UpdateContact {
+                id: decode(id)?.parse().map_err(|_| ())?,
+            }))
+        }
+        ("DELETE", ["web", "userdata", "contacts", id]) => {
+            Ok(Some(AuthenticatedRoute::DeleteContact {
+                id: decode(id)?.parse().map_err(|_| ())?,
             }))
         }
         ("GET", ["web", "userdata", "stars", folder]) => Ok(Some(AuthenticatedRoute::Stars {
@@ -1717,6 +1945,25 @@ struct LabelInput {
     color: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct ContactInput {
+    name: Option<String>,
+    email: Option<String>,
+    notes: Option<String>,
+}
+
+#[derive(Serialize)]
+struct ContactWriteResponse<'a> {
+    id: i64,
+    name: &'a str,
+    email: &'a str,
+}
+
+#[derive(Serialize)]
+struct UserDataErrorResponse<'a> {
+    error: &'a str,
+}
+
 #[derive(Serialize)]
 struct InvalidInputResponse<'a> {
     error: &'static str,
@@ -1763,15 +2010,176 @@ async fn write_response(
     body: &[u8],
     content_type: &str,
 ) -> io::Result<()> {
+    write_response_head(&mut stream, status, body.len(), content_type).await?;
+    stream.write_all(body).await
+}
+
+async fn write_response_head(
+    stream: &mut TcpStream,
+    status: Status,
+    content_length: usize,
+    content_type: &str,
+) -> io::Result<()> {
     let head = format!(
         "HTTP/1.1 {} {}\r\ncontent-type: {}\r\ncontent-length: {}\r\n\r\n",
         status.code(),
         status.reason(),
         content_type,
-        body.len()
+        content_length
     );
-    stream.write_all(head.as_bytes()).await?;
-    stream.write_all(body).await
+    stream.write_all(head.as_bytes()).await
+}
+
+async fn write_contact_list_response(
+    mut stream: TcpStream,
+    contacts: Vec<ContactRecord>,
+    permit: OwnedSemaphorePermit,
+    cancellation: &CancellationToken,
+) -> io::Result<()> {
+    let (length_sender, length_receiver) = oneshot::channel();
+    let (chunk_sender, mut chunk_receiver) = mpsc::channel::<Vec<u8>>(JSON_STREAM_CHANNEL_CHUNKS);
+    let serialization_cancellation = cancellation.clone();
+    let producer = spawn_blocking(move || -> io::Result<()> {
+        let _permit = permit;
+        let mut counter = CountingWriter::with_cancellation(serialization_cancellation.clone());
+        serde_json::to_writer(&mut counter, &contacts).map_err(io::Error::other)?;
+        length_sender
+            .send(counter.length)
+            .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "HTTP response was dropped"))?;
+
+        let mut writer = ChannelWriter::new(chunk_sender, Some(serialization_cancellation));
+        serde_json::to_writer(&mut writer, &contacts).map_err(io::Error::other)?;
+        io::Write::flush(&mut writer)
+    });
+
+    let content_length = match length_receiver.await {
+        Ok(length) => length,
+        Err(_) => return join_json_producer(producer).await,
+    };
+    if content_length > MAX_CONTACT_WIRE_BYTES {
+        drop(chunk_receiver);
+        let _ = join_json_producer(producer).await;
+        return write_json_error(
+            stream,
+            Status::ServiceUnavailable,
+            "userdata_limit_exceeded",
+        )
+        .await;
+    }
+    let write_result = async {
+        write_response_head(
+            &mut stream,
+            Status::Ok,
+            content_length,
+            "application/json; charset=UTF-8",
+        )
+        .await?;
+        while let Some(chunk) = chunk_receiver.recv().await {
+            stream.write_all(&chunk).await?;
+        }
+        Ok::<(), io::Error>(())
+    }
+    .await;
+    drop(chunk_receiver);
+    let producer_result = join_json_producer(producer).await;
+    write_result?;
+    producer_result
+}
+
+async fn join_json_producer(producer: JoinHandle<io::Result<()>>) -> io::Result<()> {
+    producer.await.map_err(io::Error::other)?
+}
+
+#[derive(Default)]
+struct CountingWriter {
+    length: usize,
+    cancellation: Option<CancellationToken>,
+}
+
+impl CountingWriter {
+    fn with_cancellation(cancellation: CancellationToken) -> Self {
+        Self {
+            length: 0,
+            cancellation: Some(cancellation),
+        }
+    }
+}
+
+impl io::Write for CountingWriter {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        ensure_serialization_active(self.cancellation.as_ref())?;
+        self.length = self
+            .length
+            .checked_add(bytes.len())
+            .ok_or_else(|| io::Error::other("JSON response length overflow"))?;
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+struct ChannelWriter {
+    sender: mpsc::Sender<Vec<u8>>,
+    buffer: Vec<u8>,
+    cancellation: Option<CancellationToken>,
+}
+
+impl ChannelWriter {
+    fn new(sender: mpsc::Sender<Vec<u8>>, cancellation: Option<CancellationToken>) -> Self {
+        Self {
+            sender,
+            buffer: Vec::with_capacity(JSON_STREAM_CHUNK_BYTES),
+            cancellation,
+        }
+    }
+
+    fn send_buffer(&mut self) -> io::Result<()> {
+        ensure_serialization_active(self.cancellation.as_ref())?;
+        if self.buffer.is_empty() {
+            return Ok(());
+        }
+        let chunk = std::mem::replace(
+            &mut self.buffer,
+            Vec::with_capacity(JSON_STREAM_CHUNK_BYTES),
+        );
+        self.sender
+            .blocking_send(chunk)
+            .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "HTTP response was dropped"))
+    }
+}
+
+impl io::Write for ChannelWriter {
+    fn write(&mut self, mut bytes: &[u8]) -> io::Result<usize> {
+        ensure_serialization_active(self.cancellation.as_ref())?;
+        let total = bytes.len();
+        while !bytes.is_empty() {
+            let available = JSON_STREAM_CHUNK_BYTES - self.buffer.len();
+            let count = available.min(bytes.len());
+            self.buffer.extend_from_slice(&bytes[..count]);
+            bytes = &bytes[count..];
+            if self.buffer.len() == JSON_STREAM_CHUNK_BYTES {
+                self.send_buffer()?;
+            }
+        }
+        Ok(total)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.send_buffer()
+    }
+}
+
+fn ensure_serialization_active(cancellation: Option<&CancellationToken>) -> io::Result<()> {
+    if cancellation.is_some_and(CancellationToken::is_cancelled) {
+        Err(io::Error::new(
+            io::ErrorKind::Interrupted,
+            "HTTP response cancelled",
+        ))
+    } else {
+        Ok(())
+    }
 }
 
 async fn write_json_response<T: Serialize>(
@@ -2051,12 +2459,83 @@ lmyzmail.public-registration-enabled=true\n",
             Ok(())
         };
 
-        let result =
-            run_request_until_joined(request, &cancellation, Duration::from_millis(2)).await;
+        let socket_closed = Arc::new(AtomicBool::new(false));
+        let closed = Arc::clone(&socket_closed);
+        let result = run_request_until_joined(
+            request,
+            &cancellation,
+            Duration::from_millis(2),
+            move || closed.store(true, Ordering::Release),
+        )
+        .await;
         assert!(result.is_ok());
         assert!(cancellation.is_cancelled());
+        assert!(socket_closed.load(Ordering::Acquire));
         assert!(finished.load(Ordering::Acquire));
         assert_eq!(active.load(Ordering::Acquire), 0);
+    }
+
+    #[tokio::test]
+    async fn request_deadline_shutdown_interrupts_partial_socket_read() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let mut client = TcpStream::connect(address).await.unwrap();
+        let (server, _) = listener.accept().await.unwrap();
+        client
+            .write_all(b"POST /web/userdata/preferences HTTP/1.1\r\nContent-Length: 100\r\n\r\n{")
+            .await
+            .unwrap();
+        let (mut server, shutdown_stream) = socket_with_shutdown_handle(server).unwrap();
+        let cancellation = CancellationToken::new();
+        let result = run_request_until_joined(
+            async move {
+                let request = read_request(&mut server, 1024).await?;
+                assert!(request.len() < 100);
+                Ok(())
+            },
+            &cancellation,
+            Duration::from_millis(20),
+            move || {
+                let _ = shutdown_stream.shutdown(Shutdown::Both);
+            },
+        )
+        .await;
+        assert!(result.is_ok());
+        assert!(cancellation.is_cancelled());
+    }
+
+    #[test]
+    fn contact_counting_writer_matches_exact_json_wire_length() {
+        let contacts = vec![ContactRecord {
+            id: i64::MIN,
+            name: Some("Control \u{1} and quote \"".into()),
+            email: "unicode-用户@example.test".into(),
+            notes: Some("\n\\\t".repeat(1024)),
+        }];
+        let expected = serde_json::to_vec(&contacts).unwrap();
+        let mut counter = CountingWriter::default();
+        serde_json::to_writer(&mut counter, &contacts).unwrap();
+        assert_eq!(counter.length, expected.len());
+        assert!(counter.length <= MAX_CONTACT_WIRE_BYTES);
+    }
+
+    #[tokio::test]
+    async fn contact_channel_writer_uses_fixed_bounded_chunks() {
+        let payload = vec![b'x'; JSON_STREAM_CHUNK_BYTES * 2 + 7];
+        let expected = payload.clone();
+        let (sender, mut receiver) = mpsc::channel(1);
+        let producer = spawn_blocking(move || {
+            let mut writer = ChannelWriter::new(sender, None);
+            io::Write::write_all(&mut writer, &payload)?;
+            io::Write::flush(&mut writer)
+        });
+        let mut actual = Vec::new();
+        while let Some(chunk) = receiver.recv().await {
+            assert!(chunk.len() <= JSON_STREAM_CHUNK_BYTES);
+            actual.extend_from_slice(&chunk);
+        }
+        producer.await.unwrap().unwrap();
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -2190,6 +2669,38 @@ lmyzmail.public-registration-enabled=true\n",
             Ok(Some(AuthenticatedRoute::Stars {
                 folder: "inbox".into(),
             }))
+        );
+        assert_eq!(
+            authenticated_route(b"GET /web/userdata/preferences HTTP/1.1\r\n\r\n"),
+            Ok(Some(AuthenticatedRoute::Preferences))
+        );
+        assert_eq!(
+            authenticated_route(b"POST /web/userdata/preferences HTTP/1.1\r\n\r\n"),
+            Ok(Some(AuthenticatedRoute::SavePreferences))
+        );
+        assert_eq!(
+            authenticated_route(b"GET /web/userdata/contacts HTTP/1.1\r\n\r\n"),
+            Ok(Some(AuthenticatedRoute::Contacts))
+        );
+        assert_eq!(
+            authenticated_route(b"POST /web/userdata/contacts HTTP/1.1\r\n\r\n"),
+            Ok(Some(AuthenticatedRoute::CreateContact))
+        );
+        assert_eq!(
+            authenticated_route(b"PUT /web/userdata/contacts/42 HTTP/1.1\r\n\r\n"),
+            Ok(Some(AuthenticatedRoute::UpdateContact { id: 42 }))
+        );
+        assert_eq!(
+            authenticated_route(b"DELETE /web/userdata/contacts/42 HTTP/1.1\r\n\r\n"),
+            Ok(Some(AuthenticatedRoute::DeleteContact { id: 42 }))
+        );
+        assert_eq!(
+            authenticated_route(b"PUT /web/userdata/contacts/%34%32 HTTP/1.1\r\n\r\n"),
+            Ok(Some(AuthenticatedRoute::UpdateContact { id: 42 }))
+        );
+        assert!(
+            authenticated_route(b"PUT /web/userdata/contacts/not-a-number HTTP/1.1\r\n\r\n")
+                .is_err()
         );
         assert_eq!(
             authenticated_route(b"POST /web/mail/star/inbox/legacy-root.eml HTTP/1.1\r\n\r\n",),

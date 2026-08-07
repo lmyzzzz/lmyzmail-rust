@@ -64,6 +64,14 @@ wire, state, storage, or recovery assertions.
   blackbox observation window after Redis disappears; lmyzmail returns a fixed
   `500 {"error":"internal_error"}` for a known status and still resolves an
   unknown sent file to `404` through PostgreSQL within the same request budget.
+- Malformed userdata writes are rejected before PostgreSQL mutation. The frozen
+  controller can return 500 for malformed JSON and can commit a nameless contact
+  before response serialization fails; the evidence-only golden records both.
+- Concurrent contact creation is serialized per normalized mailbox/email pair,
+  so equal addresses create exactly one row while unrelated addresses remain
+  concurrent. Contact list materialization is capped at 10,000 rows and 16 MiB
+  of UTF-8 field data; an over-budget mailbox receives the fixed bounded
+  response recorded in the allowlist.
 
 ## SMTP AUTH oracle behavior
 

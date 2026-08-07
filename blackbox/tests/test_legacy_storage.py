@@ -77,6 +77,9 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "outbound-route-dns-answer-budgets",
         "mta-sts-negative-cache-restart",
         "outbound-http-redis-outage-deadline",
+        "userdata-malformed-write-rejection",
+        "userdata-contact-admission-race",
+        "userdata-contact-list-bound",
     }
     starttls = next(
         entry
@@ -114,6 +117,15 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
     )
     assert by_id["outbound-http-redis-outage-deadline"]["evidence"]["source_sha256"] == (
         "f9abffe3fbc98e314db34fcf38d894fd200d93ad74ff933f2c0f57e2717f1bf4"
+    )
+    assert by_id["userdata-malformed-write-rejection"]["evidence"]["source_sha256"] == (
+        "eb6985f2eafec9a65a518c7c2bc8e46de61393761bad0981053561fcdeb21aaf"
+    )
+    assert by_id["userdata-contact-admission-race"]["evidence"]["source_sha256"] == (
+        "17ca3b701d24d40d971ab1f51410caf7db33c6d5f33dafd62682f731e35dfb01"
+    )
+    assert by_id["userdata-contact-list-bound"]["candidate_requirement"].startswith(
+        "Within one repeatable-read snapshot"
     )
 
 

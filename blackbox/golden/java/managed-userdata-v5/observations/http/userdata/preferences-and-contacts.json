@@ -1,0 +1,470 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "40b6e82187bceeb93d3f61dd6ddeeff72ce411ce5eaac8c11693bee94fd3ee4c",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "json-object-order:jdk-map-of:write-responses"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-userdata"
+  },
+  "observation": {
+    "contact_created": {
+      "body_json": {
+        "email": "zulu@example.test",
+        "id": 1202,
+        "name": "Zulu Contact"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "61"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlbWFpbCI6Inp1bHVAZXhhbXBsZS50ZXN0IiwiaWQiOjEyMDIsIm5hbWUiOiJadWx1IENvbnRhY3QifQ==",
+        "length": 61,
+        "sha256": "55de5b1bb080b0a91ef41f01b3b0e1a0a5ba0528b67eb01fad90341caef158ef"
+      },
+      "status_code": 201,
+      "status_line": "HTTP/1.1 201 Created"
+    },
+    "contact_deleted": {
+      "body_json": {
+        "success": true
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "16"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJzdWNjZXNzIjp0cnVlfQ==",
+        "length": 16,
+        "sha256": "c955e57777ec0d73639dca6748560d00aa5eb8e12f13ebb2ed9656add3908f97"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "contact_deleted_again": {
+      "body_json": {
+        "error": "Contact not found"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "29"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlcnJvciI6IkNvbnRhY3Qgbm90IGZvdW5kIn0=",
+        "length": 29,
+        "sha256": "69bc25f36a3878f355c8c01ac143bc33ab0cd77bdec2448653032c75b77af6c4"
+      },
+      "status_code": 400,
+      "status_line": "HTTP/1.1 400 Bad Request"
+    },
+    "contact_duplicate": {
+      "body_json": {
+        "error": "Contact already exists"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "34"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlcnJvciI6IkNvbnRhY3QgYWxyZWFkeSBleGlzdHMifQ==",
+        "length": 34,
+        "sha256": "42da23050efb4afbe550c7dc8114170a03806e1fb451d7ee3727d47214c9d71d"
+      },
+      "status_code": 400,
+      "status_line": "HTTP/1.1 400 Bad Request"
+    },
+    "contact_updated": {
+      "body_json": {
+        "email": "aaron@example.test",
+        "id": 1202,
+        "name": "Aaron Contact"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "63"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlbWFpbCI6ImFhcm9uQGV4YW1wbGUudGVzdCIsImlkIjoxMjAyLCJuYW1lIjoiQWFyb24gQ29udGFjdCJ9",
+        "length": 63,
+        "sha256": "ae3d5b76f59f0900f412977dd7c0148d42b1e69153ea9a209ec4c38a493391bd"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "contacts_after_create": {
+      "body_json": [
+        {
+          "email": "legacy-contact@example.test",
+          "id": 1201,
+          "name": "Legacy Contact",
+          "notes": "Imported contact fixture"
+        },
+        {
+          "email": "zulu@example.test",
+          "id": 1202,
+          "name": "Zulu Contact",
+          "notes": "Created by the userdata differential"
+        }
+      ],
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "219"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "W3siaWQiOjEyMDEsIm5hbWUiOiJMZWdhY3kgQ29udGFjdCIsImVtYWlsIjoibGVnYWN5LWNvbnRhY3RAZXhhbXBsZS50ZXN0Iiwibm90ZXMiOiJJbXBvcnRlZCBjb250YWN0IGZpeHR1cmUifSx7ImlkIjoxMjAyLCJuYW1lIjoiWnVsdSBDb250YWN0IiwiZW1haWwiOiJ6dWx1QGV4YW1wbGUudGVzdCIsIm5vdGVzIjoiQ3JlYXRlZCBieSB0aGUgdXNlcmRhdGEgZGlmZmVyZW50aWFsIn1d",
+        "length": 219,
+        "sha256": "875d6a0d9d15d2c2f0654378fb5c99d147f990740474a588fb1b2878d177da2b"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "contacts_after_delete": {
+      "body_json": [
+        {
+          "email": "legacy-contact@example.test",
+          "id": 1201,
+          "name": "Legacy Contact",
+          "notes": "Imported contact fixture"
+        }
+      ],
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "110"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "W3siaWQiOjEyMDEsIm5hbWUiOiJMZWdhY3kgQ29udGFjdCIsImVtYWlsIjoibGVnYWN5LWNvbnRhY3RAZXhhbXBsZS50ZXN0Iiwibm90ZXMiOiJJbXBvcnRlZCBjb250YWN0IGZpeHR1cmUifV0=",
+        "length": 110,
+        "sha256": "a0d3889ffc273a8268a5dcc6c996eea39f8cbdc983da8138cc01ccc8bb974f4e"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "contacts_after_update": {
+      "body_json": [
+        {
+          "email": "aaron@example.test",
+          "id": 1202,
+          "name": "Aaron Contact",
+          "notes": "Updated notes"
+        },
+        {
+          "email": "legacy-contact@example.test",
+          "id": 1201,
+          "name": "Legacy Contact",
+          "notes": "Imported contact fixture"
+        }
+      ],
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "198"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "W3siaWQiOjEyMDIsIm5hbWUiOiJBYXJvbiBDb250YWN0IiwiZW1haWwiOiJhYXJvbkBleGFtcGxlLnRlc3QiLCJub3RlcyI6IlVwZGF0ZWQgbm90ZXMifSx7ImlkIjoxMjAxLCJuYW1lIjoiTGVnYWN5IENvbnRhY3QiLCJlbWFpbCI6ImxlZ2FjeS1jb250YWN0QGV4YW1wbGUudGVzdCIsIm5vdGVzIjoiSW1wb3J0ZWQgY29udGFjdCBmaXh0dXJlIn1d",
+        "length": 198,
+        "sha256": "099566a323f1cf4c8766767bb321de0b2be215f8982acedc4c52c99c5b22630b"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "contacts_before": {
+      "body_json": [
+        {
+          "email": "legacy-contact@example.test",
+          "id": 1201,
+          "name": "Legacy Contact",
+          "notes": "Imported contact fixture"
+        }
+      ],
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "110"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "W3siaWQiOjEyMDEsIm5hbWUiOiJMZWdhY3kgQ29udGFjdCIsImVtYWlsIjoibGVnYWN5LWNvbnRhY3RAZXhhbXBsZS50ZXN0Iiwibm90ZXMiOiJJbXBvcnRlZCBjb250YWN0IGZpeHR1cmUifV0=",
+        "length": 110,
+        "sha256": "a0d3889ffc273a8268a5dcc6c996eea39f8cbdc983da8138cc01ccc8bb974f4e"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "foreign_delete": {
+      "body_json": {
+        "error": "Contact not found"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "29"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlcnJvciI6IkNvbnRhY3Qgbm90IGZvdW5kIn0=",
+        "length": 29,
+        "sha256": "69bc25f36a3878f355c8c01ac143bc33ab0cd77bdec2448653032c75b77af6c4"
+      },
+      "status_code": 400,
+      "status_line": "HTTP/1.1 400 Bad Request"
+    },
+    "foreign_update": {
+      "body_json": {
+        "error": "Contact not found"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "29"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlcnJvciI6IkNvbnRhY3Qgbm90IGZvdW5kIn0=",
+        "length": 29,
+        "sha256": "69bc25f36a3878f355c8c01ac143bc33ab0cd77bdec2448653032c75b77af6c4"
+      },
+      "status_code": 400,
+      "status_line": "HTTP/1.1 400 Bad Request"
+    },
+    "missing_update": {
+      "body_json": {
+        "error": "Contact not found"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "29"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlcnJvciI6IkNvbnRhY3Qgbm90IGZvdW5kIn0=",
+        "length": 29,
+        "sha256": "69bc25f36a3878f355c8c01ac143bc33ab0cd77bdec2448653032c75b77af6c4"
+      },
+      "status_code": 400,
+      "status_line": "HTTP/1.1 400 Bad Request"
+    },
+    "preferences_after": {
+      "body_json": {
+        "columns": [
+          "from",
+          "subject",
+          "date"
+        ],
+        "itemsPerPage": 40,
+        "nested": {
+          "compact": true,
+          "sender": "用户@example.test"
+        },
+        "theme": "solarized"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "132"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJ0aGVtZSI6InNvbGFyaXplZCIsIml0ZW1zUGVyUGFnZSI6NDAsIm5lc3RlZCI6eyJjb21wYWN0Ijp0cnVlLCJzZW5kZXIiOiLnlKjmiLdAZXhhbXBsZS50ZXN0In0sImNvbHVtbnMiOlsiZnJvbSIsInN1YmplY3QiLCJkYXRlIl19",
+        "length": 132,
+        "sha256": "49a0f0fb738d78ac314fec3d1cbb7150ad1d3ac87d43baff4ed96c6c4d4f1563"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "preferences_before": {
+      "body_json": {
+        "itemsPerPage": 25,
+        "legacyFixture": true,
+        "theme": "dark"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "55"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJpdGVtc1BlclBhZ2UiOjI1LCJsZWdhY3lGaXh0dXJlIjp0cnVlLCJ0aGVtZSI6ImRhcmsifQ==",
+        "length": 55,
+        "sha256": "f7165c1fbb74c68593c357eb27958996cc7ac7d5e75f8d553a7581b07963dd76"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "preferences_corrupt_legacy": {
+      "body_json": {},
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "2"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "e30=",
+        "length": 2,
+        "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "preferences_empty": {
+      "body_json": {},
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "2"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "e30=",
+        "length": 2,
+        "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "preferences_replaced": {
+      "body_json": {
+        "success": true
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "16"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJzdWNjZXNzIjp0cnVlfQ==",
+        "length": 16,
+        "sha256": "c955e57777ec0d73639dca6748560d00aa5eb8e12f13ebb2ed9656add3908f97"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "preferences_saved": {
+      "body_json": {
+        "success": true
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "16"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJzdWNjZXNzIjp0cnVlfQ==",
+        "length": 16,
+        "sha256": "c955e57777ec0d73639dca6748560d00aa5eb8e12f13ebb2ed9656add3908f97"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    }
+  },
+  "schema_version": 2
+}

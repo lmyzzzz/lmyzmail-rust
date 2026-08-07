@@ -257,7 +257,9 @@ def test_outbound_manifest_binds_frozen_oracle_and_legacy_key_surface() -> None:
             "max_bytes": 4194304,
             "lifecycle": "ADMITTING only; cleared in the ADMITTED queue transaction",
         },
-        "admitted_replay": "PENDING PostgreSQL queue rows are recovered to legacy Redis after restart",
+        "admitted_replay": (
+            "PENDING PostgreSQL queue rows are recovered to legacy Redis after restart"
+        ),
         "processing_replay": "never automatic; coordinator fence owns PROCESSING rows",
         "renderer": ["RFC3464 ASCII", "RFC6533 EAI global-delivery-status"],
         "smtp_utf8": "8bit for EAI envelope; quoted-printable global parts for ASCII envelope",
