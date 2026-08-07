@@ -13,10 +13,10 @@ import psycopg
 import pytest
 
 from lmyzmail_blackbox.differential import DifferentialRunner, RuntimeTarget, Scenario
+from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.normalize import FieldRule, constant
 from lmyzmail_blackbox.persistent_runtime import PersistentJavaOracleRuntime
 from lmyzmail_blackbox.ports import PortSet
-from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.protocols import http_exchange, json_http_exchange
 from lmyzmail_blackbox.runtime import (
     API_KEY,
@@ -27,7 +27,7 @@ from lmyzmail_blackbox.runtime import (
 from lmyzmail_blackbox.snapshots import http_json_snapshot
 
 _PROFILE = "managed-mailbox-api"
-_GOLDEN = "blackbox/golden/java/managed-mailbox-api-v2"
+_GOLDEN = "blackbox/golden/java/managed-mailbox-api-v4"
 _ADMIN_HEADERS = (("X-API-Key", API_KEY),)
 
 

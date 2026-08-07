@@ -1,0 +1,83 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "c31293c84c74c9ec7a57b3321735e996cf21dca376bff5c6f142fbd89d421b5b",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "smtp:greeting-skibidi-grammar",
+      "smtp:server-hostname",
+      "smtp:session-id"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-starttls-oracle-evidence"
+  },
+  "observation": {
+    "difference_id": "starttls-buffered-plaintext-command",
+    "oracle_executed_buffered_plaintext_command": true,
+    "sent_plaintext": {
+      "base64": "U1RBUlRUTFMNCk5PT1ANCg==",
+      "length": 16,
+      "sha256": "fb1c8a763fa663a3e3081444d671b8795a55956316791567a906a8b42d878b8a"
+    },
+    "wire": {
+      "ehlo_after_tls": [
+        "250-<hostname> Hello blackbox.example\r\n",
+        "250-PIPELINING\r\n",
+        "250-SIZE 15728640\r\n",
+        "250-8BITMIME\r\n",
+        "250-CHUNKING\r\n",
+        "250-ENHANCEDSTATUSCODES\r\n",
+        "250-SMTPUTF8\r\n",
+        "250 SKIBIDITOILET\r\n"
+      ],
+      "ehlo_before_tls": [
+        "250-<hostname> Hello blackbox.example\r\n",
+        "250-PIPELINING\r\n",
+        "250-SIZE 15728640\r\n",
+        "250-8BITMIME\r\n",
+        "250-CHUNKING\r\n",
+        "250-STARTTLS\r\n",
+        "250-ENHANCEDSTATUSCODES\r\n",
+        "250-SMTPUTF8\r\n",
+        "250 SKIBIDITOILET\r\n"
+      ],
+      "greeting": [
+        "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+      ],
+      "mail_before_ehlo": [
+        "503 5.5.1 Bad sequence of commands\r\n"
+      ],
+      "negotiated": {
+        "alpn": null,
+        "cipher": "TLS_AES_256_GCM_SHA384",
+        "cipher_protocol": "TLSv1.3",
+        "compression": null,
+        "protocol": "TLSv1.3",
+        "secret_bits": 256
+      },
+      "quit": [
+        "221 2.0.0 <hostname> closing connection\r\n"
+      ],
+      "starttls": [
+        "220 2.0.0 Ready to start TLS\r\n"
+      ],
+      "unsolicited_post_handshake_reply": "250 OK\r\n"
+    }
+  },
+  "schema_version": 2
+}

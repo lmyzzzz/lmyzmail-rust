@@ -133,7 +133,7 @@ def test_frozen_java_auth_http_golden(record_java_golden: bool) -> None:
     paths = JavaOracleRuntime().paths
     runner = DifferentialRunner(
         paths.repository,
-        paths.repository / "blackbox/golden/java/managed-candidate-auth-v15",
+        paths.repository / "blackbox/golden/java/managed-candidate-auth-v17",
         "managed-candidate-auth",
         record_java=record_java_golden,
     )
@@ -153,7 +153,7 @@ def test_rust_candidate_auth_http_matches_frozen_java_golden() -> None:
     with candidate:
         DifferentialRunner(
             repository,
-            repository / "blackbox/golden/java/managed-candidate-auth-v15",
+            repository / "blackbox/golden/java/managed-candidate-auth-v17",
             "managed-candidate-auth",
         ).verify_candidate(AUTH_HTTP_SCENARIOS, candidate)
 

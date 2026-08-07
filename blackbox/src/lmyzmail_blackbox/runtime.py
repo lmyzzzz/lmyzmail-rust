@@ -15,7 +15,7 @@ import httpx
 from .errors import HarnessError, ProcessStartError, ProtocolError
 from .ports import PortAllocator, PortSet
 from .processes import ManagedProcess, stop_managed_processes
-from .protocols import connect_bounded, read_smtp_reply
+from .protocols import build_http_request, connect_bounded, read_http_response, read_smtp_reply
 from .tls_fixture import EphemeralTlsMaterial, provision_ephemeral_tls_material
 
 QA_ADDRESS = "qa@example.test"
@@ -24,6 +24,123 @@ QA_PASSWORD = "BlackboxPass123!"  # noqa: S105
 API_KEY = "blackbox-admin-key"
 READ_ONLY_API_KEY = "blackbox-read-key"
 WRITE_ONLY_API_KEY = "blackbox-write-key"
+
+_ALL_ADDITIONS = (
+    "Cream",
+    "Half-and-half",
+    "Whole-milk",
+    "Part-Skim",
+    "Skim",
+    "Non-Dairy",
+    "Vanilla",
+    "Almond",
+    "Raspberry",
+    "Chocolate",
+    "Whisky",
+    "Rum",
+    "Kahlua",
+    "Aquavit",
+    "Sugar",
+    "Xylitol",
+    "Stevia",
+)
+_HTCPCP_POTS = (
+    {
+        "id": "pot-0",
+        "type": "both",
+        "tea_varieties": (
+            "darjeeling",
+            "earl-grey",
+            "english-breakfast",
+            "green",
+            "peppermint",
+            "oolong",
+        ),
+        "supported_additions": _ALL_ADDITIONS,
+    },
+    {
+        "id": "pot-1",
+        "type": "tea",
+        "tea_varieties": (
+            "darjeeling",
+            "earl-grey",
+            "peppermint",
+            "chamomile",
+            "jasmine",
+        ),
+        "supported_additions": ("Sugar", "Xylitol", "Stevia"),
+    },
+    {
+        "id": "pot-2",
+        "type": "tea",
+        "tea_varieties": (
+            "earl-grey",
+            "english-breakfast",
+            "darjeeling",
+            "chamomile",
+        ),
+        "supported_additions": (
+            "Cream",
+            "Half-and-half",
+            "Whole-milk",
+            "Part-Skim",
+            "Skim",
+            "Non-Dairy",
+            "Sugar",
+            "Xylitol",
+            "Stevia",
+        ),
+    },
+    {
+        "id": "pot-3",
+        "type": "coffee",
+        "tea_varieties": (),
+        "supported_additions": _ALL_ADDITIONS[:10] + _ALL_ADDITIONS[14:],
+    },
+    {
+        "id": "pot-4",
+        "type": "coffee",
+        "tea_varieties": (),
+        "supported_additions": (
+            "Cream",
+            "Whole-milk",
+            "Non-Dairy",
+            "Chocolate",
+            "Whisky",
+            "Rum",
+            "Kahlua",
+            "Aquavit",
+            "Sugar",
+        ),
+    },
+    {
+        "id": "pot-5",
+        "type": "tea",
+        "tea_varieties": ("peppermint", "chamomile"),
+        "supported_additions": ("Sugar", "Xylitol", "Stevia"),
+    },
+    {
+        "id": "pot-6",
+        "type": "coffee",
+        "tea_varieties": (),
+        "supported_additions": (),
+    },
+    {
+        "id": "pot-7",
+        "type": "both",
+        "tea_varieties": (
+            "darjeeling",
+            "earl-grey",
+            "peppermint",
+            "green",
+            "oolong",
+            "chamomile",
+            "jasmine",
+            "english-breakfast",
+        ),
+        "supported_additions": _ALL_ADDITIONS,
+    },
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +185,11 @@ class JavaOracleRuntime:
     @property
     def requires_smtp_readiness(self) -> bool:
         """Whether startup must prove the full SMTP listener is available."""
+        return True
+
+    @property
+    def requires_htcpcp_readiness(self) -> bool:
+        """Whether startup must prove the HTCPCP dispatcher is available."""
         return True
 
     @property
@@ -340,6 +462,7 @@ class JavaOracleRuntime:
             "--botmail.ssl.use-custom-certificate=false",
             "--botmail.htcpcp.enabled=true",
             f"--botmail.htcpcp.port={ports.htcpcp}",
+            "--botmail.htcpcp.default-brew-time-seconds=1",
             "--botmail.minecraft.enabled=true",
             f"--botmail.minecraft.port={ports.minecraft}",
             "--botmail.minecraft.online-mode=false",
@@ -386,6 +509,16 @@ class JavaOracleRuntime:
                     f"--botmail.honeypot.traps[{index}].bind-address=127.0.0.1",
                 )
             )
+        for index, pot in enumerate(_HTCPCP_POTS):
+            prefix = f"--botmail.htcpcp.pots[{index}]"
+            arguments.extend(
+                (
+                    f"{prefix}.id={pot['id']}",
+                    f"{prefix}.type={pot['type']}",
+                    f"{prefix}.tea-varieties={','.join(pot['tea_varieties'])}",
+                    f"{prefix}.supported-additions={','.join(pot['supported_additions'])}",
+                )
+            )
         return arguments
 
     def _application_environment(self) -> dict[str, str]:
@@ -416,6 +549,27 @@ class JavaOracleRuntime:
                 raise ProtocolError(f"SMTP server did not greet with 220: {greeting!r}")
         finally:
             stream.sock.close()
+
+    @staticmethod
+    def _probe_htcpcp_readiness(host: str, port: int, *, timeout: float) -> None:
+        stream = connect_bounded(host, port, timeout=timeout, max_received=64 * 1024)
+        try:
+            stream.sendall(build_http_request("OPTIONS", "/", host=f"{host}:{port}"))
+            response = read_http_response(
+                stream,
+                request_method="OPTIONS",
+                max_header_bytes=16 * 1024,
+                max_body_bytes=64 * 1024,
+            )
+        finally:
+            stream.sock.close()
+        if response.status_code != 200:
+            raise ProtocolError(
+                f"HTCPCP readiness returned {response.status_code}: {response.body[:200]!r}"
+            )
+        allow = response.header_values(b"allow")
+        if allow != (b"BREW, POST, GET, HEAD, PROPFIND, WHEN, OPTIONS",):
+            raise ProtocolError(f"HTCPCP readiness returned an unexpected Allow field: {allow!r}")
 
     def _start_application(self) -> None:
         workspace, ports = self._require_state()
@@ -477,6 +631,32 @@ class JavaOracleRuntime:
                 f"{self.target_kind} HTTP health did not become ready: {last_error}; "
                 f"tail:\n{self._application.log_tail()}"
             )
+
+        if self.requires_htcpcp_readiness:
+            last_error = None
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                try:
+                    self._probe_htcpcp_readiness(
+                        "127.0.0.1",
+                        ports.htcpcp,
+                        timeout=min(1.0, remaining),
+                    )
+                    break
+                except (OSError, ProtocolError) as error:
+                    last_error = error
+                sleep_for = min(0.1, deadline - time.monotonic())
+                if sleep_for > 0:
+                    time.sleep(sleep_for)
+            else:
+                raise AssertionError("unreachable")
+            if remaining <= 0:
+                raise ProcessStartError(
+                    f"{self.target_kind} HTCPCP readiness did not become ready: {last_error}; "
+                    f"tail:\n{self._application.log_tail()}"
+                )
 
         if not self.requires_smtp_readiness:
             return
@@ -765,6 +945,11 @@ class CandidateRuntime(JavaOracleRuntime):
                 "xdp": False,
                 "fail2ban": False,
                 "report_delivery": False,
+            },
+            "htcpcp": {
+                "enabled": True,
+                "default_brew_time_seconds": 1,
+                "pots": list(_HTCPCP_POTS),
             },
             "limits": {
                 "redis_pool": 16,

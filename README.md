@@ -60,8 +60,20 @@ queue.
 The Rust candidate now provides the bounded Tokio lifecycle and configuration
 alias contract together with incremental HTTP, authentication and session
 handling, trusted-proxy enforcement, mailbox reads and mutations, attachment
-downloads, and inbound SMTP persistence. Each admitted surface is exercised by
-the external Java/Rust differential harness.
+downloads, inbound SMTP persistence, and the complete HTCPCP coffee/tea state
+machine. Each admitted surface is exercised by the external Java/Rust
+differential harness.
+
+HTCPCP runs as a bounded Tokio listener only when enabled. It preserves the
+frozen eight-pot configuration, BREW/POST/GET/HEAD/OPTIONS/PROPFIND/WHEN wire
+behavior, coffee URI variants, additions and tea rules, chunked and
+100-continue framing, keep-alive pipelining, timers, and process-local restart
+semantics. The candidate v7 differential passed every frozen scenario; unit,
+property, structured-fuzz, concurrency, and release tests cover the parser and
+state machine. Three resource-safety differences are allowlisted: declared
+connection close is honored immediately, incomplete framing has an absolute
+60-second deadline, and ambiguous Content-Length/Transfer-Encoding combinations
+are rejected before dispatch or 100 Continue.
 
 The authenticated management API now includes `POST /api/mailboxes` and
 `GET /api/mailboxes/{address}/exists`, with Java-compatible permission, JSON,

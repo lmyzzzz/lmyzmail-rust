@@ -81,6 +81,9 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "userdata-contact-admission-race",
         "userdata-contact-list-bound",
         "auth-postgres-cancellation-and-pool-health",
+        "htcpcp-connection-close-lifecycle",
+        "htcpcp-absolute-request-deadline",
+        "htcpcp-ambiguous-http-framing",
     }
     starttls = next(
         entry
@@ -106,6 +109,12 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "f9abffe3fbc98e314db34fcf38d894fd200d93ad74ff933f2c0f57e2717f1bf4"
     )
     assert "stale pre-upgrade PROCESSING row" in commit_ambiguity["candidate_requirement"]
+
+    htcpcp_close = by_id["htcpcp-connection-close-lifecycle"]
+    assert htcpcp_close["evidence"]["oracle_golden"].startswith(
+        "blackbox/golden/java/managed-htcpcp-oracle-evidence-"
+    )
+    assert "actively close" in htcpcp_close["candidate_requirement"]
     assert by_id["outbound-null-mx-rejection"]["evidence"]["source_sha256"] == (
         "0de7fa1c7999f9d6ce7e583a0d5d6be38c9f3619f7b319d564d933f48186b181"
     )

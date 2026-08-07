@@ -547,6 +547,60 @@ def parse_http_response(raw: bytes, *, request_method: str = "GET") -> RawHttpRe
     )
 
 
+def read_http_response(
+    stream: BoundedSocket,
+    *,
+    request_method: str,
+    max_header_bytes: int = 64 * 1024,
+    max_body_bytes: int = 8 * 1024 * 1024,
+) -> RawHttpResponse:
+    """Read one Content-Length-framed response without waiting for connection EOF."""
+
+    if max_header_bytes < 1 or max_body_bytes < 0:
+        raise ValueError("HTTP response bounds are invalid")
+    head = stream.read_until(b"\r\n\r\n", max_bytes=max_header_bytes)
+    lines = head[:-4].split(b"\r\n")
+    if not lines:
+        raise ProtocolError("HTTP response lacked a status line")
+    status_parts = lines[0].split(b" ", 2)
+    if (
+        len(status_parts) < 2
+        or status_parts[0] not in (b"HTTP/1.0", b"HTTP/1.1")
+        or len(status_parts[1]) != 3
+        or not status_parts[1].isdigit()
+    ):
+        raise ProtocolError(f"invalid HTTP response status: {lines[0]!r}")
+    status = int(status_parts[1])
+    content_lengths: list[int] = []
+    transfer_encoding = False
+    for line in lines[1:]:
+        if b":" not in line or line[:1] in (b" ", b"\t"):
+            raise ProtocolError(f"invalid HTTP response header: {line!r}")
+        name, value = line.split(b":", 1)
+        if not _HTTP_HEADER_NAME.fullmatch(name):
+            raise ProtocolError(f"invalid HTTP response header name: {name!r}")
+        if name.lower() == b"content-length":
+            stripped = value.strip()
+            if not stripped.isdigit():
+                raise ProtocolError("invalid HTTP Content-Length")
+            content_lengths.append(int(stripped))
+        elif name.lower() == b"transfer-encoding":
+            transfer_encoding = True
+    if transfer_encoding:
+        raise ProtocolError("incremental HTTP response unexpectedly used Transfer-Encoding")
+    no_body = request_method.upper() == "HEAD" or status in {204, 304} or 100 <= status < 200
+    if no_body:
+        size = 0
+    else:
+        if len(content_lengths) != 1:
+            raise ProtocolError("incremental HTTP response lacked one Content-Length")
+        size = content_lengths[0]
+    if size > max_body_bytes:
+        raise ProtocolError("incremental HTTP response exceeded body budget")
+    body = stream.read_exact(size)
+    return parse_http_response(head + body, request_method=request_method)
+
+
 def http_exchange(
     host: str,
     port: int,

@@ -206,6 +206,44 @@
       "scope": "Only mailboxes with more than 10000 contacts or more than 16777216 aggregate UTF-8 bytes across id-independent response fields. Ordering and exact response content for all in-budget lists, including empty and legacy rows, remain differential requirements."
     },
     {
+      "candidate_requirement": "When a request is not keep-alive, write the complete Content-Length-framed HTCPCP response and then actively close the TCP connection within 250 milliseconds. Keep persistent connections open only when the request explicitly permits HTTP keep-alive.",
+      "evidence": {
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "oracle_golden": "blackbox/golden/java/managed-htcpcp-oracle-evidence-v2/observations/connection-close-not-honored.json",
+        "source": "src/main/java/net/lmyz/lmyzmail/netty/htcpcp/handler/HtcpcpRequestDispatcher.java",
+        "source_sha256": "16695ac0006cb3895a97950452fd9ce284ac5d5e47983c7d88686c904fb40682"
+      },
+      "id": "htcpcp-connection-close-lifecycle",
+      "oracle_behavior": "The frozen Java dispatcher sets `Connection: close` for non-keep-alive requests but calls only `writeAndFlush`; it never attaches a close listener. The channel remains open until the independent 60-second read-idle handler fires.",
+      "reason": "Advertising connection close while retaining every socket for the full idle interval enables trivial descriptor and event-loop pressure. This liveness/resource defect is excluded from bug-for-bug replication.",
+      "scope": "Only TCP closure after a fully written non-keep-alive HTCPCP response. Status lines, response headers and bodies, persistent-request ordering, the 60-second idle timeout for genuinely idle keep-alive connections, and every pot state transition remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Apply one absolute 60-second deadline from the first byte of each HTCPCP request through completion of its bounded HTTP framing, in addition to the 60-second read-idle timeout. Close the connection without dispatching an incomplete request when either deadline expires.",
+      "evidence": {
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "source": "src/main/java/net/lmyz/lmyzmail/netty/htcpcp/HtcpcpChannelInitializer.java",
+        "source_sha256": "e9e821dfc469695590d026ea4b148074443394956c39753ec930ca668d8f7581"
+      },
+      "id": "htcpcp-absolute-request-deadline",
+      "oracle_behavior": "The frozen Java pipeline has only a Netty read-idle handler. Every arriving byte resets that 60-second idle interval, so a client can keep an incomplete request and its socket, decoder, and channel state alive indefinitely by sending one byte before each idle boundary.",
+      "reason": "The rewrite requires deadlines and cancellation throughout protocol parsing. A read-idle timer alone is not an operation deadline and permits trivial slow-request resource retention.",
+      "scope": "Only incomplete HTCPCP framing that remains in progress for more than 60 seconds. Complete requests, ordinary fragmentation, the 60-second timeout for a connection receiving no bytes, keep-alive request ordering, response bytes, and pot transitions remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Reject duplicate Content-Length fields, Transfer-Encoding combined with Content-Length, unsupported transfer codings, repeated chunked codings, and any coding after chunked with one fixed 400 response and immediate close. Perform this framing validation before sending 100 Continue or dispatching a body.",
+      "evidence": {
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "oracle_golden": "blackbox/golden/java/managed-htcpcp-oracle-evidence-v3/observations/ambiguous-content-length.json",
+        "source": "src/main/java/net/lmyz/lmyzmail/netty/htcpcp/HtcpcpChannelInitializer.java",
+        "source_sha256": "e9e821dfc469695590d026ea4b148074443394956c39753ec930ca668d8f7581"
+      },
+      "id": "htcpcp-ambiguous-http-framing",
+      "oracle_behavior": "The frozen Netty pipeline accepts a request carrying conflicting Content-Length fields far enough to dispatch it as a FullHttpRequest; the application then returns its ordinary invalid coffee-message-body response instead of rejecting ambiguous framing at the protocol boundary.",
+      "reason": "Permitting ambiguous body length or transfer coding makes request boundaries depend on parser choice and enables request smuggling or persistent-connection desynchronization. This is an input-framing vulnerability excluded from bug-for-bug replication.",
+      "scope": "Only ambiguous or unsupported HTTP body framing. One valid Content-Length, one final chunked Transfer-Encoding, exact chunk decoding, 100 Continue for valid framing, pipeline ordering, body limits, response bytes, and pot transitions remain compatibility requirements."
+    },
+    {
       "candidate_requirement": "Give each authentication or mailbox-management operation one absolute eight-second PostgreSQL deadline and propagate request cancellation through pool acquisition and every query. Use transaction-local statement timeouts, send PostgreSQL CancelRequest on a pre-commit interruption, drain for at most one second, and permanently detach the connection if cancellation or draining cannot prove it reusable. After COMMIT starts, return an outcome-unknown failure and detach unless the exact commit result is recovered within that drain window.",
       "evidence": {
         "candidate_test": "blackbox/tests/test_candidate_mailbox_api_golden.py::test_rust_candidate_auth_cancellation_keeps_single_connection_pool_healthy",

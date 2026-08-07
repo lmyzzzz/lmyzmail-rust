@@ -355,7 +355,7 @@ The preceding active sets were bound to
 - `managed-userdata-v5/`
 - `managed-userdata-oracle-evidence-v4/`
 
-The current active sets are bound to
+The preceding active sets were bound to
 `attestation.harness.definition_tree_sha256`
 `44a194fc8f84ef63c19d5c75f6896f6f1227ec220e0841f142fc5434f0c7be54`:
 
@@ -382,23 +382,89 @@ The current active sets are bound to
 - `managed-userdata-oracle-evidence-v5/`
 - `managed-mailbox-api-v2/`
 
+The first interrupted HTCPCP recording pass is complete but superseded. These
+sets bind definition hash
+`44689ba264c6f0eb8eca7b62ab07d2090742c831fc734b9ba885cfc9411a9097` and
+remain create-once history:
+
+- `managed-candidate-public-config-v17/`
+- `managed-basic-v39/`
+- `managed-candidate-auth-v16/`
+- `managed-mail-read-v14/`
+- `managed-mail-attachment-v9/`
+- `managed-mail-state-v12/`
+- `managed-mail-mutations-v11/`
+- `managed-mail-delete-v11/`
+- `managed-starttls-v27/`
+- `managed-starttls-oracle-evidence-v27/`
+- `managed-smtp-auth-v26/`
+
+The later interrupted pass binds definition hash
+`ed6e12b5ee5a5e439b57e3bec0055830d0fa6833be4a5d463ef04a0998427638`.
+It is also retained and never overwritten:
+
+- `managed-smtp-auth-starttls-v26/`
+- `managed-smtp-command-v24/`
+- `managed-smtp-command-oracle-evidence-v24/`
+- `managed-smtp-data-v23/`
+- `managed-smtp-data-oracle-evidence-v23/`
+- `managed-smtp-mime-v23/`
+- `managed-outbound-http-v9/`
+- `managed-outbound-queue-v24.json`
+- `managed-userdata-v7/`
+- `managed-userdata-oracle-evidence-v6/`
+- `managed-mailbox-api-v3/`
+- `managed-htcpcp-v6/`
+- `managed-htcpcp-oracle-evidence-v3/`
+
+The current active sets bind
+`attestation.harness.definition_tree_sha256`
+`c31293c84c74c9ec7a57b3321735e996cf21dca376bff5c6f142fbd89d421b5b`:
+
+- `managed-candidate-public-config-v18/`
+- `managed-basic-v40/`
+- `managed-candidate-auth-v17/`
+- `managed-mail-read-v15/`
+- `managed-mail-attachment-v10/`
+- `managed-mail-state-v13/`
+- `managed-mail-mutations-v12/`
+- `managed-mail-delete-v12/`
+- `managed-starttls-v28/`
+- `managed-starttls-oracle-evidence-v28/`
+- `managed-smtp-auth-v27/`
+- `managed-smtp-auth-starttls-v27/`
+- `managed-smtp-command-v25/`
+- `managed-smtp-command-oracle-evidence-v25/`
+- `managed-smtp-data-v24/`
+- `managed-smtp-data-oracle-evidence-v24/`
+- `managed-smtp-mime-v24/`
+- `managed-outbound-http-v10/`
+- `managed-outbound-queue-v25.json`
+- `managed-userdata-v8/`
+- `managed-userdata-oracle-evidence-v7/`
+- `managed-mailbox-api-v4/`
+- `managed-htcpcp-v7/`
+- `managed-htcpcp-oracle-evidence-v4/`
+
+HTCPCP v1-v5 and oracle-evidence v1-v2 are earlier create-once generations,
+each bound to its own historical definition hash. HTCPCP v6 and evidence v3
+belong to the superseded `ed6e12...` pass above. Only HTCPCP v7 is a candidate
+expectation; evidence v4 records Java-only defects and is never compared to the
+candidate.
+
 The earlier candidate-health v1-v4, candidate-public-http v1,
 candidate-api-status v1, candidate-public-config v1-v3, candidate-auth v1-v2,
-HTTP v19-v25, SMTP v5-v12, and outbound v5-v9 recordings are retained as
-create-once provenance; none is consumed by the tests.
+HTTP v19-v25, SMTP v5-v12, outbound v5-v9, userdata v1-v7, userdata evidence
+v1-v6, and mailbox API v1-v3 recordings remain create-once provenance. None is
+consumed by the active tests.
 
-The userdata v1-v5 and userdata oracle-evidence v1-v4 recordings are likewise
-retained as create-once provenance. Only userdata v6 and its evidence v5 are
-active under the current definition-tree attestation. Mailbox API v1 is the
-initial create-once recording; mailbox API v2 is active.
-
-The active outbound queue attestation is `managed-outbound-queue-v23.json`,
+The active outbound queue attestation is `managed-outbound-queue-v25.json`,
 using the field-scoped `outbound:generated-sent-filename` normalizer. The active
-outbound HTTP attestation is `managed-outbound-http-v8`; only its two quota
+outbound HTTP attestation is `managed-outbound-http-v10`; only its two quota
 subresponses canonicalize Java `Map.of` object ordering. Status codes, headers,
 field values, and every other response retain exact wire assertions. Rejected or
-superseded outbound generations remain create-once historical evidence and are
-never candidate expectations.
+superseded outbound generations remain historical evidence and are never
+candidate expectations.
 
-The `oracle-evidence` sets remain evidence only and are never candidate
+All `oracle-evidence` sets remain evidence only and are never candidate
 expectations.

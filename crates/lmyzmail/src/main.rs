@@ -2,7 +2,7 @@ use std::{env, io, path::PathBuf, sync::Arc, time::Duration};
 
 use lmyzmail::{
     config::{Properties, RuntimeConfig},
-    database, http, lifecycle,
+    database, htcpcp, http, lifecycle,
     outbound_worker::OutboundWorker,
     redis, smtp,
 };
@@ -60,6 +60,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             smtp::serve_smtp(smtp_config, database_pool, redis_pool, smtp_cancellation).await,
         )
     });
+    if config.htcpcp.enabled {
+        let htcpcp_config = Arc::clone(&config);
+        let htcpcp_cancellation = cancellation.clone();
+        services.spawn(async move {
+            (
+                "HTCPCP",
+                htcpcp::serve_htcpcp(htcpcp_config, htcpcp_cancellation).await,
+            )
+        });
+    }
     let outbound_cancellation = cancellation.clone();
     services.spawn(async move {
         (

@@ -106,6 +106,13 @@ processing deadline have both expired.
 Delivery-wide infrastructure failures open a circuit with capped equal-jitter
 backoff. Expiry admits one half-open probe only; its success restores normal
 concurrency and its failure returns to backoff.
-SIGTERM cancels all three services and gives outbound delivery 30 seconds to
+HTCPCP is a fourth supervised service in the same process. Its incremental
+HTTP/1 parser caps the request line, headers, decoded body, chunk count,
+connections, and response bytes. Each request has both a read-idle timeout and
+an absolute framing deadline. Per-pot state is protected by a short synchronous
+lock that is never held across I/O; brew completion is evaluated lazily from a
+monotonic deadline, so the implementation creates no timer task per brew.
+
+SIGTERM cancels all four services and gives outbound delivery 30 seconds to
 release or quarantine owned commit state before the process deadline is
 enforced.

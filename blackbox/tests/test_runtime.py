@@ -24,6 +24,9 @@ class _FakeSocket:
 class _FakeStream:
     sock: _FakeSocket
 
+    def sendall(self, _value: bytes) -> None:
+        return None
+
 
 class _FakeProcess:
     def __init__(self, *_args: object, **_kwargs: object) -> None:
@@ -88,12 +91,21 @@ def test_start_application_requires_http_and_smtp_readiness(
     monkeypatch.setattr(JavaOracleRuntime, "_application_environment", lambda _self: {})
     monkeypatch.setattr(httpx, "Client", _FakeHttpClient)
 
-    probes: list[tuple[str, int, float]] = []
+    smtp_probes: list[tuple[str, int, float]] = []
+    htcpcp_probes: list[tuple[str, int, float]] = []
 
     def fake_smtp_probe(host: str, port: int, *, timeout: float) -> None:
-        probes.append((host, port, timeout))
+        smtp_probes.append((host, port, timeout))
+
+    def fake_htcpcp_probe(host: str, port: int, *, timeout: float) -> None:
+        htcpcp_probes.append((host, port, timeout))
 
     monkeypatch.setattr(JavaOracleRuntime, "_probe_smtp_readiness", staticmethod(fake_smtp_probe))
+    monkeypatch.setattr(
+        JavaOracleRuntime,
+        "_probe_htcpcp_readiness",
+        staticmethod(fake_htcpcp_probe),
+    )
 
     runtime._start_application()
 
@@ -102,10 +114,51 @@ def test_start_application_requires_http_and_smtp_readiness(
     assert runtime._application.started
     assert runtime._application.wait_timeout is not None
     assert 0 < runtime._application.wait_timeout <= runtime.startup_timeout
-    assert probes
+    assert htcpcp_probes
+    assert smtp_probes
     assert runtime.ports is not None
-    assert probes[0][0:2] == ("127.0.0.1", runtime.ports.smtp)
-    assert 0 < probes[0][2] <= runtime._application.wait_timeout
+    assert htcpcp_probes[0][0:2] == ("127.0.0.1", runtime.ports.htcpcp)
+    assert smtp_probes[0][0:2] == ("127.0.0.1", runtime.ports.smtp)
+    assert 0 < htcpcp_probes[0][2] <= runtime._application.wait_timeout
+    assert 0 < smtp_probes[0][2] <= runtime._application.wait_timeout
+
+
+def test_htcpcp_readiness_probe_requires_dispatcher_capabilities(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Response:
+        status_code = 200
+        body = b""
+
+        @staticmethod
+        def header_values(_name: bytes) -> tuple[bytes, ...]:
+            return (b"GET",)
+
+    stream = _FakeStream(_FakeSocket())
+    monkeypatch.setattr(runtime_module, "connect_bounded", lambda *_args, **_kwargs: stream)
+    monkeypatch.setattr(runtime_module, "build_http_request", lambda *_args, **_kwargs: b"request")
+    monkeypatch.setattr(runtime_module, "read_http_response", lambda *_args, **_kwargs: Response())
+    with pytest.raises(ProtocolError, match="Allow"):
+        JavaOracleRuntime._probe_htcpcp_readiness("127.0.0.1", 18888, timeout=1.0)
+
+
+def test_htcpcp_readiness_probe_accepts_exact_capabilities(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Response:
+        status_code = 200
+        body = b""
+
+        @staticmethod
+        def header_values(_name: bytes) -> tuple[bytes, ...]:
+            return (b"BREW, POST, GET, HEAD, PROPFIND, WHEN, OPTIONS",)
+
+    stream = _FakeStream(_FakeSocket())
+    monkeypatch.setattr(runtime_module, "connect_bounded", lambda *_args, **_kwargs: stream)
+    monkeypatch.setattr(runtime_module, "build_http_request", lambda *_args, **_kwargs: b"request")
+    monkeypatch.setattr(runtime_module, "read_http_response", lambda *_args, **_kwargs: Response())
+    JavaOracleRuntime._probe_htcpcp_readiness("127.0.0.1", 18888, timeout=1.0)
+    assert stream.sock.closed
 
 
 @pytest.mark.parametrize("reply", [b"250 not a greeting\r\n"])

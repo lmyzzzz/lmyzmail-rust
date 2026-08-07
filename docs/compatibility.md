@@ -79,6 +79,14 @@ wire, state, storage, or recovery assertions.
   This replaces the oracle's unbounded JDBC lock waits without changing any
   healthy-path authentication, session, mailbox, API permission, or wire
   behavior.
+- A non-keep-alive HTCPCP response actively closes its socket after the full
+  Content-Length-framed response is written. The oracle advertises close but
+  retains the connection until its independent 60-second idle timer.
+- HTCPCP request framing has a 60-second absolute deadline in addition to the
+  oracle-compatible read-idle timeout. This prevents an incomplete request from
+  retaining a connection indefinitely by sending one byte before each idle
+  boundary; complete and ordinarily fragmented requests remain exact-wire
+  compatibility requirements.
 
 ## SMTP AUTH oracle behavior
 

@@ -25,6 +25,9 @@ const MAX_ORIGIN_BYTES: usize = 2_048;
 const MAX_POOL_SIZE: u32 = 4_096;
 const MAX_HONEYPOT_DELAY_MS: u64 = 3_600_000;
 const MAX_HONEYPOTS: usize = 256;
+const MAX_HTCPCP_POTS: usize = 64;
+const MAX_HTCPCP_LIST_ITEMS: usize = 64;
+const MAX_HTCPCP_BREW_SECONDS: u64 = 86_400;
 const MAX_MESSAGE_BYTES: u64 = 1024 * 1024 * 1024;
 
 #[derive(Debug)]
@@ -204,6 +207,8 @@ struct JsonRuntimeConfig {
     #[serde(default)]
     features: JsonFeatureConfig,
     #[serde(default)]
+    htcpcp: JsonHtcpcpConfig,
+    #[serde(default)]
     tls: JsonTlsConfig,
     #[serde(default)]
     limits: JsonLimitConfig,
@@ -286,6 +291,43 @@ struct JsonFeatureConfig {
     report_delivery: bool,
     #[serde(default)]
     show_internet_nl_badge: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct JsonHtcpcpConfig {
+    #[serde(default)]
+    enabled: bool,
+    #[serde(default = "default_htcpcp_brew_seconds")]
+    default_brew_time_seconds: u64,
+    // Keep omission distinct from an explicitly empty array.  Omission uses
+    // the production default pot; an empty array is rejected by the semantic
+    // configuration boundary instead of silently falling back to that pot.
+    #[serde(default)]
+    pots: Option<Vec<JsonHtcpcpPotConfig>>,
+}
+
+impl Default for JsonHtcpcpConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            default_brew_time_seconds: default_htcpcp_brew_seconds(),
+            pots: Some(default_json_htcpcp_pots()),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct JsonHtcpcpPotConfig {
+    #[serde(default = "default_htcpcp_pot_id")]
+    id: String,
+    #[serde(default = "default_htcpcp_pot_type")]
+    r#type: String,
+    #[serde(default = "default_htcpcp_tea_varieties")]
+    tea_varieties: Vec<String>,
+    #[serde(default = "default_htcpcp_additions")]
+    supported_additions: Vec<String>,
 }
 
 impl Default for JsonFeatureConfig {
@@ -377,6 +419,59 @@ fn default_skibidi_mode() -> String {
     "AUTO_SAFE".to_owned()
 }
 
+fn default_htcpcp_brew_seconds() -> u64 {
+    30
+}
+
+fn default_htcpcp_pot_id() -> String {
+    "pot-0".to_owned()
+}
+
+fn default_htcpcp_pot_type() -> String {
+    "coffee".to_owned()
+}
+
+fn default_htcpcp_tea_varieties() -> Vec<String> {
+    ["darjeeling", "earl-grey", "peppermint"]
+        .into_iter()
+        .map(str::to_owned)
+        .collect()
+}
+
+fn default_htcpcp_additions() -> Vec<String> {
+    [
+        "Cream",
+        "Half-and-half",
+        "Whole-milk",
+        "Part-Skim",
+        "Skim",
+        "Non-Dairy",
+        "Vanilla",
+        "Almond",
+        "Raspberry",
+        "Chocolate",
+        "Whisky",
+        "Rum",
+        "Kahlua",
+        "Aquavit",
+        "Sugar",
+        "Xylitol",
+        "Stevia",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect()
+}
+
+fn default_json_htcpcp_pots() -> Vec<JsonHtcpcpPotConfig> {
+    vec![JsonHtcpcpPotConfig {
+        id: default_htcpcp_pot_id(),
+        r#type: default_htcpcp_pot_type(),
+        tea_varieties: default_htcpcp_tea_varieties(),
+        supported_additions: default_htcpcp_additions(),
+    }]
+}
+
 fn default_pool_size() -> u32 {
     32
 }
@@ -422,6 +517,17 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
             "unsupported configuration schema version: {}",
             value.schema_version
         )));
+    }
+    let JsonHtcpcpConfig {
+        enabled: htcpcp_enabled,
+        default_brew_time_seconds: htcpcp_brew_seconds,
+        pots,
+    } = value.htcpcp;
+    let htcpcp_pots = pots.unwrap_or_else(default_json_htcpcp_pots);
+    if htcpcp_pots.is_empty() {
+        return Err(ConfigError::Invalid(
+            "HTCPCP semantic configuration must contain at least one pot".into(),
+        ));
     }
     let mut properties = Properties::default();
     properties.insert("lmyzmail.profile".to_owned(), value.profile)?;
@@ -498,6 +604,33 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         properties.insert(format!("{prefix}.label"), api_key.label)?;
         properties.insert(format!("{prefix}.read"), api_key.read.to_string())?;
         properties.insert(format!("{prefix}.write"), api_key.write.to_string())?;
+    }
+    properties.insert(
+        "lmyzmail.htcpcp.enabled".to_owned(),
+        htcpcp_enabled.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.htcpcp.default-brew-time-seconds".to_owned(),
+        htcpcp_brew_seconds.to_string(),
+    )?;
+    for (index, pot) in htcpcp_pots.into_iter().enumerate() {
+        reject_semantic_json_csv_delimiters(index, "tea_varieties", &pot.tea_varieties)?;
+        reject_semantic_json_csv_delimiters(
+            index,
+            "supported_additions",
+            &pot.supported_additions,
+        )?;
+        let prefix = format!("lmyzmail.htcpcp.pots[{index}]");
+        properties.insert(format!("{prefix}.id"), pot.id)?;
+        properties.insert(format!("{prefix}.type"), pot.r#type)?;
+        properties.insert(
+            format!("{prefix}.tea-varieties"),
+            pot.tea_varieties.join(","),
+        )?;
+        properties.insert(
+            format!("{prefix}.supported-additions"),
+            pot.supported_additions.join(","),
+        )?;
     }
     properties.insert(
         "lmyzmail.public-registration-enabled".to_owned(),
@@ -592,6 +725,19 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         value.limits.max_total_attachments_size_bytes.to_string(),
     )?;
     Ok(properties)
+}
+
+fn reject_semantic_json_csv_delimiters(
+    pot_index: usize,
+    field: &str,
+    values: &[String],
+) -> Result<(), ConfigError> {
+    if values.iter().any(|value| value.contains(',')) {
+        return Err(ConfigError::Invalid(format!(
+            "HTCPCP semantic configuration pots[{pot_index}].{field} elements must not contain commas"
+        )));
+    }
+    Ok(())
 }
 
 fn has_continuation(line: &str) -> bool {
@@ -704,6 +850,7 @@ pub struct RuntimeConfig {
     pub api_keys: Vec<ApiKeyConfig>,
     pub outbound_route: OutboundRouteConfig,
     pub features: FeatureConfig,
+    pub htcpcp: HtcpcpConfig,
     pub tls: TlsConfig,
     pub limits: LimitConfig,
 }
@@ -776,6 +923,21 @@ pub struct FeatureConfig {
     pub show_internet_nl_badge: bool,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HtcpcpConfig {
+    pub enabled: bool,
+    pub default_brew_time_seconds: u64,
+    pub pots: Vec<HtcpcpPotConfig>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HtcpcpPotConfig {
+    pub id: String,
+    pub pot_type: String,
+    pub tea_varieties: Vec<String>,
+    pub supported_additions: Vec<String>,
+}
+
 #[derive(Clone, Debug)]
 pub struct TlsConfig {
     pub enabled: bool,
@@ -830,6 +992,7 @@ impl RuntimeConfig {
             &["botmail.htcpcp.port"],
             8888,
         )?;
+        let htcpcp_config = parse_htcpcp_config(&properties)?;
         let minecraft = preferred_u16(
             &properties,
             &["lmyzmail.minecraft.port"],
@@ -1191,6 +1354,7 @@ impl RuntimeConfig {
             api_keys,
             outbound_route,
             features,
+            htcpcp: htcpcp_config,
             tls,
             limits,
         })
@@ -1210,6 +1374,170 @@ fn preferred<'a>(
         .iter()
         .find_map(|key| properties.get(key))
         .or_else(|| legacy_keys.iter().find_map(|key| properties.get(key)))
+}
+
+fn parse_htcpcp_config(properties: &Properties) -> Result<HtcpcpConfig, ConfigError> {
+    let enabled = preferred_bool(
+        properties,
+        &["lmyzmail.htcpcp.enabled"],
+        &["botmail.htcpcp.enabled"],
+        false,
+    )?;
+    let default_brew_time_seconds = preferred_u64(
+        properties,
+        &["lmyzmail.htcpcp.default-brew-time-seconds"],
+        &["botmail.htcpcp.default-brew-time-seconds"],
+        default_htcpcp_brew_seconds(),
+    )?;
+    if default_brew_time_seconds > MAX_HTCPCP_BREW_SECONDS {
+        return Err(ConfigError::Invalid(format!(
+            "HTCPCP brew time must not exceed {MAX_HTCPCP_BREW_SECONDS} seconds"
+        )));
+    }
+
+    let new_prefix = "lmyzmail.htcpcp.pots";
+    let legacy_prefix = "botmail.htcpcp.pots";
+    let has_new = properties
+        .iter()
+        .any(|(key, _)| key.starts_with(&format!("{new_prefix}[")));
+    let has_legacy = properties
+        .iter()
+        .any(|(key, _)| key.starts_with(&format!("{legacy_prefix}[")));
+    let pots = if has_new {
+        parse_htcpcp_pots(properties, new_prefix)?
+    } else if has_legacy {
+        parse_htcpcp_pots(properties, legacy_prefix)?
+    } else {
+        vec![HtcpcpPotConfig {
+            id: default_htcpcp_pot_id(),
+            pot_type: default_htcpcp_pot_type(),
+            tea_varieties: default_htcpcp_tea_varieties(),
+            supported_additions: default_htcpcp_additions(),
+        }]
+    };
+    Ok(HtcpcpConfig {
+        enabled,
+        default_brew_time_seconds,
+        pots,
+    })
+}
+
+fn parse_htcpcp_pots(
+    properties: &Properties,
+    prefix: &str,
+) -> Result<Vec<HtcpcpPotConfig>, ConfigError> {
+    let mut indices = HashSet::new();
+    let marker = format!("{prefix}[");
+    for (key, _) in properties
+        .iter()
+        .filter(|(key, _)| key.starts_with(&marker))
+    {
+        let rest = &key[marker.len()..];
+        let (raw_index, suffix) = rest.split_once(']').ok_or_else(|| {
+            ConfigError::Invalid(format!("invalid HTCPCP pot property key: {key}"))
+        })?;
+        if !suffix.starts_with('.') || suffix.len() == 1 {
+            return Err(ConfigError::Invalid(format!(
+                "invalid HTCPCP pot property key: {key}"
+            )));
+        }
+        let index = raw_index.parse::<usize>().map_err(|_| {
+            ConfigError::Invalid(format!("invalid HTCPCP pot index in property: {key}"))
+        })?;
+        if index >= MAX_HTCPCP_POTS {
+            return Err(ConfigError::Invalid(format!(
+                "HTCPCP config contains more than {MAX_HTCPCP_POTS} pots"
+            )));
+        }
+        indices.insert(index);
+    }
+    if indices.is_empty() {
+        return Err(ConfigError::Invalid(
+            "HTCPCP pot configuration must contain at least one pot".into(),
+        ));
+    }
+    let count = indices.iter().max().copied().unwrap_or(0) + 1;
+    if indices.len() != count || (0..count).any(|index| !indices.contains(&index)) {
+        return Err(ConfigError::Invalid(
+            "HTCPCP pot indices must be contiguous starting at zero".into(),
+        ));
+    }
+
+    let mut pots = Vec::with_capacity(count);
+    let mut ids = HashSet::with_capacity(count);
+    for index in 0..count {
+        let pot_prefix = format!("{prefix}[{index}]");
+        let id = properties
+            .get(&format!("{pot_prefix}.id"))
+            .unwrap_or("pot-0")
+            .to_owned();
+        validate_simple(&id, 128, &format!("htcpcp.pots[{index}].id"))?;
+        if !ids.insert(id.clone()) {
+            return Err(ConfigError::Invalid(format!(
+                "HTCPCP pot id is duplicated: {id}"
+            )));
+        }
+        let pot_type = properties
+            .get(&format!("{pot_prefix}.type"))
+            .unwrap_or("coffee")
+            .to_ascii_lowercase();
+        let type_field = format!("htcpcp.pots[{index}].type");
+        validate_simple(&pot_type, 32, &type_field)?;
+        if !matches!(pot_type.as_str(), "coffee" | "tea" | "both") {
+            return Err(ConfigError::Invalid(format!(
+                "{type_field} must be one of coffee, tea, or both"
+            )));
+        }
+        let tea_varieties = parse_htcpcp_csv(
+            properties.get(&format!("{pot_prefix}.tea-varieties")),
+            default_htcpcp_tea_varieties,
+            &format!("htcpcp.pots[{index}].tea-varieties"),
+        )?;
+        let supported_additions = parse_htcpcp_csv(
+            properties.get(&format!("{pot_prefix}.supported-additions")),
+            default_htcpcp_additions,
+            &format!("htcpcp.pots[{index}].supported-additions"),
+        )?;
+        pots.push(HtcpcpPotConfig {
+            id,
+            pot_type,
+            tea_varieties,
+            supported_additions,
+        });
+    }
+    Ok(pots)
+}
+
+fn parse_htcpcp_csv(
+    value: Option<&str>,
+    default: fn() -> Vec<String>,
+    field: &str,
+) -> Result<Vec<String>, ConfigError> {
+    let Some(value) = value else {
+        return Ok(default());
+    };
+    if value.is_empty() {
+        return Ok(Vec::new());
+    }
+    let items: Vec<String> = value
+        .split(',')
+        .map(|item| item.trim().to_owned())
+        .collect();
+    if items.len() > MAX_HTCPCP_LIST_ITEMS {
+        return Err(ConfigError::Invalid(format!(
+            "{field} contains more than {MAX_HTCPCP_LIST_ITEMS} values"
+        )));
+    }
+    let mut unique = HashSet::with_capacity(items.len());
+    for item in &items {
+        validate_simple(item, 128, field)?;
+        if !unique.insert(item.to_ascii_lowercase()) {
+            return Err(ConfigError::Invalid(format!(
+                "{field} contains a duplicate value: {item}"
+            )));
+        }
+    }
+    Ok(items)
 }
 
 #[derive(Debug, Clone)]
@@ -1828,6 +2156,45 @@ pub fn resolve_u16(
 mod tests {
     use super::*;
 
+    fn semantic_json_with_htcpcp(htcpcp: serde_json::Value) -> Vec<u8> {
+        serde_json::to_vec(&serde_json::json!({
+            "schema_version": 1,
+            "profile": "test",
+            "listen": {
+                "host": "localhost",
+                "http": 18080,
+                "smtp": 11025,
+                "htcpcp": 18888,
+                "minecraft": 25575
+            },
+            "postgres": {
+                "host": "localhost",
+                "port": 15432,
+                "database": "lmyzmail",
+                "username": "qa",
+                "password": ""
+            },
+            "redis": {"host": "localhost", "port": 16379, "database": 0},
+            "maildir": "/tmp/lmyzmail-mail",
+            "domain": "example.test",
+            "htcpcp": htcpcp
+        }))
+        .unwrap()
+    }
+
+    fn indexed_htcpcp_properties(count: usize) -> Properties {
+        let mut text = String::new();
+        for index in 0..count {
+            text.push_str(&format!(
+                "lmyzmail.htcpcp.pots[{index}].id=pot-{index}\n\
+lmyzmail.htcpcp.pots[{index}].type=coffee\n\
+lmyzmail.htcpcp.pots[{index}].tea-varieties=\n\
+lmyzmail.htcpcp.pots[{index}].supported-additions=\n"
+            ));
+        }
+        Properties::parse(text.as_bytes()).unwrap()
+    }
+
     #[test]
     fn parses_comments_escapes_and_continuations() {
         let properties = Properties::parse(
@@ -1984,6 +2351,230 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
         assert_eq!(config.redis.port, 16379);
         assert_eq!(config.limits.max_http_request_bytes, 65536);
         assert_eq!(config.trusted_proxies.len(), 2);
+    }
+
+    #[test]
+    fn htcpcp_defaults_include_one_coffee_pot() {
+        let config = RuntimeConfig::from_properties(Properties::default()).unwrap();
+        assert!(!config.htcpcp.enabled);
+        assert_eq!(config.htcpcp.default_brew_time_seconds, 30);
+        assert_eq!(config.htcpcp.pots.len(), 1);
+        assert_eq!(config.htcpcp.pots[0].id, "pot-0");
+        assert_eq!(config.htcpcp.pots[0].pot_type, "coffee");
+        assert_eq!(
+            config.htcpcp.pots[0].tea_varieties,
+            ["darjeeling", "earl-grey", "peppermint"]
+        );
+    }
+
+    #[test]
+    fn htcpcp_legacy_alias_and_new_keys_preserve_precedence() {
+        let properties = Properties::parse(
+            b"botmail.htcpcp.enabled=false\n\
+botmail.htcpcp.default-brew-time-seconds=41\n\
+botmail.htcpcp.pots[0].id=legacy-pot\n\
+botmail.htcpcp.pots[0].type=tea\n\
+botmail.htcpcp.pots[0].tea-varieties=legacy-tea\n\
+lmyzmail.htcpcp.enabled=true\n\
+lmyzmail.htcpcp.default-brew-time-seconds=42\n\
+lmyzmail.htcpcp.pots[0].id=new-pot\n\
+lmyzmail.htcpcp.pots[0].type=coffee\n\
+lmyzmail.htcpcp.pots[0].tea-varieties=new-tea\n",
+        )
+        .unwrap();
+        let config = RuntimeConfig::from_properties(properties).unwrap();
+        assert!(config.htcpcp.enabled);
+        assert_eq!(config.htcpcp.default_brew_time_seconds, 42);
+        assert_eq!(config.htcpcp.pots[0].id, "new-pot");
+        assert_eq!(config.htcpcp.pots[0].pot_type, "coffee");
+        assert_eq!(config.htcpcp.pots[0].tea_varieties, ["new-tea"]);
+    }
+
+    #[test]
+    fn semantic_json_accepts_eight_valid_pots() {
+        let pots: Vec<serde_json::Value> = (0..8)
+            .map(|index| {
+                let pot_type = match index % 3 {
+                    0 => "coffee",
+                    1 => "tea",
+                    _ => "both",
+                };
+                serde_json::json!({
+                    "id": format!("pot-{index}"),
+                    "type": pot_type,
+                    "tea_varieties": if pot_type == "coffee" {
+                        serde_json::json!([])
+                    } else {
+                        serde_json::json!([format!("tea-{index}")])
+                    },
+                    "supported_additions": ["Sugar", format!("Addition-{index}")]
+                })
+            })
+            .collect();
+        let bytes = semantic_json_with_htcpcp(serde_json::json!({
+            "enabled": true,
+            "default_brew_time_seconds": MAX_HTCPCP_BREW_SECONDS,
+            "pots": pots
+        }));
+        let config = RuntimeConfig::from_properties(parse_semantic_json(&bytes).unwrap()).unwrap();
+        assert!(config.htcpcp.enabled);
+        assert_eq!(
+            config.htcpcp.default_brew_time_seconds,
+            MAX_HTCPCP_BREW_SECONDS
+        );
+        assert_eq!(config.htcpcp.pots.len(), 8);
+        assert_eq!(config.htcpcp.pots[1].pot_type, "tea");
+        assert_eq!(config.htcpcp.pots[2].pot_type, "both");
+        assert_eq!(config.htcpcp.pots[7].id, "pot-7");
+    }
+
+    #[test]
+    fn semantic_json_empty_pots_are_rejected_but_omission_uses_default() {
+        let omitted = semantic_json_with_htcpcp(serde_json::json!({"enabled": true}));
+        let config =
+            RuntimeConfig::from_properties(parse_semantic_json(&omitted).unwrap()).unwrap();
+        assert_eq!(config.htcpcp.pots.len(), 1);
+        assert_eq!(config.htcpcp.pots[0].id, "pot-0");
+
+        let empty = semantic_json_with_htcpcp(serde_json::json!({
+            "enabled": true,
+            "pots": []
+        }));
+        assert!(parse_semantic_json(&empty).is_err());
+    }
+
+    #[test]
+    fn semantic_json_htcpcp_lists_reject_embedded_csv_delimiters() {
+        for (field, value) in [
+            ("tea_varieties", "green,black"),
+            ("supported_additions", "Sugar,Rum"),
+        ] {
+            let bytes = semantic_json_with_htcpcp(serde_json::json!({
+                "enabled": true,
+                "pots": [{
+                    "id": "pot-0",
+                    "type": "both",
+                    "tea_varieties": if field == "tea_varieties" { vec![value] } else { vec!["green"] },
+                    "supported_additions": if field == "supported_additions" { vec![value] } else { vec!["Sugar"] }
+                }]
+            }));
+            let error = parse_semantic_json(&bytes).unwrap_err().to_string();
+            assert!(error.contains(field), "unexpected error: {error}");
+            assert!(
+                error.contains("must not contain commas"),
+                "unexpected error: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn htcpcp_rejects_gaps_and_duplicate_ids() {
+        let gap = Properties::parse(
+            b"lmyzmail.htcpcp.pots[0].id=pot-0\n\
+lmyzmail.htcpcp.pots[0].type=coffee\n\
+lmyzmail.htcpcp.pots[2].id=pot-2\n\
+lmyzmail.htcpcp.pots[2].type=coffee\n",
+        )
+        .unwrap();
+        assert!(RuntimeConfig::from_properties(gap).is_err());
+
+        let duplicate = Properties::parse(
+            b"lmyzmail.htcpcp.pots[0].id=same\n\
+lmyzmail.htcpcp.pots[0].type=coffee\n\
+lmyzmail.htcpcp.pots[1].id=same\n\
+lmyzmail.htcpcp.pots[1].type=tea\n",
+        )
+        .unwrap();
+        assert!(RuntimeConfig::from_properties(duplicate).is_err());
+    }
+
+    #[test]
+    fn htcpcp_rejects_invalid_pot_type_and_duplicate_list_values() {
+        for pot_type in ["espresso", "water"] {
+            let properties = Properties::parse(
+                format!(
+                    "lmyzmail.htcpcp.pots[0].id=pot-0\n\
+lmyzmail.htcpcp.pots[0].type={pot_type}\n"
+                )
+                .as_bytes(),
+            )
+            .unwrap();
+            assert!(RuntimeConfig::from_properties(properties).is_err());
+        }
+
+        let duplicate_tea = Properties::parse(
+            b"lmyzmail.htcpcp.pots[0].type=tea\n\
+lmyzmail.htcpcp.pots[0].tea-varieties=darjeeling,Darjeeling\n",
+        )
+        .unwrap();
+        assert!(RuntimeConfig::from_properties(duplicate_tea).is_err());
+
+        let duplicate_addition =
+            Properties::parse(b"lmyzmail.htcpcp.pots[0].supported-additions=Sugar,sugar\n")
+                .unwrap();
+        assert!(RuntimeConfig::from_properties(duplicate_addition).is_err());
+    }
+
+    #[test]
+    fn htcpcp_enforces_maximum_pots_list_items_and_brew_seconds() {
+        let max_pots = RuntimeConfig::from_properties(indexed_htcpcp_properties(64)).unwrap();
+        assert_eq!(max_pots.htcpcp.pots.len(), MAX_HTCPCP_POTS);
+        assert!(
+            RuntimeConfig::from_properties(indexed_htcpcp_properties(MAX_HTCPCP_POTS + 1)).is_err()
+        );
+
+        let list_64 = (0..MAX_HTCPCP_LIST_ITEMS)
+            .map(|index| format!("item-{index}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let list_65 = (0..=MAX_HTCPCP_LIST_ITEMS)
+            .map(|index| format!("item-{index}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let accepted_list = Properties::parse(
+            format!(
+                "lmyzmail.htcpcp.pots[0].tea-varieties={list_64}\n\
+lmyzmail.htcpcp.pots[0].type=tea\n"
+            )
+            .as_bytes(),
+        )
+        .unwrap();
+        assert_eq!(
+            RuntimeConfig::from_properties(accepted_list)
+                .unwrap()
+                .htcpcp
+                .pots[0]
+                .tea_varieties
+                .len(),
+            MAX_HTCPCP_LIST_ITEMS
+        );
+        let rejected_list = Properties::parse(
+            format!("lmyzmail.htcpcp.pots[0].tea-varieties={list_65}\n").as_bytes(),
+        )
+        .unwrap();
+        assert!(RuntimeConfig::from_properties(rejected_list).is_err());
+
+        let accepted_brew = Properties::parse(
+            format!("lmyzmail.htcpcp.default-brew-time-seconds={MAX_HTCPCP_BREW_SECONDS}\n")
+                .as_bytes(),
+        )
+        .unwrap();
+        assert_eq!(
+            RuntimeConfig::from_properties(accepted_brew)
+                .unwrap()
+                .htcpcp
+                .default_brew_time_seconds,
+            MAX_HTCPCP_BREW_SECONDS
+        );
+        let rejected_brew = Properties::parse(
+            format!(
+                "lmyzmail.htcpcp.default-brew-time-seconds={}\n",
+                MAX_HTCPCP_BREW_SECONDS + 1
+            )
+            .as_bytes(),
+        )
+        .unwrap();
+        assert!(RuntimeConfig::from_properties(rejected_brew).is_err());
     }
 
     #[test]

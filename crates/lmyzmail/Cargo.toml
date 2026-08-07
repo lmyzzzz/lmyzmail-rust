@@ -19,6 +19,7 @@ deadpool-postgres = "0.14.1"
 deadpool-redis = { version = "0.23.0", default-features = false, features = ["rt_tokio_1", "tokio-rustls-comp", "tls-rustls-webpki-roots"] }
 getrandom = "0.4.3"
 hickory-resolver = "0.26.1"
+httparse = "1.10.1"
 idna = "1.1.0"
 ipnet = "2.11.0"
 mail-parser = "0.11.5"
@@ -42,3 +43,6 @@ tokio-util = { version = "0.7.16", features = ["rt"] }
 tokio-postgres = { version = "0.7.18", features = ["with-chrono-0_4"] }
 url = "2.5.7"
 webpki-roots = "1.0.3"
+
+[dev-dependencies]
+proptest = "1.7.0"

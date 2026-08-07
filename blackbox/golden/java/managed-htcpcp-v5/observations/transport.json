@@ -1,0 +1,358 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "0036977fcb43b958a3a9b7212a2a40b2a29e305f9290aa771f8be86797a326c7",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "json:generation"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-htcpcp"
+  },
+  "observation": {
+    "aggregate_limit": {
+      "body": {
+        "base64": "Y29mZmVlLW1lc3NhZ2UtYm9keSBtdXN0IGJlICJzdGFydCIgb3IgInN0b3AiIHBlciBSRkMgMjMyNCDCpzQ=",
+        "length": 62,
+        "sha256": "585e3795f498dd1378067aea065189c24b3101eae028d3617cd62e6fd261c50b"
+      },
+      "headers": [
+        [
+          "content-type",
+          "text/plain; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "62"
+        ],
+        [
+          "connection",
+          "close"
+        ]
+      ],
+      "status_code": 400,
+      "status_line": "HTTP/1.1 400 Bad Request"
+    },
+    "aggregate_over_limit": {
+      "body": {
+        "base64": "",
+        "length": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "headers": [
+        [
+          "content-length",
+          "0"
+        ],
+        [
+          "connection",
+          "close"
+        ]
+      ],
+      "status_code": 413,
+      "status_line": "HTTP/1.1 413 Request Entity Too Large"
+    },
+    "chunked": {
+      "body": {
+        "base64": "QnJld2luZyBjb2ZmZWU=",
+        "length": 14,
+        "sha256": "41c9ff96f25593f961e0661ada9e6d834d1dbc058282ceb9c8aaeb5f66f06810"
+      },
+      "headers": [
+        [
+          "content-type",
+          "text/plain; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "14"
+        ],
+        [
+          "Safe",
+          "if-user-awake"
+        ],
+        [
+          "connection",
+          "close"
+        ]
+      ],
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "conflicting_content_length_raw": {
+      "base64": "SFRUUC8xLjEgNDAwIEJhZCBSZXF1ZXN0DQpjb250ZW50LXR5cGU6IHRleHQvcGxhaW47IGNoYXJzZXQ9VVRGLTgNCmNvbnRlbnQtbGVuZ3RoOiA2Mg0KY29ubmVjdGlvbjogY2xvc2UNCg0KY29mZmVlLW1lc3NhZ2UtYm9keSBtdXN0IGJlICJzdGFydCIgb3IgInN0b3AiIHBlciBSRkMgMjMyNCDCpzQ=",
+      "length": 170,
+      "sha256": "654dc01779c0023bbe79b858c0c6367df8e81879165f5ee1df806aa2b5a807cd"
+    },
+    "expect_continue": {
+      "final": {
+        "body": {
+          "base64": "QnJld2luZyBjb2ZmZWU=",
+          "length": 14,
+          "sha256": "41c9ff96f25593f961e0661ada9e6d834d1dbc058282ceb9c8aaeb5f66f06810"
+        },
+        "headers": [
+          [
+            "content-type",
+            "text/plain; charset=UTF-8"
+          ],
+          [
+            "content-length",
+            "14"
+          ],
+          [
+            "Safe",
+            "if-user-awake"
+          ]
+        ],
+        "status_code": 200,
+        "status_line": "HTTP/1.1 200 OK"
+      },
+      "interim": {
+        "body": {
+          "base64": "",
+          "length": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "headers": [],
+        "status_code": 100,
+        "status_line": "HTTP/1.1 100 Continue"
+      }
+    },
+    "fragmented": {
+      "body_json": {
+        "currentAdditions": [],
+        "generation": 0,
+        "id": "pot-0",
+        "milkPouring": false,
+        "state": "IDLE",
+        "supportedAdditions": [
+          "Cream",
+          "Half-and-half",
+          "Whole-milk",
+          "Part-Skim",
+          "Skim",
+          "Non-Dairy",
+          "Vanilla",
+          "Almond",
+          "Raspberry",
+          "Chocolate",
+          "Whisky",
+          "Rum",
+          "Kahlua",
+          "Aquavit",
+          "Sugar",
+          "Xylitol",
+          "Stevia"
+        ],
+        "supportedTypes": [
+          "COFFEE",
+          "TEA"
+        ],
+        "teaVarieties": [
+          "darjeeling",
+          "earl-grey",
+          "english-breakfast",
+          "green",
+          "peppermint",
+          "oolong"
+        ]
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "407"
+        ],
+        [
+          "connection",
+          "close"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJpZCI6InBvdC0wIiwic3RhdGUiOiJJRExFIiwiZ2VuZXJhdGlvbiI6MCwic3VwcG9ydGVkVHlwZXMiOlsiQ09GRkVFIiwiVEVBIl0sIm1pbGtQb3VyaW5nIjpmYWxzZSwiY3VycmVudEFkZGl0aW9ucyI6W10sInN1cHBvcnRlZEFkZGl0aW9ucyI6WyJDcmVhbSIsIkhhbGYtYW5kLWhhbGYiLCJXaG9sZS1taWxrIiwiUGFydC1Ta2ltIiwiU2tpbSIsIk5vbi1EYWlyeSIsIlZhbmlsbGEiLCJBbG1vbmQiLCJSYXNwYmVycnkiLCJDaG9jb2xhdGUiLCJXaGlza3kiLCJSdW0iLCJLYWhsdWEiLCJBcXVhdml0IiwiU3VnYXIiLCJYeWxpdG9sIiwiU3RldmlhIl0sInRlYVZhcmlldGllcyI6WyJkYXJqZWVsaW5nIiwiZWFybC1ncmV5IiwiZW5nbGlzaC1icmVha2Zhc3QiLCJncmVlbiIsInBlcHBlcm1pbnQiLCJvb2xvbmciXX0=",
+        "length": 407,
+        "sha256": "790dec0508c7f3c8f710ddb82fbfc0ba153e77398cbc99d816e41669efe1ae1b"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "oversized_header_raw": {
+      "base64": "SFRUUC8xLjEgNDA0IE5vdCBGb3VuZA0KY29udGVudC10eXBlOiB0ZXh0L3BsYWluOyBjaGFyc2V0PVVURi04DQpjb250ZW50LWxlbmd0aDogMTMNCg0KUG90IG5vdCBmb3VuZA==",
+      "length": 100,
+      "sha256": "448466fd945f48900ddc0aed0e0965511c73b197e4738a04a1169d023fea9e2d"
+    },
+    "oversized_initial_line_raw": {
+      "base64": "SFRUUC8xLjAgNDA0IE5vdCBGb3VuZA0KY29udGVudC10eXBlOiB0ZXh0L3BsYWluOyBjaGFyc2V0PVVURi04DQpjb250ZW50LWxlbmd0aDogMTMNCg0KUG90IG5vdCBmb3VuZA==",
+      "length": 100,
+      "sha256": "02e3277f4edf89d36959e83fa6e033448fb940a58b61a4ad915ffbbbbda881c1"
+    },
+    "partial_disconnect_recovery": {
+      "body_json": {
+        "currentAdditions": [],
+        "generation": 0,
+        "id": "pot-0",
+        "milkPouring": false,
+        "state": "IDLE",
+        "supportedAdditions": [
+          "Cream",
+          "Half-and-half",
+          "Whole-milk",
+          "Part-Skim",
+          "Skim",
+          "Non-Dairy",
+          "Vanilla",
+          "Almond",
+          "Raspberry",
+          "Chocolate",
+          "Whisky",
+          "Rum",
+          "Kahlua",
+          "Aquavit",
+          "Sugar",
+          "Xylitol",
+          "Stevia"
+        ],
+        "supportedTypes": [
+          "COFFEE",
+          "TEA"
+        ],
+        "teaVarieties": [
+          "darjeeling",
+          "earl-grey",
+          "english-breakfast",
+          "green",
+          "peppermint",
+          "oolong"
+        ]
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "407"
+        ],
+        [
+          "connection",
+          "close"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJpZCI6InBvdC0wIiwic3RhdGUiOiJJRExFIiwiZ2VuZXJhdGlvbiI6MCwic3VwcG9ydGVkVHlwZXMiOlsiQ09GRkVFIiwiVEVBIl0sIm1pbGtQb3VyaW5nIjpmYWxzZSwiY3VycmVudEFkZGl0aW9ucyI6W10sInN1cHBvcnRlZEFkZGl0aW9ucyI6WyJDcmVhbSIsIkhhbGYtYW5kLWhhbGYiLCJXaG9sZS1taWxrIiwiUGFydC1Ta2ltIiwiU2tpbSIsIk5vbi1EYWlyeSIsIlZhbmlsbGEiLCJBbG1vbmQiLCJSYXNwYmVycnkiLCJDaG9jb2xhdGUiLCJXaGlza3kiLCJSdW0iLCJLYWhsdWEiLCJBcXVhdml0IiwiU3VnYXIiLCJYeWxpdG9sIiwiU3RldmlhIl0sInRlYVZhcmlldGllcyI6WyJkYXJqZWVsaW5nIiwiZWFybC1ncmV5IiwiZW5nbGlzaC1icmVha2Zhc3QiLCJncmVlbiIsInBlcHBlcm1pbnQiLCJvb2xvbmciXX0=",
+        "length": 407,
+        "sha256": "790dec0508c7f3c8f710ddb82fbfc0ba153e77398cbc99d816e41669efe1ae1b"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "pipeline": {
+      "first": {
+        "body_json": {
+          "currentAdditions": [],
+          "generation": 0,
+          "id": "pot-0",
+          "milkPouring": false,
+          "state": "IDLE",
+          "supportedAdditions": [
+            "Cream",
+            "Half-and-half",
+            "Whole-milk",
+            "Part-Skim",
+            "Skim",
+            "Non-Dairy",
+            "Vanilla",
+            "Almond",
+            "Raspberry",
+            "Chocolate",
+            "Whisky",
+            "Rum",
+            "Kahlua",
+            "Aquavit",
+            "Sugar",
+            "Xylitol",
+            "Stevia"
+          ],
+          "supportedTypes": [
+            "COFFEE",
+            "TEA"
+          ],
+          "teaVarieties": [
+            "darjeeling",
+            "earl-grey",
+            "english-breakfast",
+            "green",
+            "peppermint",
+            "oolong"
+          ]
+        },
+        "headers": [
+          [
+            "content-type",
+            "application/json; charset=UTF-8"
+          ],
+          [
+            "content-length",
+            "407"
+          ]
+        ],
+        "normalized_body_wire": {
+          "base64": "eyJpZCI6InBvdC0wIiwic3RhdGUiOiJJRExFIiwiZ2VuZXJhdGlvbiI6MCwic3VwcG9ydGVkVHlwZXMiOlsiQ09GRkVFIiwiVEVBIl0sIm1pbGtQb3VyaW5nIjpmYWxzZSwiY3VycmVudEFkZGl0aW9ucyI6W10sInN1cHBvcnRlZEFkZGl0aW9ucyI6WyJDcmVhbSIsIkhhbGYtYW5kLWhhbGYiLCJXaG9sZS1taWxrIiwiUGFydC1Ta2ltIiwiU2tpbSIsIk5vbi1EYWlyeSIsIlZhbmlsbGEiLCJBbG1vbmQiLCJSYXNwYmVycnkiLCJDaG9jb2xhdGUiLCJXaGlza3kiLCJSdW0iLCJLYWhsdWEiLCJBcXVhdml0IiwiU3VnYXIiLCJYeWxpdG9sIiwiU3RldmlhIl0sInRlYVZhcmlldGllcyI6WyJkYXJqZWVsaW5nIiwiZWFybC1ncmV5IiwiZW5nbGlzaC1icmVha2Zhc3QiLCJncmVlbiIsInBlcHBlcm1pbnQiLCJvb2xvbmciXX0=",
+          "length": 407,
+          "sha256": "790dec0508c7f3c8f710ddb82fbfc0ba153e77398cbc99d816e41669efe1ae1b"
+        },
+        "status_code": 200,
+        "status_line": "HTTP/1.1 200 OK"
+      },
+      "second": {
+        "body": {
+          "base64": "",
+          "length": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "headers": [
+          [
+            "allow",
+            "BREW, POST, GET, HEAD, PROPFIND, WHEN, OPTIONS"
+          ],
+          [
+            "Accept-Additions",
+            "Cream, Half-and-half, Whole-milk, Part-Skim, Skim, Non-Dairy, Vanilla, Almond, Raspberry, Chocolate, Whisky, Rum, Kahlua, Aquavit, Sugar, Xylitol, Stevia, *"
+          ],
+          [
+            "content-length",
+            "0"
+          ],
+          [
+            "connection",
+            "close"
+          ]
+        ],
+        "status_code": 200,
+        "status_line": "HTTP/1.1 200 OK"
+      }
+    },
+    "silent_before_request": true
+  },
+  "schema_version": 2
+}
