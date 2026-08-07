@@ -1,40 +1,54 @@
-use std::{collections::HashMap, fmt, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    fmt,
+    future::Future,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
+};
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use bcrypt::{hash, verify};
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
-use deadpool_postgres::Pool;
+use deadpool_postgres::{Object, Pool};
 use getrandom::fill as fill_random;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use tokio::{
     sync::{Mutex, Semaphore},
-    task::spawn_blocking,
-    time::timeout,
+    time::{Instant, timeout_at},
 };
+use tokio_postgres::{CancelToken, NoTls};
+use tokio_util::sync::CancellationToken;
 
-use crate::config::RuntimeConfig;
+use crate::{bounded_blocking::BoundedBlockingPool, config::RuntimeConfig};
 
 const TOKEN_BYTES: usize = 32;
 const TOKEN_PREFIX_BYTES: usize = 8;
 const PASSWORD_COST: u32 = 10;
 const DB_TIMEOUT: Duration = Duration::from_secs(8);
+const DB_CANCEL_DRAIN_TIMEOUT: Duration = Duration::from_secs(1);
 const DEFAULT_FAILURE_LIMIT: u32 = 10;
 const DEFAULT_REGISTRATION_LIMIT: u32 = 5;
 const MAX_RATE_LIMIT_ENTRIES: usize = 16_384;
+const PASSWORD_WORKERS: usize = 4;
 const DUMMY_BCRYPT: &str = "$2a$10$KMejGNeOXWSJBM831XMwmeVrw.16AhD65yYCs7vxZIM0osXpoyPsm";
 
 #[derive(Debug)]
 pub enum AuthError {
+    Cancelled,
     Database(String),
     InvalidInput(String),
+    OutcomeUnknown,
     Unavailable,
 }
 
 impl fmt::Display for AuthError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Database(_) | Self::Unavailable => {
+            Self::Cancelled | Self::Database(_) | Self::OutcomeUnknown | Self::Unavailable => {
                 f.write_str("authentication backend unavailable")
             }
             Self::InvalidInput(message) => f.write_str(message),
@@ -55,6 +69,12 @@ pub struct RegisterResponse {
     pub id: i64,
     pub address: String,
     pub message: &'static str,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct CreatedMailbox {
+    pub id: i64,
+    pub address: String,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -109,6 +129,7 @@ struct IpBan {
 pub struct AuthService {
     pool: Pool,
     domain: Arc<str>,
+    mailbox_receive_enabled: bool,
     public_registration: bool,
     session_expiry_days: i64,
     max_sessions_per_user: i64,
@@ -120,6 +141,7 @@ pub struct AuthService {
     registration_limit: u32,
     registration_window: Duration,
     rate_limits: Arc<Mutex<RateLimitState>>,
+    password_pool: Arc<BoundedBlockingPool>,
     password_permits: Arc<Semaphore>,
     registration_permit: Arc<Semaphore>,
 }
@@ -154,6 +176,12 @@ impl AuthService {
             config,
             "lmyzmail.rate-limit.enabled",
             "botmail.rate-limit.enabled",
+            true,
+        )?;
+        let mailbox_receive_enabled = parse_bool(
+            config,
+            "lmyzmail.domains.main.receive-enabled",
+            "botmail.domains.main.receiveEnabled",
             true,
         )?;
         let failed_login_limit = parse_u32(
@@ -197,9 +225,13 @@ impl AuthService {
                 "session settings are outside safe bounds".into(),
             ));
         }
+        let password_pool =
+            BoundedBlockingPool::new("lmyzmail-auth-bcrypt", PASSWORD_WORKERS, PASSWORD_WORKERS)
+                .map_err(|error| AuthError::Database(format!("password worker pool: {error}")))?;
         Ok(Self {
             pool,
             domain: Arc::from(config.domain.to_ascii_lowercase()),
+            mailbox_receive_enabled,
             public_registration: config.features.public_registration,
             session_expiry_days,
             max_sessions_per_user,
@@ -211,7 +243,8 @@ impl AuthService {
             registration_limit,
             registration_window,
             rate_limits: Arc::new(Mutex::new(RateLimitState::default())),
-            password_permits: Arc::new(Semaphore::new(4)),
+            password_pool: Arc::new(password_pool),
+            password_permits: Arc::new(Semaphore::new(PASSWORD_WORKERS)),
             registration_permit: Arc::new(Semaphore::new(1)),
         })
     }
@@ -223,8 +256,28 @@ impl AuthService {
         client_ip: &str,
         user_agent: Option<&str>,
     ) -> Result<(LoginOutcome, Option<LoginResponse>), AuthError> {
+        self.login_with_cancellation(
+            address,
+            password,
+            client_ip,
+            user_agent,
+            &CancellationToken::new(),
+        )
+        .await
+    }
+
+    pub async fn login_with_cancellation(
+        &self,
+        address: &str,
+        password: &str,
+        client_ip: &str,
+        user_agent: Option<&str>,
+        cancellation: &CancellationToken,
+    ) -> Result<(LoginOutcome, Option<LoginResponse>), AuthError> {
+        let deadline = auth_deadline();
+        let response_address = address.to_owned();
         let address = match self
-            .verify_mailbox_credentials(address, password, client_ip)
+            .verify_mailbox_credentials_until(address, password, client_ip, deadline, cancellation)
             .await?
         {
             CredentialOutcome::Invalid { ip_banned } => {
@@ -238,42 +291,65 @@ impl AuthService {
         let expires = now + ChronoDuration::days(self.session_expiry_days);
         let token_prefix = token[..TOKEN_PREFIX_BYTES.min(token.len())].to_owned();
         let user_agent = user_agent.map(|value| value.chars().take(500).collect::<String>());
-        let mut client = self.db().await?;
-        timeout(DB_TIMEOUT, async {
-            let transaction = client.transaction().await?;
-            transaction
-                .query_one(
-                    "SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))",
-                    &[&address],
-                )
-                .await?;
-            let rows = transaction
-                .query(
-                    "SELECT id FROM user_session WHERE mailbox_address=$1 AND expires_at>$2 ORDER BY created_at DESC",
-                    &[&address, &now],
-                )
-                .await?;
-            if rows.len() as i64 >= self.max_sessions_per_user {
-                let remove = rows.len() as i64 - self.max_sessions_per_user + 1;
-                for row in rows.into_iter().rev().take(remove as usize) {
-                    let id: i64 = row.get(0);
-                    transaction
-                        .execute("DELETE FROM user_session WHERE id=$1", &[&id])
-                        .await?;
+        let mut connection = AuthDatabaseConnection::new(self.db(deadline, cancellation).await?);
+        let cancel_token = connection.cancel_token();
+        let commit_started = AtomicBool::new(false);
+        let database_cancellation = cancellation.child_token();
+        let outcome = auth_database_operation(
+            deadline,
+            &database_cancellation,
+            &cancel_token,
+            &commit_started,
+            async {
+                let transaction = connection
+                    .client_mut()
+                    .transaction()
+                    .await
+                    .map_err(db_error)?;
+                configure_auth_transaction_deadline(&transaction, deadline).await?;
+                ensure_auth_active(&database_cancellation)?;
+                transaction
+                    .query_one(
+                        "SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))",
+                        &[&address],
+                    )
+                    .await
+                    .map_err(db_error)?;
+                ensure_auth_active(&database_cancellation)?;
+                let rows = transaction
+                    .query(
+                        "SELECT id FROM user_session WHERE mailbox_address=$1 AND expires_at>$2 ORDER BY created_at DESC",
+                        &[&address, &now],
+                    )
+                    .await
+                    .map_err(db_error)?;
+                if rows.len() as i64 >= self.max_sessions_per_user {
+                    let remove = rows.len() as i64 - self.max_sessions_per_user + 1;
+                    for row in rows.into_iter().rev().take(remove as usize) {
+                        let id: i64 = row.get(0);
+                        transaction
+                            .execute("DELETE FROM user_session WHERE id=$1", &[&id])
+                            .await
+                            .map_err(db_error)?;
+                    }
                 }
-            }
-            transaction.execute(
-                "INSERT INTO user_session (mailbox_address, token_hash, token_prefix, created_at, expires_at, last_used_at, created_ip, user_agent) VALUES ($1,$2,$3,$4,$5,$4,$6,$7)",
-                &[&address, &token_hash, &token_prefix, &now, &expires, &client_ip, &user_agent],
-            ).await?;
-            transaction.commit().await
-        })
-        .await
-        .map_err(|_| AuthError::Unavailable)?
-        .map_err(db_error)?;
+                ensure_auth_active(&database_cancellation)?;
+                transaction.execute(
+                    "INSERT INTO user_session (mailbox_address, token_hash, token_prefix, created_at, expires_at, last_used_at, created_ip, user_agent) VALUES ($1,$2,$3,$4,$5,$4,$6,$7)",
+                    &[&address, &token_hash, &token_prefix, &now, &expires, &client_ip, &user_agent],
+                ).await.map_err(db_error)?;
+                start_auth_commit(deadline, &database_cancellation, &commit_started)?;
+                transaction.commit().await.map_err(auth_commit_error)
+            },
+        )
+        .await;
+        connection.finish(outcome)?;
         Ok((
             LoginOutcome::Success,
-            Some(LoginResponse { token, address }),
+            Some(LoginResponse {
+                token,
+                address: response_address,
+            }),
         ))
     }
 
@@ -283,17 +359,53 @@ impl AuthService {
         password: &str,
         client_ip: &str,
     ) -> Result<CredentialOutcome, AuthError> {
+        self.verify_mailbox_credentials_with_cancellation(
+            address,
+            password,
+            client_ip,
+            &CancellationToken::new(),
+        )
+        .await
+    }
+
+    pub async fn verify_mailbox_credentials_with_cancellation(
+        &self,
+        address: &str,
+        password: &str,
+        client_ip: &str,
+        cancellation: &CancellationToken,
+    ) -> Result<CredentialOutcome, AuthError> {
+        self.verify_mailbox_credentials_until(
+            address,
+            password,
+            client_ip,
+            auth_deadline(),
+            cancellation,
+        )
+        .await
+    }
+
+    async fn verify_mailbox_credentials_until(
+        &self,
+        address: &str,
+        password: &str,
+        client_ip: &str,
+        deadline: Instant,
+        cancellation: &CancellationToken,
+    ) -> Result<CredentialOutcome, AuthError> {
         let address = normalize_login_address(address).unwrap_or_default();
         if self.ban_expiry(client_ip).await.is_some() {
             return Ok(CredentialOutcome::Invalid { ip_banned: true });
         }
-        let row = self.db_query_mailbox(&address).await?;
+        let row = self
+            .db_query_mailbox(&address, deadline, cancellation)
+            .await?;
         let (mailbox_exists, password_hash) = match row {
             Some((_, password_hash)) => (true, password_hash),
             None => (false, DUMMY_BCRYPT.to_owned()),
         };
         let valid = self
-            .verify_password(password.to_owned(), password_hash)
+            .verify_password(password.to_owned(), password_hash, deadline, cancellation)
             .await?;
         if !valid || !mailbox_exists {
             let ip_banned = self.record_failure(client_ip, &address).await;
@@ -309,14 +421,97 @@ impl AuthService {
         password: &str,
         client_ip: &str,
     ) -> Result<RegisterResponse, AuthError> {
+        self.register_with_cancellation(address, password, client_ip, &CancellationToken::new())
+            .await
+    }
+
+    pub async fn register_with_cancellation(
+        &self,
+        address: &str,
+        password: &str,
+        client_ip: &str,
+        cancellation: &CancellationToken,
+    ) -> Result<RegisterResponse, AuthError> {
         if !self.public_registration {
             return Err(AuthError::InvalidInput("registration_disabled".into()));
         }
+        let created = self
+            .create_mailbox(address, password, client_ip, cancellation)
+            .await?;
+        Ok(RegisterResponse {
+            id: created.id,
+            address: created.address,
+            message: "Registration successful. You can now log in.",
+        })
+    }
+
+    pub async fn create_mailbox_api(
+        &self,
+        address: &str,
+        password: &str,
+        client_ip: &str,
+    ) -> Result<CreatedMailbox, AuthError> {
+        self.create_mailbox_api_with_cancellation(
+            address,
+            password,
+            client_ip,
+            &CancellationToken::new(),
+        )
+        .await
+    }
+
+    pub async fn create_mailbox_api_with_cancellation(
+        &self,
+        address: &str,
+        password: &str,
+        client_ip: &str,
+        cancellation: &CancellationToken,
+    ) -> Result<CreatedMailbox, AuthError> {
+        self.create_mailbox(address, password, client_ip, cancellation)
+            .await
+    }
+
+    pub async fn mailbox_exists(&self, address: &str) -> Result<bool, AuthError> {
+        self.mailbox_exists_with_cancellation(address, &CancellationToken::new())
+            .await
+    }
+
+    pub async fn mailbox_exists_with_cancellation(
+        &self,
+        address: &str,
+        cancellation: &CancellationToken,
+    ) -> Result<bool, AuthError> {
+        let normalized = address.trim().to_lowercase();
+        if normalized.is_empty() || normalized.len() > 4096 {
+            return Ok(false);
+        }
+        self.db_mailbox_exists(&normalized, auth_deadline(), cancellation)
+            .await
+    }
+
+    async fn create_mailbox(
+        &self,
+        address: &str,
+        password: &str,
+        client_ip: &str,
+        cancellation: &CancellationToken,
+    ) -> Result<CreatedMailbox, AuthError> {
+        let deadline = auth_deadline();
         if address.trim().is_empty() {
             return Err(AuthError::InvalidInput("address_required".into()));
         }
-        if password.chars().count() < 8 {
+        if password.encode_utf16().count() < 8 {
             return Err(AuthError::InvalidInput("password_too_short".into()));
+        }
+        let _registration_permit = bounded_auth_future(
+            deadline,
+            cancellation,
+            "registration permit",
+            self.registration_permit.clone().acquire_owned(),
+        )
+        .await?;
+        if !self.can_register(client_ip).await {
+            return Err(AuthError::InvalidInput("rate_limit_exceeded".into()));
         }
         let address = normalize_address(address)?;
         let domain = address
@@ -328,161 +523,324 @@ impl AuthService {
                 "Domain not configured: {domain}"
             )));
         }
-        let _registration_permit =
-            timeout(DB_TIMEOUT, self.registration_permit.clone().acquire_owned())
-                .await
-                .map_err(|_| AuthError::Unavailable)?
-                .map_err(|_| AuthError::Unavailable)?;
-        if !self.can_register(client_ip).await {
-            return Err(AuthError::InvalidInput("rate_limit_exceeded".into()));
+        if !self.mailbox_receive_enabled {
+            return Err(AuthError::InvalidInput(format!(
+                "Domain does not accept mail: {domain}"
+            )));
         }
-        if self.db_mailbox_exists(&address).await? {
+        if self
+            .db_mailbox_exists(&address, deadline, cancellation)
+            .await?
+        {
             return Err(AuthError::InvalidInput(format!(
                 "Mailbox already exists: {address}"
             )));
         }
-        let password_hash = self.hash_password(password.to_owned()).await?;
-        let client = self.db().await?;
-        let result = timeout(DB_TIMEOUT, client.query_one(
-            "INSERT INTO mailbox (address, password_hash, created_at) VALUES ($1,$2,$3) RETURNING id",
-            &[&address, &password_hash, &Utc::now()],
-        )).await.map_err(|_| AuthError::Unavailable)?;
+        let password_hash = self
+            .hash_password(password.to_owned(), deadline, cancellation)
+            .await?;
+        let mut connection = AuthDatabaseConnection::new(self.db(deadline, cancellation).await?);
+        let cancel_token = connection.cancel_token();
+        let commit_started = AtomicBool::new(false);
+        let database_cancellation = cancellation.child_token();
+        let outcome = auth_database_operation(
+            deadline,
+            &database_cancellation,
+            &cancel_token,
+            &commit_started,
+            async {
+                let transaction = connection
+                    .client_mut()
+                    .transaction()
+                    .await
+                    .map_err(db_error)?;
+                configure_auth_transaction_deadline(&transaction, deadline).await?;
+                ensure_auth_active(&database_cancellation)?;
+                let row = transaction
+                    .query_one(
+                        "INSERT INTO mailbox (address, password_hash, created_at) VALUES ($1,$2,$3) RETURNING id",
+                        &[&address, &password_hash, &Utc::now()],
+                    )
+                    .await
+                    .map_err(|error| {
+                        if error.code().is_some_and(|code| code.code() == "23505") {
+                            AuthError::InvalidInput(format!(
+                                "Mailbox already exists: {address}"
+                            ))
+                        } else {
+                            db_error(error)
+                        }
+                    })?;
+                start_auth_commit(deadline, &database_cancellation, &commit_started)?;
+                transaction.commit().await.map_err(auth_commit_error)?;
+                Ok(row)
+            },
+        )
+        .await;
+        let result = connection.finish(outcome);
         match result {
             Ok(row) => {
                 self.record_registration(client_ip).await;
-                Ok(RegisterResponse {
+                Ok(CreatedMailbox {
                     id: row.get::<_, i64>(0),
                     address,
-                    message: "Registration successful. You can now log in.",
                 })
             }
-            Err(error) if error.code().is_some_and(|code| code.code() == "23505") => Err(
-                AuthError::InvalidInput(format!("Mailbox already exists: {address}")),
-            ),
-            Err(error) => Err(AuthError::Database(error.to_string())),
+            Err(error) => {
+                if matches!(&error, AuthError::OutcomeUnknown) {
+                    self.record_registration(client_ip).await;
+                }
+                Err(error)
+            }
         }
     }
 
     pub async fn logout(&self, token: Option<&str>) -> Result<(), AuthError> {
+        self.logout_with_cancellation(token, &CancellationToken::new())
+            .await
+    }
+
+    pub async fn logout_with_cancellation(
+        &self,
+        token: Option<&str>,
+        cancellation: &CancellationToken,
+    ) -> Result<(), AuthError> {
         let Some(token) = token.filter(|value| !value.trim().is_empty()) else {
             return Ok(());
         };
-        let client = self.db().await?;
+        let deadline = auth_deadline();
         let hash = hash_token(token);
-        timeout(
-            DB_TIMEOUT,
-            client.execute("DELETE FROM user_session WHERE token_hash=$1", &[&hash]),
+        let mut connection = AuthDatabaseConnection::new(self.db(deadline, cancellation).await?);
+        let cancel_token = connection.cancel_token();
+        let commit_started = AtomicBool::new(false);
+        let database_cancellation = cancellation.child_token();
+        let outcome = auth_database_operation(
+            deadline,
+            &database_cancellation,
+            &cancel_token,
+            &commit_started,
+            async {
+                let transaction = connection
+                    .client_mut()
+                    .transaction()
+                    .await
+                    .map_err(db_error)?;
+                configure_auth_transaction_deadline(&transaction, deadline).await?;
+                ensure_auth_active(&database_cancellation)?;
+                transaction
+                    .execute("DELETE FROM user_session WHERE token_hash=$1", &[&hash])
+                    .await
+                    .map_err(db_error)?;
+                start_auth_commit(deadline, &database_cancellation, &commit_started)?;
+                transaction.commit().await.map_err(auth_commit_error)
+            },
         )
-        .await
-        .map_err(|_| AuthError::Unavailable)?
-        .map_err(db_error)?;
-        Ok(())
+        .await;
+        connection.finish(outcome)
     }
 
     pub async fn validate_token(&self, token: &str) -> Result<Option<String>, AuthError> {
+        self.validate_token_with_cancellation(token, &CancellationToken::new())
+            .await
+    }
+
+    pub async fn validate_token_with_cancellation(
+        &self,
+        token: &str,
+        cancellation: &CancellationToken,
+    ) -> Result<Option<String>, AuthError> {
         if token.trim().is_empty() {
             return Ok(None);
         }
-        let client = self.db().await?;
+        let deadline = auth_deadline();
         let hash = hash_token(token);
-        let row = timeout(
-            DB_TIMEOUT,
-            client.query_opt(
-                "SELECT mailbox_address, expires_at FROM user_session WHERE token_hash=$1",
-                &[&hash],
-            ),
+        let mut connection = AuthDatabaseConnection::new(self.db(deadline, cancellation).await?);
+        let cancel_token = connection.cancel_token();
+        let commit_started = AtomicBool::new(false);
+        let database_cancellation = cancellation.child_token();
+        let outcome = auth_database_operation(
+            deadline,
+            &database_cancellation,
+            &cancel_token,
+            &commit_started,
+            async {
+                let transaction = connection
+                    .client_mut()
+                    .transaction()
+                    .await
+                    .map_err(db_error)?;
+                configure_auth_transaction_deadline(&transaction, deadline).await?;
+                ensure_auth_active(&database_cancellation)?;
+                let row = transaction
+                    .query_opt(
+                        "SELECT mailbox_address, expires_at FROM user_session WHERE token_hash=$1",
+                        &[&hash],
+                    )
+                    .await
+                    .map_err(db_error)?;
+                let Some(row) = row else {
+                    transaction.rollback().await.map_err(db_error)?;
+                    return Ok(None);
+                };
+                let address: String = row.get(0);
+                let expires: DateTime<Utc> = row.get(1);
+                if expires <= Utc::now() {
+                    transaction
+                        .execute("DELETE FROM user_session WHERE token_hash=$1", &[&hash])
+                        .await
+                        .map_err(db_error)?;
+                    start_auth_commit(deadline, &database_cancellation, &commit_started)?;
+                    transaction.commit().await.map_err(auth_commit_error)?;
+                    return Ok(None);
+                }
+                if self.track_last_used {
+                    ensure_auth_active(&database_cancellation)?;
+                    transaction
+                        .execute(
+                            "UPDATE user_session SET last_used_at=$1 WHERE token_hash=$2",
+                            &[&Utc::now(), &hash],
+                        )
+                        .await
+                        .map_err(db_error)?;
+                    start_auth_commit(deadline, &database_cancellation, &commit_started)?;
+                    transaction.commit().await.map_err(auth_commit_error)?;
+                } else {
+                    transaction.rollback().await.map_err(db_error)?;
+                }
+                Ok(Some(address))
+            },
         )
-        .await
-        .map_err(|_| AuthError::Unavailable)?
-        .map_err(db_error)?;
-        let Some(row) = row else {
-            return Ok(None);
-        };
-        let address: String = row.get(0);
-        let expires: DateTime<Utc> = row.get(1);
-        if expires <= Utc::now() {
-            let _ = client
-                .execute("DELETE FROM user_session WHERE token_hash=$1", &[&hash])
-                .await;
-            return Ok(None);
-        }
-        if self.track_last_used {
-            client
-                .execute(
-                    "UPDATE user_session SET last_used_at=$1 WHERE token_hash=$2",
-                    &[&Utc::now(), &hash],
-                )
-                .await
-                .map_err(db_error)?;
-        }
-        Ok(Some(address))
+        .await;
+        connection.finish(outcome)
     }
 
-    async fn db(&self) -> Result<deadpool_postgres::Object, AuthError> {
-        timeout(DB_TIMEOUT, self.pool.get())
-            .await
-            .map_err(|_| AuthError::Unavailable)?
-            .map_err(|error| AuthError::Database(error.to_string()))
-    }
-
-    async fn db_query_mailbox(&self, address: &str) -> Result<Option<(i64, String)>, AuthError> {
-        let client = self.db().await?;
-        let row = timeout(
-            DB_TIMEOUT,
-            client.query_opt(
-                "SELECT id, password_hash FROM mailbox WHERE address=$1",
-                &[&address],
-            ),
+    async fn db(
+        &self,
+        deadline: Instant,
+        cancellation: &CancellationToken,
+    ) -> Result<Object, AuthError> {
+        bounded_auth_future(
+            deadline,
+            cancellation,
+            "authentication pool",
+            self.pool.get(),
         )
         .await
-        .map_err(|_| AuthError::Unavailable)?
-        .map_err(db_error)?;
+    }
+
+    async fn db_query_mailbox(
+        &self,
+        address: &str,
+        deadline: Instant,
+        cancellation: &CancellationToken,
+    ) -> Result<Option<(i64, String)>, AuthError> {
+        let mut connection = AuthDatabaseConnection::new(self.db(deadline, cancellation).await?);
+        let cancel_token = connection.cancel_token();
+        let commit_started = AtomicBool::new(false);
+        let database_cancellation = cancellation.child_token();
+        let outcome = auth_database_operation(
+            deadline,
+            &database_cancellation,
+            &cancel_token,
+            &commit_started,
+            async {
+                connection
+                    .client_mut()
+                    .query_opt(
+                        "SELECT id, password_hash FROM mailbox WHERE address=$1",
+                        &[&address],
+                    )
+                    .await
+                    .map_err(db_error)
+            },
+        )
+        .await;
+        let row = connection.finish(outcome)?;
         Ok(row.map(|row| (row.get(0), row.get(1))))
     }
 
-    async fn db_mailbox_exists(&self, address: &str) -> Result<bool, AuthError> {
-        let client = self.db().await?;
-        timeout(
-            DB_TIMEOUT,
-            client.query_one(
-                "SELECT EXISTS(SELECT 1 FROM mailbox WHERE address=$1)",
-                &[&address],
-            ),
+    async fn db_mailbox_exists(
+        &self,
+        address: &str,
+        deadline: Instant,
+        cancellation: &CancellationToken,
+    ) -> Result<bool, AuthError> {
+        let mut connection = AuthDatabaseConnection::new(self.db(deadline, cancellation).await?);
+        let cancel_token = connection.cancel_token();
+        let commit_started = AtomicBool::new(false);
+        let database_cancellation = cancellation.child_token();
+        let outcome = auth_database_operation(
+            deadline,
+            &database_cancellation,
+            &cancel_token,
+            &commit_started,
+            async {
+                connection
+                    .client_mut()
+                    .query_one(
+                        "SELECT EXISTS(SELECT 1 FROM mailbox WHERE address=$1)",
+                        &[&address],
+                    )
+                    .await
+                    .map_err(db_error)
+            },
         )
-        .await
-        .map_err(|_| AuthError::Unavailable)?
-        .map(|row| row.get(0))
-        .map_err(db_error)
+        .await;
+        connection.finish(outcome).map(|row| row.get(0))
     }
 
-    async fn hash_password(&self, password: String) -> Result<String, AuthError> {
-        let permit = timeout(DB_TIMEOUT, self.password_permits.clone().acquire_owned())
-            .await
-            .map_err(|_| AuthError::Unavailable)?
-            .map_err(|_| AuthError::Unavailable)?;
-        spawn_blocking(move || {
-            let _permit = permit;
-            hash(password, PASSWORD_COST).map_err(|error| AuthError::Database(error.to_string()))
-        })
+    async fn hash_password(
+        &self,
+        password: String,
+        deadline: Instant,
+        cancellation: &CancellationToken,
+    ) -> Result<String, AuthError> {
+        let permit = bounded_auth_future(
+            deadline,
+            cancellation,
+            "password hash permit",
+            self.password_permits.clone().acquire_owned(),
+        )
+        .await?;
+        run_bounded_password_task(
+            &self.password_pool,
+            deadline,
+            cancellation,
+            "password hash",
+            move || {
+                let _permit = permit;
+                hash(password, PASSWORD_COST)
+                    .map_err(|error| AuthError::Database(error.to_string()))
+            },
+        )
         .await
-        .map_err(|error| AuthError::Database(error.to_string()))?
     }
 
     async fn verify_password(
         &self,
         password: String,
         password_hash: String,
+        deadline: Instant,
+        cancellation: &CancellationToken,
     ) -> Result<bool, AuthError> {
-        let permit = timeout(DB_TIMEOUT, self.password_permits.clone().acquire_owned())
-            .await
-            .map_err(|_| AuthError::Unavailable)?
-            .map_err(|_| AuthError::Unavailable)?;
-        spawn_blocking(move || {
-            let _permit = permit;
-            Ok(verify(password, &password_hash).unwrap_or(false))
-        })
+        let permit = bounded_auth_future(
+            deadline,
+            cancellation,
+            "password verify permit",
+            self.password_permits.clone().acquire_owned(),
+        )
+        .await?;
+        run_bounded_password_task(
+            &self.password_pool,
+            deadline,
+            cancellation,
+            "password verify",
+            move || {
+                let _permit = permit;
+                Ok::<bool, AuthError>(verify(password, &password_hash).unwrap_or(false))
+            },
+        )
         .await
-        .map_err(|error| AuthError::Database(error.to_string()))?
     }
 
     pub async fn ban_expiry(&self, ip: &str) -> Option<DateTime<Utc>> {
@@ -585,6 +943,208 @@ impl AuthService {
             self.registration_limit,
             self.registration_window,
         );
+    }
+}
+
+fn auth_deadline() -> Instant {
+    Instant::now() + DB_TIMEOUT
+}
+
+async fn bounded_auth_future<T, E, F>(
+    deadline: Instant,
+    cancellation: &CancellationToken,
+    label: &'static str,
+    future: F,
+) -> Result<T, AuthError>
+where
+    E: fmt::Display,
+    F: Future<Output = Result<T, E>>,
+{
+    tokio::select! {
+        biased;
+        _ = cancellation.cancelled() => Err(AuthError::Cancelled),
+        result = timeout_at(deadline, future) => match result {
+            Ok(Ok(value)) => Ok(value),
+            Ok(Err(error)) => Err(AuthError::Database(format!("{label}: {error}"))),
+            Err(_) => Err(AuthError::Unavailable),
+        },
+    }
+}
+
+async fn run_bounded_password_task<T, F>(
+    pool: &BoundedBlockingPool,
+    deadline: Instant,
+    cancellation: &CancellationToken,
+    label: &'static str,
+    work: F,
+) -> Result<T, AuthError>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, AuthError> + Send + 'static,
+{
+    let mut task = pool
+        .submit(work)
+        .map_err(|error| AuthError::Database(format!("{label}: {error}")))?;
+    tokio::select! {
+        biased;
+        _ = cancellation.cancelled() => {
+            if task.await.is_err() {
+                eprintln!("lmyzmail {label} task panicked after cancellation");
+            }
+            Err(AuthError::Cancelled)
+        }
+        result = timeout_at(deadline, &mut task) => match result {
+            Ok(Ok(result)) => result,
+            Ok(Err(error)) => Err(AuthError::Database(format!("{label}: {error}"))),
+            Err(_) => {
+                eprintln!("lmyzmail {label} exceeded its soft deadline; waiting for completion");
+                if task.await.is_err() {
+                    eprintln!("lmyzmail {label} task panicked after its soft deadline");
+                }
+                Err(AuthError::Unavailable)
+            }
+        },
+    }
+}
+
+struct AuthDatabaseOutcome<T> {
+    result: Result<T, AuthError>,
+    discard_connection: bool,
+}
+
+struct AuthDatabaseConnection {
+    client: Option<Object>,
+}
+
+impl AuthDatabaseConnection {
+    fn new(client: Object) -> Self {
+        Self {
+            client: Some(client),
+        }
+    }
+
+    fn client_mut(&mut self) -> &mut Object {
+        self.client
+            .as_mut()
+            .expect("authentication database connection is present")
+    }
+
+    fn cancel_token(&self) -> CancelToken {
+        self.client
+            .as_ref()
+            .expect("authentication database connection is present")
+            .cancel_token()
+    }
+
+    fn finish<T>(mut self, outcome: AuthDatabaseOutcome<T>) -> Result<T, AuthError> {
+        let client = self
+            .client
+            .take()
+            .expect("authentication database connection is present");
+        if outcome.discard_connection {
+            drop(Object::take(client));
+        } else {
+            drop(client);
+        }
+        outcome.result
+    }
+}
+
+impl Drop for AuthDatabaseConnection {
+    fn drop(&mut self) {
+        if let Some(client) = self.client.take() {
+            drop(Object::take(client));
+        }
+    }
+}
+
+async fn auth_database_operation<T, F>(
+    deadline: Instant,
+    cancellation: &CancellationToken,
+    cancel_token: &CancelToken,
+    commit_started: &AtomicBool,
+    future: F,
+) -> AuthDatabaseOutcome<T>
+where
+    F: Future<Output = Result<T, AuthError>>,
+{
+    tokio::pin!(future);
+    let interruption = tokio::select! {
+        biased;
+        _ = cancellation.cancelled() => AuthError::Cancelled,
+        result = timeout_at(deadline, future.as_mut()) => match result {
+            Ok(result) => return completed_auth_database_outcome(result),
+            Err(_) => AuthError::Unavailable,
+        },
+    };
+
+    let recovery_deadline = Instant::now() + DB_CANCEL_DRAIN_TIMEOUT;
+    if commit_started.load(Ordering::Acquire) {
+        return match timeout_at(recovery_deadline, future.as_mut()).await {
+            Ok(result) => completed_auth_database_outcome(result),
+            Err(_) => AuthDatabaseOutcome {
+                result: Err(AuthError::OutcomeUnknown),
+                discard_connection: true,
+            },
+        };
+    }
+
+    cancellation.cancel();
+    let recovery = timeout_at(recovery_deadline, async {
+        tokio::join!(cancel_token.cancel_query(NoTls), future.as_mut())
+    })
+    .await;
+    let discard_connection = match recovery {
+        Ok((Ok(()), _)) => false,
+        Ok((Err(_), _)) | Err(_) => true,
+    };
+
+    AuthDatabaseOutcome {
+        result: Err(interruption),
+        discard_connection,
+    }
+}
+
+fn completed_auth_database_outcome<T>(result: Result<T, AuthError>) -> AuthDatabaseOutcome<T> {
+    let discard_connection = matches!(result, Err(AuthError::OutcomeUnknown));
+    AuthDatabaseOutcome {
+        result,
+        discard_connection,
+    }
+}
+
+fn start_auth_commit(
+    deadline: Instant,
+    cancellation: &CancellationToken,
+    commit_started: &AtomicBool,
+) -> Result<(), AuthError> {
+    ensure_auth_active(cancellation)?;
+    if Instant::now() >= deadline {
+        return Err(AuthError::Unavailable);
+    }
+    commit_started.store(true, Ordering::Release);
+    Ok(())
+}
+
+async fn configure_auth_transaction_deadline(
+    transaction: &deadpool_postgres::Transaction<'_>,
+    deadline: Instant,
+) -> Result<(), AuthError> {
+    let remaining = deadline.saturating_duration_since(Instant::now());
+    let server_millis = (remaining.as_millis() / 2).clamp(1, i32::MAX as u128);
+    let value = format!("{server_millis}ms");
+    transaction
+        .query_one("SELECT set_config('statement_timeout',$1,true)", &[&value])
+        .await
+        .map_err(db_error)?;
+    Ok(())
+}
+
+fn ensure_auth_active(cancellation: &CancellationToken) -> Result<(), AuthError> {
+    if cancellation.is_cancelled() {
+        Err(AuthError::Cancelled)
+    } else {
+        Ok(())
     }
 }
 
@@ -692,6 +1252,14 @@ fn db_error(error: tokio_postgres::Error) -> AuthError {
     AuthError::Database(error.to_string())
 }
 
+fn auth_commit_error(error: tokio_postgres::Error) -> AuthError {
+    if error.as_db_error().is_some() {
+        db_error(error)
+    } else {
+        AuthError::OutcomeUnknown
+    }
+}
+
 fn normalize_login_address(value: &str) -> Option<String> {
     let address = value.trim().to_lowercase();
     (!address.is_empty()
@@ -718,7 +1286,7 @@ fn normalize_address(value: &str) -> Result<String, AuthError> {
     if domain.is_empty()
         || domain.contains('@')
         || local.is_empty()
-        || local.len() > 64
+        || local.encode_utf16().count() > 64
         || local.starts_with('.')
         || local.ends_with('.')
         || local.contains("..")
@@ -756,6 +1324,42 @@ fn hash_token(token: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::Properties;
+
+    #[tokio::test]
+    async fn bounded_future_prioritizes_ready_cancellation() {
+        let cancellation = CancellationToken::new();
+        cancellation.cancel();
+        let result = bounded_auth_future(
+            Instant::now() + Duration::from_secs(1),
+            &cancellation,
+            "ready test",
+            async { Ok::<_, std::io::Error>(()) },
+        )
+        .await;
+        assert!(matches!(result, Err(AuthError::Cancelled)));
+    }
+
+    #[tokio::test]
+    async fn timed_out_password_task_is_joined_before_returning() {
+        let pool = BoundedBlockingPool::new("lmyzmail-auth-test", 1, 1).unwrap();
+        let finished = Arc::new(AtomicBool::new(false));
+        let task_finished = Arc::clone(&finished);
+        let result = run_bounded_password_task(
+            &pool,
+            Instant::now() + Duration::from_millis(1),
+            &CancellationToken::new(),
+            "join test",
+            move || {
+                std::thread::sleep(Duration::from_millis(20));
+                task_finished.store(true, Ordering::Release);
+                Ok(())
+            },
+        )
+        .await;
+        assert!(matches!(result, Err(AuthError::Unavailable)));
+        assert!(finished.load(Ordering::Acquire));
+    }
 
     #[test]
     fn normalizes_and_validates_mailbox_addresses() {
@@ -766,6 +1370,29 @@ mod tests {
         assert!(normalize_address("a..b@example.test").is_err());
         assert!(normalize_address("a@example.test\r\nX: y").is_err());
         assert!(normalize_address("a@other.test").is_ok());
+        assert!(normalize_address(&format!("{}@example.test", "😀".repeat(32))).is_ok());
+        assert!(normalize_address(&format!("{}@example.test", "😀".repeat(33))).is_err());
+    }
+
+    #[test]
+    fn mailbox_receive_flag_accepts_legacy_alias_with_new_precedence() {
+        let config = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.domains.main.receiveEnabled=false\n\
+lmyzmail.domains.main.receive-enabled=true\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(
+            parse_bool(
+                &config,
+                "lmyzmail.domains.main.receive-enabled",
+                "botmail.domains.main.receiveEnabled",
+                false,
+            )
+            .unwrap()
+        );
     }
 
     #[test]

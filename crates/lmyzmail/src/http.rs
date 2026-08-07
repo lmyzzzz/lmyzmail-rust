@@ -562,6 +562,128 @@ async fn handle_connection(
             )
             .await
         }
+        ParsedRequest::ApiCreateMailbox => {
+            let credentials = match request_body(&request) {
+                Some([]) => None,
+                Some(body) => match serde_json::from_slice::<Option<Credentials>>(body) {
+                    Ok(credentials) => credentials,
+                    Err(_) => {
+                        return write_json_error(
+                            stream,
+                            Status::InternalServerError,
+                            "internal_error",
+                        )
+                        .await;
+                    }
+                },
+                None => None,
+            };
+            let Some(Credentials {
+                address: Some(address),
+                password: Some(password),
+            }) = credentials
+            else {
+                return write_response(
+                    stream,
+                    Status::BadRequest,
+                    br#"{"error":"invalid_request","message":"Address and password are required."}"#,
+                    "application/json; charset=UTF-8",
+                )
+                .await;
+            };
+            if address.trim().is_empty() || password.trim().is_empty() {
+                return write_response(
+                    stream,
+                    Status::BadRequest,
+                    br#"{"error":"invalid_request","message":"Address and password are required."}"#,
+                    "application/json; charset=UTF-8",
+                )
+                .await;
+            }
+            if password.encode_utf16().count() < 8 {
+                return write_response(
+                    stream,
+                    Status::BadRequest,
+                    br#"{"error":"password_too_short","message":"Password must be at least 8 characters."}"#,
+                    "application/json; charset=UTF-8",
+                )
+                .await;
+            }
+            match auth
+                .create_mailbox_api_with_cancellation(
+                    &address,
+                    &password,
+                    &client_ip,
+                    cancellation,
+                )
+                .await
+            {
+                Ok(created) => {
+                    write_json_response(
+                        stream,
+                        Status::Created,
+                        &MailboxCreationResponse {
+                            address: &created.address,
+                            id: created.id,
+                        },
+                    )
+                    .await
+                }
+                Err(AuthError::InvalidInput(message)) if message == "rate_limit_exceeded" => {
+                    write_response(
+                        stream,
+                        Status::TooManyRequests,
+                        br#"{"error":"rate_limit_exceeded","message":"Too many registration attempts. Please try again later."}"#,
+                        "application/json; charset=UTF-8",
+                    )
+                    .await
+                }
+                Err(AuthError::InvalidInput(message)) => {
+                    write_json_response(
+                        stream,
+                        Status::BadRequest,
+                        &RegistrationFailure {
+                            error: "creation_failed",
+                            message: &message,
+                        },
+                    )
+                    .await
+                }
+                Err(_) => {
+                    write_response(
+                        stream,
+                        Status::InternalServerError,
+                        br#"{"error":"internal_error","message":"An error occurred."}"#,
+                        "application/json; charset=UTF-8",
+                    )
+                    .await
+                }
+            }
+        }
+        ParsedRequest::ApiMailboxExists(address) => {
+            if address.trim().is_empty() {
+                return write_json_error(stream, Status::BadRequest, "address_required").await;
+            }
+            match auth
+                .mailbox_exists_with_cancellation(&address, cancellation)
+                .await
+            {
+                Ok(exists) => {
+                    write_json_response(
+                        stream,
+                        Status::Ok,
+                        &MailboxExistsResponse {
+                            address: &address,
+                            exists,
+                        },
+                    )
+                    .await
+                }
+                Err(_) => {
+                    write_json_error(stream, Status::InternalServerError, "internal_error").await
+                }
+            }
+        }
         ParsedRequest::WebLogin | ParsedRequest::WebRegister => {
             let body = request_body(&request).and_then(|body| serde_json::from_slice::<Credentials>(body).ok());
             let Some(credentials) = body else {
@@ -571,7 +693,16 @@ async fn handle_connection(
                 ParsedRequest::WebLogin => {
                     let address = credentials.address.unwrap_or_default();
                     let password = credentials.password.unwrap_or_default();
-                    match auth.login(&address, &password, &client_ip, None).await {
+                    match auth
+                        .login_with_cancellation(
+                            &address,
+                            &password,
+                            &client_ip,
+                            None,
+                            cancellation,
+                        )
+                        .await
+                    {
                         Ok((LoginOutcome::Success, Some(login))) => write_json_response(stream, Status::Ok, &login).await,
                         Ok((LoginOutcome::Invalid { ip_banned: true }, _)) => write_response(stream, Status::Forbidden, br#"{"error":"ip_banned","message":"Too many failed attempts. Please try again later."}"#, "application/json; charset=UTF-8").await,
                         Ok((LoginOutcome::Invalid { ip_banned: false }, _)) => write_response(stream, Status::Unauthorized, br#"{"error":"invalid_credentials"}"#, "application/json; charset=UTF-8").await,
@@ -582,7 +713,10 @@ async fn handle_connection(
                 ParsedRequest::WebRegister => {
                     let address = credentials.address.unwrap_or_default();
                     let password = credentials.password.unwrap_or_default();
-                    match auth.register(&address, &password, &client_ip).await {
+                    match auth
+                        .register_with_cancellation(&address, &password, &client_ip, cancellation)
+                        .await
+                    {
                         Ok(register) => write_json_response(stream, Status::Created, &register).await,
                         Err(AuthError::InvalidInput(message)) if message == "registration_disabled" => write_response(stream, Status::Forbidden, br#"{"error":"registration_disabled","message":"Public registration is not available."}"#, "application/json; charset=UTF-8").await,
                         Err(AuthError::InvalidInput(message)) if message == "rate_limit_exceeded" => write_response(stream, Status::TooManyRequests, br#"{"error":"rate_limit_exceeded","message":"Too many registration attempts. Please try again later."}"#, "application/json; charset=UTF-8").await,
@@ -597,10 +731,15 @@ async fn handle_connection(
         }
         ParsedRequest::WebLogout => {
             let token = request_header(&request, "x-session-token");
-            let _ = auth.logout(token.as_deref()).await;
+            let _ = auth
+                .logout_with_cancellation(token.as_deref(), cancellation)
+                .await;
             write_response(stream, Status::Ok, br#"{"success":true}"#, "application/json; charset=UTF-8").await
         }
-        ParsedRequest::SessionToken(token) => match auth.validate_token(&token).await {
+        ParsedRequest::SessionToken(token) => match auth
+            .validate_token_with_cancellation(&token, cancellation)
+            .await
+        {
             Ok(Some(address)) => {
                 handle_authenticated_request(
                     stream,
@@ -1677,6 +1816,8 @@ enum ParsedRequest {
     ApiStatusByMessage(String),
     ApiQuota(String),
     ApiQuotaMissing,
+    ApiCreateMailbox,
+    ApiMailboxExists(String),
     WebDomains,
     WebConfig,
     WebLogin,
@@ -1790,6 +1931,23 @@ fn parse_request(
         ("POST", "/web/login") => ParsedRequest::WebLogin,
         ("POST", "/web/register") => ParsedRequest::WebRegister,
         ("POST", "/web/logout") => ParsedRequest::WebLogout,
+        ("POST", "/api/mailboxes") => match api_permission(config, api_key, true) {
+            ApiPermission::Granted => ParsedRequest::ApiCreateMailbox,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenWrite,
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+        },
+        ("GET", path) if mailbox_exists_path(path).is_some() => {
+            match api_permission(config, api_key, false) {
+                ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+                ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
+                ApiPermission::Granted => {
+                    percent_decode_str(mailbox_exists_path(path).unwrap_or_default())
+                        .decode_utf8()
+                        .map(|address| ParsedRequest::ApiMailboxExists(address.into_owned()))
+                        .unwrap_or(ParsedRequest::BadRequest)
+                }
+            }
+        }
         ("POST", "/api/mail/send") => match api_permission(config, api_key, true) {
             ApiPermission::Granted => ParsedRequest::ApiSend,
             ApiPermission::Forbidden => ParsedRequest::ForbiddenWrite,
@@ -1862,6 +2020,13 @@ fn parse_request(
         _ if declared_length.unwrap_or(0) != 0 => ParsedRequest::BadRequest,
         _ => ParsedRequest::NotFound,
     }
+}
+
+fn mailbox_exists_path(path: &str) -> Option<&str> {
+    let address = path
+        .strip_prefix("/api/mailboxes/")?
+        .strip_suffix("/exists")?;
+    (!address.is_empty() && !address.contains('/')).then_some(address)
 }
 
 fn is_origin_allowed(config: &RuntimeConfig, origin: &str) -> bool {
@@ -2061,6 +2226,18 @@ struct WebConfigResponse<'a> {
 struct Credentials {
     address: Option<String>,
     password: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct MailboxCreationResponse<'a> {
+    id: i64,
+    address: &'a str,
+}
+
+#[derive(Debug, Serialize)]
+struct MailboxExistsResponse<'a> {
+    address: &'a str,
+    exists: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -2880,7 +3057,23 @@ lmyzmail.public-registration-enabled=true\n",
         );
         assert_eq!(
             parse_request(write_request("write-key").as_bytes(), 1024, &config),
-            ParsedRequest::NotFound
+            ParsedRequest::ApiCreateMailbox
+        );
+        assert_eq!(
+            parse_request(
+                b"GET /api/mailboxes/QA%40EXAMPLE.TEST/exists HTTP/1.1\r\nX-API-Key: read-key\r\n\r\n",
+                1024,
+                &config,
+            ),
+            ParsedRequest::ApiMailboxExists("QA@EXAMPLE.TEST".into())
+        );
+        assert_eq!(
+            parse_request(
+                b"GET /api/mailboxes/qa%40example.test/exists HTTP/1.1\r\nX-API-Key: write-key\r\n\r\n",
+                1024,
+                &config,
+            ),
+            ParsedRequest::ForbiddenRead
         );
     }
 

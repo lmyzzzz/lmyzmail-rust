@@ -204,6 +204,21 @@
       "oracle_behavior": "The frozen Java repository materializes every contact for the mailbox and the controller then constructs another complete list of response maps. There is no query limit, pagination, result-byte ceiling, or cancellation checkpoint.",
       "reason": "A database-backed collection must not permit unbounded heap and response growth. The rewrite requires a hard limit on every adversary-influenced collection and cannot preserve this unbounded materialization behavior.",
       "scope": "Only mailboxes with more than 10000 contacts or more than 16777216 aggregate UTF-8 bytes across id-independent response fields. Ordering and exact response content for all in-budget lists, including empty and legacy rows, remain differential requirements."
+    },
+    {
+      "candidate_requirement": "Give each authentication or mailbox-management operation one absolute eight-second PostgreSQL deadline and propagate request cancellation through pool acquisition and every query. Use transaction-local statement timeouts, send PostgreSQL CancelRequest on a pre-commit interruption, drain for at most one second, and permanently detach the connection if cancellation or draining cannot prove it reusable. After COMMIT starts, return an outcome-unknown failure and detach unless the exact commit result is recovered within that drain window.",
+      "evidence": {
+        "candidate_test": "blackbox/tests/test_candidate_mailbox_api_golden.py::test_rust_candidate_auth_cancellation_keeps_single_connection_pool_healthy",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "mailbox_source": "src/main/java/net/lmyz/lmyzmail/mailbox/service/MailboxService.java",
+        "mailbox_source_sha256": "209077c4223ef8f3351211decf0aa8633043a3f97ccf017cc8462ba71c57fcbe",
+        "session_source": "src/main/java/net/lmyz/lmyzmail/session/service/SessionService.java",
+        "session_source_sha256": "a68edfb3beab48e8b43fa8951f56cf266d43540aa6fe13d3dd4b9df6b24e49b8"
+      },
+      "id": "auth-postgres-cancellation-and-pool-health",
+      "oracle_behavior": "The frozen Java mailbox and session services execute repository reads, writes, password-backed creation, and transactional session updates without a request cancellation token, a per-operation query deadline, or an explicit PostgreSQL cancellation-and-drain path. A PostgreSQL lock wait can therefore retain the request task and pooled JDBC connection until the database or infrastructure ends it.",
+      "reason": "Returning a still-running database connection to a fast-recycling pool can make one lock wait poison later unrelated authentication requests and eventually exhaust the pool. Unbounded waits, leaked work, and unknown mutation outcomes are explicitly excluded from bug-for-bug replication.",
+      "scope": "Only interruption, database-lock, pool-reuse, and commit-ambiguity behavior for authentication and mailbox-management PostgreSQL operations. Every healthy-path route, credential result, session row, mailbox row, status code, JSON body, API permission, rate limit, legacy schema, and configuration alias remains a differential requirement."
     }
   ],
   "schema_version": 1

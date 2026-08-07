@@ -40,6 +40,7 @@ lmyzmail.outbound.route-deadline-seconds=30
 lmyzmail.smtp.mta-sts-fetch-timeout-ms=10000
 lmyzmail.maildir.max-files-per-directory=10000
 lmyzmail.domain=lmyz.net
+lmyzmail.domains.main.receive-enabled=true
 lmyzmail.allowed-origins[0]=https://mail.example.com
 
 lmyzmail.http.max-request-bytes=10485760

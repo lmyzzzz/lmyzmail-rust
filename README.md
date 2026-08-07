@@ -63,6 +63,20 @@ handling, trusted-proxy enforcement, mailbox reads and mutations, attachment
 downloads, and inbound SMTP persistence. Each admitted surface is exercised by
 the external Java/Rust differential harness.
 
+The authenticated management API now includes `POST /api/mailboxes` and
+`GET /api/mailboxes/{address}/exists`, with Java-compatible permission, JSON,
+normalization, password-length, response-order, and PostgreSQL behavior. Public
+registration can be disabled without disabling API management. Domain receipt
+uses `lmyzmail.domains.main.receive-enabled`, falls back to the frozen
+`botmail.domains.main.receiveEnabled` alias, and gives the new key precedence.
+Mailbox creation is serialized and rate-limited with hard bounds. Every auth
+database operation uses one absolute deadline, request cancellation,
+transaction-local PostgreSQL timeouts, bounded `CancelRequest` draining, and
+connection detachment when reuse or commit outcome cannot be proven. Bcrypt
+work runs on a dedicated four-worker, four-slot pool and is joined even after
+its soft deadline. An outcome-unknown mailbox COMMIT is conservatively counted
+against the registration limit because the row may already be durable.
+
 Outbound HTTP currently covers durable PostgreSQL admission, sender-scoped and
 API status lookup, and quota reporting. A `202` response is emitted only after a
 complete `PENDING` row commits; PostgreSQL advisory locks make queue-depth and

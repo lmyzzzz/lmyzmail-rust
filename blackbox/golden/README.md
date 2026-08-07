@@ -329,7 +329,7 @@ The preceding active sets were bound to
 - `managed-outbound-http-v6/`
 - `managed-outbound-queue-v21.json`
 
-The current active sets are bound to
+The preceding active sets were bound to
 `attestation.harness.definition_tree_sha256`
 `40b6e82187bceeb93d3f61dd6ddeeff72ce411ce5eaac8c11693bee94fd3ee4c`:
 
@@ -355,18 +355,46 @@ The current active sets are bound to
 - `managed-userdata-v5/`
 - `managed-userdata-oracle-evidence-v4/`
 
+The current active sets are bound to
+`attestation.harness.definition_tree_sha256`
+`44a194fc8f84ef63c19d5c75f6896f6f1227ec220e0841f142fc5434f0c7be54`:
+
+- `managed-candidate-public-config-v16/`
+- `managed-basic-v38/`
+- `managed-candidate-auth-v15/`
+- `managed-mail-read-v13/`
+- `managed-mail-attachment-v8/`
+- `managed-mail-state-v11/`
+- `managed-mail-mutations-v10/`
+- `managed-mail-delete-v10/`
+- `managed-starttls-v26/`
+- `managed-starttls-oracle-evidence-v26/`
+- `managed-smtp-auth-v25/`
+- `managed-smtp-auth-starttls-v25/`
+- `managed-smtp-command-v23/`
+- `managed-smtp-command-oracle-evidence-v23/`
+- `managed-smtp-data-v22/`
+- `managed-smtp-data-oracle-evidence-v22/`
+- `managed-smtp-mime-v22/`
+- `managed-outbound-http-v8/`
+- `managed-outbound-queue-v23.json`
+- `managed-userdata-v6/`
+- `managed-userdata-oracle-evidence-v5/`
+- `managed-mailbox-api-v2/`
+
 The earlier candidate-health v1-v4, candidate-public-http v1,
 candidate-api-status v1, candidate-public-config v1-v3, candidate-auth v1-v2,
 HTTP v19-v25, SMTP v5-v12, and outbound v5-v9 recordings are retained as
 create-once provenance; none is consumed by the tests.
 
-The userdata v1-v4 and userdata oracle-evidence v1-v3 recordings are likewise
-retained as create-once provenance. Only userdata v5 and its evidence v4 are
-active under the current definition-tree attestation.
+The userdata v1-v5 and userdata oracle-evidence v1-v4 recordings are likewise
+retained as create-once provenance. Only userdata v6 and its evidence v5 are
+active under the current definition-tree attestation. Mailbox API v1 is the
+initial create-once recording; mailbox API v2 is active.
 
-The active outbound queue attestation is `managed-outbound-queue-v22.json`,
+The active outbound queue attestation is `managed-outbound-queue-v23.json`,
 using the field-scoped `outbound:generated-sent-filename` normalizer. The active
-outbound HTTP attestation is `managed-outbound-http-v7`; only its two quota
+outbound HTTP attestation is `managed-outbound-http-v8`; only its two quota
 subresponses canonicalize Java `Map.of` object ordering. Status codes, headers,
 field values, and every other response retain exact wire assertions. Rejected or
 superseded outbound generations remain create-once historical evidence and are

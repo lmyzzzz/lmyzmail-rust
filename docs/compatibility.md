@@ -72,6 +72,13 @@ wire, state, storage, or recovery assertions.
   concurrent. Contact list materialization is capped at 10,000 rows and 16 MiB
   of UTF-8 field data; an over-budget mailbox receives the fixed bounded
   response recorded in the allowlist.
+- Authentication and mailbox-management PostgreSQL work has one absolute
+  deadline and observes HTTP cancellation. Interrupted pre-commit queries send
+  PostgreSQL `CancelRequest` and drain before reuse; cancellation failure,
+  drain timeout, or an unresolved COMMIT detaches the connection from the pool.
+  This replaces the oracle's unbounded JDBC lock waits without changing any
+  healthy-path authentication, session, mailbox, API permission, or wire
+  behavior.
 
 ## SMTP AUTH oracle behavior
 

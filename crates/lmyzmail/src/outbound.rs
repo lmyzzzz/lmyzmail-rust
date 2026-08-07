@@ -481,7 +481,12 @@ impl OutboundService {
         if let Some((auth, client_ip)) = credentials {
             let password = password.as_deref().unwrap_or_default();
             match auth
-                .verify_mailbox_credentials(&sender, password, client_ip)
+                .verify_mailbox_credentials_with_cancellation(
+                    &sender,
+                    password,
+                    client_ip,
+                    cancellation,
+                )
                 .await
                 .map_err(map_auth_error)?
             {
@@ -2755,7 +2760,10 @@ fn db_error(error: tokio_postgres::Error) -> OutboundError {
 fn map_auth_error(error: AuthError) -> OutboundError {
     match error {
         AuthError::Database(message) => OutboundError::Database(message),
-        AuthError::InvalidInput(_) | AuthError::Unavailable => OutboundError::Unavailable,
+        AuthError::Cancelled
+        | AuthError::InvalidInput(_)
+        | AuthError::OutcomeUnknown
+        | AuthError::Unavailable => OutboundError::Unavailable,
     }
 }
 

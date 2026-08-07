@@ -80,6 +80,7 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "userdata-malformed-write-rejection",
         "userdata-contact-admission-race",
         "userdata-contact-list-bound",
+        "auth-postgres-cancellation-and-pool-health",
     }
     starttls = next(
         entry
@@ -126,6 +127,13 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
     )
     assert by_id["userdata-contact-list-bound"]["candidate_requirement"].startswith(
         "Within one repeatable-read snapshot"
+    )
+    auth_cancellation = by_id["auth-postgres-cancellation-and-pool-health"]
+    assert auth_cancellation["evidence"]["mailbox_source_sha256"] == (
+        "209077c4223ef8f3351211decf0aa8633043a3f97ccf017cc8462ba71c57fcbe"
+    )
+    assert auth_cancellation["evidence"]["session_source_sha256"] == (
+        "a68edfb3beab48e8b43fa8951f56cf266d43540aa6fe13d3dd4b9df6b24e49b8"
     )
 
 

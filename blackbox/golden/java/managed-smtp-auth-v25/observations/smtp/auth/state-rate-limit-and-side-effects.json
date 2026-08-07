@@ -1,0 +1,184 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "44a194fc8f84ef63c19d5c75f6896f6f1227ec220e0841f142fc5434f0c7be54",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "smtp:greeting-skibidi-grammar",
+      "smtp:server-hostname",
+      "postgres:bounded-async-auth-probe-observation-window"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-smtp-auth"
+  },
+  "observation": {
+    "auth_advertised": false,
+    "auth_probe_database": {
+      "activity_rows_delta": 0,
+      "aggregate_auth_probe_delta": 0,
+      "observation_window_ms": 8000
+    },
+    "ehlo": [
+      "250-<hostname> Hello blackbox.example\r\n",
+      "250-PIPELINING\r\n",
+      "250-SIZE 15728640\r\n",
+      "250-8BITMIME\r\n",
+      "250-CHUNKING\r\n",
+      "250-ENHANCEDSTATUSCODES\r\n",
+      "250-SMTPUTF8\r\n",
+      "250 SKIBIDITOILET\r\n"
+    ],
+    "extra_base64_continuation": {
+      "command": "dXNlcg==",
+      "reply": [
+        "500 5.5.1 Command not recognized: DXNLCG==\r\n"
+      ]
+    },
+    "greeting": [
+      "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+    ],
+    "handler_cases": [
+      {
+        "case": "no_mechanism",
+        "command": "AUTH",
+        "reply": [
+          "502 5.5.1 AUTH command not implemented. Blud is yapping about AUTH but nobody is listening. We don't do that here. Take your L and go back to the lobby.\r\n"
+        ]
+      },
+      {
+        "case": "arbitrary_mechanism",
+        "command": "AUTH XOAUTH2",
+        "reply": [
+          "502 5.5.1 AUTH command not implemented. Blud is yapping about AUTH but nobody is listening. We don't do that here. Take your L and go back to the lobby.\r\n"
+        ]
+      },
+      {
+        "case": "plain",
+        "command": "AUTH PLAIN",
+        "reply": [
+          "502 5.5.1 AUTH command not implemented. Blud is yapping about AUTH but nobody is listening. We don't do that here. Take your L and go back to the lobby.\r\n"
+        ]
+      },
+      {
+        "case": "login",
+        "command": "AUTH LOGIN",
+        "reply": [
+          "502 5.5.1 AUTH command not implemented. Blud is yapping about AUTH but nobody is listening. We don't do that here. Take your L and go back to the lobby.\r\n"
+        ]
+      },
+      {
+        "case": "initial_response",
+        "command": "AUTH PLAIN AHVzZXIAcGFzcw==",
+        "reply": [
+          "502 5.5.1 AUTH command not implemented. Blud is yapping about AUTH but nobody is listening. We don't do that here. Take your L and go back to the lobby.\r\n"
+        ]
+      },
+      {
+        "case": "malformed_base64",
+        "command": "AUTH PLAIN !!!not-base64!!!",
+        "reply": [
+          "502 5.5.1 AUTH command not implemented. Blud is yapping about AUTH but nobody is listening. We don't do that here. Take your L and go back to the lobby.\r\n"
+        ]
+      },
+      {
+        "case": "mixed_case",
+        "command": "aUtH pLaIn",
+        "reply": [
+          "502 5.5.1 AUTH command not implemented. Blud is yapping about AUTH but nobody is listening. We don't do that here. Take your L and go back to the lobby.\r\n"
+        ]
+      },
+      {
+        "case": "mixed_case_and_tabs",
+        "command": "AuTh \tLoGiN\tZHVtbXk=",
+        "reply": [
+          "502 5.5.1 AUTH command not implemented. Blud is yapping about AUTH but nobody is listening. We don't do that here. Take your L and go back to the lobby.\r\n"
+        ]
+      }
+    ],
+    "line_length": {
+      "command_length": 1011,
+      "reply": [
+        "500 5.5.2 Line too long\r\n"
+      ],
+      "session_recovery": [
+        "250 OK\r\n"
+      ]
+    },
+    "partial_disconnect_recovery": {
+      "recovery_ehlo": [
+        "250-<hostname> Hello blackbox.example\r\n",
+        "250-PIPELINING\r\n",
+        "250-SIZE 15728640\r\n",
+        "250-8BITMIME\r\n",
+        "250-CHUNKING\r\n",
+        "250-ENHANCEDSTATUSCODES\r\n",
+        "250-SMTPUTF8\r\n",
+        "250 SKIBIDITOILET\r\n"
+      ],
+      "recovery_noop": [
+        "250 OK\r\n"
+      ],
+      "recovery_quit": [
+        "221 2.0.0 <hostname> closing connection\r\n"
+      ],
+      "sent_without_crlf_length": 10
+    },
+    "pre_ehlo_auth": [
+      "503 5.5.1 Bad sequence of commands\r\n"
+    ],
+    "rate_limit": {
+      "auth_failure_limit": 20,
+      "filler_attempts": 11,
+      "mail_after_threshold": [
+        "550 5.7.1 Access denied\r\n"
+      ],
+      "mail_before_threshold": [
+        "250 2.1.0 Sender OK\r\n"
+      ],
+      "reset_before_threshold": [
+        "250 2.0.0 Reset OK\r\n"
+      ],
+      "threshold_auth": [
+        "502 5.5.1 AUTH command not implemented. Blud is yapping about AUTH but nobody is listening. We don't do that here. Take your L and go back to the lobby.\r\n"
+      ]
+    },
+    "session_usable_after_block": {
+      "noop": [
+        "250 OK\r\n"
+      ],
+      "quit": [
+        "221 2.0.0 <hostname> closing connection\r\n"
+      ]
+    },
+    "transaction_rejection": {
+      "auth": [
+        "503 5.5.1 Bad sequence of commands\r\n"
+      ],
+      "mail_from": [
+        "250 2.1.0 Sender OK\r\n"
+      ],
+      "noop_after_auth_variants": [
+        "250 OK\r\n"
+      ],
+      "rset": [
+        "250 2.0.0 Reset OK\r\n"
+      ]
+    }
+  },
+  "schema_version": 2
+}
