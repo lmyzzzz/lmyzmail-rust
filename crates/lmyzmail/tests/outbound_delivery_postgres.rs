@@ -6,6 +6,10 @@ use std::{
     net::TcpListener,
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -19,6 +23,139 @@ use lmyzmail::{
         PreparedRecipientStatus, RecipientDeliveryState, TerminalStatus,
     },
 };
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::{TcpListener as TokioTcpListener, TcpStream},
+    task::JoinHandle,
+};
+use tokio_util::sync::CancellationToken;
+
+const CLAIM_MUTATION_MARKER: &[u8] = b"UPDATE outbound_mail_queue";
+
+struct CancelFailureProxy {
+    port: u16,
+    mutation_seen: Arc<AtomicBool>,
+    mutation_notification: Arc<tokio::sync::Notify>,
+    stop_accepting: CancellationToken,
+    release_responses: CancellationToken,
+    accept_task: Option<JoinHandle<()>>,
+}
+
+impl CancelFailureProxy {
+    async fn start(upstream_port: u16) -> Self {
+        let listener = TokioTcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let mutation_seen = Arc::new(AtomicBool::new(false));
+        let mutation_notification = Arc::new(tokio::sync::Notify::new());
+        let stop_accepting = CancellationToken::new();
+        let release_responses = CancellationToken::new();
+
+        let task_mutation_seen = Arc::clone(&mutation_seen);
+        let task_mutation_notification = Arc::clone(&mutation_notification);
+        let task_stop_accepting = stop_accepting.clone();
+        let task_release_responses = release_responses.clone();
+        let accept_task = tokio::spawn(async move {
+            loop {
+                let accepted = tokio::select! {
+                    () = task_stop_accepting.cancelled() => break,
+                    accepted = listener.accept() => accepted,
+                };
+                let Ok((client, _)) = accepted else {
+                    break;
+                };
+                let Ok(server) = TcpStream::connect(("127.0.0.1", upstream_port)).await else {
+                    continue;
+                };
+                let connection_mutation_seen = Arc::clone(&task_mutation_seen);
+                let connection_notification = Arc::clone(&task_mutation_notification);
+                let connection_release = task_release_responses.clone();
+                tokio::spawn(async move {
+                    let (mut client_read, mut client_write) = client.into_split();
+                    let (mut server_read, mut server_write) = server.into_split();
+                    let client_to_server = async {
+                        let mut buffer = [0_u8; 8 * 1024];
+                        let mut marker_tail = Vec::new();
+                        loop {
+                            let count = client_read.read(&mut buffer).await?;
+                            if count == 0 {
+                                break;
+                            }
+                            marker_tail.extend_from_slice(&buffer[..count]);
+                            if marker_tail
+                                .windows(CLAIM_MUTATION_MARKER.len())
+                                .any(|window| window == CLAIM_MUTATION_MARKER)
+                            {
+                                connection_mutation_seen.store(true, Ordering::SeqCst);
+                                connection_notification.notify_waiters();
+                            }
+                            let retained = CLAIM_MUTATION_MARKER.len().saturating_sub(1);
+                            if marker_tail.len() > retained {
+                                marker_tail.drain(..marker_tail.len() - retained);
+                            }
+                            server_write.write_all(&buffer[..count]).await?;
+                        }
+                        server_write.shutdown().await
+                    };
+                    let server_to_client = async {
+                        let mut buffer = [0_u8; 8 * 1024];
+                        loop {
+                            let count = server_read.read(&mut buffer).await?;
+                            if count == 0 {
+                                break;
+                            }
+                            if connection_mutation_seen.load(Ordering::SeqCst) {
+                                connection_release.cancelled().await;
+                            }
+                            client_write.write_all(&buffer[..count]).await?;
+                        }
+                        client_write.shutdown().await
+                    };
+                    let _ = tokio::join!(client_to_server, server_to_client);
+                });
+            }
+        });
+
+        Self {
+            port,
+            mutation_seen,
+            mutation_notification,
+            stop_accepting,
+            release_responses,
+            accept_task: Some(accept_task),
+        }
+    }
+
+    fn port(&self) -> u16 {
+        self.port
+    }
+
+    async fn wait_for_claim_mutation(&self) {
+        while !self.mutation_seen.load(Ordering::SeqCst) {
+            self.mutation_notification.notified().await;
+        }
+    }
+
+    async fn refuse_new_connections(&mut self) {
+        self.stop_accepting.cancel();
+        if let Some(task) = self.accept_task.take() {
+            task.await.unwrap();
+        }
+        assert!(
+            TcpStream::connect(("127.0.0.1", self.port)).await.is_err(),
+            "proxy port must refuse the fallback CancelRequest connection"
+        );
+    }
+}
+
+impl Drop for CancelFailureProxy {
+    fn drop(&mut self) {
+        self.stop_accepting.cancel();
+        self.release_responses.cancel();
+        if let Some(task) = self.accept_task.take() {
+            task.abort();
+        }
+    }
+}
 
 struct PostgresProcess {
     child: Child,
@@ -185,6 +322,95 @@ async fn insert_pending(
         .unwrap();
 }
 
+async fn assert_no_waiting_mutation(pool: &deadpool_postgres::Pool) {
+    let client = pool.get().await.unwrap();
+    let waiting: i64 = client
+        .query_one(
+            "SELECT count(*) FROM pg_stat_activity
+             WHERE datname=current_database() AND pid<>pg_backend_pid()
+               AND state='active' AND wait_event_type='Lock'",
+            &[],
+        )
+        .await
+        .unwrap()
+        .get(0);
+    assert_eq!(waiting, 0, "timed-out PostgreSQL mutation is still active");
+}
+
+#[tokio::test]
+async fn server_deadline_prevents_late_claim_when_cancel_transport_is_refused() {
+    let process = PostgresProcess::start();
+    let direct_pool = database::create_pool(&configuration(process.port())).unwrap();
+    let client = direct_pool.get().await.unwrap();
+    let legacy_ddl = include_str!("../../../blackbox/fixtures/legacy/postgres-longtext-oracle.sql")
+        .replace("LONGTEXT", "TEXT");
+    client.batch_execute(&legacy_ddl).await.unwrap();
+    drop(client);
+
+    let direct_state = PostgresDeliveryState::new(direct_pool.clone());
+    direct_state.initialize_schema().await.unwrap();
+    let now = timestamp(1_786_000_000);
+    let task_id = 4_099;
+    insert_pending(&direct_pool, task_id, 0, 2, now).await;
+
+    let mut proxy = CancelFailureProxy::start(process.port()).await;
+    let proxied_pool = database::create_pool(&configuration(proxy.port())).unwrap();
+    let short_state =
+        PostgresDeliveryState::with_timeout(proxied_pool, Duration::from_millis(200)).unwrap();
+
+    let lock = direct_pool.get().await.unwrap();
+    lock.batch_execute("BEGIN").await.unwrap();
+    lock.query_one(
+        "SELECT id FROM outbound_mail_queue WHERE id=4099 FOR UPDATE",
+        &[],
+    )
+    .await
+    .unwrap();
+
+    let attempt = DeliveryAttemptId::generate(task_id, "worker-a:cancel-refused").unwrap();
+    let task_attempt = attempt.clone();
+    let claim_task =
+        tokio::spawn(async move { short_state.claim_with_attempt(&task_attempt, now).await });
+    tokio::time::timeout(Duration::from_secs(2), proxy.wait_for_claim_mutation())
+        .await
+        .expect("proxied claim did not reach the PostgreSQL mutation");
+    proxy.refuse_new_connections().await;
+
+    assert_eq!(
+        claim_task.await.unwrap().unwrap_err(),
+        DeliveryStateError::OutcomeUnknown
+    );
+    assert_no_waiting_mutation(&direct_pool).await;
+    let before_unlock = direct_state
+        .snapshot_attempt(&attempt)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(before_unlock.status, DeliveryRowStatus::Pending);
+    assert!(!before_unlock.has_owner);
+
+    lock.batch_execute("ROLLBACK").await.unwrap();
+    drop(lock);
+    proxy.release_responses.cancel();
+    tokio::time::sleep(Duration::from_millis(150)).await;
+
+    assert!(
+        direct_state
+            .reconcile_attempt_claim(&attempt)
+            .await
+            .unwrap()
+            .is_none(),
+        "claim committed after its client deadline and a failed CancelRequest transport"
+    );
+    let after_unlock = direct_state
+        .snapshot_attempt(&attempt)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(after_unlock.status, DeliveryRowStatus::Pending);
+    assert!(!after_unlock.has_owner);
+}
+
 #[tokio::test]
 async fn postgres_claims_fence_retries_terminal_state_and_recovery() {
     let process = PostgresProcess::start();
@@ -233,6 +459,10 @@ async fn postgres_claims_fence_retries_terminal_state_and_recovery() {
             .unwrap()
             .as_ref(),
         Some(&first_claim)
+    );
+    assert_eq!(
+        state.claimed_recipient_roster(&first_claim).await.unwrap(),
+        ["user@remote.test"]
     );
     let wrong_attempt = DeliveryAttemptId::generate(4_001, "worker-wrong").unwrap();
     assert!(
@@ -516,40 +746,25 @@ async fn postgres_claims_fence_retries_terminal_state_and_recovery() {
             .unwrap_err(),
         DeliveryStateError::OutcomeUnknown
     );
+    assert_no_waiting_mutation(&pool).await;
     lock.batch_execute("ROLLBACK").await.unwrap();
     drop(lock);
     tokio::time::sleep(Duration::from_millis(100)).await;
-    let uncertain_claim = state
-        .reconcile_attempt_claim(&uncertain_attempt)
+    assert!(
+        state
+            .reconcile_attempt_claim(&uncertain_attempt)
+            .await
+            .unwrap()
+            .is_none(),
+        "cancelled claim committed after its client deadline"
+    );
+    let cancelled_claim = state
+        .snapshot_attempt(&uncertain_attempt)
         .await
+        .unwrap()
         .unwrap();
-    match uncertain_claim {
-        None => {
-            let snapshot = state
-                .snapshot_attempt(&uncertain_attempt)
-                .await
-                .unwrap()
-                .unwrap();
-            assert_eq!(snapshot.status, DeliveryRowStatus::Pending);
-            assert!(!snapshot.has_owner);
-        }
-        Some(claim) => {
-            assert!(
-                state
-                    .snapshot_attempt(&uncertain_attempt)
-                    .await
-                    .unwrap()
-                    .unwrap()
-                    .owned_by_claim
-            );
-            assert!(
-                state
-                    .release(&claim, now + chrono::Duration::seconds(10))
-                    .await
-                    .unwrap()
-            );
-        }
-    }
+    assert_eq!(cancelled_claim.status, DeliveryRowStatus::Pending);
+    assert!(!cancelled_claim.has_owner);
 
     insert_pending(&pool, 4_011, 0, 2, now).await;
     let uncertain_retry_claim = state
@@ -577,6 +792,7 @@ async fn postgres_claims_fence_retries_terminal_state_and_recovery() {
             .unwrap_err(),
         DeliveryStateError::OutcomeUnknown
     );
+    assert_no_waiting_mutation(&pool).await;
     lock.batch_execute("ROLLBACK").await.unwrap();
     drop(lock);
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -585,23 +801,15 @@ async fn postgres_claims_fence_retries_terminal_state_and_recovery() {
         .await
         .unwrap()
         .unwrap();
-    match uncertain_retry.status {
-        DeliveryRowStatus::Pending => {
-            assert_eq!(uncertain_retry.retry_count, 1);
-            assert!(!uncertain_retry.has_owner);
-        }
-        DeliveryRowStatus::Processing => {
-            assert_eq!(uncertain_retry.retry_count, 0);
-            assert!(uncertain_retry.owned_by_claim);
-            assert!(
-                state
-                    .release(&uncertain_retry_claim, now + chrono::Duration::seconds(2),)
-                    .await
-                    .unwrap()
-            );
-        }
-        status => panic!("unexpected retry reconciliation state: {status:?}"),
-    }
+    assert_eq!(uncertain_retry.status, DeliveryRowStatus::Processing);
+    assert_eq!(uncertain_retry.retry_count, 0);
+    assert!(uncertain_retry.owned_by_claim);
+    assert!(
+        state
+            .release(&uncertain_retry_claim, now + chrono::Duration::seconds(2),)
+            .await
+            .unwrap()
+    );
 
     insert_pending(&pool, 4_012, 0, 2, now).await;
     let uncertain_terminal_claim = state
@@ -631,6 +839,7 @@ async fn postgres_claims_fence_retries_terminal_state_and_recovery() {
             .unwrap_err(),
         DeliveryStateError::OutcomeUnknown
     );
+    assert_no_waiting_mutation(&pool).await;
     lock.batch_execute("ROLLBACK").await.unwrap();
     drop(lock);
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -639,26 +848,103 @@ async fn postgres_claims_fence_retries_terminal_state_and_recovery() {
         .await
         .unwrap()
         .unwrap();
-    match uncertain_terminal.status {
-        DeliveryRowStatus::Sent => assert!(!uncertain_terminal.has_owner),
-        DeliveryRowStatus::Processing => {
-            assert!(uncertain_terminal.owned_by_claim);
-            assert!(
-                state
-                    .mark_terminal(
-                        &uncertain_terminal_claim,
-                        TerminalStatus::Sent,
-                        &["sent.example".into()],
-                        &BTreeMap::new(),
-                        None,
-                        now + chrono::Duration::seconds(2),
-                    )
-                    .await
-                    .unwrap()
-            );
-        }
-        status => panic!("unexpected terminal reconciliation state: {status:?}"),
-    }
+    assert_eq!(uncertain_terminal.status, DeliveryRowStatus::Processing);
+    assert!(uncertain_terminal.owned_by_claim);
+    assert!(
+        state
+            .mark_terminal(
+                &uncertain_terminal_claim,
+                TerminalStatus::Sent,
+                &["sent.example".into()],
+                &BTreeMap::new(),
+                None,
+                now + chrono::Duration::seconds(2),
+            )
+            .await
+            .unwrap()
+    );
+
+    insert_pending(&pool, 4_013, 0, 2, now).await;
+    let uncertain_heartbeat_claim = state
+        .claim(4_013, "worker-a:unknown-heartbeat", now)
+        .await
+        .unwrap()
+        .unwrap();
+    let lock = pool.get().await.unwrap();
+    lock.batch_execute("BEGIN").await.unwrap();
+    lock.query_one(
+        "SELECT id FROM outbound_mail_queue WHERE id=4013 FOR UPDATE",
+        &[],
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        short_state
+            .heartbeat(
+                &uncertain_heartbeat_claim,
+                now + chrono::Duration::seconds(1),
+            )
+            .await
+            .unwrap_err(),
+        DeliveryStateError::OutcomeUnknown
+    );
+    assert_no_waiting_mutation(&pool).await;
+    lock.batch_execute("ROLLBACK").await.unwrap();
+    drop(lock);
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    let cancelled_heartbeat = state
+        .snapshot(4_013, Some(&uncertain_heartbeat_claim))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(cancelled_heartbeat.processing_started_at, Some(now));
+    assert!(cancelled_heartbeat.owned_by_claim);
+    assert!(
+        state
+            .release(
+                &uncertain_heartbeat_claim,
+                now + chrono::Duration::seconds(2),
+            )
+            .await
+            .unwrap()
+    );
+
+    insert_pending(&pool, 4_014, 0, 2, now).await;
+    let uncertain_ledger_claim = state
+        .claim(4_014, "worker-a:unknown-ledger", now)
+        .await
+        .unwrap()
+        .unwrap();
+    let lock = pool.get().await.unwrap();
+    lock.batch_execute("BEGIN").await.unwrap();
+    lock.query_one(
+        "SELECT id FROM outbound_mail_queue WHERE id=4014 FOR UPDATE",
+        &[],
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        short_state
+            .begin_attempt(
+                &uncertain_ledger_claim,
+                &["user@example.test".into()],
+                now + chrono::Duration::seconds(1),
+            )
+            .await
+            .unwrap_err(),
+        DeliveryStateError::OutcomeUnknown
+    );
+    assert_no_waiting_mutation(&pool).await;
+    lock.batch_execute("ROLLBACK").await.unwrap();
+    drop(lock);
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert!(state.ledger_snapshot(4_014, None).await.unwrap().is_none());
+    assert!(
+        state
+            .release(&uncertain_ledger_claim, now + chrono::Duration::seconds(2),)
+            .await
+            .unwrap()
+    );
 
     insert_pending(&pool, 4_003, 0, 2, now).await;
     let expired = state
@@ -1222,6 +1508,7 @@ async fn recipient_ledger_is_monotonic_fenced_and_legacy_compatible() {
             .unwrap_err(),
         DeliveryStateError::OutcomeUnknown
     );
+    assert_no_waiting_mutation(&pool).await;
     lock.batch_execute("ROLLBACK").await.unwrap();
     drop(lock);
     state

@@ -19,7 +19,8 @@ use deadpool_redis::redis;
 use lmyzmail::{
     config::{Properties, RuntimeConfig},
     outbound_queue::{
-        ClaimReconciliation, DomainStatus, LegacyOutboundQueue, QueueClaim, QueueError, TaskDetail,
+        ClaimReconciliation, DomainStatus, LegacyOutboundQueue, QueueClaim, QueueError,
+        QueueSettlement, SettlementReconciliation, TaskDetail,
     },
     redis::create_pool,
 };
@@ -34,6 +35,111 @@ struct DropResponseProxy {
     port: u16,
     response_dropped: Arc<AtomicBool>,
     thread: Option<JoinHandle<()>>,
+}
+
+struct DelayRequestProxy {
+    port: u16,
+    request_forwarded: Arc<AtomicBool>,
+    thread: Option<JoinHandle<()>>,
+}
+
+impl DelayRequestProxy {
+    fn start(upstream_port: u16, request_marker: &'static [u8], delay: Duration) -> Self {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let request_forwarded = Arc::new(AtomicBool::new(false));
+        let forwarded_signal = Arc::clone(&request_forwarded);
+        let response_forwarded = Arc::clone(&request_forwarded);
+        let thread = thread::spawn(move || {
+            let (client, _) = listener.accept().unwrap();
+            client.set_nodelay(true).unwrap();
+            client
+                .set_read_timeout(Some(Duration::from_secs(15)))
+                .unwrap();
+            let upstream = TcpStream::connect(("127.0.0.1", upstream_port)).unwrap();
+            upstream.set_nodelay(true).unwrap();
+            upstream
+                .set_read_timeout(Some(Duration::from_secs(15)))
+                .unwrap();
+
+            let mut client_reader = client.try_clone().unwrap();
+            let mut upstream_writer = upstream.try_clone().unwrap();
+            let forward = thread::spawn(move || {
+                let mut buffer = [0_u8; 16 * 1024];
+                let mut tail = Vec::new();
+                let mut delayed = false;
+                loop {
+                    let read = match client_reader.read(&mut buffer) {
+                        Ok(0) | Err(_) => break,
+                        Ok(read) => read,
+                    };
+                    if !delayed {
+                        let mut observed = Vec::with_capacity(tail.len() + read);
+                        observed.extend_from_slice(&tail);
+                        observed.extend_from_slice(&buffer[..read]);
+                        if observed
+                            .windows(request_marker.len())
+                            .any(|window| window == request_marker)
+                        {
+                            delayed = true;
+                            thread::sleep(delay);
+                        }
+                        let keep = request_marker.len().saturating_sub(1).min(observed.len());
+                        tail.clear();
+                        tail.extend_from_slice(&observed[observed.len() - keep..]);
+                    }
+                    if upstream_writer.write_all(&buffer[..read]).is_err() {
+                        break;
+                    }
+                    if delayed {
+                        forwarded_signal.store(true, Ordering::Release);
+                    }
+                }
+            });
+
+            let mut upstream_reader = upstream;
+            let mut client_writer = client;
+            let mut buffer = [0_u8; 16 * 1024];
+            loop {
+                let read = match upstream_reader.read(&mut buffer) {
+                    Ok(0) | Err(_) => break,
+                    Ok(read) => read,
+                };
+                if client_writer.write_all(&buffer[..read]).is_err() {
+                    break;
+                }
+                if response_forwarded.load(Ordering::Acquire) {
+                    break;
+                }
+            }
+            let _ = client_writer.shutdown(Shutdown::Both);
+            let _ = upstream_reader.shutdown(Shutdown::Both);
+            let _ = forward.join();
+        });
+        Self {
+            port,
+            request_forwarded,
+            thread: Some(thread),
+        }
+    }
+
+    fn port(&self) -> u16 {
+        self.port
+    }
+
+    fn wait(mut self) {
+        self.thread.take().unwrap().join().unwrap();
+        assert!(
+            self.request_forwarded.load(Ordering::Acquire),
+            "proxy did not forward the targeted request after the client deadline"
+        );
+    }
+}
+
+impl Drop for DelayRequestProxy {
+    fn drop(&mut self) {
+        let _ = self.thread.take();
+    }
 }
 
 impl DropResponseProxy {
@@ -1064,7 +1170,17 @@ async fn reconciliation_validates_every_claim_component() {
             .query_async(&mut connection)
             .await
             .unwrap();
+        let _: bool = redis::cmd("PEXPIRE")
+            .arg(&attempt_key)
+            .arg(29_000)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
     }
+    assert_eq!(
+        queue.reconcile_claim(token).await.unwrap(),
+        ClaimReconciliation::Inconsistent
+    );
     assert!(
         queue
             .renew_claim(&claim, Duration::from_secs(30), now_millis())
@@ -1087,6 +1203,34 @@ async fn committed_mutations_with_dropped_responses_are_reconcilable() {
     let process = RedisProcess::start();
     let pool = pool_at(process.port());
     let queue = LegacyOutboundQueue::new(pool.clone());
+
+    let empty_token = "loss:empty";
+    let empty_proxy = DropResponseProxy::start(
+        process.port(),
+        b"local task_id = redis.call('LPOP', KEYS[1])",
+    );
+    let lossy_queue = LegacyOutboundQueue::new(pool_at(empty_proxy.port()));
+    assert_eq!(
+        lossy_queue
+            .claim_next(empty_token, Duration::from_secs(30), now_millis())
+            .await
+            .unwrap_err(),
+        QueueError::OutcomeUnknown
+    );
+    drop(lossy_queue);
+    empty_proxy.wait();
+    assert_eq!(
+        queue.reconcile_claim(empty_token).await.unwrap(),
+        ClaimReconciliation::Empty
+    );
+    assert!(
+        queue
+            .claim_next(empty_token, Duration::from_secs(30), now_millis())
+            .await
+            .unwrap()
+            .is_none(),
+        "an empty claim result must be idempotent for the same token"
+    );
 
     let claim_id = 9_007_199_254_741_300_i64;
     let claim_token = "loss:claim";
@@ -1178,6 +1322,26 @@ async fn committed_mutations_with_dropped_responses_are_reconcilable() {
         queue.reconcile_claim(retry_token).await.unwrap(),
         ClaimReconciliation::NotFound
     );
+    assert_eq!(
+        queue
+            .reconcile_settlement(
+                &retry_claim,
+                QueueSettlement::Retry {
+                    task: &retry_task,
+                    retry_at_epoch_millis: retry_at,
+                },
+            )
+            .await
+            .unwrap(),
+        SettlementReconciliation::Applied
+    );
+    assert!(
+        queue
+            .schedule_retry(&retry_claim, &retry_task, retry_at)
+            .await
+            .unwrap(),
+        "matching retry receipt must make replay idempotent"
+    );
     {
         let mut connection = pool.get().await.unwrap();
         let retry_score: Option<f64> = redis::cmd("ZSCORE")
@@ -1201,6 +1365,29 @@ async fn committed_mutations_with_dropped_responses_are_reconcilable() {
         assert_eq!(attempt_exists, 0);
         assert_eq!(queued.retry_count, 1);
     }
+    {
+        let mut connection = pool.get().await.unwrap();
+        redis::cmd("ZREM")
+            .arg("botmail:mail:queue:retry")
+            .arg(retry_id)
+            .query_async::<i64>(&mut connection)
+            .await
+            .unwrap();
+    }
+    assert_eq!(
+        queue
+            .reconcile_settlement(
+                &retry_claim,
+                QueueSettlement::Retry {
+                    task: &retry_task,
+                    retry_at_epoch_millis: retry_at,
+                },
+            )
+            .await
+            .unwrap(),
+        SettlementReconciliation::Inconsistent,
+        "a receipt without the exact retry postcondition must fail closed"
+    );
 
     let ack_id = claim_id + 3;
     let ack_token = "loss:ack";
@@ -1223,6 +1410,14 @@ async fn committed_mutations_with_dropped_responses_are_reconcilable() {
         queue.reconcile_claim(ack_token).await.unwrap(),
         ClaimReconciliation::NotFound
     );
+    assert_eq!(
+        queue
+            .reconcile_settlement(&ack_claim, QueueSettlement::Acknowledge)
+            .await
+            .unwrap(),
+        SettlementReconciliation::Applied
+    );
+    assert!(queue.acknowledge(&ack_claim).await.unwrap());
     {
         let mut connection = pool.get().await.unwrap();
         let task_exists: i64 = redis::cmd("EXISTS")
@@ -1262,6 +1457,14 @@ async fn committed_mutations_with_dropped_responses_are_reconcilable() {
         queue.reconcile_claim(release_token).await.unwrap(),
         ClaimReconciliation::NotFound
     );
+    assert_eq!(
+        queue
+            .reconcile_settlement(&release_claim, QueueSettlement::Release { requeue: true },)
+            .await
+            .unwrap(),
+        SettlementReconciliation::Applied
+    );
+    assert!(queue.release_claim(&release_claim, true).await.unwrap());
     {
         let mut connection = pool.get().await.unwrap();
         let pending_position: Option<i64> = redis::cmd("LPOS")
@@ -1279,6 +1482,33 @@ async fn committed_mutations_with_dropped_responses_are_reconcilable() {
         assert_eq!(attempt_exists, 0);
     }
 
+    let expired_id = claim_id + 5;
+    let expired_token = "loss:expired-without-settlement";
+    assert!(queue.publish(&task(expired_id), &domains()).await.unwrap());
+    let expired_claim = queue
+        .claim_next(expired_token, Duration::from_secs(30), now_millis())
+        .await
+        .unwrap()
+        .unwrap();
+    {
+        let mut connection = pool.get().await.unwrap();
+        redis::cmd("DEL")
+            .arg(format!("lmyzmail:mail:queue:lease:{expired_id}"))
+            .arg(format!("lmyzmail:mail:queue:attempt:{expired_token}"))
+            .query_async::<i64>(&mut connection)
+            .await
+            .unwrap();
+    }
+    assert_eq!(
+        queue
+            .reconcile_settlement(&expired_claim, QueueSettlement::Acknowledge)
+            .await
+            .unwrap(),
+        SettlementReconciliation::NotFound,
+        "lease disappearance without a matching receipt is not completion proof"
+    );
+    assert!(!queue.acknowledge(&expired_claim).await.unwrap());
+
     let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
     let unavailable_port = listener.local_addr().unwrap().port();
     drop(listener);
@@ -1291,4 +1521,89 @@ async fn committed_mutations_with_dropped_responses_are_reconcilable() {
         QueueError::Unavailable,
         "failure before a Redis connection exists must not be OutcomeUnknown"
     );
+}
+
+#[tokio::test]
+async fn delayed_retry_request_cannot_settle_an_expired_lease() {
+    let process = RedisProcess::start();
+    let pool = pool_at(process.port());
+    let queue = LegacyOutboundQueue::new(pool.clone());
+    let task_id = 9_007_199_254_741_400_i64;
+    let token = "delay:expired-retry";
+    assert!(queue.publish(&task(task_id), &domains()).await.unwrap());
+    let claim = queue
+        .claim_next(token, Duration::from_secs(1), now_millis())
+        .await
+        .unwrap()
+        .unwrap();
+    let mut retry_task = claim.task.clone().unwrap();
+    retry_task.retry_count = 1;
+    retry_task.next_retry_at = Some("2026-08-07T00:00:30Z".into());
+    let retry_at = now_millis() + 30_000;
+
+    let proxy = DelayRequestProxy::start(
+        process.port(),
+        b"redis.call('ZADD', KEYS[4], tonumber(ARGV[4]) / 1000, task_id)",
+        Duration::from_millis(5_250),
+    );
+    let delayed_queue = LegacyOutboundQueue::new(pool_at(proxy.port()));
+    assert_eq!(
+        delayed_queue
+            .schedule_retry(&claim, &retry_task, retry_at)
+            .await
+            .unwrap_err(),
+        QueueError::OutcomeUnknown
+    );
+    drop(delayed_queue);
+    proxy.wait();
+
+    assert_eq!(
+        queue
+            .reconcile_settlement(
+                &claim,
+                QueueSettlement::Retry {
+                    task: &retry_task,
+                    retry_at_epoch_millis: retry_at,
+                },
+            )
+            .await
+            .unwrap(),
+        SettlementReconciliation::NotFound
+    );
+    let mut connection = pool.get().await.unwrap();
+    let retry_score: Option<f64> = redis::cmd("ZSCORE")
+        .arg("botmail:mail:queue:retry")
+        .arg(task_id)
+        .query_async(&mut connection)
+        .await
+        .unwrap();
+    let queued_json: String = redis::cmd("GET")
+        .arg(format!("botmail:mail:queue:task:{task_id}"))
+        .query_async(&mut connection)
+        .await
+        .unwrap();
+    drop(connection);
+    assert!(retry_score.is_none());
+    assert_eq!(
+        serde_json::from_str::<TaskDetail>(&queued_json)
+            .unwrap()
+            .retry_count,
+        0
+    );
+    assert!(queue.recover_expired_claim(task_id, true).await.unwrap());
+    let mut connection = pool.get().await.unwrap();
+    let pending: Option<i64> = redis::cmd("LPOS")
+        .arg("botmail:mail:queue:pending")
+        .arg(task_id)
+        .query_async(&mut connection)
+        .await
+        .unwrap();
+    let processing: bool = redis::cmd("SISMEMBER")
+        .arg("botmail:mail:queue:processing")
+        .arg(task_id)
+        .query_async(&mut connection)
+        .await
+        .unwrap();
+    assert!(pending.is_some());
+    assert!(!processing);
 }

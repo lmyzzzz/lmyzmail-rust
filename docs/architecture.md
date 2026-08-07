@@ -33,11 +33,25 @@ recipient ledger records the SMTP pre-commit barrier and exact per-recipient
 outcome without changing legacy columns. One caller-generated opaque attempt
 token fences the Redis lease, legacy PostgreSQL row, and sidecar generation;
 unknown mutation responses are reconciled before either store is advanced.
+Caller-token claim results and final settlement receipts remain in bounded
+seven-day Redis keys, so a delayed request cannot reuse a token or turn missing
+lease state into false success. Final reconciliation validates the receipt and
+the complete pending, retry, or acknowledgement postcondition.
+The internal outbound coordinator validates the exact PostgreSQL, Redis task,
+and per-domain recipient rosters before reading message bytes. It prepares an
+SMTP transaction without its DATA terminator, commits `COMMIT_ARMED`, then
+sends the terminator and durably records the final or ambiguous result. Only a
+projected PostgreSQL result permits the fenced Redis claim to be acknowledged
+or scheduled for retry. A bounded keepalive renews both stores during delivery,
+stops database heartbeats after projection, and is fully quiesced before the
+final Redis mutation.
 
 Outbound routing is another internal adapter, not a service. One bounded
 resolver owns MX and MTA-STS singleflight caches while sharing the process Redis
 pool. It preserves the frozen `dns:mx:*` and `mta-sts:*` values and TTLs, pins
 validated public addresses for policy HTTPS and SMTP, and carries one monotonic
 deadline and per-caller cancellation through Redis, DNS, HTTPS, and host
-selection. The eventual coordinator will consume its ordered endpoints; the
-resolver does not spawn work on startup.
+selection. The internal coordinator consumes its ordered endpoints, but neither
+component spawns a production worker merely by being constructed. `main` will
+only start that worker after the remaining MIME/DKIM and Sent Maildir publication
+boundary is integrated.

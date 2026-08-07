@@ -116,8 +116,13 @@ opaque, bounded owner token and the key always has a millisecond TTL. A claim
 sets that key with `NX PX` in the same Lua execution that updates the legacy
 structures. The same script creates the reverse key
 `lmyzmail:mail:queue:attempt:<token>` with the claimed task ID and identical
-TTL. A duplicate pending reference or reused attempt token cannot create a
-second owner.
+TTL. It also writes a seven-day
+`lmyzmail:mail:queue:claim-result:<token>` tombstone containing that task ID,
+or `EMPTY` when no task was available. A duplicate pending reference, delayed
+claim request, or reused attempt token cannot create a second owner or consume
+a later task. A valid task-ID tombstone with no live attempt reconciles as
+`NotFound`; `EMPTY` reconciles idempotently as an empty queue; malformed type,
+value, or TTL is inconsistent.
 
 Because a Redis connection can fail after a claim script commits but before
 the reply arrives, the caller retains the generated token and invokes bounded
@@ -134,6 +139,17 @@ scheduling atomically replaces the Java-compatible task JSON, removes the
 processing claim, and inserts the ID into the legacy retry sorted set. A
 bounded script moves due retry IDs back to pending without duplicating an
 already pending or processing ID.
+
+Release, retry, and acknowledgement write a bounded seven-day
+`lmyzmail:mail:queue:settlement:<token>` receipt in the same Lua mutation.
+Response-loss reconciliation requires the exact expected receipt, no processing
+membership or processing timestamp, and no lease or reverse attempt. It also
+requires exact action-specific state: release has the requested pending/drop
+placement, retry has the exact ZSET score and task JSON, and acknowledgement has
+no pending/retry reference or task JSON. A missing lease/attempt without a
+matching receipt is `NotFound`, never proof of success. A delayed mutation that
+arrives after lease expiry is rejected and remains recoverable only through the
+expired-claim path.
 
 Expired-claim discovery uses bounded `SSCAN` pages and only reports processing
 members whose Rust lease key is absent. Recovery checks absence again inside
@@ -164,8 +180,8 @@ Redis copies it into the script.
 The database-side delivery state now uses the existing `processor_id` column
 as a second fencing token. A `DeliveryAttemptId` binds one task ID to the
 bounded worker ID and a fresh 128-bit random nonce; reusing a worker ID can
-never make a stale claim valid again. The coordinator may generate that ID
-before the Redis claim, bind the returned task ID to it, and pass the same
+never make a stale claim valid again. The coordinator generates that ID before
+the Redis claim, binds the returned task ID to it, and passes the same
 opaque token to PostgreSQL. A claim is one conditional `PENDING` to `PROCESSING` update and
 succeeds only when `next_retry_at` is due and no database owner is present.
 Heartbeat, release, retry, and terminal updates all compare the same opaque
@@ -176,6 +192,19 @@ A claim whose response is lost is reconciled by a bounded row read using the
 caller-retained `DeliveryAttemptId`. It returns a usable `DatabaseClaim` only
 when the row is still `PROCESSING`, its retry counters are valid, and its
 `processor_id` exactly equals the attempt token.
+
+A frozen Java producer can leave a valid pending task only in Redis because
+its PostgreSQL archive is write-behind. When the fenced Redis claim has no
+PostgreSQL row, Rust does not acknowledge it. It validates the exact task ID,
+recipient/domain rosters, and the sender's referenced Sent Maildir copy; binds
+the Redis task source to that stable copy under the lease; then takes a
+task-scoped PostgreSQL advisory transaction lock and atomically inserts the
+explicit-ID `outbound_mail_queue` row and any missing `email_index` row. The
+identity sequence is advanced past the explicit task ID. The
+claim is released back to pending so the next pass enters the ordinary
+PostgreSQL claim path. Missing/corrupt detail, an unavailable Sent copy, an ID
+conflict, cancellation, or an unknown database outcome is fenced-released and
+requeued, never acknowledged.
 
 The frozen schema has no range check on `retry_count` or `max_retries`. The
 claim statement therefore validates `0 <= retry_count <= max_retries` while it
@@ -211,9 +240,14 @@ is rejected transactionally and cannot reopen delivery.
 
 Every operation shares one bounded deadline across pool admission and the
 database request; production uses eight seconds and tests may select a shorter
-validated duration. A timeout or connection failure during a mutation is
-reported as `OutcomeUnknown`, never as an ordinary availability failure: the
-server may already have committed. A bounded read-only snapshot exposes status,
+validated duration. Every mutation runs in an explicit transaction whose local
+PostgreSQL `statement_timeout` is half the remaining client deadline. If the
+outer deadline still expires, Rust drops the transaction future so no later
+statement or `COMMIT` can be polled, and sends a separately bounded
+`CancelRequest` through the connection's `CancelToken`. A cancellation
+transport failure or a database error remains `OutcomeUnknown`, never an
+ordinary availability failure: a completed `COMMIT` whose response was lost
+must still be reconciled. A bounded read-only snapshot exposes status,
 retry state, timestamps, owner presence, and whether a supplied claim still
 owns the row, without returning the token. Callers must reconcile an unknown
 outcome through that snapshot before touching the Redis lease. The read-only
@@ -230,15 +264,19 @@ frozen legacy DDL with the required `LONGTEXT` to `TEXT` translation, and
 exercises concurrent claims through separate pooled connections, random-token
 stale-owner fencing, retry exhaustion, partial and local terminal states, and
 timeout recovery including a null legacy heartbeat. Row-lock fault injection
-forces unknown claim, retry, and terminal outcomes and verifies both permitted
-snapshot reconciliation branches. It also covers reverse-token claim binding,
+forces claim, heartbeat, retry, terminal, and ledger mutation timeouts; while
+the lock is still held, `pg_stat_activity` must show no waiting mutation, and
+the row must remain unchanged after release. A transparent proxy also refuses
+the fallback CancelRequest transport while withholding the server response;
+server timeout still prevents a late claim or commit. It also covers reverse-token claim binding,
 sidecarless takeover quarantine, recipient roster integrity, monotonic terminal
 states, generation fencing, armed crash/cancellation recovery, and fail-closed
 cross-table corruption. Poisoned negative, inverted, and negative maximum
-retry counters are also exercised. The
-delivery worker may call Redis acknowledgement only after the PostgreSQL
-terminal-state transaction commits. The Redis and database primitives remain
-unwired to SMTP until that complete ordering is implemented together.
+retry counters are also exercised. The internal coordinator calls Redis
+acknowledgement or retry scheduling only after PostgreSQL projection commits.
+It is implemented and tested with the SMTP adapter, but remains disconnected
+from the production worker lifecycle in `main` until producer publication is
+complete.
 
 ## Rust SMTP Delivery Adapter
 
@@ -284,6 +322,44 @@ recorded as `outbound-starttls-hostname-verification` in the approved behavior
 difference manifest. Opportunistic TLS still follows the oracle by retrying a
 fresh plaintext connection after a TLS negotiation failure, while required
 TLS never downgrades.
+
+## Rust Outbound Coordinator
+
+The coordinator is an internal Tokio component, not a service. Configuration
+uses `lmyzmail.queue.*` first and the matching `botmail.queue.*` alias second
+for worker ID, lease and renewal durations, processing deadline, and retry
+backoff. Defaults are a 90-second lease, 10-second renewal, 10-minute task
+deadline, and Java-compatible exponential retry delays of 30, 60, and 120
+seconds capped at 3600 seconds. Leases shorter than 65 seconds are rejected;
+that floor covers three worst-case Redis mutation and reconciliation rounds.
+Worker IDs are ASCII and at most 64 bytes so the generated nonce-bearing token
+is accepted by every Redis and PostgreSQL fence.
+
+One run claims Redis with a caller-retained token, reconciles a dropped claim
+response through the reverse token key, claims the matching PostgreSQL row,
+and compares the exact ordered PostgreSQL, task JSON, and per-domain rosters.
+It accepts canonical bounded Base64 or one absolute bounded spool path. For
+each retryable domain it resolves pinned routes, prepares SMTP, durably records
+the recipient checkpoint and `COMMIT_ARMED`, then consumes the prepared session
+to send the DATA terminator. A final reply is recorded without repeating SMTP;
+an unknown post-terminator outcome becomes `AMBIGUOUS` and disables retry and
+DSN for those recipients.
+
+Redis lease renewal and PostgreSQL heartbeat run in one owned keepalive task.
+After every recipient is durable, the coordinator projects the sidecar into the
+legacy row, stops database heartbeat, explicitly renews Redis, waits for the
+keepalive task to exit, and only then executes the final fenced ack or retry
+Lua script. A dropped final Redis response is reconciled as complete only when
+the matching settlement receipt and every action-specific postcondition agree;
+missing fence keys alone never prove completion. Cancellation before the commit
+barrier releases both owners without incrementing retry state; cancellation or
+ownership loss after the barrier is quarantined as ambiguous. The integration
+fixture uses isolated PostgreSQL and Redis plus raw SMTP and verifies that
+PostgreSQL already contains `COMMIT_ARMED` when the peer receives `.<CRLF>`.
+It also covers PostgreSQL outage immediately after Redis claim, cancellation at
+that boundary, delayed Redis delivery after lease expiry, mixed multi-domain
+results, commit-armed cancellation/lease loss, and a lost PostgreSQL checkpoint
+response after the SMTP peer accepted the message without repeating SMTP.
 
 ## Required Rust Invariants
 

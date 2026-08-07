@@ -547,6 +547,10 @@ impl OutboundSmtpClient {
 }
 
 impl PreparedDelivery {
+    pub fn recipients(&self) -> &[RecipientResult] {
+        &self.recipients
+    }
+
     pub async fn commit(mut self) -> Result<DeliveryResult, DeliveryError> {
         self.session
             .write_all(b".\r\n", true)

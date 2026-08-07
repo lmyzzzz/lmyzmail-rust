@@ -12,8 +12,10 @@ use idna::domain_to_ascii_strict;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use tokio::time::{Instant, timeout_at};
+use tokio_postgres::{CancelToken, NoTls};
 
 const DATABASE_TIMEOUT: Duration = Duration::from_secs(8);
+const DATABASE_CANCEL_TIMEOUT: Duration = Duration::from_secs(1);
 const MAX_OWNER_TOKEN_BYTES: usize = 100;
 const MAX_WORKER_ID_BYTES: usize = 64;
 const MAX_LAST_ERROR_UTF16_UNITS: usize = 1_000;
@@ -25,6 +27,7 @@ const MAX_RECIPIENTS: usize = 1_000;
 const MAX_RECIPIENT_ADDRESS_BYTES: usize = 320;
 const MAX_RECIPIENT_DETAIL_BYTES: usize = 2_000;
 const DELIVERY_LEDGER_MIGRATION_LOCK: i64 = 0x4c4d_595a_4c44_4752;
+const LEGACY_REDIS_TAKEOVER_LOCK: i64 = 0x4c4d_595a_5254_4b56;
 const DELIVERY_LEDGER_SCHEMA: &str = include_str!("../migrations/001_outbound_delivery_ledger.sql");
 
 #[derive(Deserialize)]
@@ -119,6 +122,27 @@ pub struct RetryTransition {
     pub next_retry_at: DateTime<Utc>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LegacyRedisTaskMaterialization {
+    pub task_id: i64,
+    pub sender_address: String,
+    pub recipients_json: String,
+    pub subject: String,
+    pub message_id: String,
+    pub sent_file_name: String,
+    pub sent_subdirectory: i32,
+    pub retry_count: i32,
+    pub max_retries: i32,
+    pub next_retry_at: DateTime<Utc>,
+    pub last_error: Option<String>,
+    pub sent_domains: Vec<String>,
+    pub failed_domains: BTreeMap<String, String>,
+    pub created_at: DateTime<Utc>,
+    pub mail_size_bytes: i64,
+    pub has_attachments: bool,
+    pub to_addresses_json: String,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DeliveryRowStatus {
     Pending,
@@ -150,6 +174,7 @@ pub struct DeliverySnapshot {
     pub retry_count: i32,
     pub max_retries: i32,
     pub next_retry_at: DateTime<Utc>,
+    pub last_error: Option<String>,
     pub sent_at: Option<DateTime<Utc>>,
     pub processing_started_at: Option<DateTime<Utc>>,
     pub has_owner: bool,
@@ -428,8 +453,10 @@ impl PostgresDeliveryState {
     pub async fn initialize_schema(&self) -> Result<(), DeliveryStateError> {
         let deadline = Instant::now() + self.operation_timeout;
         let mut client = self.client(deadline).await?;
-        ledger_mutation(deadline, async {
+        let cancel_token = client.cancel_token();
+        ledger_mutation(deadline, cancel_token, async {
             let transaction = client.transaction().await?;
+            configure_transaction_deadline(&transaction, deadline).await?;
             transaction
                 .query_one(
                     "SELECT pg_advisory_xact_lock($1)",
@@ -439,6 +466,133 @@ impl PostgresDeliveryState {
             transaction.batch_execute(DELIVERY_LEDGER_SCHEMA).await?;
             transaction.commit().await?;
             Ok(())
+        })
+        .await
+    }
+
+    pub async fn materialize_legacy_redis_task(
+        &self,
+        task: &LegacyRedisTaskMaterialization,
+        now: DateTime<Utc>,
+    ) -> Result<bool, DeliveryStateError> {
+        validate_legacy_redis_materialization(task)?;
+        let now = postgres_timestamp(now)?;
+        let deadline = Instant::now() + self.operation_timeout;
+        let mut client = self.client(deadline).await?;
+        let cancel_token = client.cancel_token();
+        ledger_mutation(deadline, cancel_token, async {
+            let transaction = client.transaction().await?;
+            configure_transaction_deadline(&transaction, deadline).await?;
+            let lock_key = LEGACY_REDIS_TAKEOVER_LOCK ^ task.task_id;
+            transaction
+                .query_one("SELECT pg_advisory_xact_lock($1)", &[&lock_key])
+                .await?;
+
+            let existing = transaction
+                .query_opt(
+                    "SELECT sender_address,recipients_json,subject,message_id,sent_file_name,
+                            sent_subdirectory,status,retry_count,max_retries,processor_id
+                     FROM outbound_mail_queue WHERE id=$1 FOR UPDATE",
+                    &[&task.task_id],
+                )
+                .await?;
+            let inserted = if let Some(row) = existing {
+                let compatible = row.get::<_, &str>(0) == task.sender_address
+                    && row.get::<_, &str>(1) == task.recipients_json
+                    && row.get::<_, Option<&str>>(2) == Some(task.subject.as_str())
+                    && row.get::<_, Option<&str>>(3) == Some(task.message_id.as_str())
+                    && row.get::<_, Option<&str>>(4) == Some(task.sent_file_name.as_str())
+                    && row.get::<_, Option<i32>>(5) == Some(task.sent_subdirectory)
+                    && row.get::<_, &str>(6) == "PENDING"
+                    && row.get::<_, i32>(7) == task.retry_count
+                    && row.get::<_, i32>(8) == task.max_retries
+                    && row.get::<_, Option<&str>>(9).is_none();
+                if !compatible {
+                    return Err(DeliveryStateError::InvalidTransition(
+                        "legacy Redis task ID conflicts with PostgreSQL state",
+                    )
+                    .into());
+                }
+                false
+            } else {
+                let sent_domains_json = serde_json::to_string(&task.sent_domains)
+                    .map_err(|_| DeliveryStateError::Unavailable)?;
+                let failed_domains_json = serde_json::to_string(&task.failed_domains)
+                    .map_err(|_| DeliveryStateError::Unavailable)?;
+                transaction
+                    .execute(
+                        "INSERT INTO outbound_mail_queue
+                         (id,sender_address,recipients_json,subject,body_text,body_html,
+                          attachments_json,message_id,sent_file_name,sent_subdirectory,status,
+                          retry_count,max_retries,next_retry_at,last_error,sent_domains_json,
+                          failed_domains_json,created_at,updated_at,sent_at,
+                          processing_started_at,processor_id)
+                         VALUES ($1,$2,$3,$4,NULL,NULL,NULL,$5,$6,$7,'PENDING',$8,$9,$10,$11,
+                                 $12,$13,$14,$15,NULL,NULL,NULL)",
+                        &[
+                            &task.task_id,
+                            &task.sender_address,
+                            &task.recipients_json,
+                            &task.subject,
+                            &task.message_id,
+                            &task.sent_file_name,
+                            &task.sent_subdirectory,
+                            &task.retry_count,
+                            &task.max_retries,
+                            &task.next_retry_at,
+                            &task.last_error,
+                            &sent_domains_json,
+                            &failed_domains_json,
+                            &task.created_at,
+                            &now,
+                        ],
+                    )
+                    .await?;
+                true
+            };
+
+            transaction
+                .execute(
+                    "INSERT INTO email_index
+                     (has_attachments,subdirectory,indexed_at,received_at,size_bytes,folder,
+                      from_address,message_id,subject,to_addresses,file_name,mailbox_address)
+                     VALUES ($1,$2,$3,$3,$4,'sent',$5,$6,$7,$8,$9,$5)
+                     ON CONFLICT ON CONSTRAINT uk_email_index_mailbox_folder_subdir_file
+                     DO NOTHING",
+                    &[
+                        &task.has_attachments,
+                        &task.sent_subdirectory,
+                        &now,
+                        &task.mail_size_bytes,
+                        &task.sender_address,
+                        &task.message_id,
+                        &task.subject,
+                        &task.to_addresses_json,
+                        &task.sent_file_name,
+                    ],
+                )
+                .await?;
+
+            transaction
+                .query_one(
+                    "WITH sequence_name AS (
+                         SELECT pg_get_serial_sequence('outbound_mail_queue','id') AS value
+                     )
+                     SELECT setval(
+                         value,
+                         GREATEST(
+                             $1,
+                             (SELECT COALESCE(max(id),0) FROM outbound_mail_queue),
+                             nextval(value::regclass)
+                         ),
+                         true
+                     )
+                     FROM sequence_name WHERE value IS NOT NULL",
+                    &[&task.task_id],
+                )
+                .await?;
+            transaction.commit().await?;
+            Ok(inserted)
         })
         .await
     }
@@ -456,8 +610,10 @@ impl PostgresDeliveryState {
         let recipient_count = recipients.len() as i32;
         let deadline = Instant::now() + self.operation_timeout;
         let mut client = self.client(deadline).await?;
-        ledger_mutation(deadline, async {
+        let cancel_token = client.cancel_token();
+        ledger_mutation(deadline, cancel_token, async {
             let transaction = client.transaction().await?;
+            configure_transaction_deadline(&transaction, deadline).await?;
             lock_legacy_claim(&transaction, claim).await?;
             let attempt = transaction
                 .query_opt(
@@ -755,8 +911,10 @@ impl PostgresDeliveryState {
         let now = postgres_timestamp(now)?;
         let deadline = Instant::now() + self.operation_timeout;
         let mut client = self.client(deadline).await?;
-        ledger_mutation(deadline, async {
+        let cancel_token = client.cancel_token();
+        ledger_mutation(deadline, cancel_token, async {
             let transaction = client.transaction().await?;
+            configure_transaction_deadline(&transaction, deadline).await?;
             lock_legacy_claim(&transaction, claim).await?;
             let attempt = lock_ledger_attempt(&transaction, claim).await?;
             if attempt.1 != "PREPARING" {
@@ -885,8 +1043,10 @@ impl PostgresDeliveryState {
         let smtp_code = i32::from(smtp_code);
         let deadline = Instant::now() + self.operation_timeout;
         let mut client = self.client(deadline).await?;
-        ledger_mutation(deadline, async {
+        let cancel_token = client.cancel_token();
+        ledger_mutation(deadline, cancel_token, async {
             let transaction = client.transaction().await?;
+            configure_transaction_deadline(&transaction, deadline).await?;
             lock_legacy_claim(&transaction, claim).await?;
             let attempt = lock_ledger_attempt(&transaction, claim).await?;
             if attempt.1 != "COMMIT_ARMED" {
@@ -950,8 +1110,10 @@ impl PostgresDeliveryState {
         let detail = bounded_bytes(detail, MAX_RECIPIENT_DETAIL_BYTES);
         let deadline = Instant::now() + self.operation_timeout;
         let mut client = self.client(deadline).await?;
-        ledger_mutation(deadline, async {
+        let cancel_token = client.cancel_token();
+        ledger_mutation(deadline, cancel_token, async {
             let transaction = client.transaction().await?;
+            configure_transaction_deadline(&transaction, deadline).await?;
             lock_legacy_claim(&transaction, claim).await?;
             let attempt = lock_ledger_attempt(&transaction, claim).await?;
             if attempt.1 != "COMMIT_ARMED" {
@@ -1009,8 +1171,10 @@ impl PostgresDeliveryState {
         }
         let deadline = Instant::now() + self.operation_timeout;
         let mut client = self.client(deadline).await?;
-        ledger_mutation(deadline, async {
+        let cancel_token = client.cancel_token();
+        ledger_mutation(deadline, cancel_token, async {
             let transaction = client.transaction().await?;
+            configure_transaction_deadline(&transaction, deadline).await?;
             let (retry_count, max_retries) = lock_legacy_claim(&transaction, claim).await?;
             let attempt = lock_ledger_attempt(&transaction, claim).await?;
             if attempt.1 == "COMMIT_ARMED" {
@@ -1181,11 +1345,14 @@ impl PostgresDeliveryState {
         let owner_token = attempt.owner_token.clone();
         let now = postgres_timestamp(now)?;
         let deadline = Instant::now() + self.operation_timeout;
-        let client = self.client(deadline).await?;
-        let row = mutation_deadline(
-            deadline,
-            client.query_opt(
-                "UPDATE outbound_mail_queue
+        let mut client = self.client(deadline).await?;
+        let cancel_token = client.cancel_token();
+        let row = ledger_mutation(deadline, cancel_token, async {
+            let transaction = client.transaction().await?;
+            configure_transaction_deadline(&transaction, deadline).await?;
+            let row = transaction
+                .query_opt(
+                    "UPDATE outbound_mail_queue
                  SET status=CASE
                        WHEN retry_count >= 0 AND max_retries >= 0 AND retry_count <= max_retries
                        THEN 'PROCESSING' ELSE 'FAILED' END,
@@ -1205,9 +1372,12 @@ impl PostgresDeliveryState {
                  WHERE id=$1 AND status='PENDING' AND processor_id IS NULL
                    AND next_retry_at <= $3
                  RETURNING status,retry_count,max_retries",
-                &[&task_id, &owner_token, &now],
-            ),
-        )
+                    &[&task_id, &owner_token, &now],
+                )
+                .await?;
+            transaction.commit().await?;
+            Ok(row)
+        })
         .await?;
         Ok(row.and_then(|row| {
             (row.get::<_, &str>(0) == "PROCESSING").then(|| DatabaseClaim {
@@ -1257,6 +1427,26 @@ impl PostgresDeliveryState {
         }))
     }
 
+    pub async fn claimed_recipient_roster(
+        &self,
+        claim: &DatabaseClaim,
+    ) -> Result<Vec<String>, DeliveryStateError> {
+        validate_claim(claim)?;
+        let deadline = Instant::now() + self.operation_timeout;
+        let client = self.client(deadline).await?;
+        let row = read_deadline(
+            deadline,
+            client.query_opt(
+                "SELECT recipients_json FROM outbound_mail_queue
+                 WHERE id=$1 AND status='PROCESSING' AND processor_id=$2",
+                &[&claim.task_id, &claim.owner_token],
+            ),
+        )
+        .await?
+        .ok_or(DeliveryStateError::Fenced)?;
+        parse_recipient_roster_json(row.get(0))
+    }
+
     pub async fn heartbeat(
         &self,
         claim: &DatabaseClaim,
@@ -1265,17 +1455,23 @@ impl PostgresDeliveryState {
         validate_claim(claim)?;
         let now = postgres_timestamp(now)?;
         let deadline = Instant::now() + self.operation_timeout;
-        let client = self.client(deadline).await?;
-        let updated = mutation_deadline(
-            deadline,
-            client.execute(
-                "UPDATE outbound_mail_queue
+        let mut client = self.client(deadline).await?;
+        let cancel_token = client.cancel_token();
+        let updated = ledger_mutation(deadline, cancel_token, async {
+            let transaction = client.transaction().await?;
+            configure_transaction_deadline(&transaction, deadline).await?;
+            let updated = transaction
+                .execute(
+                    "UPDATE outbound_mail_queue
                  SET processing_started_at=GREATEST(processing_started_at,$3),
                      updated_at=GREATEST(updated_at,$3)
                  WHERE id=$1 AND status='PROCESSING' AND processor_id=$2",
-                &[&claim.task_id, &claim.owner_token, &now],
-            ),
-        )
+                    &[&claim.task_id, &claim.owner_token, &now],
+                )
+                .await?;
+            transaction.commit().await?;
+            Ok(updated)
+        })
         .await?;
         Ok(updated == 1)
     }
@@ -1289,8 +1485,10 @@ impl PostgresDeliveryState {
         let now = postgres_timestamp(now)?;
         let deadline = Instant::now() + self.operation_timeout;
         let mut client = self.client(deadline).await?;
-        ledger_mutation(deadline, async {
+        let cancel_token = client.cancel_token();
+        ledger_mutation(deadline, cancel_token, async {
             let transaction = client.transaction().await?;
+            configure_transaction_deadline(&transaction, deadline).await?;
             match lock_legacy_claim(&transaction, claim).await {
                 Ok(_) => {}
                 Err(LedgerMutationError::State(DeliveryStateError::Fenced)) => {
@@ -1417,11 +1615,14 @@ impl PostgresDeliveryState {
         }
         let last_error = bounded_error(last_error);
         let deadline = Instant::now() + self.operation_timeout;
-        let client = self.client(deadline).await?;
-        let row = mutation_deadline(
-            deadline,
-            client.query_opt(
-                "UPDATE outbound_mail_queue
+        let mut client = self.client(deadline).await?;
+        let cancel_token = client.cancel_token();
+        let row = ledger_mutation(deadline, cancel_token, async {
+            let transaction = client.transaction().await?;
+            configure_transaction_deadline(&transaction, deadline).await?;
+            let row = transaction
+                .query_opt(
+                    "UPDATE outbound_mail_queue
                  SET status='PENDING', retry_count=retry_count+1, next_retry_at=$3,
                      last_error=$4, processor_id=NULL, processing_started_at=NULL, updated_at=$5
                  WHERE id=$1 AND status='PROCESSING' AND processor_id=$2
@@ -1431,15 +1632,18 @@ impl PostgresDeliveryState {
                        WHERE task_id=$1
                    )
                  RETURNING retry_count,max_retries,next_retry_at",
-                &[
-                    &claim.task_id,
-                    &claim.owner_token,
-                    &next_retry_at,
-                    &last_error,
-                    &now,
-                ],
-            ),
-        )
+                    &[
+                        &claim.task_id,
+                        &claim.owner_token,
+                        &next_retry_at,
+                        &last_error,
+                        &now,
+                    ],
+                )
+                .await?;
+            transaction.commit().await?;
+            Ok(row)
+        })
         .await?;
         Ok(row.map(|row| RetryTransition {
             retry_count: row.get(0),
@@ -1465,11 +1669,14 @@ impl PostgresDeliveryState {
         let failed_domains_json = serialize_optional(failed_domains)?;
         let last_error = last_error.map(bounded_error);
         let deadline = Instant::now() + self.operation_timeout;
-        let client = self.client(deadline).await?;
-        let updated = mutation_deadline(
-            deadline,
-            client.execute(
-                "UPDATE outbound_mail_queue
+        let mut client = self.client(deadline).await?;
+        let cancel_token = client.cancel_token();
+        let updated = ledger_mutation(deadline, cancel_token, async {
+            let transaction = client.transaction().await?;
+            configure_transaction_deadline(&transaction, deadline).await?;
+            let updated = transaction
+                .execute(
+                    "UPDATE outbound_mail_queue
                  SET status=$3, sent_at=$4, last_error=$5, sent_domains_json=$6,
                      failed_domains_json=$7, processor_id=NULL, processing_started_at=NULL,
                      updated_at=$8
@@ -1478,18 +1685,21 @@ impl PostgresDeliveryState {
                        SELECT 1 FROM lmyzmail_outbound_delivery_attempt
                        WHERE task_id=$1
                    )",
-                &[
-                    &claim.task_id,
-                    &claim.owner_token,
-                    &status.database_value(),
-                    &sent_at,
-                    &last_error,
-                    &sent_domains_json,
-                    &failed_domains_json,
-                    &now,
-                ],
-            ),
-        )
+                    &[
+                        &claim.task_id,
+                        &claim.owner_token,
+                        &status.database_value(),
+                        &sent_at,
+                        &last_error,
+                        &sent_domains_json,
+                        &failed_domains_json,
+                        &now,
+                    ],
+                )
+                .await?;
+            transaction.commit().await?;
+            Ok(updated)
+        })
         .await?;
         Ok(updated == 1)
     }
@@ -1512,8 +1722,10 @@ impl PostgresDeliveryState {
         }
         let deadline = Instant::now() + self.operation_timeout;
         let mut client = self.client(deadline).await?;
-        ledger_mutation(deadline, async {
+        let cancel_token = client.cancel_token();
+        ledger_mutation(deadline, cancel_token, async {
             let transaction = client.transaction().await?;
+            configure_transaction_deadline(&transaction, deadline).await?;
             let legacy = transaction
                 .query_opt(
                     "SELECT status,processor_id,processing_started_at,recipients_json
@@ -1546,7 +1758,7 @@ impl PostgresDeliveryState {
                 )
                 .await?;
             let Some(attempt) = attempt else {
-                let recipients = parse_legacy_recipients(legacy.get(3))?;
+                let recipients = parse_recipient_roster_json(legacy.get(3))?;
                 let recipient_count = recipients.len() as i32;
                 let roster_sha256 = roster_fingerprint(&recipients);
                 transaction
@@ -1773,7 +1985,7 @@ impl PostgresDeliveryState {
         let row = read_deadline(
             deadline,
             client.query_opt(
-                "SELECT status,retry_count,max_retries,next_retry_at,sent_at,
+                "SELECT status,retry_count,max_retries,next_retry_at,last_error,sent_at,
                         processing_started_at,processor_id
                  FROM outbound_mail_queue WHERE id=$1",
                 &[&task_id],
@@ -1781,15 +1993,16 @@ impl PostgresDeliveryState {
         )
         .await?;
         row.map(|row| {
-            let owner: Option<String> = row.get(6);
+            let owner: Option<String> = row.get(7);
             Ok(DeliverySnapshot {
                 task_id,
                 status: DeliveryRowStatus::from_database(row.get(0))?,
                 retry_count: row.get(1),
                 max_retries: row.get(2),
                 next_retry_at: row.get(3),
-                sent_at: row.get(4),
-                processing_started_at: row.get(5),
+                last_error: row.get(4),
+                sent_at: row.get(5),
+                processing_started_at: row.get(6),
                 has_owner: owner.is_some(),
                 owned_by_claim: expected_owner.is_some_and(|value| owner.as_deref() == Some(value)),
             })
@@ -1803,16 +2016,6 @@ impl PostgresDeliveryState {
             .map_err(|_| DeliveryStateError::Unavailable)?
             .map_err(|_| DeliveryStateError::Unavailable)
     }
-}
-
-async fn mutation_deadline<T, F>(deadline: Instant, future: F) -> Result<T, DeliveryStateError>
-where
-    F: Future<Output = Result<T, tokio_postgres::Error>>,
-{
-    timeout_at(deadline, future)
-        .await
-        .map_err(|_| DeliveryStateError::OutcomeUnknown)?
-        .map_err(|_| DeliveryStateError::OutcomeUnknown)
 }
 
 async fn read_deadline<T, F>(deadline: Instant, future: F) -> Result<T, DeliveryStateError>
@@ -1843,16 +2046,45 @@ impl From<tokio_postgres::Error> for LedgerMutationError {
     }
 }
 
-async fn ledger_mutation<T, F>(deadline: Instant, future: F) -> Result<T, DeliveryStateError>
+async fn ledger_mutation<T, F>(
+    deadline: Instant,
+    cancel_token: CancelToken,
+    future: F,
+) -> Result<T, DeliveryStateError>
 where
     F: Future<Output = Result<T, LedgerMutationError>>,
 {
-    match timeout_at(deadline, future).await {
-        Err(_) => Err(DeliveryStateError::OutcomeUnknown),
+    tokio::pin!(future);
+    match timeout_at(deadline, future.as_mut()).await {
+        Err(_) => {
+            let _cancel_sent = cancel_timed_out_query(&cancel_token).await;
+            Err(DeliveryStateError::OutcomeUnknown)
+        }
         Ok(Err(LedgerMutationError::Database)) => Err(DeliveryStateError::OutcomeUnknown),
         Ok(Err(LedgerMutationError::State(error))) => Err(error),
         Ok(Ok(value)) => Ok(value),
     }
+}
+
+async fn cancel_timed_out_query(cancel_token: &CancelToken) -> bool {
+    let cancel_deadline = Instant::now() + DATABASE_CANCEL_TIMEOUT;
+    matches!(
+        timeout_at(cancel_deadline, cancel_token.cancel_query(NoTls)).await,
+        Ok(Ok(()))
+    )
+}
+
+async fn configure_transaction_deadline(
+    transaction: &deadpool_postgres::Transaction<'_>,
+    deadline: Instant,
+) -> Result<(), tokio_postgres::Error> {
+    let remaining = deadline.saturating_duration_since(Instant::now());
+    let server_millis = (remaining.as_millis() / 2).clamp(1, i32::MAX as u128);
+    let value = format!("{server_millis}ms");
+    transaction
+        .query_one("SELECT set_config('statement_timeout',$1,true)", &[&value])
+        .await?;
+    Ok(())
 }
 
 trait ClaimFence {
@@ -2140,6 +2372,57 @@ fn validate_claim(claim: &DatabaseClaim) -> Result<(), DeliveryStateError> {
     Ok(())
 }
 
+fn validate_legacy_redis_materialization(
+    task: &LegacyRedisTaskMaterialization,
+) -> Result<(), DeliveryStateError> {
+    if task.task_id <= 0
+        || task.sender_address.is_empty()
+        || task.sender_address.chars().count() > 255
+        || task.sender_address.chars().any(char::is_control)
+        || task.subject.chars().count() > 1_000
+        || task.message_id.is_empty()
+        || task.message_id.chars().count() > 255
+        || task.message_id.chars().any(char::is_control)
+        || task.sent_file_name.is_empty()
+        || task.sent_file_name.chars().count() > 255
+        || task.sent_file_name.chars().any(char::is_control)
+        || task.sent_subdirectory <= 0
+        || task.retry_count < 0
+        || task.max_retries < 0
+        || task.retry_count > task.max_retries
+        || task.mail_size_bytes <= 0
+        || task.to_addresses_json.chars().count() > 2_000
+    {
+        return Err(DeliveryStateError::InvalidInput(
+            "invalid legacy Redis task materialization",
+        ));
+    }
+    parse_recipient_roster_json(&task.recipients_json)?;
+    postgres_timestamp(task.created_at)?;
+    postgres_timestamp(task.next_retry_at)?;
+    let mut domains = BTreeSet::new();
+    for domain in &task.sent_domains {
+        validate_domain(domain)?;
+        if !domains.insert(domain.as_str()) {
+            return Err(DeliveryStateError::InvalidInput(
+                "duplicate legacy Redis domain state",
+            ));
+        }
+    }
+    for (domain, error) in &task.failed_domains {
+        validate_domain(domain)?;
+        if !domains.insert(domain.as_str())
+            || error.is_empty()
+            || error.len() > MAX_DOMAIN_ERROR_BYTES
+        {
+            return Err(DeliveryStateError::InvalidInput(
+                "invalid legacy Redis domain state",
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn validate_ledger_claim(claim: &RecipientLedgerClaim) -> Result<(), DeliveryStateError> {
     validate_identity(claim.task_id, &claim.owner_token)?;
     if claim.generation <= 0 || claim.recipient_count == 0 || claim.recipient_count > MAX_RECIPIENTS
@@ -2167,7 +2450,7 @@ fn validate_commit_barrier_consistency(
     Ok(())
 }
 
-fn parse_legacy_recipients(value: &str) -> Result<Vec<String>, DeliveryStateError> {
+pub fn parse_recipient_roster_json(value: &str) -> Result<Vec<String>, DeliveryStateError> {
     let parsed: LegacyRecipientJson = serde_json::from_str(value).map_err(|_| {
         DeliveryStateError::InvalidTransition("legacy delivery recipient roster is invalid")
     })?;
@@ -2267,7 +2550,7 @@ fn validate_commit_result(
     Ok(())
 }
 
-fn recipient_domain(recipient: &str) -> Result<String, DeliveryStateError> {
+pub(crate) fn recipient_domain(recipient: &str) -> Result<String, DeliveryStateError> {
     if recipient.is_empty()
         || recipient.len() > MAX_RECIPIENT_ADDRESS_BYTES
         || recipient.chars().any(char::is_control)
@@ -2433,19 +2716,19 @@ mod tests {
     #[test]
     fn legacy_recipient_formats_and_commit_barrier_consistency_are_strict() {
         assert_eq!(
-            parse_legacy_recipients(r#"["one@example.test","two@example.test"]"#).unwrap(),
+            parse_recipient_roster_json(r#"["one@example.test","two@example.test"]"#).unwrap(),
             ["one@example.test", "two@example.test"]
         );
         assert_eq!(
-            parse_legacy_recipients(
+            parse_recipient_roster_json(
                 r#"{"to":["to@example.test"],"cc":null,"bcc":["bcc@example.test"]}"#
             )
             .unwrap(),
             ["to@example.test", "bcc@example.test"]
         );
-        assert!(parse_legacy_recipients(r#"{"to":[],"cc":[],"bcc":[]}"#).is_err());
+        assert!(parse_recipient_roster_json(r#"{"to":[],"cc":[],"bcc":[]}"#).is_err());
         assert!(
-            parse_legacy_recipients(r#"["duplicate@example.test","duplicate@example.test"]"#)
+            parse_recipient_roster_json(r#"["duplicate@example.test","duplicate@example.test"]"#)
                 .is_err()
         );
         assert!(validate_commit_barrier_consistency("PREPARING", false).is_ok());
