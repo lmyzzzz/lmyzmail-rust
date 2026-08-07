@@ -63,11 +63,13 @@ started: cancellation is signalled immediately, but the task and its bounded
 permit are joined before the owning future returns. The worker therefore cannot
 detach a late Maildir mutation during shutdown.
 
-Large-message temporary-file ownership is recorded in the additive
-`lmyzmail_outbound_spool` table in the same PostgreSQL database. Queue
-maintenance scans only a bounded terminal subset of that table, independently
-of whether the Redis task still exists. Cleanup accepts only the configured
-spool root and the task-bound `message-<id>.eml` or `signed-<id>.eml` name;
+Every Rust temporary spool is recorded in the additive
+`lmyzmail_outbound_spool` table in the same PostgreSQL database. Inline records
+carry `cleanup_after_publish=true`; recovery checks the complete Redis task
+identity before unlinking a nonterminal inline spool. Large-message records
+remain `OWNED` until delivery is terminal. Queue maintenance scans only a
+bounded eligible subset of the table. Cleanup accepts only the configured spool
+root and the task-bound `message-<id>.eml` or `signed-<id>.eml` name;
 legacy Java files additionally have to match the retained Sent Maildir copy
 byte for byte. Linux cleanup holds root directory descriptors and uses
 `openat2`/`unlinkat` with beneath, no-symlink, and inode checks. Unlink is
@@ -79,6 +81,13 @@ processing, processing-time, retry, lease, and sent-file references are all
 absent. PostgreSQL then deletes only the exact sidecar identity; maintenance
 uses a wrapping bounded cursor so one active low-ID row cannot starve later
 cleanup.
+
+HTTP request deadlines cancel a request-scoped child token. An outbound
+admission observes that token while waiting for blocking permits, Redis, and
+each pre-commit PostgreSQL operation; once a blocking filesystem operation or
+commit reconciliation has started, the request joins it before returning.
+Listener shutdown first drains these cooperative request tasks and aborts only
+after the bounded service deadline.
 
 Outbound routing is another internal adapter, not a service. One bounded
 resolver owns MX and MTA-STS singleflight caches while sharing the process Redis

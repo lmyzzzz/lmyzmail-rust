@@ -1,4 +1,4 @@
-use std::{io, net::IpAddr, sync::Arc, time::Duration};
+use std::{future::Future, io, net::IpAddr, sync::Arc, time::Duration};
 
 use chrono::Utc;
 use deadpool_postgres::Pool;
@@ -25,7 +25,7 @@ use crate::{
 
 const DEFAULT_MAX_REQUEST_BYTES: usize = 16 * 1024;
 const DEFAULT_MAX_CONNECTIONS: usize = 256;
-const SHUTDOWN_DEADLINE: Duration = Duration::from_secs(5);
+const SHUTDOWN_DEADLINE: Duration = Duration::from_secs(20);
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 enum Status {
@@ -83,6 +83,14 @@ struct ServerLimits {
     request_deadline: Duration,
 }
 
+struct ConnectionContext<'a> {
+    config: &'a RuntimeConfig,
+    auth: &'a AuthService,
+    mailbox: &'a MailboxService,
+    outbound: &'a OutboundService,
+    cancellation: &'a CancellationToken,
+}
+
 impl ServerLimits {
     fn from_config(config: &RuntimeConfig) -> Self {
         Self {
@@ -116,7 +124,7 @@ pub async fn serve_http(
     );
     let reconciliation_outbound = Arc::clone(&outbound);
     let reconciliation_cancellation = cancellation.clone();
-    let reconciliation_task = tokio::spawn(async move {
+    let mut reconciliation_task = tokio::spawn(async move {
         reconciliation_outbound
             .run_reconciler(reconciliation_cancellation)
             .await;
@@ -142,25 +150,30 @@ pub async fn serve_http(
                 let auth = Arc::clone(&auth);
                 let mailbox = Arc::clone(&mailbox);
                 let outbound = Arc::clone(&outbound);
+                let request_cancellation = cancellation.child_token();
                 tasks.spawn(async move {
                     let _permit = permit;
-                    let result = timeout(
-                        limits.request_deadline,
+                    let result = run_request_until_joined(
                         handle_connection(
                             stream,
                             peer.ip(),
                             limits.max_request_bytes,
-                            &config,
-                            &auth,
-                            &mailbox,
-                            &outbound,
+                            &ConnectionContext {
+                                config: &config,
+                                auth: &auth,
+                                mailbox: &mailbox,
+                                outbound: &outbound,
+                                cancellation: &request_cancellation,
+                            },
                         ),
+                        &request_cancellation,
+                        limits.request_deadline,
                     )
                     .await;
                     match result {
-                        Ok(Ok(())) | Err(_) => {}
-                        Ok(Err(error)) if error.kind() == io::ErrorKind::UnexpectedEof => {}
-                        Ok(Err(error)) => return Err(error),
+                        Ok(()) => {}
+                        Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => {}
+                        Err(error) => return Err(error),
                     }
                     Ok::<(), io::Error>(())
                 });
@@ -168,13 +181,41 @@ pub async fn serve_http(
         }
     }
 
-    tasks.abort_all();
-    let _ = timeout(SHUTDOWN_DEADLINE, async {
+    if timeout(SHUTDOWN_DEADLINE, async {
         while tasks.join_next().await.is_some() {}
     })
-    .await;
-    let _ = timeout(SHUTDOWN_DEADLINE, reconciliation_task).await;
+    .await
+    .is_err()
+    {
+        tasks.abort_all();
+        while tasks.join_next().await.is_some() {}
+    }
+    if timeout(SHUTDOWN_DEADLINE, &mut reconciliation_task)
+        .await
+        .is_err()
+    {
+        reconciliation_task.abort();
+        let _ = reconciliation_task.await;
+    }
     Ok(())
+}
+
+async fn run_request_until_joined<F>(
+    request: F,
+    cancellation: &CancellationToken,
+    deadline: Duration,
+) -> io::Result<()>
+where
+    F: Future<Output = io::Result<()>>,
+{
+    tokio::pin!(request);
+    match timeout(deadline, &mut request).await {
+        Ok(result) => result,
+        Err(_) => {
+            cancellation.cancel();
+            request.await
+        }
+    }
 }
 
 fn reap_finished(tasks: &mut JoinSet<Result<(), io::Error>>) {
@@ -189,11 +230,15 @@ async fn handle_connection(
     mut stream: TcpStream,
     peer_ip: IpAddr,
     max_request_bytes: usize,
-    config: &RuntimeConfig,
-    auth: &AuthService,
-    mailbox: &MailboxService,
-    outbound: &OutboundService,
+    context: &ConnectionContext<'_>,
 ) -> io::Result<()> {
+    let ConnectionContext {
+        config,
+        auth,
+        mailbox,
+        outbound,
+        cancellation,
+    } = *context;
     let request = read_request(&mut stream, max_request_bytes).await?;
     let client_ip = extract_client_ip(&request, peer_ip, config);
     let response = parse_request(&request, max_request_bytes, config);
@@ -336,7 +381,15 @@ async fn handle_connection(
         }
         ParsedRequest::SessionToken(token) => match auth.validate_token(&token).await {
             Ok(Some(address)) => {
-                handle_authenticated_request(stream, &request, &address, mailbox, outbound).await
+                handle_authenticated_request(
+                    stream,
+                    &request,
+                    &address,
+                    mailbox,
+                    outbound,
+                    cancellation,
+                )
+                .await
             }
             Ok(None) => write_invalid_session(stream).await,
             Err(_) => write_response(
@@ -352,7 +405,10 @@ async fn handle_connection(
             let Some(input) = parse_json_body::<SendRequest>(&request) else {
                 return write_json_error(stream, Status::BadRequest, "invalid_request").await;
             };
-            match outbound.enqueue(input, Some((auth, &client_ip))).await {
+            match outbound
+                .enqueue_with_cancellation(input, Some((auth, &client_ip)), cancellation)
+                .await
+            {
                 Ok(result) => write_json_response(stream, Status::Accepted, &result).await,
                 Err(error) => write_outbound_error(stream, error, true).await,
             }
@@ -525,6 +581,7 @@ async fn handle_authenticated_request(
     mailbox_address: &str,
     mailbox: &MailboxService,
     outbound: &OutboundService,
+    cancellation: &CancellationToken,
 ) -> io::Result<()> {
     let route = match authenticated_route(request) {
         Ok(Some(route)) => route,
@@ -556,7 +613,10 @@ async fn handle_authenticated_request(
             if input.to.is_empty() && input.cc.is_empty() && input.bcc.is_empty() {
                 return write_json_error(stream, Status::BadRequest, "recipients_required").await;
             }
-            match outbound.enqueue(input, None).await {
+            match outbound
+                .enqueue_with_cancellation(input, None, cancellation)
+                .await
+            {
                 Ok(result) => {
                     write_json_response(
                         stream,
@@ -1935,6 +1995,8 @@ Content-Length: 0\r\n\r\n"
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
     use super::*;
     use crate::config::{Properties, RuntimeConfig};
 
@@ -1966,6 +2028,35 @@ lmyzmail.public-registration-enabled=true\n",
     fn limits() -> ServerLimits {
         let config = config();
         ServerLimits::from_config(&config)
+    }
+
+    #[tokio::test]
+    async fn request_deadline_cancels_and_joins_active_work() {
+        let cancellation = CancellationToken::new();
+        let observed_cancellation = cancellation.clone();
+        let active = Arc::new(AtomicUsize::new(0));
+        let finished = Arc::new(AtomicBool::new(false));
+        let request_active = Arc::clone(&active);
+        let request_finished = Arc::clone(&finished);
+        let request = async move {
+            request_active.fetch_add(1, Ordering::AcqRel);
+            observed_cancellation.cancelled().await;
+            tokio::task::spawn_blocking(move || {
+                std::thread::sleep(Duration::from_millis(20));
+                request_finished.store(true, Ordering::Release);
+            })
+            .await
+            .map_err(io::Error::other)?;
+            request_active.fetch_sub(1, Ordering::AcqRel);
+            Ok(())
+        };
+
+        let result =
+            run_request_until_joined(request, &cancellation, Duration::from_millis(2)).await;
+        assert!(result.is_ok());
+        assert!(cancellation.is_cancelled());
+        assert!(finished.load(Ordering::Acquire));
+        assert_eq!(active.load(Ordering::Acquire), 0);
     }
 
     #[test]

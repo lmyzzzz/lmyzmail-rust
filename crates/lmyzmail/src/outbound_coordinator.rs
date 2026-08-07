@@ -2926,7 +2926,7 @@ fn spool_kind_for_task_path(
     }
 }
 
-fn validate_and_maybe_remove_spool(
+pub(crate) fn validate_and_maybe_remove_spool(
     record: &OutboundSpoolRecord,
     spool_dir: &Path,
     maildir_base: &Path,

@@ -101,17 +101,25 @@ The Rust producer now applies the following bounded order:
    is advanced to the explicit legacy task ID so a rollback to Java/default
    inserts cannot collide. Timestamps are fixed to PostgreSQL microsecond
    precision before the first Redis serialization.
-   If the `COMMIT` response is lost, the producer sends an ordered read on the
-   same PostgreSQL connection and compares the complete queue identity, exact
-   `email_index` identity, and exact spool sidecar identity. Only absence of all
-   three proves `NotCommitted` and permits materialized files to be removed;
-   an exact triple proves committed, while partial state, conflicting identity,
-   or another read failure is `OutcomeUnknown` and preserves Sent/spool files.
+   If the `COMMIT` response is lost, a second transaction acquires the same
+   global admission advisory lock and uses a fresh Read Committed snapshot to
+   compare the complete queue identity, exact `email_index` identity, and exact
+   spool sidecar identity. Only absence of all three proves `NotCommitted` and
+   permits materialized files to be removed; an exact triple proves committed,
+   while partial state, conflicting identity, or another read failure is
+   `OutcomeUnknown` and preserves Sent/spool files.
 6. Atomically create the exact legacy task JSON, domain-status hash, sent-file
    index, and pending reference in Redis. Repeated publication succeeds only
-   when the task and every domain JSON value are identical.
-7. Delete a small-message spool only after Redis publication succeeds. A Redis
-   failure leaves PostgreSQL, Sent Maildir, and message bytes intact for replay.
+   when the task and every domain JSON value are identical. A response-loss
+   result reads the complete task/index/reference postcondition and performs at
+   most one idempotent retry; unresolved state remains recoverable from
+   PostgreSQL and Sent Maildir.
+7. Record every Rust spool in PostgreSQL. Inline records set
+   `cleanup_after_publish=true` and advance from `OWNED` to `REMOVED` only after
+   complete Redis publication is proven and the Linux no-symlink/inode-checked
+   unlink is directory-fsynced. A crash or marker-write failure is retried from
+   the sidecar; a Redis failure leaves PostgreSQL, Sent Maildir, and message
+   bytes intact for replay.
 
 The in-process outbox reconciler starts immediately and scans at most 128
 pending rows every five seconds using an ID cursor. Complete Redis tasks have
@@ -265,11 +273,13 @@ ambiguous terminal projection. The attempt phase and presence of armed
 recipients must agree on every mutation and snapshot; a cross-table mismatch
 is rejected transactionally and cannot reopen delivery.
 
-The additive `lmyzmail_outbound_spool` table records ownership of large-message
-temporary files without changing the frozen queue table. A bounded maintenance
-query selects only `OWNED` rows whose legacy queue row is terminal, even when
-the Redis task detail has already disappeared. Rust spools are removable only
-from the configured spool root with the exact `message-<task-id>.eml` name.
+The additive `lmyzmail_outbound_spool` table records ownership of every Rust
+temporary spool without changing the frozen queue table. Inline rows carry the
+additive `cleanup_after_publish` flag; a bounded recovery query accepts those
+rows only after the complete Redis task identity is present. Large-message rows
+remain eligible only when the legacy queue row is terminal, even when the Redis
+task detail has already disappeared. Rust spools are removable only from the
+configured spool root with the exact `message-<task-id>.eml` name.
 Adopted Java `signed-<task-id>.eml` files require the same root and a bounded
 byte-for-byte match with their indexed Sent Maildir copy. Missing files are
 treated as an already-completed unlink; successful unlink is directory-fsynced

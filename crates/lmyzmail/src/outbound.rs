@@ -1,6 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt, fs,
+    future::Future,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -27,7 +28,9 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     auth::{AuthError, AuthService, CredentialOutcome},
     config::RuntimeConfig,
-    outbound_delivery::parse_recipient_roster_json,
+    outbound_delivery::{
+        OutboundSpoolKind, OutboundSpoolRecord, OutboundSpoolState, parse_recipient_roster_json,
+    },
     outbound_message::{
         MaterializedMessage, MessageAttachment, MessageBuildError, MessageInput,
         MessageStorageMode, OutboundMessageBuilder, SystemMaterialization, java_storage_mode,
@@ -422,6 +425,16 @@ impl OutboundService {
         request: SendRequest,
         credentials: Option<(&AuthService, &str)>,
     ) -> Result<QueueResponse, OutboundError> {
+        self.enqueue_with_cancellation(request, credentials, &CancellationToken::new())
+            .await
+    }
+
+    pub(crate) async fn enqueue_with_cancellation(
+        &self,
+        request: SendRequest,
+        credentials: Option<(&AuthService, &str)>,
+        cancellation: &CancellationToken,
+    ) -> Result<QueueResponse, OutboundError> {
         if request.asynchronous == Some(false) {
             return Err(OutboundError::SynchronousUnsupported);
         }
@@ -494,7 +507,7 @@ impl OutboundService {
             message_id: message_id.clone(),
             created_at: now,
         };
-        let (materialized, input) = self.materialize_message(input).await?;
+        let (materialized, input) = self.materialize_message(input, cancellation).await?;
         let attachments_json =
             serde_json::to_string(&input.attachments).map_err(|_| OutboundError::Unavailable)?;
         let to_addresses = index_to_addresses(&input.to)?;
@@ -511,6 +524,7 @@ impl OutboundService {
                     now,
                     dsn_source: None,
                 },
+                cancellation,
             )
             .await;
         if let Err(error) = persistence {
@@ -556,11 +570,10 @@ impl OutboundService {
             last_error: None,
             status: "PENDING".into(),
         };
-        self.queue
-            .publish_bounded(&task, &domain_statuses, self.max_pending_tasks as usize)
-            .await
-            .map_err(|_| OutboundError::Unavailable)?;
-        self.cleanup_published(materialized.clone()).await;
+        self.publish_with_reconciliation(&task, &domain_statuses, cancellation)
+            .await?;
+        self.cleanup_published(task.id, task.sender_address.clone(), materialized.clone())
+            .await;
         Ok(QueueResponse {
             queued: true,
             queue_id,
@@ -686,6 +699,7 @@ impl OutboundService {
                     now: created_at,
                     dsn_source: Some(&dsn_source),
                 },
+                cancellation,
             )
             .await;
         if let Err(error) = persistence {
@@ -733,11 +747,10 @@ impl OutboundService {
             last_error: None,
             status: "PENDING".into(),
         };
-        self.queue
-            .publish_bounded(&task, &domain_statuses, self.max_pending_tasks as usize)
-            .await
-            .map_err(|_| OutboundError::Unavailable)?;
-        self.cleanup_published(materialized).await;
+        self.publish_with_reconciliation(&task, &domain_statuses, cancellation)
+            .await?;
+        self.cleanup_published(task_id, task.sender_address.clone(), materialized)
+            .await;
         Ok(QueueResponse {
             queued: true,
             queue_id: task_id,
@@ -867,11 +880,10 @@ impl OutboundService {
             if cancellation.is_cancelled() {
                 return Err(OutboundError::Unavailable);
             }
-            self.queue
-                .publish_bounded(&task, &domains, self.max_pending_tasks as usize)
-                .await
-                .map_err(|_| OutboundError::Unavailable)?;
-            self.cleanup_published(materialized).await;
+            self.publish_with_reconciliation(&task, &domains, cancellation)
+                .await?;
+            self.cleanup_published(task_id, task.sender_address.clone(), materialized)
+                .await;
             republished += 1;
         }
         Ok(republished)
@@ -949,42 +961,28 @@ impl OutboundService {
     async fn materialize_message(
         &self,
         input: MessageInput,
+        cancellation: &CancellationToken,
     ) -> Result<(MaterializedMessage, MessageInput), OutboundError> {
-        let permit = timeout(
-            STORAGE_TIMEOUT,
-            self.blocking_permits.clone().acquire_owned(),
-        )
-        .await
-        .map_err(|_| OutboundError::Unavailable)?
-        .map_err(|_| OutboundError::Unavailable)?;
         let builder = self.message_builder.clone();
-        let cancelled = Arc::new(AtomicBool::new(false));
-        let task_cancelled = Arc::clone(&cancelled);
-        let mut task = spawn_blocking(move || {
-            let _permit = permit;
-            let result = builder.materialize(&input, &task_cancelled);
-            if task_cancelled.load(Ordering::Acquire)
-                && let Ok(message) = result.as_ref()
-            {
-                let _ = builder.rollback_unpublished(message);
-                return (Err(MessageBuildError::Cancelled), input);
-            }
-            (result, input)
-        });
-        match timeout(STORAGE_TIMEOUT, &mut task).await {
-            Ok(Ok((result, input))) => result
-                .map(|materialized| (materialized, input))
-                .map_err(map_message_build_error),
-            Ok(Err(_)) => Err(OutboundError::Unavailable),
-            Err(_) => {
-                cancelled.store(true, Ordering::Release);
-                eprintln!(
-                    "lmyzmail outbound materialization exceeded its soft deadline; waiting for cooperative cancellation"
-                );
-                let _ = task.await;
-                Err(OutboundError::Unavailable)
-            }
-        }
+        let (result, input) = run_bounded_message_task(
+            Arc::clone(&self.blocking_permits),
+            cancellation,
+            STORAGE_TIMEOUT,
+            move |cancelled| {
+                let result = builder.materialize(&input, cancelled);
+                if cancelled.load(Ordering::Acquire)
+                    && let Ok(message) = result.as_ref()
+                {
+                    let _ = builder.rollback_unpublished(message);
+                    return Ok((Err(MessageBuildError::Cancelled), input));
+                }
+                Ok((result, input))
+            },
+        )
+        .await?;
+        result
+            .map(|materialized| (materialized, input))
+            .map_err(map_message_build_error)
     }
 
     async fn persist_materialized(
@@ -992,6 +990,7 @@ impl OutboundService {
         input: &MessageInput,
         materialized: &MaterializedMessage,
         context: PersistenceContext<'_>,
+        cancellation: &CancellationToken,
     ) -> Result<(), PersistenceFailure> {
         let PersistenceContext {
             recipients_json,
@@ -1002,70 +1001,68 @@ impl OutboundService {
         } = context;
         let message_bytes = i64::try_from(materialized.message_bytes)
             .map_err(|_| OutboundError::InvalidInput("email_too_large"))?;
-        let mut client = timeout(DATABASE_TIMEOUT, self.pool.get())
-            .await
-            .map_err(|_| OutboundError::Unavailable)?
-            .map_err(|error| OutboundError::Database(error.to_string()))?;
-        let transaction = timeout(DATABASE_TIMEOUT, client.transaction())
-            .await
-            .map_err(|_| OutboundError::Unavailable)?
-            .map_err(db_error)?;
+        let mut client = cancellable_db_call(cancellation, self.pool.get(), |error| {
+            OutboundError::Database(error.to_string())
+        })
+        .await?;
+        let transaction = cancellable_db_call(cancellation, client.transaction(), db_error).await?;
         for lock_name in ["lmyzmail:outbound:queue", input.sender.as_str()] {
-            timeout(
-                DATABASE_TIMEOUT,
+            cancellable_db_call(
+                cancellation,
                 transaction.query_one(
                     "SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))",
                     &[&lock_name],
                 ),
+                db_error,
             )
-            .await
-            .map_err(|_| OutboundError::Unavailable)?
-            .map_err(db_error)?;
+            .await?;
         }
-        let pending_rows = timeout(
-            DATABASE_TIMEOUT,
+        let pending_rows = cancellable_db_call(
+            cancellation,
             transaction.query(
                 "SELECT id FROM outbound_mail_queue
                  WHERE status IN ('PENDING','PROCESSING') LIMIT $1",
                 &[&(self.max_pending_tasks + 1)],
             ),
+            db_error,
         )
-        .await
-        .map_err(|_| OutboundError::Unavailable)?
-        .map_err(db_error)?;
+        .await?;
         let mut active_ids = pending_rows
             .into_iter()
             .map(|row| row.get::<_, i64>(0).to_string())
             .collect::<BTreeSet<_>>();
-        active_ids.extend(
-            self.queue
-                .active_task_ids(self.max_pending_tasks as usize + 1)
-                .await
+        let active_redis = tokio::select! {
+            _ = cancellation.cancelled() => return Err(OutboundError::Unavailable.into()),
+            result = timeout(
+                DATABASE_TIMEOUT,
+                self.queue.active_task_ids(self.max_pending_tasks as usize + 1),
+            ) => result
+                .map_err(|_| OutboundError::Unavailable)?
                 .map_err(|_| OutboundError::Unavailable)?,
-        );
+        };
+        active_ids.extend(active_redis);
         if active_ids.len() >= self.max_pending_tasks as usize {
             return Err(OutboundError::QueueFull.into());
         }
         if dsn_source.is_none() {
             let window_start = now - self.rate_window;
-            let used: i64 = timeout(
-                DATABASE_TIMEOUT,
+            let used: i64 = cancellable_db_call(
+                cancellation,
                 transaction.query_one(
                     "SELECT count(*) FROM outbound_mail_queue WHERE sender_address=$1 AND created_at >= $2",
                     &[&input.sender, &window_start],
                 ),
+                db_error,
             )
-            .await
-            .map_err(|_| OutboundError::Unavailable)?
-            .map_err(db_error)?
+            .await?
             .get(0);
             if used >= self.max_emails_per_account {
                 return Err(OutboundError::RateLimited { remaining: 0 }.into());
             }
         }
         let next_retry_at = now;
-        let row = timeout(
-            DATABASE_TIMEOUT,
+        let row = cancellable_db_call(
+            cancellation,
             transaction.query_one(
                 "INSERT INTO outbound_mail_queue
                  (id,sender_address,recipients_json,subject,body_text,body_html,attachments_json,
@@ -1090,25 +1087,23 @@ impl OutboundService {
                     &now,
                 ],
             ),
+            db_error,
         )
-        .await
-        .map_err(|_| OutboundError::Unavailable)?
-        .map_err(db_error)?;
+        .await?;
         if row.get::<_, i64>(0) != input.task_id {
             return Err(OutboundError::Unavailable.into());
         }
-        timeout(
-            DATABASE_TIMEOUT,
+        cancellable_db_call(
+            cancellation,
             transaction.query_one(
                 "SELECT pg_advisory_xact_lock($1)",
                 &[&OUTBOUND_ID_ALLOCATION_LOCK],
             ),
+            db_error,
         )
-        .await
-        .map_err(|_| OutboundError::Unavailable)?
-        .map_err(db_error)?;
-        let sequence_row = timeout(
-            DATABASE_TIMEOUT,
+        .await?;
+        let sequence_row = cancellable_db_call(
+            cancellation,
             transaction.query_one(
                 "WITH sequence_name AS (
                      SELECT pg_get_serial_sequence('outbound_mail_queue','id') AS value
@@ -1126,33 +1121,35 @@ impl OutboundService {
                  FROM sequence_name WHERE value IS NOT NULL",
                 &[&input.task_id],
             ),
+            db_error,
         )
-        .await
-        .map_err(|_| OutboundError::Unavailable)?
-        .map_err(db_error)?;
+        .await?;
         if sequence_row.get::<_, Option<i64>>(0).is_none() {
             return Err(OutboundError::Unavailable.into());
         }
-        if materialized.signed_content_base64.is_none() {
-            let spool_path = materialized
-                .spool_path
-                .to_str()
-                .ok_or(OutboundError::Unavailable)?;
-            timeout(
-                DATABASE_TIMEOUT,
-                transaction.execute(
-                    "INSERT INTO lmyzmail_outbound_spool
-                     (task_id,spool_path,spool_kind,cleanup_state,created_at,updated_at)
-                     VALUES ($1,$2,'RUST','OWNED',$3,$3)",
-                    &[&input.task_id, &spool_path, &now],
-                ),
-            )
-            .await
-            .map_err(|_| OutboundError::Unavailable)?
-            .map_err(db_error)?;
-        }
-        timeout(
-            DATABASE_TIMEOUT,
+        let spool_path = materialized
+            .spool_path
+            .to_str()
+            .ok_or(OutboundError::Unavailable)?;
+        cancellable_db_call(
+            cancellation,
+            transaction.execute(
+                "INSERT INTO lmyzmail_outbound_spool
+                 (task_id,spool_path,spool_kind,cleanup_state,cleanup_after_publish,
+                  created_at,updated_at)
+                 VALUES ($1,$2,'RUST','OWNED',$3,$4,$4)",
+                &[
+                    &input.task_id,
+                    &spool_path,
+                    &materialized.cleanup_spool_after_publish,
+                    &now,
+                ],
+            ),
+            db_error,
+        )
+        .await?;
+        cancellable_db_call(
+            cancellation,
             transaction.execute(
                 "INSERT INTO email_index
                  (has_attachments,subdirectory,indexed_at,received_at,size_bytes,folder,
@@ -1170,13 +1167,12 @@ impl OutboundService {
                     &materialized.sent_file_name,
                 ],
             ),
+            db_error,
         )
-        .await
-        .map_err(|_| OutboundError::Unavailable)?
-        .map_err(db_error)?;
+        .await?;
         if let Some(source) = dsn_source {
-            let updated = timeout(
-                DATABASE_TIMEOUT,
+            let updated = cancellable_db_call(
+                cancellation,
                 transaction.execute(
                     "UPDATE lmyzmail_outbound_dsn
                      SET state='ADMITTED',prepared_bytes=NULL,lease_token=NULL,
@@ -1192,13 +1188,15 @@ impl OutboundService {
                         &now,
                     ],
                 ),
+                db_error,
             )
-            .await
-            .map_err(|_| OutboundError::Unavailable)?
-            .map_err(db_error)?;
+            .await?;
             if updated != 1 {
                 return Err(OutboundError::Unavailable.into());
             }
+        }
+        if cancellation.is_cancelled() {
+            return Err(OutboundError::Unavailable.into());
         }
         let commit_error = match timeout(DATABASE_TIMEOUT, transaction.commit()).await {
             Ok(Ok(())) => return Ok(()),
@@ -1279,7 +1277,6 @@ impl OutboundService {
             eprintln!("lmyzmail outbound commit reconciliation could not order behind admission");
             return CommitReconciliation::OutcomeUnknown;
         }
-        let expects_spool = materialized.signed_content_base64.is_none();
         let spool_path = match materialized.spool_path.to_str() {
             Some(path) => path,
             None => return CommitReconciliation::OutcomeUnknown,
@@ -1329,6 +1326,7 @@ impl OutboundService {
                    EXISTS (
                      SELECT 1 FROM lmyzmail_outbound_spool s
                      WHERE s.task_id=$1 AND s.spool_path=$16 AND s.spool_kind='RUST'
+                       AND s.cleanup_state='OWNED' AND s.cleanup_after_publish=$20
                    ),
                    EXISTS (
                      SELECT 1 FROM lmyzmail_outbound_spool s
@@ -1368,6 +1366,7 @@ impl OutboundService {
                     &dsn_source.map_or(0, |source| source.original_task_id),
                     &&dsn_source.map_or([0_u8; 32], |source| source.expected_sha256)[..],
                     &dsn_source.map_or("", |source| source.lease_token.as_str()),
+                    &materialized.cleanup_spool_after_publish,
                 ],
             ),
         )
@@ -1388,11 +1387,7 @@ impl OutboundService {
         let spool_identity_exists: bool = row.get(5);
         let dsn_admitted_exact: bool = row.get(6);
         let dsn_admitting_exact: bool = row.get(7);
-        let spool_consistent = if expects_spool {
-            spool_exact
-        } else {
-            !spool_identity_exists
-        };
+        let spool_consistent = spool_exact;
         let dsn_committed = dsn_source.is_none() || dsn_admitted_exact;
         let dsn_not_committed = dsn_source.is_none() || dsn_admitting_exact;
         if queue_exact && index_exact && spool_consistent && dsn_committed {
@@ -1436,7 +1431,70 @@ impl OutboundService {
         }
     }
 
-    async fn cleanup_published(&self, materialized: MaterializedMessage) {
+    async fn publish_with_reconciliation(
+        &self,
+        task: &TaskDetail,
+        domains: &BTreeMap<String, DomainStatus>,
+        cancellation: &CancellationToken,
+    ) -> Result<(), OutboundError> {
+        for attempt in 0..2 {
+            let published = tokio::select! {
+                _ = cancellation.cancelled() => return Err(OutboundError::Unavailable),
+                result = self.queue.publish_bounded(
+                    task,
+                    domains,
+                    self.max_pending_tasks as usize,
+                ) => result,
+            };
+            match published {
+                Ok(_) => return Ok(()),
+                Err(QueueError::OutcomeUnknown) => {
+                    let sent_file_name = task
+                        .sent_file_name
+                        .as_deref()
+                        .ok_or(OutboundError::Unavailable)?;
+                    let complete = tokio::select! {
+                        _ = cancellation.cancelled() => return Err(OutboundError::Unavailable),
+                        result = self.queue.is_complete_task(task.id, sent_file_name) => result,
+                    };
+                    if matches!(complete, Ok(true)) {
+                        return Ok(());
+                    }
+                    if attempt == 0 {
+                        continue;
+                    }
+                }
+                Err(_) => return Err(OutboundError::Unavailable),
+            }
+        }
+        Err(OutboundError::Unavailable)
+    }
+
+    async fn cleanup_published(
+        &self,
+        task_id: i64,
+        sender_address: String,
+        materialized: MaterializedMessage,
+    ) {
+        if !materialized.cleanup_spool_after_publish {
+            return;
+        }
+        let spool_path = match materialized.spool_path.to_str() {
+            Some(path) => path.to_owned(),
+            None => {
+                eprintln!("lmyzmail outbound published spool path is not UTF-8");
+                return;
+            }
+        };
+        let record = OutboundSpoolRecord {
+            task_id,
+            spool_path: spool_path.clone(),
+            kind: OutboundSpoolKind::Rust,
+            state: OutboundSpoolState::Owned,
+            sender_address,
+            sent_file_name: materialized.sent_file_name.clone(),
+            sent_subdirectory: materialized.sent_subdirectory,
+        };
         let Ok(Ok(permit)) = timeout(
             CLEANUP_TIMEOUT,
             self.blocking_permits.clone().acquire_owned(),
@@ -1449,7 +1507,7 @@ impl OutboundService {
         let builder = self.message_builder.clone();
         let task = spawn_blocking(move || {
             let _permit = permit;
-            builder.cleanup_small_spool(&materialized)
+            builder.cleanup_owned_spool(&record, &AtomicBool::new(false))
         });
         match await_blocking_io(
             task,
@@ -1458,9 +1516,137 @@ impl OutboundService {
         )
         .await
         {
-            Ok(Ok(())) => {}
+            Ok(Ok(())) => {
+                if self
+                    .record_spool_removed(task_id, &spool_path)
+                    .await
+                    .is_err()
+                {
+                    eprintln!(
+                        "lmyzmail outbound spool was removed but its durable cleanup marker could not be updated"
+                    );
+                }
+            }
             _ => eprintln!("lmyzmail outbound small-message spool cleanup failed"),
         }
+    }
+
+    async fn record_spool_removed(
+        &self,
+        task_id: i64,
+        spool_path: &str,
+    ) -> Result<(), OutboundError> {
+        let client = timeout(DATABASE_TIMEOUT, self.pool.get())
+            .await
+            .map_err(|_| OutboundError::Unavailable)?
+            .map_err(|error| OutboundError::Database(error.to_string()))?;
+        let updated = timeout(
+            DATABASE_TIMEOUT,
+            client.execute(
+                "UPDATE lmyzmail_outbound_spool
+                 SET cleanup_state='REMOVED',updated_at=clock_timestamp()
+                 WHERE task_id=$1 AND spool_path=$2 AND spool_kind='RUST'
+                   AND cleanup_state='OWNED'",
+                &[&task_id, &spool_path],
+            ),
+        )
+        .await;
+        match updated {
+            Ok(Ok(1)) => return Ok(()),
+            Ok(Ok(0)) | Ok(Err(_)) | Err(_) => {}
+            Ok(Ok(_)) => return Err(OutboundError::Unavailable),
+        }
+        drop(client);
+
+        let client = timeout(DATABASE_TIMEOUT, self.pool.get())
+            .await
+            .map_err(|_| OutboundError::Unavailable)?
+            .map_err(|error| OutboundError::Database(error.to_string()))?;
+        let row = timeout(
+            DATABASE_TIMEOUT,
+            client.query_opt(
+                "SELECT cleanup_state FROM lmyzmail_outbound_spool
+                 WHERE task_id=$1 AND spool_path=$2 AND spool_kind='RUST'",
+                &[&task_id, &spool_path],
+            ),
+        )
+        .await
+        .map_err(|_| OutboundError::Unavailable)?
+        .map_err(db_error)?;
+        match row.as_ref().map(|row| row.get::<_, &str>(0)) {
+            Some("REMOVED") => Ok(()),
+            _ => Err(OutboundError::Unavailable),
+        }
+    }
+
+    async fn reconcile_spool_cleanup(
+        &self,
+        cancellation: &CancellationToken,
+    ) -> Result<(), OutboundError> {
+        let client = cancellable_db_call(cancellation, self.pool.get(), |error| {
+            OutboundError::Database(error.to_string())
+        })
+        .await?;
+        let rows = cancellable_db_call(
+            cancellation,
+            client.query(
+                "SELECT spool.task_id,spool.spool_path,spool.cleanup_after_publish,
+                        queue.status,queue.sent_file_name,queue.sender_address,
+                        queue.sent_subdirectory
+                 FROM lmyzmail_outbound_spool spool
+                 JOIN outbound_mail_queue queue ON queue.id=spool.task_id
+                 WHERE spool.spool_kind='RUST' AND spool.cleanup_state='OWNED'
+                   AND (spool.cleanup_after_publish
+                        OR queue.status IN ('SENT','PARTIAL_SUCCESS','FAILED','CANCELLED'))
+                 ORDER BY spool.task_id LIMIT $1",
+                &[&RECONCILE_BATCH_SIZE],
+            ),
+            db_error,
+        )
+        .await?;
+        for row in rows {
+            let task_id: i64 = row.get(0);
+            let spool_path: String = row.get(1);
+            let cleanup_after_publish: bool = row.get(2);
+            let status: &str = row.get(3);
+            let sent_file_name: String = row
+                .get::<_, Option<String>>(4)
+                .filter(|value| !value.is_empty())
+                .ok_or(OutboundError::Unavailable)?;
+            let sender_address: String = row.get(5);
+            let sent_subdirectory: i32 = row
+                .get::<_, Option<i32>>(6)
+                .filter(|value| *value > 0)
+                .ok_or(OutboundError::Unavailable)?;
+            let terminal = matches!(status, "SENT" | "PARTIAL_SUCCESS" | "FAILED" | "CANCELLED");
+            if cleanup_after_publish && !terminal {
+                let published = tokio::select! {
+                    _ = cancellation.cancelled() => return Err(OutboundError::Unavailable),
+                    result = self.queue.is_complete_task(task_id, &sent_file_name) => result,
+                }
+                .map_err(|_| OutboundError::Unavailable)?;
+                if !published {
+                    continue;
+                }
+            }
+            let builder = self.message_builder.clone();
+            let record = OutboundSpoolRecord {
+                task_id,
+                spool_path: spool_path.clone(),
+                kind: OutboundSpoolKind::Rust,
+                state: OutboundSpoolState::Owned,
+                sender_address,
+                sent_file_name,
+                sent_subdirectory,
+            };
+            self.run_dsn_blocking(cancellation, move |cancelled| {
+                builder.cleanup_owned_spool(&record, cancelled)
+            })
+            .await?;
+            self.record_spool_removed(task_id, &spool_path).await?;
+        }
+
+        Ok(())
     }
 
     pub async fn run_reconciler(&self, cancellation: CancellationToken) {
@@ -1471,6 +1657,12 @@ impl OutboundService {
             tokio::select! {
                 _ = cancellation.cancelled() => break,
                 _ = ticker.tick() => {
+                    if let Err(error) = self.reconcile_spool_cleanup(&cancellation).await {
+                        if cancellation.is_cancelled() {
+                            break;
+                        }
+                        eprintln!("lmyzmail outbound spool cleanup reconciliation failed: {error}");
+                    }
                     match self.reconcile_batch(after_id, &cancellation).await {
                         Ok((next_id, count)) => {
                             after_id = if count < RECONCILE_BATCH_SIZE as usize {
@@ -1629,11 +1821,10 @@ impl OutboundService {
             last_error: row.last_error,
             status: "PENDING".into(),
         };
-        self.queue
-            .publish_bounded(&task, &statuses, self.max_pending_tasks as usize)
-            .await
-            .map_err(|_| OutboundError::Unavailable)?;
-        self.cleanup_published(materialized).await;
+        self.publish_with_reconciliation(&task, &statuses, cancellation)
+            .await?;
+        self.cleanup_published(row.id, task.sender_address.clone(), materialized)
+            .await;
         Ok(())
     }
 
@@ -2051,6 +2242,25 @@ where
                 Err(OutboundError::Unavailable)
             }
         }
+    }
+}
+
+async fn cancellable_db_call<T, E, F, M>(
+    cancellation: &CancellationToken,
+    future: F,
+    map_error: M,
+) -> Result<T, OutboundError>
+where
+    F: Future<Output = Result<T, E>>,
+    M: FnOnce(E) -> OutboundError,
+{
+    tokio::select! {
+        _ = cancellation.cancelled() => Err(OutboundError::Unavailable),
+        result = timeout(DATABASE_TIMEOUT, future) => match result {
+            Ok(Ok(value)) => Ok(value),
+            Ok(Err(error)) => Err(map_error(error)),
+            Err(_) => Err(OutboundError::Unavailable),
+        },
     }
 }
 
@@ -2759,5 +2969,26 @@ mod tests {
             7
         );
         assert!(finished.load(Ordering::Acquire));
+    }
+
+    #[tokio::test]
+    async fn database_call_observes_cancellation_without_waiting_for_deadline() {
+        let cancellation = CancellationToken::new();
+        let task_cancellation = cancellation.clone();
+        let task = tokio::spawn(async move {
+            cancellable_db_call(
+                &task_cancellation,
+                std::future::pending::<Result<(), ()>>(),
+                |_| OutboundError::Unavailable,
+            )
+            .await
+        });
+        tokio::task::yield_now().await;
+        cancellation.cancel();
+        let result = timeout(Duration::from_secs(1), task)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(matches!(result, Err(OutboundError::Unavailable)));
     }
 }

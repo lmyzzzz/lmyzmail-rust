@@ -40,10 +40,11 @@ Maildir, certificate, and port state and can produce a repeatable Java golden.
 
 On startup, `lmyzmail` acquires a PostgreSQL advisory transaction lock and
 installs `001_outbound_delivery_ledger.sql` and
-`002_outbound_spool_ownership.sql` and `003_outbound_dsn.sql`. These migrations are additive and
-idempotent: they create only `lmyzmail_*` tables and indexes and do not alter
-the frozen `outbound_mail_queue` columns or existing data. Startup does not
-open protocol listeners until schema initialization succeeds.
+`002_outbound_spool_ownership.sql`, `003_outbound_dsn.sql`, and
+`004_outbound_spool_cleanup.sql`. These migrations are additive and idempotent:
+they create or extend only `lmyzmail_*` tables and indexes and do not alter the
+frozen `outbound_mail_queue` columns or existing data. Startup does not open
+protocol listeners until schema initialization succeeds.
 
 For rollback, stop `lmyzmail` and let its bounded shutdown finish before
 starting the frozen Java service. Keep the additive tables in place; Java
@@ -89,5 +90,11 @@ bounded blocking-work permit. The outbound stack now includes fenced legacy
   replayed to the legacy Redis keys; active `PROCESSING` rows remain fenced.
   Cancellation and storage soft deadlines signal cooperative blocking work and
   join it before worker shutdown, leaving no detached Maildir mutation.
+  Redis publication response loss is checked against the complete legacy task,
+  domain, sent-file, and queue references before one bounded idempotent retry.
+  Every Rust spool has a PostgreSQL ownership row; inline spools carry a durable
+  post-publication cleanup flag and restart recovery advances them to `REMOVED`
+  only after Redis publication is proven. HTTP request deadlines propagate
+  cancellation through admission and join cooperative work before returning.
   This milestone closes outbound delivery takeover, but the repository is not
   yet a complete production replacement for every frozen Java surface.

@@ -34,6 +34,8 @@ const OUTBOUND_ID_ALLOCATION_LOCK: i64 = 0x4c4d_595a_4f49_4441;
 const DELIVERY_LEDGER_SCHEMA: &str = include_str!("../migrations/001_outbound_delivery_ledger.sql");
 const OUTBOUND_SPOOL_SCHEMA: &str = include_str!("../migrations/002_outbound_spool_ownership.sql");
 const OUTBOUND_DSN_SCHEMA: &str = include_str!("../migrations/003_outbound_dsn.sql");
+const OUTBOUND_SPOOL_CLEANUP_SCHEMA: &str =
+    include_str!("../migrations/004_outbound_spool_cleanup.sql");
 
 #[derive(Deserialize)]
 #[serde(untagged)]
@@ -581,6 +583,9 @@ impl PostgresDeliveryState {
             transaction.batch_execute(DELIVERY_LEDGER_SCHEMA).await?;
             transaction.batch_execute(OUTBOUND_SPOOL_SCHEMA).await?;
             transaction.batch_execute(OUTBOUND_DSN_SCHEMA).await?;
+            transaction
+                .batch_execute(OUTBOUND_SPOOL_CLEANUP_SCHEMA)
+                .await?;
             transaction.commit().await?;
             Ok(())
         })
@@ -3924,6 +3929,7 @@ mod tests {
             config::{Properties, RuntimeConfig},
             database,
             outbound::{DsnAdmission, OutboundService},
+            outbound_queue::LegacyOutboundQueue,
             redis as redis_config,
         };
         use tokio_util::sync::CancellationToken;
@@ -4596,7 +4602,7 @@ mod tests {
             let rotated_body = b"different bytes after a signing-key rotation\r\n";
             let rotated_digest: [u8; 32] = Sha256::digest(rotated_body).into();
             let restarted_service =
-                OutboundService::from_config(&runtime, pool.clone(), redis_pool).unwrap();
+                OutboundService::from_config(&runtime, pool.clone(), redis_pool.clone()).unwrap();
             let after_restart = restarted_service
                 .checkpoint_dsn_material(
                     work.original_task_id,
@@ -4656,6 +4662,14 @@ mod tests {
                 )
                 .await
                 .unwrap();
+            let spool = client
+                .query_one(
+                    "SELECT cleanup_state,cleanup_after_publish,spool_path
+                     FROM lmyzmail_outbound_spool WHERE task_id=$1",
+                    &[&dsn_task_id],
+                )
+                .await
+                .unwrap();
             assert_eq!(
                 checkpoint.get::<_, &str>(0),
                 "ADMITTED",
@@ -4667,6 +4681,92 @@ mod tests {
             assert_eq!(checkpoint.get::<_, Option<DateTime<Utc>>>(4), None);
             assert_eq!(queue_count, 1);
             assert_eq!(index_count, 1);
+            assert_eq!(spool.get::<_, &str>(0), "REMOVED");
+            assert!(spool.get::<_, bool>(1));
+            assert!(!Path::new(spool.get::<_, &str>(2)).exists());
+
+            let spool_path = PathBuf::from(spool.get::<_, &str>(2));
+            let sent_subdirectory = client
+                .query_one(
+                    "SELECT sent_subdirectory FROM outbound_mail_queue WHERE id=$1",
+                    &[&dsn_task_id],
+                )
+                .await
+                .unwrap()
+                .get::<_, i32>(0);
+            let sent_path = storage
+                .join("maildir/qa@example.test/sent")
+                .join(sent_subdirectory.to_string())
+                .join(&admission.sent_file_name);
+            fs::copy(&sent_path, &spool_path).unwrap();
+            client
+                .execute(
+                    "UPDATE lmyzmail_outbound_spool
+                     SET cleanup_state='OWNED' WHERE task_id=$1",
+                    &[&dsn_task_id],
+                )
+                .await
+                .unwrap();
+            drop(client);
+
+            let mut redis_connection = redis_pool.get().await.unwrap();
+            deadpool_redis::redis::cmd("FLUSHDB")
+                .query_async::<()>(&mut redis_connection)
+                .await
+                .unwrap();
+            drop(redis_connection);
+
+            let reconciliation_cancellation = CancellationToken::new();
+            let reconciliation_service = restarted_service.clone();
+            let task_cancellation = reconciliation_cancellation.clone();
+            let reconciliation_task = tokio::spawn(async move {
+                reconciliation_service
+                    .run_reconciler(task_cancellation)
+                    .await;
+            });
+            let redis_queue = LegacyOutboundQueue::new(redis_pool);
+            let publication_deadline = Instant::now() + Duration::from_secs(3);
+            loop {
+                if redis_queue
+                    .is_complete_task(dsn_task_id, &admission.sent_file_name)
+                    .await
+                    .unwrap()
+                {
+                    break;
+                }
+                assert!(
+                    Instant::now() < publication_deadline,
+                    "durable task was not republished"
+                );
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+            let deadline = Instant::now() + Duration::from_secs(8);
+            loop {
+                let cleanup_state = pool
+                    .get()
+                    .await
+                    .unwrap()
+                    .query_one(
+                        "SELECT cleanup_state FROM lmyzmail_outbound_spool WHERE task_id=$1",
+                        &[&dsn_task_id],
+                    )
+                    .await
+                    .unwrap()
+                    .get::<_, String>(0);
+                if cleanup_state == "REMOVED" && !spool_path.exists() {
+                    break;
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "durable inline-spool cleanup was not recovered"
+                );
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+            reconciliation_cancellation.cancel();
+            tokio::time::timeout(Duration::from_secs(1), reconciliation_task)
+                .await
+                .unwrap()
+                .unwrap();
         }
     }
 }

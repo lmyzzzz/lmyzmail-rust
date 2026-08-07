@@ -24,7 +24,10 @@ use openssl::pkey::PKey;
 use rustls::pki_types::{PrivateKeyDer, PrivatePkcs8KeyDer};
 use sha2::{Digest, Sha256 as Sha256Digest};
 
-use crate::config::RuntimeConfig;
+use crate::{
+    config::RuntimeConfig, outbound_coordinator::validate_and_maybe_remove_spool,
+    outbound_delivery::OutboundSpoolRecord,
+};
 
 const SMALL_MESSAGE_THRESHOLD: u64 = 10 * 1024;
 const MAX_DKIM_KEY_BYTES: u64 = 1024 * 1024;
@@ -293,6 +296,22 @@ impl OutboundMessageBuilder {
             remove_regular_file(&message.spool_path)?;
         }
         Ok(())
+    }
+
+    pub(crate) fn cleanup_owned_spool(
+        &self,
+        record: &OutboundSpoolRecord,
+        cancelled: &AtomicBool,
+    ) -> Result<(), MessageBuildError> {
+        check_cancelled(cancelled)?;
+        validate_and_maybe_remove_spool(
+            record,
+            &self.spool_dir,
+            &self.maildir,
+            self.max_email_size,
+            true,
+        )?;
+        check_cancelled(cancelled)
     }
 
     pub(crate) fn prepare_system_bytes(
@@ -1999,5 +2018,31 @@ Delivery failed.\r\n"
         builder.cleanup_small_spool(&inline).unwrap();
         assert!(!inline.spool_path.exists());
         assert!(inline.sent_path.is_file());
+        let inline_record = crate::outbound_delivery::OutboundSpoolRecord {
+            task_id: 45,
+            spool_path: inline.spool_path.to_string_lossy().into_owned(),
+            kind: crate::outbound_delivery::OutboundSpoolKind::Rust,
+            state: crate::outbound_delivery::OutboundSpoolState::Owned,
+            sender_address: "qa@example.test".into(),
+            sent_file_name: inline.sent_file_name.clone(),
+            sent_subdirectory: inline.sent_subdirectory,
+        };
+        builder
+            .cleanup_owned_spool(&inline_record, &cancelled)
+            .unwrap();
+
+        let conflicting_record = crate::outbound_delivery::OutboundSpoolRecord {
+            spool_path: spooled.spool_path.to_string_lossy().into_owned(),
+            ..inline_record
+        };
+        let error = builder
+            .cleanup_owned_spool(&conflicting_record, &cancelled)
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            MessageBuildError::Io(ref error)
+                if error.kind() == io::ErrorKind::PermissionDenied
+        ));
+        assert!(spooled.spool_path.is_file());
     }
 }
