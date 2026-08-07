@@ -33,10 +33,11 @@ recipient ledger records the SMTP pre-commit barrier and exact per-recipient
 outcome without changing legacy columns. One caller-generated opaque attempt
 token fences the Redis lease, legacy PostgreSQL row, and sidecar generation;
 unknown mutation responses are reconciled before either store is advanced.
-An admission `COMMIT` response loss is read back on that same ordered
-connection and classified from the exact queue, `email_index`, and spool
-identities. Anything other than a complete match or complete absence remains
-unknown and preserves all materialized files.
+After an admission `COMMIT` response loss, a second transaction acquires the
+same global advisory lock, then uses a fresh Read Committed snapshot to classify
+the exact queue, `email_index`, spool, and DSN identities. Anything other than
+a complete match or complete absence remains unknown and preserves all
+materialized files.
 Caller-token claim results remain for the matching lease lifetime, while final
 settlement and migration receipts remain for 300 seconds. Every receipt family
 has a 4096-entry expiry index maintained from Redis server time; admission
@@ -55,6 +56,12 @@ projected PostgreSQL result permits the fenced Redis claim to be acknowledged
 or scheduled for retry. A bounded keepalive renews both stores during delivery,
 stops database heartbeats after projection, and is fully quiesced before the
 final Redis mutation.
+
+MIME, DKIM, recovery, rollback, and small-spool cleanup use cooperative
+cancellation. Their storage deadline is soft once a blocking filesystem job has
+started: cancellation is signalled immediately, but the task and its bounded
+permit are joined before the owning future returns. The worker therefore cannot
+detach a late Maildir mutation during shutdown.
 
 Large-message temporary-file ownership is recorded in the additive
 `lmyzmail_outbound_spool` table in the same PostgreSQL database. Queue

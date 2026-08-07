@@ -84,7 +84,10 @@ The Rust producer now applies the following bounded order:
    decimal-string comparison, then increment it without converting the 64-bit
    value through a Lua floating-point number.
 3. Build and optionally DKIM-sign MIME in a four-slot blocking pool with a
-   60-second deadline and cancellation checks. The frozen mode boundary uses
+   60-second soft deadline and cancellation checks. Cancellation closes
+   admission but the cooperative blocking job is always joined before the
+   caller returns, so no later filesystem mutation can outlive shutdown. The
+   frozen mode boundary uses
    Java's estimate of 2048 header bytes plus UTF-8 text/HTML bytes plus each
    attachment's estimated Base64 bytes and 200-byte MIME overhead. Estimates
    strictly below 10 KiB use Redis Base64; the 10 KiB boundary and larger retain

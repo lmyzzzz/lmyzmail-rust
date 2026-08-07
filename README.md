@@ -87,5 +87,7 @@ bounded blocking-work permit. The outbound stack now includes fenced legacy
   queue commit while its SHA-256 remains durable. On restart, committed but
   unpublished DSNs are reconstructed from Sent Maildir/spool and idempotently
   replayed to the legacy Redis keys; active `PROCESSING` rows remain fenced.
+  Cancellation and storage soft deadlines signal cooperative blocking work and
+  join it before worker shutdown, leaving no detached Maildir mutation.
   This milestone closes outbound delivery takeover, but the repository is not
   yet a complete production replacement for every frozen Java surface.

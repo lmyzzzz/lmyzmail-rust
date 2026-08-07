@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::{
     sync::Semaphore,
-    task::spawn_blocking,
+    task::{JoinHandle, spawn_blocking},
     time::{Instant, MissedTickBehavior, interval, timeout, timeout_at},
 };
 use tokio_util::sync::CancellationToken;
@@ -37,7 +37,6 @@ use crate::{
 
 const DATABASE_TIMEOUT: Duration = Duration::from_secs(8);
 const STORAGE_TIMEOUT: Duration = Duration::from_secs(60);
-const STORAGE_CANCEL_GRACE: Duration = Duration::from_secs(5);
 const CLEANUP_TIMEOUT: Duration = Duration::from_secs(5);
 const OUTBOUND_BLOCKING_TASKS: usize = 4;
 const RECONCILE_INTERVAL: Duration = Duration::from_secs(5);
@@ -819,35 +818,18 @@ impl OutboundService {
                     .map_err(map_message_build_error)?;
             let builder = self.message_builder.clone();
             let sender_for_recovery = sender.clone();
-            let cancelled = Arc::new(AtomicBool::new(false));
-            let task_cancelled = Arc::clone(&cancelled);
-            let mut recovery = spawn_blocking(move || {
-                builder.recover(
-                    task_id,
-                    &sender_for_recovery,
-                    &sent_file_name,
-                    sent_subdirectory,
-                    storage_mode,
-                    &task_cancelled,
-                )
-            });
-            let materialized = tokio::select! {
-                _ = cancellation.cancelled() => {
-                    cancelled.store(true, Ordering::Release);
-                    let _ = timeout(STORAGE_CANCEL_GRACE, &mut recovery).await;
-                    return Err(OutboundError::Unavailable);
-                }
-                result = timeout(STORAGE_TIMEOUT, &mut recovery) => match result {
-                    Ok(result) => result
-                        .map_err(|_| OutboundError::Unavailable)?
-                        .map_err(map_message_build_error)?,
-                    Err(_) => {
-                        cancelled.store(true, Ordering::Release);
-                        let _ = timeout(STORAGE_CANCEL_GRACE, &mut recovery).await;
-                        return Err(OutboundError::Unavailable);
-                    }
-                }
-            };
+            let materialized = self
+                .run_dsn_blocking(cancellation, move |cancelled| {
+                    builder.recover(
+                        task_id,
+                        &sender_for_recovery,
+                        &sent_file_name,
+                        sent_subdirectory,
+                        storage_mode,
+                        cancelled,
+                    )
+                })
+                .await?;
             let persisted = if let Some(encoded) = materialized.signed_content_base64.as_deref() {
                 BASE64_STANDARD
                     .decode(encoded)
@@ -904,37 +886,13 @@ impl OutboundService {
         T: Send + 'static,
         F: FnOnce(&AtomicBool) -> Result<T, MessageBuildError> + Send + 'static,
     {
-        let permit = tokio::select! {
-            _ = cancellation.cancelled() => return Err(OutboundError::Unavailable),
-            permit = timeout(
-                STORAGE_TIMEOUT,
-                self.blocking_permits.clone().acquire_owned(),
-            ) => permit
-                .map_err(|_| OutboundError::Unavailable)?
-                .map_err(|_| OutboundError::Unavailable)?,
-        };
-        let cancelled = Arc::new(AtomicBool::new(false));
-        let task_cancelled = Arc::clone(&cancelled);
-        let mut task = spawn_blocking(move || {
-            let _permit = permit;
-            build(&task_cancelled)
-        });
-        tokio::select! {
-            _ = cancellation.cancelled() => {
-                cancelled.store(true, Ordering::Release);
-                let _ = timeout(STORAGE_CANCEL_GRACE, task).await;
-                Err(OutboundError::Unavailable)
-            }
-            result = timeout(STORAGE_TIMEOUT, &mut task) => match result {
-                Ok(Ok(result)) => result.map_err(map_message_build_error),
-                Ok(Err(_)) => Err(OutboundError::Unavailable),
-                Err(_) => {
-                    cancelled.store(true, Ordering::Release);
-                    let _ = timeout(STORAGE_CANCEL_GRACE, task).await;
-                    Err(OutboundError::Unavailable)
-                }
-            }
-        }
+        run_bounded_message_task(
+            Arc::clone(&self.blocking_permits),
+            cancellation,
+            STORAGE_TIMEOUT,
+            build,
+        )
+        .await
     }
 
     pub(crate) async fn checkpoint_dsn_material(
@@ -1020,7 +978,10 @@ impl OutboundService {
             Ok(Err(_)) => Err(OutboundError::Unavailable),
             Err(_) => {
                 cancelled.store(true, Ordering::Release);
-                let _ = timeout(STORAGE_CANCEL_GRACE, task).await;
+                eprintln!(
+                    "lmyzmail outbound materialization exceeded its soft deadline; waiting for cooperative cancellation"
+                );
+                let _ = task.await;
                 Err(OutboundError::Unavailable)
             }
         }
@@ -1459,16 +1420,18 @@ impl OutboundService {
             return;
         };
         let builder = self.message_builder.clone();
-        match timeout(
+        let task = spawn_blocking(move || {
+            let _permit = permit;
+            builder.rollback_unpublished(&materialized)
+        });
+        match await_blocking_io(
+            task,
             STORAGE_TIMEOUT,
-            spawn_blocking(move || {
-                let _permit = permit;
-                builder.rollback_unpublished(&materialized)
-            }),
+            "lmyzmail outbound rollback exceeded its soft deadline; waiting for filesystem ownership recovery",
         )
         .await
         {
-            Ok(Ok(Ok(()))) => {}
+            Ok(Ok(())) => {}
             _ => eprintln!("lmyzmail outbound unpublished-message rollback failed"),
         }
     }
@@ -1484,16 +1447,18 @@ impl OutboundService {
             return;
         };
         let builder = self.message_builder.clone();
-        match timeout(
+        let task = spawn_blocking(move || {
+            let _permit = permit;
+            builder.cleanup_small_spool(&materialized)
+        });
+        match await_blocking_io(
+            task,
             CLEANUP_TIMEOUT,
-            spawn_blocking(move || {
-                let _permit = permit;
-                builder.cleanup_small_spool(&materialized)
-            }),
+            "lmyzmail outbound published-spool cleanup exceeded its soft deadline; waiting for the filesystem operation",
         )
         .await
         {
-            Ok(Ok(Ok(()))) => {}
+            Ok(Ok(())) => {}
             _ => eprintln!("lmyzmail outbound small-message spool cleanup failed"),
         }
     }
@@ -1681,43 +1646,20 @@ impl OutboundService {
         storage_mode: MessageStorageMode,
         cancellation: &CancellationToken,
     ) -> Result<MaterializedMessage, OutboundError> {
-        let permit = tokio::select! {
-            _ = cancellation.cancelled() => return Err(OutboundError::Unavailable),
-            permit = timeout(STORAGE_TIMEOUT, self.blocking_permits.clone().acquire_owned()) => {
-                permit
-                    .map_err(|_| OutboundError::Unavailable)?
-                    .map_err(|_| OutboundError::Unavailable)?
-            }
-        };
         let builder = self.message_builder.clone();
         let sender = sender.to_owned();
         let sent_file_name = sent_file_name.to_owned();
-        let cancelled = Arc::new(AtomicBool::new(false));
-        let task_cancelled = Arc::clone(&cancelled);
-        let mut task = spawn_blocking(move || {
-            let _permit = permit;
+        self.run_dsn_blocking(cancellation, move |cancelled| {
             builder.recover(
                 task_id,
                 &sender,
                 &sent_file_name,
                 sent_subdirectory,
                 storage_mode,
-                &task_cancelled,
+                cancelled,
             )
-        });
-        tokio::select! {
-            result = timeout(STORAGE_TIMEOUT, &mut task) => {
-                result
-                    .map_err(|_| OutboundError::Unavailable)?
-                    .map_err(|_| OutboundError::Unavailable)?
-                    .map_err(map_message_build_error)
-            }
-            _ = cancellation.cancelled() => {
-                cancelled.store(true, Ordering::Release);
-                let _ = timeout(STORAGE_CANCEL_GRACE, task).await;
-                Err(OutboundError::Unavailable)
-            }
-        }
+        })
+        .await
     }
 
     pub async fn api_status_by_id(
@@ -2063,6 +2005,67 @@ fn pending_domain_statuses_for_recipients(
         return Err(OutboundError::InvalidInput("to_required"));
     }
     Ok(statuses)
+}
+
+async fn run_bounded_message_task<T, F>(
+    blocking_permits: Arc<Semaphore>,
+    cancellation: &CancellationToken,
+    soft_deadline: Duration,
+    build: F,
+) -> Result<T, OutboundError>
+where
+    T: Send + 'static,
+    F: FnOnce(&AtomicBool) -> Result<T, MessageBuildError> + Send + 'static,
+{
+    let permit = tokio::select! {
+        _ = cancellation.cancelled() => return Err(OutboundError::Unavailable),
+        permit = timeout(soft_deadline, blocking_permits.acquire_owned()) => permit
+            .map_err(|_| OutboundError::Unavailable)?
+            .map_err(|_| OutboundError::Unavailable)?,
+    };
+    let cancelled = Arc::new(AtomicBool::new(false));
+    let task_cancelled = Arc::clone(&cancelled);
+    let mut task = spawn_blocking(move || {
+        let _permit = permit;
+        build(&task_cancelled)
+    });
+    tokio::select! {
+        _ = cancellation.cancelled() => {
+            cancelled.store(true, Ordering::Release);
+            if task.await.is_err() {
+                eprintln!("lmyzmail outbound cancelled blocking task panicked");
+            }
+            Err(OutboundError::Unavailable)
+        }
+        result = timeout(soft_deadline, &mut task) => match result {
+            Ok(Ok(result)) => result.map_err(map_message_build_error),
+            Ok(Err(_)) => Err(OutboundError::Unavailable),
+            Err(_) => {
+                cancelled.store(true, Ordering::Release);
+                eprintln!(
+                    "lmyzmail outbound blocking task exceeded its soft deadline; waiting for cooperative cancellation"
+                );
+                if task.await.is_err() {
+                    eprintln!("lmyzmail outbound timed-out blocking task panicked");
+                }
+                Err(OutboundError::Unavailable)
+            }
+        }
+    }
+}
+
+async fn await_blocking_io<T>(
+    mut task: JoinHandle<T>,
+    soft_deadline: Duration,
+    deadline_message: &'static str,
+) -> Result<T, tokio::task::JoinError> {
+    match timeout(soft_deadline, &mut task).await {
+        Ok(result) => result,
+        Err(_) => {
+            eprintln!("{deadline_message}");
+            task.await
+        }
+    }
 }
 
 fn map_message_build_error(error: MessageBuildError) -> OutboundError {
@@ -2668,5 +2671,93 @@ mod tests {
         );
         assert!(!permanent_domain_error("500 syntax error"));
         assert!(permanent_domain_error("554 5.7.1 policy rejected"));
+    }
+
+    #[tokio::test]
+    async fn cancelled_blocking_task_is_joined_and_releases_its_permit() {
+        let permits = Arc::new(Semaphore::new(1));
+        let cancellation = CancellationToken::new();
+        let active = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let finished = Arc::new(AtomicBool::new(false));
+        let task_permits = Arc::clone(&permits);
+        let task_cancellation = cancellation.clone();
+        let task_active = Arc::clone(&active);
+        let task_finished = Arc::clone(&finished);
+        let runner = tokio::spawn(async move {
+            run_bounded_message_task(
+                task_permits,
+                &task_cancellation,
+                Duration::from_secs(1),
+                move |cancelled| {
+                    task_active.fetch_add(1, Ordering::AcqRel);
+                    while !cancelled.load(Ordering::Acquire) {
+                        std::thread::sleep(Duration::from_millis(1));
+                    }
+                    std::thread::sleep(Duration::from_millis(20));
+                    task_active.fetch_sub(1, Ordering::AcqRel);
+                    task_finished.store(true, Ordering::Release);
+                    Err::<(), _>(MessageBuildError::Cancelled)
+                },
+            )
+            .await
+        });
+        timeout(Duration::from_secs(1), async {
+            while active.load(Ordering::Acquire) == 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        cancellation.cancel();
+        let result = timeout(Duration::from_secs(1), runner)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(matches!(result, Err(OutboundError::Unavailable)));
+        assert!(finished.load(Ordering::Acquire));
+        assert_eq!(active.load(Ordering::Acquire), 0);
+        assert_eq!(permits.available_permits(), 1);
+    }
+
+    #[tokio::test]
+    async fn timed_out_blocking_task_is_cancelled_and_joined() {
+        let permits = Arc::new(Semaphore::new(1));
+        let active = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let task_active = Arc::clone(&active);
+        let result = run_bounded_message_task(
+            Arc::clone(&permits),
+            &CancellationToken::new(),
+            Duration::from_millis(5),
+            move |cancelled| {
+                task_active.fetch_add(1, Ordering::AcqRel);
+                while !cancelled.load(Ordering::Acquire) {
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+                task_active.fetch_sub(1, Ordering::AcqRel);
+                Err::<(), _>(MessageBuildError::Cancelled)
+            },
+        )
+        .await;
+        assert!(matches!(result, Err(OutboundError::Unavailable)));
+        assert_eq!(active.load(Ordering::Acquire), 0);
+        assert_eq!(permits.available_permits(), 1);
+    }
+
+    #[tokio::test]
+    async fn filesystem_task_is_joined_after_its_soft_deadline() {
+        let finished = Arc::new(AtomicBool::new(false));
+        let task_finished = Arc::clone(&finished);
+        let task = spawn_blocking(move || {
+            std::thread::sleep(Duration::from_millis(30));
+            task_finished.store(true, Ordering::Release);
+            7
+        });
+        assert_eq!(
+            await_blocking_io(task, Duration::from_millis(2), "test soft deadline")
+                .await
+                .unwrap(),
+            7
+        );
+        assert!(finished.load(Ordering::Acquire));
     }
 }

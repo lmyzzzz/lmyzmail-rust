@@ -11,7 +11,7 @@ use idna::domain_to_ascii_strict;
 use mail_parser::MessageParser;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tokio::time::{Instant, timeout, timeout_at};
+use tokio::time::{Instant, timeout_at};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -23,7 +23,6 @@ const MAX_DSN_RECIPIENTS: usize = 1_000;
 const MAX_DSN_BYTES: usize = 2 * 1024 * 1024;
 const MAX_DIAGNOSTIC_BYTES: usize = 700;
 const DSN_WORK_BUDGET: std::time::Duration = std::time::Duration::from_secs(90);
-const DSN_CANCEL_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(crate) struct DsnRecipientSnapshot {
@@ -203,7 +202,7 @@ impl DsnDispatcher {
             let result = tokio::select! {
                 _ = cancellation.cancelled() => {
                     admission_cancellation.cancel();
-                    let _ = timeout(DSN_CANCEL_GRACE, &mut admission).await;
+                    let _ = admission.await;
                     return Err(DsnDispatchError::Cancelled);
                 }
                 result = timeout_at(deadline, &mut admission) => {
@@ -211,7 +210,7 @@ impl DsnDispatcher {
                         Ok(result) => result,
                         Err(_) => {
                             admission_cancellation.cancel();
-                            let _ = timeout(DSN_CANCEL_GRACE, &mut admission).await;
+                            let _ = admission.await;
                             return Err(DsnDispatchError::Admission(OutboundError::Unavailable));
                         }
                     }
