@@ -34,6 +34,8 @@ use crate::{
 const DEFAULT_MAX_REQUEST_BYTES: usize = 16 * 1024;
 const DEFAULT_MAX_CONNECTIONS: usize = 256;
 const HTTP_FDS_PER_CONNECTION: u32 = 2;
+const ACCEPT_RETRY_MIN_DELAY: Duration = Duration::from_millis(25);
+const ACCEPT_RETRY_MAX_DELAY: Duration = Duration::from_secs(1);
 const SHUTDOWN_DEADLINE: Duration = Duration::from_secs(20);
 const CONTACT_RESPONSE_CONCURRENCY: usize = 4;
 const JSON_STREAM_CHUNK_BYTES: usize = 16 * 1024;
@@ -107,6 +109,34 @@ struct ConnectionContext<'a> {
     cancellation: &'a CancellationToken,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct AcceptBackoff {
+    next_delay: Duration,
+}
+
+impl Default for AcceptBackoff {
+    fn default() -> Self {
+        Self {
+            next_delay: ACCEPT_RETRY_MIN_DELAY,
+        }
+    }
+}
+
+impl AcceptBackoff {
+    fn next_delay(&mut self) -> Duration {
+        let delay = self.next_delay;
+        self.next_delay = self
+            .next_delay
+            .saturating_mul(2)
+            .min(ACCEPT_RETRY_MAX_DELAY);
+        delay
+    }
+
+    fn reset(&mut self) {
+        self.next_delay = ACCEPT_RETRY_MIN_DELAY;
+    }
+}
+
 impl ServerLimits {
     fn from_config(config: &RuntimeConfig) -> Self {
         Self {
@@ -151,13 +181,35 @@ pub async fn serve_http(
         limits.max_connections * HTTP_FDS_PER_CONNECTION as usize,
     ));
     let mut tasks = JoinSet::new();
+    let mut accept_backoff = AcceptBackoff::default();
+    let mut terminal_accept_error = None;
 
     loop {
         reap_finished(&mut tasks);
         tokio::select! {
             _ = cancellation.cancelled() => break,
             accepted = listener.accept() => {
-                let (stream, peer) = accepted?;
+                let (stream, peer) = match accepted {
+                    Ok(accepted) => {
+                        accept_backoff.reset();
+                        accepted
+                    }
+                    Err(error) if is_retryable_accept_error(&error) => {
+                        let delay = accept_backoff.next_delay();
+                        eprintln!(
+                            "lmyzmail HTTP accept failed; retrying in {} ms: {error}",
+                            delay.as_millis(),
+                        );
+                        if !wait_for_accept_retry(&cancellation, delay).await {
+                            break;
+                        }
+                        continue;
+                    }
+                    Err(error) => {
+                        terminal_accept_error = Some(error);
+                        break;
+                    }
+                };
                 let Some(permit) = connection_fd_permits
                     .clone()
                     .try_acquire_many_owned(HTTP_FDS_PER_CONNECTION)
@@ -232,7 +284,58 @@ pub async fn serve_http(
         reconciliation_task.abort();
         let _ = reconciliation_task.await;
     }
-    Ok(())
+    match terminal_accept_error {
+        Some(error) => Err(error),
+        None => Ok(()),
+    }
+}
+
+fn is_retryable_accept_error(error: &io::Error) -> bool {
+    if matches!(
+        error.kind(),
+        io::ErrorKind::Interrupted
+            | io::ErrorKind::WouldBlock
+            | io::ErrorKind::ConnectionAborted
+            | io::ErrorKind::ConnectionReset
+            | io::ErrorKind::TimedOut
+    ) {
+        return true;
+    }
+
+    if cfg!(target_os = "linux") {
+        // Linux accept(2) can surface pending network errors in addition to
+        // process/system descriptor and socket-buffer exhaustion.
+        return matches!(
+            error.raw_os_error(),
+            Some(
+                1   // EPERM
+                    | 4   // EINTR
+                    | 11  // EAGAIN / EWOULDBLOCK
+                    | 12  // ENOMEM
+                    | 23  // ENFILE
+                    | 24  // EMFILE
+                    | 64  // ENONET
+                    | 71  // EPROTO
+                    | 92  // ENOPROTOOPT
+                    | 95  // EOPNOTSUPP
+                    | 100 // ENETDOWN
+                    | 101 // ENETUNREACH
+                    | 103 // ECONNABORTED
+                    | 105 // ENOBUFS
+                    | 112 // EHOSTDOWN
+                    | 113 // EHOSTUNREACH
+            )
+        );
+    }
+
+    false
+}
+
+async fn wait_for_accept_retry(cancellation: &CancellationToken, delay: Duration) -> bool {
+    tokio::select! {
+        _ = cancellation.cancelled() => false,
+        _ = tokio::time::sleep(delay) => true,
+    }
 }
 
 fn socket_with_shutdown_handle(stream: TcpStream) -> io::Result<(TcpStream, std::net::TcpStream)> {
@@ -2436,6 +2539,60 @@ lmyzmail.public-registration-enabled=true\n",
     fn limits() -> ServerLimits {
         let config = config();
         ServerLimits::from_config(&config)
+    }
+
+    #[test]
+    fn accept_backoff_grows_to_a_hard_cap_and_resets_after_success() {
+        let mut backoff = AcceptBackoff::default();
+        let delays = (0..8).map(|_| backoff.next_delay()).collect::<Vec<_>>();
+        assert_eq!(
+            delays,
+            vec![
+                Duration::from_millis(25),
+                Duration::from_millis(50),
+                Duration::from_millis(100),
+                Duration::from_millis(200),
+                Duration::from_millis(400),
+                Duration::from_millis(800),
+                Duration::from_secs(1),
+                Duration::from_secs(1),
+            ]
+        );
+
+        backoff.reset();
+        assert_eq!(backoff.next_delay(), ACCEPT_RETRY_MIN_DELAY);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_accept_resource_and_network_errors_are_retryable() {
+        for code in [
+            1, 4, 11, 12, 23, 24, 64, 71, 92, 95, 100, 101, 103, 105, 112, 113,
+        ] {
+            assert!(
+                is_retryable_accept_error(&io::Error::from_raw_os_error(code)),
+                "Linux errno {code} must not terminate the listener"
+            );
+        }
+        for code in [9, 14, 22, 88] {
+            assert!(
+                !is_retryable_accept_error(&io::Error::from_raw_os_error(code)),
+                "Linux errno {code} indicates a broken listener"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn accept_retry_delay_is_cancellation_aware() {
+        let cancellation = CancellationToken::new();
+        cancellation.cancel();
+        let retry = timeout(
+            Duration::from_millis(50),
+            wait_for_accept_retry(&cancellation, Duration::from_secs(60)),
+        )
+        .await
+        .expect("pre-cancelled retry wait must finish promptly");
+        assert!(!retry);
     }
 
     #[tokio::test]
