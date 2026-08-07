@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -18,9 +19,10 @@ import redis
 
 from .persistent_runtime import PersistentJavaOracleRuntime
 from .runtime import API_KEY, QA_ADDRESS, QA_PASSWORD
-from .scripted_smtp import ScriptedSmtpServer, SmtpMessageAttempt, SmtpScenario
+from .scripted_smtp import RecipientReply, ScriptedSmtpServer, SmtpMessageAttempt, SmtpScenario
 
 _REDIS_PREFIX = "botmail:mail:queue:"
+_DOMAIN_STATUS_PREFIX = _REDIS_PREFIX + "domains:"
 _SENTINEL = b"-999999999"
 _DNS_HOST = "outbound.fixture.test"
 _FAKE_IP = "93.184.216.34"
@@ -101,9 +103,7 @@ def _redis_snapshot(client: redis.Redis, ids: dict[int, str]) -> dict[str, Any]:
         for value in retry_values
         if value.decode("ascii", errors="ignore").isdigit()
     ]
-    processing_time_values = cast(
-        list[bytes], client.hkeys(_REDIS_PREFIX + "processing_time")
-    )
+    processing_time_values = cast(list[bytes], client.hkeys(_REDIS_PREFIX + "processing_time"))
     processing_time = sorted(
         _logical_id(int(value), ids)
         for value in processing_time_values
@@ -111,9 +111,7 @@ def _redis_snapshot(client: redis.Redis, ids: dict[int, str]) -> dict[str, Any]:
     )
     archive = client.llen(_REDIS_PREFIX + "archive")
     status_updates = client.llen(_REDIS_PREFIX + "status_updates")
-    sent_index_values = cast(
-        dict[bytes, bytes], client.hgetall(_REDIS_PREFIX + "sentfile_index")
-    )
+    sent_index_values = cast(dict[bytes, bytes], client.hgetall(_REDIS_PREFIX + "sentfile_index"))
     sent_index: dict[str, str] = {}
     for filename, value in sent_index_values.items():
         if not value.decode("ascii", errors="ignore").isdigit():
@@ -122,9 +120,7 @@ def _redis_snapshot(client: redis.Redis, ids: dict[int, str]) -> dict[str, Any]:
         # Java embeds wall-clock time and a process-local counter in generated
         # sent filenames. The task-to-file relation is stable and is asserted
         # through the normalized key; legacy filenames remain byte-visible.
-        normalized_key = (
-            f"generated:{logical}" if logical in ids.values() else decode(filename)
-        )
+        normalized_key = f"generated:{logical}" if logical in ids.values() else decode(filename)
         sent_index[normalized_key] = logical
     tasks: dict[str, Any] = {}
     for task_id, logical in ids.items():
@@ -150,9 +146,7 @@ def _redis_snapshot(client: redis.Redis, ids: dict[int, str]) -> dict[str, Any]:
             "file_mode": file_path is not None,
             "file_exists": Path(file_path).is_file() if file_path else False,
             "file_bytes": (
-                Path(file_path).stat().st_size
-                if file_path and Path(file_path).is_file()
-                else None
+                Path(file_path).stat().st_size if file_path and Path(file_path).is_file() else None
             ),
             "ttl_seconds": max(0, cast(int, client.ttl(task_key))),
         }
@@ -261,8 +255,12 @@ def _capture_runtime(
     if runtime.workspace is None:
         raise AssertionError("runtime workspace is unavailable")
     workspace = runtime.workspace
-    small_body = "small outbound body"
-    large_body = "L" * (12 * 1024)
+    bodies = {
+        "small": "small outbound body",
+        "below_threshold": "m" * 8_191,
+        "at_threshold": "f" * 8_192,
+        "large": "L" * (12 * 1024),
+    }
     redis_client: redis.Redis = redis.Redis(
         host="127.0.0.1",
         port=runtime.ports.redis,
@@ -300,44 +298,33 @@ def _capture_runtime(
             trust_env=False,
             timeout=5.0,
         ) as client:
-            small_response = client.post(
-                "/api/mail/send",
-                json={
-                    "from": QA_ADDRESS,
-                    "password": QA_PASSWORD,
-                    "to": [_RECIPIENT],
-                    "subject": "blackbox small outbound",
-                    "text": small_body,
-                    "async": True,
-                },
-            )
-            large_response = client.post(
-                "/api/mail/send",
-                json={
-                    "from": QA_ADDRESS,
-                    "password": QA_PASSWORD,
-                    "to": [_RECIPIENT],
-                    "subject": "blackbox large outbound",
-                    "text": large_body,
-                    "async": True,
-                },
-            )
-        small_id = int(small_response.json()["queueId"])
-        large_id = int(large_response.json()["queueId"])
-        ids = {small_id: "small", large_id: "large"}
+            responses = {
+                label: client.post(
+                    "/api/mail/send",
+                    json={
+                        "from": QA_ADDRESS,
+                        "password": QA_PASSWORD,
+                        "to": [_RECIPIENT],
+                        "subject": f"blackbox {label} outbound",
+                        "text": body,
+                        "async": True,
+                    },
+                )
+                for label, body in bodies.items()
+            }
+        ids = {int(response.json()["queueId"]): label for label, response in responses.items()}
         pre: dict[str, Any] = {
             "responses": {
-                "small": _normalize_response(small_response),
-                "large": _normalize_response(large_response),
+                label: _normalize_response(response) for label, response in responses.items()
             },
             "redis": _redis_snapshot(redis_client, ids),
             "maildir": _maildir_snapshot(runtime),
         }
         try:
             _wait_until(
-                lambda: len(server.messages()) >= 2,
-                timeout=20.0,
-                description="remote SMTP acceptance of both tasks",
+                lambda: len(server.messages()) >= len(ids),
+                timeout=30.0,
+                description="remote SMTP acceptance of all tasks",
             )
         except AssertionError as error:
             log_paths = sorted(workspace.glob("java-application-*.log"))
@@ -354,12 +341,8 @@ def _capture_runtime(
             ) from error
         _wait_until(
             lambda: len(_db_rows(runtime)) >= len(baseline_rows) + 2
-            and all(
-                row["status"] == "SENT"
-                for row in _db_rows(runtime)
-                if row["id"] in ids
-            ),
-            timeout=20.0,
+            and all(row["status"] == "SENT" for row in _db_rows(runtime) if row["id"] in ids),
+            timeout=30.0,
             description="outbound PostgreSQL archive",
         )
         _wait_until(
@@ -374,18 +357,277 @@ def _capture_runtime(
             "maildir": _maildir_snapshot(runtime),
             "temp_files": len(list((workspace / "java-tmp").rglob("*.eml"))),
         }
-        return pre, post, ids, {"small": len(small_body), "large": len(large_body)}
+        return pre, post, ids, {label: len(body) for label, body in bodies.items()}
     finally:
         redis_client.close()
 
 
+def _java_domain_is_permanent(error: str | None) -> bool:
+    if error is None:
+        return False
+    lower_error = error.lower()
+    return any(
+        marker in lower_error
+        for marker in (
+            "does not support smtputf8",
+            "requires smtputf8",
+            "smtputf8 recipient",
+            "was not sent with smtputf8",
+            "session was not initialized",
+            "user unknown",
+            "mailbox not found",
+            "recipient rejected",
+            "no such user",
+            "address rejected",
+            "relay denied",
+            "relay not permitted",
+            "550 ",
+            "551 ",
+            "552 ",
+            "553 ",
+            "554 ",
+        )
+    )
+
+
+def _java_aggregate_status(domain_statuses: dict[str, dict[str, Any]]) -> str:
+    total = len(domain_statuses)
+    if total == 0:
+        return "PENDING"
+    sent = 0
+    failed = 0
+    permanent_failed = 0
+    pending = 0
+    sending = 0
+    for status in domain_statuses.values():
+        value = status.get("status")
+        if value == "SENT":
+            sent += 1
+        elif value == "FAILED":
+            failed += 1
+            if _java_domain_is_permanent(cast(str | None, status.get("error"))):
+                permanent_failed += 1
+        elif value == "SENDING":
+            sending += 1
+        elif value == "PENDING":
+            pending += 1
+    if sent == total:
+        return "SENT"
+    if permanent_failed == total:
+        return "FAILED"
+    if sent > 0 and permanent_failed > 0 and sent + permanent_failed == total:
+        return "PARTIAL_SUCCESS"
+    if pending > 0 or sending > 0 or failed > permanent_failed:
+        return "PROCESSING"
+    return "PENDING"
+
+
+def _failure_redis_snapshot(
+    client: redis.Redis,
+    task_id: int,
+) -> tuple[dict[str, Any] | None, dict[str, dict[str, Any]]]:
+    raw_task = cast(bytes | None, client.get(f"{_REDIS_PREFIX}task:{task_id}"))
+    task: dict[str, Any] | None = None
+    if raw_task is not None:
+        detail = cast(dict[str, Any], json.loads(raw_task))
+        task = {
+            "status": detail.get("status"),
+            "retry_count": detail.get("retryCount"),
+            "max_retries": detail.get("maxRetries"),
+            "last_error": detail.get("lastError"),
+        }
+
+    domain_statuses: dict[str, dict[str, Any]] = {}
+    raw_domains = cast(
+        dict[bytes, bytes],
+        client.hgetall(_DOMAIN_STATUS_PREFIX + str(task_id)),
+    )
+    for raw_domain, raw_status in raw_domains.items():
+        domain = raw_domain.decode("utf-8", errors="replace")
+        value = cast(dict[str, Any], json.loads(raw_status))
+        domain_statuses[domain] = {
+            "status": value.get("status"),
+            "error": value.get("error"),
+            "recipients": value.get("recipients"),
+        }
+    return task, dict(sorted(domain_statuses.items()))
+
+
+def _smtp_transcript_snapshot(server: ScriptedSmtpServer) -> dict[str, Any]:
+    commands: list[str] = []
+    replies: list[str] = []
+    data_event_count = 0
+    data_bytes = 0
+    for event in server.events():
+        if event.kind == "command":
+            commands.append(event.payload.decode("ascii", errors="replace").rstrip("\r\n"))
+        elif event.kind == "reply":
+            replies.append(event.payload.decode("ascii", errors="replace").rstrip("\r\n"))
+        elif event.kind == "data":
+            data_event_count += 1
+            data_bytes += len(event.payload)
+    return {
+        "commands": commands,
+        "replies": replies,
+        "data_event_count": data_event_count,
+        "data_bytes": data_bytes,
+        "attempts": [_attempt_snapshot(value) for value in server.messages()],
+    }
+
+
+def _capture_5xx_case(
+    server: ScriptedSmtpServer,
+    runtime: OutboundOracleRuntime,
+    *,
+    phase: str,
+    code: int,
+    case_index: int,
+) -> dict[str, Any]:
+    if runtime.ports is None:
+        raise AssertionError("runtime ports are unavailable")
+    recipient = f"recipient-{phase.lower()}-{code}-{case_index}@{_DNS_HOST}"
+    redis_client: redis.Redis = redis.Redis(
+        host="127.0.0.1",
+        port=runtime.ports.redis,
+        decode_responses=False,
+    )
+    try:
+        redis_client.set(f"dns:mx:{_DNS_HOST}", _DNS_HOST.encode("ascii"), ex=300)
+        with httpx.Client(
+            base_url=f"http://127.0.0.1:{runtime.ports.http}",
+            headers={"X-API-Key": API_KEY},
+            trust_env=False,
+            timeout=5.0,
+        ) as client:
+            response = client.post(
+                "/api/mail/send",
+                json={
+                    "from": QA_ADDRESS,
+                    "password": QA_PASSWORD,
+                    "to": [recipient],
+                    "subject": f"blackbox 5xx {phase} {code} {case_index}",
+                    "text": f"5xx {phase} body {code} {case_index}",
+                    "async": True,
+                },
+            )
+        normalized_response = _normalize_response(response)
+        body = response.json()
+        task_id = body.get("queueId")
+        if not isinstance(task_id, int):
+            raise AssertionError(f"5xx case was not queued: {normalized_response!r}")
+
+        _wait_until(
+            lambda: any(
+                event.kind == "reply"
+                and event.payload.startswith(f"{code} ".encode("ascii"))
+                for event in server.events()
+            ),
+            timeout=30.0,
+            description=f"5xx {phase} {code} SMTP reply",
+        )
+        task_before_archive, _ = _failure_redis_snapshot(redis_client, task_id)
+
+        def final_row() -> dict[str, Any] | None:
+            return next((row for row in _db_rows(runtime) if row["id"] == task_id), None)
+
+        _wait_until(
+            lambda: (row := final_row()) is not None and row["status"] == "FAILED",
+            timeout=45.0,
+            description=f"5xx {phase} {code} PostgreSQL failure archive",
+        )
+        _wait_until(
+            lambda: redis_client.llen(_REDIS_PREFIX + "archive") == 0
+            and redis_client.scard(_REDIS_PREFIX + "processing") == 0,
+            timeout=15.0,
+            description=f"5xx {phase} {code} Redis acknowledgement",
+        )
+        row = final_row()
+        if row is None:
+            raise AssertionError(f"archived 5xx task {task_id} disappeared from PostgreSQL")
+        task, domain_statuses = _failure_redis_snapshot(redis_client, task_id)
+        transcript = _smtp_transcript_snapshot(server)
+        return {
+            "phase": phase,
+            "code": code,
+            "recipient": recipient,
+            "response": normalized_response,
+            "wire": {
+                "data_observed": transcript["data_event_count"] > 0,
+                "data_event_count": transcript["data_event_count"],
+                "data_bytes": transcript["data_bytes"],
+            },
+            "smtp": transcript,
+            "redis": {
+                "task_before_archive": task_before_archive,
+                "task": task,
+                "task_present_after_archive": task is not None,
+                "domains": domain_statuses,
+                "aggregate_status": _java_aggregate_status(domain_statuses),
+            },
+            "db": row,
+        }
+    finally:
+        redis_client.close()
+
+
+def run_5xx_probe() -> dict[str, Any]:
+    if (
+        subprocess.run(  # noqa: S603
+            ["/usr/sbin/ip", "link", "show", "lo"], capture_output=True
+        ).returncode
+        != 0
+    ):
+        raise AssertionError("outbound probe must run inside a network namespace with loopback")
+
+    codes = (500, 501, 549, 550, 554)
+    cases: list[dict[str, Any]] = []
+    with tempfile.TemporaryDirectory(prefix="lmyzmail-outbound-5xx-oracle-") as workspace:
+        runtime = OutboundOracleRuntime(Path(workspace))
+        with runtime:
+            case_index = 0
+            for phase in ("RCPT", "DATA"):
+                for code in codes:
+                    case_index += 1
+                    recipient = f"recipient-{phase.lower()}-{code}-{case_index}@{_DNS_HOST}"
+                    reply = f"{code} fixture scripted {phase.lower()} failure\r\n".encode("ascii")
+                    if phase == "RCPT":
+                        scenario = SmtpScenario(
+                            recipient_replies=(RecipientReply(recipient, reply),),
+                            max_connections=8,
+                            max_concurrent_connections=2,
+                            max_message_bytes=2 * 1024 * 1024,
+                        )
+                    else:
+                        scenario = SmtpScenario(
+                            data_result_reply=reply,
+                            max_connections=8,
+                            max_concurrent_connections=2,
+                            max_message_bytes=2 * 1024 * 1024,
+                        )
+                    server = ScriptedSmtpServer(scenario, bind_host=_FAKE_IP, bind_port=25)
+                    with server:
+                        cases.append(
+                            _capture_5xx_case(
+                                server,
+                                runtime,
+                                phase=phase,
+                                code=code,
+                                case_index=case_index,
+                            )
+                        )
+    return {"codes": list(codes), "cases": cases, "case_count": len(cases)}
+
+
 def run_probe() -> dict[str, Any]:
-    if subprocess.run(  # noqa: S603
-        ["/usr/sbin/ip", "link", "show", "lo"], capture_output=True
-    ).returncode != 0:
+    if (
+        subprocess.run(  # noqa: S603
+            ["/usr/sbin/ip", "link", "show", "lo"], capture_output=True
+        ).returncode
+        != 0
+    ):
         raise AssertionError("outbound probe must run inside a network namespace with loopback")
     scenario = SmtpScenario(
-        max_connections=4,
+        max_connections=8,
         max_concurrent_connections=2,
         max_message_bytes=2 * 1024 * 1024,
     )
@@ -413,7 +655,14 @@ def run_probe() -> dict[str, Any]:
 def main() -> int:
     if len(sys.argv) != 2 or sys.argv[1] != "--child":
         raise SystemExit("outbound_oracle_probe must be invoked through run-outbound-probe.sh")
-    print(json.dumps(run_probe(), sort_keys=True, separators=(",", ":")))
+    mode = os.environ.get("LMYZMAIL_OUTBOUND_ORACLE_MODE", "success").lower()
+    if mode == "5xx":
+        observed = run_5xx_probe()
+    elif mode == "success":
+        observed = run_probe()
+    else:
+        raise SystemExit(f"unsupported outbound oracle mode: {mode}")
+    print(json.dumps(observed, sort_keys=True, separators=(",", ":")))
     return 0
 
 

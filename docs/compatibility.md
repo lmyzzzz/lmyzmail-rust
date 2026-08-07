@@ -59,6 +59,11 @@ wire, state, storage, or recovery assertions.
 - A live legacy MTA-STS NONE value is reusable only for its remaining Redis TTL,
   capped at five minutes. This repairs the oracle's restart-only negative-cache
   expiry bug without changing bytes, keys, or post-expiry discovery.
+- Outbound HTTP status reads have a bounded Redis deadline. The frozen oracle
+  leaves known-ID and sent-file requests unanswered beyond the ten-second
+  blackbox observation window after Redis disappears; lmyzmail returns a fixed
+  `500 {"error":"internal_error"}` for a known status and still resolves an
+  unknown sent file to `404` through PostgreSQL within the same request budget.
 
 ## SMTP AUTH oracle behavior
 

@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fmt,
+    fmt, fs,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -8,6 +8,7 @@ use std::{
     time::Duration,
 };
 
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use deadpool_postgres::Pool;
 use deadpool_redis::Pool as RedisPool;
@@ -15,26 +16,29 @@ use getrandom::fill as fill_random;
 use idna::domain_to_ascii_strict;
 use mail_parser::MessageParser;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tokio::{
     sync::Semaphore,
     task::spawn_blocking,
-    time::{MissedTickBehavior, interval, timeout},
+    time::{Instant, MissedTickBehavior, interval, timeout, timeout_at},
 };
 use tokio_util::sync::CancellationToken;
 
 use crate::{
     auth::{AuthError, AuthService, CredentialOutcome},
     config::RuntimeConfig,
+    outbound_delivery::parse_recipient_roster_json,
     outbound_message::{
         MaterializedMessage, MessageAttachment, MessageBuildError, MessageInput,
-        OutboundMessageBuilder,
+        MessageStorageMode, OutboundMessageBuilder, SystemMaterialization, java_storage_mode,
     },
-    outbound_queue::{DomainStatus, LegacyOutboundQueue, TaskDetail},
+    outbound_queue::{DomainStatus, LegacyOutboundQueue, QueueError, TaskDetail},
 };
 
 const DATABASE_TIMEOUT: Duration = Duration::from_secs(8);
 const STORAGE_TIMEOUT: Duration = Duration::from_secs(60);
 const STORAGE_CANCEL_GRACE: Duration = Duration::from_secs(5);
+const CLEANUP_TIMEOUT: Duration = Duration::from_secs(5);
 const OUTBOUND_BLOCKING_TASKS: usize = 4;
 const RECONCILE_INTERVAL: Duration = Duration::from_secs(5);
 const RECONCILE_BATCH_SIZE: i64 = 128;
@@ -49,6 +53,8 @@ const MAX_SUBJECT_BYTES: usize = 1_000;
 const MAX_ATTACHMENT_FILENAME_BYTES: usize = 255;
 const MAX_CONTENT_TYPE_BYTES: usize = 255;
 const MAX_CONTENT_ID_BYTES: usize = 998;
+const MAX_DSN_PREPARED_BYTES: usize = 4 * 1024 * 1024;
+const OUTBOUND_ID_ALLOCATION_LOCK: i64 = 0x4c4d_595a_4f49_4441;
 
 #[derive(Debug)]
 pub enum OutboundError {
@@ -182,6 +188,22 @@ pub struct WebStatusResponse {
     pub sent_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next_retry_at: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub domain_details: Vec<WebDomainStatusResponse>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebDomainStatusResponse {
+    pub domain: String,
+    pub status: String,
+    pub status_description: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recipients: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -202,6 +224,8 @@ struct StatusRow {
     created_at: DateTime<Utc>,
     sent_at: Option<DateTime<Utc>>,
     next_retry_at: Option<DateTime<Utc>>,
+    sent_domains_json: Option<String>,
+    failed_domains_json: Option<String>,
 }
 
 struct ReconcileRow {
@@ -209,6 +233,9 @@ struct ReconcileRow {
     sender_address: String,
     recipients_json: String,
     subject: Option<String>,
+    body_text: Option<String>,
+    body_html: Option<String>,
+    attachments_json: Option<String>,
     message_id: Option<String>,
     max_retries: i32,
     retry_count: i32,
@@ -217,6 +244,51 @@ struct ReconcileRow {
     created_at: DateTime<Utc>,
     next_retry_at: DateTime<Utc>,
     last_error: Option<String>,
+}
+
+enum PersistenceFailure {
+    NotCommitted(OutboundError),
+    OutcomeUnknown(OutboundError),
+}
+
+impl From<OutboundError> for PersistenceFailure {
+    fn from(error: OutboundError) -> Self {
+        Self::NotCommitted(error)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CommitReconciliation {
+    Committed,
+    NotCommitted,
+    OutcomeUnknown,
+}
+
+struct DsnAdmissionSource {
+    original_task_id: i64,
+    lease_token: String,
+    expected_sha256: [u8; 32],
+}
+
+pub(crate) struct DsnAdmission {
+    pub(crate) source_task_id: i64,
+    pub(crate) task_id: i64,
+    pub(crate) lease_token: String,
+    pub(crate) sender: String,
+    pub(crate) recipient: String,
+    pub(crate) subject: String,
+    pub(crate) message_id: String,
+    pub(crate) body: String,
+    pub(crate) created_at: DateTime<Utc>,
+    pub(crate) unsigned_sha256: [u8; 32],
+}
+
+struct PersistenceContext<'a> {
+    recipients_json: &'a str,
+    attachments_json: &'a str,
+    to_addresses: &'a str,
+    now: DateTime<Utc>,
+    dsn_source: Option<&'a DsnAdmissionSource>,
 }
 
 impl OutboundService {
@@ -272,6 +344,78 @@ impl OutboundService {
             max_attachment_size_bytes: config.limits.max_attachment_size_bytes,
             max_total_attachments_size_bytes: config.limits.max_total_attachments_size_bytes,
         })
+    }
+
+    pub(crate) async fn reserve_task_id(&self) -> Result<i64, OutboundError> {
+        let mut client = timeout(DATABASE_TIMEOUT, self.pool.get())
+            .await
+            .map_err(|_| OutboundError::Unavailable)?
+            .map_err(|error| OutboundError::Database(error.to_string()))?;
+        let transaction = timeout(DATABASE_TIMEOUT, client.transaction())
+            .await
+            .map_err(|_| OutboundError::Unavailable)?
+            .map_err(db_error)?;
+        timeout(
+            DATABASE_TIMEOUT,
+            transaction.query_one(
+                "SELECT pg_advisory_xact_lock($1)",
+                &[&OUTBOUND_ID_ALLOCATION_LOCK],
+            ),
+        )
+        .await
+        .map_err(|_| OutboundError::Unavailable)?
+        .map_err(db_error)?;
+        let floor: i64 = timeout(
+            DATABASE_TIMEOUT,
+            transaction.query_one(
+                "WITH sequence_name AS (
+                     SELECT pg_get_serial_sequence('outbound_mail_queue','id') AS value
+                 )
+                 SELECT GREATEST(
+                     nextval(value::regclass),
+                     (SELECT COALESCE(max(id),0) FROM outbound_mail_queue),
+                     (SELECT COALESCE(max(dsn_task_id),0) FROM lmyzmail_outbound_dsn)
+                 )
+                 FROM sequence_name WHERE value IS NOT NULL",
+                &[],
+            ),
+        )
+        .await
+        .map_err(|_| OutboundError::Unavailable)?
+        .map_err(db_error)?
+        .get(0);
+        let task_id = self
+            .queue
+            .reserve_task_id(floor)
+            .await
+            .map_err(|_| OutboundError::Unavailable)?;
+        let advanced: i64 = timeout(
+            DATABASE_TIMEOUT,
+            transaction.query_one(
+                "SELECT setval(
+                     pg_get_serial_sequence('outbound_mail_queue','id'),
+                     GREATEST(
+                         $1,
+                         (SELECT COALESCE(max(id),0) FROM outbound_mail_queue),
+                         (SELECT COALESCE(max(dsn_task_id),0) FROM lmyzmail_outbound_dsn)
+                     ),
+                     true
+                 )",
+                &[&task_id],
+            ),
+        )
+        .await
+        .map_err(|_| OutboundError::Unavailable)?
+        .map_err(db_error)?
+        .get(0);
+        if advanced < task_id {
+            return Err(OutboundError::Unavailable);
+        }
+        timeout(DATABASE_TIMEOUT, transaction.commit())
+            .await
+            .map_err(|_| OutboundError::Unavailable)?
+            .map_err(db_error)?;
+        Ok(task_id)
     }
 
     pub async fn enqueue(
@@ -337,24 +481,7 @@ impl OutboundService {
         }
         let now = postgres_timestamp(Utc::now());
         let message_id = new_message_id(self.domain.as_ref())?;
-        let id_client = timeout(DATABASE_TIMEOUT, self.pool.get())
-            .await
-            .map_err(|_| OutboundError::Unavailable)?
-            .map_err(|error| OutboundError::Database(error.to_string()))?;
-        let max_id: i64 = timeout(
-            DATABASE_TIMEOUT,
-            id_client.query_one("SELECT COALESCE(max(id), 0) FROM outbound_mail_queue", &[]),
-        )
-        .await
-        .map_err(|_| OutboundError::Unavailable)?
-        .map_err(db_error)?
-        .get(0);
-        drop(id_client);
-        let queue_id = self
-            .queue
-            .reserve_task_id(max_id)
-            .await
-            .map_err(|_| OutboundError::Unavailable)?;
+        let queue_id = self.reserve_task_id().await?;
         let input = MessageInput {
             task_id: queue_id,
             sender,
@@ -377,16 +504,29 @@ impl OutboundService {
         let persistence = self
             .persist_materialized(
                 &input,
-                &recipients_json,
-                &attachments_json,
-                &to_addresses,
                 &materialized,
-                now,
+                PersistenceContext {
+                    recipients_json: &recipients_json,
+                    attachments_json: &attachments_json,
+                    to_addresses: &to_addresses,
+                    now,
+                    dsn_source: None,
+                },
             )
             .await;
         if let Err(error) = persistence {
-            self.rollback_materialized(materialized).await;
-            return Err(error);
+            return match error {
+                PersistenceFailure::NotCommitted(error) => {
+                    self.rollback_materialized(materialized).await;
+                    Err(error)
+                }
+                PersistenceFailure::OutcomeUnknown(error) => {
+                    eprintln!(
+                        "lmyzmail outbound commit outcome is unknown; preserving materialized message"
+                    );
+                    Err(error)
+                }
+            };
         }
 
         let message_file_path = if materialized.signed_content_base64.is_none() {
@@ -418,7 +558,7 @@ impl OutboundService {
             status: "PENDING".into(),
         };
         self.queue
-            .publish(&task, &domain_statuses)
+            .publish_bounded(&task, &domain_statuses, self.max_pending_tasks as usize)
             .await
             .map_err(|_| OutboundError::Unavailable)?;
         self.cleanup_published(materialized.clone()).await;
@@ -430,6 +570,422 @@ impl OutboundService {
             error: None,
             sent_file_name: materialized.sent_file_name,
         })
+    }
+
+    /// Admit a generated DSN through the exact same PostgreSQL queue/index/
+    /// spool transaction as user mail.  The source-task outbox row is updated
+    /// in that transaction, so a process crash cannot create two local DSNs.
+    pub(crate) async fn admit_dsn(
+        &self,
+        admission: DsnAdmission,
+        cancellation: &CancellationToken,
+    ) -> Result<QueueResponse, OutboundError> {
+        let DsnAdmission {
+            source_task_id,
+            task_id,
+            lease_token,
+            sender,
+            recipient,
+            subject,
+            message_id,
+            body,
+            created_at,
+            unsigned_sha256,
+        } = admission;
+        if source_task_id <= 0
+            || task_id <= 0
+            || lease_token.is_empty()
+            || lease_token.len() > 100
+            || sender.is_empty()
+            || recipient.is_empty()
+            || body.is_empty()
+            || body.len() > 2 * 1024 * 1024
+        {
+            return Err(OutboundError::InvalidInput("invalid_dsn_message"));
+        }
+        let digest = Sha256::digest(body.as_bytes());
+        if digest.as_slice() != unsigned_sha256 {
+            return Err(OutboundError::InvalidInput("invalid_dsn_digest"));
+        }
+        let storage_mode =
+            java_storage_mode(Some(&body), None, &[]).map_err(map_message_build_error)?;
+        let prepare_builder = self.message_builder.clone();
+        let body_for_signing = body.clone();
+        let prepared_bytes = self
+            .run_dsn_blocking(cancellation, move |cancelled| {
+                prepare_builder.prepare_system_bytes(
+                    created_at,
+                    body_for_signing.as_bytes(),
+                    &unsigned_sha256,
+                    cancelled,
+                )
+            })
+            .await?;
+        let prepared_sha256: [u8; 32] = Sha256::digest(&prepared_bytes).into();
+        let (durable_sha256, durable_bytes) = self
+            .checkpoint_dsn_material(
+                source_task_id,
+                &lease_token,
+                prepared_sha256,
+                &prepared_bytes,
+            )
+            .await?;
+        if cancellation.is_cancelled() {
+            return Err(OutboundError::Unavailable);
+        }
+        let builder = self.message_builder.clone();
+        let sender_for_storage = sender.clone();
+        let materialized = self
+            .run_dsn_blocking(cancellation, move |cancelled| {
+                builder.materialize_bytes(
+                    SystemMaterialization {
+                        task_id,
+                        sender: &sender_for_storage,
+                        created_at,
+                        bytes: &durable_bytes,
+                        storage_mode,
+                        expected_sha256: &durable_sha256,
+                    },
+                    cancelled,
+                )
+            })
+            .await?;
+        let input = MessageInput {
+            task_id,
+            sender,
+            to: vec![recipient.clone()],
+            cc: Vec::new(),
+            bcc: Vec::new(),
+            subject,
+            text: Some(body),
+            html: None,
+            attachments: Vec::new(),
+            message_id,
+            created_at,
+        };
+        let recipients_json = format!(
+            r#"{{"to":[{}],"cc":[],"bcc":[]}}"#,
+            serde_json::to_string(&recipient).map_err(|_| OutboundError::Unavailable)?
+        );
+        let domain_statuses = pending_domain_statuses(&input, created_at)?;
+        if cancellation.is_cancelled() {
+            return Err(OutboundError::Unavailable);
+        }
+        let dsn_source = DsnAdmissionSource {
+            original_task_id: source_task_id,
+            lease_token,
+            expected_sha256: durable_sha256,
+        };
+        let persistence = self
+            .persist_materialized(
+                &input,
+                &materialized,
+                PersistenceContext {
+                    recipients_json: &recipients_json,
+                    attachments_json: "[]",
+                    to_addresses: &recipient,
+                    now: created_at,
+                    dsn_source: Some(&dsn_source),
+                },
+            )
+            .await;
+        if let Err(error) = persistence {
+            return match error {
+                // System-message paths are deterministic and authenticated.
+                // A newer lease may already have committed the same bytes, so
+                // a stale worker must never unlink them during rollback.
+                PersistenceFailure::NotCommitted(error) => Err(error),
+                PersistenceFailure::OutcomeUnknown(error) => {
+                    eprintln!(
+                        "lmyzmail DSN commit outcome is unknown; preserving materialized message"
+                    );
+                    Err(error)
+                }
+            };
+        }
+        if cancellation.is_cancelled() {
+            return Err(OutboundError::Unavailable);
+        }
+        let message_file_path = if materialized.signed_content_base64.is_none() {
+            Some(
+                materialized
+                    .spool_path
+                    .to_str()
+                    .ok_or(OutboundError::Unavailable)?
+                    .to_owned(),
+            )
+        } else {
+            None
+        };
+        let task = TaskDetail {
+            id: task_id,
+            sender_address: input.sender,
+            recipients_json,
+            subject: input.subject,
+            message_id: input.message_id,
+            max_retries: self.max_retries,
+            retry_count: 0,
+            sent_file_name: Some(materialized.sent_file_name.clone()),
+            sent_subdirectory: Some(materialized.sent_subdirectory),
+            message_file_path,
+            signed_content_base64: materialized.signed_content_base64.clone(),
+            created_at: instant(created_at),
+            next_retry_at: None,
+            last_error: None,
+            status: "PENDING".into(),
+        };
+        self.queue
+            .publish_bounded(&task, &domain_statuses, self.max_pending_tasks as usize)
+            .await
+            .map_err(|_| OutboundError::Unavailable)?;
+        self.cleanup_published(materialized).await;
+        Ok(QueueResponse {
+            queued: true,
+            queue_id: task_id,
+            message_id: task.message_id,
+            status: "PENDING",
+            error: None,
+            sent_file_name: task.sent_file_name.unwrap_or_default(),
+        })
+    }
+
+    /// Re-publish DSNs whose PostgreSQL queue row committed but whose Redis
+    /// publication was interrupted by a crash. Only PENDING rows are eligible;
+    /// PROCESSING rows remain fenced to their active coordinator.
+    pub async fn republish_admitted_dsns(
+        &self,
+        cancellation: &CancellationToken,
+    ) -> Result<usize, OutboundError> {
+        let client = tokio::select! {
+            _ = cancellation.cancelled() => return Err(OutboundError::Unavailable),
+            result = timeout(DATABASE_TIMEOUT, self.pool.get()) => result
+                .map_err(|_| OutboundError::Unavailable)?
+                .map_err(|error| OutboundError::Database(error.to_string()))?,
+        };
+        let rows = tokio::select! {
+            _ = cancellation.cancelled() => return Err(OutboundError::Unavailable),
+            result = timeout(
+                DATABASE_TIMEOUT,
+                client.query(
+                    "SELECT d.dsn_task_id,d.expected_sha256,
+                            q.sender_address,q.recipients_json,q.subject,q.message_id,
+                            q.max_retries,q.retry_count,q.sent_file_name,q.sent_subdirectory,
+                            q.created_at,q.body_text,q.body_html,q.attachments_json
+                     FROM lmyzmail_outbound_dsn d
+                     JOIN outbound_mail_queue q ON q.id=d.dsn_task_id
+                     WHERE d.state='ADMITTED' AND q.status='PENDING'
+                     ORDER BY d.dsn_task_id
+                     LIMIT 128",
+                    &[],
+                ),
+            ) => result
+                .map_err(|_| OutboundError::Unavailable)?
+                .map_err(db_error)?,
+        };
+        let mut republished = 0;
+        for row in rows {
+            if cancellation.is_cancelled() {
+                return Err(OutboundError::Unavailable);
+            }
+            let task_id: i64 = row.get(0);
+            let expected: Vec<u8> = row.get(1);
+            let expected: [u8; 32] = expected
+                .try_into()
+                .map_err(|_| OutboundError::Unavailable)?;
+            let sender: String = row.get(2);
+            let recipients_json: String = row.get(3);
+            let subject: String = row.get::<_, Option<String>>(4).unwrap_or_default();
+            let message_id: String = row
+                .get::<_, Option<String>>(5)
+                .ok_or(OutboundError::Unavailable)?;
+            let max_retries: i32 = row.get(6);
+            let retry_count: i32 = row.get(7);
+            let sent_file_name: String = row
+                .get::<_, Option<String>>(8)
+                .ok_or(OutboundError::Unavailable)?;
+            let sent_subdirectory: i32 = row
+                .get::<_, Option<i32>>(9)
+                .ok_or(OutboundError::Unavailable)?;
+            let created_at: DateTime<Utc> = row.get(10);
+            let body_text: Option<String> = row.get(11);
+            let body_html: Option<String> = row.get(12);
+            let attachments_json: String = row
+                .get::<_, Option<String>>(13)
+                .unwrap_or_else(|| "[]".to_owned());
+            let attachments: Vec<MessageAttachment> =
+                serde_json::from_str(&attachments_json).map_err(|_| OutboundError::Unavailable)?;
+            let storage_mode =
+                java_storage_mode(body_text.as_deref(), body_html.as_deref(), &attachments)
+                    .map_err(map_message_build_error)?;
+            let builder = self.message_builder.clone();
+            let sender_for_recovery = sender.clone();
+            let cancelled = Arc::new(AtomicBool::new(false));
+            let task_cancelled = Arc::clone(&cancelled);
+            let mut recovery = spawn_blocking(move || {
+                builder.recover(
+                    task_id,
+                    &sender_for_recovery,
+                    &sent_file_name,
+                    sent_subdirectory,
+                    storage_mode,
+                    &task_cancelled,
+                )
+            });
+            let materialized = tokio::select! {
+                _ = cancellation.cancelled() => {
+                    cancelled.store(true, Ordering::Release);
+                    let _ = timeout(STORAGE_CANCEL_GRACE, &mut recovery).await;
+                    return Err(OutboundError::Unavailable);
+                }
+                result = timeout(STORAGE_TIMEOUT, &mut recovery) => match result {
+                    Ok(result) => result
+                        .map_err(|_| OutboundError::Unavailable)?
+                        .map_err(map_message_build_error)?,
+                    Err(_) => {
+                        cancelled.store(true, Ordering::Release);
+                        let _ = timeout(STORAGE_CANCEL_GRACE, &mut recovery).await;
+                        return Err(OutboundError::Unavailable);
+                    }
+                }
+            };
+            let persisted = if let Some(encoded) = materialized.signed_content_base64.as_deref() {
+                BASE64_STANDARD
+                    .decode(encoded)
+                    .map_err(|_| OutboundError::Unavailable)?
+            } else {
+                fs::read(&materialized.spool_path).map_err(|_| OutboundError::Unavailable)?
+            };
+            if Sha256::digest(&persisted).as_slice() != expected {
+                return Err(OutboundError::Unavailable);
+            }
+            let recipients = parse_recipient_roster_json(&recipients_json)
+                .map_err(|_| OutboundError::Unavailable)?;
+            let domains =
+                pending_domain_statuses_for_recipients(&recipients, &[], &[], created_at)?;
+            let task = TaskDetail {
+                id: task_id,
+                sender_address: sender,
+                recipients_json,
+                subject,
+                message_id,
+                max_retries,
+                retry_count,
+                sent_file_name: Some(materialized.sent_file_name.clone()),
+                sent_subdirectory: Some(materialized.sent_subdirectory),
+                message_file_path: materialized
+                    .signed_content_base64
+                    .is_none()
+                    .then(|| materialized.spool_path.to_string_lossy().into_owned()),
+                signed_content_base64: materialized.signed_content_base64.clone(),
+                created_at: instant(created_at),
+                next_retry_at: None,
+                last_error: None,
+                status: "PENDING".to_owned(),
+            };
+            if cancellation.is_cancelled() {
+                return Err(OutboundError::Unavailable);
+            }
+            self.queue
+                .publish_bounded(&task, &domains, self.max_pending_tasks as usize)
+                .await
+                .map_err(|_| OutboundError::Unavailable)?;
+            self.cleanup_published(materialized).await;
+            republished += 1;
+        }
+        Ok(republished)
+    }
+
+    async fn run_dsn_blocking<T, F>(
+        &self,
+        cancellation: &CancellationToken,
+        build: F,
+    ) -> Result<T, OutboundError>
+    where
+        T: Send + 'static,
+        F: FnOnce(&AtomicBool) -> Result<T, MessageBuildError> + Send + 'static,
+    {
+        let permit = tokio::select! {
+            _ = cancellation.cancelled() => return Err(OutboundError::Unavailable),
+            permit = timeout(
+                STORAGE_TIMEOUT,
+                self.blocking_permits.clone().acquire_owned(),
+            ) => permit
+                .map_err(|_| OutboundError::Unavailable)?
+                .map_err(|_| OutboundError::Unavailable)?,
+        };
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let task_cancelled = Arc::clone(&cancelled);
+        let mut task = spawn_blocking(move || {
+            let _permit = permit;
+            build(&task_cancelled)
+        });
+        tokio::select! {
+            _ = cancellation.cancelled() => {
+                cancelled.store(true, Ordering::Release);
+                let _ = timeout(STORAGE_CANCEL_GRACE, task).await;
+                Err(OutboundError::Unavailable)
+            }
+            result = timeout(STORAGE_TIMEOUT, &mut task) => match result {
+                Ok(Ok(result)) => result.map_err(map_message_build_error),
+                Ok(Err(_)) => Err(OutboundError::Unavailable),
+                Err(_) => {
+                    cancelled.store(true, Ordering::Release);
+                    let _ = timeout(STORAGE_CANCEL_GRACE, task).await;
+                    Err(OutboundError::Unavailable)
+                }
+            }
+        }
+    }
+
+    pub(crate) async fn checkpoint_dsn_material(
+        &self,
+        original_task_id: i64,
+        lease_token: &str,
+        proposed_sha256: [u8; 32],
+        proposed_bytes: &[u8],
+    ) -> Result<([u8; 32], Vec<u8>), OutboundError> {
+        if proposed_bytes.is_empty()
+            || proposed_bytes.len() > MAX_DSN_PREPARED_BYTES
+            || Sha256::digest(proposed_bytes).as_slice() != proposed_sha256
+        {
+            return Err(OutboundError::InvalidInput("invalid_dsn_prepared_message"));
+        }
+        let client = timeout(DATABASE_TIMEOUT, self.pool.get())
+            .await
+            .map_err(|_| OutboundError::Unavailable)?
+            .map_err(|error| OutboundError::Database(error.to_string()))?;
+        let row = timeout(
+            DATABASE_TIMEOUT,
+            client.query_opt(
+                "UPDATE lmyzmail_outbound_dsn
+                 SET expected_sha256=COALESCE(expected_sha256,$3),
+                     prepared_bytes=COALESCE(prepared_bytes,$4),
+                     updated_at=clock_timestamp()
+                 WHERE original_task_id=$1 AND state='ADMITTING'
+                   AND lease_token=$2 AND lease_until > clock_timestamp()
+                 RETURNING expected_sha256,prepared_bytes",
+                &[
+                    &original_task_id,
+                    &lease_token,
+                    &&proposed_sha256[..],
+                    &proposed_bytes,
+                ],
+            ),
+        )
+        .await
+        .map_err(|_| OutboundError::Unavailable)?
+        .map_err(db_error)?
+        .ok_or(OutboundError::Unavailable)?;
+        let digest: Vec<u8> = row.get(0);
+        let digest: [u8; 32] = digest.try_into().map_err(|_| OutboundError::Unavailable)?;
+        let bytes: Vec<u8> = row.get(1);
+        if bytes.is_empty()
+            || bytes.len() > MAX_DSN_PREPARED_BYTES
+            || Sha256::digest(&bytes).as_slice() != digest
+        {
+            return Err(OutboundError::Unavailable);
+        }
+        Ok((digest, bytes))
     }
 
     async fn materialize_message(
@@ -473,12 +1029,16 @@ impl OutboundService {
     async fn persist_materialized(
         &self,
         input: &MessageInput,
-        recipients_json: &str,
-        attachments_json: &str,
-        to_addresses: &str,
         materialized: &MaterializedMessage,
-        now: DateTime<Utc>,
-    ) -> Result<(), OutboundError> {
+        context: PersistenceContext<'_>,
+    ) -> Result<(), PersistenceFailure> {
+        let PersistenceContext {
+            recipients_json,
+            attachments_json,
+            to_addresses,
+            now,
+            dsn_source,
+        } = context;
         let message_bytes = i64::try_from(materialized.message_bytes)
             .map_err(|_| OutboundError::InvalidInput("email_too_large"))?;
         let mut client = timeout(DATABASE_TIMEOUT, self.pool.get())
@@ -523,22 +1083,24 @@ impl OutboundService {
                 .map_err(|_| OutboundError::Unavailable)?,
         );
         if active_ids.len() >= self.max_pending_tasks as usize {
-            return Err(OutboundError::QueueFull);
+            return Err(OutboundError::QueueFull.into());
         }
-        let window_start = now - self.rate_window;
-        let used: i64 = timeout(
-            DATABASE_TIMEOUT,
-            transaction.query_one(
-                "SELECT count(*) FROM outbound_mail_queue WHERE sender_address=$1 AND created_at >= $2",
-                &[&input.sender, &window_start],
-            ),
-        )
-        .await
-        .map_err(|_| OutboundError::Unavailable)?
-        .map_err(db_error)?
-        .get(0);
-        if used >= self.max_emails_per_account {
-            return Err(OutboundError::RateLimited { remaining: 0 });
+        if dsn_source.is_none() {
+            let window_start = now - self.rate_window;
+            let used: i64 = timeout(
+                DATABASE_TIMEOUT,
+                transaction.query_one(
+                    "SELECT count(*) FROM outbound_mail_queue WHERE sender_address=$1 AND created_at >= $2",
+                    &[&input.sender, &window_start],
+                ),
+            )
+            .await
+            .map_err(|_| OutboundError::Unavailable)?
+            .map_err(db_error)?
+            .get(0);
+            if used >= self.max_emails_per_account {
+                return Err(OutboundError::RateLimited { remaining: 0 }.into());
+            }
         }
         let next_retry_at = now;
         let row = timeout(
@@ -572,16 +1134,35 @@ impl OutboundService {
         .map_err(|_| OutboundError::Unavailable)?
         .map_err(db_error)?;
         if row.get::<_, i64>(0) != input.task_id {
-            return Err(OutboundError::Unavailable);
+            return Err(OutboundError::Unavailable.into());
         }
+        timeout(
+            DATABASE_TIMEOUT,
+            transaction.query_one(
+                "SELECT pg_advisory_xact_lock($1)",
+                &[&OUTBOUND_ID_ALLOCATION_LOCK],
+            ),
+        )
+        .await
+        .map_err(|_| OutboundError::Unavailable)?
+        .map_err(db_error)?;
         let sequence_row = timeout(
             DATABASE_TIMEOUT,
             transaction.query_one(
-                "SELECT setval(
-                    pg_get_serial_sequence('outbound_mail_queue','id'),
-                    GREATEST($1,(SELECT COALESCE(max(id),0) FROM outbound_mail_queue)),
-                    true
-                 )",
+                "WITH sequence_name AS (
+                     SELECT pg_get_serial_sequence('outbound_mail_queue','id') AS value
+                 )
+                 SELECT setval(
+                     value,
+                     GREATEST(
+                         $1,
+                         nextval(value::regclass),
+                         (SELECT COALESCE(max(id),0) FROM outbound_mail_queue),
+                         (SELECT COALESCE(max(dsn_task_id),0) FROM lmyzmail_outbound_dsn)
+                     ),
+                     true
+                 )
+                 FROM sequence_name WHERE value IS NOT NULL",
                 &[&input.task_id],
             ),
         )
@@ -589,7 +1170,25 @@ impl OutboundService {
         .map_err(|_| OutboundError::Unavailable)?
         .map_err(db_error)?;
         if sequence_row.get::<_, Option<i64>>(0).is_none() {
-            return Err(OutboundError::Unavailable);
+            return Err(OutboundError::Unavailable.into());
+        }
+        if materialized.signed_content_base64.is_none() {
+            let spool_path = materialized
+                .spool_path
+                .to_str()
+                .ok_or(OutboundError::Unavailable)?;
+            timeout(
+                DATABASE_TIMEOUT,
+                transaction.execute(
+                    "INSERT INTO lmyzmail_outbound_spool
+                     (task_id,spool_path,spool_kind,cleanup_state,created_at,updated_at)
+                     VALUES ($1,$2,'RUST','OWNED',$3,$3)",
+                    &[&input.task_id, &spool_path, &now],
+                ),
+            )
+            .await
+            .map_err(|_| OutboundError::Unavailable)?
+            .map_err(db_error)?;
         }
         timeout(
             DATABASE_TIMEOUT,
@@ -614,10 +1213,239 @@ impl OutboundService {
         .await
         .map_err(|_| OutboundError::Unavailable)?
         .map_err(db_error)?;
-        timeout(DATABASE_TIMEOUT, transaction.commit())
+        if let Some(source) = dsn_source {
+            let updated = timeout(
+                DATABASE_TIMEOUT,
+                transaction.execute(
+                    "UPDATE lmyzmail_outbound_dsn
+                     SET state='ADMITTED',prepared_bytes=NULL,lease_token=NULL,
+                         lease_until=NULL,updated_at=$5
+                     WHERE original_task_id=$1 AND dsn_task_id=$2 AND state='ADMITTING'
+                       AND expected_sha256=$3
+                       AND lease_token=$4 AND lease_until > clock_timestamp()",
+                    &[
+                        &source.original_task_id,
+                        &input.task_id,
+                        &&source.expected_sha256[..],
+                        &source.lease_token,
+                        &now,
+                    ],
+                ),
+            )
             .await
             .map_err(|_| OutboundError::Unavailable)?
-            .map_err(db_error)
+            .map_err(db_error)?;
+            if updated != 1 {
+                return Err(OutboundError::Unavailable.into());
+            }
+        }
+        let commit_error = match timeout(DATABASE_TIMEOUT, transaction.commit()).await {
+            Ok(Ok(())) => return Ok(()),
+            Ok(Err(error)) => db_error(error),
+            Err(_) => OutboundError::Unavailable,
+        };
+        // A second transaction orders reconciliation behind this transaction's
+        // advisory lock, even when the COMMIT response was lost.
+        match self
+            .reconcile_commit(
+                input,
+                recipients_json,
+                attachments_json,
+                to_addresses,
+                materialized,
+                message_bytes,
+                now,
+                dsn_source,
+            )
+            .await
+        {
+            CommitReconciliation::Committed => Ok(()),
+            CommitReconciliation::NotCommitted => {
+                Err(PersistenceFailure::NotCommitted(commit_error))
+            }
+            CommitReconciliation::OutcomeUnknown => {
+                Err(PersistenceFailure::OutcomeUnknown(commit_error))
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn reconcile_commit(
+        &self,
+        input: &MessageInput,
+        recipients_json: &str,
+        attachments_json: &str,
+        to_addresses: &str,
+        materialized: &MaterializedMessage,
+        message_bytes: i64,
+        now: DateTime<Utc>,
+        dsn_source: Option<&DsnAdmissionSource>,
+    ) -> CommitReconciliation {
+        let deadline = Instant::now() + DATABASE_TIMEOUT;
+        let mut client = match timeout_at(deadline, self.pool.get()).await {
+            Ok(Ok(client)) => client,
+            _ => {
+                eprintln!(
+                    "lmyzmail outbound commit reconciliation could not acquire a database connection"
+                );
+                return CommitReconciliation::OutcomeUnknown;
+            }
+        };
+        let transaction = match timeout_at(deadline, client.transaction()).await {
+            Ok(Ok(transaction)) => transaction,
+            _ => {
+                eprintln!(
+                    "lmyzmail outbound commit reconciliation could not start a database transaction"
+                );
+                return CommitReconciliation::OutcomeUnknown;
+            }
+        };
+        // The admission transaction holds this lock until its COMMIT or
+        // ROLLBACK has completed on the server. A fresh statement after this
+        // wait gets a new Read Committed snapshot that can safely classify the
+        // otherwise unknown commit outcome.
+        if !matches!(
+            timeout_at(
+                deadline,
+                transaction.query_one(
+                    "SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))",
+                    &[&"lmyzmail:outbound:queue"],
+                ),
+            )
+            .await,
+            Ok(Ok(_))
+        ) {
+            eprintln!("lmyzmail outbound commit reconciliation could not order behind admission");
+            return CommitReconciliation::OutcomeUnknown;
+        }
+        let expects_spool = materialized.signed_content_base64.is_none();
+        let spool_path = match materialized.spool_path.to_str() {
+            Some(path) => path,
+            None => return CommitReconciliation::OutcomeUnknown,
+        };
+        let row = match timeout_at(
+            deadline,
+            transaction.query_one(
+                "/* lmyzmail_commit_reconciliation */
+                 SELECT
+                   EXISTS (
+                     SELECT 1 FROM outbound_mail_queue q
+                     WHERE q.id=$1 AND q.sender_address=$2 AND q.recipients_json=$3
+                       AND q.subject IS NOT DISTINCT FROM $4
+                       AND q.body_text IS NOT DISTINCT FROM $5
+                       AND q.body_html IS NOT DISTINCT FROM $6
+                       AND q.attachments_json IS NOT DISTINCT FROM $7
+                       AND q.message_id IS NOT DISTINCT FROM $8
+                       AND q.sent_file_name IS NOT DISTINCT FROM $9
+                       AND q.sent_subdirectory IS NOT DISTINCT FROM $10
+                       AND q.max_retries=$11 AND q.created_at=$12
+                   ),
+                   EXISTS (
+                     SELECT 1 FROM outbound_mail_queue q
+                     WHERE q.id=$1 OR q.message_id=$8
+                        OR (q.sender_address=$2 AND q.sent_file_name=$9
+                            AND q.sent_subdirectory=$10)
+                   ),
+                   EXISTS (
+                     SELECT 1 FROM email_index i
+                     WHERE i.mailbox_address=$2 AND i.folder='sent'
+                       AND i.subdirectory IS NOT DISTINCT FROM $10
+                       AND i.file_name=$9
+                       AND i.has_attachments=$13 AND i.indexed_at=$12
+                       AND i.received_at=$12 AND i.size_bytes=$14
+                       AND i.from_address IS NOT DISTINCT FROM $2
+                       AND i.message_id IS NOT DISTINCT FROM $8
+                       AND i.subject IS NOT DISTINCT FROM $4
+                       AND i.to_addresses IS NOT DISTINCT FROM $15
+                   ),
+                   EXISTS (
+                     SELECT 1 FROM email_index i
+                     WHERE i.message_id=$8
+                        OR (i.mailbox_address=$2 AND i.folder='sent'
+                            AND i.subdirectory IS NOT DISTINCT FROM $10
+                            AND i.file_name=$9)
+                   ),
+                   EXISTS (
+                     SELECT 1 FROM lmyzmail_outbound_spool s
+                     WHERE s.task_id=$1 AND s.spool_path=$16 AND s.spool_kind='RUST'
+                   ),
+                   EXISTS (
+                     SELECT 1 FROM lmyzmail_outbound_spool s
+                     WHERE s.task_id=$1 OR s.spool_path=$16
+                   ),
+                   EXISTS (
+                     SELECT 1 FROM lmyzmail_outbound_dsn d
+                     WHERE d.original_task_id=$17 AND d.dsn_task_id=$1
+                       AND d.state='ADMITTED' AND d.expected_sha256=$18
+                       AND d.prepared_bytes IS NULL
+                       AND d.lease_token IS NULL AND d.lease_until IS NULL
+                   ),
+                   EXISTS (
+                     SELECT 1 FROM lmyzmail_outbound_dsn d
+                     WHERE d.original_task_id=$17 AND d.dsn_task_id=$1
+                       AND d.state='ADMITTING' AND d.expected_sha256=$18
+                       AND d.prepared_bytes IS NOT NULL
+                       AND d.lease_token=$19 AND d.lease_until IS NOT NULL
+                   )",
+                &[
+                    &input.task_id,
+                    &input.sender,
+                    &recipients_json,
+                    &input.subject,
+                    &input.text,
+                    &input.html,
+                    &attachments_json,
+                    &input.message_id,
+                    &materialized.sent_file_name,
+                    &materialized.sent_subdirectory,
+                    &self.max_retries,
+                    &now,
+                    &(!input.attachments.is_empty()),
+                    &message_bytes,
+                    &to_addresses,
+                    &spool_path,
+                    &dsn_source.map_or(0, |source| source.original_task_id),
+                    &&dsn_source.map_or([0_u8; 32], |source| source.expected_sha256)[..],
+                    &dsn_source.map_or("", |source| source.lease_token.as_str()),
+                ],
+            ),
+        )
+        .await
+        {
+            Ok(Ok(row)) => row,
+            _ => {
+                eprintln!("lmyzmail outbound commit reconciliation query failed");
+                return CommitReconciliation::OutcomeUnknown;
+            }
+        };
+        let _ = timeout_at(deadline, transaction.commit()).await;
+        let queue_exact: bool = row.get(0);
+        let queue_identity_exists: bool = row.get(1);
+        let index_exact: bool = row.get(2);
+        let index_identity_exists: bool = row.get(3);
+        let spool_exact: bool = row.get(4);
+        let spool_identity_exists: bool = row.get(5);
+        let dsn_admitted_exact: bool = row.get(6);
+        let dsn_admitting_exact: bool = row.get(7);
+        let spool_consistent = if expects_spool {
+            spool_exact
+        } else {
+            !spool_identity_exists
+        };
+        let dsn_committed = dsn_source.is_none() || dsn_admitted_exact;
+        let dsn_not_committed = dsn_source.is_none() || dsn_admitting_exact;
+        if queue_exact && index_exact && spool_consistent && dsn_committed {
+            CommitReconciliation::Committed
+        } else if !queue_identity_exists
+            && !index_identity_exists
+            && !spool_identity_exists
+            && dsn_not_committed
+        {
+            CommitReconciliation::NotCommitted
+        } else {
+            // Partial or conflicting durable state cannot prove that deleting either file is safe.
+            CommitReconciliation::OutcomeUnknown
+        }
     }
 
     async fn rollback_materialized(&self, materialized: MaterializedMessage) {
@@ -647,7 +1475,7 @@ impl OutboundService {
 
     async fn cleanup_published(&self, materialized: MaterializedMessage) {
         let Ok(Ok(permit)) = timeout(
-            STORAGE_TIMEOUT,
+            CLEANUP_TIMEOUT,
             self.blocking_permits.clone().acquire_owned(),
         )
         .await
@@ -657,7 +1485,7 @@ impl OutboundService {
         };
         let builder = self.message_builder.clone();
         match timeout(
-            STORAGE_TIMEOUT,
+            CLEANUP_TIMEOUT,
             spawn_blocking(move || {
                 let _permit = permit;
                 builder.cleanup_small_spool(&materialized)
@@ -707,8 +1535,9 @@ impl OutboundService {
         let rows = timeout(
             DATABASE_TIMEOUT,
             client.query(
-                "SELECT id,sender_address,recipients_json,subject,message_id,max_retries,
-                        retry_count,sent_file_name,sent_subdirectory,created_at,next_retry_at,last_error
+                "SELECT id,sender_address,recipients_json,subject,body_text,body_html,
+                        attachments_json,message_id,max_retries,retry_count,sent_file_name,
+                        sent_subdirectory,created_at,next_retry_at,last_error
                  FROM outbound_mail_queue
                  WHERE status='PENDING' AND id > $1 ORDER BY id LIMIT $2",
                 &[&after_id, &RECONCILE_BATCH_SIZE],
@@ -729,14 +1558,17 @@ impl OutboundService {
                 sender_address: row.get(1),
                 recipients_json: row.get(2),
                 subject: row.get(3),
-                message_id: row.get(4),
-                max_retries: row.get(5),
-                retry_count: row.get(6),
-                sent_file_name: row.get(7),
-                sent_subdirectory: row.get(8),
-                created_at: row.get(9),
-                next_retry_at: row.get(10),
-                last_error: row.get(11),
+                body_text: row.get(4),
+                body_html: row.get(5),
+                attachments_json: row.get(6),
+                message_id: row.get(7),
+                max_retries: row.get(8),
+                retry_count: row.get(9),
+                sent_file_name: row.get(10),
+                sent_subdirectory: row.get(11),
+                created_at: row.get(12),
+                next_retry_at: row.get(13),
+                last_error: row.get(14),
             };
             next_id = row.id;
             if let Err(error) = self.reconcile_row(row, cancellation).await {
@@ -775,12 +1607,26 @@ impl OutboundService {
             serde_json::from_str(&row.recipients_json).map_err(|_| OutboundError::Unavailable)?;
         let subject = row.subject.ok_or(OutboundError::Unavailable)?;
         let message_id = row.message_id.ok_or(OutboundError::Unavailable)?;
+        let attachments: Vec<MessageAttachment> = row
+            .attachments_json
+            .as_deref()
+            .map(serde_json::from_str)
+            .transpose()
+            .map_err(|_| OutboundError::Unavailable)?
+            .unwrap_or_default();
+        let storage_mode = java_storage_mode(
+            row.body_text.as_deref(),
+            row.body_html.as_deref(),
+            &attachments,
+        )
+        .map_err(map_message_build_error)?;
         let materialized = self
             .recover_message(
                 row.id,
                 &row.sender_address,
                 &sent_file_name,
                 sent_subdirectory,
+                storage_mode,
                 cancellation,
             )
             .await?;
@@ -819,7 +1665,7 @@ impl OutboundService {
             status: "PENDING".into(),
         };
         self.queue
-            .publish(&task, &statuses)
+            .publish_bounded(&task, &statuses, self.max_pending_tasks as usize)
             .await
             .map_err(|_| OutboundError::Unavailable)?;
         self.cleanup_published(materialized).await;
@@ -832,6 +1678,7 @@ impl OutboundService {
         sender: &str,
         sent_file_name: &str,
         sent_subdirectory: i32,
+        storage_mode: MessageStorageMode,
         cancellation: &CancellationToken,
     ) -> Result<MaterializedMessage, OutboundError> {
         let permit = tokio::select! {
@@ -854,6 +1701,7 @@ impl OutboundService {
                 &sender,
                 &sent_file_name,
                 sent_subdirectory,
+                storage_mode,
                 &task_cancelled,
             )
         });
@@ -876,10 +1724,28 @@ impl OutboundService {
         &self,
         queue_id: i64,
     ) -> Result<Option<ApiStatusResponse>, OutboundError> {
-        Ok(self
-            .status_row("id=$1", &queue_id, None)
-            .await?
-            .map(StatusRow::into_api))
+        if let Some(task) = self
+            .queue
+            .read_persisted_task(queue_id)
+            .await
+            .map_err(map_queue_error)?
+        {
+            self.queue
+                .read_persisted_domain_statuses(queue_id)
+                .await
+                .map_err(map_queue_error)?;
+            return Ok(Some(task.into_api_status()));
+        }
+        let row = self.status_row("id=$1", &queue_id, None).await?;
+        if let Some(row) = row {
+            self.queue
+                .read_persisted_domain_statuses(row.queue_id)
+                .await
+                .map_err(map_queue_error)?;
+            Ok(Some(row.into_api()))
+        } else {
+            Ok(None)
+        }
     }
 
     pub async fn api_status_by_message_id(
@@ -889,14 +1755,22 @@ impl OutboundService {
         if message_id.is_empty() || message_id.len() > 255 {
             return Ok(None);
         }
-        Ok(self
+        let row = self
             .status_row(
                 "message_id=$1 AND status NOT IN ('PENDING','PROCESSING')",
                 &message_id,
                 None,
             )
-            .await?
-            .map(StatusRow::into_api))
+            .await?;
+        if let Some(row) = row {
+            self.queue
+                .read_persisted_domain_statuses(row.queue_id)
+                .await
+                .map_err(map_queue_error)?;
+            Ok(Some(row.into_api()))
+        } else {
+            Ok(None)
+        }
     }
 
     pub async fn web_status_by_id(
@@ -904,10 +1778,23 @@ impl OutboundService {
         queue_id: i64,
         sender: &str,
     ) -> Result<Option<WebStatusResponse>, OutboundError> {
-        Ok(self
-            .status_row("id=$1", &queue_id, Some(sender))
-            .await?
-            .map(StatusRow::into_web))
+        if let Some(task) = self
+            .queue
+            .read_persisted_task(queue_id)
+            .await
+            .map_err(map_queue_error)?
+            .filter(|task| {
+                task.sender_address
+                    .trim()
+                    .eq_ignore_ascii_case(sender.trim())
+            })
+        {
+            return self.web_status_from_task(task).await.map(Some);
+        }
+        match self.status_row("id=$1", &queue_id, Some(sender)).await? {
+            Some(row) => self.web_status(row).await.map(Some),
+            None => Ok(None),
+        }
     }
 
     pub async fn web_status_by_file(
@@ -918,10 +1805,32 @@ impl OutboundService {
         if file_name.is_empty() || file_name.len() > 255 {
             return Ok(None);
         }
-        Ok(self
+        let task_id = self
+            .queue
+            .read_task_id_by_sent_file_name(file_name)
+            .await
+            .unwrap_or(None);
+        if let Some(task_id) = task_id
+            && let Some(task) = self
+                .queue
+                .read_persisted_task(task_id)
+                .await
+                .map_err(map_queue_error)?
+                .filter(|task| {
+                    task.sender_address
+                        .trim()
+                        .eq_ignore_ascii_case(sender.trim())
+                })
+        {
+            return self.web_status_from_task(task).await.map(Some);
+        }
+        match self
             .status_row("sent_file_name=$1", &file_name, Some(sender))
             .await?
-            .map(StatusRow::into_web))
+        {
+            Some(row) => self.web_status(row).await.map(Some),
+            None => Ok(None),
+        }
     }
 
     pub async fn remaining_quota(&self, sender: &str) -> Result<i64, OutboundError> {
@@ -958,13 +1867,15 @@ impl OutboundService {
         let query = if sender.is_some() {
             format!(
                 "SELECT id,message_id,status,retry_count,max_retries,last_error,sent_file_name,
-                 created_at,sent_at,next_retry_at FROM outbound_mail_queue
+                 created_at,sent_at,next_retry_at,sent_domains_json,failed_domains_json
+                 FROM outbound_mail_queue
                  WHERE {predicate} AND lower(sender_address)=lower($2)"
             )
         } else {
             format!(
                 "SELECT id,message_id,status,retry_count,max_retries,last_error,sent_file_name,
-                 created_at,sent_at,next_retry_at FROM outbound_mail_queue WHERE {predicate}"
+                 created_at,sent_at,next_retry_at,sent_domains_json,failed_domains_json
+                 FROM outbound_mail_queue WHERE {predicate}"
             )
         };
         let row = match sender {
@@ -991,7 +1902,58 @@ impl OutboundService {
             created_at: row.get(7),
             sent_at: row.get(8),
             next_retry_at: row.get(9),
+            sent_domains_json: row.get(10),
+            failed_domains_json: row.get(11),
         }))
+    }
+
+    async fn web_status(&self, row: StatusRow) -> Result<WebStatusResponse, OutboundError> {
+        let statuses = self
+            .queue
+            .read_persisted_domain_statuses(row.queue_id)
+            .await
+            .map_err(map_queue_error)?;
+        let (aggregated_status, domain_details) = if statuses.is_empty() {
+            (row.status.clone(), row.database_domain_details())
+        } else {
+            (
+                aggregate_domain_statuses(&statuses),
+                statuses
+                    .into_values()
+                    .map(WebDomainStatusResponse::from_domain_status)
+                    .collect(),
+            )
+        };
+        Ok(row.into_web(aggregated_status, domain_details))
+    }
+
+    async fn web_status_from_task(
+        &self,
+        task: TaskDetail,
+    ) -> Result<WebStatusResponse, OutboundError> {
+        let mut statuses = self
+            .queue
+            .read_persisted_domain_statuses(task.id)
+            .await
+            .map_err(map_queue_error)?;
+        if statuses.is_empty() {
+            statuses = reconstructed_task_domain_statuses(&task);
+        }
+        let mut aggregated_status = if statuses.is_empty() {
+            task.status.clone()
+        } else {
+            aggregate_domain_statuses(&statuses)
+        };
+        if task.status == "PENDING"
+            && !matches!(aggregated_status.as_str(), "PENDING" | "PROCESSING")
+        {
+            aggregated_status = "PENDING".into();
+        }
+        let domain_details = statuses
+            .into_values()
+            .map(WebDomainStatusResponse::from_domain_status)
+            .collect();
+        Ok(task.into_web_status(aggregated_status, domain_details))
     }
 
     fn validate_attachments(
@@ -1112,6 +2074,84 @@ fn map_message_build_error(error: MessageBuildError) -> OutboundError {
     }
 }
 
+fn map_queue_error(_: QueueError) -> OutboundError {
+    OutboundError::Unavailable
+}
+
+fn reconstructed_task_domain_statuses(task: &TaskDetail) -> BTreeMap<String, DomainStatus> {
+    let Ok(recipients) = parse_recipient_roster_json(&task.recipients_json) else {
+        return BTreeMap::new();
+    };
+    let status = match task.status.as_str() {
+        "PROCESSING" => "SENDING",
+        "SENT" => "SENT",
+        "FAILED" => "FAILED",
+        _ => "PENDING",
+    };
+    let updated_at = Utc::now().to_rfc3339();
+    let mut domains = BTreeMap::<String, DomainStatus>::new();
+    for recipient in recipients {
+        let Some((_, domain)) = recipient.rsplit_once('@') else {
+            continue;
+        };
+        domains
+            .entry(domain.to_owned())
+            .or_insert_with(|| DomainStatus {
+                domain: domain.to_owned(),
+                status: status.to_owned(),
+                error: (status == "FAILED")
+                    .then(|| task.last_error.clone())
+                    .flatten(),
+                recipients: Vec::new(),
+                updated_at: updated_at.clone(),
+            })
+            .recipients
+            .push(recipient);
+    }
+    domains
+}
+
+impl TaskDetail {
+    fn into_api_status(self) -> ApiStatusResponse {
+        let next_retry_at = visible_task_next_retry(&self);
+        ApiStatusResponse {
+            queue_id: self.id,
+            message_id: Some(self.message_id),
+            status: self.status,
+            retry_count: self.retry_count,
+            max_retries: self.max_retries,
+            last_error: self.last_error,
+            created_at: self.created_at,
+            sent_at: None,
+            next_retry_at,
+        }
+    }
+
+    fn into_web_status(
+        self,
+        aggregated_status: String,
+        domain_details: Vec<WebDomainStatusResponse>,
+    ) -> WebStatusResponse {
+        let next_retry_at = visible_task_next_retry(&self);
+        let status_description = status_description(&aggregated_status, self.retry_count);
+        WebStatusResponse {
+            queue_id: self.id,
+            message_id: Some(self.message_id),
+            status: self.status,
+            aggregated_status,
+            status_description,
+            retry_count: self.retry_count,
+            max_retries: self.max_retries,
+            last_error: self.last_error,
+            sent_file_name: self.sent_file_name,
+            created_at: self.created_at,
+            sent_at: None,
+            next_retry_at,
+            domain_details,
+        }
+    }
+}
+
 impl StatusRow {
     fn into_api(self) -> ApiStatusResponse {
         let next_retry_at = visible_next_retry(&self);
@@ -1128,24 +2168,17 @@ impl StatusRow {
         }
     }
 
-    fn into_web(self) -> WebStatusResponse {
+    fn into_web(
+        self,
+        aggregated_status: String,
+        domain_details: Vec<WebDomainStatusResponse>,
+    ) -> WebStatusResponse {
         let next_retry_at = visible_next_retry(&self);
-        let status_description = match self.status.as_str() {
-            "PENDING" if self.retry_count > 0 => {
-                format!("等待重试 (第 {} 次)", self.retry_count)
-            }
-            "PENDING" => "等待发送".to_owned(),
-            "PROCESSING" => "正在发送...".to_owned(),
-            "SENT" => "发送成功".to_owned(),
-            "PARTIAL_SUCCESS" => "部分发送成功".to_owned(),
-            "FAILED" => "发送失败".to_owned(),
-            "CANCELLED" => "已取消".to_owned(),
-            value => value.to_owned(),
-        };
+        let status_description = status_description(&aggregated_status, self.retry_count);
         WebStatusResponse {
             queue_id: self.queue_id,
             message_id: self.message_id,
-            aggregated_status: self.status.clone(),
+            aggregated_status,
             status: self.status,
             status_description,
             retry_count: self.retry_count,
@@ -1155,8 +2188,142 @@ impl StatusRow {
             created_at: instant(self.created_at),
             sent_at: self.sent_at.map(instant),
             next_retry_at,
+            domain_details,
         }
     }
+
+    fn database_domain_details(&self) -> Vec<WebDomainStatusResponse> {
+        let mut details = Vec::new();
+        if let Some(domains) = self
+            .sent_domains_json
+            .as_deref()
+            .and_then(|value| serde_json::from_str::<Vec<String>>(value).ok())
+        {
+            details.extend(domains.into_iter().map(|domain| WebDomainStatusResponse {
+                domain,
+                status: "SENT".into(),
+                status_description: domain_status_description("SENT"),
+                error: None,
+                recipients: None,
+                updated_at: None,
+            }));
+        }
+        if let Some(domains) = self
+            .failed_domains_json
+            .as_deref()
+            .and_then(|value| serde_json::from_str::<BTreeMap<String, String>>(value).ok())
+        {
+            details.extend(
+                domains
+                    .into_iter()
+                    .map(|(domain, error)| WebDomainStatusResponse {
+                        domain,
+                        status: "FAILED".into(),
+                        status_description: domain_status_description("FAILED"),
+                        error: Some(error),
+                        recipients: None,
+                        updated_at: None,
+                    }),
+            );
+        }
+        details.sort_by(|left, right| left.domain.cmp(&right.domain));
+        details
+    }
+}
+
+impl WebDomainStatusResponse {
+    fn from_domain_status(status: DomainStatus) -> Self {
+        let status_description = domain_status_description(&status.status);
+        Self {
+            domain: status.domain,
+            status: status.status,
+            status_description,
+            error: status.error,
+            recipients: Some(status.recipients),
+            updated_at: Some(status.updated_at),
+        }
+    }
+}
+
+fn status_description(status: &str, retry_count: i32) -> String {
+    match status {
+        "PENDING" if retry_count > 0 => format!("等待重试 (第 {retry_count} 次)"),
+        "PENDING" => "等待发送".to_owned(),
+        "PROCESSING" | "SENDING" => "正在发送...".to_owned(),
+        "SENT" => "发送成功".to_owned(),
+        "PARTIAL_SUCCESS" => "部分发送成功".to_owned(),
+        "FAILED" => "发送失败".to_owned(),
+        "CANCELLED" => "已取消".to_owned(),
+        value => value.to_owned(),
+    }
+}
+
+fn domain_status_description(status: &str) -> String {
+    match status {
+        "PENDING" => "等待发送".to_owned(),
+        "SENDING" => "正在发送...".to_owned(),
+        "SENT" => "发送成功".to_owned(),
+        "FAILED" => "发送失败".to_owned(),
+        value => value.to_owned(),
+    }
+}
+
+fn aggregate_domain_statuses(statuses: &BTreeMap<String, DomainStatus>) -> String {
+    let total = statuses.len();
+    let sent = statuses
+        .values()
+        .filter(|status| status.status == "SENT")
+        .count();
+    let failed = statuses
+        .values()
+        .filter(|status| status.status == "FAILED")
+        .count();
+    let permanent_failed = statuses
+        .values()
+        .filter(|status| {
+            status.status == "FAILED" && status.error.as_deref().is_some_and(permanent_domain_error)
+        })
+        .count();
+    if sent == total {
+        "SENT".into()
+    } else if permanent_failed == total {
+        "FAILED".into()
+    } else if sent > 0 && permanent_failed > 0 && sent + permanent_failed == total {
+        "PARTIAL_SUCCESS".into()
+    } else if statuses
+        .values()
+        .any(|status| matches!(status.status.as_str(), "PENDING" | "SENDING"))
+        || failed > permanent_failed
+    {
+        "PROCESSING".into()
+    } else {
+        "PENDING".into()
+    }
+}
+
+fn permanent_domain_error(error: &str) -> bool {
+    let error = error.to_ascii_lowercase();
+    [
+        "does not support smtputf8",
+        "requires smtputf8",
+        "smtputf8 recipient",
+        "was not sent with smtputf8",
+        "session was not initialized",
+        "user unknown",
+        "mailbox not found",
+        "recipient rejected",
+        "no such user",
+        "address rejected",
+        "relay denied",
+        "relay not permitted",
+        "550 ",
+        "551 ",
+        "552 ",
+        "553 ",
+        "554 ",
+    ]
+    .iter()
+    .any(|needle| error.contains(needle))
 }
 
 fn visible_next_retry(row: &StatusRow) -> Option<String> {
@@ -1164,6 +2331,14 @@ fn visible_next_retry(row: &StatusRow) -> Option<String> {
         None
     } else {
         row.next_retry_at.map(instant)
+    }
+}
+
+fn visible_task_next_retry(task: &TaskDetail) -> Option<String> {
+    if task.status == "PENDING" && task.retry_count == 0 {
+        None
+    } else {
+        task.next_retry_at.clone()
     }
 }
 
@@ -1463,5 +2638,35 @@ mod tests {
         let normalized = postgres_timestamp(value);
         assert_eq!(normalized.nanosecond(), 123_456_000);
         assert_eq!(instant(normalized), "2026-08-06T01:02:03.123456Z");
+    }
+
+    #[test]
+    fn domain_aggregation_matches_the_frozen_java_predicate() {
+        let status = |domain: &str, value: &str, error: Option<&str>| DomainStatus {
+            domain: domain.into(),
+            status: value.into(),
+            error: error.map(str::to_owned),
+            recipients: vec![format!("user@{domain}")],
+            updated_at: "2026-08-07T00:00:00Z".into(),
+        };
+        assert_eq!(
+            aggregate_domain_statuses(&BTreeMap::from([
+                ("alpha.test".into(), status("alpha.test", "PENDING", None)),
+                ("beta.test".into(), status("beta.test", "SENDING", None)),
+            ])),
+            "PROCESSING"
+        );
+        assert_eq!(
+            aggregate_domain_statuses(&BTreeMap::from([
+                ("alpha.test".into(), status("alpha.test", "SENT", None)),
+                (
+                    "beta.test".into(),
+                    status("beta.test", "FAILED", Some("550 5.1.1 user unknown")),
+                ),
+            ])),
+            "PARTIAL_SUCCESS"
+        );
+        assert!(!permanent_domain_error("500 syntax error"));
+        assert!(permanent_domain_error("554 5.7.1 policy rejected"));
     }
 }

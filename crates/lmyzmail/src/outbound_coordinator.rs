@@ -1,12 +1,14 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
+    fs::File,
     future::Future,
-    path::PathBuf,
+    io::{self, Read},
+    path::{Component, Path, PathBuf},
     pin::Pin,
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicI64, Ordering},
     },
     time::Duration,
 };
@@ -16,20 +18,24 @@ use chrono::{DateTime, Utc};
 use deadpool_postgres::Pool as PostgresPool;
 use deadpool_redis::Pool as RedisPool;
 use tokio::{
-    sync::Mutex,
-    task::JoinHandle,
-    time::{MissedTickBehavior, interval, sleep},
+    sync::{Mutex, Semaphore, oneshot},
+    task::{JoinHandle, spawn_blocking},
+    time::{MissedTickBehavior, interval, sleep, timeout},
 };
 use tokio_util::sync::CancellationToken;
+
+#[cfg(not(target_os = "linux"))]
+use std::fs;
 
 use crate::{
     config::RuntimeConfig,
     outbound_delivery::{
         CommitResultStatus, DatabaseClaim, DeliveryAttemptId, DeliveryAttemptPhase,
         DeliveryRowStatus, DeliverySnapshot, DeliveryStateError, LegacyProjection,
-        PostgresDeliveryState, PreparedRecipientCheckpoint, PreparedRecipientStatus,
-        RecipientDeliveryState, RecipientLedgerClaim, RecipientLedgerSnapshot, RetryTransition,
-        TerminalStatus, parse_recipient_roster_json, recipient_domain,
+        OutboundSpoolKind, OutboundSpoolRecord, OutboundSpoolState, PostgresDeliveryState,
+        PreparedRecipientCheckpoint, PreparedRecipientStatus, RecipientDeliveryState,
+        RecipientLedgerClaim, RecipientLedgerSnapshot, RetryTransition, TerminalStatus,
+        parse_recipient_roster_json, recipient_domain,
     },
     outbound_queue::{
         ClaimReconciliation, DomainStatus, LegacyOutboundQueue, QueueClaim, QueueError,
@@ -56,6 +62,9 @@ const MAX_PATH_BYTES: usize = 4_096;
 const MAX_DETAIL_BYTES: usize = 2_048;
 const MAX_WORKER_ID_BYTES: usize = 64;
 const MIN_SAFE_LEASE_SECONDS: u64 = 65;
+const SPOOL_CLEANUP_TASKS: usize = 16;
+const SPOOL_IO_TIMEOUT: Duration = Duration::from_secs(8);
+const FILE_COMPARE_BUFFER_BYTES: usize = 64 * 1024;
 
 type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
@@ -88,6 +97,7 @@ pub struct CoordinatorConfig {
     pub retry_max: Duration,
     pub max_message_bytes: u64,
     pub maildir_base: PathBuf,
+    pub spool_dir: PathBuf,
 }
 
 impl CoordinatorConfig {
@@ -138,6 +148,10 @@ impl CoordinatorConfig {
             retry_max: Duration::from_secs(retry_max_seconds),
             max_message_bytes: config.limits.max_email_size_bytes,
             maildir_base: config.maildir.clone(),
+            spool_dir: config
+                .preferred_value("lmyzmail.outbound.spool-dir", "botmail.outbound.temp-dir")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| config.maildir.join(".lmyzmail-outbound")),
         };
         value.validate()?;
         Ok(value)
@@ -169,6 +183,7 @@ impl CoordinatorConfig {
             || self.max_message_bytes == 0
             || self.max_message_bytes > MAX_BASE64_SOURCE_BYTES as u64
             || self.maildir_base.as_os_str().is_empty()
+            || self.spool_dir.as_os_str().is_empty()
         {
             return Err(CoordinatorError::Configuration(
                 "outbound coordinator limits are invalid",
@@ -185,6 +200,8 @@ pub struct OutboundCoordinator {
     routes: Arc<dyn RouteLookup>,
     smtp: Arc<OutboundSmtpClient>,
     takeover: LegacyRedisTakeover,
+    spool_cleanup_permits: Arc<Semaphore>,
+    removed_spool_cursor: Arc<AtomicI64>,
     config: CoordinatorConfig,
 }
 
@@ -203,6 +220,15 @@ pub enum CoordinatorOutcome {
     },
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct QueueMaintenanceOutcome {
+    pub next_expired_cursor: u64,
+    pub moved_retries: usize,
+    pub recovered_claims: usize,
+    pub terminal_cleanups: usize,
+    pub removed_spool_sidecars: usize,
+}
+
 #[derive(Debug)]
 pub enum CoordinatorError {
     Configuration(&'static str),
@@ -211,6 +237,7 @@ pub enum CoordinatorError {
     DeliveryState(DeliveryStateError),
     Takeover(LegacyTakeoverError),
     Reconciliation(&'static str),
+    SpoolCleanup(&'static str),
     LeaseLost,
     Cancelled,
 }
@@ -220,7 +247,8 @@ impl fmt::Display for CoordinatorError {
         match self {
             Self::Configuration(message)
             | Self::InvalidTask(message)
-            | Self::Reconciliation(message) => formatter.write_str(message),
+            | Self::Reconciliation(message)
+            | Self::SpoolCleanup(message) => formatter.write_str(message),
             Self::Queue(error) => write!(formatter, "outbound Redis state failed: {error}"),
             Self::DeliveryState(error) => {
                 write!(formatter, "outbound PostgreSQL state failed: {error}")
@@ -290,6 +318,8 @@ impl OutboundCoordinator {
             routes,
             smtp,
             takeover,
+            spool_cleanup_permits: Arc::new(Semaphore::new(SPOOL_CLEANUP_TASKS)),
+            removed_spool_cursor: Arc::new(AtomicI64::new(0)),
             config,
         })
     }
@@ -298,9 +328,123 @@ impl OutboundCoordinator {
         self.state.initialize_schema().await.map_err(Into::into)
     }
 
+    pub async fn maintain_queue(
+        &self,
+        expired_cursor: u64,
+        limit: usize,
+        cancellation: &CancellationToken,
+    ) -> Result<QueueMaintenanceOutcome, CoordinatorError> {
+        if limit == 0 || limit > 10_000 {
+            return Err(CoordinatorError::Configuration(
+                "outbound maintenance batch bound is invalid",
+            ));
+        }
+        if cancellation.is_cancelled() {
+            return Err(CoordinatorError::Cancelled);
+        }
+        let now = Utc::now();
+        let now_millis = now.timestamp_millis();
+        let stale_before = now
+            - chrono::Duration::from_std(self.config.task_deadline).map_err(|_| {
+                CoordinatorError::Configuration("outbound recovery deadline is invalid")
+            })?;
+        let moved_retries = self.queue.move_due_retries(now_millis, limit).await?.len();
+        let page = self
+            .queue
+            .scan_stale_expired_claims(expired_cursor, limit, stale_before.timestamp_millis())
+            .await?;
+        let mut outcome = QueueMaintenanceOutcome {
+            next_expired_cursor: page.next_cursor,
+            moved_retries,
+            recovered_claims: 0,
+            terminal_cleanups: 0,
+            removed_spool_sidecars: 0,
+        };
+        for task_id in page.task_ids {
+            if cancellation.is_cancelled() {
+                return Err(CoordinatorError::Cancelled);
+            }
+            let before = self.state.snapshot(task_id, None).await?;
+            if before
+                .as_ref()
+                .is_some_and(|snapshot| snapshot.status == DeliveryRowStatus::Processing)
+            {
+                match self.state.recover_expired(task_id, stale_before, now).await {
+                    Ok(_) | Err(DeliveryStateError::OutcomeUnknown) => {}
+                    Err(error) => return Err(error.into()),
+                }
+            }
+            let after = self.state.snapshot(task_id, None).await?;
+            match after {
+                None
+                | Some(DeliverySnapshot {
+                    status: DeliveryRowStatus::Pending,
+                    ..
+                }) => {
+                    if self.queue.recover_expired_claim(task_id, true).await? {
+                        outcome.recovered_claims += 1;
+                    }
+                }
+                Some(snapshot) if snapshot.status.is_terminal() => {
+                    if self.queue.recover_expired_claim(task_id, true).await? {
+                        outcome.recovered_claims += 1;
+                    }
+                }
+                Some(_) => {}
+            }
+        }
+        for record in self.state.terminal_outbound_spools(limit).await? {
+            if cancellation.is_cancelled() {
+                return Err(CoordinatorError::Cancelled);
+            }
+            self.cleanup_owned_spool(record).await?;
+            outcome.terminal_cleanups += 1;
+        }
+        let removed_cursor = self.removed_spool_cursor.load(Ordering::Acquire);
+        let removed_records = self
+            .state
+            .removed_outbound_spools(removed_cursor, limit)
+            .await?;
+        self.removed_spool_cursor.store(
+            removed_records.last().map_or(0, |record| record.task_id),
+            Ordering::Release,
+        );
+        for record in removed_records {
+            if cancellation.is_cancelled() {
+                return Err(CoordinatorError::Cancelled);
+            }
+            if self
+                .queue
+                .terminal_acknowledgement_proven(record.task_id, &record.sent_file_name)
+                .await?
+            {
+                self.delete_removed_spool_reconciled(&record).await?;
+                outcome.removed_spool_sidecars += 1;
+            }
+        }
+        Ok(outcome)
+    }
+
     pub async fn process_next(
         &self,
         cancellation: &CancellationToken,
+    ) -> Result<CoordinatorOutcome, CoordinatorError> {
+        self.process_next_inner(cancellation, None).await
+    }
+
+    pub(crate) async fn process_next_with_claim_signal(
+        &self,
+        cancellation: &CancellationToken,
+        claim_signal: oneshot::Sender<bool>,
+    ) -> Result<CoordinatorOutcome, CoordinatorError> {
+        self.process_next_inner(cancellation, Some(claim_signal))
+            .await
+    }
+
+    async fn process_next_inner(
+        &self,
+        cancellation: &CancellationToken,
+        claim_signal: Option<oneshot::Sender<bool>>,
     ) -> Result<CoordinatorOutcome, CoordinatorError> {
         if cancellation.is_cancelled() {
             return Err(CoordinatorError::Cancelled);
@@ -311,8 +455,14 @@ impl OutboundCoordinator {
             .claim_queue(&lease_token, claimed_at, cancellation)
             .await?
         else {
+            if let Some(signal) = claim_signal {
+                let _ = signal.send(false);
+            }
             return Ok(CoordinatorOutcome::Idle);
         };
+        if let Some(signal) = claim_signal {
+            let _ = signal.send(true);
+        }
         if cancellation.is_cancelled() {
             self.release_queue(&queue_claim, true).await?;
             return Ok(CoordinatorOutcome::Released {
@@ -379,6 +529,10 @@ impl OutboundCoordinator {
                 Ok(CoordinatorOutcome::Released {
                     task_id: queue_claim.task_id,
                 })
+            }
+            Err(error @ CoordinatorError::SpoolCleanup(_)) => {
+                keepalive.stop().await?;
+                Err(error)
             }
             Err(error) => {
                 match self
@@ -483,6 +637,11 @@ impl OutboundCoordinator {
                     .await;
             }
         };
+        let envelope_from = if self.state.is_dsn_task(database_claim.task_id).await? {
+            ""
+        } else {
+            task.sender_address.as_str()
+        };
         let domain_rosters = match validate_task_rosters(
             task,
             database_claim.task_id,
@@ -565,7 +724,7 @@ impl OutboundCoordinator {
                     domain,
                     recipients,
                     DomainDeliveryContext {
-                        task,
+                        envelope_from,
                         message: &message,
                         cancellation,
                     },
@@ -812,7 +971,7 @@ impl OutboundCoordinator {
             let request = DeliveryRequest {
                 endpoint: candidate.endpoint,
                 hello_name: self.config.hello_name.clone(),
-                envelope_from: context.task.sender_address.clone(),
+                envelope_from: context.envelope_from.to_owned(),
                 recipients: addresses.clone(),
                 message: context.message.clone(),
                 tls_mode: route.tls_mode,
@@ -1120,14 +1279,11 @@ impl OutboundCoordinator {
             .ok_or(CoordinatorError::Reconciliation(
                 "projected legacy delivery row disappeared",
             ))?;
-        let domain_status_error = if let Some(prior) = prior_domain_statuses {
+        if let Some(prior) = prior_domain_statuses {
             let updates = project_domain_statuses(prior, &final_ledger, Utc::now())?;
             self.update_domain_statuses_reconciled(queue_claim, prior, &updates)
-                .await
-                .err()
-        } else {
-            None
-        };
+                .await?;
+        }
 
         self.renew_queue_claim(queue_claim).await?;
         keepalive.quiesce().await?;
@@ -1147,9 +1303,6 @@ impl OutboundCoordinator {
             LegacyProjection::Terminal(_) | LegacyProjection::Ambiguous => {
                 self.acknowledge_queue(queue_claim).await?;
             }
-        }
-        if let Some(error) = domain_status_error {
-            return Err(error);
         }
         Ok(CoordinatorOutcome::Completed {
             task_id: queue_claim.task_id,
@@ -1321,6 +1474,8 @@ impl OutboundCoordinator {
                         | DeliveryRowStatus::Cancelled
                 ) =>
             {
+                self.reconcile_projected_domain_statuses(&queue_claim, &snapshot)
+                    .await?;
                 self.acknowledge_queue(&queue_claim).await?;
                 let status = match snapshot.status {
                     DeliveryRowStatus::Sent => TerminalStatus::Sent,
@@ -1348,6 +1503,8 @@ impl OutboundCoordinator {
                     self.release_queue(&queue_claim, true).await?;
                     return Ok(CoordinatorOutcome::Released { task_id });
                 }
+                self.reconcile_projected_domain_statuses(&queue_claim, &snapshot)
+                    .await?;
                 task.retry_count = snapshot.retry_count;
                 task.max_retries = snapshot.max_retries;
                 task.next_retry_at = Some(instant(snapshot.next_retry_at));
@@ -1366,6 +1523,54 @@ impl OutboundCoordinator {
                 Ok(CoordinatorOutcome::Deferred { task_id })
             }
         }
+    }
+
+    async fn reconcile_projected_domain_statuses(
+        &self,
+        queue_claim: &QueueClaim,
+        legacy: &DeliverySnapshot,
+    ) -> Result<(), CoordinatorError> {
+        let Some(task) = queue_claim.task.as_ref() else {
+            return Ok(());
+        };
+        let Some(ledger) = self
+            .state
+            .ledger_snapshot(queue_claim.task_id, None)
+            .await?
+        else {
+            return Ok(());
+        };
+        if ledger.phase != DeliveryAttemptPhase::Projected || ledger.has_owner {
+            return Err(CoordinatorError::Reconciliation(
+                "Redis settlement was attempted before the delivery ledger was projected",
+            ));
+        }
+        let roster: Vec<String> = ledger
+            .recipients
+            .iter()
+            .map(|recipient| recipient.recipient.clone())
+            .collect();
+        let domain_rosters = validate_task_rosters(
+            task,
+            queue_claim.task_id,
+            task.retry_count,
+            legacy.max_retries,
+            &roster,
+        )
+        .map_err(CoordinatorError::InvalidTask)?;
+        let expected: BTreeSet<String> = domain_rosters.keys().cloned().collect();
+        let prior = self
+            .queue
+            .read_domain_statuses(queue_claim, &expected)
+            .await?;
+        if !domain_status_rosters_match(&prior, &domain_rosters) {
+            return Err(CoordinatorError::Reconciliation(
+                "Redis outbound domain roster is corrupt during settlement",
+            ));
+        }
+        let updates = project_domain_statuses(&prior, &ledger, Utc::now())?;
+        self.update_domain_statuses_reconciled(queue_claim, &prior, &updates)
+            .await
     }
 
     async fn release_cancelled(
@@ -1407,6 +1612,11 @@ impl OutboundCoordinator {
             }
             Some(snapshot) if snapshot.status == DeliveryRowStatus::Pending => {
                 self.release_queue(queue_claim, true).await
+            }
+            Some(snapshot) if snapshot.status.is_terminal() => {
+                self.reconcile_projected_domain_statuses(queue_claim, &snapshot)
+                    .await?;
+                self.acknowledge_queue(queue_claim).await
             }
             _ => self.acknowledge_queue(queue_claim).await,
         }
@@ -1511,12 +1721,20 @@ impl OutboundCoordinator {
     }
 
     async fn acknowledge_queue(&self, claim: &QueueClaim) -> Result<(), CoordinatorError> {
+        if let Err(error) = self.cleanup_terminal_spool(claim).await {
+            self.release_queue(claim, true).await?;
+            return Err(error);
+        }
         let settlement = QueueSettlement::Acknowledge;
         for _ in 0..MAX_RECONCILIATION_ATTEMPTS {
             match self.queue.acknowledge(claim).await {
                 Ok(true) | Err(QueueError::OutcomeUnknown) => {
                     match self.queue.reconcile_settlement(claim, settlement).await? {
-                        SettlementReconciliation::Applied => return Ok(()),
+                        SettlementReconciliation::Applied => {
+                            self.delete_acknowledged_spool_sidecar(claim.task_id)
+                                .await?;
+                            return Ok(());
+                        }
                         SettlementReconciliation::Active => {
                             sleep(RECONCILIATION_PAUSE).await;
                         }
@@ -1537,6 +1755,261 @@ impl OutboundCoordinator {
         Err(CoordinatorError::Reconciliation(
             "Redis acknowledgement could not be reconciled",
         ))
+    }
+
+    async fn delete_acknowledged_spool_sidecar(
+        &self,
+        task_id: i64,
+    ) -> Result<(), CoordinatorError> {
+        let record = self
+            .state
+            .outbound_spool_snapshot(task_id)
+            .await
+            .map_err(|_| {
+                CoordinatorError::SpoolCleanup(
+                    "acknowledged outbound spool sidecar could not be read",
+                )
+            })?;
+        let Some(record) = record else {
+            return Ok(());
+        };
+        if record.state != OutboundSpoolState::Removed {
+            return Err(CoordinatorError::SpoolCleanup(
+                "acknowledged outbound spool is not durably removed",
+            ));
+        }
+        self.delete_removed_spool_reconciled(&record).await
+    }
+
+    async fn delete_removed_spool_reconciled(
+        &self,
+        record: &OutboundSpoolRecord,
+    ) -> Result<(), CoordinatorError> {
+        for _ in 0..MAX_RECONCILIATION_ATTEMPTS {
+            match self
+                .state
+                .delete_removed_outbound_spool(record.task_id, &record.spool_path)
+                .await
+            {
+                Ok(_) => return Ok(()),
+                Err(DeliveryStateError::OutcomeUnknown) => {
+                    let snapshot = self
+                        .state
+                        .outbound_spool_snapshot(record.task_id)
+                        .await
+                        .map_err(|_| {
+                            CoordinatorError::SpoolCleanup(
+                                "outbound spool sidecar deletion reconciliation failed",
+                            )
+                        })?;
+                    match snapshot {
+                        None => return Ok(()),
+                        Some(snapshot)
+                            if snapshot.spool_path == record.spool_path
+                                && snapshot.state == OutboundSpoolState::Removed =>
+                        {
+                            sleep(RECONCILIATION_PAUSE).await;
+                        }
+                        Some(_) => {
+                            return Err(CoordinatorError::SpoolCleanup(
+                                "outbound spool sidecar changed during deletion",
+                            ));
+                        }
+                    }
+                }
+                Err(_) => {
+                    return Err(CoordinatorError::SpoolCleanup(
+                        "outbound spool sidecar deletion failed",
+                    ));
+                }
+            }
+        }
+        Err(CoordinatorError::SpoolCleanup(
+            "outbound spool sidecar deletion remained unknown",
+        ))
+    }
+
+    async fn cleanup_terminal_spool(&self, claim: &QueueClaim) -> Result<(), CoordinatorError> {
+        let mut record = self
+            .state
+            .outbound_spool_snapshot(claim.task_id)
+            .await
+            .map_err(|_| CoordinatorError::SpoolCleanup("outbound spool ownership read failed"))?;
+        if record.is_none() {
+            let Some(task) = claim.task.as_ref() else {
+                return Ok(());
+            };
+            let Some(spool_path) = task.message_file_path.as_deref() else {
+                return Ok(());
+            };
+            let Some(kind) = spool_kind_for_task_path(claim.task_id, spool_path)? else {
+                return Ok(());
+            };
+            let candidate = OutboundSpoolRecord {
+                task_id: claim.task_id,
+                spool_path: spool_path.to_owned(),
+                kind,
+                state: OutboundSpoolState::Owned,
+                sender_address: task.sender_address.clone(),
+                sent_file_name: task
+                    .sent_file_name
+                    .clone()
+                    .filter(|value| !value.is_empty())
+                    .ok_or(CoordinatorError::SpoolCleanup(
+                        "outbound spool has no Sent Maildir identity",
+                    ))?,
+                sent_subdirectory: task.sent_subdirectory.filter(|value| *value > 0).ok_or(
+                    CoordinatorError::SpoolCleanup(
+                        "outbound spool has no Sent Maildir subdirectory",
+                    ),
+                )?,
+            };
+            self.run_spool_io(candidate.clone(), false).await?;
+            self.register_spool_reconciled(&candidate).await?;
+            record = self
+                .state
+                .outbound_spool_snapshot(claim.task_id)
+                .await
+                .map_err(|_| {
+                    CoordinatorError::SpoolCleanup(
+                        "registered outbound spool ownership could not be read",
+                    )
+                })?;
+        }
+        let Some(record) = record else {
+            return Err(CoordinatorError::SpoolCleanup(
+                "outbound spool ownership disappeared",
+            ));
+        };
+        if record.state == OutboundSpoolState::Removed {
+            return Ok(());
+        }
+        self.cleanup_owned_spool(record).await
+    }
+
+    async fn cleanup_owned_spool(
+        &self,
+        record: OutboundSpoolRecord,
+    ) -> Result<(), CoordinatorError> {
+        if record.state == OutboundSpoolState::Removed {
+            return Ok(());
+        }
+        self.run_spool_io(record.clone(), true).await?;
+        self.mark_spool_removed_reconciled(&record).await
+    }
+
+    async fn register_spool_reconciled(
+        &self,
+        record: &OutboundSpoolRecord,
+    ) -> Result<(), CoordinatorError> {
+        for _ in 0..MAX_RECONCILIATION_ATTEMPTS {
+            match self
+                .state
+                .register_outbound_spool(
+                    record.task_id,
+                    &record.spool_path,
+                    record.kind,
+                    Utc::now(),
+                )
+                .await
+            {
+                Ok(_) => return Ok(()),
+                Err(DeliveryStateError::OutcomeUnknown) => {
+                    let snapshot = self
+                        .state
+                        .outbound_spool_snapshot(record.task_id)
+                        .await
+                        .map_err(|_| {
+                            CoordinatorError::SpoolCleanup(
+                                "outbound spool registration reconciliation failed",
+                            )
+                        })?;
+                    if snapshot.as_ref().is_some_and(|snapshot| {
+                        snapshot.spool_path == record.spool_path && snapshot.kind == record.kind
+                    }) {
+                        return Ok(());
+                    }
+                    sleep(RECONCILIATION_PAUSE).await;
+                }
+                Err(_) => {
+                    return Err(CoordinatorError::SpoolCleanup(
+                        "outbound spool registration failed",
+                    ));
+                }
+            }
+        }
+        Err(CoordinatorError::SpoolCleanup(
+            "outbound spool registration remained unknown",
+        ))
+    }
+
+    async fn mark_spool_removed_reconciled(
+        &self,
+        record: &OutboundSpoolRecord,
+    ) -> Result<(), CoordinatorError> {
+        for _ in 0..MAX_RECONCILIATION_ATTEMPTS {
+            match self
+                .state
+                .mark_outbound_spool_removed(record.task_id, &record.spool_path, Utc::now())
+                .await
+            {
+                Ok(_) => return Ok(()),
+                Err(DeliveryStateError::OutcomeUnknown) => {
+                    let snapshot = self
+                        .state
+                        .outbound_spool_snapshot(record.task_id)
+                        .await
+                        .map_err(|_| {
+                            CoordinatorError::SpoolCleanup(
+                                "outbound spool cleanup reconciliation failed",
+                            )
+                        })?;
+                    if snapshot
+                        .as_ref()
+                        .is_some_and(|snapshot| snapshot.state == OutboundSpoolState::Removed)
+                    {
+                        return Ok(());
+                    }
+                    sleep(RECONCILIATION_PAUSE).await;
+                }
+                Err(_) => {
+                    return Err(CoordinatorError::SpoolCleanup(
+                        "outbound spool cleanup checkpoint failed",
+                    ));
+                }
+            }
+        }
+        Err(CoordinatorError::SpoolCleanup(
+            "outbound spool cleanup checkpoint remained unknown",
+        ))
+    }
+
+    async fn run_spool_io(
+        &self,
+        record: OutboundSpoolRecord,
+        remove: bool,
+    ) -> Result<(), CoordinatorError> {
+        let permit = timeout(
+            SPOOL_IO_TIMEOUT,
+            self.spool_cleanup_permits.clone().acquire_owned(),
+        )
+        .await
+        .map_err(|_| CoordinatorError::SpoolCleanup("outbound spool cleanup pool is saturated"))?
+        .map_err(|_| CoordinatorError::SpoolCleanup("outbound spool cleanup pool is closed"))?;
+        let spool_dir = self.config.spool_dir.clone();
+        let maildir_base = self.config.maildir_base.clone();
+        let max_message_bytes = self.config.max_message_bytes;
+        let task = spawn_blocking(move || {
+            let _permit = permit;
+            validate_and_maybe_remove_spool(
+                &record,
+                &spool_dir,
+                &maildir_base,
+                max_message_bytes,
+                remove,
+            )
+        });
+        await_spool_io(task, remove, SPOOL_IO_TIMEOUT).await
     }
 
     async fn schedule_queue_retry(
@@ -1578,6 +2051,36 @@ impl OutboundCoordinator {
         Err(CoordinatorError::Reconciliation(
             "Redis retry scheduling could not be reconciled",
         ))
+    }
+}
+
+async fn await_spool_io(
+    mut task: JoinHandle<io::Result<()>>,
+    irreversible: bool,
+    soft_deadline: Duration,
+) -> Result<(), CoordinatorError> {
+    let result = match timeout(soft_deadline, &mut task).await {
+        Ok(result) => result,
+        Err(_) if irreversible => {
+            eprintln!(
+                "lmyzmail outbound spool cleanup exceeded its soft deadline; waiting for the irreversible filesystem operation"
+            );
+            task.await
+        }
+        Err(_) => {
+            return Err(CoordinatorError::SpoolCleanup(
+                "outbound spool validation exceeded its deadline",
+            ));
+        }
+    };
+    match result {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(_)) => Err(CoordinatorError::SpoolCleanup(
+            "outbound spool failed ownership validation or cleanup",
+        )),
+        Err(_) => Err(CoordinatorError::SpoolCleanup(
+            "outbound spool cleanup task panicked",
+        )),
     }
 }
 
@@ -1770,7 +2273,7 @@ struct DomainRecipient {
 }
 
 struct DomainDeliveryContext<'a> {
-    task: &'a TaskDetail,
+    envelope_from: &'a str,
     message: &'a MessageSource,
     cancellation: &'a CancellationToken,
 }
@@ -2394,6 +2897,382 @@ fn bounded_detail(value: &str) -> String {
     value[..end].to_owned()
 }
 
+fn spool_kind_for_task_path(
+    task_id: i64,
+    spool_path: &str,
+) -> Result<Option<OutboundSpoolKind>, CoordinatorError> {
+    let path = Path::new(spool_path);
+    if task_id <= 0
+        || !path.is_absolute()
+        || spool_path.is_empty()
+        || spool_path.len() > MAX_PATH_BYTES
+        || spool_path.contains('\0')
+    {
+        return Err(CoordinatorError::SpoolCleanup(
+            "outbound spool path is invalid",
+        ));
+    }
+    let Some(file_name) = path.file_name().and_then(|value| value.to_str()) else {
+        return Err(CoordinatorError::SpoolCleanup(
+            "outbound spool file name is invalid",
+        ));
+    };
+    if file_name == format!("message-{task_id}.eml") {
+        Ok(Some(OutboundSpoolKind::Rust))
+    } else if file_name == format!("signed-{task_id}.eml") {
+        Ok(Some(OutboundSpoolKind::LegacyJava))
+    } else {
+        Ok(None)
+    }
+}
+
+fn validate_and_maybe_remove_spool(
+    record: &OutboundSpoolRecord,
+    spool_dir: &Path,
+    maildir_base: &Path,
+    max_message_bytes: u64,
+    remove: bool,
+) -> io::Result<()> {
+    if record.task_id <= 0 || max_message_bytes == 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "invalid outbound spool cleanup identity",
+        ));
+    }
+    let expected_name = match record.kind {
+        OutboundSpoolKind::Rust => format!("message-{}.eml", record.task_id),
+        OutboundSpoolKind::LegacyJava => format!("signed-{}.eml", record.task_id),
+    };
+    let target = Path::new(&record.spool_path);
+    if !target.is_absolute()
+        || target.file_name().and_then(|value| value.to_str()) != Some(expected_name.as_str())
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "outbound spool path does not match its durable identity",
+        ));
+    }
+    #[cfg(target_os = "linux")]
+    {
+        validate_and_maybe_remove_spool_linux(
+            record,
+            spool_dir,
+            maildir_base,
+            max_message_bytes,
+            remove,
+            &expected_name,
+            target,
+        )
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        validate_and_maybe_remove_spool_portable(
+            record,
+            spool_dir,
+            maildir_base,
+            max_message_bytes,
+            remove,
+            target,
+        )
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn validate_and_maybe_remove_spool_linux(
+    record: &OutboundSpoolRecord,
+    spool_dir: &Path,
+    maildir_base: &Path,
+    max_message_bytes: u64,
+    remove: bool,
+    expected_name: &str,
+    target: &Path,
+) -> io::Result<()> {
+    use rustix::fs::{
+        AtFlags, FileType, Mode, OFlags, ResolveFlags, fstat, fsync, open, openat2, statat,
+        unlinkat,
+    };
+
+    let directory_flags = OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC;
+    let spool_fd = open(spool_dir, directory_flags, Mode::empty()).map_err(io::Error::from)?;
+    let parent = target.parent().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "outbound spool has no parent",
+        )
+    })?;
+    let parent_fd = open(parent, directory_flags, Mode::empty()).map_err(io::Error::from)?;
+    let spool_stat = fstat(&spool_fd).map_err(io::Error::from)?;
+    let parent_stat = fstat(&parent_fd).map_err(io::Error::from)?;
+    if FileType::from_raw_mode(spool_stat.st_mode) != FileType::Directory
+        || FileType::from_raw_mode(parent_stat.st_mode) != FileType::Directory
+        || spool_stat.st_dev != parent_stat.st_dev
+        || spool_stat.st_ino != parent_stat.st_ino
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "outbound spool escapes its configured root",
+        ));
+    }
+
+    let resolve = ResolveFlags::BENEATH | ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS;
+    let file_flags = OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC | OFlags::NONBLOCK;
+    let target_fd = match openat2(&spool_fd, expected_name, file_flags, Mode::empty(), resolve) {
+        Ok(fd) => fd,
+        Err(error) => {
+            let error = io::Error::from(error);
+            if error.kind() == io::ErrorKind::NotFound {
+                return Ok(());
+            }
+            return Err(error);
+        }
+    };
+    let target_stat = fstat(&target_fd).map_err(io::Error::from)?;
+    validate_open_spool_stat(&target_stat, max_message_bytes)?;
+
+    let mut target_file = File::from(target_fd);
+    if record.kind == OutboundSpoolKind::LegacyJava {
+        if record.sent_subdirectory <= 0
+            || !single_normal_component(&record.sender_address)
+            || !single_normal_component(&record.sent_file_name)
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "invalid Sent Maildir identity for outbound spool",
+            ));
+        }
+        let maildir_fd =
+            open(maildir_base, directory_flags, Mode::empty()).map_err(io::Error::from)?;
+        let sent_relative = PathBuf::from(&record.sender_address)
+            .join("sent")
+            .join(record.sent_subdirectory.to_string())
+            .join(&record.sent_file_name);
+        let sent_fd = openat2(
+            &maildir_fd,
+            &sent_relative,
+            file_flags,
+            Mode::empty(),
+            resolve,
+        )
+        .map_err(io::Error::from)?;
+        let sent_stat = fstat(&sent_fd).map_err(io::Error::from)?;
+        validate_open_spool_stat(&sent_stat, max_message_bytes)?;
+        let mut sent_file = File::from(sent_fd);
+        if !files_equal_opened(
+            &mut target_file,
+            target_stat.st_size as u64,
+            &mut sent_file,
+            sent_stat.st_size as u64,
+            max_message_bytes,
+        )? {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "legacy outbound spool differs from its Sent Maildir copy",
+            ));
+        }
+    }
+    if remove {
+        let current =
+            statat(&spool_fd, expected_name, AtFlags::SYMLINK_NOFOLLOW).map_err(io::Error::from)?;
+        if current.st_dev != target_stat.st_dev
+            || current.st_ino != target_stat.st_ino
+            || FileType::from_raw_mode(current.st_mode) != FileType::RegularFile
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "outbound spool changed during ownership validation",
+            ));
+        }
+        unlinkat(&spool_fd, expected_name, AtFlags::empty()).map_err(io::Error::from)?;
+        fsync(&spool_fd).map_err(io::Error::from)?;
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn validate_open_spool_stat(stat: &rustix::fs::Stat, maximum: u64) -> io::Result<()> {
+    if rustix::fs::FileType::from_raw_mode(stat.st_mode) != rustix::fs::FileType::RegularFile
+        || stat.st_size <= 0
+        || stat.st_size as u64 > maximum
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "outbound spool is not a bounded non-empty regular file",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn files_equal_opened(
+    left: &mut File,
+    left_size: u64,
+    right: &mut File,
+    right_size: u64,
+    maximum: u64,
+) -> io::Result<bool> {
+    if left_size != right_size || left_size == 0 || left_size > maximum {
+        return Ok(false);
+    }
+    let mut left_buffer = vec![0_u8; FILE_COMPARE_BUFFER_BYTES];
+    let mut right_buffer = vec![0_u8; FILE_COMPARE_BUFFER_BYTES];
+    loop {
+        let left_read = left.read(&mut left_buffer)?;
+        let right_read = right.read(&mut right_buffer)?;
+        if left_read != right_read || left_buffer[..left_read] != right_buffer[..right_read] {
+            return Ok(false);
+        }
+        if left_read == 0 {
+            return Ok(true);
+        }
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn validate_and_maybe_remove_spool_portable(
+    record: &OutboundSpoolRecord,
+    spool_dir: &Path,
+    maildir_base: &Path,
+    max_message_bytes: u64,
+    remove: bool,
+    target: &Path,
+) -> io::Result<()> {
+    let spool_root = secure_existing_directory(spool_dir)?;
+    let target_parent = target.parent().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "outbound spool has no parent",
+        )
+    })?;
+    let target_parent = secure_existing_directory(target_parent)?;
+    if target_parent != spool_root {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "outbound spool escapes its configured root",
+        ));
+    }
+
+    let metadata = match fs::symlink_metadata(target) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.len() == 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "outbound spool is not a non-empty regular file",
+        ));
+    }
+    if metadata.len() > max_message_bytes {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "outbound spool exceeds its byte budget",
+        ));
+    }
+
+    if record.kind == OutboundSpoolKind::LegacyJava {
+        let sent_path = secure_sent_file(record, maildir_base)?;
+        if !files_equal_bounded(target, &sent_path, max_message_bytes)? {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "legacy outbound spool differs from its Sent Maildir copy",
+            ));
+        }
+    }
+    if remove {
+        fs::remove_file(target)?;
+        File::open(&spool_root)?.sync_all()?;
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn secure_existing_directory(path: &Path) -> io::Result<PathBuf> {
+    let metadata = fs::symlink_metadata(path)?;
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "storage directory is not a real directory",
+        ));
+    }
+    fs::canonicalize(path)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn secure_sent_file(record: &OutboundSpoolRecord, maildir_base: &Path) -> io::Result<PathBuf> {
+    if record.sent_subdirectory <= 0
+        || !single_normal_component(&record.sender_address)
+        || !single_normal_component(&record.sent_file_name)
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "invalid Sent Maildir identity for outbound spool",
+        ));
+    }
+    let base = secure_existing_directory(maildir_base)?;
+    let mailbox = secure_existing_directory(&base.join(&record.sender_address))?;
+    if !mailbox.starts_with(&base) {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "outbound spool mailbox escapes Maildir",
+        ));
+    }
+    let sent = secure_existing_directory(&mailbox.join("sent"))?;
+    let shard = secure_existing_directory(&sent.join(record.sent_subdirectory.to_string()))?;
+    if !sent.starts_with(&mailbox) || !shard.starts_with(&sent) {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "outbound spool Sent path escapes Maildir",
+        ));
+    }
+    let path = shard.join(&record.sent_file_name);
+    let metadata = fs::symlink_metadata(&path)?;
+    if !metadata.is_file()
+        || metadata.file_type().is_symlink()
+        || metadata.len() == 0
+        || metadata.len() > MAX_BASE64_SOURCE_BYTES as u64
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "outbound Sent copy is not a bounded regular file",
+        ));
+    }
+    Ok(path)
+}
+
+fn single_normal_component(value: &str) -> bool {
+    !value.is_empty()
+        && Path::new(value)
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)))
+        && Path::new(value).components().count() == 1
+}
+
+#[cfg(not(target_os = "linux"))]
+fn files_equal_bounded(left: &Path, right: &Path, maximum: u64) -> io::Result<bool> {
+    let left_metadata = fs::metadata(left)?;
+    let right_metadata = fs::metadata(right)?;
+    if left_metadata.len() != right_metadata.len()
+        || left_metadata.len() == 0
+        || left_metadata.len() > maximum
+    {
+        return Ok(false);
+    }
+    let mut left = File::open(left)?;
+    let mut right = File::open(right)?;
+    let mut left_buffer = vec![0_u8; FILE_COMPARE_BUFFER_BYTES];
+    let mut right_buffer = vec![0_u8; FILE_COMPARE_BUFFER_BYTES];
+    loop {
+        let left_read = left.read(&mut left_buffer)?;
+        let right_read = right.read(&mut right_buffer)?;
+        if left_read != right_read || left_buffer[..left_read] != right_buffer[..right_read] {
+            return Ok(false);
+        }
+        if left_read == 0 {
+            return Ok(true);
+        }
+    }
+}
+
 fn property_u64(
     config: &RuntimeConfig,
     new_key: &str,
@@ -2422,6 +3301,29 @@ fn now_epoch_millis() -> Result<i64, CoordinatorError> {
 mod tests {
     use super::*;
     use crate::{config::Properties, outbound_delivery::RecipientLedgerEntry};
+    use std::{fs, sync::atomic::AtomicU64};
+
+    static NEXT_TEST_DIRECTORY: AtomicU64 = AtomicU64::new(1);
+
+    struct TestDirectory(PathBuf);
+
+    impl TestDirectory {
+        fn new() -> Self {
+            let id = NEXT_TEST_DIRECTORY.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "lmyzmail-outbound-coordinator-{}-{id}",
+                std::process::id()
+            ));
+            fs::create_dir_all(&path).unwrap();
+            Self(path)
+        }
+    }
+
+    impl Drop for TestDirectory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
 
     fn task(recipients_json: &str) -> TaskDetail {
         TaskDetail {
@@ -2481,6 +3383,7 @@ mod tests {
             last_error: Some("temporary".into()),
             sent_at: None,
             processing_started_at: None,
+            sent_file_name: Some("42.eml".into()),
             has_owner: false,
             owned_by_claim: false,
         }
@@ -2697,5 +3600,99 @@ mod tests {
         assert!(bounded.len() <= MAX_DETAIL_BYTES);
         assert!(bounded.is_char_boundary(bounded.len()));
         assert_eq!(bounded, "x".repeat(MAX_DETAIL_BYTES - 1));
+    }
+
+    #[test]
+    fn legacy_spool_cleanup_is_bounded_to_matching_owned_files() {
+        let root = TestDirectory::new();
+        let spool = root.0.join("spool");
+        let maildir = root.0.join("maildir");
+        let sent = maildir.join("sender@example.test/sent/1");
+        fs::create_dir_all(&spool).unwrap();
+        fs::create_dir_all(&sent).unwrap();
+        let sent_path = sent.join("sent.eml");
+        let spool_path = spool.join("signed-42.eml");
+        fs::write(&sent_path, b"same signed message").unwrap();
+        fs::write(&spool_path, b"same signed message").unwrap();
+        let record = OutboundSpoolRecord {
+            task_id: 42,
+            spool_path: spool_path.to_string_lossy().into_owned(),
+            kind: OutboundSpoolKind::LegacyJava,
+            state: OutboundSpoolState::Owned,
+            sender_address: "sender@example.test".into(),
+            sent_file_name: "sent.eml".into(),
+            sent_subdirectory: 1,
+        };
+        validate_and_maybe_remove_spool(&record, &spool, &maildir, 1_024, false).unwrap();
+        assert!(spool_path.exists());
+        validate_and_maybe_remove_spool(&record, &spool, &maildir, 1_024, true).unwrap();
+        assert!(!spool_path.exists());
+        assert_eq!(fs::read(sent_path).unwrap(), b"same signed message");
+        validate_and_maybe_remove_spool(&record, &spool, &maildir, 1_024, true).unwrap();
+    }
+
+    #[test]
+    fn spool_cleanup_rejects_content_mismatch_and_path_escape() {
+        let root = TestDirectory::new();
+        let spool = root.0.join("spool");
+        let maildir = root.0.join("maildir");
+        let sent = maildir.join("sender@example.test/sent/1");
+        fs::create_dir_all(&spool).unwrap();
+        fs::create_dir_all(&sent).unwrap();
+        let sent_path = sent.join("sent.eml");
+        fs::write(&sent_path, b"sent copy").unwrap();
+        let mismatch = spool.join("signed-42.eml");
+        fs::write(&mismatch, b"different spool").unwrap();
+        let mut record = OutboundSpoolRecord {
+            task_id: 42,
+            spool_path: mismatch.to_string_lossy().into_owned(),
+            kind: OutboundSpoolKind::LegacyJava,
+            state: OutboundSpoolState::Owned,
+            sender_address: "sender@example.test".into(),
+            sent_file_name: "sent.eml".into(),
+            sent_subdirectory: 1,
+        };
+        assert!(validate_and_maybe_remove_spool(&record, &spool, &maildir, 1_024, true).is_err());
+        assert!(mismatch.exists());
+
+        fs::remove_file(&mismatch).unwrap();
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(&sent_path, &mismatch).unwrap();
+            assert!(
+                validate_and_maybe_remove_spool(&record, &spool, &maildir, 1_024, true).is_err()
+            );
+            assert!(
+                mismatch
+                    .symlink_metadata()
+                    .unwrap()
+                    .file_type()
+                    .is_symlink()
+            );
+            assert_eq!(fs::read(&sent_path).unwrap(), b"sent copy");
+            fs::remove_file(&mismatch).unwrap();
+        }
+
+        let escaped = root.0.join("signed-42.eml");
+        fs::write(&escaped, b"sent copy").unwrap();
+        record.spool_path = escaped.to_string_lossy().into_owned();
+        assert!(validate_and_maybe_remove_spool(&record, &spool, &maildir, 1_024, true).is_err());
+        assert!(escaped.exists());
+    }
+
+    #[tokio::test]
+    async fn irreversible_spool_io_is_joined_after_its_soft_deadline() {
+        let finished = Arc::new(AtomicBool::new(false));
+        let task_finished = Arc::clone(&finished);
+        let task = spawn_blocking(move || {
+            std::thread::sleep(Duration::from_millis(50));
+            task_finished.store(true, Ordering::Release);
+            Ok(())
+        });
+
+        await_spool_io(task, true, Duration::from_millis(5))
+            .await
+            .unwrap();
+        assert!(finished.load(Ordering::Acquire));
     }
 }

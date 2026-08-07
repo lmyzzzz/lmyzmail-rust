@@ -74,9 +74,66 @@ def test_outbound_manifest_binds_frozen_oracle_and_legacy_key_surface() -> None:
         "compare-lease-ttls",
     ]
     assert lease["post_send_mutation_failure"] == "outcome-unknown"
+    assert lease["mutation_preflight"] == {
+        "operations": [
+            "claim",
+            "renew",
+            "release",
+            "retry",
+            "acknowledge",
+            "expired-recovery",
+            "reconcile",
+        ],
+        "before_first_write": True,
+        "claim_pending_head_preview": "lindex-before-lpop",
+        "claim_dynamic_keys": ["lease", "task", "domains"],
+        "failure_effect": "all-values-and-ttls-unchanged",
+    }
     fenced_operations = ("renew", "release", "retry", "acknowledge")
     assert all("compare-token" in lease[operation] for operation in fenced_operations)
     assert lease["expired_recovery"][0] == "verify-lease-absent"
+    assert manifest["redis"]["candidate_receipts"] == {
+        "claim_result": {
+            "index": "lmyzmail:mail:queue:claim-result-index",
+            "ttl": "lease-duration",
+            "index_score_clock": "redis-server-epoch-milliseconds",
+            "max_index_entries": 4096,
+            "empty_claim_receipt": False,
+        },
+        "settlement": {
+            "index": "lmyzmail:mail:queue:settlement-index",
+            "ttl_seconds": 300,
+            "index_score_clock": "redis-server-epoch-seconds",
+            "max_index_entries": 4096,
+        },
+        "migration_done": {
+            "index": "lmyzmail:mail:queue:migration:<namespace>:done-index",
+            "ttl_seconds": 300,
+            "index_score_clock": "redis-server-epoch-seconds",
+            "max_index_entries": 4096,
+            "scope": "per-archive-or-status-namespace",
+        },
+        "terminal_cleanup": {
+            "index": "lmyzmail:mail:queue:migration:cleanup-index",
+            "ttl_seconds": 300,
+            "index_score_clock": "redis-server-epoch-seconds",
+            "max_index_entries": 4096,
+            "receipt": "CLEANED:sha256(sent-file-name)",
+        },
+    }
+    assert manifest["redis"]["candidate_active_reference_bound"] == {
+        "config_keys": [
+            "lmyzmail.outbound.max-pending-tasks",
+            "botmail.outbound.max-pending-tasks",
+        ],
+        "new_key_precedence": True,
+        "default": 10000,
+        "hard_maximum": 1000000,
+        "references": ["pending:llen", "processing:scard", "retry:zcard"],
+        "admission": "atomic-before-publication",
+        "idempotent_existing_reference_bypasses_capacity": True,
+        "durable_backlog_over_capacity": "postgres-retained-for-bounded-replay",
+    }
     smtp = manifest["smtp_adapter"]
     assert smtp["connect_target"] == "validated-pinned-socket-address"
     assert smtp["dns_resolution_inside_adapter"] is False
@@ -88,6 +145,21 @@ def test_outbound_manifest_binds_frozen_oracle_and_legacy_key_surface() -> None:
     assert smtp["post_terminator_failures"] == "ambiguous"
     assert smtp["structured_error_fields"] == ["stage", "smtp_code", "recipients"]
     assert smtp["unknown_file_errors"] == "temporary"
+    assert manifest["postgres_admission_commit"] == {
+        "response_loss_reconciliation": "same-ordered-connection",
+        "committed_proof": [
+            "exact-queue-row",
+            "exact-email-index-row",
+            "exact-spool-sidecar",
+        ],
+        "not_committed_proof": [
+            "queue-identity-absent",
+            "email-index-identity-absent",
+            "spool-identity-absent",
+        ],
+        "partial_or_conflicting_state": "outcome-unknown",
+        "outcome_unknown_materialized_files": "preserved",
+    }
     database_fence = manifest["postgres_delivery_fence"]
     assert database_fence == {
         "table": "outbound_mail_queue",
@@ -140,6 +212,63 @@ def test_outbound_manifest_binds_frozen_oracle_and_legacy_key_surface() -> None:
         "ambiguous_auto_retry": False,
         "ambiguous_dsn": False,
         "legacy_projection": ["SENT", "PARTIAL_SUCCESS", "FAILED"],
+    }
+    assert manifest["postgres_spool_ownership"] == {
+        "migration": "crates/lmyzmail/migrations/002_outbound_spool_ownership.sql",
+        "legacy_columns_changed": False,
+        "table": "lmyzmail_outbound_spool",
+        "states": ["OWNED", "REMOVED"],
+        "terminal_scan_limit": 10000,
+        "terminal_scan_source": "postgres-independent-of-redis-task",
+        "path_policy": "canonical-configured-spool-root-and-task-bound-name",
+        "legacy_java_delete_guard": "byte-equal-sent-maildir-copy",
+        "directory_fsync_after_unlink": True,
+        "missing_file_reconciliation": "mark-removed",
+        "removed_scan_cursor": "bounded-wrapping-task-id",
+        "sidecar_delete_redis_proof": [
+            "task-absent",
+            "pending-absent",
+            "processing-absent",
+            "processing-time-absent",
+            "retry-absent",
+            "lease-absent",
+            "sent-file-index-absent",
+        ],
+        "sidecar_delete_postgres_identity": [
+            "task-id",
+            "spool-path",
+            "removed-state",
+            "terminal-legacy-row",
+        ],
+        "delete_response_loss": "exact-sidecar-readback",
+    }
+    assert manifest["postgres_dsn"] == {
+        "migration": "crates/lmyzmail/migrations/003_outbound_dsn.sql",
+        "table": "lmyzmail_outbound_dsn",
+        "states": ["PENDING", "LEASED", "ADMITTING", "ADMITTED", "SUPPRESSED"],
+        "lease_seconds": 120,
+        "admission_work_budget_seconds": 90,
+        "lease_fence": ["original_task_id", "lease_token", "lease_until"],
+        "task_id_binding": "LEASED->ADMITTING before materialization",
+        "digest": "sha256(final prepared bytes)",
+        "checkpoint": "token-fenced COALESCE(expected_sha256,prepared_bytes)",
+        "recovery_image": {
+            "column": "prepared_bytes",
+            "max_bytes": 4194304,
+            "lifecycle": "ADMITTING only; cleared in the ADMITTED queue transaction",
+        },
+        "admitted_replay": "PENDING PostgreSQL queue rows are recovered to legacy Redis after restart",
+        "processing_replay": "never automatic; coordinator fence owns PROCESSING rows",
+        "renderer": ["RFC3464 ASCII", "RFC6533 EAI global-delivery-status"],
+        "smtp_utf8": "8bit for EAI envelope; quoted-printable global parts for ASCII envelope",
+    }
+    assert manifest["worker_dispatch"] == {
+        "failure_state": "closed-to-backoff",
+        "backoff": "capped-equal-jitter",
+        "backoff_expiry": "half-open-waiting",
+        "half_open_max_inflight": 1,
+        "success": "restore-full-concurrency",
+        "failure": "return-to-backoff",
     }
 
 

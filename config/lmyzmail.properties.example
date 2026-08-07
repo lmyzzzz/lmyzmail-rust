@@ -20,7 +20,12 @@ lmyzmail.redis.tls-enabled=false
 lmyzmail.maildir.base=/var/lib/lmyzmail/data/mail
 # Large outbound messages remain here until their durable queue result is archived.
 lmyzmail.outbound.spool-dir=/var/lib/lmyzmail/data/mail/.lmyzmail-outbound
+lmyzmail.outbound.max-pending-tasks=10000
 lmyzmail.queue.worker-id=lmyzmail-worker
+lmyzmail.queue.max-concurrent-sends=100
+lmyzmail.queue.batch-size=50
+lmyzmail.queue.poll-interval-ms=1000
+lmyzmail.queue.migration-batch-size=1000
 lmyzmail.queue.lease-seconds=90
 lmyzmail.queue.renew-seconds=10
 lmyzmail.queue.processing-timeout-minutes=10

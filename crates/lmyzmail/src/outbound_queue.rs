@@ -6,6 +6,7 @@ use std::{
 
 use deadpool_redis::{Pool, redis};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tokio::time::timeout;
 
 const KEY_PREFIX: &str = "botmail:mail:queue:";
@@ -15,11 +16,19 @@ const PROCESSING_TIME_KEY: &str = "botmail:mail:queue:processing_time";
 const RETRY_KEY: &str = "botmail:mail:queue:retry";
 const SEQUENCE_KEY: &str = "botmail:mail:queue:seq";
 const SENT_FILE_INDEX_KEY: &str = "botmail:mail:queue:sentfile_index";
+const STATUS_UPDATES_KEY: &str = "botmail:mail:queue:status_updates";
+const ARCHIVE_KEY: &str = "botmail:mail:queue:archive";
 const LEASE_PREFIX: &str = "lmyzmail:mail:queue:lease:";
 const ATTEMPT_PREFIX: &str = "lmyzmail:mail:queue:attempt:";
 const CLAIM_RESULT_PREFIX: &str = "lmyzmail:mail:queue:claim-result:";
+const CLAIM_RESULT_INDEX_KEY: &str = "lmyzmail:mail:queue:claim-result-index";
 const SETTLEMENT_PREFIX: &str = "lmyzmail:mail:queue:settlement:";
+const SETTLEMENT_INDEX_KEY: &str = "lmyzmail:mail:queue:settlement-index";
+const CLEANUP_RECEIPT_INDEX_KEY: &str = "lmyzmail:mail:queue:migration:cleanup-index";
 const TASK_TTL_SECONDS: u64 = 7 * 24 * 60 * 60;
+const RECEIPT_TTL_SECONDS: u64 = 300;
+const MAX_RECEIPT_INDEX_ENTRIES: usize = 4_096;
+const MAX_ACTIVE_TASK_REFERENCES: usize = 1_000_000;
 const POOL_TIMEOUT: Duration = Duration::from_secs(5);
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
 const MIN_LEASE_MILLIS: u64 = 1_000;
@@ -36,10 +45,29 @@ const MAX_DOMAIN_STATUS_JSON_BYTES: usize = 2 * 1024 * 1024;
 const MAX_DOMAIN_STATUS_ARCHIVE_BYTES: usize = 2 * 1024 * 1024;
 const MAX_LEASE_TTL_SKEW_MILLIS: u64 = 10;
 const MAX_SETTLEMENT_VALUE_BYTES: usize = 64;
+const MAX_MIGRATION_TOKEN_BYTES: usize = 128;
+const MAX_MIGRATION_REASON_BYTES: usize = 64;
+const MAX_LEGACY_LIST_RECORD_BYTES: usize = 16 * 1024 * 1024;
+const MAX_LEGACY_QUARANTINE_RECORDS: usize = 4_096;
+const MAX_LEGACY_QUARANTINE_BYTES: usize = 64 * 1024 * 1024;
+const CLEANUP_RECEIPT_PREFIX: &str = "lmyzmail:mail:queue:migration:cleanup:";
+const CLEANUP_RECEIPT_TAG: &str = "CLEANED:";
 
 const RESERVE_ID_SCRIPT: &str = r#"
-local current = redis.call('GET', KEYS[1]) or '0'
+local sequence_type = redis.call('TYPE', KEYS[1]).ok
+if sequence_type ~= 'none' and sequence_type ~= 'string' then
+  return redis.error_reply('WRONGTYPE')
+end
+local current = '0'
+if sequence_type == 'string' then current = redis.call('GET', KEYS[1]) end
 local floor = ARGV[1]
+local maximum = ARGV[2]
+if (current ~= '0' and not string.match(current, '^[1-9][0-9]*$'))
+  or string.len(current) > string.len(maximum)
+  or (string.len(current) == string.len(maximum) and current > maximum) then
+  return redis.error_reply('INVALID_SEQUENCE')
+end
+if current == maximum then return redis.error_reply('SEQUENCE_EXHAUSTED') end
 local function normalize(value)
   local normalized = string.gsub(value, '^0+', '')
   if normalized == '' then return '0' end
@@ -66,11 +94,41 @@ local task_json = ARGV[2]
 local ttl = tonumber(ARGV[3])
 local sent_file = ARGV[4]
 local domain_count = tonumber(ARGV[5])
-local existing = redis.call('GET', KEYS[1])
+local max_active = tonumber(ARGV[6])
+local task_type = redis.call('TYPE', KEYS[1]).ok
+local domain_type = redis.call('TYPE', KEYS[2]).ok
+local sent_index_type = redis.call('TYPE', KEYS[3]).ok
+local pending_type = redis.call('TYPE', KEYS[4]).ok
+local processing_type = redis.call('TYPE', KEYS[5]).ok
+local retry_type = redis.call('TYPE', KEYS[7]).ok
+if (task_type ~= 'none' and task_type ~= 'string')
+  or (domain_type ~= 'none' and domain_type ~= 'hash')
+  or (sent_index_type ~= 'none' and sent_index_type ~= 'hash')
+  or (pending_type ~= 'none' and pending_type ~= 'list')
+  or (processing_type ~= 'none' and processing_type ~= 'set')
+  or (retry_type ~= 'none' and retry_type ~= 'zset') then
+  return redis.error_reply('WRONGTYPE')
+end
 
-if existing then
+local existing = false
+if task_type == 'string' then
+  existing = redis.call('GET', KEYS[1])
   if existing ~= task_json then
     return redis.error_reply('TASK_ID_CONFLICT')
+  end
+end
+
+local domains_exist = domain_type == 'hash'
+local domain_offset = 7
+if domains_exist then
+  if redis.call('HLEN', KEYS[2]) ~= domain_count then
+    return redis.error_reply('DOMAIN_STATUS_CONFLICT')
+  end
+  for index = 1, domain_count do
+    if redis.call('HGET', KEYS[2], ARGV[domain_offset]) ~= ARGV[domain_offset + 1] then
+      return redis.error_reply('DOMAIN_STATUS_CONFLICT')
+    end
+    domain_offset = domain_offset + 2
   end
 end
 
@@ -81,6 +139,16 @@ if sent_file ~= '' then
   end
 end
 
+local is_processing = redis.call('SISMEMBER', KEYS[5], task_id) == 1
+local is_retrying = redis.call('ZSCORE', KEYS[7], task_id) ~= false
+local is_pending = redis.call('LPOS', KEYS[4], task_id) ~= false
+if not is_processing and not is_retrying and not is_pending then
+  local active_count = redis.call('LLEN', KEYS[4])
+    + redis.call('SCARD', KEYS[5])
+    + redis.call('ZCARD', KEYS[7])
+  if active_count >= max_active then return -1 end
+end
+
 local created = 0
 if not existing then
   redis.call('SET', KEYS[1], task_json, 'EX', ttl)
@@ -89,20 +157,8 @@ else
   redis.call('EXPIRE', KEYS[1], ttl)
 end
 
-local domains_exist = redis.call('EXISTS', KEYS[2]) == 1
-if domains_exist then
-  if redis.call('HLEN', KEYS[2]) ~= domain_count then
-    return redis.error_reply('DOMAIN_STATUS_CONFLICT')
-  end
-  local offset = 6
-  for index = 1, domain_count do
-    if redis.call('HGET', KEYS[2], ARGV[offset]) ~= ARGV[offset + 1] then
-      return redis.error_reply('DOMAIN_STATUS_CONFLICT')
-    end
-    offset = offset + 2
-  end
-else
-  local offset = 6
+if not domains_exist then
+  local offset = 7
   for index = 1, domain_count do
     redis.call('HSET', KEYS[2], ARGV[offset], ARGV[offset + 1])
     offset = offset + 2
@@ -116,9 +172,6 @@ if sent_file ~= '' then
   redis.call('HSET', KEYS[3], sent_file, task_id)
 end
 
-local is_processing = redis.call('SISMEMBER', KEYS[5], task_id) == 1
-local is_retrying = redis.call('ZSCORE', KEYS[7], task_id) ~= false
-local is_pending = redis.call('LPOS', KEYS[4], task_id) ~= false
 if not is_processing and not is_retrying and not is_pending then
   redis.call('RPUSH', KEYS[4], task_id)
 end
@@ -151,16 +204,355 @@ end
 return result
 "#;
 
+const CLAIM_LEGACY_LIST_RECORD_SCRIPT: &str = r#"
+local token = ARGV[1]
+local done_key = ARGV[3] .. token
+local source_type = redis.call('TYPE', KEYS[1]).ok
+local inflight_type = redis.call('TYPE', KEYS[2]).ok
+local payloads_type = redis.call('TYPE', KEYS[3]).ok
+local quarantine_type = redis.call('TYPE', KEYS[4]).ok
+local quarantine_metadata_type = redis.call('TYPE', KEYS[5]).ok
+local quarantine_bytes_type = redis.call('TYPE', KEYS[6]).ok
+local done_index_type = redis.call('TYPE', KEYS[7]).ok
+local done_type = redis.call('TYPE', done_key).ok
+if (source_type ~= 'none' and source_type ~= 'list')
+  or (inflight_type ~= 'none' and inflight_type ~= 'list')
+  or (payloads_type ~= 'none' and payloads_type ~= 'hash')
+  or (quarantine_type ~= 'none' and quarantine_type ~= 'list')
+  or (quarantine_metadata_type ~= 'none' and quarantine_metadata_type ~= 'hash')
+  or (quarantine_bytes_type ~= 'none' and quarantine_bytes_type ~= 'string')
+  or (done_index_type ~= 'none' and done_index_type ~= 'zset')
+  or (done_type ~= 'none' and done_type ~= 'string') then
+  return {'INCONSISTENT'}
+end
+local now = tonumber(redis.call('TIME')[1])
+local function receipt_slot_available()
+  local active = redis.call('ZCOUNT', KEYS[7], '(' .. tostring(now), '+inf')
+  local token_score = redis.call('ZSCORE', KEYS[7], token)
+  if token_score and tonumber(token_score) > now then active = active - 1 end
+  return active < tonumber(ARGV[7])
+end
+if done_type == 'string' then
+  local done = redis.call('GET', done_key)
+  if done == 'EMPTY' then return {'EMPTY'} end
+  if done == 'ACKED'
+    and redis.call('LPOS', KEYS[2], token) == false
+    and redis.call('HEXISTS', KEYS[3], token) == 0 then
+    return {'SETTLED'}
+  end
+  local bytes, digest = string.match(done, '^QUARANTINED:([0-9]+):([0-9a-f]+)$')
+  local metadata = redis.call('HGET', KEYS[5], token)
+  if bytes and digest
+    and redis.call('LPOS', KEYS[2], token) == false
+    and redis.call('HEXISTS', KEYS[3], token) == 0
+    and metadata
+    and string.sub(metadata, 1, string.len(bytes) + string.len(digest) + 1)
+      == bytes .. ':' .. digest then
+    return {'QUARANTINED', bytes, digest}
+  end
+  return {'INCONSISTENT'}
+end
+if done_type ~= 'none' then return {'INCONSISTENT'} end
+
+local inflight_count = redis.call('LLEN', KEYS[2])
+if inflight_count > 1 then return {'INCONSISTENT'} end
+if inflight_count == 1 then
+  local inflight_token = redis.call('LINDEX', KEYS[2], 0)
+  local payload = redis.call('HGET', KEYS[3], inflight_token)
+  if not payload then return {'INCONSISTENT'} end
+  return {'RECORD', inflight_token, payload}
+end
+if redis.call('HLEN', KEYS[3]) ~= 0 then return {'INCONSISTENT'} end
+
+local payload = redis.call('LINDEX', KEYS[1], 0)
+if not payload then
+  if not receipt_slot_available() then return {'RECEIPT_FULL'} end
+  redis.call('ZREMRANGEBYSCORE', KEYS[7], '-inf', now)
+  redis.call('ZREM', KEYS[7], token)
+  redis.call('SET', done_key, 'EMPTY', 'EX', ARGV[4])
+  redis.call('ZADD', KEYS[7], now + tonumber(ARGV[4]), token)
+  return {'EMPTY'}
+end
+local payload_bytes = string.len(payload)
+if payload_bytes > tonumber(ARGV[2]) then
+  local digest = redis.sha1hex(payload)
+  local quarantine_count = redis.call('LLEN', KEYS[4])
+  local metadata_count = redis.call('HLEN', KEYS[5])
+  if quarantine_count >= tonumber(ARGV[5]) or metadata_count ~= quarantine_count then
+    return {'QUARANTINE_FULL'}
+  end
+  local current_bytes = 0
+  local recorded_bytes = redis.call('GET', KEYS[6])
+  if recorded_bytes then
+    current_bytes = tonumber(recorded_bytes)
+    if not current_bytes or current_bytes < 0 then return {'QUARANTINE_FULL'} end
+  else
+    for _, value in ipairs(redis.call('LRANGE', KEYS[4], 0, -1)) do
+      current_bytes = current_bytes + string.len(value)
+    end
+    for _, value in ipairs(redis.call('HVALS', KEYS[5])) do
+      current_bytes = current_bytes + string.len(value)
+    end
+    for _, field in ipairs(redis.call('HKEYS', KEYS[5])) do
+      current_bytes = current_bytes + string.len(field)
+    end
+    if current_bytes > tonumber(ARGV[6]) then return {'QUARANTINE_FULL'} end
+  end
+  local metadata = tostring(payload_bytes) .. ':' .. digest .. ':oversized'
+  local added_bytes = payload_bytes + string.len(token) + string.len(metadata)
+  if current_bytes + added_bytes > tonumber(ARGV[6]) then
+    return {'QUARANTINE_FULL'}
+  end
+  if not receipt_slot_available() then return {'RECEIPT_FULL'} end
+  redis.call('ZREMRANGEBYSCORE', KEYS[7], '-inf', now)
+  redis.call('ZREM', KEYS[7], token)
+  redis.call('LPOP', KEYS[1])
+  redis.call('RPUSH', KEYS[4], payload)
+  redis.call('HSET', KEYS[5], token, metadata)
+  redis.call('SET', KEYS[6], tostring(current_bytes + added_bytes))
+  redis.call(
+    'SET', done_key, 'QUARANTINED:' .. tostring(payload_bytes) .. ':' .. digest,
+    'EX', ARGV[4]
+  )
+  redis.call('ZADD', KEYS[7], now + tonumber(ARGV[4]), token)
+  return {'QUARANTINED', tostring(payload_bytes), digest}
+end
+redis.call('LPOP', KEYS[1])
+redis.call('HSET', KEYS[3], token, payload)
+redis.call('RPUSH', KEYS[2], token)
+return {'RECORD', token, payload}
+"#;
+
+const ACK_LEGACY_LIST_RECORD_SCRIPT: &str = r#"
+local done_key = ARGV[2] .. ARGV[1]
+local inflight_type = redis.call('TYPE', KEYS[1]).ok
+local payloads_type = redis.call('TYPE', KEYS[2]).ok
+local done_index_type = redis.call('TYPE', KEYS[3]).ok
+local done_type = redis.call('TYPE', done_key).ok
+if (inflight_type ~= 'none' and inflight_type ~= 'list')
+  or (payloads_type ~= 'none' and payloads_type ~= 'hash')
+  or (done_index_type ~= 'none' and done_index_type ~= 'zset')
+  or (done_type ~= 'none' and done_type ~= 'string') then
+  return -2
+end
+local now = tonumber(redis.call('TIME')[1])
+local function receipt_slot_available()
+  local active = redis.call('ZCOUNT', KEYS[3], '(' .. tostring(now), '+inf')
+  local token_score = redis.call('ZSCORE', KEYS[3], ARGV[1])
+  if token_score and tonumber(token_score) > now then active = active - 1 end
+  return active < tonumber(ARGV[4])
+end
+if done_type == 'string' then
+  if redis.call('GET', done_key) == 'ACKED'
+    and redis.call('LPOS', KEYS[1], ARGV[1]) == false
+    and redis.call('HEXISTS', KEYS[2], ARGV[1]) == 0 then
+    return 1
+  end
+  return 0
+end
+if done_type ~= 'none' then return 0 end
+if redis.call('LLEN', KEYS[1]) ~= 1
+  or redis.call('LINDEX', KEYS[1], 0) ~= ARGV[1]
+  or redis.call('HEXISTS', KEYS[2], ARGV[1]) ~= 1 then
+  return 0
+end
+if not receipt_slot_available() then return -2 end
+redis.call('ZREMRANGEBYSCORE', KEYS[3], '-inf', now)
+redis.call('ZREM', KEYS[3], ARGV[1])
+redis.call('LPOP', KEYS[1])
+redis.call('HDEL', KEYS[2], ARGV[1])
+redis.call('SET', done_key, 'ACKED', 'EX', ARGV[3])
+redis.call('ZADD', KEYS[3], now + tonumber(ARGV[3]), ARGV[1])
+return 1
+"#;
+
+const QUARANTINE_LEGACY_LIST_RECORD_SCRIPT: &str = r#"
+local done_key = ARGV[3] .. ARGV[1]
+local inflight_type = redis.call('TYPE', KEYS[1]).ok
+local payloads_type = redis.call('TYPE', KEYS[2]).ok
+local quarantine_type = redis.call('TYPE', KEYS[3]).ok
+local quarantine_metadata_type = redis.call('TYPE', KEYS[4]).ok
+local quarantine_bytes_type = redis.call('TYPE', KEYS[5]).ok
+local done_index_type = redis.call('TYPE', KEYS[6]).ok
+local done_type = redis.call('TYPE', done_key).ok
+if (inflight_type ~= 'none' and inflight_type ~= 'list')
+  or (payloads_type ~= 'none' and payloads_type ~= 'hash')
+  or (quarantine_type ~= 'none' and quarantine_type ~= 'list')
+  or (quarantine_metadata_type ~= 'none' and quarantine_metadata_type ~= 'hash')
+  or (quarantine_bytes_type ~= 'none' and quarantine_bytes_type ~= 'string')
+  or (done_index_type ~= 'none' and done_index_type ~= 'zset')
+  or (done_type ~= 'none' and done_type ~= 'string') then
+  return -2
+end
+local now = tonumber(redis.call('TIME')[1])
+local function receipt_slot_available()
+  local active = redis.call('ZCOUNT', KEYS[6], '(' .. tostring(now), '+inf')
+  local token_score = redis.call('ZSCORE', KEYS[6], ARGV[1])
+  if token_score and tonumber(token_score) > now then active = active - 1 end
+  return active < tonumber(ARGV[8])
+end
+if done_type == 'string' then
+  local done = redis.call('GET', done_key)
+  local bytes, digest = string.match(done, '^QUARANTINED:([0-9]+):([0-9a-f]+)$')
+  local metadata = redis.call('HGET', KEYS[4], ARGV[1])
+  if bytes and digest
+    and redis.call('LPOS', KEYS[1], ARGV[1]) == false
+    and redis.call('HEXISTS', KEYS[2], ARGV[1]) == 0
+    and metadata
+    and string.sub(metadata, 1, string.len(bytes) + string.len(digest) + 1)
+      == bytes .. ':' .. digest then
+    return 1
+  end
+  return 0
+end
+if done_type ~= 'none' then return 0 end
+if redis.call('LLEN', KEYS[1]) ~= 1
+  or redis.call('LINDEX', KEYS[1], 0) ~= ARGV[1] then
+  return 0
+end
+local payload = redis.call('HGET', KEYS[2], ARGV[1])
+if not payload then return 0 end
+local payload_bytes = string.len(payload)
+if payload_bytes > tonumber(ARGV[5]) then return -2 end
+local digest = redis.sha1hex(payload)
+local quarantine_count = redis.call('LLEN', KEYS[3])
+local metadata_count = redis.call('HLEN', KEYS[4])
+if quarantine_count >= tonumber(ARGV[6]) or metadata_count ~= quarantine_count then
+  return -2
+end
+local current_bytes = 0
+local recorded_bytes = redis.call('GET', KEYS[5])
+if recorded_bytes then
+  current_bytes = tonumber(recorded_bytes)
+  if not current_bytes or current_bytes < 0 then return -2 end
+else
+  for _, value in ipairs(redis.call('LRANGE', KEYS[3], 0, -1)) do
+    current_bytes = current_bytes + string.len(value)
+  end
+  for _, value in ipairs(redis.call('HVALS', KEYS[4])) do
+    current_bytes = current_bytes + string.len(value)
+  end
+  for _, field in ipairs(redis.call('HKEYS', KEYS[4])) do
+    current_bytes = current_bytes + string.len(field)
+  end
+  if current_bytes > tonumber(ARGV[7]) then return -2 end
+end
+local metadata = tostring(payload_bytes) .. ':' .. digest .. ':' .. ARGV[2]
+local added_bytes = payload_bytes + string.len(ARGV[1]) + string.len(metadata)
+if current_bytes + added_bytes > tonumber(ARGV[7]) then return -2 end
+if not receipt_slot_available() then return -2 end
+redis.call('ZREMRANGEBYSCORE', KEYS[6], '-inf', now)
+redis.call('ZREM', KEYS[6], ARGV[1])
+redis.call('RPUSH', KEYS[3], payload)
+redis.call(
+  'HSET', KEYS[4], ARGV[1],
+  metadata
+)
+redis.call('LPOP', KEYS[1])
+redis.call('HDEL', KEYS[2], ARGV[1])
+redis.call('SET', KEYS[5], tostring(current_bytes + added_bytes))
+redis.call(
+  'SET', done_key, 'QUARANTINED:' .. tostring(payload_bytes) .. ':' .. digest,
+  'EX', ARGV[4]
+)
+redis.call('ZADD', KEYS[6], now + tonumber(ARGV[4]), ARGV[1])
+return 1
+"#;
+
+const CLEANUP_MIGRATED_TERMINAL_TASK_SCRIPT: &str = r#"
+local task_id = ARGV[1]
+local sent_file = ARGV[2]
+local receipt_value = ARGV[3]
+local lease_key = ARGV[4] .. task_id
+local receipt_key = ARGV[5] .. task_id
+local pending_type = redis.call('TYPE', KEYS[1]).ok
+local processing_type = redis.call('TYPE', KEYS[2]).ok
+local processing_time_type = redis.call('TYPE', KEYS[3]).ok
+local retry_type = redis.call('TYPE', KEYS[4]).ok
+local task_type = redis.call('TYPE', KEYS[5]).ok
+local sent_index_type = redis.call('TYPE', KEYS[6]).ok
+local receipt_index_type = redis.call('TYPE', KEYS[7]).ok
+local lease_type = redis.call('TYPE', lease_key).ok
+local receipt_type = redis.call('TYPE', receipt_key).ok
+if (pending_type ~= 'none' and pending_type ~= 'list')
+  or (processing_type ~= 'none' and processing_type ~= 'set')
+  or (processing_time_type ~= 'none' and processing_time_type ~= 'hash')
+  or (retry_type ~= 'none' and retry_type ~= 'zset')
+  or (task_type ~= 'none' and task_type ~= 'string')
+  or (sent_index_type ~= 'none' and sent_index_type ~= 'hash')
+  or (receipt_index_type ~= 'none' and receipt_index_type ~= 'zset')
+  or (lease_type ~= 'none' and lease_type ~= 'string')
+  or (receipt_type ~= 'none' and receipt_type ~= 'string') then
+  return -2
+end
+local now = tonumber(redis.call('TIME')[1])
+local function receipt_slot_available()
+  local active = redis.call('ZCOUNT', KEYS[7], '(' .. tostring(now), '+inf')
+  local task_score = redis.call('ZSCORE', KEYS[7], task_id)
+  if task_score and tonumber(task_score) > now then active = active - 1 end
+  return active < tonumber(ARGV[7])
+end
+if receipt_type == 'string' then
+  if redis.call('GET', receipt_key) ~= receipt_value then return -2 end
+  if lease_type ~= 'none'
+    or redis.call('EXISTS', KEYS[5]) ~= 0
+    or redis.call('LPOS', KEYS[1], task_id) ~= false
+    or redis.call('SISMEMBER', KEYS[2], task_id) ~= 0
+    or redis.call('HEXISTS', KEYS[3], task_id) ~= 0
+    or redis.call('ZSCORE', KEYS[4], task_id) ~= false
+    or redis.call('HGET', KEYS[6], sent_file) ~= false then
+    return -2
+  end
+  return 1
+end
+if receipt_type ~= 'none' then return -2 end
+if lease_type ~= 'none' then return 0 end
+local indexed = redis.call('HGET', KEYS[6], sent_file)
+if indexed and indexed ~= task_id then return -1 end
+if not receipt_slot_available() then return -2 end
+redis.call('ZREMRANGEBYSCORE', KEYS[7], '-inf', now)
+redis.call('ZREM', KEYS[7], task_id)
+redis.call('LREM', KEYS[1], 0, task_id)
+redis.call('SREM', KEYS[2], task_id)
+redis.call('HDEL', KEYS[3], task_id)
+redis.call('ZREM', KEYS[4], task_id)
+redis.call('DEL', KEYS[5])
+redis.call('HDEL', KEYS[6], sent_file)
+if redis.call('EXISTS', KEYS[5]) ~= 0
+  or redis.call('LPOS', KEYS[1], task_id) ~= false
+  or redis.call('SISMEMBER', KEYS[2], task_id) ~= 0
+  or redis.call('HEXISTS', KEYS[3], task_id) ~= 0
+  or redis.call('ZSCORE', KEYS[4], task_id) ~= false
+  or redis.call('HGET', KEYS[6], sent_file) ~= false then
+  return -2
+end
+redis.call('SET', receipt_key, receipt_value, 'EX', ARGV[6])
+redis.call('ZADD', KEYS[7], now + tonumber(ARGV[6]), task_id)
+return 1
+"#;
+
 const RENEW_SCRIPT: &str = r#"
 local task_id = ARGV[1]
 local ttl = tonumber(ARGV[2])
+local pending_type = redis.call('TYPE', KEYS[1]).ok
+local processing_type = redis.call('TYPE', KEYS[2]).ok
+local retry_type = redis.call('TYPE', KEYS[3]).ok
+local task_type = redis.call('TYPE', KEYS[4]).ok
+local domain_type = redis.call('TYPE', KEYS[5]).ok
+if (pending_type ~= 'none' and pending_type ~= 'list')
+  or (processing_type ~= 'none' and processing_type ~= 'set')
+  or (retry_type ~= 'none' and retry_type ~= 'zset')
+  or (task_type ~= 'none' and task_type ~= 'string')
+  or (domain_type ~= 'none' and domain_type ~= 'hash') then
+  return redis.error_reply('WRONGTYPE')
+end
 local referenced = redis.call('LPOS', KEYS[1], task_id) ~= false
   or redis.call('SISMEMBER', KEYS[2], task_id) == 1
   or redis.call('ZSCORE', KEYS[3], task_id) ~= false
 if not referenced then return 0 end
-if redis.call('EXISTS', KEYS[4]) == 0 then return -1 end
+if task_type == 'none' then return -1 end
 redis.call('EXPIRE', KEYS[4], ttl)
-if redis.call('EXISTS', KEYS[5]) == 1 then redis.call('EXPIRE', KEYS[5], ttl) end
+if domain_type == 'hash' then redis.call('EXPIRE', KEYS[5], ttl) end
 return 1
 "#;
 
@@ -168,8 +560,21 @@ const COMPLETE_TASK_SCRIPT: &str = r#"
 local task_id = ARGV[1]
 local sent_file = ARGV[2]
 local ttl = tonumber(ARGV[3])
-if redis.call('EXISTS', KEYS[1]) == 0 then return 0 end
-if redis.call('EXISTS', KEYS[2]) == 0 then return 0 end
+local task_type = redis.call('TYPE', KEYS[1]).ok
+local domain_type = redis.call('TYPE', KEYS[2]).ok
+local sent_index_type = redis.call('TYPE', KEYS[3]).ok
+local pending_type = redis.call('TYPE', KEYS[4]).ok
+local processing_type = redis.call('TYPE', KEYS[5]).ok
+local retry_type = redis.call('TYPE', KEYS[6]).ok
+if (task_type ~= 'none' and task_type ~= 'string')
+  or (domain_type ~= 'none' and domain_type ~= 'hash')
+  or (sent_index_type ~= 'none' and sent_index_type ~= 'hash')
+  or (pending_type ~= 'none' and pending_type ~= 'list')
+  or (processing_type ~= 'none' and processing_type ~= 'set')
+  or (retry_type ~= 'none' and retry_type ~= 'zset') then
+  return redis.error_reply('WRONGTYPE')
+end
+if task_type == 'none' or domain_type == 'none' then return 0 end
 if sent_file ~= '' and redis.call('HGET', KEYS[3], sent_file) ~= task_id then return 0 end
 local referenced = redis.call('LPOS', KEYS[4], task_id) ~= false
   or redis.call('SISMEMBER', KEYS[5], task_id) == 1
@@ -184,35 +589,71 @@ const CLAIM_SCRIPT: &str = r#"
 local attempt_key = ARGV[8] .. ARGV[1]
 local settlement_key = ARGV[9] .. ARGV[1]
 local claim_result_key = ARGV[10] .. ARGV[1]
+local pending_type = redis.call('TYPE', KEYS[1]).ok
+local processing_type = redis.call('TYPE', KEYS[2]).ok
+local processing_time_type = redis.call('TYPE', KEYS[3]).ok
+local claim_index_type = redis.call('TYPE', KEYS[4]).ok
+local attempt_type = redis.call('TYPE', attempt_key).ok
+local settlement_type = redis.call('TYPE', settlement_key).ok
 local claim_result_type = redis.call('TYPE', claim_result_key).ok
+if (pending_type ~= 'none' and pending_type ~= 'list')
+  or (processing_type ~= 'none' and processing_type ~= 'set')
+  or (processing_time_type ~= 'none' and processing_time_type ~= 'hash')
+  or (claim_index_type ~= 'none' and claim_index_type ~= 'zset')
+  or (attempt_type ~= 'none' and attempt_type ~= 'string')
+  or (settlement_type ~= 'none' and settlement_type ~= 'string')
+  or (claim_result_type ~= 'none' and claim_result_type ~= 'string') then
+  return redis.error_reply('WRONGTYPE')
+end
 if claim_result_type == 'string' then
   if redis.call('GET', claim_result_key) == 'EMPTY' then return {'', '', '3'} end
   return {'', '', '2'}
 end
-if claim_result_type ~= 'none' then return {'', '', '2'} end
-if redis.call('TYPE', attempt_key).ok ~= 'none'
-  or redis.call('TYPE', settlement_key).ok ~= 'none' then
+if attempt_type ~= 'none' or settlement_type ~= 'none' then
   return {'', '', '2'}
 end
 
-local task_id = redis.call('LPOP', KEYS[1])
-if not task_id then
-  redis.call('SET', claim_result_key, 'EMPTY', 'EX', ARGV[11])
-  return {'', '', '3'}
+if redis.call('LLEN', KEYS[1]) == 0 then return {'', '', '3'} end
+local task_id = redis.call('LINDEX', KEYS[1], 0)
+if not task_id or string.len(task_id) < 1 or string.len(task_id) > tonumber(ARGV[12])
+  or not string.match(task_id, '^[1-9][0-9]*$')
+  or (string.len(task_id) == string.len(ARGV[14]) and task_id > ARGV[14]) then
+  return redis.error_reply('INVALID_TASK_ID')
 end
-
 local lease_key = ARGV[4] .. task_id
-local acquired = redis.call('SET', lease_key, ARGV[1], 'NX', 'PX', ARGV[2])
-if not acquired then
-  return {task_id, '', '0'}
-end
-
-redis.call('SET', attempt_key, task_id, 'PX', ARGV[2])
-redis.call('SET', claim_result_key, task_id, 'EX', ARGV[11])
-redis.call('SADD', KEYS[2], task_id)
-redis.call('HSET', KEYS[3], task_id, ARGV[3])
 local task_key = ARGV[5] .. task_id
 local domain_key = ARGV[6] .. task_id
+local lease_type = redis.call('TYPE', lease_key).ok
+local task_type = redis.call('TYPE', task_key).ok
+local domain_type = redis.call('TYPE', domain_key).ok
+if (lease_type ~= 'none' and lease_type ~= 'string')
+  or (task_type ~= 'none' and task_type ~= 'string')
+  or (domain_type ~= 'none' and domain_type ~= 'hash') then
+  return redis.error_reply('WRONGTYPE')
+end
+if lease_type == 'string' then return {task_id, '', '0'} end
+if task_type == 'string' and redis.call('STRLEN', task_key) > tonumber(ARGV[13]) then
+  return redis.error_reply('TASK_TOO_LARGE')
+end
+
+local now = tonumber(redis.call('TIME')[1]) * 1000
+redis.call('ZREMRANGEBYSCORE', KEYS[4], '-inf', now)
+if redis.call('ZSCORE', KEYS[4], ARGV[1]) ~= false then
+  redis.call('ZREM', KEYS[4], ARGV[1])
+end
+if redis.call('ZCARD', KEYS[4]) >= tonumber(ARGV[11]) then
+  return {'', '', '4'}
+end
+local popped_task_id = redis.call('LPOP', KEYS[1])
+if popped_task_id ~= task_id then return redis.error_reply('QUEUE_CHANGED') end
+local acquired = redis.call('SET', lease_key, ARGV[1], 'NX', 'PX', ARGV[2])
+if not acquired then return redis.error_reply('LEASE_RACE') end
+
+redis.call('SET', attempt_key, task_id, 'PX', ARGV[2])
+redis.call('SET', claim_result_key, task_id, 'PX', ARGV[2])
+redis.call('ZADD', KEYS[4], now + tonumber(ARGV[2]), ARGV[1])
+redis.call('SADD', KEYS[2], task_id)
+redis.call('HSET', KEYS[3], task_id, ARGV[3])
 local task_json = redis.call('GET', task_key) or ''
 if task_json ~= '' then redis.call('EXPIRE', task_key, ARGV[7]) end
 if redis.call('EXISTS', domain_key) == 1 then redis.call('EXPIRE', domain_key, ARGV[7]) end
@@ -222,30 +663,56 @@ return {task_id, task_json, '1'}
 const RENEW_CLAIM_SCRIPT: &str = r#"
 local task_id = ARGV[1]
 local lease_key = ARGV[5] .. task_id
-if redis.call('GET', lease_key) ~= ARGV[2] then return 0 end
 local attempt_key = ARGV[9] .. ARGV[2]
-if redis.call('GET', attempt_key) ~= task_id then return 0 end
-if redis.call('SISMEMBER', KEYS[1], task_id) ~= 1 then return 0 end
+local task_key = ARGV[6] .. task_id
+local domain_key = ARGV[7] .. task_id
+local processing_type = redis.call('TYPE', KEYS[1]).ok
+local processing_time_type = redis.call('TYPE', KEYS[2]).ok
+local lease_type = redis.call('TYPE', lease_key).ok
+local attempt_type = redis.call('TYPE', attempt_key).ok
+local task_type = redis.call('TYPE', task_key).ok
+local domain_type = redis.call('TYPE', domain_key).ok
+if (processing_type ~= 'none' and processing_type ~= 'set')
+  or (processing_time_type ~= 'none' and processing_time_type ~= 'hash')
+  or (lease_type ~= 'none' and lease_type ~= 'string')
+  or (attempt_type ~= 'none' and attempt_type ~= 'string')
+  or (task_type ~= 'none' and task_type ~= 'string')
+  or (domain_type ~= 'none' and domain_type ~= 'hash') then
+  return redis.error_reply('WRONGTYPE')
+end
+if lease_type ~= 'string' or redis.call('GET', lease_key) ~= ARGV[2] then return 0 end
+if attempt_type ~= 'string' or redis.call('GET', attempt_key) ~= task_id then return 0 end
+if processing_type ~= 'set'
+  or redis.call('SISMEMBER', KEYS[1], task_id) ~= 1 then return 0 end
 
 redis.call('PEXPIRE', lease_key, ARGV[3])
 redis.call('PEXPIRE', attempt_key, ARGV[3])
 redis.call('HSET', KEYS[2], task_id, ARGV[4])
-local task_key = ARGV[6] .. task_id
-local domain_key = ARGV[7] .. task_id
-if redis.call('EXISTS', task_key) == 1 then redis.call('EXPIRE', task_key, ARGV[8]) end
-if redis.call('EXISTS', domain_key) == 1 then redis.call('EXPIRE', domain_key, ARGV[8]) end
+if task_type == 'string' then redis.call('EXPIRE', task_key, ARGV[8]) end
+if domain_type == 'hash' then redis.call('EXPIRE', domain_key, ARGV[8]) end
 return 1
 "#;
 
 const REPLACE_CLAIMED_TASK_SCRIPT: &str = r#"
 local task_id = ARGV[1]
 local lease_key = ARGV[4] .. task_id
-if redis.call('GET', lease_key) ~= ARGV[2] then return 'STALE' end
 local attempt_key = ARGV[5] .. ARGV[2]
-if redis.call('GET', attempt_key) ~= task_id then return 'STALE' end
-if redis.call('SISMEMBER', KEYS[1], task_id) ~= 1 then return 'STALE' end
 local task_key = ARGV[6] .. task_id
-if redis.call('EXISTS', task_key) ~= 1 then return 'MISSING' end
+local processing_type = redis.call('TYPE', KEYS[1]).ok
+local lease_type = redis.call('TYPE', lease_key).ok
+local attempt_type = redis.call('TYPE', attempt_key).ok
+local task_type = redis.call('TYPE', task_key).ok
+if (processing_type ~= 'none' and processing_type ~= 'set')
+  or (lease_type ~= 'none' and lease_type ~= 'string')
+  or (attempt_type ~= 'none' and attempt_type ~= 'string')
+  or (task_type ~= 'none' and task_type ~= 'string') then
+  return redis.error_reply('WRONGTYPE')
+end
+if lease_type ~= 'string' or redis.call('GET', lease_key) ~= ARGV[2] then return 'STALE' end
+if attempt_type ~= 'string' or redis.call('GET', attempt_key) ~= task_id then return 'STALE' end
+if processing_type ~= 'set'
+  or redis.call('SISMEMBER', KEYS[1], task_id) ~= 1 then return 'STALE' end
+if task_type == 'none' then return 'MISSING' end
 redis.call('SET', task_key, ARGV[3], 'EX', ARGV[7])
 return 'OK'
 "#;
@@ -265,26 +732,55 @@ return {'OK', task_json}
 const RELEASE_CLAIM_SCRIPT: &str = r#"
 local task_id = ARGV[1]
 local settlement_key = ARGV[6] .. ARGV[2]
+local lease_key = ARGV[4] .. task_id
+local attempt_key = ARGV[5] .. ARGV[2]
+local task_key = ARGV[9] .. task_id
 local settlement_type = redis.call('TYPE', settlement_key).ok
+local lease_type = redis.call('TYPE', lease_key).ok
+local attempt_type = redis.call('TYPE', attempt_key).ok
+local task_type = redis.call('TYPE', task_key).ok
+local pending_type = redis.call('TYPE', KEYS[1]).ok
+local processing_type = redis.call('TYPE', KEYS[2]).ok
+local processing_time_type = redis.call('TYPE', KEYS[3]).ok
+local retry_type = redis.call('TYPE', KEYS[4]).ok
+local settlement_index_type = redis.call('TYPE', KEYS[5]).ok
+local claim_index_type = redis.call('TYPE', KEYS[6]).ok
+if (settlement_type ~= 'none' and settlement_type ~= 'string')
+  or (lease_type ~= 'none' and lease_type ~= 'string')
+  or (attempt_type ~= 'none' and attempt_type ~= 'string')
+  or (task_type ~= 'none' and task_type ~= 'string')
+  or (pending_type ~= 'none' and pending_type ~= 'list')
+  or (processing_type ~= 'none' and processing_type ~= 'set')
+  or (processing_time_type ~= 'none' and processing_time_type ~= 'hash')
+  or (retry_type ~= 'none' and retry_type ~= 'zset')
+  or (settlement_index_type ~= 'none' and settlement_index_type ~= 'zset')
+  or (claim_index_type ~= 'none' and claim_index_type ~= 'zset') then
+  return redis.error_reply('WRONGTYPE')
+end
+local now = tonumber(redis.call('TIME')[1])
+redis.call('ZREMRANGEBYSCORE', KEYS[5], '-inf', now)
 if settlement_type == 'string' then
-  if redis.call('GET', settlement_key) == ARGV[7] then return 1 end
+  if redis.call('GET', settlement_key) == ARGV[7] then
+    return 1
+  end
   return 0
 end
 if settlement_type ~= 'none' then return 0 end
-local lease_key = ARGV[4] .. task_id
+redis.call('ZREM', KEYS[5], ARGV[2])
 if redis.call('GET', lease_key) ~= ARGV[2] then return 0 end
-local attempt_key = ARGV[5] .. ARGV[2]
 if redis.call('GET', attempt_key) ~= task_id then return 0 end
 if ARGV[3] == '1' then
-  local task_key = ARGV[9] .. task_id
-  if redis.call('TYPE', task_key).ok ~= 'string' then return 0 end
+  if task_type ~= 'string' then return 0 end
   local task_bytes = redis.call('STRLEN', task_key)
   if task_bytes < 1 or task_bytes > tonumber(ARGV[10]) then
     return 0
   end
 end
+if redis.call('ZCARD', KEYS[5]) >= tonumber(ARGV[11]) then return -2 end
 
 redis.call('SET', settlement_key, ARGV[7], 'EX', ARGV[8])
+redis.call('ZADD', KEYS[5], now + tonumber(ARGV[8]), ARGV[2])
+redis.call('ZREM', KEYS[6], ARGV[2])
 redis.call('DEL', lease_key, attempt_key)
 redis.call('SREM', KEYS[2], task_id)
 redis.call('HDEL', KEYS[3], task_id)
@@ -299,20 +795,47 @@ return 1
 const SCHEDULE_RETRY_SCRIPT: &str = r#"
 local task_id = ARGV[1]
 local settlement_key = ARGV[9] .. ARGV[2]
+local lease_key = ARGV[6] .. task_id
+local task_key = ARGV[7] .. task_id
+local attempt_key = ARGV[8] .. ARGV[2]
 local settlement_type = redis.call('TYPE', settlement_key).ok
+local lease_type = redis.call('TYPE', lease_key).ok
+local task_type = redis.call('TYPE', task_key).ok
+local attempt_type = redis.call('TYPE', attempt_key).ok
+local pending_type = redis.call('TYPE', KEYS[1]).ok
+local processing_type = redis.call('TYPE', KEYS[2]).ok
+local processing_time_type = redis.call('TYPE', KEYS[3]).ok
+local retry_type = redis.call('TYPE', KEYS[4]).ok
+local settlement_index_type = redis.call('TYPE', KEYS[5]).ok
+local claim_index_type = redis.call('TYPE', KEYS[6]).ok
+if (settlement_type ~= 'none' and settlement_type ~= 'string')
+  or (lease_type ~= 'none' and lease_type ~= 'string')
+  or (task_type ~= 'none' and task_type ~= 'string')
+  or (attempt_type ~= 'none' and attempt_type ~= 'string')
+  or (pending_type ~= 'none' and pending_type ~= 'list')
+  or (processing_type ~= 'none' and processing_type ~= 'set')
+  or (processing_time_type ~= 'none' and processing_time_type ~= 'hash')
+  or (retry_type ~= 'none' and retry_type ~= 'zset')
+  or (settlement_index_type ~= 'none' and settlement_index_type ~= 'zset')
+  or (claim_index_type ~= 'none' and claim_index_type ~= 'zset') then
+  return redis.error_reply('WRONGTYPE')
+end
+local now = tonumber(redis.call('TIME')[1])
+redis.call('ZREMRANGEBYSCORE', KEYS[5], '-inf', now)
 if settlement_type == 'string' then
   if redis.call('GET', settlement_key) == ARGV[10] then return 1 end
   return 0
 end
 if settlement_type ~= 'none' then return 0 end
-local lease_key = ARGV[6] .. task_id
+redis.call('ZREM', KEYS[5], ARGV[2])
 if redis.call('GET', lease_key) ~= ARGV[2] then return 0 end
-local attempt_key = ARGV[8] .. ARGV[2]
 if redis.call('GET', attempt_key) ~= task_id then return 0 end
+if redis.call('ZCARD', KEYS[5]) >= tonumber(ARGV[12]) then return -2 end
 
-local task_key = ARGV[7] .. task_id
 redis.call('SET', task_key, ARGV[3], 'EX', ARGV[5])
-redis.call('SET', settlement_key, ARGV[10], 'EX', ARGV[5])
+redis.call('SET', settlement_key, ARGV[10], 'EX', ARGV[11])
+redis.call('ZADD', KEYS[5], now + tonumber(ARGV[11]), ARGV[2])
+redis.call('ZREM', KEYS[6], ARGV[2])
 redis.call('DEL', lease_key, attempt_key)
 redis.call('SREM', KEYS[2], task_id)
 redis.call('HDEL', KEYS[3], task_id)
@@ -324,29 +847,131 @@ return 1
 const ACKNOWLEDGE_SCRIPT: &str = r#"
 local task_id = ARGV[1]
 local settlement_key = ARGV[6] .. ARGV[2]
+local sent_file = ARGV[9]
+local lease_key = ARGV[3] .. task_id
+local task_key = ARGV[4] .. task_id
+local attempt_key = ARGV[5] .. ARGV[2]
 local settlement_type = redis.call('TYPE', settlement_key).ok
+local lease_type = redis.call('TYPE', lease_key).ok
+local task_type = redis.call('TYPE', task_key).ok
+local attempt_type = redis.call('TYPE', attempt_key).ok
+local pending_type = redis.call('TYPE', KEYS[1]).ok
+local processing_type = redis.call('TYPE', KEYS[2]).ok
+local processing_time_type = redis.call('TYPE', KEYS[3]).ok
+local retry_type = redis.call('TYPE', KEYS[4]).ok
+local sent_index_type = redis.call('TYPE', KEYS[5]).ok
+local settlement_index_type = redis.call('TYPE', KEYS[6]).ok
+local claim_index_type = redis.call('TYPE', KEYS[7]).ok
+if (settlement_type ~= 'none' and settlement_type ~= 'string')
+  or (lease_type ~= 'none' and lease_type ~= 'string')
+  or (task_type ~= 'none' and task_type ~= 'string')
+  or (attempt_type ~= 'none' and attempt_type ~= 'string')
+  or (pending_type ~= 'none' and pending_type ~= 'list')
+  or (processing_type ~= 'none' and processing_type ~= 'set')
+  or (processing_time_type ~= 'none' and processing_time_type ~= 'hash')
+  or (retry_type ~= 'none' and retry_type ~= 'zset')
+  or (sent_index_type ~= 'none' and sent_index_type ~= 'hash')
+  or (settlement_index_type ~= 'none' and settlement_index_type ~= 'zset')
+  or (claim_index_type ~= 'none' and claim_index_type ~= 'zset') then
+  return redis.error_reply('WRONGTYPE')
+end
+local now = tonumber(redis.call('TIME')[1])
+redis.call('ZREMRANGEBYSCORE', KEYS[6], '-inf', now)
 if settlement_type == 'string' then
-  if redis.call('GET', settlement_key) == ARGV[7] then return 1 end
+  if redis.call('GET', settlement_key) == ARGV[7]
+    and redis.call('EXISTS', task_key) == 0
+    and redis.call('LPOS', KEYS[1], task_id) == false
+    and redis.call('SISMEMBER', KEYS[2], task_id) == 0
+    and redis.call('HEXISTS', KEYS[3], task_id) == 0
+    and redis.call('ZSCORE', KEYS[4], task_id) == false
+    and (sent_file == '' or redis.call('HGET', KEYS[5], sent_file) == false) then
+    return 1
+  end
   return 0
 end
 if settlement_type ~= 'none' then return 0 end
-local lease_key = ARGV[3] .. task_id
+redis.call('ZREM', KEYS[6], ARGV[2])
 if redis.call('GET', lease_key) ~= ARGV[2] then return 0 end
-local attempt_key = ARGV[5] .. ARGV[2]
 if redis.call('GET', attempt_key) ~= task_id then return 0 end
+if sent_file ~= '' then
+  local indexed = redis.call('HGET', KEYS[5], sent_file)
+  if indexed and indexed ~= task_id then return 0 end
+end
+if redis.call('ZCARD', KEYS[6]) >= tonumber(ARGV[10]) then return -2 end
 
 redis.call('SET', settlement_key, ARGV[7], 'EX', ARGV[8])
+redis.call('ZADD', KEYS[6], now + tonumber(ARGV[8]), ARGV[2])
 redis.call('DEL', lease_key, attempt_key)
+redis.call('ZREM', KEYS[7], ARGV[2])
 redis.call('SREM', KEYS[2], task_id)
 redis.call('HDEL', KEYS[3], task_id)
 redis.call('LREM', KEYS[1], 0, task_id)
 redis.call('ZREM', KEYS[4], task_id)
-redis.call('DEL', ARGV[4] .. task_id)
+redis.call('DEL', task_key)
+if sent_file ~= '' then redis.call('HDEL', KEYS[5], sent_file) end
 return 1
+"#;
+
+const VERIFY_TERMINAL_ACKNOWLEDGEMENT_SCRIPT: &str = r#"
+local task_id = ARGV[1]
+local sent_file = ARGV[2]
+local task_type = redis.call('TYPE', KEYS[1]).ok
+local pending_type = redis.call('TYPE', KEYS[2]).ok
+local processing_type = redis.call('TYPE', KEYS[3]).ok
+local processing_time_type = redis.call('TYPE', KEYS[4]).ok
+local retry_type = redis.call('TYPE', KEYS[5]).ok
+local sent_index_type = redis.call('TYPE', KEYS[6]).ok
+local lease_type = redis.call('TYPE', KEYS[7]).ok
+if (task_type ~= 'none' and task_type ~= 'string')
+  or (pending_type ~= 'none' and pending_type ~= 'list')
+  or (processing_type ~= 'none' and processing_type ~= 'set')
+  or (processing_time_type ~= 'none' and processing_time_type ~= 'hash')
+  or (retry_type ~= 'none' and retry_type ~= 'zset')
+  or (sent_index_type ~= 'none' and sent_index_type ~= 'hash')
+  or (lease_type ~= 'none' and lease_type ~= 'string') then
+  return redis.error_reply('WRONGTYPE')
+end
+
+local indexed = redis.call('HGET', KEYS[6], sent_file)
+if indexed and indexed ~= task_id then return 'CONFLICT' end
+if task_type ~= 'none'
+  or lease_type ~= 'none'
+  or redis.call('LPOS', KEYS[2], task_id) ~= false
+  or redis.call('SISMEMBER', KEYS[3], task_id) ~= 0
+  or redis.call('HEXISTS', KEYS[4], task_id) ~= 0
+  or redis.call('ZSCORE', KEYS[5], task_id) ~= false
+  or indexed ~= false then
+  return 'ACTIVE'
+end
+return 'ACKNOWLEDGED'
 "#;
 
 const RECONCILE_SETTLEMENT_SCRIPT: &str = r#"
 local settlement_type = redis.call('TYPE', KEYS[1]).ok
+local attempt_type = redis.call('TYPE', KEYS[2]).ok
+local processing_type = redis.call('TYPE', KEYS[3]).ok
+local processing_time_type = redis.call('TYPE', KEYS[4]).ok
+local pending_type = redis.call('TYPE', KEYS[5]).ok
+local retry_type = redis.call('TYPE', KEYS[6]).ok
+local task_type = redis.call('TYPE', KEYS[7]).ok
+local sent_index_type = redis.call('TYPE', KEYS[8]).ok
+local settlement_index_type = redis.call('TYPE', KEYS[9]).ok
+local lease_key = ARGV[4] .. ARGV[1]
+local lease_type = redis.call('TYPE', lease_key).ok
+if (settlement_type ~= 'none' and settlement_type ~= 'string')
+  or (attempt_type ~= 'none' and attempt_type ~= 'string')
+  or (processing_type ~= 'none' and processing_type ~= 'set')
+  or (processing_time_type ~= 'none' and processing_time_type ~= 'hash')
+  or (pending_type ~= 'none' and pending_type ~= 'list')
+  or (retry_type ~= 'none' and retry_type ~= 'zset')
+  or (task_type ~= 'none' and task_type ~= 'string')
+  or (sent_index_type ~= 'none' and sent_index_type ~= 'hash')
+  or (settlement_index_type ~= 'none' and settlement_index_type ~= 'zset')
+  or (lease_type ~= 'none' and lease_type ~= 'string') then
+  return redis.error_reply('WRONGTYPE')
+end
+local now = tonumber(redis.call('TIME')[1])
+redis.call('ZREMRANGEBYSCORE', KEYS[9], '-inf', now)
 if settlement_type == 'string' then
   local value_bytes = redis.call('STRLEN', KEYS[1])
   local ttl = redis.call('PTTL', KEYS[1])
@@ -363,7 +988,9 @@ if settlement_type == 'string' then
   local pending = redis.call('LPOS', KEYS[5], ARGV[1]) ~= false
   local retry_score = redis.call('ZSCORE', KEYS[6], ARGV[1])
   if ARGV[7] == 'ACKNOWLEDGE' then
-    if pending or retry_score ~= false or redis.call('EXISTS', KEYS[7]) ~= 0 then
+    if pending or retry_score ~= false
+      or redis.call('EXISTS', KEYS[7]) ~= 0
+      or (ARGV[11] ~= '' and redis.call('HGET', KEYS[8], ARGV[11]) ~= false) then
       return 'INCONSISTENT'
     end
   elseif ARGV[7] == 'RELEASE_REQUEUE' then
@@ -388,13 +1015,12 @@ if settlement_type == 'string' then
   return 'APPLIED'
 end
 if settlement_type ~= 'none' then return 'INCONSISTENT' end
+redis.call('ZREM', KEYS[9], ARGV[2])
 
-local attempt_type = redis.call('TYPE', KEYS[2]).ok
 if attempt_type == 'none' then return 'NOT_FOUND' end
 if attempt_type ~= 'string' or redis.call('GET', KEYS[2]) ~= ARGV[1] then
   return 'INCONSISTENT'
 end
-local lease_key = ARGV[4] .. ARGV[1]
 if redis.call('TYPE', lease_key).ok ~= 'string'
   or redis.call('GET', lease_key) ~= ARGV[2]
   or redis.call('SISMEMBER', KEYS[3], ARGV[1]) ~= 1 then
@@ -412,10 +1038,22 @@ return 'ACTIVE'
 const RECONCILE_CLAIM_SCRIPT: &str = r#"
 local attempt_key = KEYS[1]
 local attempt_type = redis.call('TYPE', attempt_key).ok
+local processing_type = redis.call('TYPE', KEYS[2]).ok
+local processing_time_type = redis.call('TYPE', KEYS[3]).ok
+local result_type = redis.call('TYPE', KEYS[4]).ok
+local result_index_type = redis.call('TYPE', KEYS[5]).ok
+if (attempt_type ~= 'none' and attempt_type ~= 'string')
+  or (processing_type ~= 'none' and processing_type ~= 'set')
+  or (processing_time_type ~= 'none' and processing_time_type ~= 'hash')
+  or (result_type ~= 'none' and result_type ~= 'string')
+  or (result_index_type ~= 'none' and result_index_type ~= 'zset') then
+  return {'INCONSISTENT'}
+end
 if attempt_type == 'none' then
-  local result_type = redis.call('TYPE', KEYS[4]).ok
-  if result_type == 'none' then return {'NOT_FOUND'} end
-  if result_type ~= 'string' then return {'INCONSISTENT'} end
+  if result_type == 'none' then
+    redis.call('ZREM', KEYS[5], ARGV[1])
+    return {'NOT_FOUND'}
+  end
   local result_ttl = redis.call('TTL', KEYS[4])
   if result_ttl < 1 then return {'INCONSISTENT'} end
   local result = redis.call('GET', KEYS[4])
@@ -473,6 +1111,14 @@ return {'ACTIVE', task_id, processing_time, task_json, tostring(lease_ttl)}
 "#;
 
 const MOVE_DUE_RETRIES_SCRIPT: &str = r#"
+local retry_type = redis.call('TYPE', KEYS[1]).ok
+local pending_type = redis.call('TYPE', KEYS[2]).ok
+local processing_type = redis.call('TYPE', KEYS[3]).ok
+if (retry_type ~= 'none' and retry_type ~= 'zset')
+  or (pending_type ~= 'none' and pending_type ~= 'list')
+  or (processing_type ~= 'none' and processing_type ~= 'set') then
+  return redis.error_reply('WRONGTYPE')
+end
 local ids = redis.call(
   'ZRANGEBYSCORE', KEYS[1], '-inf', tonumber(ARGV[1]) / 1000,
   'LIMIT', 0, ARGV[2]
@@ -501,10 +1147,40 @@ end
 return {scan[1], expired}
 "#;
 
+const SCAN_STALE_EXPIRED_CLAIMS_SCRIPT: &str = r#"
+local scan = redis.call('SSCAN', KEYS[1], ARGV[1], 'COUNT', ARGV[2])
+local expired = {}
+for _, task_id in ipairs(scan[2]) do
+  if redis.call('EXISTS', ARGV[4] .. task_id) == 0 then
+    local processing_time = redis.call('HGET', KEYS[2], task_id)
+    if not processing_time
+      or not string.match(processing_time, '^[1-9][0-9]*$')
+      or tonumber(processing_time) <= tonumber(ARGV[3]) then
+      table.insert(expired, task_id)
+    end
+  end
+end
+return {scan[1], expired}
+"#;
+
 const RECOVER_EXPIRED_CLAIM_SCRIPT: &str = r#"
 local task_id = ARGV[1]
-if redis.call('EXISTS', ARGV[3] .. task_id) == 1 then return 0 end
-if redis.call('SISMEMBER', KEYS[2], task_id) ~= 1 then return 0 end
+local lease_key = ARGV[3] .. task_id
+local pending_type = redis.call('TYPE', KEYS[1]).ok
+local processing_type = redis.call('TYPE', KEYS[2]).ok
+local processing_time_type = redis.call('TYPE', KEYS[3]).ok
+local retry_type = redis.call('TYPE', KEYS[4]).ok
+local lease_type = redis.call('TYPE', lease_key).ok
+if (pending_type ~= 'none' and pending_type ~= 'list')
+  or (processing_type ~= 'none' and processing_type ~= 'set')
+  or (processing_time_type ~= 'none' and processing_time_type ~= 'hash')
+  or (retry_type ~= 'none' and retry_type ~= 'zset')
+  or (lease_type ~= 'none' and lease_type ~= 'string') then
+  return redis.error_reply('WRONGTYPE')
+end
+if lease_type == 'string' then return 0 end
+if processing_type ~= 'set'
+  or redis.call('SISMEMBER', KEYS[2], task_id) ~= 1 then return 0 end
 
 redis.call('SREM', KEYS[2], task_id)
 redis.call('HDEL', KEYS[3], task_id)
@@ -592,6 +1268,39 @@ for index = 1, expected_count do
   table.insert(result, field)
   table.insert(result, json)
 end
+return result
+"#;
+
+const READ_PERSISTED_DOMAIN_STATUSES_SCRIPT: &str = r#"
+local key_type = redis.call('TYPE', KEYS[1]).ok
+if key_type == 'none' then return {'MISSING'} end
+if key_type ~= 'hash' then return {'CORRUPT'} end
+local count = redis.call('HLEN', KEYS[1])
+local max_domains = tonumber(ARGV[1])
+if count < 1 then return {'MISSING'} end
+if count > max_domains then return {'CORRUPT'} end
+
+local cursor = '0'
+local total_bytes = 0
+local result = {'OK'}
+repeat
+  local page = redis.call('HSCAN', KEYS[1], cursor, 'COUNT', max_domains)
+  cursor = page[1]
+  local entries = page[2]
+  for index = 1, #entries, 2 do
+    local field = entries[index]
+    local json = entries[index + 1]
+    total_bytes = total_bytes + string.len(field) + string.len(json)
+    if string.len(field) == 0 or string.len(field) > tonumber(ARGV[2])
+      or string.len(json) > tonumber(ARGV[3])
+      or total_bytes > tonumber(ARGV[4]) then
+      return {'CORRUPT'}
+    end
+    table.insert(result, field)
+    table.insert(result, json)
+  end
+until cursor == '0'
+if (#result - 1) / 2 ~= count then return {'CORRUPT'} end
 return result
 "#;
 
@@ -777,6 +1486,49 @@ pub struct ExpiredClaimPage {
     pub task_ids: Vec<i64>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LegacyListKind {
+    Archive,
+    StatusUpdates,
+}
+
+impl LegacyListKind {
+    fn source_key(self) -> &'static str {
+        match self {
+            Self::Archive => ARCHIVE_KEY,
+            Self::StatusUpdates => STATUS_UPDATES_KEY,
+        }
+    }
+
+    fn namespace(self) -> &'static str {
+        match self {
+            Self::Archive => "archive",
+            Self::StatusUpdates => "status-updates",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LegacyListRecord {
+    pub kind: LegacyListKind,
+    pub token: String,
+    pub payload: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LegacyListQuarantine {
+    pub bytes: usize,
+    pub sha1: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum LegacyListClaim {
+    Empty,
+    Settled,
+    Quarantined(LegacyListQuarantine),
+    Record(LegacyListRecord),
+}
+
 impl fmt::Display for QueueError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -866,9 +1618,228 @@ impl LegacyOutboundQueue {
         Self { pool }
     }
 
+    pub async fn claim_legacy_list_record(
+        &self,
+        kind: LegacyListKind,
+        token: &str,
+        max_record_bytes: usize,
+    ) -> Result<LegacyListClaim, QueueError> {
+        validate_migration_token(token)?;
+        if max_record_bytes == 0 || max_record_bytes > MAX_LEGACY_LIST_RECORD_BYTES {
+            return Err(QueueError::InvalidTask(
+                "legacy list record bound is invalid",
+            ));
+        }
+        let namespace = kind.namespace();
+        let inflight_key = format!("lmyzmail:mail:queue:migration:{namespace}:inflight");
+        let payloads_key = format!("lmyzmail:mail:queue:migration:{namespace}:payloads");
+        let quarantine_key = format!("lmyzmail:mail:queue:migration:{namespace}:quarantine");
+        let quarantine_metadata_key =
+            format!("lmyzmail:mail:queue:migration:{namespace}:quarantine-metadata");
+        let quarantine_bytes_key =
+            format!("lmyzmail:mail:queue:migration:{namespace}:quarantine-bytes");
+        let done_prefix = format!("lmyzmail:mail:queue:migration:{namespace}:done:");
+        let done_index_key = format!("lmyzmail:mail:queue:migration:{namespace}:done-index");
+        let mut connection = self.connection().await?;
+        let values: Vec<String> = self
+            .mutation_query(
+                redis::cmd("EVAL")
+                    .arg(CLAIM_LEGACY_LIST_RECORD_SCRIPT)
+                    .arg(7)
+                    .arg(kind.source_key())
+                    .arg(inflight_key)
+                    .arg(payloads_key)
+                    .arg(quarantine_key)
+                    .arg(quarantine_metadata_key)
+                    .arg(quarantine_bytes_key)
+                    .arg(done_index_key)
+                    .arg(token)
+                    .arg(max_record_bytes)
+                    .arg(done_prefix)
+                    .arg(RECEIPT_TTL_SECONDS)
+                    .arg(MAX_LEGACY_QUARANTINE_RECORDS)
+                    .arg(MAX_LEGACY_QUARANTINE_BYTES)
+                    .arg(MAX_RECEIPT_INDEX_ENTRIES),
+                &mut connection,
+            )
+            .await?;
+        match values.first().map(String::as_str) {
+            Some("EMPTY") if values.len() == 1 => Ok(LegacyListClaim::Empty),
+            Some("SETTLED") if values.len() == 1 => Ok(LegacyListClaim::Settled),
+            Some("QUARANTINED") if values.len() == 3 => {
+                let bytes = values[1].parse().map_err(|_| QueueError::Unavailable)?;
+                if bytes <= max_record_bytes || !valid_sha1(&values[2]) {
+                    return Err(QueueError::Unavailable);
+                }
+                Ok(LegacyListClaim::Quarantined(LegacyListQuarantine {
+                    bytes,
+                    sha1: values[2].clone(),
+                }))
+            }
+            Some("QUARANTINE_FULL") => Err(QueueError::Unavailable),
+            Some("RECEIPT_FULL") => Err(QueueError::Unavailable),
+            Some("RECORD") if values.len() == 3 => {
+                validate_migration_token(&values[1])?;
+                if values[2].len() > max_record_bytes {
+                    return Err(QueueError::Unavailable);
+                }
+                Ok(LegacyListClaim::Record(LegacyListRecord {
+                    kind,
+                    token: values[1].clone(),
+                    payload: values[2].clone(),
+                }))
+            }
+            _ => Err(QueueError::Unavailable),
+        }
+    }
+
+    pub async fn acknowledge_legacy_list_record(
+        &self,
+        record: &LegacyListRecord,
+    ) -> Result<bool, QueueError> {
+        validate_migration_token(&record.token)?;
+        let namespace = record.kind.namespace();
+        let inflight_key = format!("lmyzmail:mail:queue:migration:{namespace}:inflight");
+        let payloads_key = format!("lmyzmail:mail:queue:migration:{namespace}:payloads");
+        let done_prefix = format!("lmyzmail:mail:queue:migration:{namespace}:done:");
+        let done_index_key = format!("lmyzmail:mail:queue:migration:{namespace}:done-index");
+        let mut connection = self.connection().await?;
+        let acknowledged: i64 = self
+            .mutation_query(
+                redis::cmd("EVAL")
+                    .arg(ACK_LEGACY_LIST_RECORD_SCRIPT)
+                    .arg(3)
+                    .arg(inflight_key)
+                    .arg(payloads_key)
+                    .arg(done_index_key)
+                    .arg(&record.token)
+                    .arg(done_prefix)
+                    .arg(RECEIPT_TTL_SECONDS)
+                    .arg(MAX_RECEIPT_INDEX_ENTRIES),
+                &mut connection,
+            )
+            .await?;
+        match acknowledged {
+            -2 => Err(QueueError::Unavailable),
+            0 => Ok(false),
+            1 => Ok(true),
+            _ => Err(QueueError::Unavailable),
+        }
+    }
+
+    pub async fn quarantine_legacy_list_record(
+        &self,
+        record: &LegacyListRecord,
+        reason: &str,
+    ) -> Result<bool, QueueError> {
+        validate_migration_token(&record.token)?;
+        if reason.is_empty()
+            || reason.len() > MAX_MIGRATION_REASON_BYTES
+            || !reason.is_ascii()
+            || reason
+                .bytes()
+                .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace())
+        {
+            return Err(QueueError::InvalidTask(
+                "legacy list quarantine reason is invalid",
+            ));
+        }
+        let namespace = record.kind.namespace();
+        let inflight_key = format!("lmyzmail:mail:queue:migration:{namespace}:inflight");
+        let payloads_key = format!("lmyzmail:mail:queue:migration:{namespace}:payloads");
+        let quarantine_key = format!("lmyzmail:mail:queue:migration:{namespace}:quarantine");
+        let quarantine_metadata_key =
+            format!("lmyzmail:mail:queue:migration:{namespace}:quarantine-metadata");
+        let quarantine_bytes_key =
+            format!("lmyzmail:mail:queue:migration:{namespace}:quarantine-bytes");
+        let done_prefix = format!("lmyzmail:mail:queue:migration:{namespace}:done:");
+        let done_index_key = format!("lmyzmail:mail:queue:migration:{namespace}:done-index");
+        let mut connection = self.connection().await?;
+        let quarantined: i64 = self
+            .mutation_query(
+                redis::cmd("EVAL")
+                    .arg(QUARANTINE_LEGACY_LIST_RECORD_SCRIPT)
+                    .arg(6)
+                    .arg(inflight_key)
+                    .arg(payloads_key)
+                    .arg(quarantine_key)
+                    .arg(quarantine_metadata_key)
+                    .arg(quarantine_bytes_key)
+                    .arg(done_index_key)
+                    .arg(&record.token)
+                    .arg(reason)
+                    .arg(done_prefix)
+                    .arg(RECEIPT_TTL_SECONDS)
+                    .arg(MAX_LEGACY_LIST_RECORD_BYTES)
+                    .arg(MAX_LEGACY_QUARANTINE_RECORDS)
+                    .arg(MAX_LEGACY_QUARANTINE_BYTES)
+                    .arg(MAX_RECEIPT_INDEX_ENTRIES),
+                &mut connection,
+            )
+            .await?;
+        match quarantined {
+            -2 => Err(QueueError::Unavailable),
+            0 => Ok(false),
+            1 => Ok(true),
+            _ => Err(QueueError::Unavailable),
+        }
+    }
+
+    pub async fn cleanup_migrated_terminal_task(
+        &self,
+        task_id: i64,
+        sent_file_name: Option<&str>,
+    ) -> Result<(), QueueError> {
+        if task_id <= 0
+            || sent_file_name
+                .is_some_and(|value| value.len() > 255 || value.chars().any(char::is_control))
+        {
+            return Err(QueueError::InvalidTask(
+                "migrated terminal task identity is invalid",
+            ));
+        }
+        let sent_file_name = sent_file_name.unwrap_or_default();
+        let receipt_value = cleanup_receipt_value(sent_file_name);
+        let mut connection = self.connection().await?;
+        let cleaned: i64 = self
+            .mutation_query(
+                redis::cmd("EVAL")
+                    .arg(CLEANUP_MIGRATED_TERMINAL_TASK_SCRIPT)
+                    .arg(7)
+                    .arg(PENDING_KEY)
+                    .arg(PROCESSING_KEY)
+                    .arg(PROCESSING_TIME_KEY)
+                    .arg(RETRY_KEY)
+                    .arg(format!("{KEY_PREFIX}task:{task_id}"))
+                    .arg(SENT_FILE_INDEX_KEY)
+                    .arg(CLEANUP_RECEIPT_INDEX_KEY)
+                    .arg(task_id)
+                    .arg(sent_file_name)
+                    .arg(receipt_value)
+                    .arg(LEASE_PREFIX)
+                    .arg(CLEANUP_RECEIPT_PREFIX)
+                    .arg(RECEIPT_TTL_SECONDS)
+                    .arg(MAX_RECEIPT_INDEX_ENTRIES),
+                &mut connection,
+            )
+            .await?;
+        match cleaned {
+            1 => Ok(()),
+            -1 => Err(QueueError::InvalidTask(
+                "migrated sent-file index conflicts with task ID",
+            )),
+            -2 => Err(QueueError::Unavailable),
+            0 => Err(QueueError::StaleClaim),
+            _ => Err(QueueError::Unavailable),
+        }
+    }
+
     pub async fn reserve_task_id(&self, postgres_id_floor: i64) -> Result<i64, QueueError> {
         if postgres_id_floor < 0 {
             return Err(QueueError::InvalidTask("task ID floor cannot be negative"));
+        }
+        if postgres_id_floor == i64::MAX {
+            return Err(QueueError::InvalidTask("task ID space is exhausted"));
         }
         let mut connection = self.connection().await?;
         let id: i64 = self
@@ -877,7 +1848,8 @@ impl LegacyOutboundQueue {
                     .arg(RESERVE_ID_SCRIPT)
                     .arg(1)
                     .arg(SEQUENCE_KEY)
-                    .arg(postgres_id_floor),
+                    .arg(postgres_id_floor)
+                    .arg(i64::MAX),
                 &mut connection,
             )
             .await?;
@@ -915,7 +1887,20 @@ impl LegacyOutboundQueue {
         task: &TaskDetail,
         domains: &BTreeMap<String, DomainStatus>,
     ) -> Result<bool, QueueError> {
+        self.publish_bounded(task, domains, MAX_ACTIVE_TASK_REFERENCES)
+            .await
+    }
+
+    pub async fn publish_bounded(
+        &self,
+        task: &TaskDetail,
+        domains: &BTreeMap<String, DomainStatus>,
+        max_active: usize,
+    ) -> Result<bool, QueueError> {
         task.validate()?;
+        if max_active == 0 || max_active > MAX_ACTIVE_TASK_REFERENCES {
+            return Err(QueueError::InvalidTask("invalid active queue bound"));
+        }
         if domains.is_empty() || domains.values().any(|status| status.domain.is_empty()) {
             return Err(QueueError::InvalidTask(
                 "task domain statuses are incomplete",
@@ -940,7 +1925,8 @@ impl LegacyOutboundQueue {
             .arg(task_json)
             .arg(TASK_TTL_SECONDS)
             .arg(task.sent_file_name.as_deref().unwrap_or_default())
-            .arg(domains.len());
+            .arg(domains.len())
+            .arg(max_active);
         for (domain, status) in domains {
             if domain != &status.domain {
                 return Err(QueueError::InvalidTask("domain status key mismatch"));
@@ -951,7 +1937,12 @@ impl LegacyOutboundQueue {
         }
         let mut connection = self.connection().await?;
         let created: i64 = self.mutation_query(&mut command, &mut connection).await?;
-        Ok(created == 1)
+        match created {
+            -1 => Err(QueueError::Unavailable),
+            0 => Ok(false),
+            1 => Ok(true),
+            _ => Err(QueueError::Unavailable),
+        }
     }
 
     pub async fn renew_active_task(&self, task_id: i64) -> Result<i64, QueueError> {
@@ -1020,10 +2011,11 @@ impl LegacyOutboundQueue {
             .mutation_query(
                 redis::cmd("EVAL")
                     .arg(CLAIM_SCRIPT)
-                    .arg(3)
+                    .arg(4)
                     .arg(PENDING_KEY)
                     .arg(PROCESSING_KEY)
                     .arg(PROCESSING_TIME_KEY)
+                    .arg(CLAIM_RESULT_INDEX_KEY)
                     .arg(lease_token)
                     .arg(lease_duration.as_millis())
                     .arg(now_epoch_millis)
@@ -1034,7 +2026,10 @@ impl LegacyOutboundQueue {
                     .arg(ATTEMPT_PREFIX)
                     .arg(SETTLEMENT_PREFIX)
                     .arg(CLAIM_RESULT_PREFIX)
-                    .arg(TASK_TTL_SECONDS),
+                    .arg(MAX_RECEIPT_INDEX_ENTRIES)
+                    .arg(MAX_TASK_ID_BYTES)
+                    .arg(MAX_TASK_JSON_BYTES)
+                    .arg(i64::MAX),
                 &mut connection,
             )
             .await?;
@@ -1046,6 +2041,9 @@ impl LegacyOutboundQueue {
         }
         if values[2] == "2" {
             return Err(QueueError::AttemptTokenInUse);
+        }
+        if values[2] == "4" {
+            return Err(QueueError::Unavailable);
         }
         if values[2] == "3" && values[0].is_empty() && values[1].is_empty() {
             return Ok(None);
@@ -1081,11 +2079,12 @@ impl LegacyOutboundQueue {
             .query(
                 redis::cmd("EVAL")
                     .arg(RECONCILE_CLAIM_SCRIPT)
-                    .arg(4)
+                    .arg(5)
                     .arg(format!("{ATTEMPT_PREFIX}{attempt_token}"))
                     .arg(PROCESSING_KEY)
                     .arg(PROCESSING_TIME_KEY)
                     .arg(format!("{CLAIM_RESULT_PREFIX}{attempt_token}"))
+                    .arg(CLAIM_RESULT_INDEX_KEY)
                     .arg(attempt_token)
                     .arg(LEASE_PREFIX)
                     .arg(format!("{KEY_PREFIX}task:"))
@@ -1200,6 +2199,81 @@ impl LegacyOutboundQueue {
         let mut connection = self.connection().await?;
         let values: Vec<String> = self.query(&mut command, &mut connection).await?;
         decode_domain_statuses(values, expected_domains)
+    }
+
+    pub async fn read_persisted_domain_statuses(
+        &self,
+        task_id: i64,
+    ) -> Result<BTreeMap<String, DomainStatus>, QueueError> {
+        if task_id <= 0 {
+            return Err(QueueError::InvalidTask("task ID must be positive"));
+        }
+        let mut connection = self.connection().await?;
+        let values: Vec<String> = self
+            .query(
+                redis::cmd("EVAL")
+                    .arg(READ_PERSISTED_DOMAIN_STATUSES_SCRIPT)
+                    .arg(1)
+                    .arg(format!("{KEY_PREFIX}domains:{task_id}"))
+                    .arg(MAX_DOMAIN_STATUSES)
+                    .arg(MAX_DOMAIN_BYTES)
+                    .arg(MAX_DOMAIN_STATUS_JSON_BYTES)
+                    .arg(MAX_DOMAIN_STATUS_ARCHIVE_BYTES),
+                &mut connection,
+            )
+            .await?;
+        decode_persisted_domain_statuses(values)
+    }
+
+    pub async fn read_persisted_task(
+        &self,
+        task_id: i64,
+    ) -> Result<Option<TaskDetail>, QueueError> {
+        if task_id <= 0 {
+            return Err(QueueError::InvalidTask("task ID must be positive"));
+        }
+        let mut connection = self.connection().await?;
+        let task_json: Option<Vec<u8>> = self
+            .query(
+                redis::cmd("GET").arg(format!("{KEY_PREFIX}task:{task_id}")),
+                &mut connection,
+            )
+            .await?;
+        let Some(task_json) = task_json else {
+            return Ok(None);
+        };
+        if task_json.len() > MAX_TASK_JSON_BYTES {
+            return Ok(None);
+        }
+        let Ok(task) = serde_json::from_slice::<TaskDetail>(&task_json) else {
+            return Ok(None);
+        };
+        if !valid_persisted_status_task(&task, task_id) {
+            return Ok(None);
+        }
+        Ok(Some(task))
+    }
+
+    pub async fn read_task_id_by_sent_file_name(
+        &self,
+        sent_file_name: &str,
+    ) -> Result<Option<i64>, QueueError> {
+        if sent_file_name.is_empty()
+            || sent_file_name.len() > 255
+            || sent_file_name.chars().any(char::is_control)
+        {
+            return Err(QueueError::InvalidTask("sent-file identity is invalid"));
+        }
+        let mut connection = self.connection().await?;
+        let task_id: Option<String> = self
+            .query(
+                redis::cmd("HGET")
+                    .arg(SENT_FILE_INDEX_KEY)
+                    .arg(sent_file_name),
+                &mut connection,
+            )
+            .await?;
+        Ok(task_id.and_then(|value| parse_task_id(&value).ok()))
     }
 
     pub async fn replace_claimed_task_source(
@@ -1381,11 +2455,13 @@ impl LegacyOutboundQueue {
             .mutation_query(
                 redis::cmd("EVAL")
                     .arg(RELEASE_CLAIM_SCRIPT)
-                    .arg(4)
+                    .arg(6)
                     .arg(PENDING_KEY)
                     .arg(PROCESSING_KEY)
                     .arg(PROCESSING_TIME_KEY)
                     .arg(RETRY_KEY)
+                    .arg(SETTLEMENT_INDEX_KEY)
+                    .arg(CLAIM_RESULT_INDEX_KEY)
                     .arg(claim.task_id)
                     .arg(&claim.lease_token)
                     .arg(i64::from(requeue))
@@ -1393,13 +2469,19 @@ impl LegacyOutboundQueue {
                     .arg(ATTEMPT_PREFIX)
                     .arg(SETTLEMENT_PREFIX)
                     .arg(settlement.receipt)
-                    .arg(TASK_TTL_SECONDS)
+                    .arg(RECEIPT_TTL_SECONDS)
                     .arg(format!("{KEY_PREFIX}task:"))
-                    .arg(MAX_TASK_JSON_BYTES),
+                    .arg(MAX_TASK_JSON_BYTES)
+                    .arg(MAX_RECEIPT_INDEX_ENTRIES),
                 &mut connection,
             )
             .await?;
-        Ok(released == 1)
+        match released {
+            -2 => Err(QueueError::Unavailable),
+            0 => Ok(false),
+            1 => Ok(true),
+            _ => Err(QueueError::Unavailable),
+        }
     }
 
     pub async fn schedule_retry(
@@ -1425,11 +2507,13 @@ impl LegacyOutboundQueue {
             .mutation_query(
                 redis::cmd("EVAL")
                     .arg(SCHEDULE_RETRY_SCRIPT)
-                    .arg(4)
+                    .arg(6)
                     .arg(PENDING_KEY)
                     .arg(PROCESSING_KEY)
                     .arg(PROCESSING_TIME_KEY)
                     .arg(RETRY_KEY)
+                    .arg(SETTLEMENT_INDEX_KEY)
+                    .arg(CLAIM_RESULT_INDEX_KEY)
                     .arg(claim.task_id)
                     .arg(&claim.lease_token)
                     .arg(&settlement.task_json)
@@ -1439,11 +2523,18 @@ impl LegacyOutboundQueue {
                     .arg(format!("{KEY_PREFIX}task:"))
                     .arg(ATTEMPT_PREFIX)
                     .arg(SETTLEMENT_PREFIX)
-                    .arg(settlement.receipt),
+                    .arg(settlement.receipt)
+                    .arg(RECEIPT_TTL_SECONDS)
+                    .arg(MAX_RECEIPT_INDEX_ENTRIES),
                 &mut connection,
             )
             .await?;
-        Ok(scheduled == 1)
+        match scheduled {
+            -2 => Err(QueueError::Unavailable),
+            0 => Ok(false),
+            1 => Ok(true),
+            _ => Err(QueueError::Unavailable),
+        }
     }
 
     pub async fn acknowledge(&self, claim: &QueueClaim) -> Result<bool, QueueError> {
@@ -1454,11 +2545,14 @@ impl LegacyOutboundQueue {
             .mutation_query(
                 redis::cmd("EVAL")
                     .arg(ACKNOWLEDGE_SCRIPT)
-                    .arg(4)
+                    .arg(7)
                     .arg(PENDING_KEY)
                     .arg(PROCESSING_KEY)
                     .arg(PROCESSING_TIME_KEY)
                     .arg(RETRY_KEY)
+                    .arg(SENT_FILE_INDEX_KEY)
+                    .arg(SETTLEMENT_INDEX_KEY)
+                    .arg(CLAIM_RESULT_INDEX_KEY)
                     .arg(claim.task_id)
                     .arg(&claim.lease_token)
                     .arg(LEASE_PREFIX)
@@ -1466,11 +2560,66 @@ impl LegacyOutboundQueue {
                     .arg(ATTEMPT_PREFIX)
                     .arg(SETTLEMENT_PREFIX)
                     .arg(settlement)
-                    .arg(TASK_TTL_SECONDS),
+                    .arg(RECEIPT_TTL_SECONDS)
+                    .arg(
+                        claim
+                            .task
+                            .as_ref()
+                            .and_then(|task| task.sent_file_name.as_deref())
+                            .unwrap_or_default(),
+                    )
+                    .arg(MAX_RECEIPT_INDEX_ENTRIES),
                 &mut connection,
             )
             .await?;
-        Ok(acknowledged == 1)
+        match acknowledged {
+            -2 => Err(QueueError::Unavailable),
+            0 => Ok(false),
+            1 => Ok(true),
+            _ => Err(QueueError::Unavailable),
+        }
+    }
+
+    pub async fn terminal_acknowledgement_proven(
+        &self,
+        task_id: i64,
+        sent_file_name: &str,
+    ) -> Result<bool, QueueError> {
+        if task_id <= 0
+            || sent_file_name.is_empty()
+            || sent_file_name.len() > 255
+            || sent_file_name.chars().any(char::is_control)
+        {
+            return Err(QueueError::InvalidTask(
+                "terminal acknowledgement identity is invalid",
+            ));
+        }
+        let mut connection = self.connection().await?;
+        let result: String = self
+            .query(
+                redis::cmd("EVAL")
+                    .arg(VERIFY_TERMINAL_ACKNOWLEDGEMENT_SCRIPT)
+                    .arg(7)
+                    .arg(format!("{KEY_PREFIX}task:{task_id}"))
+                    .arg(PENDING_KEY)
+                    .arg(PROCESSING_KEY)
+                    .arg(PROCESSING_TIME_KEY)
+                    .arg(RETRY_KEY)
+                    .arg(SENT_FILE_INDEX_KEY)
+                    .arg(format!("{LEASE_PREFIX}{task_id}"))
+                    .arg(task_id)
+                    .arg(sent_file_name),
+                &mut connection,
+            )
+            .await?;
+        match result.as_str() {
+            "ACKNOWLEDGED" => Ok(true),
+            "ACTIVE" => Ok(false),
+            "CONFLICT" => Err(QueueError::InvalidTask(
+                "terminal sent-file index conflicts with task ID",
+            )),
+            _ => Err(QueueError::Unavailable),
+        }
     }
 
     pub async fn reconcile_settlement(
@@ -1485,7 +2634,7 @@ impl LegacyOutboundQueue {
             .query(
                 redis::cmd("EVAL")
                     .arg(RECONCILE_SETTLEMENT_SCRIPT)
-                    .arg(7)
+                    .arg(9)
                     .arg(format!("{SETTLEMENT_PREFIX}{}", claim.lease_token))
                     .arg(format!("{ATTEMPT_PREFIX}{}", claim.lease_token))
                     .arg(PROCESSING_KEY)
@@ -1493,6 +2642,8 @@ impl LegacyOutboundQueue {
                     .arg(PENDING_KEY)
                     .arg(RETRY_KEY)
                     .arg(format!("{KEY_PREFIX}task:{}", claim.task_id))
+                    .arg(SENT_FILE_INDEX_KEY)
+                    .arg(SETTLEMENT_INDEX_KEY)
                     .arg(claim.task_id)
                     .arg(&claim.lease_token)
                     .arg(expected.receipt)
@@ -1502,7 +2653,14 @@ impl LegacyOutboundQueue {
                     .arg(expected.action)
                     .arg(expected.retry_at_epoch_millis)
                     .arg(expected.task_json)
-                    .arg(MAX_TASK_JSON_BYTES),
+                    .arg(MAX_TASK_JSON_BYTES)
+                    .arg(
+                        claim
+                            .task
+                            .as_ref()
+                            .and_then(|task| task.sent_file_name.as_deref())
+                            .unwrap_or_default(),
+                    ),
                 &mut connection,
             )
             .await?;
@@ -1560,6 +2718,40 @@ impl LegacyOutboundQueue {
                     .arg(PROCESSING_KEY)
                     .arg(cursor)
                     .arg(count)
+                    .arg(LEASE_PREFIX),
+                &mut connection,
+            )
+            .await?;
+        let task_ids = values
+            .into_iter()
+            .map(|value| parse_task_id(&value))
+            .collect::<Result<_, _>>()?;
+        Ok(ExpiredClaimPage {
+            next_cursor,
+            task_ids,
+        })
+    }
+
+    pub async fn scan_stale_expired_claims(
+        &self,
+        cursor: u64,
+        count: usize,
+        stale_before_epoch_millis: i64,
+    ) -> Result<ExpiredClaimPage, QueueError> {
+        if count == 0 || count > 10_000 || stale_before_epoch_millis <= 0 {
+            return Err(QueueError::InvalidTask("invalid stale claim scan bound"));
+        }
+        let mut connection = self.connection().await?;
+        let (next_cursor, values): (u64, Vec<String>) = self
+            .query(
+                redis::cmd("EVAL")
+                    .arg(SCAN_STALE_EXPIRED_CLAIMS_SCRIPT)
+                    .arg(2)
+                    .arg(PROCESSING_KEY)
+                    .arg(PROCESSING_TIME_KEY)
+                    .arg(cursor)
+                    .arg(count)
+                    .arg(stale_before_epoch_millis)
                     .arg(LEASE_PREFIX),
                 &mut connection,
             )
@@ -1654,6 +2846,40 @@ fn validate_lease_token(lease_token: &str) -> Result<(), QueueError> {
         return Err(QueueError::InvalidTask("invalid lease token"));
     }
     Ok(())
+}
+
+fn validate_migration_token(token: &str) -> Result<(), QueueError> {
+    if token.is_empty()
+        || token.len() > MAX_MIGRATION_TOKEN_BYTES
+        || !token.is_ascii()
+        || token
+            .bytes()
+            .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace())
+    {
+        return Err(QueueError::InvalidTask(
+            "legacy list migration token is invalid",
+        ));
+    }
+    Ok(())
+}
+
+fn valid_sha1(value: &str) -> bool {
+    value.len() == 40
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn cleanup_receipt_value(sent_file_name: &str) -> String {
+    let digest = Sha256::digest(sent_file_name.as_bytes());
+    let mut value = String::with_capacity(CLEANUP_RECEIPT_TAG.len() + digest.len() * 2);
+    value.push_str(CLEANUP_RECEIPT_TAG);
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    for byte in digest {
+        value.push(HEX[(byte >> 4) as usize] as char);
+        value.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    value
 }
 
 fn validate_claim(
@@ -1801,6 +3027,31 @@ fn decode_domain_statuses(
     Ok(statuses)
 }
 
+fn decode_persisted_domain_statuses(
+    values: Vec<String>,
+) -> Result<BTreeMap<String, DomainStatus>, QueueError> {
+    match values.first().map(String::as_str) {
+        Some("MISSING") => return Ok(BTreeMap::new()),
+        Some("OK") => {}
+        Some("CORRUPT") => return Err(QueueError::CorruptDomainStatuses),
+        _ => return Err(QueueError::Unavailable),
+    }
+    if values.len() == 1 || !(values.len() - 1).is_multiple_of(2) {
+        return Err(QueueError::CorruptDomainStatuses);
+    }
+    let mut statuses = BTreeMap::new();
+    for pair in values[1..].chunks_exact(2) {
+        let domain = &pair[0];
+        let Ok(status) = serde_json::from_str::<DomainStatus>(&pair[1]) else {
+            continue;
+        };
+        if valid_domain_status(domain, &status) {
+            statuses.insert(domain.clone(), status);
+        }
+    }
+    Ok(statuses)
+}
+
 fn validate_expected_domains(expected_domains: &BTreeSet<String>) -> Result<(), QueueError> {
     if expected_domains.is_empty()
         || expected_domains.len() > MAX_DOMAIN_STATUSES
@@ -1836,6 +3087,50 @@ fn valid_domain_status(domain: &str, status: &DomainStatus) -> bool {
         })
         && !status.updated_at.is_empty()
         && status.updated_at.len() <= 128
+}
+
+fn valid_persisted_status_task(task: &TaskDetail, expected_id: i64) -> bool {
+    task.id == expected_id
+        && !task.sender_address.is_empty()
+        && task.sender_address.len() <= MAX_ADDRESS_BYTES
+        && !task.sender_address.chars().any(char::is_control)
+        && task.recipients_json.len() <= MAX_TASK_JSON_BYTES
+        && task.subject.len() <= 1_000
+        && !task.subject.chars().any(char::is_control)
+        && !task.message_id.is_empty()
+        && task.message_id.len() <= 255
+        && !task.message_id.chars().any(char::is_control)
+        && task.retry_count >= 0
+        && task.max_retries >= 0
+        && task.retry_count <= task.max_retries
+        && task.sent_file_name.as_deref().is_none_or(|value| {
+            !value.is_empty() && value.len() <= 255 && !value.chars().any(char::is_control)
+        })
+        && task.sent_subdirectory.is_none_or(|value| value > 0)
+        && task.message_file_path.as_deref().is_none_or(|value| {
+            !value.is_empty()
+                && value.len() <= 4_096
+                && !value.contains('\0')
+                && std::path::Path::new(value).is_absolute()
+        })
+        && task
+            .signed_content_base64
+            .as_deref()
+            .is_none_or(|value| value.len() <= MAX_TASK_JSON_BYTES)
+        && !task.created_at.is_empty()
+        && task.created_at.len() <= 128
+        && chrono::DateTime::parse_from_rfc3339(&task.created_at).is_ok()
+        && task.next_retry_at.as_deref().is_none_or(|value| {
+            value.len() <= 128 && chrono::DateTime::parse_from_rfc3339(value).is_ok()
+        })
+        && task
+            .last_error
+            .as_deref()
+            .is_none_or(|value| value.len() <= 4_096 && !value.contains('\0'))
+        && matches!(
+            task.status.as_str(),
+            "PENDING" | "PROCESSING" | "SENT" | "PARTIAL_SUCCESS" | "FAILED" | "CANCELLED"
+        )
 }
 
 #[cfg(test)]
@@ -1884,5 +3179,38 @@ mod tests {
         assert!(task.validate().is_ok());
         task.sent_file_name = None;
         assert!(task.validate().is_err());
+    }
+
+    #[test]
+    fn persisted_domain_statuses_skip_only_malformed_entries() {
+        let valid = DomainStatus {
+            domain: "valid.test".into(),
+            status: "SENT".into(),
+            error: None,
+            recipients: vec!["user@valid.test".into()],
+            updated_at: "2026-08-07T00:00:00Z".into(),
+        };
+        let values = vec![
+            "OK".into(),
+            "broken.test".into(),
+            "{".into(),
+            "valid.test".into(),
+            serde_json::to_string(&valid).unwrap(),
+        ];
+        assert_eq!(
+            decode_persisted_domain_statuses(values).unwrap(),
+            BTreeMap::from([("valid.test".into(), valid)])
+        );
+    }
+
+    #[test]
+    fn persisted_status_task_accepts_terminal_java_cache_shape() {
+        let mut task = complete_task();
+        task.status = "CANCELLED".into();
+        task.sent_file_name = None;
+        task.sent_subdirectory = None;
+        task.next_retry_at = Some("2100-01-01T00:00:00Z".into());
+        assert!(valid_persisted_status_task(&task, 42));
+        assert!(!valid_persisted_status_task(&task, 43));
     }
 }

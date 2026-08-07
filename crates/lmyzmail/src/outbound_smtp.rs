@@ -1439,6 +1439,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::io::{AsyncBufReadExt, BufReader};
 
     #[test]
     fn smtp_utf8_downgrades_only_domains() {
@@ -1458,6 +1459,85 @@ mod tests {
             prepare_envelope("送信@example.test", &["受信@example.test".into()], true).unwrap();
         assert_eq!(envelope.sender, "送信@example.test");
         assert!(envelope.smtp_utf8);
+    }
+
+    #[tokio::test]
+    async fn null_reverse_path_is_emitted_exactly_on_the_wire() {
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+            .await
+            .unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let (read, mut write) = stream.into_split();
+            let mut read = BufReader::new(read);
+            let mut line = String::new();
+            let mut commands = Vec::new();
+            let mut in_data = false;
+            write
+                .write_all(b"220 smtp.example.test ESMTP\r\n")
+                .await
+                .unwrap();
+            loop {
+                line.clear();
+                if read.read_line(&mut line).await.unwrap() == 0 {
+                    break;
+                }
+                if in_data {
+                    if line == ".\r\n" {
+                        in_data = false;
+                        write.write_all(b"250 2.0.0 queued\r\n").await.unwrap();
+                    }
+                    continue;
+                }
+                let command = line.trim_end_matches(['\r', '\n']).to_owned();
+                commands.push(command.clone());
+                if command.starts_with("EHLO ") {
+                    write
+                        .write_all(b"250-smtp.example.test\r\n250 PIPELINING\r\n")
+                        .await
+                        .unwrap();
+                } else if command.starts_with("MAIL FROM:") || command.starts_with("RCPT TO:") {
+                    write.write_all(b"250 2.1.0 ok\r\n").await.unwrap();
+                } else if command == "DATA" {
+                    in_data = true;
+                    write
+                        .write_all(b"354 End data with <CR><LF>.<CR><LF>\r\n")
+                        .await
+                        .unwrap();
+                } else if command == "QUIT" {
+                    write.write_all(b"221 2.0.0 bye\r\n").await.unwrap();
+                    break;
+                } else {
+                    panic!("unexpected SMTP command: {command}");
+                }
+            }
+            commands
+        });
+
+        let request = DeliveryRequest {
+            endpoint: SmtpEndpoint::trusted_relay(address, "smtp.example.test").unwrap(),
+            hello_name: "mail.example.test".into(),
+            envelope_from: String::new(),
+            recipients: vec!["recipient@example.test".into()],
+            message: MessageSource::Bytes(Arc::from(
+                &b"Subject: DSN\r\n\r\nDelivery failed.\r\n"[..],
+            )),
+            tls_mode: TlsMode::Disabled,
+            max_message_bytes: 4_096,
+        };
+        let result = OutboundSmtpClient::default()
+            .deliver(&request, &CancellationToken::new())
+            .await
+            .unwrap();
+        assert_eq!(result.data_status, DataStatus::Accepted);
+        let commands = server.await.unwrap();
+        assert!(commands.iter().any(|command| command == "MAIL FROM:<>"));
+        assert!(
+            !commands
+                .iter()
+                .any(|command| command.starts_with("MAIL FROM:<mailer-daemon@"))
+        );
     }
 
     #[test]

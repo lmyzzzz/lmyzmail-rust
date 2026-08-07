@@ -12,12 +12,14 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use chrono::{DateTime, Datelike, Timelike, Utc, Weekday};
 use mail_auth::{
     common::{
-        crypto::{RsaKey, Sha256},
-        headers::HeaderWriter,
+        crypto::{RsaKey, Sha256, SigningKey},
+        headers::{HeaderStream, HeaderWriter, Writable},
     },
-    dkim::{Canonicalization, DkimSigner, Done},
+    dkim::{Canonicalization, DkimSigner, Done, Signature},
 };
-use mail_builder::encoders::quoted_printable::quoted_printable_encode;
+use mail_builder::encoders::{
+    base64::base64_encode as dkim_base64_encode, quoted_printable::quoted_printable_encode,
+};
 use openssl::pkey::PKey;
 use rustls::pki_types::{PrivateKeyDer, PrivatePkcs8KeyDer};
 use sha2::{Digest, Sha256 as Sha256Digest};
@@ -30,6 +32,77 @@ const COPY_BUFFER_BYTES: usize = 32 * 1024;
 
 type RsaDkimSigner = DkimSigner<RsaKey<Sha256>, Done>;
 
+struct DkimHeaderStream<'a> {
+    message: &'a [u8],
+    cursor: usize,
+    header_start: usize,
+}
+
+impl<'a> DkimHeaderStream<'a> {
+    fn new(message: &'a [u8]) -> Self {
+        Self {
+            message,
+            cursor: 0,
+            header_start: 0,
+        }
+    }
+}
+
+impl<'a> HeaderStream<'a> for DkimHeaderStream<'a> {
+    fn next_header(&mut self) -> Option<(&'a [u8], &'a [u8])> {
+        let mut colon = None;
+        let mut previous = 0;
+
+        while let Some(&byte) = self.message.get(self.cursor) {
+            let position = self.cursor;
+            self.cursor += 1;
+            if colon.is_none() {
+                match byte {
+                    b':' => colon = Some(position),
+                    b'\n' => {
+                        if previous == b'\r' || self.header_start == position {
+                            return None;
+                        }
+                        if self
+                            .message
+                            .get(self.cursor)
+                            .is_none_or(|next| !b" \t".contains(next))
+                        {
+                            let name = self
+                                .message
+                                .get(self.header_start..=position)
+                                .unwrap_or_default();
+                            self.header_start = self.cursor;
+                            return Some((name, b""));
+                        }
+                    }
+                    _ => {}
+                }
+            } else if let Some(colon) = colon
+                && byte == b'\n'
+                && self
+                    .message
+                    .get(self.cursor)
+                    .is_none_or(|next| !b" \t".contains(next))
+            {
+                let name = self
+                    .message
+                    .get(self.header_start..colon)
+                    .unwrap_or_default();
+                let value = self.message.get(colon + 1..=position).unwrap_or_default();
+                self.header_start = self.cursor;
+                return Some((name, value));
+            }
+            previous = byte;
+        }
+        None
+    }
+
+    fn body(&mut self) -> &'a [u8] {
+        self.message.get(self.cursor..).unwrap_or_default()
+    }
+}
+
 #[derive(Clone)]
 pub struct OutboundMessageBuilder {
     maildir: PathBuf,
@@ -41,7 +114,7 @@ pub struct OutboundMessageBuilder {
     dkim_signer: Option<Arc<RsaDkimSigner>>,
 }
 
-#[derive(Clone, Debug, serde::Serialize)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageAttachment {
     pub filename: String,
@@ -49,6 +122,21 @@ pub struct MessageAttachment {
     pub content_base64: String,
     pub inline: bool,
     pub content_id: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MessageStorageMode {
+    Inline,
+    Spool,
+}
+
+pub(crate) struct SystemMaterialization<'a> {
+    pub(crate) task_id: i64,
+    pub(crate) sender: &'a str,
+    pub(crate) created_at: DateTime<Utc>,
+    pub(crate) bytes: &'a [u8],
+    pub(crate) storage_mode: MessageStorageMode,
+    pub(crate) expected_sha256: &'a [u8; 32],
 }
 
 #[derive(Debug)]
@@ -74,6 +162,7 @@ pub struct MaterializedMessage {
     pub sent_created: bool,
     pub spool_path: PathBuf,
     pub spool_created: bool,
+    pub cleanup_spool_after_publish: bool,
     pub message_bytes: u64,
     pub signed_content_base64: Option<String>,
 }
@@ -200,10 +289,183 @@ impl OutboundMessageBuilder {
     }
 
     pub fn cleanup_small_spool(&self, message: &MaterializedMessage) -> io::Result<()> {
-        if message.signed_content_base64.is_some() && message.spool_created {
+        if message.cleanup_spool_after_publish {
             remove_regular_file(&message.spool_path)?;
         }
         Ok(())
+    }
+
+    pub(crate) fn prepare_system_bytes(
+        &self,
+        created_at: DateTime<Utc>,
+        bytes: &[u8],
+        expected_sha256: &[u8; 32],
+        cancelled: &AtomicBool,
+    ) -> Result<Vec<u8>, MessageBuildError> {
+        check_cancelled(cancelled)?;
+        if bytes.is_empty() || bytes.len() as u64 > self.max_email_size {
+            return Err(MessageBuildError::InvalidInput(
+                "invalid_outbound_system_message",
+            ));
+        }
+        if Sha256Digest::digest(bytes).as_slice() != expected_sha256 {
+            return Err(MessageBuildError::InvalidInput(
+                "outbound_system_message_digest_mismatch",
+            ));
+        }
+        let prepared =
+            if let Some(signer) = self.dkim_signer.as_deref() {
+                let timestamp = u64::try_from(created_at.timestamp()).map_err(|_| {
+                    MessageBuildError::InvalidInput("invalid_outbound_system_message_time")
+                })?;
+                let signature = sign_dkim_at(signer, bytes, timestamp)?;
+                let header = signature.to_header();
+                let prepared_len = header.len().checked_add(bytes.len()).ok_or(
+                    MessageBuildError::InvalidInput("email_size_estimate_overflow"),
+                )?;
+                if prepared_len as u64 > self.max_email_size {
+                    return Err(MessageBuildError::InvalidInput("email_too_large"));
+                }
+                let mut prepared = Vec::with_capacity(prepared_len);
+                prepared.extend_from_slice(header.as_bytes());
+                prepared.extend_from_slice(bytes);
+                prepared
+            } else {
+                bytes.to_vec()
+            };
+        check_cancelled(cancelled)?;
+        Ok(prepared)
+    }
+
+    /// Materialize authenticated, already-signed system-message bytes. Every
+    /// publish is no-clobber; retries trust only the digest persisted by the
+    /// token-fenced DSN outbox checkpoint.
+    pub(crate) fn materialize_bytes(
+        &self,
+        request: SystemMaterialization<'_>,
+        cancelled: &AtomicBool,
+    ) -> Result<MaterializedMessage, MessageBuildError> {
+        let SystemMaterialization {
+            task_id,
+            sender,
+            created_at,
+            bytes,
+            storage_mode,
+            expected_sha256,
+        } = request;
+        check_cancelled(cancelled)?;
+        if task_id <= 0 || sender.is_empty() || bytes.is_empty() {
+            return Err(MessageBuildError::InvalidInput(
+                "invalid_outbound_system_message",
+            ));
+        }
+        if bytes.len() as u64 > self.max_email_size {
+            return Err(MessageBuildError::InvalidInput("email_too_large"));
+        }
+        let final_digest: [u8; 32] = Sha256Digest::digest(bytes).into();
+        let prepared_matches = final_digest == *expected_sha256;
+        let candidate_spool_path = self.spool_dir.join(format!("message-{task_id}.eml"));
+        if !prepared_matches && !candidate_spool_path.exists() {
+            return Err(MessageBuildError::InvalidInput(
+                "outbound_system_signing_key_changed",
+            ));
+        }
+        let spool_root = secure_directory(&self.spool_dir)?;
+        let spool_path = spool_root.join(format!("message-{task_id}.eml"));
+        let spool_created = if spool_path.exists() {
+            validate_regular_file(&spool_path)?;
+            if hash_regular_file(&spool_path, self.max_email_size, cancelled)? != *expected_sha256 {
+                return Err(MessageBuildError::Io(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "outbound system spool digest mismatch",
+                )));
+            }
+            false
+        } else {
+            debug_assert!(prepared_matches);
+            match atomic_publish_bytes(&spool_root, &spool_path, bytes, self.max_email_size) {
+                Ok(()) => true,
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                    validate_regular_file(&spool_path)?;
+                    if hash_regular_file(&spool_path, self.max_email_size, cancelled)?
+                        != *expected_sha256
+                    {
+                        return Err(MessageBuildError::Io(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "outbound system spool digest mismatch",
+                        )));
+                    }
+                    false
+                }
+                Err(error) => return Err(error.into()),
+            }
+        };
+        let message_bytes = fs::metadata(&spool_path)?.len();
+        if message_bytes == 0 || message_bytes > self.max_email_size {
+            return Err(MessageBuildError::InvalidInput("email_too_large"));
+        }
+
+        let sent_root = secure_child_directory(&self.maildir, sender, "sent")?;
+        let sent_subdirectory =
+            select_subdirectory(&sent_root, self.max_files_per_directory, task_id)?;
+        let sent_dir = secure_numeric_directory(&sent_root, sent_subdirectory)?;
+        let sent_file_name = sent_file_name_for(task_id, created_at);
+        let sent_path = sent_dir.join(&sent_file_name);
+        let sent_created = if sent_path.exists() {
+            validate_regular_file(&sent_path)?;
+            if hash_regular_file(&sent_path, self.max_email_size, cancelled)? != *expected_sha256 {
+                return Err(MessageBuildError::Io(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "outbound system Sent digest mismatch",
+                )));
+            }
+            false
+        } else {
+            match atomic_copy(&spool_path, &sent_path, self.max_email_size, cancelled) {
+                Ok(()) => true,
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                    validate_regular_file(&sent_path)?;
+                    if hash_regular_file(&sent_path, self.max_email_size, cancelled)?
+                        != *expected_sha256
+                    {
+                        return Err(MessageBuildError::Io(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "outbound system Sent digest mismatch",
+                        )));
+                    }
+                    false
+                }
+                Err(error) => return Err(error.into()),
+            }
+        };
+        let signed_content_base64 = if storage_mode == MessageStorageMode::Inline {
+            if prepared_matches {
+                Some(BASE64_STANDARD.encode(bytes))
+            } else {
+                let mut persisted = Vec::with_capacity(message_bytes as usize);
+                File::open(&spool_path)?.read_to_end(&mut persisted)?;
+                if persisted.len() as u64 != message_bytes {
+                    return Err(MessageBuildError::Io(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "outbound system spool changed while reading",
+                    )));
+                }
+                Some(BASE64_STANDARD.encode(persisted))
+            }
+        } else {
+            None
+        };
+        Ok(MaterializedMessage {
+            sent_file_name,
+            sent_subdirectory,
+            sent_path,
+            sent_created,
+            spool_path,
+            spool_created,
+            cleanup_spool_after_publish: storage_mode == MessageStorageMode::Inline,
+            message_bytes,
+            signed_content_base64,
+        })
     }
 
     pub fn recover(
@@ -212,6 +474,7 @@ impl OutboundMessageBuilder {
         sender: &str,
         sent_file_name: &str,
         sent_subdirectory: i32,
+        storage_mode: MessageStorageMode,
         cancelled: &AtomicBool,
     ) -> Result<MaterializedMessage, MessageBuildError> {
         check_cancelled(cancelled)?;
@@ -232,26 +495,41 @@ impl OutboundMessageBuilder {
 
         let spool_root = secure_directory(&self.spool_dir)?;
         let spool_path = spool_root.join(format!("message-{task_id}.eml"));
-        let (spool_created, signed_content_base64) = if message_bytes < SMALL_MESSAGE_THRESHOLD {
-            check_cancelled(cancelled)?;
-            let mut bytes = Vec::with_capacity(message_bytes as usize);
-            File::open(&sent_path)?.read_to_end(&mut bytes)?;
-            (false, Some(BASE64_STANDARD.encode(bytes)))
-        } else {
-            let created = if spool_path.exists() {
-                validate_regular_file(&spool_path)?;
-                if !files_equal(&sent_path, &spool_path, cancelled)? {
-                    return Err(MessageBuildError::Io(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        "outbound spool differs from sent message",
-                    )));
-                }
-                false
-            } else {
-                atomic_copy(&sent_path, &spool_path, self.max_email_size, cancelled)?;
-                true
-            };
-            (created, None)
+        let (spool_created, signed_content_base64) = match storage_mode {
+            MessageStorageMode::Inline => {
+                let owned_spool = if spool_path.exists() {
+                    validate_regular_file(&spool_path)?;
+                    if !files_equal(&sent_path, &spool_path, cancelled)? {
+                        return Err(MessageBuildError::Io(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "outbound spool differs from sent message",
+                        )));
+                    }
+                    true
+                } else {
+                    false
+                };
+                check_cancelled(cancelled)?;
+                let mut bytes = Vec::with_capacity(message_bytes as usize);
+                File::open(&sent_path)?.read_to_end(&mut bytes)?;
+                (owned_spool, Some(BASE64_STANDARD.encode(bytes)))
+            }
+            MessageStorageMode::Spool => {
+                let created = if spool_path.exists() {
+                    validate_regular_file(&spool_path)?;
+                    if !files_equal(&sent_path, &spool_path, cancelled)? {
+                        return Err(MessageBuildError::Io(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "outbound spool differs from sent message",
+                        )));
+                    }
+                    false
+                } else {
+                    atomic_copy(&sent_path, &spool_path, self.max_email_size, cancelled)?;
+                    true
+                };
+                (created, None)
+            }
         };
         Ok(MaterializedMessage {
             sent_file_name: sent_file_name.to_owned(),
@@ -260,6 +538,8 @@ impl OutboundMessageBuilder {
             sent_created: false,
             spool_path,
             spool_created,
+            cleanup_spool_after_publish: storage_mode == MessageStorageMode::Inline
+                && spool_created,
             message_bytes,
             signed_content_base64,
         })
@@ -378,13 +658,18 @@ impl OutboundMessageBuilder {
             atomic_copy(&spool_path, &sent_path, self.max_email_size, cancelled)?;
             true
         };
-        let signed_content_base64 = if message_bytes < SMALL_MESSAGE_THRESHOLD {
-            check_cancelled(cancelled)?;
-            let mut bytes = Vec::with_capacity(message_bytes as usize);
-            File::open(&spool_path)?.read_to_end(&mut bytes)?;
-            Some(BASE64_STANDARD.encode(bytes))
-        } else {
-            None
+        let signed_content_base64 = match java_storage_mode(
+            input.text.as_deref(),
+            input.html.as_deref(),
+            &input.attachments,
+        )? {
+            MessageStorageMode::Inline => {
+                check_cancelled(cancelled)?;
+                let mut bytes = Vec::with_capacity(message_bytes as usize);
+                File::open(&spool_path)?.read_to_end(&mut bytes)?;
+                Some(BASE64_STANDARD.encode(bytes))
+            }
+            MessageStorageMode::Spool => None,
         };
         Ok(MaterializedMessage {
             sent_file_name,
@@ -393,6 +678,7 @@ impl OutboundMessageBuilder {
             sent_created,
             spool_path,
             spool_created,
+            cleanup_spool_after_publish: signed_content_base64.is_some(),
             message_bytes,
             signed_content_base64,
         })
@@ -504,6 +790,69 @@ impl OutboundMessageBuilder {
     }
 }
 
+#[cfg(test)]
+fn java_estimated_message_size(input: &MessageInput) -> Result<u64, MessageBuildError> {
+    java_estimated_message_parts(
+        input.text.as_deref(),
+        input.html.as_deref(),
+        &input.attachments,
+    )
+}
+
+pub fn java_storage_mode(
+    text: Option<&str>,
+    html: Option<&str>,
+    attachments: &[MessageAttachment],
+) -> Result<MessageStorageMode, MessageBuildError> {
+    if java_estimated_message_parts(text, html, attachments)? < SMALL_MESSAGE_THRESHOLD {
+        Ok(MessageStorageMode::Inline)
+    } else {
+        Ok(MessageStorageMode::Spool)
+    }
+}
+
+fn java_estimated_message_parts(
+    text: Option<&str>,
+    html: Option<&str>,
+    attachments: &[MessageAttachment],
+) -> Result<u64, MessageBuildError> {
+    let mut size = 2_048_u64;
+    for body in [text, html].into_iter().flatten() {
+        size = size
+            .checked_add(
+                u64::try_from(body.len())
+                    .map_err(|_| MessageBuildError::InvalidInput("email_size_estimate_overflow"))?,
+            )
+            .ok_or(MessageBuildError::InvalidInput(
+                "email_size_estimate_overflow",
+            ))?;
+    }
+    for attachment in attachments {
+        let base64_bytes = attachment.content_base64.trim_end_matches('=').len();
+        let decoded_bytes = u64::try_from(base64_bytes)
+            .ok()
+            .and_then(|value| value.checked_mul(3))
+            .and_then(|value| value.checked_add(3))
+            .map(|value| value / 4)
+            .ok_or(MessageBuildError::InvalidInput(
+                "email_size_estimate_overflow",
+            ))?;
+        let encoded_estimate = decoded_bytes
+            .checked_mul(4)
+            .map(|value| value / 3)
+            .and_then(|value| value.checked_add(200))
+            .ok_or(MessageBuildError::InvalidInput(
+                "email_size_estimate_overflow",
+            ))?;
+        size = size
+            .checked_add(encoded_estimate)
+            .ok_or(MessageBuildError::InvalidInput(
+                "email_size_estimate_overflow",
+            ))?;
+    }
+    Ok(size)
+}
+
 fn load_dkim_signer(
     path: &str,
     domain: &str,
@@ -542,6 +891,47 @@ fn load_dkim_signer(
         ])
         .header_canonicalization(Canonicalization::Relaxed)
         .body_canonicalization(Canonicalization::Relaxed))
+}
+
+fn sign_dkim_at(
+    signer: &RsaDkimSigner,
+    message: &[u8],
+    timestamp: u64,
+) -> Result<Signature, MessageBuildError> {
+    let (body_len, canonical_headers, signed_headers, canonical_body) =
+        signer.template.canonicalize(DkimHeaderStream::new(message));
+    if signed_headers.is_empty() {
+        return Err(MessageBuildError::Configuration(
+            "DKIM signing found no eligible headers".into(),
+        ));
+    }
+    let mut signature = signer.template.clone();
+    let body_hash = signer.key.hash(canonical_body);
+    signature.bh = dkim_base64_encode(body_hash.as_ref())
+        .map_err(|_| MessageBuildError::Configuration("DKIM body hash failed".into()))?;
+    signature.t = timestamp;
+    signature.x = if signature.x > 0 {
+        timestamp
+            .checked_add(signature.x)
+            .ok_or_else(|| MessageBuildError::Configuration("DKIM expiration overflowed".into()))?
+    } else {
+        0
+    };
+    signature.h = signed_headers;
+    if signature.l > 0 {
+        signature.l = body_len as u64;
+    }
+
+    let mut signable = Vec::new();
+    canonical_headers.write(&mut signable);
+    signature.write(&mut signable, false);
+    let signature_bytes = signer
+        .key
+        .sign(signable.as_slice())
+        .map_err(|_| MessageBuildError::Configuration("DKIM signing failed".into()))?;
+    signature.b = dkim_base64_encode(&signature_bytes)
+        .map_err(|_| MessageBuildError::Configuration("DKIM encoding failed".into()))?;
+    Ok(signature)
 }
 
 fn write_alternative(
@@ -667,17 +1057,85 @@ fn java_date(value: DateTime<Utc>) -> String {
 }
 
 fn sent_file_name(input: &MessageInput) -> String {
+    sent_file_name_for(input.task_id, input.created_at)
+}
+
+fn sent_file_name_for(task_id: i64, created_at: DateTime<Utc>) -> String {
     format!(
         "{:04}{:02}{:02}{:02}{:02}{:02}.{:03}-lmyzmail-{}.eml",
-        input.created_at.year(),
-        input.created_at.month(),
-        input.created_at.day(),
-        input.created_at.hour(),
-        input.created_at.minute(),
-        input.created_at.second(),
-        input.created_at.timestamp_subsec_millis(),
-        input.task_id,
+        created_at.year(),
+        created_at.month(),
+        created_at.day(),
+        created_at.hour(),
+        created_at.minute(),
+        created_at.second(),
+        created_at.timestamp_subsec_millis(),
+        task_id,
     )
+}
+
+fn atomic_publish_bytes(
+    parent: &Path,
+    destination: &Path,
+    bytes: &[u8],
+    max_bytes: u64,
+) -> io::Result<()> {
+    if bytes.is_empty() || bytes.len() as u64 > max_bytes {
+        return Err(io::Error::new(
+            io::ErrorKind::FileTooLarge,
+            "system message exceeds configured size limit",
+        ));
+    }
+    let mut nonce = [0_u8; 8];
+    getrandom::fill(&mut nonce).map_err(io::Error::other)?;
+    let nonce = nonce
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let temporary = parent.join(format!(".system-{nonce}.tmp"));
+    let result = (|| {
+        let output = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)?;
+        let mut writer = BufWriter::new(output);
+        writer.write_all(bytes)?;
+        writer.flush()?;
+        writer.get_ref().sync_all()?;
+        match publish_temp_file(&temporary, destination) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Err(error),
+            Err(error) => Err(error),
+        }
+    })();
+    if result.is_err() {
+        let _ = cleanup_owned_temp(&temporary);
+    }
+    result
+}
+
+fn hash_regular_file(
+    path: &Path,
+    max_bytes: u64,
+    cancelled: &AtomicBool,
+) -> Result<[u8; 32], MessageBuildError> {
+    validate_regular_file(path)?;
+    let metadata = fs::metadata(path)?;
+    if metadata.len() == 0 || metadata.len() > max_bytes {
+        return Err(MessageBuildError::InvalidInput("email_too_large"));
+    }
+    let mut input = BufReader::with_capacity(COPY_BUFFER_BYTES, File::open(path)?);
+    let mut digest = Sha256Digest::new();
+    let mut buffer = [0_u8; COPY_BUFFER_BYTES];
+    loop {
+        check_cancelled(cancelled)?;
+        let count = input.read(&mut buffer)?;
+        if count == 0 {
+            break;
+        }
+        digest.update(&buffer[..count]);
+    }
+    Ok(digest.finalize().into())
 }
 
 fn secure_directory(path: &Path) -> io::Result<PathBuf> {
@@ -1042,6 +1500,48 @@ mod tests {
     }
 
     #[test]
+    fn java_estimate_selects_memory_and_file_modes_at_the_10k_boundary() {
+        let root = TestDirectory::new();
+        let builder = OutboundMessageBuilder {
+            maildir: root.0.join("maildir"),
+            spool_dir: root.0.join("spool"),
+            max_files_per_directory: 10,
+            max_email_size: 64 * 1024,
+            list_unsubscribe_mailto: None,
+            list_unsubscribe_url: None,
+            dkim_signer: None,
+        };
+        let cancelled = AtomicBool::new(false);
+        let mut below = message();
+        below.html = None;
+        below.attachments.clear();
+        below.text = Some("m".repeat(8_191));
+        assert_eq!(java_estimated_message_size(&below).unwrap(), 10_239);
+        assert_eq!(
+            java_storage_mode(below.text.as_deref(), None, &[]).unwrap(),
+            MessageStorageMode::Inline
+        );
+        let below = builder.materialize(&below, &cancelled).unwrap();
+        assert!(below.signed_content_base64.is_some());
+        builder.cleanup_small_spool(&below).unwrap();
+
+        let mut boundary = message();
+        boundary.task_id = 43;
+        boundary.message_id = "<boundary@example.test>".into();
+        boundary.html = None;
+        boundary.attachments.clear();
+        boundary.text = Some("f".repeat(8_192));
+        assert_eq!(java_estimated_message_size(&boundary).unwrap(), 10_240);
+        assert_eq!(
+            java_storage_mode(boundary.text.as_deref(), None, &[]).unwrap(),
+            MessageStorageMode::Spool
+        );
+        let boundary = builder.materialize(&boundary, &cancelled).unwrap();
+        assert!(boundary.signed_content_base64.is_none());
+        assert!(boundary.spool_path.is_file());
+    }
+
+    #[test]
     fn recovery_uses_sent_for_small_messages_and_rebuilds_large_spools() {
         let root = TestDirectory::new();
         let builder = OutboundMessageBuilder {
@@ -1068,6 +1568,7 @@ mod tests {
                 &small.sender,
                 &small_message.sent_file_name,
                 small_message.sent_subdirectory,
+                MessageStorageMode::Inline,
                 &cancelled,
             )
             .unwrap();
@@ -1092,6 +1593,7 @@ mod tests {
                 &large.sender,
                 &large_message.sent_file_name,
                 large_message.sent_subdirectory,
+                MessageStorageMode::Spool,
                 &cancelled,
             )
             .unwrap();
@@ -1103,6 +1605,43 @@ mod tests {
                 &cancelled
             )
             .unwrap()
+        );
+    }
+
+    #[test]
+    fn java_storage_mode_counts_utf8_and_attachment_estimates() {
+        let inline_unicode = "\u{754c}".repeat(2_730);
+        let spool_unicode = "\u{754c}".repeat(2_731);
+        assert_eq!(inline_unicode.len(), 8_190);
+        assert_eq!(spool_unicode.len(), 8_193);
+        assert_eq!(
+            java_storage_mode(Some(&inline_unicode), None, &[]).unwrap(),
+            MessageStorageMode::Inline
+        );
+        assert_eq!(
+            java_storage_mode(Some(&spool_unicode), None, &[]).unwrap(),
+            MessageStorageMode::Spool
+        );
+
+        let attachment = MessageAttachment {
+            filename: "three.bin".into(),
+            content_type: "application/octet-stream".into(),
+            content_base64: "YWJj".into(),
+            inline: false,
+            content_id: None,
+        };
+        assert_eq!(
+            java_storage_mode(
+                Some(&"a".repeat(7_987)),
+                None,
+                std::slice::from_ref(&attachment),
+            )
+            .unwrap(),
+            MessageStorageMode::Inline
+        );
+        assert_eq!(
+            java_storage_mode(Some(&"a".repeat(7_988)), None, &[attachment]).unwrap(),
+            MessageStorageMode::Spool
         );
     }
 
@@ -1124,5 +1663,341 @@ mod tests {
             .materialize(&message(), &AtomicBool::new(false))
             .unwrap_err();
         assert!(matches!(error, MessageBuildError::Io(_)));
+    }
+
+    fn system_message_bytes() -> &'static [u8] {
+        b"From: mailer-daemon@example.test\r\n\
+To: qa@example.test\r\n\
+Subject: Delivery Status Notification (Failure)\r\n\
+Date: Thu, 6 Aug 2026 01:02:03 +0000\r\n\
+Message-ID: <dsn-42@example.test>\r\n\
+MIME-Version: 1.0\r\n\
+Content-Type: text/plain; charset=UTF-8\r\n\r\n\
+Delivery failed.\r\n"
+    }
+
+    fn system_digest(bytes: &[u8]) -> [u8; 32] {
+        Sha256Digest::digest(bytes).into()
+    }
+
+    fn system_builder(
+        root: &Path,
+        dkim_signer: Option<Arc<RsaDkimSigner>>,
+    ) -> OutboundMessageBuilder {
+        OutboundMessageBuilder {
+            maildir: root.join("maildir"),
+            spool_dir: root.join("spool"),
+            max_files_per_directory: 10,
+            max_email_size: 64 * 1024,
+            list_unsubscribe_mailto: None,
+            list_unsubscribe_url: None,
+            dkim_signer,
+        }
+    }
+
+    fn system_materialization<'a>(
+        task_id: i64,
+        created_at: DateTime<Utc>,
+        bytes: &'a [u8],
+        storage_mode: MessageStorageMode,
+        expected_sha256: &'a [u8; 32],
+    ) -> SystemMaterialization<'a> {
+        SystemMaterialization {
+            task_id,
+            sender: "qa@example.test",
+            created_at,
+            bytes,
+            storage_mode,
+            expected_sha256,
+        }
+    }
+
+    fn generated_dkim_signer(root: &Path) -> RsaDkimSigner {
+        let key = openssl::rsa::Rsa::generate(2_048).unwrap();
+        let key = PKey::from_rsa(key).unwrap();
+        let path = root.join("dkim-private.pem");
+        fs::write(&path, key.private_key_to_pem_pkcs8().unwrap()).unwrap();
+        load_dkim_signer(path.to_str().unwrap(), "example.test", "test").unwrap()
+    }
+
+    #[test]
+    fn materialize_bytes_retries_without_dkim_are_deterministic_and_no_clobber() {
+        let root = TestDirectory::new();
+        let builder = system_builder(&root.0, None);
+        let bytes = system_message_bytes();
+        let unsigned_sha256 = system_digest(bytes);
+        let created_at = Utc.with_ymd_and_hms(2026, 8, 6, 1, 2, 3).unwrap();
+        let cancelled = AtomicBool::new(false);
+        let fresh_root = TestDirectory::new();
+        let fresh_builder = system_builder(&fresh_root.0, None);
+        let wrong_digest = [0_u8; 32];
+        let error = fresh_builder
+            .prepare_system_bytes(created_at, bytes, &wrong_digest, &cancelled)
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            MessageBuildError::InvalidInput("outbound_system_message_digest_mismatch")
+        ));
+        let error = fresh_builder
+            .materialize_bytes(
+                system_materialization(
+                    41,
+                    created_at,
+                    bytes,
+                    MessageStorageMode::Spool,
+                    &wrong_digest,
+                ),
+                &cancelled,
+            )
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            MessageBuildError::InvalidInput("outbound_system_signing_key_changed")
+        ));
+        assert!(!fresh_builder.spool_dir.exists());
+        assert!(!fresh_builder.maildir.exists());
+
+        let prepared = builder
+            .prepare_system_bytes(created_at, bytes, &unsigned_sha256, &cancelled)
+            .unwrap();
+        assert_eq!(prepared, bytes);
+        let prepared_sha256 = system_digest(&prepared);
+
+        let first = builder
+            .materialize_bytes(
+                system_materialization(
+                    42,
+                    created_at,
+                    &prepared,
+                    MessageStorageMode::Spool,
+                    &prepared_sha256,
+                ),
+                &cancelled,
+            )
+            .unwrap();
+        assert!(first.spool_created);
+        assert!(first.sent_created);
+        assert!(!first.cleanup_spool_after_publish);
+        assert!(first.signed_content_base64.is_none());
+        let spool_before = fs::read(&first.spool_path).unwrap();
+        let sent_before = fs::read(&first.sent_path).unwrap();
+
+        let retry = builder
+            .materialize_bytes(
+                system_materialization(
+                    42,
+                    created_at,
+                    &prepared,
+                    MessageStorageMode::Spool,
+                    &prepared_sha256,
+                ),
+                &cancelled,
+            )
+            .unwrap();
+        assert!(!retry.spool_created);
+        assert!(!retry.sent_created);
+        assert_eq!(retry.spool_path, first.spool_path);
+        assert_eq!(retry.sent_path, first.sent_path);
+        assert_eq!(fs::read(&retry.spool_path).unwrap(), spool_before);
+        assert_eq!(fs::read(&retry.sent_path).unwrap(), sent_before);
+
+        let error = builder
+            .materialize_bytes(
+                system_materialization(
+                    42,
+                    created_at,
+                    &prepared,
+                    MessageStorageMode::Spool,
+                    &wrong_digest,
+                ),
+                &cancelled,
+            )
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            MessageBuildError::Io(ref error) if error.kind() == io::ErrorKind::InvalidData
+        ));
+        assert_eq!(fs::read(&first.spool_path).unwrap(), spool_before);
+        assert_eq!(fs::read(&first.sent_path).unwrap(), sent_before);
+
+        let replacement = b"different system message\r\n";
+        let replacement_unsigned_sha256 = system_digest(replacement);
+        let replacement = builder
+            .prepare_system_bytes(
+                created_at,
+                replacement,
+                &replacement_unsigned_sha256,
+                &cancelled,
+            )
+            .unwrap();
+        let replacement_sha256 = system_digest(&replacement);
+        let error = builder
+            .materialize_bytes(
+                system_materialization(
+                    42,
+                    created_at,
+                    &replacement,
+                    MessageStorageMode::Spool,
+                    &replacement_sha256,
+                ),
+                &cancelled,
+            )
+            .unwrap_err();
+        assert!(
+            matches!(error, MessageBuildError::Io(ref error) if error.kind() == io::ErrorKind::InvalidData)
+        );
+        assert_eq!(fs::read(&first.spool_path).unwrap(), spool_before);
+        assert_eq!(fs::read(&first.sent_path).unwrap(), sent_before);
+    }
+
+    #[test]
+    fn materialize_bytes_dkim_signing_is_present_and_retry_bytes_match() {
+        let root = TestDirectory::new();
+        let signer = Arc::new(generated_dkim_signer(&root.0));
+        let builder = system_builder(&root.0, Some(signer));
+        let unsigned = system_message_bytes();
+        let unsigned_sha256 = system_digest(unsigned);
+        let created_at = Utc.with_ymd_and_hms(2026, 8, 6, 1, 2, 3).unwrap();
+        let cancelled = AtomicBool::new(false);
+        let first_wall_clock_second = Utc::now().timestamp();
+        let first_prepared = builder
+            .prepare_system_bytes(created_at, unsigned, &unsigned_sha256, &cancelled)
+            .unwrap();
+        while Utc::now().timestamp() == first_wall_clock_second {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let second_wall_clock_second = Utc::now().timestamp();
+        assert_ne!(first_wall_clock_second, second_wall_clock_second);
+        let second_prepared = builder
+            .prepare_system_bytes(created_at, unsigned, &unsigned_sha256, &cancelled)
+            .unwrap();
+        assert_eq!(first_prepared, second_prepared);
+        assert!(first_prepared.starts_with(b"DKIM-Signature: "));
+        let prepared_sha256 = system_digest(&first_prepared);
+
+        let first = builder
+            .materialize_bytes(
+                system_materialization(
+                    43,
+                    created_at,
+                    &first_prepared,
+                    MessageStorageMode::Spool,
+                    &prepared_sha256,
+                ),
+                &cancelled,
+            )
+            .unwrap();
+        let first_bytes = fs::read(&first.sent_path).unwrap();
+        assert!(first_bytes.starts_with(b"DKIM-Signature: "));
+        assert!(String::from_utf8_lossy(&first_bytes).contains("DKIM-Signature:"));
+        assert!(first.spool_created);
+        assert!(first.sent_created);
+
+        let retry = builder
+            .materialize_bytes(
+                system_materialization(
+                    43,
+                    created_at,
+                    &second_prepared,
+                    MessageStorageMode::Spool,
+                    &prepared_sha256,
+                ),
+                &cancelled,
+            )
+            .unwrap();
+        let retry_bytes = fs::read(&retry.sent_path).unwrap();
+        assert!(!retry.spool_created);
+        assert!(!retry.sent_created);
+        assert_eq!(retry_bytes, first_bytes);
+        assert_eq!(fs::read(&retry.spool_path).unwrap(), first_bytes);
+    }
+
+    #[test]
+    fn durable_system_bytes_survive_dkim_key_rotation_before_spool_publish() {
+        let root = TestDirectory::new();
+        let old_builder = system_builder(&root.0, Some(Arc::new(generated_dkim_signer(&root.0))));
+        let unsigned = system_message_bytes();
+        let unsigned_sha256 = system_digest(unsigned);
+        let created_at = Utc.with_ymd_and_hms(2026, 8, 6, 1, 2, 3).unwrap();
+        let cancelled = AtomicBool::new(false);
+        let durable_bytes = old_builder
+            .prepare_system_bytes(created_at, unsigned, &unsigned_sha256, &cancelled)
+            .unwrap();
+        let durable_sha256 = system_digest(&durable_bytes);
+
+        let rotated_builder =
+            system_builder(&root.0, Some(Arc::new(generated_dkim_signer(&root.0))));
+        let rotated_bytes = rotated_builder
+            .prepare_system_bytes(created_at, unsigned, &unsigned_sha256, &cancelled)
+            .unwrap();
+        assert_ne!(rotated_bytes, durable_bytes);
+        assert!(!rotated_builder.spool_dir.exists());
+
+        let materialized = rotated_builder
+            .materialize_bytes(
+                system_materialization(
+                    46,
+                    created_at,
+                    &durable_bytes,
+                    MessageStorageMode::Spool,
+                    &durable_sha256,
+                ),
+                &cancelled,
+            )
+            .unwrap();
+        assert_eq!(fs::read(&materialized.spool_path).unwrap(), durable_bytes);
+        assert_eq!(fs::read(&materialized.sent_path).unwrap(), durable_bytes);
+    }
+
+    #[test]
+    fn materialize_bytes_storage_mode_controls_spool_ownership_and_cleanup() {
+        let root = TestDirectory::new();
+        let builder = system_builder(&root.0, None);
+        let unsigned = system_message_bytes();
+        let unsigned_sha256 = system_digest(unsigned);
+        let created_at = Utc.with_ymd_and_hms(2026, 8, 6, 1, 2, 3).unwrap();
+        let cancelled = AtomicBool::new(false);
+        let prepared = builder
+            .prepare_system_bytes(created_at, unsigned, &unsigned_sha256, &cancelled)
+            .unwrap();
+        let prepared_sha256 = system_digest(&prepared);
+
+        let spooled = builder
+            .materialize_bytes(
+                system_materialization(
+                    44,
+                    created_at,
+                    &prepared,
+                    MessageStorageMode::Spool,
+                    &prepared_sha256,
+                ),
+                &cancelled,
+            )
+            .unwrap();
+        assert!(spooled.spool_created);
+        assert!(!spooled.cleanup_spool_after_publish);
+        builder.cleanup_small_spool(&spooled).unwrap();
+        assert!(spooled.spool_path.is_file());
+
+        let inline = builder
+            .materialize_bytes(
+                system_materialization(
+                    45,
+                    created_at,
+                    &prepared,
+                    MessageStorageMode::Inline,
+                    &prepared_sha256,
+                ),
+                &cancelled,
+            )
+            .unwrap();
+        assert!(inline.spool_created);
+        assert!(inline.cleanup_spool_after_publish);
+        assert!(inline.signed_content_base64.is_some());
+        assert!(inline.spool_path.is_file());
+        assert!(inline.sent_path.is_file());
+        builder.cleanup_small_spool(&inline).unwrap();
+        assert!(!inline.spool_path.exists());
+        assert!(inline.sent_path.is_file());
     }
 }

@@ -655,9 +655,7 @@ class CandidateRuntime(JavaOracleRuntime):
         bin_dir = root / "usr/lib/postgresql/16/bin"
         fixture_root = self.paths.repository / "blackbox/fixtures/legacy"
         schema = fixture_root / "postgres-schema.sql"
-        metadata = json.loads(
-            (fixture_root / "postgres-schema.json").read_text(encoding="utf-8")
-        )
+        metadata = json.loads((fixture_root / "postgres-schema.json").read_text(encoding="utf-8"))
         with schema.open("rb") as stream:
             digest = hashlib.file_digest(stream, "sha256").hexdigest()
         if digest != metadata["schema_sha256"]:

@@ -36,6 +36,24 @@ Maildir, certificate, and port state and can produce a repeatable Java golden.
   using the new key namespace.
 - `deploy/lmyzmail.service`: bounded single-process systemd unit template.
 
+## Database upgrade and rollback
+
+On startup, `lmyzmail` acquires a PostgreSQL advisory transaction lock and
+installs `001_outbound_delivery_ledger.sql` and
+`002_outbound_spool_ownership.sql` and `003_outbound_dsn.sql`. These migrations are additive and
+idempotent: they create only `lmyzmail_*` tables and indexes and do not alter
+the frozen `outbound_mail_queue` columns or existing data. Startup does not
+open protocol listeners until schema initialization succeeds.
+
+For rollback, stop `lmyzmail` and let its bounded shutdown finish before
+starting the frozen Java service. Keep the additive tables in place; Java
+ignores them and a later lmyzmail restart needs them for delivery and spool
+reconciliation. The Rust runtime preserves legacy Redis names and the
+seven-day domain hashes, advances the legacy PostgreSQL identity sequence for
+adopted IDs, and never deletes the Sent Maildir copy during spool cleanup.
+Do not run Java and lmyzmail outbound workers concurrently against the same
+queue.
+
 ## Current Runtime Milestone
 
 The Rust candidate now provides the bounded Tokio lifecycle and configuration
@@ -56,7 +74,18 @@ bounded blocking-work permit. The outbound stack now includes fenced legacy
   keepalives, response-loss reconciliation, and PostgreSQL-before-Redis final
   ordering. Isolated PostgreSQL, Redis, and raw-SMTP tests cover successful,
   retryable, permanent, ambiguous, cancelled, stale-owner, and dropped-response
-  paths. The coordinator is deliberately not started by `main` yet: MIME/DKIM
-  and Sent Maildir publication plus the production worker lifecycle remain the
-  next vertical boundary. This milestone is not yet a complete production
-  replacement.
+  paths. MIME/DKIM construction, atomic Sent Maildir publication, and the
+  coordinator are now connected to the production process through one bounded
+  worker lifecycle. Startup first migrates the frozen Java archive and status
+  lists through recoverable Redis inflight records; malformed or conflicting
+  records are retained in lmyzmail quarantine lists. A single queue probe fills
+  at most the configured concurrency and batch limits, while retry movement,
+  stale-claim recovery, cancellation, and graceful shutdown remain bounded.
+  Permanent failures are staged in the PostgreSQL DSN outbox. Admission uses a
+  lease-fenced task ID, a durable RFC 3464/RFC 6533 report, and a temporary
+  prepared-byte recovery image. The image is cleared atomically with `ADMITTED`
+  queue commit while its SHA-256 remains durable. On restart, committed but
+  unpublished DSNs are reconstructed from Sent Maildir/spool and idempotently
+  replayed to the legacy Redis keys; active `PROCESSING` rows remain fenced.
+  This milestone closes outbound delivery takeover, but the repository is not
+  yet a complete production replacement for every frozen Java surface.

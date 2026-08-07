@@ -360,13 +360,13 @@ async fn handle_connection(
         ParsedRequest::ApiStatusById(queue_id) => match outbound.api_status_by_id(queue_id).await {
             Ok(Some(result)) => write_json_response(stream, Status::Ok, &result).await,
             Ok(None) => write_not_found(stream).await,
-            Err(_) => write_json_error(stream, Status::InternalServerError, "outbound_unavailable").await,
+            Err(_) => write_json_error(stream, Status::InternalServerError, "internal_error").await,
         },
         ParsedRequest::ApiStatusByMessage(message_id) => {
             match outbound.api_status_by_message_id(&message_id).await {
                 Ok(Some(result)) => write_json_response(stream, Status::Ok, &result).await,
                 Ok(None) => write_not_found(stream).await,
-                Err(_) => write_json_error(stream, Status::InternalServerError, "outbound_unavailable").await,
+                Err(_) => write_json_error(stream, Status::InternalServerError, "internal_error").await,
             }
         }
         ParsedRequest::ApiQuota(address) => match outbound.remaining_quota(&address).await {
@@ -579,8 +579,7 @@ async fn handle_authenticated_request(
                 Ok(Some(result)) => write_json_response(stream, Status::Ok, &result).await,
                 Ok(None) => write_not_found(stream).await,
                 Err(_) => {
-                    write_json_error(stream, Status::InternalServerError, "outbound_unavailable")
-                        .await
+                    write_json_error(stream, Status::InternalServerError, "internal_error").await
                 }
             }
         }
@@ -592,8 +591,7 @@ async fn handle_authenticated_request(
                 Ok(Some(result)) => write_json_response(stream, Status::Ok, &result).await,
                 Ok(None) => write_not_found(stream).await,
                 Err(_) => {
-                    write_json_error(stream, Status::InternalServerError, "outbound_unavailable")
-                        .await
+                    write_json_error(stream, Status::InternalServerError, "internal_error").await
                 }
             }
         }

@@ -76,6 +76,7 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "outbound-null-mx-rejection",
         "outbound-route-dns-answer-budgets",
         "mta-sts-negative-cache-restart",
+        "outbound-http-redis-outage-deadline",
     }
     starttls = next(
         entry
@@ -104,11 +105,15 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
     assert by_id["outbound-null-mx-rejection"]["evidence"]["source_sha256"] == (
         "0de7fa1c7999f9d6ce7e583a0d5d6be38c9f3619f7b319d564d933f48186b181"
     )
-    assert by_id["outbound-route-dns-answer-budgets"]["evidence"][
-        "network_source_sha256"
-    ] == "1a46e5938bdfdc4b0f7cd6d8e2377ea157b7181768a392c954e037f04442e063"
+    assert (
+        by_id["outbound-route-dns-answer-budgets"]["evidence"]["network_source_sha256"]
+        == "1a46e5938bdfdc4b0f7cd6d8e2377ea157b7181768a392c954e037f04442e063"
+    )
     assert by_id["mta-sts-negative-cache-restart"]["evidence"]["source_sha256"] == (
         "31f8a4d250152c4626bea26f6a5e3fea6f3359fc5ac42daaa205b55a46200d46"
+    )
+    assert by_id["outbound-http-redis-outage-deadline"]["evidence"]["source_sha256"] == (
+        "f9abffe3fbc98e314db34fcf38d894fd200d93ad74ff933f2c0f57e2717f1bf4"
     )
 
 

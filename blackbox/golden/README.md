@@ -325,17 +325,18 @@ The current active sets are bound to
 - `managed-smtp-data-v20/`
 - `managed-smtp-data-oracle-evidence-v20/`
 - `managed-smtp-mime-v20/`
-- `managed-outbound-http-v4/`
-- `managed-outbound-queue-v20.json`
+- `managed-outbound-http-v5/`
+- `managed-outbound-http-v6/`
+- `managed-outbound-queue-v21.json`
 
 The earlier candidate-health v1-v4, candidate-public-http v1,
 candidate-api-status v1, candidate-public-config v1-v3, candidate-auth v1-v2,
 HTTP v19-v25, SMTP v5-v12, and outbound v5-v9 recordings are retained as
 create-once provenance; none is consumed by the tests.
 
-The active outbound queue attestation is `managed-outbound-queue-v20.json`,
+The active outbound queue attestation is `managed-outbound-queue-v21.json`,
 using the field-scoped `outbound:generated-sent-filename` normalizer. The active
-outbound HTTP attestation is `managed-outbound-http-v4`; only its two quota
+outbound HTTP attestation is `managed-outbound-http-v6`; only its two quota
 subresponses canonicalize Java `Map.of` object ordering. Status codes, headers,
 field values, and every other response retain exact wire assertions. Rejected or
 superseded outbound generations remain create-once historical evidence and are

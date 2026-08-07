@@ -1,10 +1,15 @@
-use std::{env, path::PathBuf, sync::Arc};
+use std::{env, io, path::PathBuf, sync::Arc, time::Duration};
 
 use lmyzmail::{
     config::{Properties, RuntimeConfig},
-    database, http, lifecycle, redis, smtp,
+    database, http, lifecycle,
+    outbound_worker::OutboundWorker,
+    redis, smtp,
 };
+use tokio::{task::JoinSet, time::timeout};
 use tokio_util::sync::CancellationToken;
+
+const PROCESS_SHUTDOWN_DEADLINE: Duration = Duration::from_secs(35);
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -27,28 +32,103 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let database_pool = database::create_pool(&config)?;
     let redis_pool = redis::create_pool(&config)?;
+    let outbound_worker =
+        OutboundWorker::from_config(&config, database_pool.clone(), redis_pool.clone())?;
     let cancellation = CancellationToken::new();
     let signal_cancellation = cancellation.clone();
     let signal_task = tokio::spawn(lifecycle::wait_for_shutdown(signal_cancellation));
+    if !outbound_worker.initialize(&cancellation).await? {
+        let _ = signal_task.await;
+        return Ok(());
+    }
+    let mut services = JoinSet::new();
     let http_config = Arc::clone(&config);
-    let smtp_config = Arc::clone(&config);
     let http_cancellation = cancellation.clone();
-    let smtp_cancellation = cancellation.clone();
     let http_pool = database_pool.clone();
     let http_redis_pool = redis_pool.clone();
-    let http_task = tokio::spawn(async move {
-        http::serve_http(http_config, http_pool, http_redis_pool, http_cancellation).await
+    services.spawn(async move {
+        (
+            "HTTP",
+            http::serve_http(http_config, http_pool, http_redis_pool, http_cancellation).await,
+        )
     });
-    let smtp_task = tokio::spawn(async move {
-        smtp::serve_smtp(smtp_config, database_pool, redis_pool, smtp_cancellation).await
+    let smtp_config = Arc::clone(&config);
+    let smtp_cancellation = cancellation.clone();
+    services.spawn(async move {
+        (
+            "SMTP",
+            smtp::serve_smtp(smtp_config, database_pool, redis_pool, smtp_cancellation).await,
+        )
     });
-    tokio::select! {
-        result = http_task => result??,
-        result = smtp_task => result??,
+    let outbound_cancellation = cancellation.clone();
+    services.spawn(async move {
+        (
+            "outbound",
+            outbound_worker
+                .run(outbound_cancellation)
+                .await
+                .map_err(io::Error::other),
+        )
+    });
+
+    let mut failure = None;
+    if let Some(result) = services.join_next().await {
+        match result {
+            Ok((_, Ok(()))) if cancellation.is_cancelled() => {}
+            Ok((name, Ok(()))) => {
+                failure = Some(io::Error::other(format!(
+                    "lmyzmail {name} service exited unexpectedly"
+                )));
+            }
+            Ok((name, Err(error))) => {
+                failure = Some(io::Error::other(format!(
+                    "lmyzmail {name} service failed: {error}"
+                )));
+            }
+            Err(error) => {
+                failure = Some(io::Error::other(format!(
+                    "lmyzmail service task failed: {error}"
+                )));
+            }
+        }
     }
     cancellation.cancel();
+    if timeout(PROCESS_SHUTDOWN_DEADLINE, async {
+        while let Some(result) = services.join_next().await {
+            match result {
+                Ok((_, Ok(()))) => {}
+                Ok((name, Err(error))) if failure.is_none() => {
+                    failure = Some(io::Error::other(format!(
+                        "lmyzmail {name} service failed during shutdown: {error}"
+                    )));
+                }
+                Err(error) if failure.is_none() => {
+                    failure = Some(io::Error::other(format!(
+                        "lmyzmail service task failed during shutdown: {error}"
+                    )));
+                }
+                _ => {}
+            }
+        }
+    })
+    .await
+    .is_err()
+    {
+        services.abort_all();
+        while services.join_next().await.is_some() {}
+        if failure.is_none() {
+            failure = Some(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "lmyzmail services exceeded the shutdown deadline",
+            ));
+        }
+    }
     signal_task.abort();
-    Ok(())
+    let _ = signal_task.await;
+    match failure {
+        Some(error) => Err(error.into()),
+        None => Ok(()),
+    }
 }
 
 struct Cli {

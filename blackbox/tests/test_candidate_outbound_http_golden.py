@@ -53,6 +53,7 @@ def _json_request(
     *,
     headers: tuple[tuple[str, str], ...],
     value: object | None = None,
+    timeout: float = 10.0,
 ) -> Any:
     assert target.ports is not None
     body = (
@@ -70,7 +71,7 @@ def _json_request(
         path,
         headers=request_headers,
         body=body,
-        timeout=10.0,
+        timeout=timeout,
     )
 
 
@@ -134,6 +135,119 @@ cast(Any, _capture_seeded_status).__lmyzmail_contract__ = {
     ],
     "state": "attested outbound row with the legacy Redis task cache evicted",
     "security": "web status is sender scoped while API status requires read permission",
+}
+
+
+def _capture_domain_status_projection(target: RuntimeTarget) -> dict[str, Any]:
+    assert target.ports is not None
+    key = "botmail:mail:queue:domains:2101"
+    client = redis.Redis(host="127.0.0.1", port=target.ports.redis, decode_responses=False)
+
+    def status(
+        domain: str,
+        value: str,
+        *,
+        error: str | None,
+        recipients: list[str],
+    ) -> bytes:
+        return json.dumps(
+            {
+                "domain": domain,
+                "status": value,
+                "error": error,
+                "recipients": recipients,
+                "updatedAt": "2026-08-07T00:00:00Z",
+            },
+            separators=(",", ":"),
+        ).encode()
+
+    def replace(values: dict[str, bytes]) -> None:
+        pipeline = client.pipeline(transaction=True)
+        pipeline.delete(key)
+        pipeline.hset(key, mapping=values)
+        pipeline.expire(key, 7 * 24 * 60 * 60)
+        pipeline.execute()
+
+    def capture() -> Any:
+        return http_json_snapshot(
+            _json_request(
+                target,
+                "GET",
+                "/web/mail/send/status/2101",
+                headers=_SESSION_HEADERS,
+            )
+        )
+
+    try:
+        client.delete("botmail:mail:queue:task:2101")
+        replace(
+            {
+                "alpha.test": status(
+                    "alpha.test",
+                    "PENDING",
+                    error=None,
+                    recipients=["one@alpha.test"],
+                ),
+                "beta.test": status(
+                    "beta.test",
+                    "SENDING",
+                    error=None,
+                    recipients=["two@beta.test"],
+                ),
+            }
+        )
+        active = capture()
+        replace(
+            {
+                "alpha.test": status(
+                    "alpha.test",
+                    "SENT",
+                    error=None,
+                    recipients=["one@alpha.test"],
+                ),
+                "beta.test": status(
+                    "beta.test",
+                    "FAILED",
+                    error="550 5.1.1 user unknown",
+                    recipients=["two@beta.test"],
+                ),
+            }
+        )
+        mixed_terminal = capture()
+        replace(
+            {
+                "alpha.test": status(
+                    "alpha.test",
+                    "SENT",
+                    error=None,
+                    recipients=["one@alpha.test"],
+                ),
+                "beta.test": status(
+                    "beta.test",
+                    "SENT",
+                    error=None,
+                    recipients=["two@beta.test"],
+                ),
+            }
+        )
+        terminal = capture()
+        ttl = int(client.ttl(key))
+        return {
+            "active": active,
+            "mixed_terminal": mixed_terminal,
+            "terminal": terminal,
+            "domain_ttl_present": 0 < ttl <= 7 * 24 * 60 * 60,
+        }
+    finally:
+        client.delete(key)
+        client.close()
+
+
+cast(Any, _capture_domain_status_projection).__lmyzmail_contract__ = {
+    "protocol": "http/raw-socket",
+    "routes": ["GET /web/mail/send/status/{queueId}"],
+    "state": "active, mixed terminal, and terminal legacy Redis domain hashes with TTL",
+    "security": "sender-scoped status retains bounded recipient details",
 }
 
 
@@ -298,6 +412,7 @@ cast(Any, _capture_api_admission).__lmyzmail_contract__ = {
 
 OUTBOUND_HTTP_SCENARIOS = (
     Scenario("http/outbound/seeded-status", _capture_seeded_status),
+    Scenario("http/outbound/domain-status-projection", _capture_domain_status_projection),
     Scenario(
         "http/outbound/quota",
         _capture_quota,
@@ -376,7 +491,7 @@ def test_frozen_java_outbound_http_golden(
     record_java_golden: bool,
 ) -> None:
     repository = Path(__file__).resolve().parents[2]
-    golden = repository / "blackbox/golden/java/managed-outbound-http-v4"
+    golden = repository / "blackbox/golden/java/managed-outbound-http-v6"
     runner = DifferentialRunner(
         repository,
         golden,
@@ -392,6 +507,88 @@ def test_frozen_java_outbound_http_golden(
 
 
 @pytest.mark.integration
+@pytest.mark.oracle
+@pytest.mark.timeout(180)
+def test_frozen_java_outbound_status_redis_failure_contract(tmp_path: Path) -> None:
+    with PersistentJavaOracleRuntime(tmp_path / "java-outbound-http-redis-fault") as oracle:
+        target = _OracleTarget(oracle)
+        assert target.ports is not None
+        client = redis.Redis(
+            host="127.0.0.1",
+            port=target.ports.redis,
+            decode_responses=False,
+            socket_connect_timeout=5.0,
+            socket_timeout=5.0,
+        )
+        task_key = "botmail:mail:queue:task:2101"
+        domain_key = "botmail:mail:queue:domains:2101"
+        original_task = client.get(task_key)
+        assert isinstance(original_task, bytes)
+        try:
+            client.set(task_key, b"{")
+            corrupt_task = _json_request(
+                target,
+                "GET",
+                "/api/mail/status/2101",
+                headers=_API_HEADERS,
+            )
+            assert corrupt_task.status_code == 200
+            assert json.loads(corrupt_task.body)["messageId"] == ("<legacy-outbound@example.test>")
+
+            client.set(task_key, original_task)
+            valid_domain = json.dumps(
+                {
+                    "domain": "valid.test",
+                    "status": "SENT",
+                    "error": None,
+                    "recipients": ["user@valid.test"],
+                    "updatedAt": "2026-08-07T00:00:00Z",
+                },
+                separators=(",", ":"),
+            ).encode()
+            pipeline = client.pipeline(transaction=True)
+            pipeline.delete(domain_key)
+            pipeline.hset(
+                domain_key,
+                mapping={"example.invalid": b"{", "valid.test": valid_domain},
+            )
+            pipeline.expire(domain_key, 7 * 24 * 60 * 60)
+            pipeline.execute()
+            corrupt_domain = _json_request(
+                target,
+                "GET",
+                "/web/mail/send/status/2101",
+                headers=_SESSION_HEADERS,
+            )
+            assert corrupt_domain.status_code == 200
+            assert [
+                detail["domain"]
+                for detail in json.loads(corrupt_domain.body).get("domainDetails", [])
+            ] == ["valid.test"]
+        finally:
+            client.close()
+
+        assert oracle._redis is not None
+        oracle._redis.kill()
+        with pytest.raises(TimeoutError):
+            _json_request(
+                target,
+                "GET",
+                "/api/mail/status/2101",
+                headers=_API_HEADERS,
+                timeout=10.0,
+            )
+        with pytest.raises(TimeoutError):
+            _json_request(
+                target,
+                "GET",
+                "/web/mail/send/status/file/does-not-exist.eml",
+                headers=_SESSION_HEADERS,
+                timeout=10.0,
+            )
+
+
+@pytest.mark.integration
 @pytest.mark.candidate
 @pytest.mark.timeout(180)
 def test_rust_candidate_outbound_http_matches_frozen_java_golden() -> None:
@@ -399,9 +596,37 @@ def test_rust_candidate_outbound_http_matches_frozen_java_golden() -> None:
     with _candidate(repository) as candidate:
         DifferentialRunner(
             repository,
-            repository / "blackbox/golden/java/managed-outbound-http-v4",
+            repository / "blackbox/golden/java/managed-outbound-http-v6",
             "managed-outbound-http",
         ).verify_candidate(OUTBOUND_HTTP_SCENARIOS, candidate)
+
+
+@pytest.mark.integration
+@pytest.mark.candidate
+@pytest.mark.timeout(180)
+def test_rust_candidate_outbound_status_redis_outage_is_bounded() -> None:
+    repository = Path(__file__).resolve().parents[2]
+    with _candidate(repository) as candidate:
+        assert candidate._redis is not None
+        candidate._redis.kill()
+        redis_outage = _json_request(
+            candidate,
+            "GET",
+            "/api/mail/status/2101",
+            headers=_API_HEADERS,
+            timeout=10.0,
+        )
+        assert redis_outage.status_code == 500
+        assert json.loads(redis_outage.body) == {"error": "internal_error"}
+        missing_file = _json_request(
+            candidate,
+            "GET",
+            "/web/mail/send/status/file/does-not-exist.eml",
+            headers=_SESSION_HEADERS,
+            timeout=10.0,
+        )
+        assert missing_file.status_code == 404
+        assert json.loads(missing_file.body) == {"error": "not_found"}
 
 
 @pytest.mark.integration

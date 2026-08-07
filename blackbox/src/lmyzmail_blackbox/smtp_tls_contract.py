@@ -102,9 +102,7 @@ def _certificate_snapshot(sock: ssl.SSLSocket) -> dict[str, Any]:
     _check(isinstance(public_key, rsa.RSAPublicKey), type(public_key))
     public_key = cast(rsa.RSAPublicKey, public_key)
     public_numbers = public_key.public_numbers()
-    alternative_names = certificate.extensions.get_extension_for_class(
-        x509.SubjectAlternativeName
-    )
+    alternative_names = certificate.extensions.get_extension_for_class(x509.SubjectAlternativeName)
     basic_constraints = certificate.extensions.get_extension_for_class(x509.BasicConstraints)
     key_usage = certificate.extensions.get_extension_for_class(x509.KeyUsage)
     extended_key_usage = certificate.extensions.get_extension_for_class(x509.ExtendedKeyUsage)
@@ -140,8 +138,7 @@ def _certificate_snapshot(sock: ssl.SSLSocket) -> dict[str, Any]:
             "critical": alternative_names.critical,
             "dns": alternative_names.value.get_values_for_type(x509.DNSName),
             "ip": [
-                str(value)
-                for value in alternative_names.value.get_values_for_type(x509.IPAddress)
+                str(value) for value in alternative_names.value.get_values_for_type(x509.IPAddress)
             ],
         },
         "basic_constraints": {
@@ -424,9 +421,7 @@ _SMTP_NORMALIZERS = (
     "smtp:server-hostname",
     "smtp:session-id",
 )
-_TLS_NORMALIZERS = (
-    "tls:ephemeral-certificate-key-and-serial",
-)
+_TLS_NORMALIZERS = ("tls:ephemeral-certificate-key-and-serial",)
 
 STARTTLS_SCENARIOS = (
     Scenario(

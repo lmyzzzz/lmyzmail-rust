@@ -662,8 +662,7 @@ def test_rust_candidate_rejects_unindexed_maildir_file() -> None:
         assert candidate.workspace is not None
         assert candidate.ports is not None
         source = (
-            repository
-            / "blackbox/fixtures/legacy/maildir/qa@example.test/inbox/legacy-root.eml"
+            repository / "blackbox/fixtures/legacy/maildir/qa@example.test/inbox/legacy-root.eml"
         )
         destination = candidate.workspace / "maildir/qa@example.test/inbox/unindexed.eml"
         shutil.copyfile(source, destination)

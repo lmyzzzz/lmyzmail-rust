@@ -38,9 +38,9 @@ def test_java_rfc1123_parser_freezes_oracle_wire_format() -> None:
 
 
 def test_maildir_filename_parser_extracts_strict_utc_timestamp() -> None:
-    assert _parse_maildir_filename_time(
-        "20250805123456.789-123456789-7.eml"
-    ) == datetime(2025, 8, 5, 12, 34, 56, 789000, tzinfo=UTC)
+    assert _parse_maildir_filename_time("20250805123456.789-123456789-7.eml") == datetime(
+        2025, 8, 5, 12, 34, 56, 789000, tzinfo=UTC
+    )
 
     invalid = (
         "20250805123456-123-7.eml",

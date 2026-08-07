@@ -76,6 +76,7 @@ and cancellation. A real isolated Redis process verifies legacy keys,
 serialization, TTL preservation, corrupt-entry handling, and negative-cache
 reuse across resolver reconstruction.
 
-This component is production route logic and is consumed by the internal
-outbound coordinator. The coordinator is not yet started by `main`; no delivery
-worker is created merely by enabling either module.
+This component is production route logic consumed by the internal outbound
+coordinator. `main` now owns the bounded delivery worker and supervises it under
+the process cancellation token; constructing the resolver itself still creates
+no background task or independent service.

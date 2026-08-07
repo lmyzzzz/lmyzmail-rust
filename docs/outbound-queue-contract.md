@@ -84,8 +84,13 @@ The Rust producer now applies the following bounded order:
    decimal-string comparison, then increment it without converting the 64-bit
    value through a Lua floating-point number.
 3. Build and optionally DKIM-sign MIME in a four-slot blocking pool with a
-   60-second deadline and cancellation checks. Small messages use Redis Base64;
-   large messages retain a file below the configured lmyzmail spool directory.
+   60-second deadline and cancellation checks. The frozen mode boundary uses
+   Java's estimate of 2048 header bytes plus UTF-8 text/HTML bytes plus each
+   attachment's estimated Base64 bytes and 200-byte MIME overhead. Estimates
+   strictly below 10 KiB use Redis Base64; the 10 KiB boundary and larger retain
+   a file below the configured lmyzmail spool directory. The attested v21 oracle
+   golden proves 8191 body bytes are memory mode and 8192 are file mode even
+   though the final signed MIME sizes differ from that estimate.
 4. Publish the Sent copy with a same-filesystem temporary file, file `fsync`,
    atomic no-clobber hard link, temporary unlink, and directory `fsync`.
 5. Under PostgreSQL advisory admission locks, atomically insert the complete
@@ -93,6 +98,12 @@ The Rust producer now applies the following bounded order:
    is advanced to the explicit legacy task ID so a rollback to Java/default
    inserts cannot collide. Timestamps are fixed to PostgreSQL microsecond
    precision before the first Redis serialization.
+   If the `COMMIT` response is lost, the producer sends an ordered read on the
+   same PostgreSQL connection and compares the complete queue identity, exact
+   `email_index` identity, and exact spool sidecar identity. Only absence of all
+   three proves `NotCommitted` and permits materialized files to be removed;
+   an exact triple proves committed, while partial state, conflicting identity,
+   or another read failure is `OutcomeUnknown` and preserves Sent/spool files.
 6. Atomically create the exact legacy task JSON, domain-status hash, sent-file
    index, and pending reference in Redis. Repeated publication succeeds only
    when the task and every domain JSON value are identical.
@@ -116,13 +127,24 @@ opaque, bounded owner token and the key always has a millisecond TTL. A claim
 sets that key with `NX PX` in the same Lua execution that updates the legacy
 structures. The same script creates the reverse key
 `lmyzmail:mail:queue:attempt:<token>` with the claimed task ID and identical
-TTL. It also writes a seven-day
-`lmyzmail:mail:queue:claim-result:<token>` tombstone containing that task ID,
-or `EMPTY` when no task was available. A duplicate pending reference, delayed
-claim request, or reused attempt token cannot create a second owner or consume
-a later task. A valid task-ID tombstone with no live attempt reconciles as
-`NotFound`; `EMPTY` reconciles idempotently as an empty queue; malformed type,
-value, or TTL is inconsistent.
+TTL. A non-empty claim also writes
+`lmyzmail:mail:queue:claim-result:<token>` with that task ID and the same lease
+TTL. Empty probes leave no tombstone and a lost empty response reconciles as
+`NotFound`, so the scheduler simply probes again with a new token. A 4096-entry
+sorted-set index uses Redis server epoch milliseconds, removes expired members
+before admission, and rejects before `LPOP` when full. A duplicate pending
+reference, delayed live claim request, or reused live attempt token cannot
+create a second owner or consume a later task. A valid task-ID tombstone with
+no live attempt reconciles as `NotFound`; malformed type, value, or TTL is
+inconsistent.
+
+Every claim, renewal, release, retry, acknowledgement, expired recovery, and
+response-loss reconciliation Lua script validates all static key types before
+its first write. Claim additionally previews the pending head, validates its
+positive decimal task ID and bounded task/domain values, and checks the dynamic
+lease key before `LPOP`. A wrong type, malformed ID, oversized task, full
+receipt index, or lease collision therefore leaves every Redis key byte and TTL
+unchanged; a collision cannot consume and then restore a pending reference.
 
 Because a Redis connection can fail after a claim script commits but before
 the reply arrives, the caller retains the generated token and invokes bounded
@@ -140,8 +162,10 @@ processing claim, and inserts the ID into the legacy retry sorted set. A
 bounded script moves due retry IDs back to pending without duplicating an
 already pending or processing ID.
 
-Release, retry, and acknowledgement write a bounded seven-day
-`lmyzmail:mail:queue:settlement:<token>` receipt in the same Lua mutation.
+Release, retry, and acknowledgement write a bounded 300-second
+`lmyzmail:mail:queue:settlement:<token>` receipt in the same Lua mutation. A
+4096-entry expiry index is pruned using Redis server epoch seconds before the
+script checks capacity; a full index rejects before any queue mutation.
 Response-loss reconciliation requires the exact expected receipt, no processing
 membership or processing timestamp, and no lease or reverse attempt. It also
 requires exact action-specific state: release has the requested pending/drop
@@ -238,6 +262,32 @@ ambiguous terminal projection. The attempt phase and presence of armed
 recipients must agree on every mutation and snapshot; a cross-table mismatch
 is rejected transactionally and cannot reopen delivery.
 
+The additive `lmyzmail_outbound_spool` table records ownership of large-message
+temporary files without changing the frozen queue table. A bounded maintenance
+query selects only `OWNED` rows whose legacy queue row is terminal, even when
+the Redis task detail has already disappeared. Rust spools are removable only
+from the configured spool root with the exact `message-<task-id>.eml` name.
+Adopted Java `signed-<task-id>.eml` files require the same root and a bounded
+byte-for-byte match with their indexed Sent Maildir copy. Missing files are
+treated as an already-completed unlink; successful unlink is directory-fsynced
+before the sidecar advances monotonically to `REMOVED`. On Linux, validation
+holds directory file descriptors, opens both files with `openat2` beneath
+their configured roots while rejecting symlinks, rechecks the target inode,
+and removes it with `unlinkat`. Once that irreversible unlink operation has
+started, a soft I/O deadline is reported but the coordinator joins the bounded
+blocking task before it may release or requeue the Redis claim.
+The sidecar foreign key restricts deletion of its legacy queue row, including
+after an upgrade from the earlier cascading definition. Retention must first
+observe `REMOVED` and delete that sidecar row explicitly; an `OWNED` row can
+therefore never disappear ahead of its file-cleanup evidence. Sidecar deletion
+also requires one atomic Redis proof that the exact task has no task value,
+lease, pending/list reference, processing membership, processing timestamp,
+retry score, or sent-file index. PostgreSQL then deletes only the exact
+`(task_id, spool_path)` row in `REMOVED` state whose legacy queue row is
+terminal. A bounded wrapping task-ID cursor prevents an old active sidecar from
+starving later removable rows, and a lost delete response is reconciled by the
+same exact sidecar identity.
+
 Every operation shares one bounded deadline across pool admission and the
 database request; production uses eight seconds and tests may select a shorter
 validated duration. Every mutation runs in an explicit transaction whose local
@@ -274,9 +324,43 @@ states, generation fencing, armed crash/cancellation recovery, and fail-closed
 cross-table corruption. Poisoned negative, inverted, and negative maximum
 retry counters are also exercised. The internal coordinator calls Redis
 acknowledgement or retry scheduling only after PostgreSQL projection commits.
-It is implemented and tested with the SMTP adapter, but remains disconnected
-from the production worker lifecycle in `main` until producer publication is
-complete.
+Producer publication, MIME/DKIM, Sent Maildir storage, coordinator delivery,
+and queue maintenance now run inside the production lifecycle in `main`.
+
+Before the first delivery probe, the worker drains the frozen Java `archive`
+and `status_updates` lists. A Lua claim moves at most one bounded record per
+list into an lmyzmail inflight list and payload hash. PostgreSQL uses an
+advisory-locked, statement-timeout-bounded transaction with monotonic terminal
+state and identity checks. Only a committed or idempotently reconciled database
+result permits terminal Redis references and then the inflight record to be
+removed. A crash or dropped Redis response leaves the record replayable.
+Malformed, oversized, conflicting, and orphan status records are moved intact
+to source-specific lmyzmail quarantine lists with length and digest metadata;
+they are never discarded or allowed to block later records.
+
+The production dispatcher preserves the Java defaults of 100 concurrent sends,
+a 50-item poll batch, and a 1000 ms poll interval, while allowing bounded new
+keys to override the legacy aliases. Only one outstanding claim probe is used
+while the queue is idle. Retry promotion and expired-claim scanning are bounded
+per tick. Recovery requires both a missing lmyzmail lease and a processing
+timestamp older than the configured processing timeout, preventing a second
+sender from starting during an active lease.
+An operational failure opens a delivery circuit and starts capped equal-jitter
+backoff. When the deadline expires, the circuit admits exactly one claim while
+no other delivery is active. Only that half-open probe's successful completion
+closes the circuit and restores the configured batch/concurrency budget; a
+failed probe returns directly to backoff, preventing an outage from releasing a
+full concurrent burst.
+
+Redis publication applies the same `lmyzmail.outbound.max-pending-tasks`
+configuration used by PostgreSQL admission, with
+`botmail.outbound.max-pending-tasks` as the lower-priority legacy alias. The
+default is 10,000 and the validated absolute maximum is 1,000,000. One Lua
+admission counts pending, processing, and retry references before writing any
+task/domain/index state; an already-published identical task remains
+idempotent at capacity. A durable PostgreSQL backlog above a newly lowered
+limit remains intact and is replayed by the bounded reconciler as capacity
+becomes available.
 
 ## Rust SMTP Delivery Adapter
 
@@ -360,6 +444,19 @@ It also covers PostgreSQL outage immediately after Redis claim, cancellation at
 that boundary, delayed Redis delivery after lease expiry, mixed multi-domain
 results, commit-armed cancellation/lease loss, and a lost PostgreSQL checkpoint
 response after the SMTP peer accepted the message without repeating SMTP.
+
+Domain projection is also a settlement precondition. A failed domain update
+leaves the Redis claim recoverable; expired-claim maintenance requeues it, and
+the next owner rebuilds the domain projection from the already projected
+PostgreSQL ledger before ACK or retry scheduling. Regular ACK and migrated
+terminal cleanup preserve `domains:<id>` to its existing seven-day TTL and
+remove only the exact known `sentFileName` index. Settlement receipts bind that
+filename by SHA-256; no Redis hash scan or alias deletion is permitted.
+Migration done/quarantine receipts use a separate 4096-entry index per archive
+or status namespace, and terminal cleanup uses one 4096-entry global index.
+All three receipt classes expire after 300 seconds and reject atomically before
+source, inflight, payload, task, or sent-file-index mutation when their index is
+full.
 
 ## Required Rust Invariants
 

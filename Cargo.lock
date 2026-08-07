@@ -1270,6 +1270,7 @@ dependencies = [
  "openssl",
  "percent-encoding",
  "reqwest",
+ "rustix",
  "rustls",
  "rustls-native-certs",
  "serde",

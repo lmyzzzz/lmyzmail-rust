@@ -30,9 +30,7 @@ _ACCEPTED = re.compile(
     rb"250 2\.0\.0 Message accepted for delivery, id="
     rb"(?P<session>[0-9a-f]{8})\r\n"
 )
-_FILE_NAME = re.compile(
-    rb"(?P<timestamp>\d{14}\.\d{3})-(?P<monotonic>\d+)-(?P<counter>\d+)\.eml"
-)
+_FILE_NAME = re.compile(rb"(?P<timestamp>\d{14}\.\d{3})-(?P<monotonic>\d+)-(?P<counter>\d+)\.eml")
 _RECEIVED_ID = re.compile(rb"( with (?P<protocol>ESMTPS?) id )[0-9A-F]{14}(\r\n)")
 _RECEIVED_AT = re.compile(rb"(;\r\n\t)(?P<value>[^\r\n]+)(\r\nAuthentication-Results:)")
 _JAVA_RFC_1123 = re.compile(
@@ -306,9 +304,7 @@ def _check_maildir_delta(
 ) -> None:
     removed = sorted(set(before).difference(after))
     _check(not removed, (removed, "pre-existing Maildir files disappeared"))
-    modified = sorted(
-        path for path, identity in before.items() if after.get(path) != identity
-    )
+    modified = sorted(path for path, identity in before.items() if after.get(path) != identity)
     _check(not modified, (modified, "pre-existing Maildir files changed"))
     residual_temp = _maildir_temp_files(after)
     _check(not residual_temp, ("residual Maildir temp files", residual_temp))
@@ -321,8 +317,7 @@ def _maildir_temp_files(files: Mapping[str, tuple[int, str]]) -> tuple[str, ...]
         sorted(
             path
             for path in files
-            if "temp" in PurePosixPath(path).parts
-            or PurePosixPath(path).name.endswith(".tmp")
+            if "temp" in PurePosixPath(path).parts or PurePosixPath(path).name.endswith(".tmp")
         )
     )
 
@@ -380,15 +375,12 @@ def _index_count(
     *,
     deadline: float | None = None,
 ) -> int:
-    effective_deadline = (
-        time.monotonic() + 5.0 if deadline is None else deadline
-    )
+    effective_deadline = time.monotonic() + 5.0 if deadline is None else deadline
     try:
         with _connect_postgres(target, deadline=effective_deadline) as connection:
             _set_statement_timeout(connection, deadline=effective_deadline)
             row = connection.execute(
-                "SELECT count(*) FROM email_index "
-                "WHERE mailbox_address = %s AND message_id = %s",
+                "SELECT count(*) FROM email_index WHERE mailbox_address = %s AND message_id = %s",
                 (_QA_ADDRESS, message_id),
             ).fetchone()
             _remaining(effective_deadline, "PostgreSQL count query")
@@ -454,9 +446,7 @@ def _wait_for_delivery_state(
         added = set(maildir_after).difference(maildir_before)
         removed = set(maildir_before).difference(maildir_after)
         modified = {
-            path
-            for path, identity in maildir_before.items()
-            if maildir_after.get(path) != identity
+            path for path, identity in maildir_before.items() if maildir_after.get(path) != identity
         }
         ready = (
             len(rows) == 1
@@ -599,9 +589,7 @@ def _storage_snapshot(
     _check(isinstance(file_name, str), file_name)
     file_timestamp = _parse_maildir_filename_time(file_name)
     _check(
-        started_at - timedelta(seconds=5)
-        <= file_timestamp
-        <= observed_at + timedelta(seconds=5),
+        started_at - timedelta(seconds=5) <= file_timestamp <= observed_at + timedelta(seconds=5),
         file_timestamp,
     )
     _check(actual_subject == subject, actual_subject)

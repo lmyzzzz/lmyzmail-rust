@@ -114,6 +114,19 @@
       "scope": "Only recipients whose SMTP DATA commit outcome cannot be proven, including stale pre-upgrade PROCESSING rows that have no durable barrier record. Proven pre-commit failures retain normal retry classification; proven 2xx, 4xx, and 5xx final replies retain delivered, retryable, and permanent semantics; stable Message-ID and all successful SMTP bytes remain compatibility requirements."
     },
     {
+      "candidate_requirement": "Apply bounded Redis operation and HTTP request deadlines to outbound status routes. When Redis disappears, return `500 {\"error\":\"internal_error\"}` for a known queue status whose projection requires Redis, and allow an unknown sent-file lookup to complete through PostgreSQL as `404 {\"error\":\"not_found\"}`, both within the caller's ten-second black-box deadline.",
+      "evidence": {
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "oracle_test": "blackbox/tests/test_candidate_outbound_http_golden.py::test_frozen_java_outbound_status_redis_failure_contract",
+        "source": "src/main/java/net/lmyz/lmyzmail/outbound/MailQueueRedisService.java",
+        "source_sha256": "f9abffe3fbc98e314db34fcf38d894fd200d93ad74ff933f2c0f57e2717f1bf4"
+      },
+      "id": "outbound-http-redis-outage-deadline",
+      "oracle_behavior": "After its private Redis process is killed, the frozen Java oracle does not produce an HTTP response for either a known queue-ID status lookup or an unknown sent-file status lookup within ten seconds. The raw-socket client times out in both cases; a separate sixty-second observation also produced no response.",
+      "reason": "An unavailable cache must not occupy HTTP connections and server tasks without a deadline. The rewrite requires cancellation and hard time bounds throughout, so the oracle's unbounded Redis wait is a liveness defect excluded from bug-for-bug replication.",
+      "scope": "Only Redis transport outages on outbound status routes and the resulting response deadline. Redis key bytes, TTLs, corrupt-JSON fallback, successful status bodies, authentication, PostgreSQL fallback, status codes reached before the deadline, and all healthy-cache behavior remain compatibility requirements."
+    },
+    {
       "candidate_requirement": "Treat one MX record whose exchange is `.` as an explicit no-mail-service declaration and return a permanent route failure without direct-domain fallback, address lookup, or connection. Reject the complete MX set if a null MX coexists with any other MX record, regardless of DNS answer order.",
       "evidence": {
         "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",

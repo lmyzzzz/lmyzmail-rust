@@ -42,11 +42,13 @@ def test_rust_candidate_foundation_http_matches_frozen_java_golden() -> None:
     if command is not None:
         candidate = CandidateRuntime.from_environment()
     else:
-        candidate = CandidateRuntime(command_template=(
-            str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
-            "--config",
-            "{config}",
-        ))
+        candidate = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+            )
+        )
     with candidate:
         DifferentialRunner(
             repository,

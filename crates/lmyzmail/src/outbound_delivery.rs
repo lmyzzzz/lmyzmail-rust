@@ -14,6 +14,8 @@ use sha2::{Digest, Sha256};
 use tokio::time::{Instant, timeout_at};
 use tokio_postgres::{CancelToken, NoTls};
 
+use crate::outbound_dsn::{DsnEligibility, DsnRecipientSnapshot, normalize_reply_address};
+
 const DATABASE_TIMEOUT: Duration = Duration::from_secs(8);
 const DATABASE_CANCEL_TIMEOUT: Duration = Duration::from_secs(1);
 const MAX_OWNER_TOKEN_BYTES: usize = 100;
@@ -28,7 +30,10 @@ const MAX_RECIPIENT_ADDRESS_BYTES: usize = 320;
 const MAX_RECIPIENT_DETAIL_BYTES: usize = 2_000;
 const DELIVERY_LEDGER_MIGRATION_LOCK: i64 = 0x4c4d_595a_4c44_4752;
 const LEGACY_REDIS_TAKEOVER_LOCK: i64 = 0x4c4d_595a_5254_4b56;
+const OUTBOUND_ID_ALLOCATION_LOCK: i64 = 0x4c4d_595a_4f49_4441;
 const DELIVERY_LEDGER_SCHEMA: &str = include_str!("../migrations/001_outbound_delivery_ledger.sql");
+const OUTBOUND_SPOOL_SCHEMA: &str = include_str!("../migrations/002_outbound_spool_ownership.sql");
+const OUTBOUND_DSN_SCHEMA: &str = include_str!("../migrations/003_outbound_dsn.sql");
 
 #[derive(Deserialize)]
 #[serde(untagged)]
@@ -45,6 +50,14 @@ enum LegacyRecipientJson {
 pub struct PostgresDeliveryState {
     pool: Pool,
     operation_timeout: Duration,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct DsnWork {
+    pub(crate) original_task_id: i64,
+    pub(crate) dsn_task_id: Option<i64>,
+    pub(crate) lease_token: String,
+    pub(crate) payload: DsnEligibility,
 }
 
 #[derive(Clone, Eq, PartialEq)]
@@ -143,6 +156,39 @@ pub struct LegacyRedisTaskMaterialization {
     pub to_addresses_json: String,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LegacyArchiveMaterialization {
+    pub task_id: i64,
+    pub sender_address: String,
+    pub recipients_json: String,
+    pub subject: Option<String>,
+    pub message_id: Option<String>,
+    pub sent_file_name: Option<String>,
+    pub sent_subdirectory: Option<i32>,
+    pub retry_count: i32,
+    pub max_retries: i32,
+    pub next_retry_at: DateTime<Utc>,
+    pub last_error: Option<String>,
+    pub status: DeliveryRowStatus,
+    pub sent_at: Option<DateTime<Utc>>,
+    pub sent_domains_json: Option<String>,
+    pub failed_domains_json: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LegacyStatusMaterialization {
+    pub task_id: i64,
+    pub status: DeliveryRowStatus,
+    pub sent_at: Option<DateTime<Utc>>,
+    pub last_error: Option<String>,
+    pub retry_count: i32,
+    pub sent_domains_json: Option<String>,
+    pub failed_domains_json: Option<String>,
+    pub updated_at: DateTime<Utc>,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DeliveryRowStatus {
     Pending,
@@ -165,6 +211,24 @@ impl DeliveryRowStatus {
             _ => Err(DeliveryStateError::Unavailable),
         }
     }
+
+    fn database_value(self) -> &'static str {
+        match self {
+            Self::Pending => "PENDING",
+            Self::Processing => "PROCESSING",
+            Self::Sent => "SENT",
+            Self::PartialSuccess => "PARTIAL_SUCCESS",
+            Self::Failed => "FAILED",
+            Self::Cancelled => "CANCELLED",
+        }
+    }
+
+    pub(crate) fn is_terminal(self) -> bool {
+        matches!(
+            self,
+            Self::Sent | Self::PartialSuccess | Self::Failed | Self::Cancelled
+        )
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -177,6 +241,7 @@ pub struct DeliverySnapshot {
     pub last_error: Option<String>,
     pub sent_at: Option<DateTime<Utc>>,
     pub processing_started_at: Option<DateTime<Utc>>,
+    pub sent_file_name: Option<String>,
     pub has_owner: bool,
     pub owned_by_claim: bool,
 }
@@ -388,6 +453,56 @@ pub enum TerminalStatus {
     Failed,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum OutboundSpoolKind {
+    Rust,
+    LegacyJava,
+}
+
+impl OutboundSpoolKind {
+    fn database_value(self) -> &'static str {
+        match self {
+            Self::Rust => "RUST",
+            Self::LegacyJava => "LEGACY_JAVA",
+        }
+    }
+
+    fn from_database(value: &str) -> Result<Self, DeliveryStateError> {
+        match value {
+            "RUST" => Ok(Self::Rust),
+            "LEGACY_JAVA" => Ok(Self::LegacyJava),
+            _ => Err(DeliveryStateError::Unavailable),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum OutboundSpoolState {
+    Owned,
+    Removed,
+}
+
+impl OutboundSpoolState {
+    fn from_database(value: &str) -> Result<Self, DeliveryStateError> {
+        match value {
+            "OWNED" => Ok(Self::Owned),
+            "REMOVED" => Ok(Self::Removed),
+            _ => Err(DeliveryStateError::Unavailable),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OutboundSpoolRecord {
+    pub task_id: i64,
+    pub spool_path: String,
+    pub kind: OutboundSpoolKind,
+    pub state: OutboundSpoolState,
+    pub sender_address: String,
+    pub sent_file_name: String,
+    pub sent_subdirectory: i32,
+}
+
 impl TerminalStatus {
     fn database_value(self) -> &'static str {
         match self {
@@ -464,8 +579,642 @@ impl PostgresDeliveryState {
                 )
                 .await?;
             transaction.batch_execute(DELIVERY_LEDGER_SCHEMA).await?;
+            transaction.batch_execute(OUTBOUND_SPOOL_SCHEMA).await?;
+            transaction.batch_execute(OUTBOUND_DSN_SCHEMA).await?;
             transaction.commit().await?;
             Ok(())
+        })
+        .await
+    }
+
+    pub(crate) async fn stage_and_lease_dsns(
+        &self,
+        limit: usize,
+        now: DateTime<Utc>,
+    ) -> Result<Vec<DsnWork>, DeliveryStateError> {
+        if limit == 0 || limit > 1_000 {
+            return Err(DeliveryStateError::InvalidInput(
+                "invalid outbound DSN batch limit",
+            ));
+        }
+        let now = postgres_timestamp(now)?;
+        let lease_until = now + chrono::Duration::seconds(120);
+        let limit = i64::try_from(limit)
+            .map_err(|_| DeliveryStateError::InvalidInput("invalid outbound DSN batch limit"))?;
+        let deadline = Instant::now() + self.operation_timeout;
+        let mut client = self.client(deadline).await?;
+        let cancel_token = client.cancel_token();
+        ledger_mutation(deadline, cancel_token, async {
+            let transaction = client.transaction().await?;
+            configure_transaction_deadline(&transaction, deadline).await?;
+            let rows = transaction
+                .query(
+                    "WITH eligible AS (
+                         SELECT q.id,q.sender_address,q.subject,q.message_id,q.created_at,
+                                attempt.updated_at AS terminal_at,
+                                EXISTS(SELECT 1 FROM mailbox m
+                                       WHERE lower(m.address)=lower(q.sender_address)) AS local_sender
+                         FROM outbound_mail_queue q
+                         JOIN lmyzmail_outbound_delivery_attempt attempt ON attempt.task_id=q.id
+                         WHERE q.status IN ('SENT','PARTIAL_SUCCESS','FAILED','CANCELLED')
+                           AND attempt.phase='PROJECTED'
+                           AND EXISTS(
+                               SELECT 1 FROM lmyzmail_outbound_delivery_recipient permanent
+                               WHERE permanent.task_id=q.id AND permanent.state='PERMANENT'
+                           )
+                           AND NOT EXISTS(
+                               SELECT 1 FROM lmyzmail_outbound_dsn dsn
+                               WHERE dsn.original_task_id=q.id OR dsn.dsn_task_id=q.id
+                           )
+                         ORDER BY q.id
+                         LIMIT $1
+                     )
+                     SELECT eligible.id,eligible.sender_address,eligible.subject,
+                            eligible.message_id,eligible.created_at,eligible.terminal_at,
+                            eligible.local_sender,recipient.recipient_address,
+                            recipient.state,recipient.smtp_code,recipient.detail
+                     FROM eligible
+                     JOIN lmyzmail_outbound_delivery_recipient recipient
+                       ON recipient.task_id=eligible.id
+                     ORDER BY eligible.id,recipient.recipient_ordinal",
+                    &[&limit],
+                )
+                .await?;
+            let mut candidates = BTreeMap::<i64, (DsnEligibility, bool)>::new();
+            for row in rows {
+                let task_id: i64 = row.get(0);
+                let entry = candidates.entry(task_id).or_insert_with(|| {
+                    let created_at: DateTime<Utc> = row.get(4);
+                    let terminal_at: DateTime<Utc> = row.get(5);
+                    (
+                        DsnEligibility {
+                            original_task_id: task_id,
+                            sender_address: row.get(1),
+                            subject: row.get(2),
+                            message_id: row.get(3),
+                            created_at: created_at.to_rfc3339(),
+                            terminal_at: terminal_at.to_rfc3339(),
+                            recipients: Vec::new(),
+                        },
+                        row.get(6),
+                    )
+                });
+                entry.0.recipients.push(DsnRecipientSnapshot {
+                    recipient: row.get(7),
+                    state: row.get(8),
+                    smtp_code: row.get::<_, Option<i32>>(9).and_then(|value| u16::try_from(value).ok()),
+                    detail: row.get(10),
+                });
+            }
+            for (_, (payload, local_sender)) in candidates {
+                let normalized_sender = normalize_reply_address(&payload.sender_address);
+                let valid_payload = payload.validate();
+                let eligible = local_sender && normalized_sender.is_some() && valid_payload;
+                let payload_json = serde_json::to_string(&payload).map_err(|_| {
+                    DeliveryStateError::InvalidInput("outbound DSN payload is invalid")
+                })?;
+                if payload_json.len() > 4 * 1024 * 1024 {
+                    return Err(DeliveryStateError::InvalidInput(
+                        "outbound DSN payload is too large",
+                    )
+                    .into());
+                }
+                let state = if eligible { "PENDING" } else { "SUPPRESSED" };
+                let reason = if eligible {
+                    None
+                } else if !local_sender {
+                    Some("original sender is not a local mailbox")
+                } else if normalized_sender.is_none() {
+                    Some("original sender address is invalid")
+                } else if payload
+                    .recipients
+                    .iter()
+                    .any(|recipient| recipient.state == "AMBIGUOUS")
+                {
+                    Some("delivery outcome is ambiguous")
+                } else {
+                    Some("terminal DSN payload is invalid")
+                };
+                transaction
+                    .execute(
+                        "INSERT INTO lmyzmail_outbound_dsn
+                         (original_task_id,dsn_task_id,state,payload_json,expected_sha256,
+                          suppress_reason,lease_token,lease_until,created_at,updated_at)
+                         VALUES ($1,NULL,$2,$3,NULL,$4,NULL,NULL,$5,$5)
+                         ON CONFLICT (original_task_id) DO NOTHING",
+                        &[&payload.original_task_id, &state, &payload_json, &reason, &now],
+                    )
+                    .await?;
+            }
+
+            let rows = transaction
+                .query(
+                    "SELECT original_task_id,dsn_task_id,payload_json
+                     FROM lmyzmail_outbound_dsn
+                     WHERE state='PENDING'
+                        OR (state='LEASED' AND lease_until <= $1)
+                        OR (state='ADMITTING' AND lease_until <= $1)
+                     ORDER BY original_task_id
+                     FOR UPDATE SKIP LOCKED
+                     LIMIT $2",
+                    &[&now, &limit],
+                )
+                .await?;
+            let mut work = Vec::with_capacity(rows.len());
+            for row in rows {
+                let original_task_id: i64 = row.get(0);
+                let dsn_task_id = row.get::<_, Option<i64>>(1);
+                let payload_json: String = row.get(2);
+                let payload = match serde_json::from_str::<DsnEligibility>(&payload_json) {
+                    Ok(payload) if payload.validate() => payload,
+                    _ => {
+                        transaction
+                            .execute(
+                                "UPDATE lmyzmail_outbound_dsn
+                                 SET state='SUPPRESSED',expected_sha256=NULL,prepared_bytes=NULL,
+                                     suppress_reason=$2,lease_token=NULL,lease_until=NULL,updated_at=$3
+                                 WHERE original_task_id=$1",
+                                &[&original_task_id, &"durable DSN payload is invalid", &now],
+                            )
+                            .await?;
+                        continue;
+                    }
+                };
+                let lease_token = unique_owner_token("dsn")?;
+                let lease_state = if dsn_task_id.is_some() {
+                    "ADMITTING"
+                } else {
+                    "LEASED"
+                };
+                transaction
+                    .execute(
+                        "UPDATE lmyzmail_outbound_dsn
+                         SET state=$2,lease_token=$3,lease_until=$4,updated_at=$5
+                         WHERE original_task_id=$1",
+                        &[
+                            &original_task_id,
+                            &lease_state,
+                            &lease_token,
+                            &lease_until,
+                            &now,
+                        ],
+                    )
+                    .await?;
+                work.push(DsnWork {
+                    original_task_id,
+                    dsn_task_id,
+                    lease_token,
+                    payload,
+                });
+            }
+            transaction.commit().await?;
+            Ok(work)
+        })
+        .await
+    }
+
+    pub(crate) async fn bind_dsn_task_id(
+        &self,
+        original_task_id: i64,
+        lease_token: &str,
+        dsn_task_id: i64,
+        now: DateTime<Utc>,
+    ) -> Result<(), DeliveryStateError> {
+        if original_task_id <= 0
+            || dsn_task_id <= 0
+            || lease_token.is_empty()
+            || lease_token.len() > MAX_OWNER_TOKEN_BYTES
+        {
+            return Err(DeliveryStateError::InvalidInput(
+                "invalid outbound DSN task binding",
+            ));
+        }
+        let now = postgres_timestamp(now)?;
+        let deadline = Instant::now() + self.operation_timeout;
+        let mut client = self.client(deadline).await?;
+        let cancel_token = client.cancel_token();
+        ledger_mutation(deadline, cancel_token, async {
+            let transaction = client.transaction().await?;
+            configure_transaction_deadline(&transaction, deadline).await?;
+            let updated = transaction
+                .execute(
+                    "UPDATE lmyzmail_outbound_dsn
+                     SET dsn_task_id=$3,state='ADMITTING',updated_at=$4
+                     WHERE original_task_id=$1 AND state='LEASED'
+                       AND lease_token=$2 AND lease_until > $4
+                       AND dsn_task_id IS NULL",
+                    &[&original_task_id, &lease_token, &dsn_task_id, &now],
+                )
+                .await?;
+            if updated != 1 {
+                return Err(DeliveryStateError::InvalidTransition(
+                    "outbound DSN lease was lost before task ID binding",
+                )
+                .into());
+            }
+            transaction.commit().await?;
+            Ok(())
+        })
+        .await
+    }
+
+    pub(crate) async fn suppress_dsn(
+        &self,
+        original_task_id: i64,
+        lease_token: &str,
+        reason: &'static str,
+        now: DateTime<Utc>,
+    ) -> Result<(), DeliveryStateError> {
+        if original_task_id <= 0
+            || lease_token.is_empty()
+            || lease_token.len() > MAX_OWNER_TOKEN_BYTES
+            || reason.is_empty()
+            || reason.len() > 512
+        {
+            return Err(DeliveryStateError::InvalidInput(
+                "invalid outbound DSN suppression",
+            ));
+        }
+        let now = postgres_timestamp(now)?;
+        let deadline = Instant::now() + self.operation_timeout;
+        let mut client = self.client(deadline).await?;
+        let cancel_token = client.cancel_token();
+        ledger_mutation(deadline, cancel_token, async {
+            let transaction = client.transaction().await?;
+            configure_transaction_deadline(&transaction, deadline).await?;
+            let updated = transaction
+                .execute(
+                    "UPDATE lmyzmail_outbound_dsn
+                     SET state='SUPPRESSED',expected_sha256=NULL,prepared_bytes=NULL,
+                         suppress_reason=$2,lease_token=NULL,lease_until=NULL,updated_at=$3
+                     WHERE original_task_id=$1 AND state IN ('LEASED','ADMITTING')
+                       AND lease_token=$4 AND lease_until > $3",
+                    &[&original_task_id, &reason, &now, &lease_token],
+                )
+                .await?;
+            if updated != 1 {
+                return Err(DeliveryStateError::InvalidTransition(
+                    "outbound DSN lease was lost before suppression",
+                )
+                .into());
+            }
+            transaction.commit().await?;
+            Ok(())
+        })
+        .await
+    }
+
+    pub(crate) async fn is_dsn_task(&self, task_id: i64) -> Result<bool, DeliveryStateError> {
+        if task_id <= 0 {
+            return Err(DeliveryStateError::InvalidInput(
+                "invalid outbound DSN task ID",
+            ));
+        }
+        let deadline = Instant::now() + self.operation_timeout;
+        let client = self.client(deadline).await?;
+        let row = read_deadline(
+            deadline,
+            client.query_one(
+                "SELECT EXISTS(
+                     SELECT 1 FROM lmyzmail_outbound_dsn
+                     WHERE dsn_task_id=$1 AND state='ADMITTED'
+                 )",
+                &[&task_id],
+            ),
+        )
+        .await?;
+        Ok(row.get(0))
+    }
+
+    pub async fn register_outbound_spool(
+        &self,
+        task_id: i64,
+        spool_path: &str,
+        kind: OutboundSpoolKind,
+        now: DateTime<Utc>,
+    ) -> Result<bool, DeliveryStateError> {
+        validate_outbound_spool_identity(task_id, spool_path)?;
+        let now = postgres_timestamp(now)?;
+        let deadline = Instant::now() + self.operation_timeout;
+        let mut client = self.client(deadline).await?;
+        let cancel_token = client.cancel_token();
+        ledger_mutation(deadline, cancel_token, async {
+            let transaction = client.transaction().await?;
+            configure_transaction_deadline(&transaction, deadline).await?;
+            transaction
+                .query_one(
+                    "SELECT pg_advisory_xact_lock($1)",
+                    &[&(LEGACY_REDIS_TAKEOVER_LOCK ^ task_id)],
+                )
+                .await?;
+            let queue_exists = transaction
+                .query_opt(
+                    "SELECT 1 FROM outbound_mail_queue WHERE id=$1 FOR UPDATE",
+                    &[&task_id],
+                )
+                .await?
+                .is_some();
+            if !queue_exists {
+                return Err(DeliveryStateError::InvalidTransition(
+                    "outbound spool task is missing",
+                )
+                .into());
+            }
+            let existing = transaction
+                .query_opt(
+                    "SELECT spool_path,spool_kind FROM lmyzmail_outbound_spool
+                     WHERE task_id=$1 FOR UPDATE",
+                    &[&task_id],
+                )
+                .await?;
+            let inserted = if let Some(row) = existing {
+                if row.get::<_, &str>(0) != spool_path
+                    || row.get::<_, &str>(1) != kind.database_value()
+                {
+                    return Err(DeliveryStateError::InvalidTransition(
+                        "outbound spool ownership conflicts with durable state",
+                    )
+                    .into());
+                }
+                false
+            } else {
+                transaction
+                    .execute(
+                        "INSERT INTO lmyzmail_outbound_spool
+                         (task_id,spool_path,spool_kind,cleanup_state,created_at,updated_at)
+                         VALUES ($1,$2,$3,'OWNED',$4,$4)",
+                        &[&task_id, &spool_path, &kind.database_value(), &now],
+                    )
+                    .await?;
+                true
+            };
+            transaction.commit().await?;
+            Ok(inserted)
+        })
+        .await
+    }
+
+    pub async fn outbound_spool_snapshot(
+        &self,
+        task_id: i64,
+    ) -> Result<Option<OutboundSpoolRecord>, DeliveryStateError> {
+        if task_id <= 0 {
+            return Err(DeliveryStateError::InvalidInput(
+                "outbound spool task ID must be positive",
+            ));
+        }
+        let deadline = Instant::now() + self.operation_timeout;
+        let client = self.client(deadline).await?;
+        let row = timeout_at(
+            deadline,
+            client.query_opt(
+                "SELECT spool.spool_path,spool.spool_kind,spool.cleanup_state,
+                        queue.sender_address,queue.sent_file_name,queue.sent_subdirectory
+                 FROM lmyzmail_outbound_spool spool
+                 JOIN outbound_mail_queue queue ON queue.id=spool.task_id
+                 WHERE spool.task_id=$1",
+                &[&task_id],
+            ),
+        )
+        .await
+        .map_err(|_| DeliveryStateError::Unavailable)?
+        .map_err(|_| DeliveryStateError::Unavailable)?;
+        row.map(|row| {
+            let sent_file_name = row
+                .get::<_, Option<String>>(4)
+                .filter(|value| !value.is_empty())
+                .ok_or(DeliveryStateError::Unavailable)?;
+            let sent_subdirectory = row
+                .get::<_, Option<i32>>(5)
+                .filter(|value| *value > 0)
+                .ok_or(DeliveryStateError::Unavailable)?;
+            Ok(OutboundSpoolRecord {
+                task_id,
+                spool_path: row.get(0),
+                kind: OutboundSpoolKind::from_database(row.get(1))?,
+                state: OutboundSpoolState::from_database(row.get(2))?,
+                sender_address: row.get(3),
+                sent_file_name,
+                sent_subdirectory,
+            })
+        })
+        .transpose()
+    }
+
+    pub async fn terminal_outbound_spools(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<OutboundSpoolRecord>, DeliveryStateError> {
+        if limit == 0 || limit > 10_000 {
+            return Err(DeliveryStateError::InvalidInput(
+                "outbound spool cleanup limit is invalid",
+            ));
+        }
+        let deadline = Instant::now() + self.operation_timeout;
+        let client = self.client(deadline).await?;
+        let limit = i64::try_from(limit).map_err(|_| {
+            DeliveryStateError::InvalidInput("outbound spool cleanup limit is invalid")
+        })?;
+        let rows = timeout_at(
+            deadline,
+            client.query(
+                "SELECT spool.task_id,spool.spool_path,spool.spool_kind,spool.cleanup_state,
+                        queue.sender_address,queue.sent_file_name,queue.sent_subdirectory
+                 FROM lmyzmail_outbound_spool spool
+                 JOIN outbound_mail_queue queue ON queue.id=spool.task_id
+                 WHERE spool.cleanup_state='OWNED'
+                   AND queue.status IN ('SENT','PARTIAL_SUCCESS','FAILED','CANCELLED')
+                 ORDER BY spool.task_id LIMIT $1",
+                &[&limit],
+            ),
+        )
+        .await
+        .map_err(|_| DeliveryStateError::Unavailable)?
+        .map_err(|_| DeliveryStateError::Unavailable)?;
+        rows.into_iter()
+            .map(|row| {
+                let sent_file_name = row
+                    .get::<_, Option<String>>(5)
+                    .filter(|value| !value.is_empty())
+                    .ok_or(DeliveryStateError::Unavailable)?;
+                let sent_subdirectory = row
+                    .get::<_, Option<i32>>(6)
+                    .filter(|value| *value > 0)
+                    .ok_or(DeliveryStateError::Unavailable)?;
+                Ok(OutboundSpoolRecord {
+                    task_id: row.get(0),
+                    spool_path: row.get(1),
+                    kind: OutboundSpoolKind::from_database(row.get(2))?,
+                    state: OutboundSpoolState::from_database(row.get(3))?,
+                    sender_address: row.get(4),
+                    sent_file_name,
+                    sent_subdirectory,
+                })
+            })
+            .collect()
+    }
+
+    pub async fn mark_outbound_spool_removed(
+        &self,
+        task_id: i64,
+        spool_path: &str,
+        now: DateTime<Utc>,
+    ) -> Result<bool, DeliveryStateError> {
+        validate_outbound_spool_identity(task_id, spool_path)?;
+        let now = postgres_timestamp(now)?;
+        let deadline = Instant::now() + self.operation_timeout;
+        let mut client = self.client(deadline).await?;
+        let cancel_token = client.cancel_token();
+        ledger_mutation(deadline, cancel_token, async {
+            let transaction = client.transaction().await?;
+            configure_transaction_deadline(&transaction, deadline).await?;
+            let row = transaction
+                .query_opt(
+                    "SELECT spool_path,cleanup_state FROM lmyzmail_outbound_spool
+                     WHERE task_id=$1 FOR UPDATE",
+                    &[&task_id],
+                )
+                .await?
+                .ok_or(DeliveryStateError::InvalidTransition(
+                    "outbound spool ownership is missing",
+                ))?;
+            if row.get::<_, &str>(0) != spool_path {
+                return Err(DeliveryStateError::InvalidTransition(
+                    "outbound spool path conflicts with durable state",
+                )
+                .into());
+            }
+            let changed = match row.get::<_, &str>(1) {
+                "REMOVED" => false,
+                "OWNED" => {
+                    transaction
+                        .execute(
+                            "UPDATE lmyzmail_outbound_spool
+                             SET cleanup_state='REMOVED',updated_at=$2 WHERE task_id=$1",
+                            &[&task_id, &now],
+                        )
+                        .await?;
+                    true
+                }
+                _ => return Err(DeliveryStateError::Unavailable.into()),
+            };
+            transaction.commit().await?;
+            Ok(changed)
+        })
+        .await
+    }
+
+    pub async fn removed_outbound_spools(
+        &self,
+        after_task_id: i64,
+        limit: usize,
+    ) -> Result<Vec<OutboundSpoolRecord>, DeliveryStateError> {
+        if after_task_id < 0 || limit == 0 || limit > 10_000 {
+            return Err(DeliveryStateError::InvalidInput(
+                "removed outbound spool scan limit is invalid",
+            ));
+        }
+        let limit = i64::try_from(limit).map_err(|_| {
+            DeliveryStateError::InvalidInput("removed outbound spool scan limit is invalid")
+        })?;
+        let deadline = Instant::now() + self.operation_timeout;
+        let client = self.client(deadline).await?;
+        let rows = timeout_at(
+            deadline,
+            client.query(
+                "SELECT spool.task_id,spool.spool_path,spool.spool_kind,spool.cleanup_state,
+                        queue.sender_address,queue.sent_file_name,queue.sent_subdirectory
+                 FROM lmyzmail_outbound_spool spool
+                 JOIN outbound_mail_queue queue ON queue.id=spool.task_id
+                 WHERE spool.cleanup_state='REMOVED'
+                   AND queue.status IN ('SENT','PARTIAL_SUCCESS','FAILED','CANCELLED')
+                 ORDER BY CASE WHEN spool.task_id > $1 THEN 0 ELSE 1 END,spool.task_id
+                 LIMIT $2",
+                &[&after_task_id, &limit],
+            ),
+        )
+        .await
+        .map_err(|_| DeliveryStateError::Unavailable)?
+        .map_err(|_| DeliveryStateError::Unavailable)?;
+        rows.into_iter()
+            .map(|row| {
+                let sent_file_name = row
+                    .get::<_, Option<String>>(5)
+                    .filter(|value| !value.is_empty())
+                    .ok_or(DeliveryStateError::Unavailable)?;
+                let sent_subdirectory = row
+                    .get::<_, Option<i32>>(6)
+                    .filter(|value| *value > 0)
+                    .ok_or(DeliveryStateError::Unavailable)?;
+                Ok(OutboundSpoolRecord {
+                    task_id: row.get(0),
+                    spool_path: row.get(1),
+                    kind: OutboundSpoolKind::from_database(row.get(2))?,
+                    state: OutboundSpoolState::from_database(row.get(3))?,
+                    sender_address: row.get(4),
+                    sent_file_name,
+                    sent_subdirectory,
+                })
+            })
+            .collect()
+    }
+
+    pub async fn delete_removed_outbound_spool(
+        &self,
+        task_id: i64,
+        spool_path: &str,
+    ) -> Result<bool, DeliveryStateError> {
+        validate_outbound_spool_identity(task_id, spool_path)?;
+        let deadline = Instant::now() + self.operation_timeout;
+        let mut client = self.client(deadline).await?;
+        let cancel_token = client.cancel_token();
+        ledger_mutation(deadline, cancel_token, async {
+            let transaction = client.transaction().await?;
+            configure_transaction_deadline(&transaction, deadline).await?;
+            let row = transaction
+                .query_opt(
+                    "SELECT spool.spool_path,spool.cleanup_state,queue.status
+                     FROM lmyzmail_outbound_spool spool
+                     JOIN outbound_mail_queue queue ON queue.id=spool.task_id
+                     WHERE spool.task_id=$1
+                     FOR UPDATE OF spool,queue",
+                    &[&task_id],
+                )
+                .await?;
+            let Some(row) = row else {
+                transaction.commit().await?;
+                return Ok(false);
+            };
+            if row.get::<_, &str>(0) != spool_path {
+                return Err(DeliveryStateError::InvalidTransition(
+                    "removed outbound spool path conflicts with durable state",
+                )
+                .into());
+            }
+            if row.get::<_, &str>(1) != "REMOVED" {
+                return Err(DeliveryStateError::InvalidTransition(
+                    "outbound spool cannot be deleted before removal is durable",
+                )
+                .into());
+            }
+            if !DeliveryRowStatus::from_database(row.get(2))?.is_terminal() {
+                return Err(DeliveryStateError::InvalidTransition(
+                    "outbound spool cannot be deleted before delivery is terminal",
+                )
+                .into());
+            }
+            let deleted = transaction
+                .execute(
+                    "DELETE FROM lmyzmail_outbound_spool
+                     WHERE task_id=$1 AND spool_path=$2 AND cleanup_state='REMOVED'",
+                    &[&task_id, &spool_path],
+                )
+                .await?;
+            if deleted != 1 {
+                return Err(DeliveryStateError::Unavailable.into());
+            }
+            transaction.commit().await?;
+            Ok(true)
         })
         .await
     }
@@ -573,26 +1322,201 @@ impl PostgresDeliveryState {
                 )
                 .await?;
 
+            advance_legacy_sequence(&transaction, task.task_id).await?;
+            transaction.commit().await?;
+            Ok(inserted)
+        })
+        .await
+    }
+
+    pub async fn materialize_legacy_archive(
+        &self,
+        archive: &LegacyArchiveMaterialization,
+    ) -> Result<bool, DeliveryStateError> {
+        validate_legacy_archive(archive)?;
+        let next_retry_at = postgres_timestamp(archive.next_retry_at)?;
+        let sent_at = archive.sent_at.map(postgres_timestamp).transpose()?;
+        let created_at = postgres_timestamp(archive.created_at)?;
+        let updated_at = postgres_timestamp(archive.updated_at)?;
+        let status = archive.status.database_value();
+        let deadline = Instant::now() + self.operation_timeout;
+        let mut client = self.client(deadline).await?;
+        let cancel_token = client.cancel_token();
+        ledger_mutation(deadline, cancel_token, async {
+            let transaction = client.transaction().await?;
+            configure_transaction_deadline(&transaction, deadline).await?;
+            let lock_key = LEGACY_REDIS_TAKEOVER_LOCK ^ archive.task_id;
             transaction
-                .query_one(
-                    "WITH sequence_name AS (
-                         SELECT pg_get_serial_sequence('outbound_mail_queue','id') AS value
-                     )
-                     SELECT setval(
-                         value,
-                         GREATEST(
-                             $1,
-                             (SELECT COALESCE(max(id),0) FROM outbound_mail_queue),
-                             nextval(value::regclass)
-                         ),
-                         true
-                     )
-                     FROM sequence_name WHERE value IS NOT NULL",
-                    &[&task.task_id],
+                .query_one("SELECT pg_advisory_xact_lock($1)", &[&lock_key])
+                .await?;
+            let existing = transaction
+                .query_opt(
+                    "SELECT sender_address,recipients_json,subject,message_id,sent_file_name,
+                            sent_subdirectory,status,retry_count,max_retries,
+                            EXISTS(SELECT 1 FROM lmyzmail_outbound_delivery_attempt
+                                   WHERE task_id=$1)
+                     FROM outbound_mail_queue WHERE id=$1 FOR UPDATE",
+                    &[&archive.task_id],
+                )
+                .await?;
+            let inserted = if let Some(row) = existing {
+                let compatible = row.get::<_, &str>(0) == archive.sender_address
+                    && row.get::<_, &str>(1) == archive.recipients_json
+                    && row.get::<_, Option<&str>>(2) == archive.subject.as_deref()
+                    && row.get::<_, Option<&str>>(3) == archive.message_id.as_deref()
+                    && row.get::<_, Option<&str>>(4) == archive.sent_file_name.as_deref()
+                    && row.get::<_, Option<i32>>(5) == archive.sent_subdirectory
+                    && row.get::<_, i32>(8) == archive.max_retries;
+                if !compatible {
+                    return Err(DeliveryStateError::InvalidTransition(
+                        "legacy archive identity conflicts with PostgreSQL state",
+                    )
+                    .into());
+                }
+                let current = DeliveryRowStatus::from_database(row.get(6))?;
+                let has_sidecar: bool = row.get(9);
+                if (has_sidecar || current.is_terminal()) && current != archive.status {
+                    return Err(DeliveryStateError::InvalidTransition(
+                        "legacy archive conflicts with a durable delivery result",
+                    )
+                    .into());
+                }
+                transaction
+                    .execute(
+                        "UPDATE outbound_mail_queue
+                         SET retry_count=GREATEST(retry_count,$2),next_retry_at=$3,
+                             last_error=$4,status=$5,sent_at=$6,sent_domains_json=$7,
+                             failed_domains_json=$8,updated_at=GREATEST(updated_at,$9),
+                             processor_id=NULL,processing_started_at=NULL
+                         WHERE id=$1",
+                        &[
+                            &archive.task_id,
+                            &archive.retry_count,
+                            &next_retry_at,
+                            &archive.last_error,
+                            &status,
+                            &sent_at,
+                            &archive.sent_domains_json,
+                            &archive.failed_domains_json,
+                            &updated_at,
+                        ],
+                    )
+                    .await?;
+                false
+            } else {
+                transaction
+                    .execute(
+                        "INSERT INTO outbound_mail_queue
+                         (id,sender_address,recipients_json,subject,body_text,body_html,
+                          attachments_json,message_id,sent_file_name,sent_subdirectory,status,
+                          retry_count,max_retries,next_retry_at,last_error,sent_domains_json,
+                          failed_domains_json,created_at,updated_at,sent_at,
+                          processing_started_at,processor_id)
+                         VALUES ($1,$2,$3,$4,NULL,NULL,NULL,$5,$6,$7,$8,$9,$10,$11,$12,
+                                 $13,$14,$15,$16,$17,NULL,NULL)",
+                        &[
+                            &archive.task_id,
+                            &archive.sender_address,
+                            &archive.recipients_json,
+                            &archive.subject,
+                            &archive.message_id,
+                            &archive.sent_file_name,
+                            &archive.sent_subdirectory,
+                            &status,
+                            &archive.retry_count,
+                            &archive.max_retries,
+                            &next_retry_at,
+                            &archive.last_error,
+                            &archive.sent_domains_json,
+                            &archive.failed_domains_json,
+                            &created_at,
+                            &updated_at,
+                            &sent_at,
+                        ],
+                    )
+                    .await?;
+                true
+            };
+            advance_legacy_sequence(&transaction, archive.task_id).await?;
+            transaction.commit().await?;
+            Ok(inserted)
+        })
+        .await
+    }
+
+    pub async fn apply_legacy_status_update(
+        &self,
+        update: &LegacyStatusMaterialization,
+    ) -> Result<bool, DeliveryStateError> {
+        validate_legacy_status(update)?;
+        let sent_at = update.sent_at.map(postgres_timestamp).transpose()?;
+        let updated_at = postgres_timestamp(update.updated_at)?;
+        let status = update.status.database_value();
+        let deadline = Instant::now() + self.operation_timeout;
+        let mut client = self.client(deadline).await?;
+        let cancel_token = client.cancel_token();
+        ledger_mutation(deadline, cancel_token, async {
+            let transaction = client.transaction().await?;
+            configure_transaction_deadline(&transaction, deadline).await?;
+            let lock_key = LEGACY_REDIS_TAKEOVER_LOCK ^ update.task_id;
+            transaction
+                .query_one("SELECT pg_advisory_xact_lock($1)", &[&lock_key])
+                .await?;
+            let existing = transaction
+                .query_opt(
+                    "SELECT status,retry_count,max_retries,
+                            EXISTS(SELECT 1 FROM lmyzmail_outbound_delivery_attempt
+                                   WHERE task_id=$1)
+                     FROM outbound_mail_queue WHERE id=$1 FOR UPDATE",
+                    &[&update.task_id],
+                )
+                .await?;
+            let Some(row) = existing else {
+                transaction.commit().await?;
+                return Ok(false);
+            };
+            let current = DeliveryRowStatus::from_database(row.get(0))?;
+            let current_retry: i32 = row.get(1);
+            let max_retries: i32 = row.get(2);
+            let has_sidecar: bool = row.get(3);
+            if update.retry_count > max_retries
+                || (update.status == DeliveryRowStatus::Pending
+                    && update.retry_count < current_retry)
+            {
+                return Err(DeliveryStateError::InvalidTransition(
+                    "legacy status retry count conflicts with PostgreSQL state",
+                )
+                .into());
+            }
+            if (has_sidecar || current.is_terminal()) && current != update.status {
+                return Err(DeliveryStateError::InvalidTransition(
+                    "legacy status conflicts with a durable delivery result",
+                )
+                .into());
+            }
+            transaction
+                .execute(
+                    "UPDATE outbound_mail_queue
+                     SET status=$2,sent_at=$3,last_error=$4,
+                         retry_count=GREATEST(retry_count,$5),
+                         sent_domains_json=$6,failed_domains_json=$7,
+                         updated_at=GREATEST(updated_at,$8),processor_id=NULL,
+                         processing_started_at=NULL
+                     WHERE id=$1",
+                    &[
+                        &update.task_id,
+                        &status,
+                        &sent_at,
+                        &update.last_error,
+                        &update.retry_count,
+                        &update.sent_domains_json,
+                        &update.failed_domains_json,
+                        &updated_at,
+                    ],
                 )
                 .await?;
             transaction.commit().await?;
-            Ok(inserted)
+            Ok(true)
         })
         .await
     }
@@ -1986,7 +2910,7 @@ impl PostgresDeliveryState {
             deadline,
             client.query_opt(
                 "SELECT status,retry_count,max_retries,next_retry_at,last_error,sent_at,
-                        processing_started_at,processor_id
+                        processing_started_at,processor_id,sent_file_name
                  FROM outbound_mail_queue WHERE id=$1",
                 &[&task_id],
             ),
@@ -2003,6 +2927,7 @@ impl PostgresDeliveryState {
                 last_error: row.get(4),
                 sent_at: row.get(5),
                 processing_started_at: row.get(6),
+                sent_file_name: row.get(8),
                 has_owner: owner.is_some(),
                 owned_by_claim: expected_owner.is_some_and(|value| owner.as_deref() == Some(value)),
             })
@@ -2117,6 +3042,38 @@ impl ClaimFence for RecipientLedgerClaim {
     fn owner_token(&self) -> &str {
         &self.owner_token
     }
+}
+
+async fn advance_legacy_sequence(
+    transaction: &tokio_postgres::Transaction<'_>,
+    task_id: i64,
+) -> Result<(), tokio_postgres::Error> {
+    transaction
+        .query_one(
+            "SELECT pg_advisory_xact_lock($1)",
+            &[&OUTBOUND_ID_ALLOCATION_LOCK],
+        )
+        .await?;
+    transaction
+        .query_one(
+            "WITH sequence_name AS (
+                 SELECT pg_get_serial_sequence('outbound_mail_queue','id') AS value
+             )
+             SELECT setval(
+                 value,
+                 GREATEST(
+                     $1,
+                     (SELECT COALESCE(max(id),0) FROM outbound_mail_queue),
+                     (SELECT COALESCE(max(dsn_task_id),0) FROM lmyzmail_outbound_dsn),
+                     nextval(value::regclass)
+                 ),
+                 true
+             )
+             FROM sequence_name WHERE value IS NOT NULL",
+            &[&task_id],
+        )
+        .await?;
+    Ok(())
 }
 
 async fn lock_legacy_claim<C: ClaimFence>(
@@ -2419,6 +3376,117 @@ fn validate_legacy_redis_materialization(
                 "invalid legacy Redis domain state",
             ));
         }
+    }
+    Ok(())
+}
+
+fn validate_legacy_archive(
+    archive: &LegacyArchiveMaterialization,
+) -> Result<(), DeliveryStateError> {
+    if archive.task_id <= 0
+        || archive.sender_address.is_empty()
+        || archive.sender_address.chars().count() > 255
+        || archive.sender_address.chars().any(char::is_control)
+        || archive
+            .subject
+            .as_deref()
+            .is_some_and(|value| value.chars().count() > 1_000 || value.contains('\0'))
+        || archive.message_id.as_deref().is_none_or(|value| {
+            value.is_empty() || value.chars().count() > 255 || value.chars().any(char::is_control)
+        })
+        || archive.sent_file_name.as_deref().is_none_or(|value| {
+            value.is_empty() || value.chars().count() > 255 || value.chars().any(char::is_control)
+        })
+        || archive.sent_subdirectory.is_none_or(|value| value <= 0)
+        || archive.retry_count < 0
+        || archive.max_retries < 0
+        || archive.retry_count > archive.max_retries
+        || !archive.status.is_terminal()
+        || archive
+            .last_error
+            .as_deref()
+            .is_some_and(|value| value.encode_utf16().count() > MAX_LAST_ERROR_UTF16_UNITS)
+        || archive.updated_at < archive.created_at
+    {
+        return Err(DeliveryStateError::InvalidInput(
+            "invalid legacy archive materialization",
+        ));
+    }
+    validate_terminal_timestamp(archive.status, archive.sent_at)?;
+    validate_legacy_json(archive.sent_domains_json.as_deref())?;
+    validate_legacy_json(archive.failed_domains_json.as_deref())?;
+    parse_recipient_roster_json(&archive.recipients_json)?;
+    postgres_timestamp(archive.created_at)?;
+    postgres_timestamp(archive.updated_at)?;
+    postgres_timestamp(archive.next_retry_at)?;
+    archive.sent_at.map(postgres_timestamp).transpose()?;
+    Ok(())
+}
+
+fn validate_legacy_status(update: &LegacyStatusMaterialization) -> Result<(), DeliveryStateError> {
+    if update.task_id <= 0
+        || matches!(update.status, DeliveryRowStatus::Processing)
+        || update.retry_count < 0
+        || update
+            .last_error
+            .as_deref()
+            .is_some_and(|value| value.encode_utf16().count() > MAX_LAST_ERROR_UTF16_UNITS)
+    {
+        return Err(DeliveryStateError::InvalidInput(
+            "invalid legacy status materialization",
+        ));
+    }
+    validate_terminal_timestamp(update.status, update.sent_at)?;
+    validate_legacy_json(update.sent_domains_json.as_deref())?;
+    validate_legacy_json(update.failed_domains_json.as_deref())?;
+    postgres_timestamp(update.updated_at)?;
+    update.sent_at.map(postgres_timestamp).transpose()?;
+    Ok(())
+}
+
+fn validate_terminal_timestamp(
+    status: DeliveryRowStatus,
+    sent_at: Option<DateTime<Utc>>,
+) -> Result<(), DeliveryStateError> {
+    let records_sent = matches!(
+        status,
+        DeliveryRowStatus::Sent | DeliveryRowStatus::PartialSuccess
+    );
+    if records_sent != sent_at.is_some() {
+        return Err(DeliveryStateError::InvalidInput(
+            "legacy delivery sent timestamp is inconsistent",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_legacy_json(value: Option<&str>) -> Result<(), DeliveryStateError> {
+    let Some(value) = value else {
+        return Ok(());
+    };
+    if value.len() > MAX_DOMAIN_ARCHIVE_BYTES
+        || serde_json::from_str::<serde_json::Value>(value).is_err()
+    {
+        return Err(DeliveryStateError::InvalidInput(
+            "legacy delivery domain archive is invalid",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_outbound_spool_identity(
+    task_id: i64,
+    spool_path: &str,
+) -> Result<(), DeliveryStateError> {
+    if task_id <= 0
+        || spool_path.is_empty()
+        || spool_path.len() > 4_096
+        || spool_path.contains('\0')
+        || !std::path::Path::new(spool_path).is_absolute()
+    {
+        return Err(DeliveryStateError::InvalidInput(
+            "invalid outbound spool ownership",
+        ));
     }
     Ok(())
 }
@@ -2837,5 +3905,768 @@ mod tests {
             bounded_bytes(&format!("{}😀", "x".repeat(1_998)), 2_000),
             format!("{}...", "x".repeat(1_997))
         );
+    }
+
+    #[cfg(target_os = "linux")]
+    mod postgres_dsn {
+        use std::{
+            fs,
+            net::TcpListener,
+            path::{Path, PathBuf},
+            process::{Child, Command, Stdio},
+            time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+        };
+
+        use chrono::{DateTime, TimeZone, Utc};
+        use deadpool_postgres::Pool;
+
+        use crate::{
+            config::{Properties, RuntimeConfig},
+            database,
+            outbound::{DsnAdmission, OutboundService},
+            redis as redis_config,
+        };
+        use tokio_util::sync::CancellationToken;
+
+        use super::*;
+
+        struct PostgresProcess {
+            child: Child,
+            directory: PathBuf,
+            port: u16,
+        }
+
+        impl PostgresProcess {
+            fn start() -> Self {
+                let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+                let port = listener.local_addr().unwrap().port();
+                drop(listener);
+
+                let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .parent()
+                    .and_then(Path::parent)
+                    .unwrap();
+                let root = repository.join(".blackbox/runtime/postgres-root");
+                let binary_directory = root.join("usr/lib/postgresql/16/bin");
+                let library_directory = root.join("usr/lib/x86_64-linux-gnu");
+                let initdb = binary_directory.join("initdb");
+                let postgres = binary_directory.join("postgres");
+                let pg_isready = binary_directory.join("pg_isready");
+                assert!(initdb.is_file(), "PostgreSQL initdb missing");
+                assert!(postgres.is_file(), "PostgreSQL server missing");
+                assert!(pg_isready.is_file(), "PostgreSQL pg_isready missing");
+
+                let nonce = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos();
+                let directory = std::env::temp_dir().join(format!(
+                    "lmyzmail-postgres-dsn-{}-{nonce}",
+                    std::process::id()
+                ));
+                let data_directory = directory.join("data");
+                let socket_directory = directory.join("socket");
+                fs::create_dir_all(&socket_directory).unwrap();
+
+                let initialize = Command::new(initdb)
+                    .args([
+                        "--pgdata",
+                        data_directory.to_str().unwrap(),
+                        "--username=lmyzmail_test",
+                        "--auth=trust",
+                        "--encoding=UTF8",
+                        "--no-locale",
+                    ])
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .env("LD_LIBRARY_PATH", &library_directory)
+                    .status()
+                    .unwrap();
+                assert!(initialize.success(), "PostgreSQL initdb failed");
+
+                let child = Command::new(postgres)
+                    .args([
+                        "-D",
+                        data_directory.to_str().unwrap(),
+                        "-h",
+                        "127.0.0.1",
+                        "-p",
+                        &port.to_string(),
+                        "-k",
+                        socket_directory.to_str().unwrap(),
+                        "-F",
+                    ])
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .env("LD_LIBRARY_PATH", &library_directory)
+                    .spawn()
+                    .unwrap();
+
+                let deadline = Instant::now() + Duration::from_secs(10);
+                loop {
+                    let ready = Command::new(&pg_isready)
+                        .args([
+                            "--host=127.0.0.1",
+                            &format!("--port={port}"),
+                            "--username=lmyzmail_test",
+                            "--dbname=postgres",
+                            "--timeout=1",
+                        ])
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null())
+                        .env("LD_LIBRARY_PATH", &library_directory)
+                        .status()
+                        .unwrap();
+                    if ready.success() {
+                        break;
+                    }
+                    assert!(
+                        Instant::now() < deadline,
+                        "PostgreSQL test process did not start"
+                    );
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+
+                Self {
+                    child,
+                    directory,
+                    port,
+                }
+            }
+
+            fn port(&self) -> u16 {
+                self.port
+            }
+        }
+
+        impl Drop for PostgresProcess {
+            fn drop(&mut self) {
+                let _ = self.child.kill();
+                let _ = self.child.wait();
+                if self
+                    .directory
+                    .file_name()
+                    .and_then(|value| value.to_str())
+                    .is_some_and(|value| value.starts_with("lmyzmail-postgres-dsn-"))
+                {
+                    let _ = fs::remove_dir_all(&self.directory);
+                }
+            }
+        }
+
+        struct RedisProcess {
+            child: Child,
+            directory: PathBuf,
+            port: u16,
+        }
+
+        impl RedisProcess {
+            fn start() -> Self {
+                let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+                let port = listener.local_addr().unwrap().port();
+                drop(listener);
+                let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .parent()
+                    .and_then(Path::parent)
+                    .unwrap();
+                let root = repository.join(".blackbox/runtime/redis-root");
+                let binary = root.join("usr/bin/redis-server");
+                let library_directory = root.join("usr/lib/x86_64-linux-gnu");
+                assert!(binary.is_file(), "Redis server missing");
+                assert!(library_directory.is_dir());
+                let nonce = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos();
+                let directory = std::env::temp_dir().join(format!(
+                    "lmyzmail-redis-dsn-checkpoint-{}-{nonce}",
+                    std::process::id()
+                ));
+                fs::create_dir(&directory).unwrap();
+                let child = Command::new(binary)
+                    .args([
+                        "--bind",
+                        "127.0.0.1",
+                        "--port",
+                        &port.to_string(),
+                        "--save",
+                        "",
+                        "--appendonly",
+                        "no",
+                        "--protected-mode",
+                        "yes",
+                        "--dir",
+                        directory.to_str().unwrap(),
+                    ])
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .env("LD_LIBRARY_PATH", library_directory)
+                    .spawn()
+                    .unwrap();
+                let deadline = Instant::now() + Duration::from_secs(5);
+                while std::net::TcpStream::connect(("127.0.0.1", port)).is_err() {
+                    assert!(Instant::now() < deadline, "Redis did not start");
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+                Self {
+                    child,
+                    directory,
+                    port,
+                }
+            }
+
+            fn port(&self) -> u16 {
+                self.port
+            }
+        }
+
+        impl Drop for RedisProcess {
+            fn drop(&mut self) {
+                let _ = self.child.kill();
+                let _ = self.child.wait();
+                if self
+                    .directory
+                    .file_name()
+                    .and_then(|value| value.to_str())
+                    .is_some_and(|value| value.starts_with("lmyzmail-redis-dsn-checkpoint-"))
+                {
+                    let _ = fs::remove_dir_all(&self.directory);
+                }
+            }
+        }
+
+        fn timestamp(seconds: i64) -> DateTime<Utc> {
+            Utc.timestamp_opt(seconds, 0).single().unwrap()
+        }
+
+        fn configuration(port: u16) -> RuntimeConfig {
+            let mut properties = Properties::default();
+            for (key, value) in [
+                ("lmyzmail.postgres.host", "127.0.0.1".to_owned()),
+                ("lmyzmail.postgres.port", port.to_string()),
+                ("lmyzmail.postgres.database", "postgres".to_owned()),
+                ("lmyzmail.postgres.username", "lmyzmail_test".to_owned()),
+                ("lmyzmail.postgres.password", String::new()),
+                ("lmyzmail.postgres.pool.max-size", "4".to_owned()),
+            ] {
+                properties.insert(key.to_owned(), value).unwrap();
+            }
+            RuntimeConfig::from_properties(properties).unwrap()
+        }
+
+        fn outbound_configuration(
+            postgres_port: u16,
+            redis_port: u16,
+            storage: &Path,
+        ) -> RuntimeConfig {
+            let mut properties = Properties::default();
+            for (key, value) in [
+                ("lmyzmail.postgres.host", "127.0.0.1".to_owned()),
+                ("lmyzmail.postgres.port", postgres_port.to_string()),
+                ("lmyzmail.postgres.database", "postgres".to_owned()),
+                ("lmyzmail.postgres.username", "lmyzmail_test".to_owned()),
+                ("lmyzmail.postgres.password", String::new()),
+                ("lmyzmail.postgres.pool.max-size", "4".to_owned()),
+                ("lmyzmail.redis.host", "127.0.0.1".to_owned()),
+                ("lmyzmail.redis.port", redis_port.to_string()),
+                ("lmyzmail.redis.pool.max-active", "1".to_owned()),
+                (
+                    "lmyzmail.maildir.base",
+                    storage.join("maildir").to_string_lossy().into_owned(),
+                ),
+                (
+                    "lmyzmail.outbound.spool-dir",
+                    storage.join("spool").to_string_lossy().into_owned(),
+                ),
+                ("lmyzmail.domains.main.domain", "example.test".to_owned()),
+            ] {
+                properties.insert(key.to_owned(), value).unwrap();
+            }
+            RuntimeConfig::from_properties(properties).unwrap()
+        }
+
+        async fn setup() -> (PostgresProcess, Pool, PostgresDeliveryState) {
+            let process = PostgresProcess::start();
+            let pool = database::create_pool(&configuration(process.port())).unwrap();
+            let client = pool.get().await.unwrap();
+            let legacy_ddl =
+                include_str!("../../../blackbox/fixtures/legacy/postgres-longtext-oracle.sql")
+                    .replace("LONGTEXT", "TEXT");
+            client.batch_execute(&legacy_ddl).await.unwrap();
+            client
+                .batch_execute(
+                    "CREATE TABLE mailbox (
+                         address varchar(320) PRIMARY KEY
+                     )",
+                )
+                .await
+                .unwrap();
+            drop(client);
+
+            let state = PostgresDeliveryState::new(pool.clone());
+            state.initialize_schema().await.unwrap();
+            (process, pool, state)
+        }
+
+        async fn insert_terminal(pool: &Pool, task_id: i64, sender: &str, now: DateTime<Utc>) {
+            let client = pool.get().await.unwrap();
+            client
+                .execute(
+                    "INSERT INTO outbound_mail_queue
+                     (id,sender_address,recipients_json,status,retry_count,max_retries,
+                      next_retry_at,created_at,updated_at,subject,message_id)
+                     VALUES ($1,$2,'[\"recipient@remote.test\"]','FAILED',0,3,
+                             $3,$3,$3,'terminal subject',$4)",
+                    &[
+                        &task_id,
+                        &sender,
+                        &now,
+                        &format!("<{task_id}@example.test>"),
+                    ],
+                )
+                .await
+                .unwrap();
+            let roster_hash = vec![0_u8; 32];
+            client
+                .execute(
+                    "INSERT INTO lmyzmail_outbound_delivery_attempt
+                     (task_id,generation,owner_token,recipient_count,roster_sha256,
+                      phase,created_at,updated_at)
+                     VALUES ($1,1,NULL,1,$2,'PROJECTED',$3,$3)",
+                    &[&task_id, &roster_hash, &now],
+                )
+                .await
+                .unwrap();
+            client
+                .execute(
+                    "INSERT INTO lmyzmail_outbound_delivery_recipient
+                     (task_id,recipient_ordinal,recipient_address,state,
+                      attempt_generation,smtp_code,detail,updated_at)
+                     VALUES ($1,0,'recipient@remote.test','PERMANENT',1,550,
+                             'permanent failure',$2)",
+                    &[&task_id, &now],
+                )
+                .await
+                .unwrap();
+        }
+
+        async fn insert_ambiguous_recipient(pool: &Pool, task_id: i64, now: DateTime<Utc>) {
+            pool.get()
+                .await
+                .unwrap()
+                .execute(
+                    "INSERT INTO lmyzmail_outbound_delivery_recipient
+                     (task_id,recipient_ordinal,recipient_address,state,
+                      attempt_generation,smtp_code,detail,updated_at)
+                     VALUES ($1,1,'ambiguous@remote.test','AMBIGUOUS',1,NULL,
+                             'ambiguous outcome',$2)",
+                    &[&task_id, &now],
+                )
+                .await
+                .unwrap();
+        }
+
+        async fn set_sequence_above(pool: &Pool, value: i64) {
+            pool.get()
+                .await
+                .unwrap()
+                .execute(
+                    "SELECT setval(pg_get_serial_sequence('outbound_mail_queue','id'), $1, true)",
+                    &[&value],
+                )
+                .await
+                .unwrap();
+        }
+
+        #[tokio::test]
+        async fn dsn_staging_requires_local_sender_and_reuses_leased_id() {
+            let (_process, pool, state) = setup().await;
+            let now = timestamp(1_786_400_000);
+            pool.get()
+                .await
+                .unwrap()
+                .execute(
+                    "INSERT INTO mailbox(address) VALUES ('qa@example.test')",
+                    &[],
+                )
+                .await
+                .unwrap();
+            insert_terminal(&pool, 7_401, "qa@example.test", now).await;
+            insert_terminal(&pool, 7_402, "spoof@example.test", now).await;
+            set_sequence_above(&pool, 20_000).await;
+
+            let work = state.stage_and_lease_dsns(16, now).await.unwrap();
+            assert_eq!(work.len(), 1);
+            let first = &work[0];
+            assert_eq!(first.original_task_id, 7_401);
+            assert_eq!(first.payload.sender_address, "qa@example.test");
+            assert_eq!(first.payload.recipients[0].state, "PERMANENT");
+            assert!(first.dsn_task_id.is_none());
+
+            let client = pool.get().await.unwrap();
+            let states = client
+                .query(
+                    "SELECT original_task_id,dsn_task_id,state,suppress_reason
+                     FROM lmyzmail_outbound_dsn ORDER BY original_task_id",
+                    &[],
+                )
+                .await
+                .unwrap();
+            assert_eq!(states.len(), 2);
+            assert_eq!(states[0].get::<_, i64>(0), 7_401);
+            assert_eq!(states[0].get::<_, Option<i64>>(1), None);
+            assert_eq!(states[0].get::<_, &str>(2), "LEASED");
+            assert_eq!(states[0].get::<_, Option<&str>>(3), None);
+            assert_eq!(states[1].get::<_, i64>(0), 7_402);
+            assert_eq!(states[1].get::<_, &str>(2), "SUPPRESSED");
+            assert!(states[1].get::<_, Option<&str>>(3).is_some());
+            drop(client);
+
+            let bound_id = 20_001_i64;
+            state
+                .bind_dsn_task_id(
+                    first.original_task_id,
+                    &first.lease_token,
+                    bound_id,
+                    now + chrono::Duration::seconds(1),
+                )
+                .await
+                .unwrap();
+            let (active_a, active_b) = tokio::join!(
+                state.stage_and_lease_dsns(16, now),
+                state.stage_and_lease_dsns(16, now),
+            );
+            assert!(active_a.unwrap().is_empty());
+            assert!(active_b.unwrap().is_empty());
+
+            let expired = now + chrono::Duration::seconds(121);
+            let (expired_a, expired_b) = tokio::join!(
+                state.stage_and_lease_dsns(16, expired),
+                state.stage_and_lease_dsns(16, expired),
+            );
+            let mut recovered = expired_a.unwrap();
+            recovered.extend(expired_b.unwrap());
+            assert_eq!(recovered.len(), 1);
+            assert_eq!(recovered[0].original_task_id, first.original_task_id);
+            assert_eq!(recovered[0].dsn_task_id, Some(bound_id));
+            assert_ne!(recovered[0].lease_token, first.lease_token);
+            assert_eq!(
+                state
+                    .suppress_dsn(
+                        first.original_task_id,
+                        &first.lease_token,
+                        "stale lease",
+                        expired + chrono::Duration::seconds(1),
+                    )
+                    .await
+                    .unwrap_err(),
+                DeliveryStateError::InvalidTransition(
+                    "outbound DSN lease was lost before suppression"
+                )
+            );
+        }
+
+        #[tokio::test]
+        async fn dsn_suppression_admission_visibility_and_recursive_staging_are_bounded() {
+            let (_process, pool, state) = setup().await;
+            let now = timestamp(1_786_400_100);
+            pool.get()
+                .await
+                .unwrap()
+                .execute(
+                    "INSERT INTO mailbox(address) VALUES ('qa@example.test')",
+                    &[],
+                )
+                .await
+                .unwrap();
+            insert_terminal(&pool, 7_403, "qa@example.test", now).await;
+            insert_terminal(&pool, 7_404, "qa@example.test", now).await;
+            insert_terminal(&pool, 7_405, "qa@example.test", now).await;
+            insert_ambiguous_recipient(&pool, 7_405, now).await;
+            set_sequence_above(&pool, 21_000).await;
+
+            let staged = state.stage_and_lease_dsns(16, now).await.unwrap();
+            assert_eq!(staged.len(), 2);
+            let ambiguous_row = pool
+                .get()
+                .await
+                .unwrap()
+                .query_one(
+                    "SELECT state,suppress_reason,lease_token,lease_until
+                     FROM lmyzmail_outbound_dsn
+                     WHERE original_task_id=7405",
+                    &[],
+                )
+                .await
+                .unwrap();
+            assert_eq!(ambiguous_row.get::<_, &str>(0), "SUPPRESSED");
+            assert_eq!(
+                ambiguous_row.get::<_, Option<&str>>(1),
+                Some("delivery outcome is ambiguous")
+            );
+            assert_eq!(ambiguous_row.get::<_, Option<&str>>(2), None);
+            assert_eq!(ambiguous_row.get::<_, Option<DateTime<Utc>>>(3), None);
+            let suppressed = staged
+                .iter()
+                .find(|item| item.original_task_id == 7_403)
+                .unwrap()
+                .clone();
+            assert!(suppressed.dsn_task_id.is_none());
+            state
+                .bind_dsn_task_id(
+                    suppressed.original_task_id,
+                    &suppressed.lease_token,
+                    21_002,
+                    now + chrono::Duration::seconds(1),
+                )
+                .await
+                .unwrap();
+            pool.get()
+                .await
+                .unwrap()
+                .execute(
+                    "UPDATE lmyzmail_outbound_dsn
+                     SET expected_sha256=$2,prepared_bytes=$3
+                     WHERE original_task_id=$1",
+                    &[
+                        &suppressed.original_task_id,
+                        &vec![3_u8; 32],
+                        &b"durable recovery image".as_slice(),
+                    ],
+                )
+                .await
+                .unwrap();
+            state
+                .suppress_dsn(
+                    7_403,
+                    &suppressed.lease_token,
+                    "test suppression",
+                    now + chrono::Duration::seconds(2),
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                pool.get()
+                    .await
+                    .unwrap()
+                    .query_one(
+                        "SELECT state,suppress_reason,lease_token,lease_until
+                         FROM lmyzmail_outbound_dsn
+                         WHERE original_task_id=7403",
+                        &[],
+                    )
+                    .await
+                    .unwrap()
+                    .get::<_, &str>(0),
+                "SUPPRESSED"
+            );
+            let suppressed_row = pool
+                .get()
+                .await
+                .unwrap()
+                .query_one(
+                    "SELECT suppress_reason,lease_token,lease_until,expected_sha256
+                     FROM lmyzmail_outbound_dsn WHERE original_task_id=7403",
+                    &[],
+                )
+                .await
+                .unwrap();
+            assert_eq!(suppressed_row.get::<_, &str>(0), "test suppression");
+            assert_eq!(suppressed_row.get::<_, Option<&str>>(1), None);
+            assert_eq!(suppressed_row.get::<_, Option<DateTime<Utc>>>(2), None);
+            assert_eq!(suppressed_row.get::<_, Option<Vec<u8>>>(3), None);
+
+            let admitted = staged
+                .iter()
+                .find(|item| item.original_task_id == 7_404)
+                .unwrap();
+            let admitted_id = 21_001_i64;
+            state
+                .bind_dsn_task_id(
+                    admitted.original_task_id,
+                    &admitted.lease_token,
+                    admitted_id,
+                    now + chrono::Duration::seconds(1),
+                )
+                .await
+                .unwrap();
+            assert!(!state.is_dsn_task(admitted_id).await.unwrap());
+            let digest = vec![7_u8; 32];
+            pool.get()
+                .await
+                .unwrap()
+                .execute(
+                    "UPDATE lmyzmail_outbound_dsn
+                     SET state='ADMITTED',expected_sha256=$2,lease_token=NULL,
+                         lease_until=NULL,
+                         updated_at=$3
+                     WHERE original_task_id=$1",
+                    &[&admitted.original_task_id, &digest, &now],
+                )
+                .await
+                .unwrap();
+            assert!(state.is_dsn_task(admitted_id).await.unwrap());
+
+            insert_terminal(&pool, admitted_id, "qa@example.test", now).await;
+            let recursive = state
+                .stage_and_lease_dsns(16, now + chrono::Duration::seconds(1))
+                .await
+                .unwrap();
+            assert!(recursive.is_empty(), "generated DSNs must not recurse");
+            let dsn_rows: i64 = pool
+                .get()
+                .await
+                .unwrap()
+                .query_one("SELECT count(*) FROM lmyzmail_outbound_dsn", &[])
+                .await
+                .unwrap()
+                .get(0);
+            assert_eq!(dsn_rows, 3);
+        }
+
+        #[tokio::test]
+        async fn dsn_checkpoint_is_first_writer_wins_and_admission_clears_recovery_image() {
+            let (process, pool, state) = setup().await;
+            let redis = RedisProcess::start();
+            let now = Utc::now();
+            let client = pool.get().await.unwrap();
+            client
+                .batch_execute(
+                    "CREATE TABLE email_index (
+                         id bigint generated by default as identity primary key,
+                         mailbox_address varchar(255) not null,
+                         folder varchar(50) not null,
+                         file_name varchar(255) not null,
+                         subdirectory integer,
+                         subject varchar(1000),
+                         from_address varchar(500),
+                         to_addresses varchar(2000),
+                         received_at timestamp(6) with time zone not null,
+                         has_attachments boolean not null,
+                         message_id varchar(500),
+                         size_bytes bigint,
+                         indexed_at timestamp(6) with time zone not null,
+                         CONSTRAINT uk_email_index_mailbox_folder_subdir_file
+                             UNIQUE (mailbox_address, folder, subdirectory, file_name)
+                     );
+                     INSERT INTO mailbox(address) VALUES ('qa@example.test')",
+                )
+                .await
+                .unwrap();
+            drop(client);
+            insert_terminal(&pool, 7_406, "qa@example.test", now).await;
+            let work = state.stage_and_lease_dsns(16, now).await.unwrap();
+            assert_eq!(work.len(), 1);
+            let work = &work[0];
+            let dsn_task_id = 21_003_i64;
+            state
+                .bind_dsn_task_id(work.original_task_id, &work.lease_token, dsn_task_id, now)
+                .await
+                .unwrap();
+
+            let storage = process.directory.join("outbound-checkpoint");
+            let runtime = outbound_configuration(process.port(), redis.port(), &storage);
+            let redis_pool = redis_config::create_pool(&runtime).unwrap();
+            let first_service =
+                OutboundService::from_config(&runtime, pool.clone(), redis_pool.clone()).unwrap();
+            let body = concat!(
+                "From: mailer-daemon@example.test\r\n",
+                "To: qa@example.test\r\n",
+                "Subject: Delivery Status Notification (Failure)\r\n",
+                "Message-ID: <dsn-checkpoint@example.test>\r\n",
+                "MIME-Version: 1.0\r\n\r\n",
+                "Checkpoint body.\r\n",
+            );
+            let first_digest: [u8; 32] = Sha256::digest(body.as_bytes()).into();
+            let first = first_service
+                .checkpoint_dsn_material(
+                    work.original_task_id,
+                    &work.lease_token,
+                    first_digest,
+                    body.as_bytes(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(first, (first_digest, body.as_bytes().to_vec()));
+
+            let rotated_body = b"different bytes after a signing-key rotation\r\n";
+            let rotated_digest: [u8; 32] = Sha256::digest(rotated_body).into();
+            let restarted_service =
+                OutboundService::from_config(&runtime, pool.clone(), redis_pool).unwrap();
+            let after_restart = restarted_service
+                .checkpoint_dsn_material(
+                    work.original_task_id,
+                    &work.lease_token,
+                    rotated_digest,
+                    rotated_body,
+                )
+                .await
+                .unwrap();
+            assert_eq!(after_restart, first);
+
+            let admission = tokio::time::timeout(
+                Duration::from_secs(10),
+                restarted_service.admit_dsn(
+                    DsnAdmission {
+                        source_task_id: work.original_task_id,
+                        task_id: dsn_task_id,
+                        lease_token: work.lease_token.clone(),
+                        sender: "qa@example.test".into(),
+                        recipient: "qa@example.test".into(),
+                        subject: "Delivery Status Notification (Failure)".into(),
+                        message_id: "<dsn-checkpoint@example.test>".into(),
+                        body: body.into(),
+                        created_at: now,
+                        unsigned_sha256: first_digest,
+                    },
+                    &CancellationToken::new(),
+                ),
+            )
+            .await
+            .expect("DSN admission must remain bounded")
+            .unwrap();
+
+            let client = pool.get().await.unwrap();
+            let queue_count = client
+                .query_one(
+                    "SELECT count(*) FROM outbound_mail_queue WHERE id=$1 AND status='PENDING'",
+                    &[&dsn_task_id],
+                )
+                .await
+                .unwrap()
+                .get::<_, i64>(0);
+            let index_count = client
+                .query_one(
+                    "SELECT count(*) FROM email_index
+                     WHERE mailbox_address='qa@example.test' AND folder='sent'",
+                    &[],
+                )
+                .await
+                .unwrap()
+                .get::<_, i64>(0);
+            let checkpoint = client
+                .query_one(
+                    "SELECT state,expected_sha256,prepared_bytes,lease_token,lease_until
+                     FROM lmyzmail_outbound_dsn WHERE original_task_id=$1",
+                    &[&work.original_task_id],
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                checkpoint.get::<_, &str>(0),
+                "ADMITTED",
+                "admission={admission:?}, queue_count={queue_count}, index_count={index_count}"
+            );
+            assert_eq!(checkpoint.get::<_, Vec<u8>>(1), first_digest);
+            assert_eq!(checkpoint.get::<_, Option<Vec<u8>>>(2), None);
+            assert_eq!(checkpoint.get::<_, Option<&str>>(3), None);
+            assert_eq!(checkpoint.get::<_, Option<DateTime<Utc>>>(4), None);
+            assert_eq!(queue_count, 1);
+            assert_eq!(index_count, 1);
+        }
     }
 }
