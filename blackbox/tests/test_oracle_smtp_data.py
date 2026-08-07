@@ -17,13 +17,13 @@ def test_managed_java_smtp_data_goldens(record_java_golden: bool) -> None:
     paths = JavaOracleRuntime().paths
     differential = DifferentialRunner(
         paths.repository,
-        paths.repository / "blackbox/golden/java/managed-smtp-data-v19",
+        paths.repository / "blackbox/golden/java/managed-smtp-data-v20",
         "managed-smtp-data",
         record_java=record_java_golden,
     )
     oracle_evidence = DifferentialRunner(
         paths.repository,
-        paths.repository / "blackbox/golden/java/managed-smtp-data-oracle-evidence-v19",
+        paths.repository / "blackbox/golden/java/managed-smtp-data-oracle-evidence-v20",
         "managed-smtp-data-oracle-evidence",
         record_java=record_java_golden,
     )

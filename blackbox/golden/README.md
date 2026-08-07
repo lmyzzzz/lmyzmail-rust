@@ -280,7 +280,7 @@ corresponding generations advance the sets above by one: `managed-basic-v34`,
 `managed-smtp-data-oracle-evidence-v18`, `managed-smtp-mime-v18`,
 `managed-outbound-http-v2`, and `managed-outbound-queue-v18.json`.
 
-The current active sets are bound to
+The following retained historical sets are bound to
 `attestation.harness.definition_tree_sha256`
 `44c18bbec88ceec3d34b71bfbe62e34852f18aaec204248e6cc27cce24d16844`:
 
@@ -304,14 +304,38 @@ The current active sets are bound to
 - `managed-outbound-http-v3/`
 - `managed-outbound-queue-v19.json`
 
+The current active sets are bound to
+`attestation.harness.definition_tree_sha256`
+`65da9f3ce4f1a51b77fff6732deb36ffb0bb086aa49ac4f6f06e47d7ad732ebb`:
+
+- `managed-candidate-public-config-v14/`
+- `managed-basic-v36/`
+- `managed-candidate-auth-v13/`
+- `managed-mail-read-v11/`
+- `managed-mail-attachment-v6/`
+- `managed-mail-state-v9/`
+- `managed-mail-mutations-v8/`
+- `managed-mail-delete-v8/`
+- `managed-starttls-v24/`
+- `managed-starttls-oracle-evidence-v24/`
+- `managed-smtp-auth-v23/`
+- `managed-smtp-auth-starttls-v23/`
+- `managed-smtp-command-v21/`
+- `managed-smtp-command-oracle-evidence-v21/`
+- `managed-smtp-data-v20/`
+- `managed-smtp-data-oracle-evidence-v20/`
+- `managed-smtp-mime-v20/`
+- `managed-outbound-http-v4/`
+- `managed-outbound-queue-v20.json`
+
 The earlier candidate-health v1-v4, candidate-public-http v1,
 candidate-api-status v1, candidate-public-config v1-v3, candidate-auth v1-v2,
 HTTP v19-v25, SMTP v5-v12, and outbound v5-v9 recordings are retained as
 create-once provenance; none is consumed by the tests.
 
-The active outbound queue attestation is `managed-outbound-queue-v19.json`,
+The active outbound queue attestation is `managed-outbound-queue-v20.json`,
 using the field-scoped `outbound:generated-sent-filename` normalizer. The active
-outbound HTTP attestation is `managed-outbound-http-v3`; only its two quota
+outbound HTTP attestation is `managed-outbound-http-v4`; only its two quota
 subresponses canonicalize Java `Map.of` object ordering. Status codes, headers,
 field values, and every other response retain exact wire assertions. Rejected or
 superseded outbound generations remain create-once historical evidence and are
