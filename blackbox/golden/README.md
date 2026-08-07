@@ -417,7 +417,7 @@ It is also retained and never overwritten:
 - `managed-htcpcp-v6/`
 - `managed-htcpcp-oracle-evidence-v3/`
 
-The current active sets bind
+The preceding complete sets bind
 `attestation.harness.definition_tree_sha256`
 `c31293c84c74c9ec7a57b3321735e996cf21dca376bff5c6f142fbd89d421b5b`:
 
@@ -446,10 +446,41 @@ The current active sets bind
 - `managed-htcpcp-v7/`
 - `managed-htcpcp-oracle-evidence-v4/`
 
+The current active sets re-attest the frozen oracle after the authentication
+COMMIT-response-loss reconciliation contract was strengthened. They bind
+`attestation.harness.definition_tree_sha256`
+`e2cf9e0c7f524c2b365659ea867ba7971b2ca23edc0aa3264037332be7522336`:
+
+- `managed-candidate-public-config-v19/`
+- `managed-basic-v41/`
+- `managed-candidate-auth-v18/`
+- `managed-mail-read-v16/`
+- `managed-mail-attachment-v11/`
+- `managed-mail-state-v14/`
+- `managed-mail-mutations-v13/`
+- `managed-mail-delete-v13/`
+- `managed-starttls-v29/`
+- `managed-starttls-oracle-evidence-v29/`
+- `managed-smtp-auth-v28/`
+- `managed-smtp-auth-starttls-v28/`
+- `managed-smtp-command-v26/`
+- `managed-smtp-command-oracle-evidence-v26/`
+- `managed-smtp-data-v25/`
+- `managed-smtp-data-oracle-evidence-v25/`
+- `managed-smtp-mime-v25/`
+- `managed-outbound-http-v11/`
+- `managed-outbound-queue-v26.json`
+- `managed-userdata-v9/`
+- `managed-userdata-oracle-evidence-v8/`
+- `managed-mailbox-api-v5/`
+- `managed-htcpcp-v8/`
+- `managed-htcpcp-oracle-evidence-v5/`
+
 HTCPCP v1-v5 and oracle-evidence v1-v2 are earlier create-once generations,
 each bound to its own historical definition hash. HTCPCP v6 and evidence v3
-belong to the superseded `ed6e12...` pass above. Only HTCPCP v7 is a candidate
-expectation; evidence v4 records Java-only defects and is never compared to the
+belong to the superseded `ed6e12...` pass above. HTCPCP v7 and evidence v4 bind
+the preceding complete `c31293...` pass. Only HTCPCP v8 is an active candidate
+expectation; evidence v5 records Java-only defects and is never compared to the
 candidate.
 
 The earlier candidate-health v1-v4, candidate-public-http v1,
@@ -458,9 +489,9 @@ HTTP v19-v25, SMTP v5-v12, outbound v5-v9, userdata v1-v7, userdata evidence
 v1-v6, and mailbox API v1-v3 recordings remain create-once provenance. None is
 consumed by the active tests.
 
-The active outbound queue attestation is `managed-outbound-queue-v25.json`,
+The active outbound queue attestation is `managed-outbound-queue-v26.json`,
 using the field-scoped `outbound:generated-sent-filename` normalizer. The active
-outbound HTTP attestation is `managed-outbound-http-v10`; only its two quota
+outbound HTTP attestation is `managed-outbound-http-v11`; only its two quota
 subresponses canonicalize Java `Map.of` object ordering. Status codes, headers,
 field values, and every other response retain exact wire assertions. Rejected or
 superseded outbound generations remain historical evidence and are never

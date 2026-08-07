@@ -89,6 +89,15 @@ commit reconciliation has started, the request joins it before returning.
 Listener shutdown first drains these cooperative request tasks and aborts only
 after the bounded service deadline.
 
+Authentication mutations use transaction-level advisory locks keyed by the
+normalized mailbox address or session-token hash. When a COMMIT response is
+lost, the original PostgreSQL connection is detached before a fresh connection
+starts an independent eight-second reconciliation transaction. The second
+transaction acquires the same lock, then compares the complete mailbox/session
+identity or the idempotent deletion state. Only an exact committed state is
+returned as success; absence, conflicting state, lock/query failure, or timeout
+is classified without issuing a compensating mutation.
+
 Outbound routing is another internal adapter, not a service. One bounded
 resolver owns MX and MTA-STS singleflight caches while sharing the process Redis
 pool. It preserves the frozen `dns:mx:*` and `mta-sts:*` values and TTLs, pins

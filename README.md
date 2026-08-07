@@ -68,7 +68,7 @@ HTCPCP runs as a bounded Tokio listener only when enabled. It preserves the
 frozen eight-pot configuration, BREW/POST/GET/HEAD/OPTIONS/PROPFIND/WHEN wire
 behavior, coffee URI variants, additions and tea rules, chunked and
 100-continue framing, keep-alive pipelining, timers, and process-local restart
-semantics. The candidate v7 differential passed every frozen scenario; unit,
+semantics. The candidate v8 differential passed every frozen scenario; unit,
 property, structured-fuzz, concurrency, and release tests cover the parser and
 state machine. Three resource-safety differences are allowlisted: declared
 connection close is honored immediately, incomplete framing has an absolute
@@ -86,8 +86,12 @@ database operation uses one absolute deadline, request cancellation,
 transaction-local PostgreSQL timeouts, bounded `CancelRequest` draining, and
 connection detachment when reuse or commit outcome cannot be proven. Bcrypt
 work runs on a dedicated four-worker, four-slot pool and is joined even after
-its soft deadline. An outcome-unknown mailbox COMMIT is conservatively counted
-against the registration limit because the row may already be durable.
+its soft deadline. Mailbox creation and session mutations hold deterministic
+transaction-level advisory locks. If a COMMIT response is lost, the old
+connection is permanently detached and a fresh connection uses the same lock
+plus the exact durable identity or intended final state to distinguish a
+committed result from a safe retry; conflicts and failed reconciliation remain
+outcome-unknown.
 
 Outbound HTTP currently covers durable PostgreSQL admission, sender-scoped and
 API status lookup, and quota reporting. A `202` response is emitted only after a

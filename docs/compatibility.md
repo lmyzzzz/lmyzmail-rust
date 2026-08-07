@@ -76,6 +76,11 @@ wire, state, storage, or recovery assertions.
   deadline and observes HTTP cancellation. Interrupted pre-commit queries send
   PostgreSQL `CancelRequest` and drain before reuse; cancellation failure,
   drain timeout, or an unresolved COMMIT detaches the connection from the pool.
+  Mailbox creation, login, logout, expired-session deletion, and last-used
+  updates hold deterministic transaction advisory locks. A lost COMMIT response
+  is reconciled only through a fresh connection, the same lock, and an exact
+  durable identity or idempotently equivalent final state under an independent
+  eight-second deadline; conflicts or failed reconciliation remain unknown.
   This replaces the oracle's unbounded JDBC lock waits without changing any
   healthy-path authentication, session, mailbox, API permission, or wire
   behavior.

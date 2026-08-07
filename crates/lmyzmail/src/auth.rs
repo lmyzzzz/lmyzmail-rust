@@ -20,7 +20,7 @@ use tokio::{
     sync::{Mutex, Semaphore},
     time::{Instant, timeout_at},
 };
-use tokio_postgres::{CancelToken, NoTls};
+use tokio_postgres::{CancelToken, NoTls, Row, types::ToSql};
 use tokio_util::sync::CancellationToken;
 
 use crate::{bounded_blocking::BoundedBlockingPool, config::RuntimeConfig};
@@ -123,6 +123,26 @@ struct RateLimitState {
 struct IpBan {
     until: std::time::Instant,
     expires_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+enum AuthCommitReconciliation<T> {
+    Committed(T),
+    NotCommitted,
+    OutcomeUnknown,
+}
+
+#[derive(Debug, Clone)]
+enum TokenValidationCommit {
+    Expired {
+        address: String,
+        expires_at: DateTime<Utc>,
+    },
+    LastUsed {
+        address: String,
+        expires_at: DateTime<Utc>,
+        used_at: DateTime<Utc>,
+    },
 }
 
 #[derive(Clone)]
@@ -287,7 +307,7 @@ impl AuthService {
         };
         let token = generate_token()?;
         let token_hash = hash_token(&token);
-        let now = Utc::now();
+        let now = postgres_timestamp(Utc::now());
         let expires = now + ChronoDuration::days(self.session_expiry_days);
         let token_prefix = token[..TOKEN_PREFIX_BYTES.min(token.len())].to_owned();
         let user_agent = user_agent.map(|value| value.chars().take(500).collect::<String>());
@@ -343,7 +363,32 @@ impl AuthService {
             },
         )
         .await;
-        connection.finish(outcome)?;
+        match connection.finish(outcome) {
+            Ok(()) => {}
+            Err(AuthError::OutcomeUnknown) => {
+                match self
+                    .reconcile_login(
+                        &address,
+                        &token_hash,
+                        &token_prefix,
+                        now,
+                        expires,
+                        client_ip,
+                        user_agent.as_deref(),
+                    )
+                    .await
+                {
+                    AuthCommitReconciliation::Committed(()) => {}
+                    AuthCommitReconciliation::NotCommitted => {
+                        return Err(AuthError::Unavailable);
+                    }
+                    AuthCommitReconciliation::OutcomeUnknown => {
+                        return Err(AuthError::OutcomeUnknown);
+                    }
+                }
+            }
+            Err(error) => return Err(error),
+        }
         Ok((
             LoginOutcome::Success,
             Some(LoginResponse {
@@ -351,6 +396,48 @@ impl AuthService {
                 address: response_address,
             }),
         ))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn reconcile_login(
+        &self,
+        address: &str,
+        token_hash: &str,
+        token_prefix: &str,
+        created_at: DateTime<Utc>,
+        expires_at: DateTime<Utc>,
+        client_ip: &str,
+        user_agent: Option<&str>,
+    ) -> AuthCommitReconciliation<()> {
+        let row = match auth_reconciliation_query(
+            &self.pool,
+            address,
+            "login",
+            "/* lmyzmail_auth_login_commit_reconciliation */
+             SELECT mailbox_address,token_prefix,created_at,expires_at,last_used_at,created_ip,user_agent
+             FROM user_session WHERE token_hash=$1",
+            &[&token_hash],
+        )
+        .await
+        {
+            Ok(row) => row,
+            Err(_) => return AuthCommitReconciliation::OutcomeUnknown,
+        };
+        match row {
+            Some(row)
+                if row.get::<_, &str>(0) == address
+                    && row.get::<_, Option<&str>>(1) == Some(token_prefix)
+                    && row.get::<_, DateTime<Utc>>(2) == created_at
+                    && row.get::<_, DateTime<Utc>>(3) == expires_at
+                    && row.get::<_, Option<DateTime<Utc>>>(4) == Some(created_at)
+                    && row.get::<_, Option<&str>>(5) == Some(client_ip)
+                    && row.get::<_, Option<&str>>(6) == user_agent =>
+            {
+                AuthCommitReconciliation::Committed(())
+            }
+            Some(_) => AuthCommitReconciliation::OutcomeUnknown,
+            None => AuthCommitReconciliation::NotCommitted,
+        }
     }
 
     pub async fn verify_mailbox_credentials(
@@ -539,6 +626,7 @@ impl AuthService {
         let password_hash = self
             .hash_password(password.to_owned(), deadline, cancellation)
             .await?;
+        let created_at = postgres_timestamp(Utc::now());
         let mut connection = AuthDatabaseConnection::new(self.db(deadline, cancellation).await?);
         let cancel_token = connection.cancel_token();
         let commit_started = AtomicBool::new(false);
@@ -556,10 +644,18 @@ impl AuthService {
                     .map_err(db_error)?;
                 configure_auth_transaction_deadline(&transaction, deadline).await?;
                 ensure_auth_active(&database_cancellation)?;
+                transaction
+                    .query_one(
+                        "SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))",
+                        &[&address],
+                    )
+                    .await
+                    .map_err(db_error)?;
+                ensure_auth_active(&database_cancellation)?;
                 let row = transaction
                     .query_one(
                         "INSERT INTO mailbox (address, password_hash, created_at) VALUES ($1,$2,$3) RETURNING id",
-                        &[&address, &password_hash, &Utc::now()],
+                        &[&address, &password_hash, &created_at],
                     )
                     .await
                     .map_err(|error| {
@@ -571,28 +667,64 @@ impl AuthService {
                             db_error(error)
                         }
                     })?;
+                let id = row.get::<_, i64>(0);
                 start_auth_commit(deadline, &database_cancellation, &commit_started)?;
                 transaction.commit().await.map_err(auth_commit_error)?;
-                Ok(row)
+                Ok(id)
             },
         )
         .await;
         let result = connection.finish(outcome);
-        match result {
-            Ok(row) => {
-                self.record_registration(client_ip).await;
-                Ok(CreatedMailbox {
-                    id: row.get::<_, i64>(0),
-                    address,
-                })
-            }
-            Err(error) => {
-                if matches!(&error, AuthError::OutcomeUnknown) {
-                    self.record_registration(client_ip).await;
+        let id = match result {
+            Ok(id) => id,
+            Err(AuthError::OutcomeUnknown) => {
+                match self
+                    .reconcile_mailbox_creation(&address, &password_hash, created_at)
+                    .await
+                {
+                    AuthCommitReconciliation::Committed(id) => id,
+                    AuthCommitReconciliation::NotCommitted => {
+                        return Err(AuthError::Unavailable);
+                    }
+                    AuthCommitReconciliation::OutcomeUnknown => {
+                        self.record_registration(client_ip).await;
+                        return Err(AuthError::OutcomeUnknown);
+                    }
                 }
-                Err(error)
             }
-        }
+            Err(error) => return Err(error),
+        };
+        self.record_registration(client_ip).await;
+        Ok(CreatedMailbox { id, address })
+    }
+
+    async fn reconcile_mailbox_creation(
+        &self,
+        address: &str,
+        password_hash: &str,
+        created_at: DateTime<Utc>,
+    ) -> AuthCommitReconciliation<i64> {
+        let row = match auth_reconciliation_query(
+            &self.pool,
+            address,
+            "mailbox creation",
+            "/* lmyzmail_auth_mailbox_commit_reconciliation */
+                 SELECT id,password_hash,created_at FROM mailbox WHERE address=$1",
+            &[&address],
+        )
+        .await
+        {
+            Ok(row) => row,
+            Err(_) => return AuthCommitReconciliation::OutcomeUnknown,
+        };
+        let materialized = row.map(|row| {
+            (
+                row.get::<_, i64>(0),
+                row.get::<_, String>(1),
+                row.get::<_, DateTime<Utc>>(2),
+            )
+        });
+        classify_mailbox_creation(materialized, password_hash, created_at)
     }
 
     pub async fn logout(&self, token: Option<&str>) -> Result<(), AuthError> {
@@ -628,6 +760,14 @@ impl AuthService {
                 configure_auth_transaction_deadline(&transaction, deadline).await?;
                 ensure_auth_active(&database_cancellation)?;
                 transaction
+                    .query_one(
+                        "SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))",
+                        &[&hash],
+                    )
+                    .await
+                    .map_err(db_error)?;
+                ensure_auth_active(&database_cancellation)?;
+                transaction
                     .execute("DELETE FROM user_session WHERE token_hash=$1", &[&hash])
                     .await
                     .map_err(db_error)?;
@@ -636,7 +776,26 @@ impl AuthService {
             },
         )
         .await;
-        connection.finish(outcome)
+        match connection.finish(outcome) {
+            Ok(()) => Ok(()),
+            Err(AuthError::OutcomeUnknown) => {
+                let row = auth_reconciliation_query(
+                    &self.pool,
+                    &hash,
+                    "logout",
+                    "/* lmyzmail_auth_logout_commit_reconciliation */
+                     SELECT token_hash FROM user_session WHERE token_hash=$1",
+                    &[&hash],
+                )
+                .await?;
+                if row.is_none() {
+                    Ok(())
+                } else {
+                    Err(AuthError::Unavailable)
+                }
+            }
+            Err(error) => Err(error),
+        }
     }
 
     pub async fn validate_token(&self, token: &str) -> Result<Option<String>, AuthError> {
@@ -658,6 +817,7 @@ impl AuthService {
         let cancel_token = connection.cancel_token();
         let commit_started = AtomicBool::new(false);
         let database_cancellation = cancellation.child_token();
+        let mut pending_reconciliation = None;
         let outcome = auth_database_operation(
             deadline,
             &database_cancellation,
@@ -670,6 +830,14 @@ impl AuthService {
                     .await
                     .map_err(db_error)?;
                 configure_auth_transaction_deadline(&transaction, deadline).await?;
+                ensure_auth_active(&database_cancellation)?;
+                transaction
+                    .query_one(
+                        "SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))",
+                        &[&hash],
+                    )
+                    .await
+                    .map_err(db_error)?;
                 ensure_auth_active(&database_cancellation)?;
                 let row = transaction
                     .query_opt(
@@ -689,19 +857,29 @@ impl AuthService {
                         .execute("DELETE FROM user_session WHERE token_hash=$1", &[&hash])
                         .await
                         .map_err(db_error)?;
+                    pending_reconciliation = Some(TokenValidationCommit::Expired {
+                        address,
+                        expires_at: expires,
+                    });
                     start_auth_commit(deadline, &database_cancellation, &commit_started)?;
                     transaction.commit().await.map_err(auth_commit_error)?;
                     return Ok(None);
                 }
                 if self.track_last_used {
                     ensure_auth_active(&database_cancellation)?;
+                    let used_at = postgres_timestamp(Utc::now());
                     transaction
                         .execute(
                             "UPDATE user_session SET last_used_at=$1 WHERE token_hash=$2",
-                            &[&Utc::now(), &hash],
+                            &[&used_at, &hash],
                         )
                         .await
                         .map_err(db_error)?;
+                    pending_reconciliation = Some(TokenValidationCommit::LastUsed {
+                        address: address.clone(),
+                        expires_at: expires,
+                        used_at,
+                    });
                     start_auth_commit(deadline, &database_cancellation, &commit_started)?;
                     transaction.commit().await.map_err(auth_commit_error)?;
                 } else {
@@ -711,7 +889,110 @@ impl AuthService {
             },
         )
         .await;
-        connection.finish(outcome)
+        match connection.finish(outcome) {
+            Ok(result) => Ok(result),
+            Err(AuthError::OutcomeUnknown) => {
+                let Some(pending) = pending_reconciliation else {
+                    return Err(AuthError::OutcomeUnknown);
+                };
+                match pending {
+                    TokenValidationCommit::Expired {
+                        address,
+                        expires_at,
+                    } => match self
+                        .reconcile_expired_session(&hash, &address, expires_at)
+                        .await
+                    {
+                        AuthCommitReconciliation::Committed(()) => Ok(None),
+                        AuthCommitReconciliation::NotCommitted => Err(AuthError::Unavailable),
+                        AuthCommitReconciliation::OutcomeUnknown => Err(AuthError::OutcomeUnknown),
+                    },
+                    TokenValidationCommit::LastUsed {
+                        address,
+                        expires_at,
+                        used_at,
+                    } => match self
+                        .reconcile_last_used(&hash, &address, expires_at, used_at)
+                        .await
+                    {
+                        AuthCommitReconciliation::Committed(()) => Ok(Some(address)),
+                        AuthCommitReconciliation::NotCommitted => Err(AuthError::Unavailable),
+                        AuthCommitReconciliation::OutcomeUnknown => Err(AuthError::OutcomeUnknown),
+                    },
+                }
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    async fn reconcile_expired_session(
+        &self,
+        token_hash: &str,
+        address: &str,
+        expires_at: DateTime<Utc>,
+    ) -> AuthCommitReconciliation<()> {
+        let row = match auth_reconciliation_query(
+            &self.pool,
+            token_hash,
+            "expired session deletion",
+            "/* lmyzmail_auth_expired_session_commit_reconciliation */
+             SELECT mailbox_address,expires_at FROM user_session WHERE token_hash=$1",
+            &[&token_hash],
+        )
+        .await
+        {
+            Ok(row) => row,
+            Err(_) => return AuthCommitReconciliation::OutcomeUnknown,
+        };
+        match row {
+            None => AuthCommitReconciliation::Committed(()),
+            Some(row)
+                if row.get::<_, &str>(0) == address
+                    && row.get::<_, DateTime<Utc>>(1) == expires_at =>
+            {
+                AuthCommitReconciliation::NotCommitted
+            }
+            Some(_) => AuthCommitReconciliation::OutcomeUnknown,
+        }
+    }
+
+    async fn reconcile_last_used(
+        &self,
+        token_hash: &str,
+        address: &str,
+        expires_at: DateTime<Utc>,
+        used_at: DateTime<Utc>,
+    ) -> AuthCommitReconciliation<()> {
+        let row = match auth_reconciliation_query(
+            &self.pool,
+            token_hash,
+            "session last-used update",
+            "/* lmyzmail_auth_last_used_commit_reconciliation */
+             SELECT mailbox_address,expires_at,last_used_at
+             FROM user_session WHERE token_hash=$1",
+            &[&token_hash],
+        )
+        .await
+        {
+            Ok(row) => row,
+            Err(_) => return AuthCommitReconciliation::OutcomeUnknown,
+        };
+        match row {
+            Some(row)
+                if row.get::<_, &str>(0) == address
+                    && row.get::<_, DateTime<Utc>>(1) == expires_at
+                    && row.get::<_, Option<DateTime<Utc>>>(2) == Some(used_at) =>
+            {
+                AuthCommitReconciliation::Committed(())
+            }
+            Some(row)
+                if row.get::<_, &str>(0) == address
+                    && row.get::<_, DateTime<Utc>>(1) == expires_at =>
+            {
+                AuthCommitReconciliation::NotCommitted
+            }
+            Some(_) | None => AuthCommitReconciliation::OutcomeUnknown,
+        }
     }
 
     async fn db(
@@ -950,6 +1231,27 @@ fn auth_deadline() -> Instant {
     Instant::now() + DB_TIMEOUT
 }
 
+fn postgres_timestamp(value: DateTime<Utc>) -> DateTime<Utc> {
+    DateTime::from_timestamp_micros(value.timestamp_micros())
+        .expect("an existing UTC timestamp remains valid at microsecond precision")
+}
+
+fn classify_mailbox_creation(
+    row: Option<(i64, String, DateTime<Utc>)>,
+    password_hash: &str,
+    created_at: DateTime<Utc>,
+) -> AuthCommitReconciliation<i64> {
+    match row {
+        Some((id, stored_hash, stored_at))
+            if stored_hash == password_hash && stored_at == created_at =>
+        {
+            AuthCommitReconciliation::Committed(id)
+        }
+        Some(_) => AuthCommitReconciliation::OutcomeUnknown,
+        None => AuthCommitReconciliation::NotCommitted,
+    }
+}
+
 async fn bounded_auth_future<T, E, F>(
     deadline: Instant,
     cancellation: &CancellationToken,
@@ -1056,6 +1358,77 @@ impl Drop for AuthDatabaseConnection {
             drop(Object::take(client));
         }
     }
+}
+
+async fn auth_reconciliation_query(
+    pool: &Pool,
+    lock_key: &str,
+    operation: &str,
+    query: &str,
+    params: &[&(dyn ToSql + Sync)],
+) -> Result<Option<Row>, AuthError> {
+    let deadline = auth_deadline();
+    let client = match timeout_at(deadline, pool.get()).await {
+        Ok(Ok(client)) => client,
+        _ => {
+            eprintln!(
+                "lmyzmail auth {operation} commit reconciliation could not acquire a database connection"
+            );
+            return Err(AuthError::OutcomeUnknown);
+        }
+    };
+    let mut connection = AuthDatabaseConnection::new(client);
+    let transaction = match timeout_at(deadline, connection.client_mut().transaction()).await {
+        Ok(Ok(transaction)) => transaction,
+        _ => {
+            eprintln!(
+                "lmyzmail auth {operation} commit reconciliation could not start a database transaction"
+            );
+            return Err(AuthError::OutcomeUnknown);
+        }
+    };
+    if !matches!(
+        timeout_at(
+            deadline,
+            configure_auth_transaction_deadline(&transaction, deadline)
+        )
+        .await,
+        Ok(Ok(()))
+    ) {
+        eprintln!(
+            "lmyzmail auth {operation} commit reconciliation could not configure its deadline"
+        );
+        return Err(AuthError::OutcomeUnknown);
+    }
+    if !matches!(
+        timeout_at(
+            deadline,
+            transaction.query_one(
+                "SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))",
+                &[&lock_key],
+            ),
+        )
+        .await,
+        Ok(Ok(_))
+    ) {
+        eprintln!(
+            "lmyzmail auth {operation} commit reconciliation could not order behind the mutation"
+        );
+        return Err(AuthError::OutcomeUnknown);
+    }
+    let row = match timeout_at(deadline, transaction.query_opt(query, params)).await {
+        Ok(Ok(row)) => row,
+        _ => {
+            eprintln!("lmyzmail auth {operation} commit reconciliation query failed");
+            return Err(AuthError::OutcomeUnknown);
+        }
+    };
+    let discard_connection =
+        !matches!(timeout_at(deadline, transaction.commit()).await, Ok(Ok(())));
+    connection.finish(AuthDatabaseOutcome {
+        result: Ok(row),
+        discard_connection,
+    })
 }
 
 async fn auth_database_operation<T, F>(
@@ -1399,6 +1772,39 @@ lmyzmail.domains.main.receive-enabled=true\n",
     fn token_hash_is_lower_hex_and_bcrypt_fixture_verifies() {
         assert_eq!(hash_token("abc").len(), 64);
         assert!(verify("BlackboxPass123!", DUMMY_BCRYPT).unwrap());
+    }
+
+    #[test]
+    fn mailbox_creation_reconciliation_requires_an_exact_durable_identity() {
+        let created_at = postgres_timestamp(Utc::now());
+        assert_eq!(
+            classify_mailbox_creation(Some((17, "hash".into(), created_at)), "hash", created_at,),
+            AuthCommitReconciliation::Committed(17)
+        );
+        assert_eq!(
+            classify_mailbox_creation(None, "hash", created_at),
+            AuthCommitReconciliation::NotCommitted
+        );
+        assert_eq!(
+            classify_mailbox_creation(
+                Some((17, "other-hash".into(), created_at)),
+                "hash",
+                created_at,
+            ),
+            AuthCommitReconciliation::OutcomeUnknown
+        );
+        assert_eq!(
+            classify_mailbox_creation(
+                Some((
+                    17,
+                    "hash".into(),
+                    created_at + ChronoDuration::microseconds(1)
+                )),
+                "hash",
+                created_at,
+            ),
+            AuthCommitReconciliation::OutcomeUnknown
+        );
     }
 
     #[test]
