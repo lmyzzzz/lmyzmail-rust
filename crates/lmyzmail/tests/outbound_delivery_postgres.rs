@@ -14,8 +14,9 @@ use lmyzmail::{
     config::{Properties, RuntimeConfig},
     database,
     outbound_delivery::{
-        DeliveryAttemptId, DeliveryRowStatus, DeliveryStateError, PostgresDeliveryState,
-        TerminalStatus,
+        CommitResultStatus, DeliveryAttemptId, DeliveryAttemptPhase, DeliveryRowStatus,
+        DeliveryStateError, LegacyProjection, PostgresDeliveryState, PreparedRecipientCheckpoint,
+        PreparedRecipientStatus, RecipientDeliveryState, TerminalStatus,
     },
 };
 
@@ -195,10 +196,15 @@ async fn postgres_claims_fence_retries_terminal_state_and_recovery() {
     drop(client);
 
     let state = PostgresDeliveryState::new(pool.clone());
+    let (initialized_a, initialized_b) =
+        tokio::join!(state.initialize_schema(), state.initialize_schema());
+    initialized_a.unwrap();
+    initialized_b.unwrap();
     let now = timestamp(1_786_000_000);
     insert_pending(&pool, 4_001, 0, 2, now).await;
 
-    let attempt_a = DeliveryAttemptId::generate(4_001, "worker-a:claim-1").unwrap();
+    let attempt_a_token = DeliveryAttemptId::generate_lease_token("worker-a:claim-1").unwrap();
+    let attempt_a = DeliveryAttemptId::from_lease_token(4_001, &attempt_a_token).unwrap();
     let attempt_b = DeliveryAttemptId::generate(4_001, "worker-b:claim-1").unwrap();
     let (claim_a, claim_b) = tokio::join!(
         state.claim_with_attempt(&attempt_a, now),
@@ -220,6 +226,22 @@ async fn postgres_claims_fence_retries_terminal_state_and_recovery() {
     assert!(claimed_snapshot.owned_by_claim);
     assert_eq!(first_attempt.task_id(), 4_001);
     assert!(!first_attempt.lease_token().is_empty());
+    assert_eq!(
+        state
+            .reconcile_attempt_claim(first_attempt)
+            .await
+            .unwrap()
+            .as_ref(),
+        Some(&first_claim)
+    );
+    let wrong_attempt = DeliveryAttemptId::generate(4_001, "worker-wrong").unwrap();
+    assert!(
+        state
+            .reconcile_attempt_claim(&wrong_attempt)
+            .await
+            .unwrap()
+            .is_none()
+    );
 
     assert!(
         state
@@ -227,7 +249,15 @@ async fn postgres_claims_fence_retries_terminal_state_and_recovery() {
             .await
             .unwrap()
     );
-    let second_attempt = DeliveryAttemptId::generate(4_001, "worker-a:claim-1").unwrap();
+    assert!(
+        state
+            .reconcile_attempt_claim(first_attempt)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let second_token = DeliveryAttemptId::generate_lease_token("worker-a:claim-1").unwrap();
+    let second_attempt = DeliveryAttemptId::from_lease_token(4_001, &second_token).unwrap();
     let second_claim = state
         .claim_with_attempt(&second_attempt, now + chrono::Duration::seconds(1))
         .await
@@ -478,9 +508,10 @@ async fn postgres_claims_fence_retries_terminal_state_and_recovery() {
     )
     .await
     .unwrap();
+    let uncertain_attempt = DeliveryAttemptId::generate(4_010, "worker-a:unknown-claim").unwrap();
     assert_eq!(
         short_state
-            .claim(4_010, "worker-a:unknown-claim", now)
+            .claim_with_attempt(&uncertain_attempt, now)
             .await
             .unwrap_err(),
         DeliveryStateError::OutcomeUnknown
@@ -488,23 +519,36 @@ async fn postgres_claims_fence_retries_terminal_state_and_recovery() {
     lock.batch_execute("ROLLBACK").await.unwrap();
     drop(lock);
     tokio::time::sleep(Duration::from_millis(100)).await;
-    let uncertain_claim = state.snapshot(4_010, None).await.unwrap().unwrap();
-    match uncertain_claim.status {
-        DeliveryRowStatus::Pending => assert!(!uncertain_claim.has_owner),
-        DeliveryRowStatus::Processing => {
-            assert!(uncertain_claim.has_owner);
+    let uncertain_claim = state
+        .reconcile_attempt_claim(&uncertain_attempt)
+        .await
+        .unwrap();
+    match uncertain_claim {
+        None => {
+            let snapshot = state
+                .snapshot_attempt(&uncertain_attempt)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(snapshot.status, DeliveryRowStatus::Pending);
+            assert!(!snapshot.has_owner);
+        }
+        Some(claim) => {
             assert!(
                 state
-                    .recover_expired(
-                        4_010,
-                        now + chrono::Duration::seconds(5),
-                        now + chrono::Duration::seconds(10),
-                    )
+                    .snapshot_attempt(&uncertain_attempt)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .owned_by_claim
+            );
+            assert!(
+                state
+                    .release(&claim, now + chrono::Duration::seconds(10))
                     .await
                     .unwrap()
             );
         }
-        status => panic!("unexpected claim reconciliation state: {status:?}"),
     }
 
     insert_pending(&pool, 4_011, 0, 2, now).await;
@@ -657,7 +701,19 @@ async fn postgres_claims_fence_retries_terminal_state_and_recovery() {
             )
             .await
             .unwrap()
-            .is_some()
+            .is_none()
+    );
+    let sidecarless = state.ledger_snapshot(4_003, None).await.unwrap().unwrap();
+    assert_eq!(sidecarless.phase, DeliveryAttemptPhase::Projected);
+    assert!(!sidecarless.allows_retry());
+    assert!(!sidecarless.allows_dsn());
+    assert_eq!(
+        sidecarless.recipients[0].state,
+        RecipientDeliveryState::Ambiguous
+    );
+    assert_eq!(
+        state.snapshot(4_003, None).await.unwrap().unwrap().status,
+        DeliveryRowStatus::Failed
     );
 
     insert_pending(&pool, 4_005, 0, 1, now).await;
@@ -665,7 +721,8 @@ async fn postgres_claims_fence_retries_terminal_state_and_recovery() {
     client
         .execute(
             "UPDATE outbound_mail_queue
-             SET status='PROCESSING',processor_id='legacy-worker',processing_started_at=NULL
+             SET status='PROCESSING',processor_id='legacy-worker',processing_started_at=NULL,
+                 recipients_json='{\"to\":[\"legacy@example.test\"],\"cc\":null,\"bcc\":[]}'
              WHERE id=4005",
             &[],
         )
@@ -691,6 +748,631 @@ async fn postgres_claims_fence_retries_terminal_state_and_recovery() {
             )
             .await
             .unwrap()
-            .is_some()
+            .is_none()
+    );
+    let legacy = state.ledger_snapshot(4_005, None).await.unwrap().unwrap();
+    assert_eq!(legacy.phase, DeliveryAttemptPhase::Projected);
+    assert_eq!(legacy.recipients[0].recipient, "legacy@example.test");
+    assert_eq!(
+        legacy.recipients[0].state,
+        RecipientDeliveryState::Ambiguous
+    );
+    assert!(!legacy.allows_retry());
+    assert!(!legacy.allows_dsn());
+}
+
+#[tokio::test]
+async fn recipient_ledger_is_monotonic_fenced_and_legacy_compatible() {
+    let process = PostgresProcess::start();
+    let pool = database::create_pool(&configuration(process.port())).unwrap();
+    let client = pool.get().await.unwrap();
+    let legacy_ddl = include_str!("../../../blackbox/fixtures/legacy/postgres-longtext-oracle.sql")
+        .replace("LONGTEXT", "TEXT");
+    client.batch_execute(&legacy_ddl).await.unwrap();
+    let legacy_columns_before: Vec<String> = client
+        .query(
+            "SELECT column_name FROM information_schema.columns
+             WHERE table_schema='public' AND table_name='outbound_mail_queue'
+             ORDER BY ordinal_position",
+            &[],
+        )
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| row.get(0))
+        .collect();
+    drop(client);
+
+    let state = PostgresDeliveryState::new(pool.clone());
+    let (initialized_a, initialized_b) =
+        tokio::join!(state.initialize_schema(), state.initialize_schema());
+    initialized_a.unwrap();
+    initialized_b.unwrap();
+    state.initialize_schema().await.unwrap();
+
+    let client = pool.get().await.unwrap();
+    let legacy_columns_after: Vec<String> = client
+        .query(
+            "SELECT column_name FROM information_schema.columns
+             WHERE table_schema='public' AND table_name='outbound_mail_queue'
+             ORDER BY ordinal_position",
+            &[],
+        )
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| row.get(0))
+        .collect();
+    assert_eq!(legacy_columns_before, legacy_columns_after);
+    let sidecars: Vec<String> = client
+        .query(
+            "SELECT table_name FROM information_schema.tables
+             WHERE table_schema='public' AND table_name LIKE 'lmyzmail\\_%' ESCAPE '\\'
+             ORDER BY table_name",
+            &[],
+        )
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| row.get(0))
+        .collect();
+    assert_eq!(
+        sidecars,
+        [
+            "lmyzmail_outbound_delivery_attempt",
+            "lmyzmail_outbound_delivery_recipient"
+        ]
+    );
+    drop(client);
+
+    let now = timestamp(1_786_100_000);
+    let recipients = vec![
+        "accepted@alpha.test".to_owned(),
+        "temporary@alpha.test".to_owned(),
+        "permanent@beta.test".to_owned(),
+    ];
+    insert_pending(&pool, 5_001, 0, 2, now).await;
+    let database_claim = state
+        .claim(5_001, "worker-ledger:first", now)
+        .await
+        .unwrap()
+        .unwrap();
+    let ledger_claim = state
+        .begin_attempt(&database_claim, &recipients, now)
+        .await
+        .unwrap();
+    assert_eq!(ledger_claim.task_id(), 5_001);
+    assert_eq!(ledger_claim.generation(), 1);
+    assert_eq!(
+        state
+            .resume_attempt(&database_claim, &recipients)
+            .await
+            .unwrap(),
+        Some(ledger_claim.clone())
+    );
+    assert_eq!(
+        state
+            .begin_attempt(
+                &database_claim,
+                &[
+                    recipients[1].clone(),
+                    recipients[0].clone(),
+                    recipients[2].clone()
+                ],
+                now,
+            )
+            .await
+            .unwrap_err(),
+        DeliveryStateError::InvalidTransition("delivery recipient roster changed")
+    );
+
+    let accepted = PreparedRecipientCheckpoint {
+        ordinal: 0,
+        recipient: recipients[0].clone(),
+        status: PreparedRecipientStatus::Accepted,
+        smtp_code: 250,
+        detail: "250 recipient accepted".into(),
+    };
+    let temporary = PreparedRecipientCheckpoint {
+        ordinal: 1,
+        recipient: recipients[1].clone(),
+        status: PreparedRecipientStatus::Retryable,
+        smtp_code: 451,
+        detail: "451 try again".into(),
+    };
+    assert_eq!(
+        state
+            .checkpoint_result(
+                &ledger_claim,
+                CommitResultStatus::Delivered,
+                250,
+                "250 queued",
+                now,
+            )
+            .await
+            .unwrap_err(),
+        DeliveryStateError::InvalidTransition("delivery attempt is not commit-armed")
+    );
+    assert_eq!(
+        state
+            .checkpoint_prepared(&ledger_claim, std::slice::from_ref(&accepted), now)
+            .await
+            .unwrap_err(),
+        DeliveryStateError::InvalidTransition(
+            "prepared checkpoint does not cover the retryable roster"
+        )
+    );
+    assert!(matches!(
+        state
+            .checkpoint_prepared(&ledger_claim, &[accepted.clone(), accepted.clone()], now,)
+            .await,
+        Err(DeliveryStateError::InvalidInput(
+            "duplicate prepared recipient outcome"
+        ))
+    ));
+    let unknown = PreparedRecipientCheckpoint {
+        ordinal: 99,
+        recipient: "unknown@alpha.test".into(),
+        status: PreparedRecipientStatus::Permanent,
+        smtp_code: 550,
+        detail: "550 unknown".into(),
+    };
+    assert_eq!(
+        state
+            .checkpoint_prepared(&ledger_claim, &[accepted.clone(), unknown], now)
+            .await
+            .unwrap_err(),
+        DeliveryStateError::InvalidTransition(
+            "prepared checkpoint does not cover the retryable roster"
+        )
+    );
+    assert!(
+        state
+            .checkpoint_prepared(
+                &ledger_claim,
+                &[accepted.clone(), temporary.clone()],
+                now + chrono::Duration::seconds(1),
+            )
+            .await
+            .unwrap()
+    );
+    let armed = state
+        .ledger_snapshot(5_001, Some(&ledger_claim))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(armed.phase, DeliveryAttemptPhase::CommitArmed);
+    assert!(armed.owned_by_claim);
+    assert_eq!(
+        armed
+            .recipients
+            .iter()
+            .map(|recipient| recipient.state)
+            .collect::<Vec<_>>(),
+        [
+            RecipientDeliveryState::CommitArmed,
+            RecipientDeliveryState::Retryable,
+            RecipientDeliveryState::Pending,
+        ]
+    );
+    assert!(
+        state
+            .schedule_retry(
+                &database_claim,
+                now + chrono::Duration::seconds(20),
+                "must use recipient ledger projection",
+                now + chrono::Duration::seconds(2),
+            )
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        !state
+            .mark_terminal(
+                &database_claim,
+                TerminalStatus::Sent,
+                &["alpha.test".into()],
+                &BTreeMap::new(),
+                None,
+                now + chrono::Duration::seconds(2),
+            )
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        state
+            .checkpoint_result(
+                &ledger_claim,
+                CommitResultStatus::Delivered,
+                250,
+                "250 queued",
+                now + chrono::Duration::seconds(2),
+            )
+            .await
+            .unwrap(),
+        1
+    );
+    let permanent = PreparedRecipientCheckpoint {
+        ordinal: 2,
+        recipient: recipients[2].clone(),
+        status: PreparedRecipientStatus::Permanent,
+        smtp_code: 550,
+        detail: "550 no such user".into(),
+    };
+    assert!(
+        !state
+            .checkpoint_prepared(
+                &ledger_claim,
+                std::slice::from_ref(&permanent),
+                now + chrono::Duration::seconds(3),
+            )
+            .await
+            .unwrap()
+    );
+    let retry_at = now + chrono::Duration::seconds(30);
+    assert!(matches!(
+        state
+            .project_legacy(
+                &ledger_claim,
+                Some(retry_at),
+                now + chrono::Duration::seconds(4),
+            )
+            .await
+            .unwrap(),
+        LegacyProjection::RetryScheduled(_)
+    ));
+
+    let next_database_claim = state
+        .claim(5_001, "worker-ledger:second", retry_at)
+        .await
+        .unwrap()
+        .unwrap();
+    let next_ledger_claim = state
+        .begin_attempt(&next_database_claim, &recipients, retry_at)
+        .await
+        .unwrap();
+    assert_eq!(next_ledger_claim.generation(), 2);
+    assert_eq!(
+        state
+            .checkpoint_prepared(&ledger_claim, std::slice::from_ref(&temporary), retry_at,)
+            .await
+            .unwrap_err(),
+        DeliveryStateError::Fenced
+    );
+    let retry_snapshot = state
+        .ledger_snapshot(5_001, Some(&next_ledger_claim))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(retry_snapshot.retryable_recipients().len(), 1);
+    assert_eq!(retry_snapshot.retryable_recipients()[0].ordinal, 1);
+    let retry_accepted = PreparedRecipientCheckpoint {
+        ordinal: 1,
+        recipient: recipients[1].clone(),
+        status: PreparedRecipientStatus::Accepted,
+        smtp_code: 250,
+        detail: "250 recipient accepted".into(),
+    };
+    assert!(
+        state
+            .checkpoint_prepared(
+                &next_ledger_claim,
+                std::slice::from_ref(&retry_accepted),
+                retry_at,
+            )
+            .await
+            .unwrap()
+    );
+    state
+        .checkpoint_result(
+            &next_ledger_claim,
+            CommitResultStatus::Delivered,
+            250,
+            "250 queued",
+            retry_at + chrono::Duration::seconds(1),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        state
+            .project_legacy(
+                &next_ledger_claim,
+                None,
+                retry_at + chrono::Duration::seconds(2),
+            )
+            .await
+            .unwrap(),
+        LegacyProjection::Terminal(TerminalStatus::PartialSuccess)
+    );
+    let client = pool.get().await.unwrap();
+    let forbidden = client
+        .execute(
+            "UPDATE lmyzmail_outbound_delivery_recipient
+             SET state='PENDING' WHERE task_id=5001 AND recipient_ordinal=0",
+            &[],
+        )
+        .await;
+    assert!(forbidden.is_err());
+    let legacy_status: String = client
+        .query_one("SELECT status FROM outbound_mail_queue WHERE id=5001", &[])
+        .await
+        .unwrap()
+        .get(0);
+    assert_eq!(legacy_status, "PARTIAL_SUCCESS");
+    drop(client);
+
+    insert_pending(&pool, 5_002, 0, 2, now).await;
+    let crash_database_claim = state
+        .claim(5_002, "worker-ledger:crash", now)
+        .await
+        .unwrap()
+        .unwrap();
+    let crash_ledger_claim = state
+        .begin_attempt(
+            &crash_database_claim,
+            &["one@crash.test".into(), "two@crash.test".into()],
+            now,
+        )
+        .await
+        .unwrap();
+    let crash_prepared = [
+        PreparedRecipientCheckpoint {
+            ordinal: 0,
+            recipient: "one@crash.test".into(),
+            status: PreparedRecipientStatus::Accepted,
+            smtp_code: 250,
+            detail: "250 accepted".into(),
+        },
+        PreparedRecipientCheckpoint {
+            ordinal: 1,
+            recipient: "two@crash.test".into(),
+            status: PreparedRecipientStatus::Accepted,
+            smtp_code: 250,
+            detail: "250 accepted".into(),
+        },
+    ];
+    assert!(
+        state
+            .checkpoint_prepared(&crash_ledger_claim, &crash_prepared, now)
+            .await
+            .unwrap()
+    );
+    assert!(
+        state
+            .recover_expired(
+                5_002,
+                now + chrono::Duration::seconds(1),
+                now + chrono::Duration::seconds(2),
+            )
+            .await
+            .unwrap()
+    );
+    let crash_snapshot = state.ledger_snapshot(5_002, None).await.unwrap().unwrap();
+    assert_eq!(crash_snapshot.phase, DeliveryAttemptPhase::Projected);
+    assert!(!crash_snapshot.has_owner);
+    assert!(!crash_snapshot.allows_retry());
+    assert!(!crash_snapshot.allows_dsn());
+    assert!(
+        crash_snapshot
+            .recipients
+            .iter()
+            .all(|recipient| recipient.state == RecipientDeliveryState::Ambiguous)
+    );
+    assert!(
+        state
+            .claim(
+                5_002,
+                "worker-ledger:forbidden-retry",
+                now + chrono::Duration::seconds(3),
+            )
+            .await
+            .unwrap()
+            .is_none()
+    );
+
+    insert_pending(&pool, 5_003, 0, 2, now).await;
+    let unknown_database_claim = state
+        .claim(5_003, "worker-ledger:unknown", now)
+        .await
+        .unwrap()
+        .unwrap();
+    let unknown_ledger_claim = state
+        .begin_attempt(
+            &unknown_database_claim,
+            &["unknown@result.test".into()],
+            now,
+        )
+        .await
+        .unwrap();
+    state
+        .checkpoint_prepared(
+            &unknown_ledger_claim,
+            &[PreparedRecipientCheckpoint {
+                ordinal: 0,
+                recipient: "unknown@result.test".into(),
+                status: PreparedRecipientStatus::Accepted,
+                smtp_code: 250,
+                detail: "250 accepted".into(),
+            }],
+            now,
+        )
+        .await
+        .unwrap();
+    let short_state =
+        PostgresDeliveryState::with_timeout(pool.clone(), Duration::from_millis(100)).unwrap();
+    let lock = pool.get().await.unwrap();
+    lock.batch_execute("BEGIN").await.unwrap();
+    lock.query_one(
+        "SELECT id FROM outbound_mail_queue WHERE id=5003 FOR UPDATE",
+        &[],
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        short_state
+            .checkpoint_result(
+                &unknown_ledger_claim,
+                CommitResultStatus::Delivered,
+                250,
+                "250 queued",
+                now + chrono::Duration::seconds(1),
+            )
+            .await
+            .unwrap_err(),
+        DeliveryStateError::OutcomeUnknown
+    );
+    lock.batch_execute("ROLLBACK").await.unwrap();
+    drop(lock);
+    state
+        .checkpoint_ambiguous(
+            &unknown_ledger_claim,
+            "database result checkpoint was outcome-unknown",
+            now + chrono::Duration::seconds(2),
+        )
+        .await
+        .unwrap();
+    assert!(matches!(
+        state
+            .project_legacy(
+                &unknown_ledger_claim,
+                None,
+                now + chrono::Duration::seconds(3),
+            )
+            .await
+            .unwrap(),
+        LegacyProjection::Ambiguous
+    ));
+
+    insert_pending(&pool, 5_004, 0, 2, now).await;
+    let cancelled_database_claim = state
+        .claim(5_004, "worker-ledger:cancelled", now)
+        .await
+        .unwrap()
+        .unwrap();
+    let cancelled_ledger_claim = state
+        .begin_attempt(
+            &cancelled_database_claim,
+            &["cancelled@result.test".into()],
+            now,
+        )
+        .await
+        .unwrap();
+    state
+        .checkpoint_prepared(
+            &cancelled_ledger_claim,
+            &[PreparedRecipientCheckpoint {
+                ordinal: 0,
+                recipient: "cancelled@result.test".into(),
+                status: PreparedRecipientStatus::Accepted,
+                smtp_code: 250,
+                detail: "250 accepted".into(),
+            }],
+            now,
+        )
+        .await
+        .unwrap();
+    assert!(
+        state
+            .release(
+                &cancelled_database_claim,
+                now + chrono::Duration::seconds(1),
+            )
+            .await
+            .unwrap()
+    );
+    let cancelled = state.ledger_snapshot(5_004, None).await.unwrap().unwrap();
+    assert_eq!(cancelled.phase, DeliveryAttemptPhase::Projected);
+    assert_eq!(
+        cancelled.recipients[0].state,
+        RecipientDeliveryState::Ambiguous
+    );
+    assert!(!cancelled.allows_retry());
+    assert!(!cancelled.allows_dsn());
+
+    insert_pending(&pool, 5_005, 0, 2, now).await;
+    let corrupt_phase_claim = state
+        .claim(5_005, "worker-ledger:corrupt-phase", now)
+        .await
+        .unwrap()
+        .unwrap();
+    state
+        .begin_attempt(&corrupt_phase_claim, &["phase@corrupt.test".into()], now)
+        .await
+        .unwrap();
+    let client = pool.get().await.unwrap();
+    client
+        .execute(
+            "UPDATE lmyzmail_outbound_delivery_attempt
+             SET phase='COMMIT_ARMED' WHERE task_id=5005",
+            &[],
+        )
+        .await
+        .unwrap();
+    drop(client);
+    assert_eq!(
+        state
+            .recover_expired(
+                5_005,
+                now + chrono::Duration::seconds(1),
+                now + chrono::Duration::seconds(2),
+            )
+            .await
+            .unwrap_err(),
+        DeliveryStateError::InvalidTransition("delivery commit barrier state is inconsistent")
+    );
+    assert_eq!(
+        state.snapshot(5_005, None).await.unwrap().unwrap().status,
+        DeliveryRowStatus::Processing
+    );
+
+    insert_pending(&pool, 5_006, 0, 2, now).await;
+    let corrupt_recipient_claim = state
+        .claim(5_006, "worker-ledger:corrupt-recipient", now)
+        .await
+        .unwrap()
+        .unwrap();
+    let corrupt_recipient_ledger = state
+        .begin_attempt(
+            &corrupt_recipient_claim,
+            &["recipient@corrupt.test".into()],
+            now,
+        )
+        .await
+        .unwrap();
+    state
+        .checkpoint_prepared(
+            &corrupt_recipient_ledger,
+            &[PreparedRecipientCheckpoint {
+                ordinal: 0,
+                recipient: "recipient@corrupt.test".into(),
+                status: PreparedRecipientStatus::Accepted,
+                smtp_code: 250,
+                detail: "250 accepted".into(),
+            }],
+            now,
+        )
+        .await
+        .unwrap();
+    let client = pool.get().await.unwrap();
+    client
+        .execute(
+            "UPDATE lmyzmail_outbound_delivery_attempt
+             SET phase='PREPARING' WHERE task_id=5006",
+            &[],
+        )
+        .await
+        .unwrap();
+    drop(client);
+    assert_eq!(
+        state
+            .release(&corrupt_recipient_claim, now + chrono::Duration::seconds(1),)
+            .await
+            .unwrap_err(),
+        DeliveryStateError::InvalidTransition("delivery commit barrier state is inconsistent")
+    );
+    assert_eq!(
+        state.snapshot(5_006, None).await.unwrap().unwrap().status,
+        DeliveryRowStatus::Processing
     );
 }

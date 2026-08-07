@@ -114,7 +114,17 @@ in `processing`, and the millisecond value in `processing_time`) while adding a
 per-task fencing key named `lmyzmail:mail:queue:lease:<id>`. The value is an
 opaque, bounded owner token and the key always has a millisecond TTL. A claim
 sets that key with `NX PX` in the same Lua execution that updates the legacy
-structures. A duplicate pending reference cannot create a second owner.
+structures. The same script creates the reverse key
+`lmyzmail:mail:queue:attempt:<token>` with the claimed task ID and identical
+TTL. A duplicate pending reference or reused attempt token cannot create a
+second owner.
+
+Because a Redis connection can fail after a claim script commits but before
+the reply arrives, the caller retains the generated token and invokes bounded
+attempt reconciliation. Reconciliation follows only the reverse token key,
+then validates the task ID, lease token, processing membership and timestamp,
+bounded task JSON, and matching positive TTLs. It never scans the pending or
+processing collections to guess which task was claimed.
 
 Renewal, release, retry scheduling, and acknowledgement compare the opaque
 token inside their Lua script. A stale owner therefore cannot extend, requeue,
@@ -128,6 +138,12 @@ already pending or processing ID.
 Expired-claim discovery uses bounded `SSCAN` pages and only reports processing
 members whose Rust lease key is absent. Recovery checks absence again inside
 the mutation script, so a concurrent renewal wins.
+
+Every Lua mutation is submitted through the mutation-specific query path.
+After a connection has been acquired, a timeout, disconnect, or Redis error is
+therefore `OutcomeUnknown`, including publish, TTL refresh, domain updates,
+retry movement, acknowledgement, release, and expired recovery. The caller
+must reconcile before issuing a compensating mutation.
 
 Per-domain status reads and writes use the same lease token and also require
 the task ID to remain in the legacy `processing` set. The scripts reject a
@@ -149,12 +165,17 @@ The database-side delivery state now uses the existing `processor_id` column
 as a second fencing token. A `DeliveryAttemptId` binds one task ID to the
 bounded worker ID and a fresh 128-bit random nonce; reusing a worker ID can
 never make a stale claim valid again. The coordinator may generate that ID
-before either durable claim and pass the same opaque token to Redis and
-PostgreSQL. A claim is one conditional `PENDING` to `PROCESSING` update and
+before the Redis claim, bind the returned task ID to it, and pass the same
+opaque token to PostgreSQL. A claim is one conditional `PENDING` to `PROCESSING` update and
 succeeds only when `next_retry_at` is due and no database owner is present.
 Heartbeat, release, retry, and terminal updates all compare the same opaque
 token. A recovered or replaced owner therefore cannot mutate a new owner's row
 even if it still has an old in-memory claim.
+
+A claim whose response is lost is reconciled by a bounded row read using the
+caller-retained `DeliveryAttemptId`. It returns a usable `DatabaseClaim` only
+when the row is still `PROCESSING`, its retry counters are valid, and its
+`processor_id` exactly equals the attempt token.
 
 The frozen schema has no range check on `retry_count` or `max_retries`. The
 claim statement therefore validates `0 <= retry_count <= max_retries` while it
@@ -165,9 +186,28 @@ Retry increments, next retry time, bounded error summary, owner release, and
 status change commit in one statement. Terminal writes atomically store the
 canonical sent/failed domain outcome, clear processing ownership, and set
 `sent_at` only for `SENT` or `PARTIAL_SUCCESS`. Recovery only resets a
-`PROCESSING` row whose heartbeat predates the caller's cutoff. A legacy
-`PROCESSING` row with a null heartbeat is also recoverable. The conditional
-update races safely with a concurrent monotonic heartbeat.
+`PROCESSING` row whose heartbeat predates the caller's cutoff. A null heartbeat
+is expired, but a stale row without the Rust recipient sidecar is not blindly
+requeued: its legacy flat or structured recipient JSON is validated and
+projected into an all-`AMBIGUOUS` sidecar, while the legacy row becomes
+`FAILED` with no owner. This takeover rule prevents a pre-upgrade Java send
+whose remote commit cannot be reconstructed from being duplicated or receiving
+a false DSN. Malformed legacy recipient data fails closed and remains owned for
+operator repair. The conditional recovery races safely with a concurrent
+monotonic heartbeat.
+
+The additive `lmyzmail_outbound_delivery_attempt` and
+`lmyzmail_outbound_delivery_recipient` tables are installed under a PostgreSQL
+advisory transaction lock; no legacy column changes. A stable ordinal/address
+roster is protected by both its count and SHA-256 fingerprint. Each attempt is
+fenced by opaque owner token and monotonically increasing generation. Accepted
+RCPT outcomes become `COMMIT_ARMED` in the same transaction that arms the
+attempt, before SMTP DATA commit. Final replies move those exact recipients to
+`DELIVERED`, `RETRYABLE`, or `PERMANENT`; an unknown result moves them to
+`AMBIGUOUS`. Release or expired recovery of an armed attempt also creates an
+ambiguous terminal projection. The attempt phase and presence of armed
+recipients must agree on every mutation and snapshot; a cross-table mismatch
+is rejected transactionally and cannot reopen delivery.
 
 Every operation shares one bounded deadline across pool admission and the
 database request; production uses eight seconds and tests may select a shorter
@@ -191,8 +231,11 @@ exercises concurrent claims through separate pooled connections, random-token
 stale-owner fencing, retry exhaustion, partial and local terminal states, and
 timeout recovery including a null legacy heartbeat. Row-lock fault injection
 forces unknown claim, retry, and terminal outcomes and verifies both permitted
-snapshot reconciliation branches. Poisoned negative, inverted, and negative
-maximum retry counters are also exercised. The
+snapshot reconciliation branches. It also covers reverse-token claim binding,
+sidecarless takeover quarantine, recipient roster integrity, monotonic terminal
+states, generation fencing, armed crash/cancellation recovery, and fail-closed
+cross-table corruption. Poisoned negative, inverted, and negative maximum
+retry counters are also exercised. The
 delivery worker may call Redis acknowledgement only after the PostgreSQL
 terminal-state transaction commits. The Redis and database primitives remain
 unwired to SMTP until that complete ordering is implemented together.

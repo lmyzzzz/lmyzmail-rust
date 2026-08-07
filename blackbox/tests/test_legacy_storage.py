@@ -72,6 +72,7 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "smtp-command-control-byte-reflection",
         "smtp-fragmented-overlong-double-error",
         "outbound-starttls-hostname-verification",
+        "outbound-smtp-commit-ambiguity-no-retry",
     }
     starttls = next(
         entry
@@ -89,6 +90,14 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
     assert bdat_stall["candidate_requirement"].startswith(
         "For a valid EHLO session receiving coalesced MAIL"
     )
+    commit_ambiguity = by_id["outbound-smtp-commit-ambiguity-no-retry"]
+    assert commit_ambiguity["evidence"]["sender_source_sha256"] == (
+        "c7f10f2416ae308335e9f6f77ffe00140b64904b0b2e8dc7eb04ed74394c603e"
+    )
+    assert commit_ambiguity["evidence"]["recovery_source_sha256"] == (
+        "f9abffe3fbc98e314db34fcf38d894fd200d93ad74ff933f2c0f57e2717f1bf4"
+    )
+    assert "stale pre-upgrade PROCESSING row" in commit_ambiguity["candidate_requirement"]
 
 
 def test_postgres_seed_is_structurally_valid_postgres_sql() -> None:

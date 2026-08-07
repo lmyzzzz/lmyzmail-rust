@@ -46,6 +46,10 @@ Outbound HTTP currently covers durable PostgreSQL admission, sender-scoped and
 API status lookup, and quota reporting. A `202` response is emitted only after a
 complete `PENDING` row commits; PostgreSQL advisory locks make queue-depth and
 per-sender quota decisions atomic, and password verification runs behind a
-bounded blocking-work permit. Redis queue interoperability, MIME/DKIM and Sent
-Maildir creation, and the outbound SMTP worker remain the next vertical module,
-so this milestone is not yet a complete production replacement.
+bounded blocking-work permit. The next outbound layer now includes fenced
+legacy Redis queue claims with reverse-token recovery, a PostgreSQL per-recipient
+commit ledger, and a streaming SMTP adapter with a durable pre-terminator
+barrier. These primitives are integration-tested but are not yet wired into a
+production worker: DNS/MX and MTA-STS routing, MIME/DKIM and Sent Maildir
+creation, and the coordinator remain the next vertical module. This milestone
+is not yet a complete production replacement.

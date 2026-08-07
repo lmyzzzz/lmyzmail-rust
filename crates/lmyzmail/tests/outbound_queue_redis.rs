@@ -3,16 +3,24 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
-    net::{TcpListener, TcpStream},
+    io::{Read, Write},
+    net::{Shutdown, TcpListener, TcpStream},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    thread::{self, JoinHandle},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use deadpool_redis::redis;
 use lmyzmail::{
     config::{Properties, RuntimeConfig},
-    outbound_queue::{DomainStatus, LegacyOutboundQueue, QueueClaim, QueueError, TaskDetail},
+    outbound_queue::{
+        ClaimReconciliation, DomainStatus, LegacyOutboundQueue, QueueClaim, QueueError, TaskDetail,
+    },
     redis::create_pool,
 };
 
@@ -20,6 +28,108 @@ struct RedisProcess {
     child: Child,
     directory: PathBuf,
     port: u16,
+}
+
+struct DropResponseProxy {
+    port: u16,
+    response_dropped: Arc<AtomicBool>,
+    thread: Option<JoinHandle<()>>,
+}
+
+impl DropResponseProxy {
+    fn start(upstream_port: u16, request_marker: &'static [u8]) -> Self {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let should_drop = Arc::new(AtomicBool::new(false));
+        let response_dropped = Arc::new(AtomicBool::new(false));
+        let drop_signal = should_drop.clone();
+        let dropped_signal = response_dropped.clone();
+        let thread = thread::spawn(move || {
+            let (client, _) = listener.accept().unwrap();
+            client.set_nodelay(true).unwrap();
+            client
+                .set_read_timeout(Some(Duration::from_secs(15)))
+                .unwrap();
+            let upstream = TcpStream::connect(("127.0.0.1", upstream_port)).unwrap();
+            upstream.set_nodelay(true).unwrap();
+            upstream
+                .set_read_timeout(Some(Duration::from_secs(15)))
+                .unwrap();
+
+            let mut client_reader = client.try_clone().unwrap();
+            let mut upstream_writer = upstream.try_clone().unwrap();
+            let forward = thread::spawn(move || {
+                let mut buffer = [0_u8; 16 * 1024];
+                let mut tail = Vec::new();
+                loop {
+                    let read = match client_reader.read(&mut buffer) {
+                        Ok(0) | Err(_) => break,
+                        Ok(read) => read,
+                    };
+                    if !drop_signal.load(Ordering::Acquire) {
+                        let mut observed = Vec::with_capacity(tail.len() + read);
+                        observed.extend_from_slice(&tail);
+                        observed.extend_from_slice(&buffer[..read]);
+                        if observed
+                            .windows(request_marker.len())
+                            .any(|window| window == request_marker)
+                        {
+                            drop_signal.store(true, Ordering::Release);
+                        }
+                        let keep = request_marker.len().saturating_sub(1).min(observed.len());
+                        tail.clear();
+                        tail.extend_from_slice(&observed[observed.len() - keep..]);
+                    }
+                    if upstream_writer.write_all(&buffer[..read]).is_err() {
+                        break;
+                    }
+                }
+            });
+
+            let mut upstream_reader = upstream;
+            let mut client_writer = client;
+            let mut buffer = [0_u8; 16 * 1024];
+            loop {
+                let read = match upstream_reader.read(&mut buffer) {
+                    Ok(0) | Err(_) => break,
+                    Ok(read) => read,
+                };
+                if should_drop.load(Ordering::Acquire) {
+                    dropped_signal.store(true, Ordering::Release);
+                    let _ = client_writer.shutdown(Shutdown::Both);
+                    let _ = upstream_reader.shutdown(Shutdown::Both);
+                    break;
+                }
+                if client_writer.write_all(&buffer[..read]).is_err() {
+                    break;
+                }
+            }
+            let _ = forward.join();
+        });
+        Self {
+            port,
+            response_dropped,
+            thread: Some(thread),
+        }
+    }
+
+    fn port(&self) -> u16 {
+        self.port
+    }
+
+    fn wait(mut self) {
+        self.thread.take().unwrap().join().unwrap();
+        assert!(
+            self.response_dropped.load(Ordering::Acquire),
+            "proxy did not observe and drop the targeted Redis response"
+        );
+    }
+}
+
+impl Drop for DropResponseProxy {
+    fn drop(&mut self) {
+        let _ = self.thread.take();
+    }
 }
 
 impl RedisProcess {
@@ -177,6 +287,18 @@ fn now_millis() -> i64 {
             .as_millis(),
     )
     .unwrap()
+}
+
+fn pool_at(port: u16) -> deadpool_redis::Pool {
+    let mut properties = Properties::default();
+    properties
+        .insert("lmyzmail.redis.host".into(), "127.0.0.1".into())
+        .unwrap();
+    properties
+        .insert("lmyzmail.redis.port".into(), port.to_string())
+        .unwrap();
+    let config = RuntimeConfig::from_properties(properties).unwrap();
+    create_pool(&config).unwrap()
 }
 
 #[tokio::test]
@@ -798,4 +920,375 @@ async fn domain_statuses_are_bounded_validated_and_lease_fenced() {
             .unwrap();
         assert_eq!(exists, 0);
     }
+}
+
+#[tokio::test]
+async fn reconciliation_validates_every_claim_component() {
+    let process = RedisProcess::start();
+    let pool = pool_at(process.port());
+    let queue = LegacyOutboundQueue::new(pool.clone());
+    let id = 9_007_199_254_741_200_i64;
+    let token = "reconcile:component-check";
+    let claimed_at = now_millis();
+    assert!(queue.publish(&task(id), &domains()).await.unwrap());
+    let claim = queue
+        .claim_next(token, Duration::from_secs(30), claimed_at)
+        .await
+        .unwrap()
+        .unwrap();
+
+    let active = match queue.reconcile_claim(token).await.unwrap() {
+        ClaimReconciliation::Active(active) => active,
+        result => panic!("expected active reconciliation, got {result:?}"),
+    };
+    assert_eq!(active.claim, claim);
+    assert_eq!(active.processing_time_epoch_millis, claimed_at);
+    assert!((1..=30_000).contains(&active.lease_ttl_millis));
+    assert_eq!(
+        queue.reconcile_claim("reconcile:absent").await.unwrap(),
+        ClaimReconciliation::NotFound
+    );
+
+    let attempt_key = format!("lmyzmail:mail:queue:attempt:{token}");
+    let lease_key = format!("lmyzmail:mail:queue:lease:{id}");
+    let task_key = format!("botmail:mail:queue:task:{id}");
+    let original_task_json = serde_json::to_string(claim.task.as_ref().unwrap()).unwrap();
+    {
+        let mut connection = pool.get().await.unwrap();
+        let _: String = redis::cmd("SET")
+            .arg(&task_key)
+            .arg("{broken-json")
+            .arg("EX")
+            .arg(60)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+    }
+    assert_eq!(
+        queue.reconcile_claim(token).await.unwrap(),
+        ClaimReconciliation::Inconsistent
+    );
+    {
+        let mut connection = pool.get().await.unwrap();
+        let _: String = redis::cmd("SET")
+            .arg(&task_key)
+            .arg(&original_task_json)
+            .arg("EX")
+            .arg(60)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        let _: i64 = redis::cmd("HSET")
+            .arg("botmail:mail:queue:processing_time")
+            .arg(id)
+            .arg("not-a-time")
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+    }
+    assert_eq!(
+        queue.reconcile_claim(token).await.unwrap(),
+        ClaimReconciliation::Inconsistent
+    );
+    {
+        let mut connection = pool.get().await.unwrap();
+        let _: i64 = redis::cmd("HSET")
+            .arg("botmail:mail:queue:processing_time")
+            .arg(id)
+            .arg(claimed_at)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        let _: i64 = redis::cmd("SREM")
+            .arg("botmail:mail:queue:processing")
+            .arg(id)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+    }
+    assert_eq!(
+        queue.reconcile_claim(token).await.unwrap(),
+        ClaimReconciliation::Inconsistent
+    );
+    {
+        let mut connection = pool.get().await.unwrap();
+        let _: i64 = redis::cmd("SADD")
+            .arg("botmail:mail:queue:processing")
+            .arg(id)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        let _: String = redis::cmd("SET")
+            .arg(&lease_key)
+            .arg("forged-token")
+            .arg("PX")
+            .arg(30_000)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+    }
+    assert_eq!(
+        queue.reconcile_claim(token).await.unwrap(),
+        ClaimReconciliation::Inconsistent
+    );
+    {
+        let mut connection = pool.get().await.unwrap();
+        let _: String = redis::cmd("SET")
+            .arg(&lease_key)
+            .arg(token)
+            .arg("PX")
+            .arg(30_000)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        let _: String = redis::cmd("SET")
+            .arg(&attempt_key)
+            .arg(id + 1)
+            .arg("PX")
+            .arg(30_000)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+    }
+    assert_eq!(
+        queue.reconcile_claim(token).await.unwrap(),
+        ClaimReconciliation::Inconsistent
+    );
+    {
+        let mut connection = pool.get().await.unwrap();
+        let _: String = redis::cmd("SET")
+            .arg(&attempt_key)
+            .arg(id)
+            .arg("PX")
+            .arg(30_000)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+    }
+    assert!(
+        queue
+            .renew_claim(&claim, Duration::from_secs(30), now_millis())
+            .await
+            .unwrap()
+    );
+    assert!(matches!(
+        queue.reconcile_claim(token).await.unwrap(),
+        ClaimReconciliation::Active(_)
+    ));
+    assert!(queue.acknowledge(&claim).await.unwrap());
+    assert_eq!(
+        queue.reconcile_claim(token).await.unwrap(),
+        ClaimReconciliation::NotFound
+    );
+}
+
+#[tokio::test]
+async fn committed_mutations_with_dropped_responses_are_reconcilable() {
+    let process = RedisProcess::start();
+    let pool = pool_at(process.port());
+    let queue = LegacyOutboundQueue::new(pool.clone());
+
+    let claim_id = 9_007_199_254_741_300_i64;
+    let claim_token = "loss:claim";
+    assert!(queue.publish(&task(claim_id), &domains()).await.unwrap());
+    let claim_proxy = DropResponseProxy::start(
+        process.port(),
+        b"local task_id = redis.call('LPOP', KEYS[1])",
+    );
+    let lossy_queue = LegacyOutboundQueue::new(pool_at(claim_proxy.port()));
+    assert_eq!(
+        lossy_queue
+            .claim_next(claim_token, Duration::from_secs(30), now_millis())
+            .await
+            .unwrap_err(),
+        QueueError::OutcomeUnknown
+    );
+    drop(lossy_queue);
+    claim_proxy.wait();
+    let claim = match queue.reconcile_claim(claim_token).await.unwrap() {
+        ClaimReconciliation::Active(active) => active.claim,
+        result => panic!("dropped claim response was not reconcilable: {result:?}"),
+    };
+    assert_eq!(claim.task_id, claim_id);
+    assert_eq!(
+        queue
+            .claim_next(claim_token, Duration::from_secs(30), now_millis())
+            .await
+            .unwrap_err(),
+        QueueError::AttemptTokenInUse
+    );
+    assert!(queue.acknowledge(&claim).await.unwrap());
+
+    let renew_id = claim_id + 1;
+    let renew_token = "loss:renew";
+    assert!(queue.publish(&task(renew_id), &domains()).await.unwrap());
+    let renew_claim = queue
+        .claim_next(renew_token, Duration::from_secs(5), now_millis())
+        .await
+        .unwrap()
+        .unwrap();
+    let renewed_at = now_millis() + 10;
+    let renew_proxy =
+        DropResponseProxy::start(process.port(), b"local attempt_key = ARGV[9] .. ARGV[2]");
+    let lossy_queue = LegacyOutboundQueue::new(pool_at(renew_proxy.port()));
+    assert_eq!(
+        lossy_queue
+            .renew_claim(&renew_claim, Duration::from_secs(30), renewed_at)
+            .await
+            .unwrap_err(),
+        QueueError::OutcomeUnknown
+    );
+    drop(lossy_queue);
+    renew_proxy.wait();
+    let renewed = match queue.reconcile_claim(renew_token).await.unwrap() {
+        ClaimReconciliation::Active(active) => active,
+        result => panic!("dropped renew response was not reconcilable: {result:?}"),
+    };
+    assert_eq!(renewed.processing_time_epoch_millis, renewed_at);
+    assert!(renewed.lease_ttl_millis > 20_000);
+    assert!(queue.acknowledge(&renew_claim).await.unwrap());
+
+    let retry_id = claim_id + 2;
+    let retry_token = "loss:retry";
+    assert!(queue.publish(&task(retry_id), &domains()).await.unwrap());
+    let retry_claim = queue
+        .claim_next(retry_token, Duration::from_secs(30), now_millis())
+        .await
+        .unwrap()
+        .unwrap();
+    let mut retry_task = retry_claim.task.clone().unwrap();
+    retry_task.retry_count = 1;
+    retry_task.next_retry_at = Some("2026-08-07T00:00:30Z".into());
+    let retry_at = now_millis() + 30_000;
+    let retry_proxy = DropResponseProxy::start(
+        process.port(),
+        b"redis.call('ZADD', KEYS[4], tonumber(ARGV[4]) / 1000, task_id)",
+    );
+    let lossy_queue = LegacyOutboundQueue::new(pool_at(retry_proxy.port()));
+    assert_eq!(
+        lossy_queue
+            .schedule_retry(&retry_claim, &retry_task, retry_at)
+            .await
+            .unwrap_err(),
+        QueueError::OutcomeUnknown
+    );
+    drop(lossy_queue);
+    retry_proxy.wait();
+    assert_eq!(
+        queue.reconcile_claim(retry_token).await.unwrap(),
+        ClaimReconciliation::NotFound
+    );
+    {
+        let mut connection = pool.get().await.unwrap();
+        let retry_score: Option<f64> = redis::cmd("ZSCORE")
+            .arg("botmail:mail:queue:retry")
+            .arg(retry_id)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        let attempt_exists: i64 = redis::cmd("EXISTS")
+            .arg(format!("lmyzmail:mail:queue:attempt:{retry_token}"))
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        let queued_json: String = redis::cmd("GET")
+            .arg(format!("botmail:mail:queue:task:{retry_id}"))
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        let queued: TaskDetail = serde_json::from_str(&queued_json).unwrap();
+        assert!(retry_score.is_some());
+        assert_eq!(attempt_exists, 0);
+        assert_eq!(queued.retry_count, 1);
+    }
+
+    let ack_id = claim_id + 3;
+    let ack_token = "loss:ack";
+    assert!(queue.publish(&task(ack_id), &domains()).await.unwrap());
+    let ack_claim = queue
+        .claim_next(ack_token, Duration::from_secs(30), now_millis())
+        .await
+        .unwrap()
+        .unwrap();
+    let ack_proxy =
+        DropResponseProxy::start(process.port(), b"redis.call('DEL', ARGV[4] .. task_id)");
+    let lossy_queue = LegacyOutboundQueue::new(pool_at(ack_proxy.port()));
+    assert_eq!(
+        lossy_queue.acknowledge(&ack_claim).await.unwrap_err(),
+        QueueError::OutcomeUnknown
+    );
+    drop(lossy_queue);
+    ack_proxy.wait();
+    assert_eq!(
+        queue.reconcile_claim(ack_token).await.unwrap(),
+        ClaimReconciliation::NotFound
+    );
+    {
+        let mut connection = pool.get().await.unwrap();
+        let task_exists: i64 = redis::cmd("EXISTS")
+            .arg(format!("botmail:mail:queue:task:{ack_id}"))
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        let processing: i64 = redis::cmd("SISMEMBER")
+            .arg("botmail:mail:queue:processing")
+            .arg(ack_id)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        assert_eq!((task_exists, processing), (0, 0));
+    }
+
+    let release_id = claim_id + 4;
+    let release_token = "loss:release";
+    assert!(queue.publish(&task(release_id), &domains()).await.unwrap());
+    let release_claim = queue
+        .claim_next(release_token, Duration::from_secs(30), now_millis())
+        .await
+        .unwrap()
+        .unwrap();
+    let release_proxy = DropResponseProxy::start(process.port(), b"if ARGV[3] == '1'");
+    let lossy_queue = LegacyOutboundQueue::new(pool_at(release_proxy.port()));
+    assert_eq!(
+        lossy_queue
+            .release_claim(&release_claim, true)
+            .await
+            .unwrap_err(),
+        QueueError::OutcomeUnknown
+    );
+    drop(lossy_queue);
+    release_proxy.wait();
+    assert_eq!(
+        queue.reconcile_claim(release_token).await.unwrap(),
+        ClaimReconciliation::NotFound
+    );
+    {
+        let mut connection = pool.get().await.unwrap();
+        let pending_position: Option<i64> = redis::cmd("LPOS")
+            .arg("botmail:mail:queue:pending")
+            .arg(release_id)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        let attempt_exists: i64 = redis::cmd("EXISTS")
+            .arg(format!("lmyzmail:mail:queue:attempt:{release_token}"))
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        assert!(pending_position.is_some());
+        assert_eq!(attempt_exists, 0);
+    }
+
+    let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+    let unavailable_port = listener.local_addr().unwrap().port();
+    drop(listener);
+    let unavailable_queue = LegacyOutboundQueue::new(pool_at(unavailable_port));
+    assert_eq!(
+        unavailable_queue
+            .claim_next("loss:before-connect", Duration::from_secs(30), now_millis())
+            .await
+            .unwrap_err(),
+        QueueError::Unavailable,
+        "failure before a Redis connection exists must not be OutcomeUnknown"
+    );
 }

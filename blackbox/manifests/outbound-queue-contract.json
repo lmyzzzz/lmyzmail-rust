@@ -51,13 +51,18 @@
       "key": "lmyzmail:mail:queue:lease:<id>",
       "type": "string-token",
       "ttl": "per-claim",
-      "claim": ["lpop:pending", "set:nx:px", "sadd:processing", "hset:processing_time"],
-      "renew": ["compare-token", "pexpire", "hset:processing_time", "expire:task-and-domains"],
+      "attempt_key": "lmyzmail:mail:queue:attempt:<token>",
+      "attempt_value": "task-id",
+      "claim": ["reject-reused-attempt", "lpop:pending", "set:nx:px", "set:attempt-to-task:px", "sadd:processing", "hset:processing_time"],
+      "renew": ["compare-token", "compare-attempt", "pexpire", "pexpire-attempt", "hset:processing_time", "expire:task-and-domains"],
+      "reconcile": ["bounded-attempt-task", "compare-token", "verify:processing", "bounded-processing-time", "bounded-task-json", "compare-lease-ttls"],
+      "release": ["compare-token", "compare-attempt", "del:lease-and-attempt", "srem:processing", "hdel:processing_time", "rpush:pending"],
       "domain_read": ["compare-token", "verify:processing", "hlen:expected", "hstrlen:all", "hget:expected", "validate-all"],
       "domain_update": ["compare-token", "verify:processing", "hlen:expected", "hstrlen:all", "validate-all", "hset-updates", "expire:domains"],
-      "retry": ["compare-token", "set:task", "srem:processing", "hdel:processing_time", "zadd:retry"],
-      "acknowledge": ["compare-token", "srem:processing", "hdel:processing_time", "zrem:retry", "del:task"],
-      "expired_recovery": ["verify-lease-absent", "srem:processing", "hdel:processing_time", "rpush:pending"]
+      "retry": ["compare-token", "compare-attempt", "set:task", "del:lease-and-attempt", "srem:processing", "hdel:processing_time", "zadd:retry"],
+      "acknowledge": ["compare-token", "compare-attempt", "del:lease-and-attempt", "srem:processing", "hdel:processing_time", "zrem:retry", "del:task"],
+      "expired_recovery": ["verify-lease-absent", "srem:processing", "hdel:processing_time", "rpush:pending"],
+      "post_send_mutation_failure": "outcome-unknown"
     }
   },
   "smtp_adapter": {
@@ -88,6 +93,7 @@
     "claim_nonce_bits": 128,
     "caller_generated_attempt_token": true,
     "claim_unknown_snapshot_by_attempt": true,
+    "claim_unknown_reconcile": "owner-token-row-read",
     "owner_compared_operations": ["heartbeat", "release", "retry", "terminal"],
     "terminal_statuses": ["SENT", "PARTIAL_SUCCESS", "FAILED"],
     "operation_timeout_seconds": 8,
@@ -97,8 +103,29 @@
     "mutation_timeout": "outcome-unknown-requires-snapshot",
     "mutation_fault_injection": ["claim", "retry", "terminal"],
     "null_legacy_heartbeat_recoverable": true,
+    "sidecarless_expired_recovery": "ambiguous-terminal",
+    "commit_barrier_corruption": "fail-closed",
     "last_error_truncation": "1000-utf16-code-units-plus-ellipsis",
     "legacy_schema_integration_test": true
+  },
+  "postgres_recipient_ledger": {
+    "migration": "crates/lmyzmail/migrations/001_outbound_delivery_ledger.sql",
+    "legacy_columns_changed": false,
+    "tables": ["lmyzmail_outbound_delivery_attempt", "lmyzmail_outbound_delivery_recipient"],
+    "recipient_identity": ["task_id", "recipient_ordinal", "recipient_address"],
+    "states": ["PENDING", "RETRYABLE", "PERMANENT", "COMMIT_ARMED", "DELIVERED", "AMBIGUOUS"],
+    "terminal_states": ["PERMANENT", "DELIVERED", "AMBIGUOUS"],
+    "attempt_fence": ["owner_token", "generation"],
+    "roster_integrity": ["recipient_count", "sha256"],
+    "migration_lock": "postgres-advisory-xact-lock",
+    "commit_barrier": "accepted-recipients-to-commit-armed-before-smtp-terminator",
+    "armed_recovery": "ambiguous",
+    "sidecarless_takeover": "ambiguous",
+    "commit_barrier_corruption": "fail-closed",
+    "partial_rcpt_retry": "retryable-recipients-only",
+    "ambiguous_auto_retry": false,
+    "ambiguous_dsn": false,
+    "legacy_projection": ["SENT", "PARTIAL_SUCCESS", "FAILED"]
   },
   "requirements": {
     "legacy_key_interop": true,
@@ -113,7 +140,12 @@
     "dsn_on_permanent_failure": true,
     "pinned_and_filtered_mx_address": true,
     "bounded_incremental_smtp_io": true,
-    "post_data_ambiguity_preserved": true
+    "post_data_ambiguity_preserved": true,
+    "durable_recipient_ledger": true,
+    "ambiguous_auto_retry_disabled": true,
+    "ambiguous_dsn_disabled": true,
+    "redis_mutations_classify_outcome_unknown": true,
+    "sidecarless_processing_recovery_ambiguous": true
   },
   "observed_legacy_gaps": [
     "archive-lpop-before-postgres-commit",

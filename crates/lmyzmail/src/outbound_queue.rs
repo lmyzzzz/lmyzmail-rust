@@ -16,12 +16,16 @@ const RETRY_KEY: &str = "botmail:mail:queue:retry";
 const SEQUENCE_KEY: &str = "botmail:mail:queue:seq";
 const SENT_FILE_INDEX_KEY: &str = "botmail:mail:queue:sentfile_index";
 const LEASE_PREFIX: &str = "lmyzmail:mail:queue:lease:";
+const ATTEMPT_PREFIX: &str = "lmyzmail:mail:queue:attempt:";
 const TASK_TTL_SECONDS: u64 = 7 * 24 * 60 * 60;
 const POOL_TIMEOUT: Duration = Duration::from_secs(5);
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
 const MIN_LEASE_MILLIS: u64 = 1_000;
 const MAX_LEASE_MILLIS: u64 = 60 * 60 * 1_000;
 const MAX_LEASE_TOKEN_BYTES: usize = 256;
+const MAX_TASK_ID_BYTES: usize = 19;
+const MAX_PROCESSING_TIME_BYTES: usize = 20;
+const MAX_TASK_JSON_BYTES: usize = 2 * 1024 * 1024;
 const MAX_DOMAIN_STATUSES: usize = 1_000;
 const MAX_DOMAIN_RECIPIENTS: usize = 1_000;
 const MAX_DOMAIN_BYTES: usize = 253;
@@ -173,6 +177,11 @@ return 1
 "#;
 
 const CLAIM_SCRIPT: &str = r#"
+local attempt_key = ARGV[8] .. ARGV[1]
+if redis.call('TYPE', attempt_key).ok ~= 'none' then
+  return {'', '', '2'}
+end
+
 local task_id = redis.call('LPOP', KEYS[1])
 if not task_id then return {} end
 
@@ -182,6 +191,7 @@ if not acquired then
   return {task_id, '', '0'}
 end
 
+redis.call('SET', attempt_key, task_id, 'PX', ARGV[2])
 redis.call('SADD', KEYS[2], task_id)
 redis.call('HSET', KEYS[3], task_id, ARGV[3])
 local task_key = ARGV[5] .. task_id
@@ -196,9 +206,12 @@ const RENEW_CLAIM_SCRIPT: &str = r#"
 local task_id = ARGV[1]
 local lease_key = ARGV[5] .. task_id
 if redis.call('GET', lease_key) ~= ARGV[2] then return 0 end
+local attempt_key = ARGV[9] .. ARGV[2]
+if redis.call('GET', attempt_key) ~= task_id then return 0 end
 if redis.call('SISMEMBER', KEYS[1], task_id) ~= 1 then return 0 end
 
 redis.call('PEXPIRE', lease_key, ARGV[3])
+redis.call('PEXPIRE', attempt_key, ARGV[3])
 redis.call('HSET', KEYS[2], task_id, ARGV[4])
 local task_key = ARGV[6] .. task_id
 local domain_key = ARGV[7] .. task_id
@@ -211,8 +224,10 @@ const RELEASE_CLAIM_SCRIPT: &str = r#"
 local task_id = ARGV[1]
 local lease_key = ARGV[4] .. task_id
 if redis.call('GET', lease_key) ~= ARGV[2] then return 0 end
+local attempt_key = ARGV[5] .. ARGV[2]
+if redis.call('GET', attempt_key) ~= task_id then return 0 end
 
-redis.call('DEL', lease_key)
+redis.call('DEL', lease_key, attempt_key)
 redis.call('SREM', KEYS[2], task_id)
 redis.call('HDEL', KEYS[3], task_id)
 if ARGV[3] == '1'
@@ -227,10 +242,12 @@ const SCHEDULE_RETRY_SCRIPT: &str = r#"
 local task_id = ARGV[1]
 local lease_key = ARGV[6] .. task_id
 if redis.call('GET', lease_key) ~= ARGV[2] then return 0 end
+local attempt_key = ARGV[8] .. ARGV[2]
+if redis.call('GET', attempt_key) ~= task_id then return 0 end
 
 local task_key = ARGV[7] .. task_id
 redis.call('SET', task_key, ARGV[3], 'EX', ARGV[5])
-redis.call('DEL', lease_key)
+redis.call('DEL', lease_key, attempt_key)
 redis.call('SREM', KEYS[2], task_id)
 redis.call('HDEL', KEYS[3], task_id)
 redis.call('LREM', KEYS[1], 0, task_id)
@@ -242,14 +259,59 @@ const ACKNOWLEDGE_SCRIPT: &str = r#"
 local task_id = ARGV[1]
 local lease_key = ARGV[3] .. task_id
 if redis.call('GET', lease_key) ~= ARGV[2] then return 0 end
+local attempt_key = ARGV[5] .. ARGV[2]
+if redis.call('GET', attempt_key) ~= task_id then return 0 end
 
-redis.call('DEL', lease_key)
+redis.call('DEL', lease_key, attempt_key)
 redis.call('SREM', KEYS[2], task_id)
 redis.call('HDEL', KEYS[3], task_id)
 redis.call('LREM', KEYS[1], 0, task_id)
 redis.call('ZREM', KEYS[4], task_id)
 redis.call('DEL', ARGV[4] .. task_id)
 return 1
+"#;
+
+const RECONCILE_CLAIM_SCRIPT: &str = r#"
+local attempt_key = KEYS[1]
+local attempt_type = redis.call('TYPE', attempt_key).ok
+if attempt_type == 'none' then return {'NOT_FOUND'} end
+if attempt_type ~= 'string' then return {'INCONSISTENT'} end
+
+local task_id_bytes = redis.call('STRLEN', attempt_key)
+if task_id_bytes < 1 or task_id_bytes > tonumber(ARGV[4]) then
+  return {'INCONSISTENT'}
+end
+local task_id = redis.call('GET', attempt_key)
+if not string.match(task_id, '^[1-9][0-9]*$') then return {'INCONSISTENT'} end
+
+local lease_key = ARGV[2] .. task_id
+if redis.call('TYPE', lease_key).ok ~= 'string'
+  or redis.call('STRLEN', lease_key) > tonumber(ARGV[5])
+  or redis.call('GET', lease_key) ~= ARGV[1]
+  or redis.call('SISMEMBER', KEYS[2], task_id) ~= 1 then
+  return {'INCONSISTENT'}
+end
+
+local processing_time_bytes = redis.call('HSTRLEN', KEYS[3], task_id)
+if processing_time_bytes < 1 or processing_time_bytes > tonumber(ARGV[6]) then
+  return {'INCONSISTENT'}
+end
+local processing_time = redis.call('HGET', KEYS[3], task_id)
+if not string.match(processing_time, '^[1-9][0-9]*$') then
+  return {'INCONSISTENT'}
+end
+
+local task_key = ARGV[3] .. task_id
+if redis.call('TYPE', task_key).ok ~= 'string' then return {'INCONSISTENT'} end
+local task_json_bytes = redis.call('STRLEN', task_key)
+if task_json_bytes < 1 or task_json_bytes > tonumber(ARGV[7]) then
+  return {'INCONSISTENT'}
+end
+local task_json = redis.call('GET', task_key)
+local lease_ttl = redis.call('PTTL', lease_key)
+local attempt_ttl = redis.call('PTTL', attempt_key)
+if lease_ttl < 1 or attempt_ttl ~= lease_ttl then return {'INCONSISTENT'} end
+return {'ACTIVE', task_id, processing_time, task_json, tostring(lease_ttl)}
 "#;
 
 const MOVE_DUE_RETRIES_SCRIPT: &str = r#"
@@ -501,10 +563,12 @@ pub struct LegacyOutboundQueue {
 #[derive(Debug, Eq, PartialEq)]
 pub enum QueueError {
     InvalidTask(&'static str),
+    AttemptTokenInUse,
     StaleClaim,
     MissingDomainStatuses,
     CorruptDomainStatuses,
     Unavailable,
+    OutcomeUnknown,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -512,6 +576,20 @@ pub struct QueueClaim {
     pub task_id: i64,
     pub lease_token: String,
     pub task: Option<TaskDetail>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReconciledClaim {
+    pub claim: QueueClaim,
+    pub processing_time_epoch_millis: i64,
+    pub lease_ttl_millis: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ClaimReconciliation {
+    NotFound,
+    Active(Box<ReconciledClaim>),
+    Inconsistent,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -524,6 +602,7 @@ impl fmt::Display for QueueError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidTask(message) => formatter.write_str(message),
+            Self::AttemptTokenInUse => formatter.write_str("outbound attempt token is in use"),
             Self::StaleClaim => formatter.write_str("outbound queue claim is stale"),
             Self::MissingDomainStatuses => {
                 formatter.write_str("outbound domain statuses are missing")
@@ -532,6 +611,9 @@ impl fmt::Display for QueueError {
                 formatter.write_str("outbound domain statuses are corrupt")
             }
             Self::Unavailable => formatter.write_str("Redis outbound queue unavailable"),
+            Self::OutcomeUnknown => formatter.write_str(
+                "Redis outbound queue mutation outcome is unknown and requires reconciliation",
+            ),
         }
     }
 }
@@ -611,7 +693,7 @@ impl LegacyOutboundQueue {
         }
         let mut connection = self.connection().await?;
         let id: i64 = self
-            .query(
+            .mutation_query(
                 redis::cmd("EVAL")
                     .arg(RESERVE_ID_SCRIPT)
                     .arg(1)
@@ -689,7 +771,7 @@ impl LegacyOutboundQueue {
                 .arg(serde_json::to_string(status).map_err(|_| QueueError::Unavailable)?);
         }
         let mut connection = self.connection().await?;
-        let created: i64 = self.query(&mut command, &mut connection).await?;
+        let created: i64 = self.mutation_query(&mut command, &mut connection).await?;
         Ok(created == 1)
     }
 
@@ -699,7 +781,7 @@ impl LegacyOutboundQueue {
         }
         let id = task_id.to_string();
         let mut connection = self.connection().await?;
-        self.query(
+        self.mutation_query(
             redis::cmd("EVAL")
                 .arg(RENEW_SCRIPT)
                 .arg(5)
@@ -728,7 +810,7 @@ impl LegacyOutboundQueue {
         let id = task_id.to_string();
         let mut connection = self.connection().await?;
         let complete: i64 = self
-            .query(
+            .mutation_query(
                 redis::cmd("EVAL")
                     .arg(COMPLETE_TASK_SCRIPT)
                     .arg(6)
@@ -756,7 +838,7 @@ impl LegacyOutboundQueue {
         validate_lease(lease_token, lease_duration, now_epoch_millis)?;
         let mut connection = self.connection().await?;
         let values: Vec<String> = self
-            .query(
+            .mutation_query(
                 redis::cmd("EVAL")
                     .arg(CLAIM_SCRIPT)
                     .arg(3)
@@ -769,7 +851,8 @@ impl LegacyOutboundQueue {
                     .arg(LEASE_PREFIX)
                     .arg(format!("{KEY_PREFIX}task:"))
                     .arg(format!("{KEY_PREFIX}domains:"))
-                    .arg(TASK_TTL_SECONDS),
+                    .arg(TASK_TTL_SECONDS)
+                    .arg(ATTEMPT_PREFIX),
                 &mut connection,
             )
             .await?;
@@ -777,9 +860,12 @@ impl LegacyOutboundQueue {
             return Ok(None);
         }
         if values.len() != 3 {
-            return Err(QueueError::Unavailable);
+            return Err(QueueError::OutcomeUnknown);
         }
-        let task_id = parse_task_id(&values[0])?;
+        if values[2] == "2" {
+            return Err(QueueError::AttemptTokenInUse);
+        }
+        let task_id = parse_task_id(&values[0]).map_err(|_| QueueError::OutcomeUnknown)?;
         if values[2] != "1" {
             return Ok(None);
         }
@@ -787,9 +873,9 @@ impl LegacyOutboundQueue {
             None
         } else {
             let task: TaskDetail =
-                serde_json::from_str(&values[1]).map_err(|_| QueueError::Unavailable)?;
+                serde_json::from_str(&values[1]).map_err(|_| QueueError::OutcomeUnknown)?;
             if task.id != task_id {
-                return Err(QueueError::Unavailable);
+                return Err(QueueError::OutcomeUnknown);
             }
             Some(task)
         };
@@ -798,6 +884,72 @@ impl LegacyOutboundQueue {
             lease_token: lease_token.to_owned(),
             task,
         }))
+    }
+
+    pub async fn reconcile_claim(
+        &self,
+        attempt_token: &str,
+    ) -> Result<ClaimReconciliation, QueueError> {
+        validate_lease_token(attempt_token)?;
+        let mut connection = self.connection().await?;
+        let values: Vec<String> = self
+            .query(
+                redis::cmd("EVAL")
+                    .arg(RECONCILE_CLAIM_SCRIPT)
+                    .arg(3)
+                    .arg(format!("{ATTEMPT_PREFIX}{attempt_token}"))
+                    .arg(PROCESSING_KEY)
+                    .arg(PROCESSING_TIME_KEY)
+                    .arg(attempt_token)
+                    .arg(LEASE_PREFIX)
+                    .arg(format!("{KEY_PREFIX}task:"))
+                    .arg(MAX_TASK_ID_BYTES)
+                    .arg(MAX_LEASE_TOKEN_BYTES)
+                    .arg(MAX_PROCESSING_TIME_BYTES)
+                    .arg(MAX_TASK_JSON_BYTES),
+                &mut connection,
+            )
+            .await?;
+        match values.first().map(String::as_str) {
+            Some("NOT_FOUND") if values.len() == 1 => Ok(ClaimReconciliation::NotFound),
+            Some("INCONSISTENT") if values.len() == 1 => Ok(ClaimReconciliation::Inconsistent),
+            Some("ACTIVE") if values.len() == 5 => {
+                let task_id = match parse_task_id(&values[1]) {
+                    Ok(value) => value,
+                    Err(_) => return Ok(ClaimReconciliation::Inconsistent),
+                };
+                let processing_time_epoch_millis =
+                    match values[2].parse::<i64>().ok().filter(|value| *value > 0) {
+                        Some(value) => value,
+                        None => return Ok(ClaimReconciliation::Inconsistent),
+                    };
+                let task: TaskDetail = match serde_json::from_str(&values[3]) {
+                    Ok(value) => value,
+                    Err(_) => return Ok(ClaimReconciliation::Inconsistent),
+                };
+                if task.id != task_id || task.validate().is_err() {
+                    return Ok(ClaimReconciliation::Inconsistent);
+                }
+                let lease_ttl_millis = match values[4]
+                    .parse::<u64>()
+                    .ok()
+                    .filter(|value| *value > 0 && *value <= MAX_LEASE_MILLIS)
+                {
+                    Some(value) => value,
+                    None => return Ok(ClaimReconciliation::Inconsistent),
+                };
+                Ok(ClaimReconciliation::Active(Box::new(ReconciledClaim {
+                    claim: QueueClaim {
+                        task_id,
+                        lease_token: attempt_token.to_owned(),
+                        task: Some(task),
+                    },
+                    processing_time_epoch_millis,
+                    lease_ttl_millis,
+                })))
+            }
+            _ => Err(QueueError::Unavailable),
+        }
     }
 
     pub async fn renew_claim(
@@ -809,7 +961,7 @@ impl LegacyOutboundQueue {
         validate_claim(claim, lease_duration, now_epoch_millis)?;
         let mut connection = self.connection().await?;
         let renewed: i64 = self
-            .query(
+            .mutation_query(
                 redis::cmd("EVAL")
                     .arg(RENEW_CLAIM_SCRIPT)
                     .arg(2)
@@ -822,7 +974,8 @@ impl LegacyOutboundQueue {
                     .arg(LEASE_PREFIX)
                     .arg(format!("{KEY_PREFIX}task:"))
                     .arg(format!("{KEY_PREFIX}domains:"))
-                    .arg(TASK_TTL_SECONDS),
+                    .arg(TASK_TTL_SECONDS)
+                    .arg(ATTEMPT_PREFIX),
                 &mut connection,
             )
             .await?;
@@ -934,7 +1087,7 @@ impl LegacyOutboundQueue {
         }
 
         let mut connection = self.connection().await?;
-        let result: String = self.query(&mut command, &mut connection).await?;
+        let result: String = self.mutation_query(&mut command, &mut connection).await?;
         match result.as_str() {
             "OK" => Ok(()),
             "STALE" => Err(QueueError::StaleClaim),
@@ -952,7 +1105,7 @@ impl LegacyOutboundQueue {
         validate_claim_identity(claim)?;
         let mut connection = self.connection().await?;
         let released: i64 = self
-            .query(
+            .mutation_query(
                 redis::cmd("EVAL")
                     .arg(RELEASE_CLAIM_SCRIPT)
                     .arg(4)
@@ -963,7 +1116,8 @@ impl LegacyOutboundQueue {
                     .arg(claim.task_id)
                     .arg(&claim.lease_token)
                     .arg(i64::from(requeue))
-                    .arg(LEASE_PREFIX),
+                    .arg(LEASE_PREFIX)
+                    .arg(ATTEMPT_PREFIX),
                 &mut connection,
             )
             .await?;
@@ -984,7 +1138,7 @@ impl LegacyOutboundQueue {
         let task_json = serde_json::to_string(task).map_err(|_| QueueError::Unavailable)?;
         let mut connection = self.connection().await?;
         let scheduled: i64 = self
-            .query(
+            .mutation_query(
                 redis::cmd("EVAL")
                     .arg(SCHEDULE_RETRY_SCRIPT)
                     .arg(4)
@@ -998,7 +1152,8 @@ impl LegacyOutboundQueue {
                     .arg(retry_at_epoch_millis)
                     .arg(TASK_TTL_SECONDS)
                     .arg(LEASE_PREFIX)
-                    .arg(format!("{KEY_PREFIX}task:")),
+                    .arg(format!("{KEY_PREFIX}task:"))
+                    .arg(ATTEMPT_PREFIX),
                 &mut connection,
             )
             .await?;
@@ -1009,7 +1164,7 @@ impl LegacyOutboundQueue {
         validate_claim_identity(claim)?;
         let mut connection = self.connection().await?;
         let acknowledged: i64 = self
-            .query(
+            .mutation_query(
                 redis::cmd("EVAL")
                     .arg(ACKNOWLEDGE_SCRIPT)
                     .arg(4)
@@ -1020,7 +1175,8 @@ impl LegacyOutboundQueue {
                     .arg(claim.task_id)
                     .arg(&claim.lease_token)
                     .arg(LEASE_PREFIX)
-                    .arg(format!("{KEY_PREFIX}task:")),
+                    .arg(format!("{KEY_PREFIX}task:"))
+                    .arg(ATTEMPT_PREFIX),
                 &mut connection,
             )
             .await?;
@@ -1037,7 +1193,7 @@ impl LegacyOutboundQueue {
         }
         let mut connection = self.connection().await?;
         let values: Vec<String> = self
-            .query(
+            .mutation_query(
                 redis::cmd("EVAL")
                     .arg(MOVE_DUE_RETRIES_SCRIPT)
                     .arg(3)
@@ -1096,7 +1252,7 @@ impl LegacyOutboundQueue {
         }
         let mut connection = self.connection().await?;
         let recovered: i64 = self
-            .query(
+            .mutation_query(
                 redis::cmd("EVAL")
                     .arg(RECOVER_EXPIRED_CLAIM_SCRIPT)
                     .arg(4)
@@ -1130,6 +1286,17 @@ impl LegacyOutboundQueue {
             .map_err(|_| QueueError::Unavailable)?
             .map_err(|_| QueueError::Unavailable)
     }
+
+    async fn mutation_query<T: redis::FromRedisValue>(
+        &self,
+        command: &mut redis::Cmd,
+        connection: &mut deadpool_redis::Connection,
+    ) -> Result<T, QueueError> {
+        timeout(COMMAND_TIMEOUT, command.query_async(connection))
+            .await
+            .map_err(|_| QueueError::OutcomeUnknown)?
+            .map_err(|_| QueueError::OutcomeUnknown)
+    }
 }
 
 fn validate_lease(
@@ -1137,17 +1304,22 @@ fn validate_lease(
     lease_duration: Duration,
     now_epoch_millis: i64,
 ) -> Result<(), QueueError> {
+    validate_lease_token(lease_token)?;
+    let lease_millis = u64::try_from(lease_duration.as_millis())
+        .map_err(|_| QueueError::InvalidTask("invalid lease duration"))?;
+    if !(MIN_LEASE_MILLIS..=MAX_LEASE_MILLIS).contains(&lease_millis) || now_epoch_millis <= 0 {
+        return Err(QueueError::InvalidTask("invalid lease duration"));
+    }
+    Ok(())
+}
+
+fn validate_lease_token(lease_token: &str) -> Result<(), QueueError> {
     if lease_token.is_empty()
         || lease_token.len() > MAX_LEASE_TOKEN_BYTES
         || !lease_token.is_ascii()
         || lease_token.bytes().any(|value| value.is_ascii_control())
     {
         return Err(QueueError::InvalidTask("invalid lease token"));
-    }
-    let lease_millis = u64::try_from(lease_duration.as_millis())
-        .map_err(|_| QueueError::InvalidTask("invalid lease duration"))?;
-    if !(MIN_LEASE_MILLIS..=MAX_LEASE_MILLIS).contains(&lease_millis) || now_epoch_millis <= 0 {
-        return Err(QueueError::InvalidTask("invalid lease duration"));
     }
     Ok(())
 }

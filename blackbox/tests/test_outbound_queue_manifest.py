@@ -53,15 +53,28 @@ def test_outbound_manifest_binds_frozen_oracle_and_legacy_key_surface() -> None:
     ]
     lease = manifest["redis"]["candidate_lease"]
     assert lease["key"] == "lmyzmail:mail:queue:lease:<id>"
+    assert lease["attempt_key"] == "lmyzmail:mail:queue:attempt:<token>"
+    assert lease["attempt_value"] == "task-id"
     assert lease["type"] == "string-token"
     assert lease["ttl"] == "per-claim"
     assert lease["claim"] == [
+        "reject-reused-attempt",
         "lpop:pending",
         "set:nx:px",
+        "set:attempt-to-task:px",
         "sadd:processing",
         "hset:processing_time",
     ]
-    fenced_operations = ("renew", "retry", "acknowledge")
+    assert lease["reconcile"] == [
+        "bounded-attempt-task",
+        "compare-token",
+        "verify:processing",
+        "bounded-processing-time",
+        "bounded-task-json",
+        "compare-lease-ttls",
+    ]
+    assert lease["post_send_mutation_failure"] == "outcome-unknown"
+    fenced_operations = ("renew", "release", "retry", "acknowledge")
     assert all("compare-token" in lease[operation] for operation in fenced_operations)
     assert lease["expired_recovery"][0] == "verify-lease-absent"
     smtp = manifest["smtp_adapter"]
@@ -82,6 +95,9 @@ def test_outbound_manifest_binds_frozen_oracle_and_legacy_key_surface() -> None:
         "heartbeat_column": "processing_started_at",
         "claim_transition": "PENDING->PROCESSING",
         "claim_nonce_bits": 128,
+        "caller_generated_attempt_token": True,
+        "claim_unknown_snapshot_by_attempt": True,
+        "claim_unknown_reconcile": "owner-token-row-read",
         "owner_compared_operations": ["heartbeat", "release", "retry", "terminal"],
         "terminal_statuses": ["SENT", "PARTIAL_SUCCESS", "FAILED"],
         "operation_timeout_seconds": 8,
@@ -91,15 +107,65 @@ def test_outbound_manifest_binds_frozen_oracle_and_legacy_key_surface() -> None:
         "mutation_timeout": "outcome-unknown-requires-snapshot",
         "mutation_fault_injection": ["claim", "retry", "terminal"],
         "null_legacy_heartbeat_recoverable": True,
+        "sidecarless_expired_recovery": "ambiguous-terminal",
+        "commit_barrier_corruption": "fail-closed",
         "last_error_truncation": "1000-utf16-code-units-plus-ellipsis",
         "legacy_schema_integration_test": True,
+    }
+    assert manifest["postgres_recipient_ledger"] == {
+        "migration": "crates/lmyzmail/migrations/001_outbound_delivery_ledger.sql",
+        "legacy_columns_changed": False,
+        "tables": [
+            "lmyzmail_outbound_delivery_attempt",
+            "lmyzmail_outbound_delivery_recipient",
+        ],
+        "recipient_identity": ["task_id", "recipient_ordinal", "recipient_address"],
+        "states": [
+            "PENDING",
+            "RETRYABLE",
+            "PERMANENT",
+            "COMMIT_ARMED",
+            "DELIVERED",
+            "AMBIGUOUS",
+        ],
+        "terminal_states": ["PERMANENT", "DELIVERED", "AMBIGUOUS"],
+        "attempt_fence": ["owner_token", "generation"],
+        "roster_integrity": ["recipient_count", "sha256"],
+        "migration_lock": "postgres-advisory-xact-lock",
+        "commit_barrier": "accepted-recipients-to-commit-armed-before-smtp-terminator",
+        "armed_recovery": "ambiguous",
+        "sidecarless_takeover": "ambiguous",
+        "commit_barrier_corruption": "fail-closed",
+        "partial_rcpt_retry": "retryable-recipients-only",
+        "ambiguous_auto_retry": False,
+        "ambiguous_dsn": False,
+        "legacy_projection": ["SENT", "PARTIAL_SUCCESS", "FAILED"],
     }
 
 
 def test_outbound_manifest_requires_durable_candidate_boundaries() -> None:
     manifest = _manifest()
     requirements = manifest["requirements"]
-    assert all(requirements.values())
+    assert requirements == {
+        "legacy_key_interop": True,
+        "ack_archive_only_after_postgres_commit": True,
+        "recoverable_archive_inflight": True,
+        "renewable_processing_lease": True,
+        "fenced_domain_status_updates": True,
+        "domain_status_read_before_size_check": False,
+        "bounded_status_update_drain": True,
+        "active_references_must_not_expire": True,
+        "stable_message_id_on_ambiguous_smtp_result": True,
+        "dsn_on_permanent_failure": True,
+        "pinned_and_filtered_mx_address": True,
+        "bounded_incremental_smtp_io": True,
+        "post_data_ambiguity_preserved": True,
+        "durable_recipient_ledger": True,
+        "ambiguous_auto_retry_disabled": True,
+        "ambiguous_dsn_disabled": True,
+        "redis_mutations_classify_outcome_unknown": True,
+        "sidecarless_processing_recovery_ambiguous": True,
+    }
     assert manifest["observed_legacy_gaps"] == [
         "archive-lpop-before-postgres-commit",
         "processing-timeout-without-send-heartbeat",

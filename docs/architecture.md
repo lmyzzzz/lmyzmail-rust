@@ -28,4 +28,8 @@ pool is shared by SMTP counters and the outbound queue. The outbound producer
 uses a four-slot blocking pool for MIME, DKIM, and Maildir work; it does not
 hold a PostgreSQL transaction while generating message bytes. PostgreSQL is
 the durable outbox, while the legacy Redis task/domain/list/hash surface is the
-delivery index consumed by queue workers.
+delivery index consumed by queue workers. A Rust-only additive PostgreSQL
+recipient ledger records the SMTP pre-commit barrier and exact per-recipient
+outcome without changing legacy columns. One caller-generated opaque attempt
+token fences the Redis lease, legacy PostgreSQL row, and sidecar generation;
+unknown mutation responses are reconciled before either store is advanced.
