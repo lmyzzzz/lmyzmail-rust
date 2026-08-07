@@ -258,6 +258,47 @@
       "oracle_behavior": "The frozen Java mailbox and session services execute repository reads, writes, password-backed creation, and transactional session updates without a request cancellation token, a per-operation query deadline, or an explicit PostgreSQL cancellation-and-drain path. A PostgreSQL lock wait can therefore retain the request task and pooled JDBC connection until the database or infrastructure ends it.",
       "reason": "Returning a still-running database connection to a fast-recycling pool can make one lock wait poison later unrelated authentication requests and eventually exhaust the pool. Unbounded waits, leaked work, and unknown mutation outcomes are explicitly excluded from bug-for-bug replication.",
       "scope": "Only interruption, database-lock, pool-reuse, and commit-ambiguity behavior for authentication and mailbox-management PostgreSQL operations. Every healthy-path route, credential result, session row, mailbox row, status code, JSON body, API permission, rate limit, legacy schema, and configuration alias remains a differential requirement."
+    },
+    {
+      "candidate_requirement": "Classify every honeypot protocol from a bounded incremental buffer instead of the first socket read. Preserve undecided prefixes until enough bytes arrive or the initial deadline expires, and apply the configured maximum-read budget across TLS, RDP, and every VNC phase. Fragmented and coalesced forms of the same in-budget request must produce the same protocol response and exactly one activity record.",
+      "evidence": {
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "oracle_golden": "blackbox/golden/java/managed-honeypot-oracle-evidence-v4/observations/first-read-fragmentation.json",
+        "source": "src/main/java/net/lmyz/lmyzmail/netty/honeypot/channel/HoneypotConnectionHandler.java",
+        "source_sha256": "59c06fad4f2bd964a00c64e1ae76650919bc41e7a4225f0ef17badb64068c4f2",
+        "vnc_source": "src/main/java/net/lmyz/lmyzmail/netty/honeypot/protocol/VncMockeryHandler.java",
+        "vnc_source_sha256": "3a6c76c757e09d0620d8b80673d42831ac4232fc29f23610661c4ac8b6e27bff"
+      },
+      "id": "honeypot-incremental-protocol-framing",
+      "oracle_behavior": "The frozen Java handler commits to a protocol classification on the first channelRead and ignores later fragments. Its VNC handoff also requires each phase in one read, drops coalesced next-phase bytes, and no longer enforces the outer maximum-read counter. A PING split after the first byte is therefore classified as UNKNOWN while an intact PING is Redis.",
+      "reason": "Making protocol boundaries depend on TCP packetization permits deterministic evasion and lets special-protocol state bypass the configured byte ceiling. Packetization races and unbounded staged input are explicitly excluded from bug-for-bug replication.",
+      "scope": "Only fragmentation, coalescing, and byte-budget enforcement. Decisive in-budget request bytes, detector priority, banners, mockery responses, timeouts, metadata, and PostgreSQL effects remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Use fixed-capacity per-trap admission, a bounded task set, and a bounded expiring per-source logging table. Reject zero or negative limits and deadlines at configuration load. Overload must release the socket promptly without spawning detached work, and shutdown must cancel and join every admitted connection within a fixed deadline.",
+      "evidence": {
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "server_source": "src/main/java/net/lmyz/lmyzmail/netty/honeypot/HoneypotServer.java",
+        "server_source_sha256": "c14ec2daed765c85c448418c4fd52d53a21ddea5e4c2582626a0415dd1e7ddb9",
+        "source": "src/main/java/net/lmyz/lmyzmail/netty/honeypot/channel/HoneypotConnectionHandler.java",
+        "source_sha256": "59c06fad4f2bd964a00c64e1ae76650919bc41e7a4225f0ef17badb64068c4f2"
+      },
+      "id": "honeypot-bounded-admission-and-client-state",
+      "oracle_behavior": "The frozen Java server limits active channels per trap, but activity persistence is dispatched through an unbounded virtual-thread-per-task executor and the static logging throttle map retains one entry per observed source address indefinitely. Several non-positive resource settings are accepted until they fail inconsistently at runtime.",
+      "reason": "An attacker-controlled source-cardinality map and an unbounded executor violate the rewrite's hard limits and permit heap, scheduler, and shutdown pressure even when channel admission itself is capped.",
+      "scope": "Only resource admission, invalid limit validation, per-source log state retention, cancellation, and shutdown joining. The configured connection ceiling, accepted connection behavior, protocol bytes, event metadata, and successful persistence remain differential requirements."
+    },
+    {
+      "candidate_requirement": "Before acknowledging completion of a honeypot interaction, atomically commit its HONEYPOT_HIT activity and aggregate score or durably enqueue a bounded replay record. Retry transient PostgreSQL failures without losing or duplicating the event, recover committed or enqueued work after restart, and apply any XDP consequence only from reconciled durable state.",
+      "evidence": {
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "source": "src/main/java/net/lmyz/lmyzmail/cringe/service/CringeBatchWriteService.java",
+        "source_sha256": "1dac59437ba54413e93569c59f641cd918cd185912fa6f407bbde5c5bcfe1056"
+      },
+      "id": "honeypot-durable-cringe-write",
+      "oracle_behavior": "The frozen Java batch path drains events from its bounded in-memory queue before opening the PostgreSQL transaction. A database failure discards the drained batch, a full queue drops new events, and a process crash loses every event not yet flushed. XDP evaluation may also run before the corresponding transaction is known committed.",
+      "reason": "Silent security-event loss and enforcement before durable state violate restart recovery and transactional consistency. Crash-loss and database-outage races are explicitly excluded from bug-for-bug replication.",
+      "scope": "Only queue-full, database-failure, crash-recovery, duplicate suppression, and XDP ordering behavior. HONEYPOT_HIT score 8, table and column names, transaction semantics on success, metadata, source-IP exclusions, protocol replies, and committed aggregate values remain compatibility requirements."
     }
   ],
   "schema_version": 1

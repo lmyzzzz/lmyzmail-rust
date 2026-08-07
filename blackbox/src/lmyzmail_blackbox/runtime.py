@@ -437,6 +437,8 @@ class JavaOracleRuntime:
             "-jar",
             str(self.paths.oracle_jar),
             "--spring.config.location=optional:classpath:/application.properties",
+            "--server.address=127.0.0.1",
+            "--server.port=0",
             (f"--spring.datasource.url=jdbc:postgresql://127.0.0.1:{ports.postgres}/lmyzmail"),
             "--spring.datasource.driver-class-name=org.postgresql.Driver",
             "--spring.datasource.username=lmyzmail_test",
@@ -469,6 +471,9 @@ class JavaOracleRuntime:
             "--botmail.honeypot.enabled=true",
             "--botmail.honeypot.initial-delay-ms=25",
             "--botmail.honeypot.post-banner-timeout-ms=500",
+            "--botmail.honeypot.max-connections-per-trap=4",
+            "--botmail.honeypot.max-read-bytes=1024",
+            "--botmail.cringe.batch.enabled=false",
             "--botmail.xdp.enabled=false",
             "--botmail.xdp.pps-monitor.enabled=false",
             "--botmail.fail2ban.enabled=false",
@@ -696,6 +701,25 @@ class JavaOracleRuntime:
                 f"QA registration failed with {response.status_code}: {response.text[:1000]}"
             )
 
+    def _apply_oracle_schema_repairs(self) -> None:
+        workspace, ports = self._require_state()
+        bin_dir = self.paths.runtime / "postgres-root/usr/lib/postgresql/16/bin"
+        self._run_checked(
+            [
+                str(bin_dir / "psql"),
+                "--host=127.0.0.1",
+                f"--port={ports.postgres}",
+                "--username=lmyzmail_test",
+                "--dbname=lmyzmail",
+                "--set=ON_ERROR_STOP=1",
+                "--command=ALTER TABLE skibidi_cringe_ip "
+                "ADD COLUMN IF NOT EXISTS pps_overlimit_count integer, "
+                "ADD COLUMN IF NOT EXISTS syn_flood_count integer;",
+            ],
+            env=self._postgres_env(),
+            log_path=workspace / "postgres.log",
+        )
+
     def start(self) -> Self:
         if self.workspace is not None:
             raise RuntimeError("JavaOracleRuntime may only start once")
@@ -718,6 +742,7 @@ class JavaOracleRuntime:
             self._start_postgres()
             self._start_redis()
             self._start_application()
+            self._apply_oracle_schema_repairs()
             if self.requires_qa_account:
                 self._create_qa_account()
         except BaseException:
@@ -856,6 +881,9 @@ class CandidateRuntime(JavaOracleRuntime):
             log_path=workspace / "postgres.log",
         )
 
+    def _apply_oracle_schema_repairs(self) -> None:
+        return
+
     @classmethod
     def from_environment(cls) -> CandidateRuntime:
         raw = os.environ.get("LMYZMAIL_CANDIDATE_COMMAND_JSON")
@@ -956,6 +984,8 @@ class CandidateRuntime(JavaOracleRuntime):
                 "postgres_pool": 16,
                 "honeypot_initial_delay_ms": 25,
                 "honeypot_post_banner_timeout_ms": 500,
+                "max_honeypot_connections_per_trap": 4,
+                "max_honeypot_read_bytes": 1024,
             },
         }
         path = workspace / "candidate-runtime.json"

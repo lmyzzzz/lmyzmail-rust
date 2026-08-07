@@ -256,6 +256,8 @@ def test_tls_runtime_replaces_disabled_flag_with_ephemeral_keystore(tmp_path: Pa
 
     arguments = runtime._application_arguments()
 
+    assert arguments.count("--server.address=127.0.0.1") == 1
+    assert arguments.count("--server.port=0") == 1
     assert "--botmail.ssl.use-custom-certificate=false" not in arguments
     assert "--botmail.ssl.use-custom-certificate=true" in arguments
     assert f"--botmail.ssl.keystore-path={runtime.tls_keystore_path}" in arguments

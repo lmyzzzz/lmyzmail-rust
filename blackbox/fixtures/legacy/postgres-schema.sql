@@ -311,10 +311,12 @@ CREATE TABLE "public"."skibidi_cringe_ip" (
     "illegal_domain_count" integer,
     "open_relay_count" integer,
     "other_count" integer,
+    "pps_overlimit_count" integer,
     "self_spoofing_count" integer,
     "spamhaus_count" integer,
     "ssh_bruteforce_count" integer,
     "ssh_on_smtp_count" integer,
+    "syn_flood_count" integer,
     "total_score" integer NOT NULL,
     "first_seen_at" timestamp(6) with time zone NOT NULL,
     "last_decay_at" timestamp(6) with time zone,
@@ -772,4 +774,3 @@ ALTER TABLE ONLY "public"."email_label_assignment"
 --
 -- PostgreSQL database dump complete
 --
-

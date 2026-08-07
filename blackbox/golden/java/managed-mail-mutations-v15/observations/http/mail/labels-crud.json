@@ -1,0 +1,426 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "d15cd3a2940ab76b00c74b9fab9bdee9139071158a920da5fde80040950f4143",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "json-object-order:jdk-map-of:create-update"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-mail-mutations"
+  },
+  "observation": {
+    "after": {
+      "body_json": [
+        {
+          "color": "#336699",
+          "id": 1401,
+          "name": "Legacy"
+        }
+      ],
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "47"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "W3siaWQiOjE0MDEsIm5hbWUiOiJMZWdhY3kiLCJjb2xvciI6IiMzMzY2OTkifV0=",
+        "length": 47,
+        "sha256": "7ee02643c0baf06846ad900417c1be87c5a1e58e789cc93ec6b7be1fdf078bca"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "assigned": {
+      "body_json": {
+        "success": true
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "16"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJzdWNjZXNzIjp0cnVlfQ==",
+        "length": 16,
+        "sha256": "c955e57777ec0d73639dca6748560d00aa5eb8e12f13ebb2ed9656add3908f97"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "assigned_again": {
+      "body_json": {
+        "success": true
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "16"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJzdWNjZXNzIjp0cnVlfQ==",
+        "length": 16,
+        "sha256": "c955e57777ec0d73639dca6748560d00aa5eb8e12f13ebb2ed9656add3908f97"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "before": {
+      "body_json": [
+        {
+          "color": "#336699",
+          "id": 1401,
+          "name": "Legacy"
+        }
+      ],
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "47"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "W3siaWQiOjE0MDEsIm5hbWUiOiJMZWdhY3kiLCJjb2xvciI6IiMzMzY2OTkifV0=",
+        "length": 47,
+        "sha256": "7ee02643c0baf06846ad900417c1be87c5a1e58e789cc93ec6b7be1fdf078bca"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "created": {
+      "body_json": {
+        "color": "#123456",
+        "id": 1402,
+        "name": "Blackbox"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "47"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb2xvciI6IiMxMjM0NTYiLCJpZCI6MTQwMiwibmFtZSI6IkJsYWNrYm94In0=",
+        "length": 47,
+        "sha256": "c0af9f4624fe9807f9715850bdec3f2265cc01288afb53cecef118424bb46416"
+      },
+      "status_code": 201,
+      "status_line": "HTTP/1.1 201 Created"
+    },
+    "deleted": {
+      "body_json": {
+        "success": true
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "16"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJzdWNjZXNzIjp0cnVlfQ==",
+        "length": 16,
+        "sha256": "c955e57777ec0d73639dca6748560d00aa5eb8e12f13ebb2ed9656add3908f97"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "duplicate": {
+      "body_json": {
+        "error": "Label already exists"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "32"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlcnJvciI6IkxhYmVsIGFscmVhZHkgZXhpc3RzIn0=",
+        "length": 32,
+        "sha256": "c15f7f5f6227f95a7f76f29d89d3ca6053c5696331ca07c5527d2075d19b3442"
+      },
+      "status_code": 400,
+      "status_line": "HTTP/1.1 400 Bad Request"
+    },
+    "email_after_assign": {
+      "body_json": [
+        1401,
+        1402
+      ],
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "11"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "WzE0MDEsMTQwMl0=",
+        "length": 11,
+        "sha256": "2311448275f43374cac411c71df788c951cade8a6b9ec7b61bfc80880cd882bc"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "email_after_remove": {
+      "body_json": [
+        1401
+      ],
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "6"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "WzE0MDFd",
+        "length": 6,
+        "sha256": "4ce775f0a61faef98dfb98ce18cb241b092b8a43f41618e5e5e852b1d40298b9"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "email_before": {
+      "body_json": [
+        1401
+      ],
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "6"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "WzE0MDFd",
+        "length": 6,
+        "sha256": "4ce775f0a61faef98dfb98ce18cb241b092b8a43f41618e5e5e852b1d40298b9"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "listed": {
+      "body_json": [
+        {
+          "color": "#654321",
+          "id": 1402,
+          "name": "Blackbox Renamed"
+        },
+        {
+          "color": "#336699",
+          "id": 1401,
+          "name": "Legacy"
+        }
+      ],
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "103"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "W3siaWQiOjE0MDIsIm5hbWUiOiJCbGFja2JveCBSZW5hbWVkIiwiY29sb3IiOiIjNjU0MzIxIn0seyJpZCI6MTQwMSwibmFtZSI6IkxlZ2FjeSIsImNvbG9yIjoiIzMzNjY5OSJ9XQ==",
+        "length": 103,
+        "sha256": "4a90581eb6c128816eac755a33767320dae1be26418c6919d764062a8420578f"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "missing_assignment": {
+      "body_json": {
+        "error": "Label not found"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "27"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlcnJvciI6IkxhYmVsIG5vdCBmb3VuZCJ9",
+        "length": 27,
+        "sha256": "54beffe0d25a9c40f7686940ebefaa9816f6e6f9c8c137ec9c1a47a3b8628d77"
+      },
+      "status_code": 400,
+      "status_line": "HTTP/1.1 400 Bad Request"
+    },
+    "missing_delete": {
+      "body_json": {
+        "error": "Label not found"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "27"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlcnJvciI6IkxhYmVsIG5vdCBmb3VuZCJ9",
+        "length": 27,
+        "sha256": "54beffe0d25a9c40f7686940ebefaa9816f6e6f9c8c137ec9c1a47a3b8628d77"
+      },
+      "status_code": 400,
+      "status_line": "HTTP/1.1 400 Bad Request"
+    },
+    "missing_update": {
+      "body_json": {
+        "error": "Label not found"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "27"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlcnJvciI6IkxhYmVsIG5vdCBmb3VuZCJ9",
+        "length": 27,
+        "sha256": "54beffe0d25a9c40f7686940ebefaa9816f6e6f9c8c137ec9c1a47a3b8628d77"
+      },
+      "status_code": 400,
+      "status_line": "HTTP/1.1 400 Bad Request"
+    },
+    "removed": {
+      "body_json": {
+        "success": true
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "16"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJzdWNjZXNzIjp0cnVlfQ==",
+        "length": 16,
+        "sha256": "c955e57777ec0d73639dca6748560d00aa5eb8e12f13ebb2ed9656add3908f97"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "removed_again": {
+      "body_json": {
+        "success": true
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "16"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJzdWNjZXNzIjp0cnVlfQ==",
+        "length": 16,
+        "sha256": "c955e57777ec0d73639dca6748560d00aa5eb8e12f13ebb2ed9656add3908f97"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "updated": {
+      "body_json": {
+        "color": "#654321",
+        "id": 1402,
+        "name": "Blackbox Renamed"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "55"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb2xvciI6IiM2NTQzMjEiLCJpZCI6MTQwMiwibmFtZSI6IkJsYWNrYm94IFJlbmFtZWQifQ==",
+        "length": 55,
+        "sha256": "285a2c15835ff23d0af002f1fd46ea34f7ba1bfeb47b6f50ac14e3045d4465a6"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    }
+  },
+  "schema_version": 2
+}

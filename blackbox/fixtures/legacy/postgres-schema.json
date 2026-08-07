@@ -818,6 +818,14 @@
     },
     {
       "character_maximum_length": null,
+      "column": "pps_overlimit_count",
+      "data_type": "integer",
+      "nullable": true,
+      "table": "skibidi_cringe_ip",
+      "udt_name": "int4"
+    },
+    {
+      "character_maximum_length": null,
       "column": "self_spoofing_count",
       "data_type": "integer",
       "nullable": true,
@@ -843,6 +851,14 @@
     {
       "character_maximum_length": null,
       "column": "ssh_on_smtp_count",
+      "data_type": "integer",
+      "nullable": true,
+      "table": "skibidi_cringe_ip",
+      "udt_name": "int4"
+    },
+    {
+      "character_maximum_length": null,
+      "column": "syn_flood_count",
       "data_type": "integer",
       "nullable": true,
       "table": "skibidi_cringe_ip",
@@ -1131,6 +1147,14 @@
   ],
   "compatibility_repairs": [
     {
+      "columns": [
+        "pps_overlimit_count",
+        "syn_flood_count"
+      ],
+      "kind": "native-cringe-upsert-columns",
+      "table": "skibidi_cringe_ip"
+    },
+    {
       "initial_tables": [
         "contact",
         "email_index",
@@ -1153,8 +1177,8 @@
     }
   ],
   "oracle_profile": "managed-basic",
-  "roundtrip_schema_sha256": "32a20945b5e79f3a9244302375e933f06a7e7a876dcfab9e71f9033cac36d4ff",
-  "schema_sha256": "4c3c9a57a29b66fda11b098368c5342e0c2477de709c79a47dc4760d8abd5463",
+  "roundtrip_schema_sha256": "ac07b669be322e7518b12cee69f50c05ad65c395b367996ddbf099bb9c5f7971",
+  "schema_sha256": "589c98968e1ac284fcdc3d4b5ff37a30a86315bd66d1eb6f90bbc0cc75c789b7",
   "schema_version": 1,
   "tables": [
     "contact",

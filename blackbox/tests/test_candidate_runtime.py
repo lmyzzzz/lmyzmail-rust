@@ -36,6 +36,8 @@ def test_candidate_command_is_shell_free_and_receives_semantic_config(tmp_path: 
     assert [pot["id"] for pot in config["htcpcp"]["pots"]] == [
         f"pot-{index}" for index in range(8)
     ]
+    assert config["limits"]["max_honeypot_connections_per_trap"] == 4
+    assert config["limits"]["max_honeypot_read_bytes"] == 1024
 
 
 def test_candidate_command_environment_requires_json_string_array(

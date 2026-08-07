@@ -232,6 +232,8 @@ struct JsonHoneypotConfig {
     port: u16,
     protocol: String,
     label: String,
+    #[serde(default)]
+    bind_address: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -374,6 +376,10 @@ struct JsonLimitConfig {
     honeypot_initial_delay_ms: u64,
     #[serde(default = "default_honeypot_post_banner_timeout_ms")]
     honeypot_post_banner_timeout_ms: u64,
+    #[serde(default = "default_max_honeypot_connections_per_trap")]
+    max_honeypot_connections_per_trap: usize,
+    #[serde(default = "default_max_honeypot_read_bytes")]
+    max_honeypot_read_bytes: usize,
     #[serde(default = "default_max_email_size_bytes")]
     max_email_size_bytes: u64,
     #[serde(default = "default_max_attachment_size_bytes")]
@@ -392,6 +398,8 @@ impl Default for JsonLimitConfig {
             http_deadline_ms: default_http_deadline_ms(),
             honeypot_initial_delay_ms: default_honeypot_initial_delay_ms(),
             honeypot_post_banner_timeout_ms: default_honeypot_post_banner_timeout_ms(),
+            max_honeypot_connections_per_trap: default_max_honeypot_connections_per_trap(),
+            max_honeypot_read_bytes: default_max_honeypot_read_bytes(),
             max_email_size_bytes: default_max_email_size_bytes(),
             max_attachment_size_bytes: default_max_attachment_size_bytes(),
             max_total_attachments_size_bytes: default_max_total_attachments_size_bytes(),
@@ -496,6 +504,14 @@ fn default_honeypot_post_banner_timeout_ms() -> u64 {
     10_000
 }
 
+fn default_max_honeypot_connections_per_trap() -> usize {
+    100
+}
+
+fn default_max_honeypot_read_bytes() -> usize {
+    1_024
+}
+
 fn default_max_email_size_bytes() -> u64 {
     15 * 1024 * 1024
 }
@@ -531,7 +547,8 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
     }
     let mut properties = Properties::default();
     properties.insert("lmyzmail.profile".to_owned(), value.profile)?;
-    properties.insert("lmyzmail.listen.host".to_owned(), value.listen.host)?;
+    let listen_host = value.listen.host.clone();
+    properties.insert("lmyzmail.listen.host".to_owned(), listen_host.clone())?;
     properties.insert(
         "lmyzmail.http.port".to_owned(),
         value.listen.http.to_string(),
@@ -548,11 +565,19 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         "lmyzmail.minecraft.port".to_owned(),
         value.listen.minecraft.to_string(),
     )?;
+    properties.insert(
+        "lmyzmail.honeypot.enabled".to_owned(),
+        (!value.listen.honeypots.is_empty()).to_string(),
+    )?;
     for (index, trap) in value.listen.honeypots.into_iter().enumerate() {
         let prefix = format!("lmyzmail.honeypot.traps[{index}]");
         properties.insert(format!("{prefix}.port"), trap.port.to_string())?;
         properties.insert(format!("{prefix}.protocol"), trap.protocol)?;
         properties.insert(format!("{prefix}.label"), trap.label)?;
+        properties.insert(
+            format!("{prefix}.bind-address"),
+            trap.bind_address.unwrap_or_else(|| listen_host.clone()),
+        )?;
     }
     properties.insert("lmyzmail.postgres.host".to_owned(), value.postgres.host)?;
     properties.insert(
@@ -713,6 +738,14 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         value.limits.honeypot_post_banner_timeout_ms.to_string(),
     )?;
     properties.insert(
+        "lmyzmail.honeypot.max-connections-per-trap".to_owned(),
+        value.limits.max_honeypot_connections_per_trap.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.honeypot.max-read-bytes".to_owned(),
+        value.limits.max_honeypot_read_bytes.to_string(),
+    )?;
+    properties.insert(
         "lmyzmail.max-email-size-bytes".to_owned(),
         value.limits.max_email_size_bytes.to_string(),
     )?;
@@ -870,6 +903,7 @@ pub struct HoneypotConfig {
     pub port: u16,
     pub protocol: String,
     pub label: String,
+    pub bind_address: String,
 }
 
 #[derive(Clone, Debug)]
@@ -954,6 +988,8 @@ pub struct LimitConfig {
     pub http_deadline_ms: u64,
     pub honeypot_initial_delay_ms: u64,
     pub honeypot_post_banner_timeout_ms: u64,
+    pub max_honeypot_connections_per_trap: usize,
+    pub max_honeypot_read_bytes: usize,
     pub max_email_size_bytes: u64,
     pub max_attachment_size_bytes: u64,
     pub max_total_attachments_size_bytes: u64,
@@ -1301,6 +1337,18 @@ impl RuntimeConfig {
                 &["botmail.honeypot.post-banner-timeout-ms"],
                 10_000,
             )?,
+            max_honeypot_connections_per_trap: preferred_usize(
+                &properties,
+                &["lmyzmail.honeypot.max-connections-per-trap"],
+                &["botmail.honeypot.max-connections-per-trap"],
+                default_max_honeypot_connections_per_trap(),
+            )?,
+            max_honeypot_read_bytes: preferred_usize(
+                &properties,
+                &["lmyzmail.honeypot.max-read-bytes"],
+                &["botmail.honeypot.max-read-bytes"],
+                default_max_honeypot_read_bytes(),
+            )?,
             max_email_size_bytes: preferred_u64(
                 &properties,
                 &["lmyzmail.max-email-size-bytes"],
@@ -1322,7 +1370,7 @@ impl RuntimeConfig {
         };
         validate_limits(&limits)?;
 
-        let honeypots = parse_honeypots(&properties)?;
+        let honeypots = parse_honeypots(&properties, &listen_host)?;
         let api_keys = parse_api_keys(&properties)?;
         let listen = ListenConfig {
             host: listen_host,
@@ -1860,7 +1908,18 @@ fn parse_api_keys(properties: &Properties) -> Result<Vec<ApiKeyConfig>, ConfigEr
     Ok(keys)
 }
 
-fn parse_honeypots(properties: &Properties) -> Result<Vec<HoneypotConfig>, ConfigError> {
+fn parse_honeypots(
+    properties: &Properties,
+    default_bind_address: &str,
+) -> Result<Vec<HoneypotConfig>, ConfigError> {
+    if !preferred_bool(
+        properties,
+        &["lmyzmail.honeypot.enabled"],
+        &["botmail.honeypot.enabled"],
+        false,
+    )? {
+        return Ok(Vec::new());
+    }
     let mut traps = Vec::new();
     for index in 0..MAX_HONEYPOTS {
         let new_prefix = format!("lmyzmail.honeypot.traps[{index}].");
@@ -1896,7 +1955,15 @@ fn parse_honeypots(properties: &Properties) -> Result<Vec<HoneypotConfig>, Confi
             ],
         )
         .unwrap_or("NONE")
-        .to_owned();
+        .to_ascii_uppercase();
+        if !matches!(
+            protocol.as_str(),
+            "NONE" | "SMTP" | "SSH" | "FTP" | "MYSQL" | "POP3" | "IMAP" | "VNC"
+        ) {
+            return Err(ConfigError::Invalid(format!(
+                "honeypot {index} server protocol is not supported: {protocol}"
+            )));
+        }
         let label = preferred(
             properties,
             &[&format!("{new_prefix}label")],
@@ -1904,10 +1971,19 @@ fn parse_honeypots(properties: &Properties) -> Result<Vec<HoneypotConfig>, Confi
         )
         .unwrap_or("trap")
         .to_owned();
+        let bind_address = preferred(
+            properties,
+            &[&format!("{new_prefix}bind-address")],
+            &[&format!("{old_prefix}bind-address")],
+        )
+        .unwrap_or(default_bind_address)
+        .to_owned();
+        validate_host(&bind_address, &format!("honeypot[{index}].bind-address"))?;
         traps.push(HoneypotConfig {
             port,
             protocol,
             label,
+            bind_address,
         });
     }
     Ok(traps)
@@ -2001,12 +2077,26 @@ fn validate_limits(value: &LimitConfig) -> Result<(), ConfigError> {
             "HTTP deadline is outside the safe bound".into(),
         ));
     }
-    if value.honeypot_initial_delay_ms > MAX_HONEYPOT_DELAY_MS
+    if value.honeypot_initial_delay_ms == 0
+        || value.honeypot_initial_delay_ms > MAX_HONEYPOT_DELAY_MS
+        || value.honeypot_post_banner_timeout_ms == 0
         || value.honeypot_post_banner_timeout_ms > MAX_HONEYPOT_DELAY_MS
     {
         return Err(ConfigError::Invalid(format!(
-            "honeypot deadlines must not exceed {MAX_HONEYPOT_DELAY_MS} ms"
+            "honeypot deadlines must be between 1 and {MAX_HONEYPOT_DELAY_MS} ms"
         )));
+    }
+    if value.max_honeypot_connections_per_trap == 0
+        || value.max_honeypot_connections_per_trap > 4_096
+    {
+        return Err(ConfigError::Invalid(
+            "honeypot connection limit must be between 1 and 4096".into(),
+        ));
+    }
+    if value.max_honeypot_read_bytes == 0 || value.max_honeypot_read_bytes > 65_536 {
+        return Err(ConfigError::Invalid(
+            "honeypot read limit must be between 1 and 65536 bytes".into(),
+        ));
     }
     if value.max_email_size_bytes == 0
         || value.max_email_size_bytes > MAX_MESSAGE_BYTES
@@ -2582,6 +2672,89 @@ lmyzmail.htcpcp.pots[0].type=tea\n"
         let properties =
             Properties::parse(b"lmyzmail.http.port=8080\nlmyzmail.smtp.port=8080\n").unwrap();
         assert!(RuntimeConfig::from_properties(properties).is_err());
+    }
+
+    #[test]
+    fn honeypot_aliases_are_bounded_and_new_keys_win() {
+        let properties = Properties::parse(
+            b"botmail.honeypot.enabled=true\n\
+botmail.honeypot.max-connections-per-trap=100\n\
+botmail.honeypot.max-read-bytes=1024\n\
+botmail.honeypot.traps[0].port=3306\n\
+botmail.honeypot.traps[0].server-protocol=mysql\n\
+botmail.honeypot.traps[0].label=legacy\n\
+botmail.honeypot.traps[0].bind-address=0.0.0.0\n\
+lmyzmail.honeypot.max-connections-per-trap=4\n\
+lmyzmail.honeypot.max-read-bytes=2048\n\
+lmyzmail.honeypot.traps[0].label=current\n\
+lmyzmail.honeypot.traps[0].bind-address=127.0.0.1\n",
+        )
+        .unwrap();
+        let config = RuntimeConfig::from_properties(properties).unwrap();
+        assert_eq!(config.listen.honeypots.len(), 1);
+        assert_eq!(config.listen.honeypots[0].protocol, "MYSQL");
+        assert_eq!(config.listen.honeypots[0].label, "current");
+        assert_eq!(config.listen.honeypots[0].bind_address, "127.0.0.1");
+        assert_eq!(config.limits.max_honeypot_connections_per_trap, 4);
+        assert_eq!(config.limits.max_honeypot_read_bytes, 2048);
+
+        let disabled = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.honeypot.enabled=true\n\
+lmyzmail.honeypot.enabled=false\n\
+botmail.honeypot.traps[0].port=3306\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(disabled.listen.honeypots.is_empty());
+    }
+
+    #[test]
+    fn semantic_honeypot_config_and_limits_are_supported() {
+        let json = br#"{
+            "schema_version": 1,
+            "profile": "test",
+            "listen": {
+                "host": "127.0.0.1",
+                "http": 18080,
+                "smtp": 11025,
+                "htcpcp": 18888,
+                "minecraft": 25575,
+                "honeypots": [
+                    {"port": 13306, "protocol": "MYSQL", "label": "mysql-trap"}
+                ]
+            },
+            "postgres": {"host": "localhost", "port": 15432, "database": "lmyzmail", "username": "qa", "password": ""},
+            "redis": {"host": "localhost", "port": 16379, "database": 0},
+            "maildir": "/tmp/lmyzmail-mail",
+            "domain": "example.test",
+            "limits": {
+                "max_honeypot_connections_per_trap": 4,
+                "max_honeypot_read_bytes": 1024
+            }
+        }"#;
+        let config = RuntimeConfig::from_properties(parse_semantic_json(json).unwrap()).unwrap();
+        assert_eq!(config.listen.honeypots[0].bind_address, "127.0.0.1");
+        assert_eq!(config.limits.max_honeypot_connections_per_trap, 4);
+        assert_eq!(config.limits.max_honeypot_read_bytes, 1024);
+    }
+
+    #[test]
+    fn invalid_honeypot_protocols_deadlines_and_limits_are_rejected() {
+        for input in [
+            b"lmyzmail.honeypot.enabled=true\nlmyzmail.honeypot.traps[0].port=3306\nlmyzmail.honeypot.traps[0].protocol=HTTP\n".as_slice(),
+            b"lmyzmail.honeypot.initial-delay-ms=0\n".as_slice(),
+            b"lmyzmail.honeypot.post-banner-timeout-ms=0\n".as_slice(),
+            b"lmyzmail.honeypot.max-connections-per-trap=0\n".as_slice(),
+            b"lmyzmail.honeypot.max-read-bytes=65537\n".as_slice(),
+        ] {
+            assert!(
+                RuntimeConfig::from_properties(Properties::parse(input).unwrap()).is_err(),
+                "accepted invalid honeypot configuration: {}",
+                String::from_utf8_lossy(input),
+            );
+        }
     }
 
     #[test]

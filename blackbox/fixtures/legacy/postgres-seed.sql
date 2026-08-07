@@ -116,11 +116,11 @@ INSERT INTO "public"."skibidi_cringe_ip" (
     "last_seen_at", "last_decay_at", "honeypot_hit_count", "http_port_scanning_count",
     "ssh_bruteforce_count", "open_relay_count", "illegal_domain_count",
     "self_spoofing_count", "http_on_smtp_count", "ssh_on_smtp_count", "auth_probe_count",
-    "spamhaus_count", "other_count"
+    "spamhaus_count", "other_count", "pps_overlimit_count", "syn_flood_count"
 ) VALUES (
     '203.0.113.77', 7, 7, 1, TIMESTAMPTZ '2024-01-01 00:00:00+00',
     TIMESTAMPTZ '2024-01-01 00:00:00+00', TIMESTAMPTZ '2024-01-01 00:00:00+00',
-    1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 );
 
 INSERT INTO "public"."skibidi_cringe_ip_activity" (

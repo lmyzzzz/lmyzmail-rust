@@ -499,3 +499,54 @@ candidate expectations.
 
 All `oracle-evidence` sets remain evidence only and are never candidate
 expectations.
+
+The following recording pass bound the harness definition tree to
+`0689ae5c8dd4af78748280da7ceea8b779e6b9f23eed8abac39a7a17bb7c0191`. It was
+interrupted by a discovered Java default Tomcat port collision; the successful
+create-once sets remain historical and are not active expectations:
+
+- `managed-candidate-public-config-v20/`
+- `managed-basic-v42/`
+- `managed-candidate-auth-v19/`
+- `managed-mail-read-v17/`
+- `managed-mail-attachment-v12/`
+- `managed-mail-state-v15/`
+- `managed-mail-delete-v14/`
+- `managed-userdata-v10/`
+- `managed-userdata-oracle-evidence-v9/`
+- `managed-mailbox-api-v6/`
+
+The current active sets bind the isolated Java runtime, including its loopback
+ephemeral embedded-servlet port, to definition tree
+`d15cd3a2940ab76b00c74b9fab9bdee9139071158a920da5fde80040950f4143`:
+
+- `managed-candidate-public-config-v21/`
+- `managed-basic-v43/`
+- `managed-candidate-auth-v20/`
+- `managed-mail-read-v18/`
+- `managed-mail-attachment-v13/`
+- `managed-mail-state-v16/`
+- `managed-mail-mutations-v15/`
+- `managed-mail-delete-v15/`
+- `managed-starttls-v31/`
+- `managed-starttls-oracle-evidence-v31/`
+- `managed-smtp-auth-v30/`
+- `managed-smtp-auth-starttls-v30/`
+- `managed-smtp-command-v28/`
+- `managed-smtp-command-oracle-evidence-v28/`
+- `managed-smtp-data-v27/`
+- `managed-smtp-data-oracle-evidence-v27/`
+- `managed-smtp-mime-v27/`
+- `managed-outbound-http-v13/`
+- `managed-outbound-queue-v28.json`
+- `managed-userdata-v11/`
+- `managed-userdata-oracle-evidence-v10/`
+- `managed-mailbox-api-v7/`
+- `managed-htcpcp-v10/`
+- `managed-htcpcp-oracle-evidence-v7/`
+- `managed-honeypot-v6/`
+- `managed-honeypot-oracle-evidence-v6/`
+
+Only the d15... sets are consumed by active tests. The 0689... sets and all
+earlier generations remain immutable provenance; `oracle-evidence` remains
+evidence only.

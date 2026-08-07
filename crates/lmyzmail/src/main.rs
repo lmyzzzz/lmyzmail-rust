@@ -2,7 +2,7 @@ use std::{env, io, path::PathBuf, sync::Arc, time::Duration};
 
 use lmyzmail::{
     config::{Properties, RuntimeConfig},
-    database, htcpcp, http, lifecycle,
+    database, honeypot, htcpcp, http, lifecycle,
     outbound_worker::OutboundWorker,
     redis, smtp,
 };
@@ -52,6 +52,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             http::serve_http(http_config, http_pool, http_redis_pool, http_cancellation).await,
         )
     });
+    if !config.listen.honeypots.is_empty() {
+        let honeypot_config = Arc::clone(&config);
+        let honeypot_cancellation = cancellation.clone();
+        let honeypot_pool = database_pool.clone();
+        services.spawn(async move {
+            (
+                "honeypot",
+                honeypot::serve_honeypots(honeypot_config, honeypot_pool, honeypot_cancellation)
+                    .await,
+            )
+        });
+    }
     let smtp_config = Arc::clone(&config);
     let smtp_cancellation = cancellation.clone();
     services.spawn(async move {
