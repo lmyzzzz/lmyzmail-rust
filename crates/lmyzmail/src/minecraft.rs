@@ -33,7 +33,7 @@ use zeroize::Zeroize;
 use crate::{
     bounded_blocking::{BoundedBlockingPool, SubmitError},
     config::{MinecraftConfig, RuntimeConfig},
-    minecraft_world::{self, WorldTemplate},
+    minecraft_world::{self, NbtValue, WorldTemplate},
 };
 
 const MAX_FRAME_LENGTH: usize = 2 * 1024 * 1024;
@@ -944,6 +944,9 @@ async fn complete_login(
     )
     .await?;
 
+    let player_list_uuid = uuid.clone();
+    let static_play_packets =
+        static_play_packets(&player_list_uuid, username).map_err(ProtocolError::Io)?;
     let online_guard = service.register_online(uuid);
     let entity_id = service.next_entity_id();
     for packet in initial_play_packets(entity_id, &service.config)? {
@@ -958,7 +961,27 @@ async fn complete_login(
         )
         .await?;
     }
-    send_world_bootstrap(stream, service, compression, cipher, deadline, cancellation).await?;
+    send_world_bootstrap(
+        stream,
+        service,
+        compression,
+        cipher.as_deref_mut(),
+        deadline,
+        cancellation,
+    )
+    .await?;
+    for packet in static_play_packets {
+        write_packet(
+            stream,
+            service,
+            packet,
+            compression,
+            cipher.as_deref_mut(),
+            deadline,
+            cancellation,
+        )
+        .await?;
+    }
     Ok((compression, online_guard))
 }
 
@@ -1049,6 +1072,169 @@ fn write_block_position(output: &mut Vec<u8>, x: i32, y: i32, z: i32) {
         | ((i64::from(y) & 0xfff) << 26)
         | (i64::from(z) & 0x3ff_ffff);
     output.extend_from_slice(&packed.to_be_bytes());
+}
+
+fn static_play_packets(uuid: &str, username: &str) -> io::Result<Vec<Vec<u8>>> {
+    let uuid_bytes = parse_uuid_bytes(uuid)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "invalid player UUID"))?;
+
+    let mut packets = Vec::with_capacity(11);
+    let mut player_list = vec![0x38];
+    write_varint(&mut player_list, 0);
+    write_varint(&mut player_list, 1);
+    player_list.extend_from_slice(&uuid_bytes);
+    write_string(&mut player_list, username)?;
+    write_varint(&mut player_list, 0);
+    write_varint(&mut player_list, 2);
+    write_varint(&mut player_list, 0);
+    player_list.push(0);
+    packets.push(player_list);
+
+    let mut header_footer = vec![0x47];
+    write_string(
+        &mut header_footer,
+        &chat_json("\u{00a7}6\u{00a7}lLMYZMAIL", Some("gold")),
+    )?;
+    write_string(
+        &mut header_footer,
+        &chat_json(
+            "\u{00a7}7Send emails in Minecraft! Skibidi dop dop yes yes!",
+            Some("gray"),
+        ),
+    )?;
+    packets.push(header_footer);
+
+    let titles: [(u32, Option<String>, i32, i32, i32); 3] = [
+        (2, None, 10, 60, 20),
+        (0, Some(chat_json("\u{00a7}6LMYZMAIL", None)), 0, 0, 0),
+        (
+            1,
+            Some(chat_json(
+                "\u{00a7}7Type your email to get started",
+                Some("gray"),
+            )),
+            0,
+            0,
+            0,
+        ),
+    ];
+    for (action, text, fade_in, stay, fade_out) in titles {
+        let mut title = vec![0x45];
+        write_varint(&mut title, action);
+        if let Some(text) = text {
+            write_string(&mut title, &text)?;
+        } else {
+            title.extend_from_slice(&fade_in.to_be_bytes());
+            title.extend_from_slice(&stay.to_be_bytes());
+            title.extend_from_slice(&fade_out.to_be_bytes());
+        }
+        packets.push(title);
+    }
+
+    for (text, color) in [
+        (
+            "\u{00a7}e\u{00a7}l=== Welcome to LMYZMAIL Minecraft Server ===",
+            Some("yellow"),
+        ),
+        (
+            "\u{00a7}7Send emails directly from Minecraft!",
+            Some("gray"),
+        ),
+        ("", None),
+        ("\u{00a7}aPlease enter your email address:", Some("green")),
+    ] {
+        let mut chat = vec![0x02];
+        write_string(&mut chat, &chat_json(text, color))?;
+        chat.push(0);
+        packets.push(chat);
+    }
+
+    for (slot, item_id, nbt) in [
+        (36_i16, 386_i16, book_item_nbt()),
+        (44_i16, 399_i16, menu_star_nbt()),
+    ] {
+        let mut item = vec![0x2f, 0];
+        item.extend_from_slice(&slot.to_be_bytes());
+        item.extend_from_slice(&item_id.to_be_bytes());
+        item.push(1);
+        item.extend_from_slice(&0_i16.to_be_bytes());
+        minecraft_world::write_nbt(Some(&nbt), &mut item)?;
+        packets.push(item);
+    }
+    debug_assert_eq!(packets.len(), 11);
+    Ok(packets)
+}
+
+fn chat_json(text: &str, color: Option<&str>) -> String {
+    let escaped = text.replace('\\', "\\\\").replace('"', "\\\"");
+    match color {
+        Some(color) => format!(r#"{{"text":"{escaped}","color":"{color}"}}"#),
+        None => format!(r#"{{"text":"{escaped}"}}"#),
+    }
+}
+
+fn parse_uuid_bytes(value: &str) -> Option<[u8; 16]> {
+    let compact = value.replace('-', "");
+    if compact.len() != 32 || !compact.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return None;
+    }
+    let mut output = [0_u8; 16];
+    for (index, byte) in output.iter_mut().enumerate() {
+        *byte = (hex_nibble(compact.as_bytes()[index * 2])? << 4)
+            | hex_nibble(compact.as_bytes()[index * 2 + 1])?;
+    }
+    Some(output)
+}
+
+fn hex_nibble(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn book_item_nbt() -> NbtValue {
+    NbtValue::Compound(vec![(
+        "pages".to_owned(),
+        NbtValue::List {
+            element_type: 8,
+            values: vec![NbtValue::String(String::new())],
+        },
+    )])
+}
+
+fn menu_star_nbt() -> NbtValue {
+    NbtValue::Compound(vec![
+        (
+            "display".to_owned(),
+            NbtValue::Compound(vec![
+                (
+                    "Name".to_owned(),
+                    NbtValue::String("\u{00a7}6\u{00a7}lMenu \u{00a7}7(Right Click)".to_owned()),
+                ),
+                (
+                    "Lore".to_owned(),
+                    NbtValue::List {
+                        element_type: 8,
+                        values: vec![NbtValue::String("\u{00a7}7Open the main menu".to_owned())],
+                    },
+                ),
+            ]),
+        ),
+        (
+            "ench".to_owned(),
+            NbtValue::List {
+                element_type: 10,
+                values: vec![NbtValue::Compound(vec![
+                    ("id".to_owned(), NbtValue::Short(0)),
+                    ("lvl".to_owned(), NbtValue::Short(1)),
+                ])],
+            },
+        ),
+        ("HideFlags".to_owned(), NbtValue::Int(63)),
+    ])
 }
 
 async fn write_packet(
@@ -2658,6 +2844,53 @@ mod tests {
                 .unwrap();
             assert_eq!(frame, STANDARD.decode(frozen).unwrap());
         }
+    }
+
+    #[tokio::test]
+    async fn static_play_bootstrap_matches_frozen_java_frames() {
+        let service = StatusService::new(&config(Duration::from_secs(3))).unwrap();
+        let cancellation = CancellationToken::new();
+        let deadline = Instant::now() + Duration::from_secs(3);
+        let expected = [
+            "KAA4AAGLpuWQOgE1I75xDynrcJc1D1N0YXRpY1BsYXlQcm9iZQACAAA=",
+            "ewBHKHsidGV4dCI6IsKnNsKnbExNWVpNQUlMIiwiY29sb3IiOiJnb2xkIn1PeyJ0ZXh0Ijoiwqc3U2VuZCBlbWFpbHMgaW4gTWluZWNyYWZ0ISBTa2liaWRpIGRvcCBkb3AgeWVzIHllcyEiLCJjb2xvciI6ImdyYXkifQ==",
+            "DwBFAgAAAAoAAAA8AAAAFA==",
+            "GgBFABZ7InRleHQiOiLCpzZMTVlaTUFJTCJ9",
+            "PwBFATt7InRleHQiOiLCpzdUeXBlIHlvdXIgZW1haWwgdG8gZ2V0IHN0YXJ0ZWQiLCJjb2xvciI6ImdyYXkifQ==",
+            "UgACTnsidGV4dCI6IsKnZcKnbD09PSBXZWxjb21lIHRvIExNWVpNQUlMIE1pbmVjcmFmdCBTZXJ2ZXIgPT09IiwiY29sb3IiOiJ5ZWxsb3cifQA=",
+            "RQACQXsidGV4dCI6IsKnN1NlbmQgZW1haWxzIGRpcmVjdGx5IGZyb20gTWluZWNyYWZ0ISIsImNvbG9yIjoiZ3JheSJ9AA==",
+            "DwACC3sidGV4dCI6IiJ9AA==",
+            "QgACPnsidGV4dCI6IsKnYVBsZWFzZSBlbnRlciB5b3VyIGVtYWlsIGFkZHJlc3M6IiwiY29sb3IiOiJncmVlbiJ9AA==",
+            "HQAvAAAkAYIBAAAKAAAJAAVwYWdlcwgAAAABAAAA",
+            "jAEALwAALAGPAQAACgAACgAHZGlzcGxheQgABE5hbWUAG8KnNsKnbE1lbnUgwqc3KFJpZ2h0IENsaWNrKQkABExvcmUIAAAAAQAVwqc3T3BlbiB0aGUgbWFpbiBtZW51AAkABGVuY2gKAAAAAQIAAmlkAAACAANsdmwAAQADAAlIaWRlRmxhZ3MAAAA/AA==",
+        ];
+        let packets =
+            static_play_packets("8ba6e590-3a01-3523-be71-0f29eb709735", "StaticPlayProbe").unwrap();
+        assert_eq!(packets.len(), expected.len());
+        for (packet, frozen) in packets.into_iter().zip(expected) {
+            let frame = encode_packet_frame(&service, packet, Some(256), deadline, &cancellation)
+                .await
+                .unwrap();
+            assert_eq!(frame, STANDARD.decode(frozen).unwrap());
+        }
+    }
+
+    #[test]
+    fn static_play_uuid_and_json_inputs_are_strict_and_escaped() {
+        assert_eq!(
+            parse_uuid_bytes("01234567-89AB-cdef-0123-456789abcdef"),
+            Some([
+                0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89, 0xab,
+                0xcd, 0xef,
+            ])
+        );
+        assert!(parse_uuid_bytes("01234567-89ab-cdef-0123-456789abcdeg").is_none());
+        assert!(parse_uuid_bytes("0123456789abcdef0123456789abcde").is_none());
+        assert_eq!(
+            chat_json("quote=\" slash=\\", Some("gray")),
+            r#"{"text":"quote=\" slash=\\","color":"gray"}"#
+        );
+        assert!(static_play_packets("not-a-uuid", "Player").is_err());
     }
 
     #[tokio::test]

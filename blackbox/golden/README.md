@@ -726,3 +726,27 @@ oracle's one-entry-per-UUID online count while generation-fencing disconnect
 cleanup so an old duplicate session cannot erase the current session. These
 `4527bafa...` generations are the active references; every earlier generation
 remains create-once history.
+
+The bounded Minecraft world milestone records the frozen mailroom bootstrap at
+definition tree
+`538e2e8f9e547e91001efc02b99582de1d0111943b3ea13953443fca3189d318`:
+
+- `managed-minecraft-login-v4/`
+- `managed-minecraft-world-v1/`
+
+The world golden contains 3,209 Chunk Data packets, five Update Tile Entity
+packets, and Player Position And Look. Its aggregate expanded payload is
+356,583,182 bytes and its ordered chunk digest is
+`e9a89a4afae34f9ac9ca80fa8abdce2d7fa14f5acf1c62bda7ac464bbd10d90e`.
+No world fields are normalized. Login v4 is a byte-identical re-attestation of
+the v3 observations under the same definition tree.
+
+The static PLAY bootstrap milestone adds:
+
+- `managed-minecraft-static-play-v1/`
+
+It captures, without normalization, the complete wire frames after Player
+Position And Look: Player List Item, header/footer, three Title packets, four
+Chat packets, and the Book & Quill plus menu Nether Star SetSlot packets. This
+freezes UUID bytes, chat JSON, title timing, item metadata, NBT field order, and
+compression-envelope behavior against the same frozen Java oracle.
