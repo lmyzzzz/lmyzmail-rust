@@ -109,10 +109,11 @@ bytes, and close behavior match the Java golden. The listener has a fixed
 connection deadline, and joined cancellation. Offline login, world bootstrap,
 scheduled play maintenance, bounded position rebound, and the email/password
 authentication prompt plus the basic authenticated `/help`, `/stuck`,
-`/skibidi`, and `/video` usage commands now match frozen Java wire goldens.
-Auth attempts use the bounded `lmyzmail.minecraft.auth.*` settings with the legacy
-`botmail.minecraft.auth.*` aliases accepted at lower precedence. GUI, mail, and
-video remain outside this milestone and are not claimed as implemented.
+`/skibidi`, `/video` usage, empty `/draft`, and `/clear` commands now match
+frozen Java wire goldens. Auth attempts use the bounded
+`lmyzmail.minecraft.auth.*` settings with the legacy `botmail.minecraft.auth.*`
+aliases accepted at lower precedence. GUI, mail, and video remain outside this
+milestone and are not claimed as implemented.
 
 Outbound HTTP currently covers durable PostgreSQL admission, sender-scoped and
 API status lookup, and quota reporting. A `202` response is emitted only after a

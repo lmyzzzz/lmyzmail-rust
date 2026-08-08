@@ -87,6 +87,25 @@ struct MinecraftAuthAttempt {
     locked_until: Option<StdInstant>,
 }
 
+#[derive(Default)]
+struct MinecraftDraft {
+    to: String,
+    cc: String,
+    bcc: String,
+    subject: String,
+    body_pages: Vec<String>,
+}
+
+impl MinecraftDraft {
+    fn clear(&mut self) {
+        self.to.clear();
+        self.cc.clear();
+        self.bcc.clear();
+        self.subject.clear();
+        self.body_pages.clear();
+    }
+}
+
 impl MinecraftAuthLimiter {
     fn new(config: &MinecraftConfig) -> Self {
         Self {
@@ -499,6 +518,7 @@ async fn handle_connection(
     let mut pending_email = None;
     let mut authenticated = None;
     let mut player_username = String::new();
+    let mut draft = MinecraftDraft::default();
 
     loop {
         let raw_frame_result = if state == ConnectionState::Play {
@@ -980,7 +1000,8 @@ async fn handle_connection(
                             return Ok(());
                         }
                     } else if authenticated.is_some() {
-                        let responses = authenticated_command_packets(&message, &service.config)?;
+                        let responses =
+                            authenticated_command_packets(&message, &service.config, &mut draft)?;
                         message.zeroize();
                         if let Err(error) = write_packet_list(
                             &mut writer,
@@ -1747,6 +1768,7 @@ fn email_instruction_packets() -> io::Result<Vec<Vec<u8>>> {
 fn authenticated_command_packets(
     message: &str,
     config: &MinecraftConfig,
+    draft: &mut MinecraftDraft,
 ) -> io::Result<Vec<Vec<u8>>> {
     let command = java_trim(message);
     if !command.starts_with('/') {
@@ -1773,11 +1795,44 @@ fn authenticated_command_packets(
             )?,
             chat_packet("\u{00a7}c       /video stop | /video pause", Some("red"))?,
         ]),
-        "/menu" | "/draft" | "/clear" | "/mail" | "/video" => Ok(Vec::new()),
+        "/draft" => draft_summary_packets(draft),
+        "/clear" => {
+            draft.clear();
+            let mut packets = vec![chat_packet("\u{00a7}aDraft cleared!", Some("green"))?];
+            packets.extend(empty_draft_sign_packets()?);
+            packets.push(draft_book_packet()?);
+            Ok(packets)
+        }
+        "/menu" | "/mail" | "/video" => Ok(Vec::new()),
         _ => Ok(vec![chat_packet(
             "\u{00a7}cUnknown command. Use /help",
             Some("red"),
         )?]),
+    }
+}
+
+fn draft_summary_packets(draft: &MinecraftDraft) -> io::Result<Vec<Vec<u8>>> {
+    [
+        "\u{00a7}e\u{00a7}lCurrent Draft:".to_owned(),
+        format!("\u{00a7}7To: \u{00a7}f{}", draft_display(&draft.to)),
+        format!("\u{00a7}7CC: \u{00a7}f{}", draft_display(&draft.cc)),
+        format!("\u{00a7}7BCC: \u{00a7}f{}", draft_display(&draft.bcc)),
+        format!(
+            "\u{00a7}7Subject: \u{00a7}f{}",
+            draft_display(&draft.subject)
+        ),
+        format!("\u{00a7}7Body: \u{00a7}f{} page(s)", draft.body_pages.len()),
+    ]
+    .into_iter()
+    .map(|text| chat_packet(&text, None))
+    .collect()
+}
+
+fn draft_display(value: &str) -> &str {
+    if value.chars().all(char::is_whitespace) {
+        "(empty)"
+    } else {
+        value
     }
 }
 
@@ -3077,34 +3132,69 @@ mod tests {
     #[test]
     fn authenticated_basic_commands_match_java_trim_case_and_packet_order() {
         let configured = config(Duration::from_secs(30));
-        let help = authenticated_command_packets("  /HeLp  ", &configured).unwrap();
+        let mut draft = MinecraftDraft::default();
+        let help = authenticated_command_packets("  /HeLp  ", &configured, &mut draft).unwrap();
         assert_eq!(help, email_instruction_packets().unwrap());
         assert_eq!(help.len(), 8);
         assert!(help.iter().all(|packet| packet[0] == 0x02));
 
-        let stuck = authenticated_command_packets("/stuck", &configured).unwrap();
+        let stuck = authenticated_command_packets("/stuck", &configured, &mut draft).unwrap();
         assert_eq!(stuck.len(), 2);
         assert_eq!(stuck[0][0], 0x08);
         assert_eq!(stuck[1][0], 0x02);
         assert_eq!(
-            authenticated_command_packets("/skibidi", &configured).unwrap()[0],
+            authenticated_command_packets("/skibidi", &configured, &mut draft).unwrap()[0],
             chat_packet("Brrrrrr Skibidi dop dop dop yes yes!", None).unwrap()
         );
         assert_eq!(
-            authenticated_command_packets("/video", &configured)
+            authenticated_command_packets("/video", &configured, &mut draft)
                 .unwrap()
                 .len(),
             3
         );
         assert_eq!(
-            authenticated_command_packets("/definitely-unknown", &configured).unwrap()[0],
+            authenticated_command_packets("/definitely-unknown", &configured, &mut draft).unwrap()
+                [0],
             chat_packet("\u{00a7}cUnknown command. Use /help", Some("red")).unwrap()
         );
         assert!(
-            authenticated_command_packets("plain chat", &configured)
+            authenticated_command_packets("plain chat", &configured, &mut draft)
                 .unwrap()
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn draft_commands_inspect_and_clear_the_session_state() {
+        let configured = config(Duration::from_secs(30));
+        let mut draft = MinecraftDraft {
+            to: "to@example.test".to_owned(),
+            cc: "cc@example.test".to_owned(),
+            bcc: "bcc@example.test".to_owned(),
+            subject: "subject".to_owned(),
+            body_pages: vec!["page one".to_owned(), "page two".to_owned()],
+        };
+        let summary = authenticated_command_packets("/draft", &configured, &mut draft).unwrap();
+        assert_eq!(summary.len(), 6);
+        assert_eq!(
+            summary[1],
+            chat_packet("\u{00a7}7To: \u{00a7}fto@example.test", None).unwrap()
+        );
+        assert_eq!(
+            summary[5],
+            chat_packet("\u{00a7}7Body: \u{00a7}f2 page(s)", None).unwrap()
+        );
+
+        let clear = authenticated_command_packets("/clear", &configured, &mut draft).unwrap();
+        assert_eq!(
+            clear.iter().map(|packet| packet[0]).collect::<Vec<_>>(),
+            [0x02, 0x33, 0x33, 0x33, 0x33, 0x2f]
+        );
+        assert!(draft.to.is_empty());
+        assert!(draft.cc.is_empty());
+        assert!(draft.bcc.is_empty());
+        assert!(draft.subject.is_empty());
+        assert!(draft.body_pages.is_empty());
     }
 
     #[test]

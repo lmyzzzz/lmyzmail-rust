@@ -807,3 +807,11 @@ It preserves Java ASCII trim and case-insensitive command dispatch, the eight
 `/help` instruction chats, `/stuck` teleport and acknowledgement, `/skibidi`,
 the three no-argument `/video` usage messages, and the unknown-command error.
 All 15 response frames are frozen without normalization.
+
+The initial draft-command milestone adds:
+
+- `managed-minecraft-draft-commands-v1/`
+
+It freezes empty `/draft`, `/clear`, and the cleared `/draft` state without
+normalization. The clear response includes the exact confirmation chat, four
+empty Update Sign packets, and refreshed empty Book & Quill SetSlot packet.
