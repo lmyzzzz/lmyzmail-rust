@@ -798,3 +798,12 @@ and a fresh-connection successful password. The failure path preserves the
 exact remaining-attempt message and prompt. The success path preserves the
 eleven instruction chats, four empty-draft sign updates, book item, and
 sidebar scoreboard/objective packets byte-for-byte.
+
+The basic authenticated-command milestone adds:
+
+- `managed-minecraft-authenticated-commands-v1/`
+
+It preserves Java ASCII trim and case-insensitive command dispatch, the eight
+`/help` instruction chats, `/stuck` teleport and acknowledgement, `/skibidi`,
+the three no-argument `/video` usage messages, and the unknown-command error.
+All 15 response frames are frozen without normalization.

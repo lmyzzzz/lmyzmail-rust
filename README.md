@@ -108,8 +108,9 @@ bytes, and close behavior match the Java golden. The listener has a fixed
 64-connection admission bound, a 2 MiB frame ceiling, one absolute configured
 connection deadline, and joined cancellation. Offline login, world bootstrap,
 scheduled play maintenance, bounded position rebound, and the email/password
-authentication prompt now match frozen Java wire goldens. Auth attempts use the
-bounded `lmyzmail.minecraft.auth.*` settings with the legacy
+authentication prompt plus the basic authenticated `/help`, `/stuck`,
+`/skibidi`, and `/video` usage commands now match frozen Java wire goldens.
+Auth attempts use the bounded `lmyzmail.minecraft.auth.*` settings with the legacy
 `botmail.minecraft.auth.*` aliases accepted at lower precedence. GUI, mail, and
 video remain outside this milestone and are not claimed as implemented.
 

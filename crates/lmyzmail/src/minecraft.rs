@@ -979,6 +979,22 @@ async fn handle_connection(
                             shutdown_stream(&mut writer, deadline, &cancellation).await?;
                             return Ok(());
                         }
+                    } else if authenticated.is_some() {
+                        let responses = authenticated_command_packets(&message, &service.config)?;
+                        message.zeroize();
+                        if let Err(error) = write_packet_list(
+                            &mut writer,
+                            &service,
+                            responses,
+                            compression,
+                            cipher.as_mut(),
+                            deadline,
+                            &cancellation,
+                        )
+                        .await
+                        {
+                            return finish_write_error(error);
+                        }
                     }
                 }
                 0x04 | 0x06 => match read_player_position(&mut packet, packet_id) {
@@ -1662,7 +1678,7 @@ fn hologram_teleport_packets(hologram_entity_base: i32) -> Vec<Vec<u8>> {
 }
 
 fn awaiting_email_responses(message: &str) -> io::Result<(Option<String>, Vec<Vec<u8>>)> {
-    let email = message.trim_matches(|character| character <= '\u{20}');
+    let email = java_trim(message);
     if email.is_empty() || !email.contains('@') {
         return Ok((
             None,
@@ -1704,7 +1720,16 @@ fn authenticated_packets(username: &str, email: &str) -> io::Result<Vec<Vec<u8>>
         chat_packet(&format!("\u{00a7}aLogged in as: \u{00a7}f{email}"), None)?,
         chat_packet("", None)?,
     ];
-    for text in [
+    packets.extend(email_instruction_packets()?);
+    packets.extend(empty_draft_sign_packets()?);
+    packets.push(draft_book_packet()?);
+    packets.extend(authenticated_scoreboard_packets(username, email)?);
+    debug_assert_eq!(packets.len(), 29);
+    Ok(packets)
+}
+
+fn email_instruction_packets() -> io::Result<Vec<Vec<u8>>> {
+    [
         "\u{00a7}e\u{00a7}l=== How to Send Email ===",
         "\u{00a7}71. Click the buttons next to signs to edit:",
         "\u{00a7}7   \u{00a7}fTo\u{00a7}7, \u{00a7}fCC\u{00a7}7, \u{00a7}fBCC\u{00a7}7, \u{00a7}fSubject",
@@ -1713,14 +1738,69 @@ fn authenticated_packets(username: &str, email: &str) -> io::Result<Vec<Vec<u8>>
         "\u{00a7}74. Hold \u{00a7}f\u{2605} Nether Star \u{00a7}7+ right-click \u{2192} Mail menu",
         "\u{00a7}7   Or type \u{00a7}f/menu \u{00a7}7to open",
         "\u{00a7}e================================",
-    ] {
-        packets.push(chat_packet(text, None)?);
+    ]
+    .into_iter()
+    .map(|text| chat_packet(text, None))
+    .collect()
+}
+
+fn authenticated_command_packets(
+    message: &str,
+    config: &MinecraftConfig,
+) -> io::Result<Vec<Vec<u8>>> {
+    let command = java_trim(message);
+    if !command.starts_with('/') {
+        return Ok(Vec::new());
     }
-    packets.extend(empty_draft_sign_packets()?);
-    packets.push(draft_book_packet()?);
-    packets.extend(authenticated_scoreboard_packets(username, email)?);
-    debug_assert_eq!(packets.len(), 29);
-    Ok(packets)
+    let split = command.find(java_regex_space).unwrap_or(command.len());
+    let name = command[..split].to_ascii_lowercase();
+    let has_arguments = split < command.len();
+    match name.as_str() {
+        "/help" => email_instruction_packets(),
+        "/stuck" => stuck_command_packets(config),
+        "/skibidi" => Ok(vec![chat_packet(
+            "Brrrrrr Skibidi dop dop dop yes yes!",
+            None,
+        )?]),
+        "/video" if !has_arguments => Ok(vec![
+            chat_packet(
+                "\u{00a7}cUsage: /video play map [width=5] [fps=10] [dither=1]",
+                Some("red"),
+            )?,
+            chat_packet(
+                "\u{00a7}c       /video play [width=48] [fps=6]",
+                Some("red"),
+            )?,
+            chat_packet("\u{00a7}c       /video stop | /video pause", Some("red"))?,
+        ]),
+        "/menu" | "/draft" | "/clear" | "/mail" | "/video" => Ok(Vec::new()),
+        _ => Ok(vec![chat_packet(
+            "\u{00a7}cUnknown command. Use /help",
+            Some("red"),
+        )?]),
+    }
+}
+
+fn stuck_command_packets(config: &MinecraftConfig) -> io::Result<Vec<Vec<u8>>> {
+    let mut position = vec![0x08];
+    position.extend_from_slice(&config.spawn.x.to_be_bytes());
+    position.extend_from_slice(&config.spawn.y.to_be_bytes());
+    position.extend_from_slice(&config.spawn.z.to_be_bytes());
+    position.extend_from_slice(&config.spawn.yaw.to_be_bytes());
+    position.extend_from_slice(&config.spawn.pitch.to_be_bytes());
+    position.push(0);
+    Ok(vec![
+        position,
+        chat_packet("\u{00a7}aTeleported to spawn!", Some("green"))?,
+    ])
+}
+
+fn java_trim(value: &str) -> &str {
+    value.trim_matches(|character| character <= '\u{20}')
+}
+
+fn java_regex_space(character: char) -> bool {
+    matches!(character, ' ' | '\t' | '\n' | '\u{0b}' | '\u{0c}' | '\r')
 }
 
 fn empty_draft_sign_packets() -> io::Result<Vec<Vec<u8>>> {
@@ -2992,6 +3072,39 @@ mod tests {
             (false, 2)
         );
         assert_eq!(limiter.records.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn authenticated_basic_commands_match_java_trim_case_and_packet_order() {
+        let configured = config(Duration::from_secs(30));
+        let help = authenticated_command_packets("  /HeLp  ", &configured).unwrap();
+        assert_eq!(help, email_instruction_packets().unwrap());
+        assert_eq!(help.len(), 8);
+        assert!(help.iter().all(|packet| packet[0] == 0x02));
+
+        let stuck = authenticated_command_packets("/stuck", &configured).unwrap();
+        assert_eq!(stuck.len(), 2);
+        assert_eq!(stuck[0][0], 0x08);
+        assert_eq!(stuck[1][0], 0x02);
+        assert_eq!(
+            authenticated_command_packets("/skibidi", &configured).unwrap()[0],
+            chat_packet("Brrrrrr Skibidi dop dop dop yes yes!", None).unwrap()
+        );
+        assert_eq!(
+            authenticated_command_packets("/video", &configured)
+                .unwrap()
+                .len(),
+            3
+        );
+        assert_eq!(
+            authenticated_command_packets("/definitely-unknown", &configured).unwrap()[0],
+            chat_packet("\u{00a7}cUnknown command. Use /help", Some("red")).unwrap()
+        );
+        assert!(
+            authenticated_command_packets("plain chat", &configured)
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]
