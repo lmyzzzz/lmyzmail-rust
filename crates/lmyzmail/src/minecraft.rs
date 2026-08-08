@@ -33,6 +33,7 @@ use zeroize::Zeroize;
 use crate::{
     bounded_blocking::{BoundedBlockingPool, SubmitError},
     config::{MinecraftConfig, RuntimeConfig},
+    minecraft_world::{self, WorldTemplate},
 };
 
 const MAX_FRAME_LENGTH: usize = 2 * 1024 * 1024;
@@ -169,6 +170,7 @@ struct StatusService {
     next_entity_id: AtomicI32,
     next_connection_id: AtomicU64,
     online_sessions: Arc<Mutex<HashMap<String, u64>>>,
+    world: Arc<WorldTemplate>,
     connection_timeout: Duration,
 }
 
@@ -179,6 +181,7 @@ impl StatusService {
             login_disconnect_frame(r#"{"text":"You are banned from this server.","color":"red"}"#)?;
         let whitelist_frame =
             login_disconnect_frame(r#"{"text":"You are not whitelisted.","color":"red"}"#)?;
+        let world = WorldTemplate::load_shared(&config.world_template)?;
         Ok(Self {
             config: config.clone(),
             status_frame: status_frame.into(),
@@ -199,6 +202,7 @@ impl StatusService {
             next_entity_id: AtomicI32::new(1),
             next_connection_id: AtomicU64::new(1),
             online_sessions: Arc::new(Mutex::new(HashMap::with_capacity(MAX_CONNECTIONS))),
+            world,
             connection_timeout: Duration::from_secs(config.read_timeout_seconds),
         })
     }
@@ -954,7 +958,97 @@ async fn complete_login(
         )
         .await?;
     }
+    send_world_bootstrap(stream, service, compression, cipher, deadline, cancellation).await?;
     Ok((compression, online_guard))
+}
+
+async fn send_world_bootstrap(
+    stream: &mut TcpStream,
+    service: &StatusService,
+    compression: Option<i32>,
+    mut cipher: Option<&mut MinecraftCipher>,
+    deadline: Instant,
+    cancellation: &CancellationToken,
+) -> Result<(), ProtocolError> {
+    let spawn = &service.config.spawn;
+    let chunk_centers = [
+        ((spawn.x as i32) >> 4, (spawn.z as i32) >> 4),
+        (
+            service.config.video.center_x >> 4,
+            service.config.video.wall_z >> 4,
+        ),
+    ];
+    for chunk in service
+        .world
+        .chunks_near_centers(&chunk_centers, service.config.view_distance as i32)
+    {
+        let (mask, data) = minecraft_world::serialize_chunk(chunk, true, true);
+        let mut packet = vec![0x21];
+        packet.extend_from_slice(&chunk.chunk_x.to_be_bytes());
+        packet.extend_from_slice(&chunk.chunk_z.to_be_bytes());
+        packet.push(1);
+        packet.extend_from_slice(&mask.to_be_bytes());
+        write_byte_array(&mut packet, &data).map_err(ProtocolError::Io)?;
+        write_packet(
+            stream,
+            service,
+            packet,
+            compression,
+            cipher.as_deref_mut(),
+            deadline,
+            cancellation,
+        )
+        .await?;
+    }
+    for chunk in service.world.chunks() {
+        for tile_entity in &chunk.tile_entities {
+            let action = match tile_entity.id.as_str() {
+                "Sign" => 9,
+                "Banner" => 6,
+                _ => continue,
+            };
+            let mut packet = vec![0x35];
+            write_block_position(&mut packet, tile_entity.x, tile_entity.y, tile_entity.z);
+            packet.push(action);
+            minecraft_world::write_nbt(Some(&tile_entity.nbt), &mut packet)
+                .map_err(ProtocolError::Io)?;
+            write_packet(
+                stream,
+                service,
+                packet,
+                compression,
+                cipher.as_deref_mut(),
+                deadline,
+                cancellation,
+            )
+            .await?;
+        }
+    }
+    let mut position = vec![0x08];
+    position.extend_from_slice(&spawn.x.to_be_bytes());
+    position.extend_from_slice(&spawn.y.to_be_bytes());
+    position.extend_from_slice(&spawn.z.to_be_bytes());
+    position.extend_from_slice(&spawn.yaw.to_be_bytes());
+    position.extend_from_slice(&spawn.pitch.to_be_bytes());
+    position.push(0);
+    write_packet(
+        stream,
+        service,
+        position,
+        compression,
+        cipher,
+        deadline,
+        cancellation,
+    )
+    .await?;
+    Ok(())
+}
+
+fn write_block_position(output: &mut Vec<u8>, x: i32, y: i32, z: i32) {
+    let packed = ((i64::from(x) & 0x3ff_ffff) << 38)
+        | ((i64::from(y) & 0xfff) << 26)
+        | (i64::from(z) & 0x3ff_ffff);
+    output.extend_from_slice(&packed.to_be_bytes());
 }
 
 async fn write_packet(
@@ -1761,12 +1855,18 @@ mod tests {
             read_timeout_seconds: timeout.as_secs().max(1),
             session_server_url: "https://sessionserver.mojang.com/session/minecraft/hasJoined"
                 .to_owned(),
+            world_template: "worlds/mailroom".to_owned(),
+            view_distance: 32,
             spawn: crate::config::MinecraftSpawnConfig {
                 x: 0.5,
                 y: 160.0,
                 z: 0.5,
                 yaw: 0.0,
                 pitch: 0.0,
+            },
+            video: crate::config::MinecraftVideoConfig {
+                center_x: 0,
+                wall_z: -50,
             },
             whitelist_enabled: false,
             whitelist_players: Vec::new(),

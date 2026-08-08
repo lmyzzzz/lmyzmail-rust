@@ -32,6 +32,7 @@ const MAX_MINECRAFT_STATUS_JSON_BYTES: usize = 32_767;
 const MAX_MINECRAFT_PLAYERS: u32 = i32::MAX as u32;
 const MAX_MINECRAFT_READ_TIMEOUT_SECONDS: u64 = 3_600;
 const MAX_MINECRAFT_COMPRESSION_THRESHOLD: i32 = 2 * 1024 * 1024;
+const MAX_MINECRAFT_VIEW_DISTANCE: u64 = 64;
 const MAX_MESSAGE_BYTES: u64 = 1024 * 1024 * 1024;
 
 #[derive(Debug)]
@@ -357,8 +358,14 @@ struct JsonMinecraftConfig {
     read_timeout_seconds: u64,
     #[serde(default = "default_minecraft_session_server_url")]
     session_server_url: String,
+    #[serde(default = "default_minecraft_world_template")]
+    world_template: String,
+    #[serde(default = "default_minecraft_view_distance")]
+    view_distance: u64,
     #[serde(default)]
     spawn: JsonMinecraftSpawnConfig,
+    #[serde(default)]
+    video: JsonMinecraftVideoConfig,
     #[serde(default)]
     whitelist_enabled: bool,
     #[serde(default)]
@@ -378,7 +385,10 @@ impl Default for JsonMinecraftConfig {
             favicon: String::new(),
             read_timeout_seconds: default_minecraft_read_timeout_seconds(),
             session_server_url: default_minecraft_session_server_url(),
+            world_template: default_minecraft_world_template(),
+            view_distance: default_minecraft_view_distance(),
             spawn: JsonMinecraftSpawnConfig::default(),
+            video: JsonMinecraftVideoConfig::default(),
             whitelist_enabled: false,
             whitelist_players: Vec::new(),
             blacklist_players: Vec::new(),
@@ -399,6 +409,24 @@ struct JsonMinecraftSpawnConfig {
     yaw: f32,
     #[serde(default)]
     pitch: f32,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct JsonMinecraftVideoConfig {
+    #[serde(default = "default_minecraft_video_center_x")]
+    center_x: i32,
+    #[serde(default = "default_minecraft_video_wall_z")]
+    wall_z: i32,
+}
+
+impl Default for JsonMinecraftVideoConfig {
+    fn default() -> Self {
+        Self {
+            center_x: default_minecraft_video_center_x(),
+            wall_z: default_minecraft_video_wall_z(),
+        }
+    }
 }
 
 impl Default for JsonMinecraftSpawnConfig {
@@ -609,6 +637,22 @@ fn default_minecraft_session_server_url() -> String {
     "https://sessionserver.mojang.com/session/minecraft/hasJoined".to_owned()
 }
 
+fn default_minecraft_world_template() -> String {
+    "worlds/mailroom".to_owned()
+}
+
+fn default_minecraft_view_distance() -> u64 {
+    32
+}
+
+fn default_minecraft_video_center_x() -> i32 {
+    0
+}
+
+fn default_minecraft_video_wall_z() -> i32 {
+    -50
+}
+
 fn default_minecraft_compression_threshold() -> i32 {
     256
 }
@@ -708,6 +752,14 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         value.minecraft.session_server_url,
     )?;
     properties.insert(
+        "lmyzmail.minecraft.world-template".to_owned(),
+        value.minecraft.world_template,
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.view-distance".to_owned(),
+        value.minecraft.view_distance.to_string(),
+    )?;
+    properties.insert(
         "lmyzmail.minecraft.spawn.x".to_owned(),
         value.minecraft.spawn.x.to_string(),
     )?;
@@ -726,6 +778,14 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
     properties.insert(
         "lmyzmail.minecraft.spawn.pitch".to_owned(),
         value.minecraft.spawn.pitch.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.video.center-x".to_owned(),
+        value.minecraft.video.center_x.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.video.wall-z".to_owned(),
+        value.minecraft.video.wall_z.to_string(),
     )?;
     properties.insert(
         "lmyzmail.minecraft.whitelist.enabled".to_owned(),
@@ -1161,7 +1221,10 @@ pub struct MinecraftConfig {
     pub favicon: String,
     pub read_timeout_seconds: u64,
     pub session_server_url: String,
+    pub world_template: String,
+    pub view_distance: u32,
     pub spawn: MinecraftSpawnConfig,
+    pub video: MinecraftVideoConfig,
     pub whitelist_enabled: bool,
     pub whitelist_players: Vec<String>,
     pub blacklist_players: Vec<String>,
@@ -1174,6 +1237,12 @@ pub struct MinecraftSpawnConfig {
     pub z: f64,
     pub yaw: f32,
     pub pitch: f32,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MinecraftVideoConfig {
+    pub center_x: i32,
+    pub wall_z: i32,
 }
 
 #[derive(Clone, Debug)]
@@ -1726,6 +1795,32 @@ fn parse_minecraft_config(properties: &Properties) -> Result<MinecraftConfig, Co
     .map(str::to_owned)
     .unwrap_or_else(default_minecraft_session_server_url);
     validate_minecraft_session_server_url(&session_server_url)?;
+    let world_template = preferred(
+        properties,
+        &["lmyzmail.minecraft.world-template"],
+        &["botmail.minecraft.world-template"],
+    )
+    .map(str::to_owned)
+    .unwrap_or_else(default_minecraft_world_template);
+    if world_template.is_empty()
+        || world_template.len() > 255
+        || world_template.chars().any(char::is_control)
+    {
+        return Err(ConfigError::Invalid(
+            "minecraft world-template must be a bounded non-control path".into(),
+        ));
+    }
+    let view_distance = preferred_u64(
+        properties,
+        &["lmyzmail.minecraft.view-distance"],
+        &["botmail.minecraft.view-distance"],
+        default_minecraft_view_distance(),
+    )?;
+    if view_distance > MAX_MINECRAFT_VIEW_DISTANCE {
+        return Err(ConfigError::Invalid(format!(
+            "minecraft view-distance must be at most {MAX_MINECRAFT_VIEW_DISTANCE}"
+        )));
+    }
     let spawn = MinecraftSpawnConfig {
         x: preferred_f64(
             properties,
@@ -1763,6 +1858,20 @@ fn parse_minecraft_config(properties: &Properties) -> Result<MinecraftConfig, Co
             "minecraft spawn.pitch",
         )?,
     };
+    let video = MinecraftVideoConfig {
+        center_x: preferred_i32(
+            properties,
+            &["lmyzmail.minecraft.video.center-x"],
+            &["botmail.minecraft.video.center-x"],
+            default_minecraft_video_center_x(),
+        )?,
+        wall_z: preferred_i32(
+            properties,
+            &["lmyzmail.minecraft.video.wall-z"],
+            &["botmail.minecraft.video.wall-z"],
+            default_minecraft_video_wall_z(),
+        )?,
+    };
     let whitelist_enabled = preferred_bool(
         properties,
         &["lmyzmail.minecraft.whitelist.enabled"],
@@ -1790,7 +1899,12 @@ fn parse_minecraft_config(properties: &Properties) -> Result<MinecraftConfig, Co
         favicon,
         read_timeout_seconds,
         session_server_url,
+        world_template,
+        view_distance: u32::try_from(view_distance).map_err(|_| {
+            ConfigError::Invalid("minecraft view-distance exceeds the supported range".into())
+        })?,
         spawn,
+        video,
         whitelist_enabled,
         whitelist_players,
         blacklist_players,
@@ -2121,6 +2235,21 @@ fn preferred_u8(
     default: u8,
 ) -> Result<u8, ConfigError> {
     parse_number(properties, new, legacy, default, "redis database")
+}
+
+fn preferred_i32(
+    properties: &Properties,
+    new_keys: &[&str],
+    legacy_keys: &[&str],
+    default: i32,
+) -> Result<i32, ConfigError> {
+    parse_number(
+        properties,
+        new_keys,
+        legacy_keys,
+        default,
+        "minecraft video coordinate",
+    )
 }
 
 fn preferred_u16(
@@ -2923,7 +3052,10 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
                 "favicon": " cGl4ZWw= ",
                 "read_timeout_seconds": 75,
                 "session_server_url": "http://127.0.0.1:18081/session/minecraft/hasJoined",
+                "world_template": "worlds/mailroom",
+                "view_distance": 31,
                 "spawn": {"x": -12.75, "y": 70.9, "z": 34.5, "yaw": 45.0, "pitch": -15.0},
+                "video": {"center_x": 16, "wall_z": -64},
                 "whitelist_enabled": true,
                 "whitelist_players": ["SemanticAllowed"],
                 "blacklist_players": ["SemanticBlocked"]
@@ -2949,6 +3081,10 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
             config.minecraft.session_server_url,
             "http://127.0.0.1:18081/session/minecraft/hasJoined"
         );
+        assert_eq!(config.minecraft.world_template, "worlds/mailroom");
+        assert_eq!(config.minecraft.view_distance, 31);
+        assert_eq!(config.minecraft.video.center_x, 16);
+        assert_eq!(config.minecraft.video.wall_z, -64);
         assert_eq!(config.minecraft.spawn.x, -12.75);
         assert_eq!(config.minecraft.spawn.y, 70.9);
         assert_eq!(config.minecraft.spawn.z, 34.5);
@@ -2984,6 +3120,10 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
             config.minecraft.session_server_url,
             "https://sessionserver.mojang.com/session/minecraft/hasJoined"
         );
+        assert_eq!(config.minecraft.world_template, "worlds/mailroom");
+        assert_eq!(config.minecraft.view_distance, 32);
+        assert_eq!(config.minecraft.video.center_x, 0);
+        assert_eq!(config.minecraft.video.wall_z, -50);
         assert!(config.minecraft.favicon.is_empty());
         assert_eq!(config.minecraft.spawn.x, 0.5);
         assert_eq!(config.minecraft.spawn.y, 160.0);
@@ -3029,6 +3169,10 @@ botmail.minecraft.motd=legacy\n\
 botmail.minecraft.favicon=bGVnYWN5\n\
 botmail.minecraft.read-timeout-seconds=45\n\
 botmail.minecraft.session-server-url=https://legacy-session.example.test/hasJoined\n\
+botmail.minecraft.world-template=legacy-world\n\
+botmail.minecraft.view-distance=12\n\
+botmail.minecraft.video.center-x=7\n\
+botmail.minecraft.video.wall-z=-9\n\
 botmail.minecraft.spawn.x=1.5\n\
 botmail.minecraft.spawn.y=65.25\n\
 botmail.minecraft.spawn.z=2.5\n\
@@ -3045,6 +3189,10 @@ lmyzmail.minecraft.motd=new\n\
 lmyzmail.minecraft.favicon=bmV3\n\
 lmyzmail.minecraft.read-timeout-seconds=30\n\
 lmyzmail.minecraft.session-server-url=http://127.0.0.1:18081/hasJoined\n\
+lmyzmail.minecraft.world-template=worlds/mailroom\n\
+lmyzmail.minecraft.view-distance=32\n\
+lmyzmail.minecraft.video.center-x=0\n\
+lmyzmail.minecraft.video.wall-z=-50\n\
 lmyzmail.minecraft.spawn.x=-12.75\n\
 lmyzmail.minecraft.spawn.y=70.9\n\
 lmyzmail.minecraft.spawn.z=34.5\n\
@@ -3068,6 +3216,10 @@ lmyzmail.minecraft.blacklist.players=NewBlocked\n",
             config.minecraft.session_server_url,
             "http://127.0.0.1:18081/hasJoined"
         );
+        assert_eq!(config.minecraft.world_template, "worlds/mailroom");
+        assert_eq!(config.minecraft.view_distance, 32);
+        assert_eq!(config.minecraft.video.center_x, 0);
+        assert_eq!(config.minecraft.video.wall_z, -50);
         assert_eq!(config.minecraft.spawn.x, -12.75);
         assert_eq!(config.minecraft.spawn.y, 70.9);
         assert_eq!(config.minecraft.spawn.z, 34.5);
@@ -3089,6 +3241,10 @@ lmyzmail.minecraft.blacklist.players=NewBlocked\n",
             "lmyzmail.minecraft.spawn.yaw=nope\n",
             "lmyzmail.minecraft.read-timeout-seconds=0\n",
             "lmyzmail.minecraft.read-timeout-seconds=3601\n",
+            "lmyzmail.minecraft.view-distance=65\n",
+            "lmyzmail.minecraft.view-distance=-1\n",
+            "lmyzmail.minecraft.video.center-x=nope\n",
+            "lmyzmail.minecraft.world-template=\n",
             "lmyzmail.minecraft.motd=bad\\u0009motd\n",
             "lmyzmail.minecraft.session-server-url=http://session.example.test/hasJoined\n",
             "lmyzmail.minecraft.session-server-url=https://session.example.test/hasJoined?bad=true\n",

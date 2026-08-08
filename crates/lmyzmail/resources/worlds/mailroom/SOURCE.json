@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "source_commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+  "byte_source": "frozen_java_oracle_commit",
+  "source_root": "src/main/resources/worlds/mailroom",
+  "files": {
+    "region/r.-1.-1.mca": "f8e90e413de0b7b41b174e81262c2a3c80cd31f9d820565669e859a4d223f85e",
+    "region/r.-1.0.mca": "aaeff6b62849df5da679d7121e3b0d59e9623dfb92e1ce995cc9c5148df14630",
+    "region/r.0.-1.mca": "c3e8dbccfaa3777bab4a65246745ac8e317be8f4a86d9bcd4e655f056846e810",
+    "region/r.0.0.mca": "0c04d2071ed4de675b94de087a46f331d354f98d383767a3ea644b1ac3ddf04e"
+  }
+}

@@ -8,6 +8,7 @@ pub mod http;
 pub mod lifecycle;
 pub mod mailbox;
 pub mod minecraft;
+pub(crate) mod minecraft_world;
 pub mod outbound;
 pub mod outbound_coordinator;
 pub mod outbound_delivery;
