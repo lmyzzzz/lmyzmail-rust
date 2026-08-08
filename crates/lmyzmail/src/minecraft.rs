@@ -56,6 +56,16 @@ const POSITION_CHECK_INTERVAL: Duration = Duration::from_secs(2);
 const HOLOGRAM_TELEPORT_INTERVAL: Duration = Duration::from_secs(2);
 const TIME_UPDATE_INTERVAL: Duration = Duration::from_secs(15);
 const MAX_SPAWN_DISTANCE: f64 = 100.0;
+const RENDER_MAPS_X_DEFAULT: i32 = 10;
+const RENDER_MAPS_X_MIN: i32 = 2;
+const RENDER_MAPS_X_MAX: i32 = 24;
+const RENDER_MAPS_Y_DEFAULT: i32 = 20;
+const RENDER_MAPS_Y_MIN: i32 = 2;
+const RENDER_MAPS_Y_MAX: i32 = 20;
+const RENDER_FONT_SIZE_DEFAULT: i32 = 20;
+const RENDER_FONT_SIZE_MIN: i32 = 8;
+const RENDER_FONT_SIZE_MAX: i32 = 48;
+const UPDATE_SIGN_LINE_MAX_UTF16_UNITS: usize = 384;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ConnectionState {
@@ -103,11 +113,33 @@ struct WindowClick {
     mode: u8,
 }
 
+struct UpdateSign {
+    lines: [String; 4],
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct RenderSettings {
+    maps_x: i32,
+    maps_y: i32,
+    font_size: i32,
+}
+
+impl Default for RenderSettings {
+    fn default() -> Self {
+        Self {
+            maps_x: RENDER_MAPS_X_DEFAULT,
+            maps_y: RENDER_MAPS_Y_DEFAULT,
+            font_size: RENDER_FONT_SIZE_DEFAULT,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum MainMenuEffect {
     None,
     Close,
     SwitchAccount,
+    OpenRenderSettings,
     OpenLogoutConfirm(u8),
 }
 
@@ -581,6 +613,8 @@ async fn handle_connection(
     let mut draft = MinecraftDraft::default();
     let mut open_menu_window_id = None;
     let mut logout_confirm_window_id = None;
+    let mut render_settings = RenderSettings::default();
+    let mut render_settings_pending = false;
 
     loop {
         let raw_frame_result = if state == ConnectionState::Play {
@@ -1029,7 +1063,7 @@ async fn handle_connection(
                                 service.auth_limiter.clear(&client_ip);
                                 pending_email = None;
                                 authenticated = Some((email.clone(), Zeroizing::new(login.token)));
-                                authenticated_packets(&player_username, &email)?
+                                authenticated_packets(&player_username, &email, render_settings)?
                             }
                             Ok((LoginOutcome::Success, None))
                             | Err(AuthError::Cancelled)
@@ -1078,6 +1112,7 @@ async fn handle_connection(
                             &service.config,
                             &mut draft,
                             menu_window_id,
+                            render_settings,
                         )?);
                         message.zeroize();
                         if let Some(window_id) = menu_window_id {
@@ -1127,7 +1162,8 @@ async fn handle_connection(
                     if open_menu_window_id == Some(click.window_id) {
                         let logout_window_id =
                             (click.mode == 0 && click.slot == 34).then(|| service.next_window_id());
-                        let (responses, effect) = main_menu_click_packets(click, logout_window_id)?;
+                        let (responses, effect) =
+                            main_menu_click_packets(click, logout_window_id, render_settings)?;
                         match effect {
                             MainMenuEffect::None => {}
                             MainMenuEffect::Close => {
@@ -1139,6 +1175,11 @@ async fn handle_connection(
                                 logout_confirm_window_id = None;
                                 pending_email = None;
                                 authenticated = None;
+                            }
+                            MainMenuEffect::OpenRenderSettings => {
+                                open_menu_window_id = None;
+                                logout_confirm_window_id = None;
+                                render_settings_pending = true;
                             }
                             MainMenuEffect::OpenLogoutConfirm(window_id) => {
                                 open_menu_window_id = None;
@@ -1161,8 +1202,11 @@ async fn handle_connection(
                     } else if logout_confirm_window_id == Some(click.window_id) {
                         let main_window_id =
                             (click.mode == 0 && click.slot == 15).then(|| service.next_window_id());
-                        let (responses, effect) =
-                            logout_confirmation_click_packets(click, main_window_id)?;
+                        let (responses, effect) = logout_confirmation_click_packets(
+                            click,
+                            main_window_id,
+                            render_settings,
+                        )?;
                         match effect {
                             LogoutConfirmEffect::None => {}
                             LogoutConfirmEffect::OpenMainMenu(window_id) => {
@@ -1192,6 +1236,34 @@ async fn handle_connection(
                         if effect == LogoutConfirmEffect::Disconnect {
                             shutdown_stream(&mut writer, deadline, &cancellation).await?;
                             return Ok(());
+                        }
+                    }
+                }
+                0x12 => {
+                    let Ok(update) = read_update_sign(&mut packet) else {
+                        return Ok(());
+                    };
+                    if render_settings_pending && let Some((email, _)) = authenticated.as_ref() {
+                        render_settings_pending = false;
+                        let responses = render_settings_update_packets(
+                            update,
+                            &mut render_settings,
+                            &player_username,
+                            email,
+                            &draft,
+                        )?;
+                        if let Err(error) = write_packet_list(
+                            &mut writer,
+                            &service,
+                            responses,
+                            compression,
+                            cipher.as_mut(),
+                            deadline,
+                            &cancellation,
+                        )
+                        .await
+                        {
+                            return finish_write_error(error);
                         }
                     }
                 }
@@ -1258,6 +1330,18 @@ fn read_window_click(packet: &mut PacketReader<'_>) -> Result<WindowClick, ()> {
         slot,
         action_number,
         mode,
+    })
+}
+
+fn read_update_sign(packet: &mut PacketReader<'_>) -> Result<UpdateSign, ()> {
+    packet.read_i64()?;
+    Ok(UpdateSign {
+        lines: [
+            packet.read_string(UPDATE_SIGN_LINE_MAX_UTF16_UNITS)?,
+            packet.read_string(UPDATE_SIGN_LINE_MAX_UTF16_UNITS)?,
+            packet.read_string(UPDATE_SIGN_LINE_MAX_UTF16_UNITS)?,
+            packet.read_string(UPDATE_SIGN_LINE_MAX_UTF16_UNITS)?,
+        ],
     })
 }
 
@@ -1924,7 +2008,11 @@ fn disconnect_play_packet(reason: &str) -> io::Result<Vec<u8>> {
     Ok(packet)
 }
 
-fn authenticated_packets(username: &str, email: &str) -> io::Result<Vec<Vec<u8>>> {
+fn authenticated_packets(
+    username: &str,
+    email: &str,
+    render_settings: RenderSettings,
+) -> io::Result<Vec<Vec<u8>>> {
     let mut packets = vec![
         chat_packet(
             "\u{00a7}a\u{00a7}lAuthentication successful!",
@@ -1936,7 +2024,11 @@ fn authenticated_packets(username: &str, email: &str) -> io::Result<Vec<Vec<u8>>
     packets.extend(email_instruction_packets()?);
     packets.extend(empty_draft_sign_packets()?);
     packets.push(draft_book_packet()?);
-    packets.extend(authenticated_scoreboard_packets(username, email)?);
+    packets.extend(authenticated_scoreboard_packets(
+        username,
+        email,
+        render_settings,
+    )?);
     debug_assert_eq!(packets.len(), 29);
     Ok(packets)
 }
@@ -1962,6 +2054,7 @@ fn authenticated_command_packets(
     config: &MinecraftConfig,
     draft: &mut MinecraftDraft,
     menu_window_id: Option<u8>,
+    render_settings: RenderSettings,
 ) -> io::Result<Vec<Vec<u8>>> {
     let command = java_trim(message);
     if !command.starts_with('/') {
@@ -1996,7 +2089,10 @@ fn authenticated_command_packets(
             packets.push(draft_book_packet()?);
             Ok(packets)
         }
-        "/menu" => menu_window_id.map_or_else(|| Ok(Vec::new()), main_menu_packets),
+        "/menu" => menu_window_id.map_or_else(
+            || Ok(Vec::new()),
+            |window_id| main_menu_packets(window_id, render_settings),
+        ),
         "/mail" | "/video" => Ok(Vec::new()),
         _ => Ok(vec![chat_packet(
             "\u{00a7}cUnknown command. Use /help",
@@ -2030,16 +2126,22 @@ fn draft_display(value: &str) -> &str {
     }
 }
 
-fn main_menu_packets(window_id: u8) -> io::Result<Vec<Vec<u8>>> {
+fn main_menu_packets(window_id: u8, render_settings: RenderSettings) -> io::Result<Vec<Vec<u8>>> {
     let mut open = vec![0x2d, window_id];
     write_string(&mut open, "minecraft:chest")?;
     write_string(&mut open, &chat_json("\u{00a7}8LMYZMAIL Menu", None))?;
     open.push(54);
 
-    Ok(vec![open, main_menu_contents_packet(window_id)?])
+    Ok(vec![
+        open,
+        main_menu_contents_packet(window_id, render_settings)?,
+    ])
 }
 
-fn main_menu_contents_packet(window_id: u8) -> io::Result<Vec<u8>> {
+fn main_menu_contents_packet(
+    window_id: u8,
+    render_settings: RenderSettings,
+) -> io::Result<Vec<u8>> {
     let filler = gui_slot(160, 15, " ", &[], false);
     let mut slots = vec![filler; 54];
     slots.extend((0..36).map(|_| MinecraftSlot::empty()));
@@ -2085,15 +2187,25 @@ fn main_menu_contents_packet(window_id: u8) -> io::Result<Vec<u8>> {
         &["\u{00a7}7View spam emails", "", "\u{00a7}eClick to open"],
         false,
     );
+    let render_current = format!(
+        "\u{00a7}7Current: \u{00a7}f{}\u{00d7}{} \u{00a7}7maps",
+        render_settings.maps_x, render_settings.maps_y
+    );
+    let render_pixels = format!(
+        "\u{00a7}7({}\u{00d7}{} px)",
+        render_settings.maps_x * 128,
+        render_settings.maps_y * 128
+    );
+    let render_font = format!("\u{00a7}7Font: \u{00a7}f{}px", render_settings.font_size);
     slots[22] = gui_slot(
         323,
         0,
         "\u{00a7}e\u{00a7}lRender Settings",
         &[
             "\u{00a7}7Mail render dimensions",
-            "\u{00a7}7Current: \u{00a7}f10\u{00d7}20 \u{00a7}7maps",
-            "\u{00a7}7(1280\u{00d7}2560 px)",
-            "\u{00a7}7Font: \u{00a7}f20px",
+            &render_current,
+            &render_pixels,
+            &render_font,
             "",
             "\u{00a7}eClick to change",
         ],
@@ -2162,6 +2274,7 @@ fn main_menu_contents_packet(window_id: u8) -> io::Result<Vec<u8>> {
 fn main_menu_click_packets(
     click: WindowClick,
     logout_window_id: Option<u8>,
+    render_settings: RenderSettings,
 ) -> io::Result<(Vec<Vec<u8>>, MainMenuEffect)> {
     let mut confirmation = vec![0x32, click.window_id];
     confirmation.extend_from_slice(&click.action_number.to_be_bytes());
@@ -2174,12 +2287,17 @@ fn main_menu_click_packets(
     let mut packets = vec![
         confirmation,
         clear_cursor,
-        main_menu_contents_packet(click.window_id)?,
+        main_menu_contents_packet(click.window_id, render_settings)?,
     ];
     let effect = if click.mode != 0 || !(0..54).contains(&click.slot) {
         MainMenuEffect::None
     } else {
         match click.slot {
+            22 => {
+                packets.extend(close_menu_packets(click.window_id)?);
+                packets.extend(render_settings_editor_packets(render_settings)?);
+                MainMenuEffect::OpenRenderSettings
+            }
             30 => {
                 packets.extend(close_menu_packets(click.window_id)?);
                 packets.extend(help_menu_packets()?);
@@ -2212,6 +2330,171 @@ fn main_menu_click_packets(
         }
     };
     Ok((packets, effect))
+}
+
+fn render_settings_editor_packets(render_settings: RenderSettings) -> io::Result<Vec<Vec<u8>>> {
+    let sign_nbt = NbtValue::Compound(vec![
+        ("id".to_owned(), NbtValue::String("Sign".to_owned())),
+        ("x".to_owned(), NbtValue::Int(0)),
+        ("y".to_owned(), NbtValue::Int(0)),
+        ("z".to_owned(), NbtValue::Int(0)),
+        (
+            "Text1".to_owned(),
+            NbtValue::String(chat_json(&render_settings.maps_x.to_string(), None)),
+        ),
+        (
+            "Text2".to_owned(),
+            NbtValue::String(chat_json(&render_settings.maps_y.to_string(), None)),
+        ),
+        (
+            "Text3".to_owned(),
+            NbtValue::String(chat_json(&render_settings.font_size.to_string(), None)),
+        ),
+        (
+            "Text4".to_owned(),
+            NbtValue::String(chat_json("\u{00a7}oW H Font", None)),
+        ),
+    ]);
+    let mut update = vec![0x35];
+    write_block_position(&mut update, 0, 0, 0);
+    update.push(9);
+    minecraft_world::write_nbt(Some(&sign_nbt), &mut update)?;
+
+    let mut editor = vec![0x36];
+    write_block_position(&mut editor, 0, 0, 0);
+
+    Ok(vec![
+        update,
+        editor,
+        chat_packet(
+            "\u{00a7}7Enter render dimensions in the sign:",
+            Some("gray"),
+        )?,
+        chat_packet(
+            "\u{00a7}7  Line 1: Width in maps \u{00a7}f(2-24)",
+            Some("gray"),
+        )?,
+        chat_packet(
+            "\u{00a7}7  Line 2: Height in maps \u{00a7}f(2-20)",
+            Some("gray"),
+        )?,
+        chat_packet(
+            "\u{00a7}7  Line 3: Font size in px \u{00a7}f(8-48, default 20)",
+            Some("gray"),
+        )?,
+    ])
+}
+
+fn render_settings_update_packets(
+    update: UpdateSign,
+    render_settings: &mut RenderSettings,
+    username: &str,
+    email: &str,
+    draft: &MinecraftDraft,
+) -> io::Result<Vec<Vec<u8>>> {
+    let width_text = clean_sign_text(&strip_chat_json(&update.lines[0]));
+    let height_text = clean_sign_text(&strip_chat_json(&update.lines[1]));
+    let font_text = clean_sign_text(&strip_chat_json(&update.lines[2]));
+    let width = width_text.parse::<i32>();
+    let height = height_text.parse::<i32>();
+
+    let (Ok(width), Ok(height)) = (width, height) else {
+        let mut packets = vec![chat_packet(
+            "\u{00a7}cWidth and height must be integers.",
+            Some("red"),
+        )?];
+        packets.extend(draft_sign_packets(draft)?);
+        return Ok(packets);
+    };
+    if !(RENDER_MAPS_X_MIN..=RENDER_MAPS_X_MAX).contains(&width) {
+        let mut packets = vec![chat_packet(
+            &format!("\u{00a7}cWidth must be 2-24 maps (got {width})"),
+            Some("red"),
+        )?];
+        packets.extend(draft_sign_packets(draft)?);
+        return Ok(packets);
+    }
+    if !(RENDER_MAPS_Y_MIN..=RENDER_MAPS_Y_MAX).contains(&height) {
+        let mut packets = vec![chat_packet(
+            &format!("\u{00a7}cHeight must be 2-20 maps (got {height})"),
+            Some("red"),
+        )?];
+        packets.extend(draft_sign_packets(draft)?);
+        return Ok(packets);
+    }
+
+    render_settings.maps_x = width;
+    render_settings.maps_y = height;
+    let mut packets = Vec::new();
+    if !font_text.is_empty()
+        && let Ok(font_size) = font_text.parse::<i32>()
+    {
+        if (RENDER_FONT_SIZE_MIN..=RENDER_FONT_SIZE_MAX).contains(&font_size) {
+            render_settings.font_size = font_size;
+        } else {
+            packets.push(chat_packet(
+                "\u{00a7}cFont size must be 8-48px",
+                Some("red"),
+            )?);
+        }
+    }
+    packets.push(chat_packet(
+        &format!(
+            "\u{00a7}aRender: \u{00a7}f{}\u{00d7}{} \u{00a7}amaps, font \u{00a7}f{}px",
+            render_settings.maps_x, render_settings.maps_y, render_settings.font_size
+        ),
+        Some("green"),
+    )?);
+    packets.extend(authenticated_scoreboard_packets(
+        username,
+        email,
+        *render_settings,
+    )?);
+    packets.extend(draft_sign_packets(draft)?);
+    Ok(packets)
+}
+
+fn strip_chat_json(value: &str) -> String {
+    let value = java_trim(value);
+    if value.starts_with('{') {
+        let Some(text_index) = value.find("\"text\"") else {
+            return String::new();
+        };
+        let after_key = &value[text_index + 6..];
+        let Some(open_quote) = after_key.find('"') else {
+            return String::new();
+        };
+        let text_start = text_index + 6 + open_quote + 1;
+        let Some(close_quote) = value[text_start..].find('"') else {
+            return String::new();
+        };
+        return value[text_start..text_start + close_quote]
+            .replace("\\\"", "\"")
+            .replace("\\\\", "\\");
+    }
+    if value.starts_with('"') && value.ends_with('"') && value.len() >= 2 {
+        return value[1..value.len() - 1].to_owned();
+    }
+    value.to_owned()
+}
+
+fn clean_sign_text(value: &str) -> String {
+    let mut without_formatting = String::with_capacity(value.len());
+    let mut characters = value.chars();
+    while let Some(character) = characters.next() {
+        if character == '\u{00a7}' {
+            let _ = characters.next();
+        } else {
+            without_formatting.push(character);
+        }
+    }
+    for label in ["[To]", "[CC]", "[BCC]", "[Subject]", "[Status]"] {
+        without_formatting = without_formatting.replace(label, "");
+    }
+    without_formatting.retain(
+        |character| !matches!(character, '\0'..='\u{001f}' | '\u{007f}'..='\u{009f}' | '\u{00a7}'),
+    );
+    java_trim(&without_formatting).to_owned()
 }
 
 fn logout_confirmation_packets(window_id: u8) -> io::Result<Vec<Vec<u8>>> {
@@ -2258,6 +2541,7 @@ fn logout_confirmation_contents_packet(window_id: u8) -> io::Result<Vec<u8>> {
 fn logout_confirmation_click_packets(
     click: WindowClick,
     main_window_id: Option<u8>,
+    render_settings: RenderSettings,
 ) -> io::Result<(Vec<Vec<u8>>, LogoutConfirmEffect)> {
     let mut confirmation = vec![0x32, click.window_id];
     confirmation.extend_from_slice(&click.action_number.to_be_bytes());
@@ -2289,7 +2573,7 @@ fn logout_confirmation_click_packets(
                     ));
                 };
                 packets.extend(close_menu_packets(click.window_id)?);
-                packets.extend(main_menu_packets(window_id)?);
+                packets.extend(main_menu_packets(window_id, render_settings)?);
                 LogoutConfirmEffect::OpenMainMenu(window_id)
             }
             _ => LogoutConfirmEffect::None,
@@ -2382,21 +2666,60 @@ fn java_regex_space(character: char) -> bool {
 }
 
 fn empty_draft_sign_packets() -> io::Result<Vec<Vec<u8>>> {
+    draft_sign_packets(&MinecraftDraft::default())
+}
+
+fn draft_sign_packets(draft: &MinecraftDraft) -> io::Result<Vec<Vec<u8>>> {
     let mut packets = Vec::with_capacity(4);
-    for (x, label) in [
-        (2, "\u{00a7}1[To]"),
-        (4, "\u{00a7}1[CC]"),
-        (6, "\u{00a7}1[BCC]"),
-        (8, "\u{00a7}1[Subject]"),
+    for (x, label, content) in [
+        (2, "\u{00a7}1[To]", draft.to.as_str()),
+        (4, "\u{00a7}1[CC]", draft.cc.as_str()),
+        (6, "\u{00a7}1[BCC]", draft.bcc.as_str()),
+        (8, "\u{00a7}1[Subject]", draft.subject.as_str()),
     ] {
+        let lines = split_sign_lines(content);
         let mut sign = vec![0x33];
         write_block_position(&mut sign, x, 161, 3);
-        for text in [label, "", "", ""] {
+        for text in [label, &lines[0], &lines[1], &lines[2]] {
             write_string(&mut sign, &chat_json(text, None))?;
         }
         packets.push(sign);
     }
     Ok(packets)
+}
+
+fn split_sign_lines(value: &str) -> [String; 3] {
+    let mut lines = std::array::from_fn(|_| String::new());
+    let encoded = value.encode_utf16().collect::<Vec<_>>();
+    for (line, units) in lines.iter_mut().zip(encoded.chunks(15)) {
+        *line = java_utf16_slice_to_string(units);
+    }
+    lines
+}
+
+fn java_utf16_slice_to_string(units: &[u16]) -> String {
+    let mut output = String::with_capacity(units.len());
+    let mut index = 0;
+    while index < units.len() {
+        let unit = units[index];
+        if (0xd800..=0xdbff).contains(&unit)
+            && let Some(&low) = units.get(index + 1)
+            && (0xdc00..=0xdfff).contains(&low)
+        {
+            let code_point =
+                0x1_0000 + ((u32::from(unit) - 0xd800) << 10) + (u32::from(low) - 0xdc00);
+            output.push(char::from_u32(code_point).expect("valid UTF-16 surrogate pair"));
+            index += 2;
+            continue;
+        }
+        if (0xd800..=0xdfff).contains(&unit) {
+            output.push('?');
+        } else {
+            output.push(char::from_u32(u32::from(unit)).expect("valid UTF-16 BMP scalar"));
+        }
+        index += 1;
+    }
+    output
 }
 
 fn draft_book_packet() -> io::Result<Vec<u8>> {
@@ -2419,7 +2742,11 @@ fn restore_hotbar_packets() -> io::Result<Vec<Vec<u8>>> {
     Ok(vec![draft_book_packet()?, menu_star])
 }
 
-fn authenticated_scoreboard_packets(username: &str, email: &str) -> io::Result<Vec<Vec<u8>>> {
+fn authenticated_scoreboard_packets(
+    username: &str,
+    email: &str,
+    render_settings: RenderSettings,
+) -> io::Result<Vec<Vec<u8>>> {
     let email = if email.encode_utf16().count() > 20 {
         format!("{}...", truncate_utf16(email, 17))
     } else {
@@ -2431,8 +2758,11 @@ fn authenticated_scoreboard_packets(username: &str, email: &str) -> io::Result<V
         format!("\u{00a7}fPlayer: \u{00a7}a{username}"),
         format!("\u{00a7}fEmail: \u{00a7}b{email}"),
         String::new(),
-        "\u{00a7}fRender: \u{00a7}e10\u{00d7}20 maps".to_owned(),
-        "\u{00a7}fFont: \u{00a7}e20px".to_owned(),
+        format!(
+            "\u{00a7}fRender: \u{00a7}e{}\u{00d7}{} maps",
+            render_settings.maps_x, render_settings.maps_y
+        ),
+        format!("\u{00a7}fFont: \u{00a7}e{}px", render_settings.font_size),
         String::new(),
         "\u{00a7}f/menu \u{00a7}7\u{2192} Open menu".to_owned(),
         divider,
@@ -3682,35 +4012,69 @@ mod tests {
     fn authenticated_basic_commands_match_java_trim_case_and_packet_order() {
         let configured = config(Duration::from_secs(30));
         let mut draft = MinecraftDraft::default();
-        let help =
-            authenticated_command_packets("  /HeLp  ", &configured, &mut draft, None).unwrap();
+        let render_settings = RenderSettings::default();
+        let help = authenticated_command_packets(
+            "  /HeLp  ",
+            &configured,
+            &mut draft,
+            None,
+            render_settings,
+        )
+        .unwrap();
         assert_eq!(help, email_instruction_packets().unwrap());
         assert_eq!(help.len(), 8);
         assert!(help.iter().all(|packet| packet[0] == 0x02));
 
-        let stuck = authenticated_command_packets("/stuck", &configured, &mut draft, None).unwrap();
+        let stuck =
+            authenticated_command_packets("/stuck", &configured, &mut draft, None, render_settings)
+                .unwrap();
         assert_eq!(stuck.len(), 2);
         assert_eq!(stuck[0][0], 0x08);
         assert_eq!(stuck[1][0], 0x02);
         assert_eq!(
-            authenticated_command_packets("/skibidi", &configured, &mut draft, None).unwrap()[0],
+            authenticated_command_packets(
+                "/skibidi",
+                &configured,
+                &mut draft,
+                None,
+                render_settings,
+            )
+            .unwrap()[0],
             chat_packet("Brrrrrr Skibidi dop dop dop yes yes!", None).unwrap()
         );
         assert_eq!(
-            authenticated_command_packets("/video", &configured, &mut draft, None)
+            authenticated_command_packets(
+                "/video",
+                &configured,
+                &mut draft,
+                None,
+                render_settings,
+            )
                 .unwrap()
                 .len(),
             3
         );
         assert_eq!(
-            authenticated_command_packets("/definitely-unknown", &configured, &mut draft, None,)
-                .unwrap()[0],
+            authenticated_command_packets(
+                "/definitely-unknown",
+                &configured,
+                &mut draft,
+                None,
+                render_settings,
+            )
+            .unwrap()[0],
             chat_packet("\u{00a7}cUnknown command. Use /help", Some("red")).unwrap()
         );
         assert!(
-            authenticated_command_packets("plain chat", &configured, &mut draft, None)
-                .unwrap()
-                .is_empty()
+            authenticated_command_packets(
+                "plain chat",
+                &configured,
+                &mut draft,
+                None,
+                render_settings,
+            )
+            .unwrap()
+            .is_empty()
         );
     }
 
@@ -3724,8 +4088,14 @@ mod tests {
             subject: "subject".to_owned(),
             body_pages: vec!["page one".to_owned(), "page two".to_owned()],
         };
-        let summary =
-            authenticated_command_packets("/draft", &configured, &mut draft, None).unwrap();
+        let summary = authenticated_command_packets(
+            "/draft",
+            &configured,
+            &mut draft,
+            None,
+            RenderSettings::default(),
+        )
+        .unwrap();
         assert_eq!(summary.len(), 6);
         assert_eq!(
             summary[1],
@@ -3736,7 +4106,14 @@ mod tests {
             chat_packet("\u{00a7}7Body: \u{00a7}f2 page(s)", None).unwrap()
         );
 
-        let clear = authenticated_command_packets("/clear", &configured, &mut draft, None).unwrap();
+        let clear = authenticated_command_packets(
+            "/clear",
+            &configured,
+            &mut draft,
+            None,
+            RenderSettings::default(),
+        )
+        .unwrap();
         assert_eq!(
             clear.iter().map(|packet| packet[0]).collect::<Vec<_>>(),
             [0x02, 0x33, 0x33, 0x33, 0x33, 0x2f]
@@ -3750,7 +4127,7 @@ mod tests {
 
     #[test]
     fn main_menu_payload_and_window_id_cycle_are_bounded() {
-        let packets = main_menu_packets(1).unwrap();
+        let packets = main_menu_packets(1, RenderSettings::default()).unwrap();
         assert_eq!(packets.len(), 2);
         assert_eq!(packets[0][0], 0x2d);
         assert_eq!(packets[0].len(), 47);
@@ -3782,12 +4159,16 @@ mod tests {
         assert_eq!(click.mode, 0);
         assert_eq!(reader.cursor, encoded_click.len());
 
-        let (responses, effect) = main_menu_click_packets(click, None).unwrap();
+        let (responses, effect) =
+            main_menu_click_packets(click, None, RenderSettings::default()).unwrap();
         assert_eq!(effect, MainMenuEffect::None);
         assert_eq!(responses.len(), 3);
         assert_eq!(responses[0], [0x32, 1, 0, 7, 0]);
         assert_eq!(responses[1], [0x2f, 0xff, 0xff, 0xff, 0xff, 0xff]);
-        assert_eq!(responses[2], main_menu_contents_packet(1).unwrap());
+        assert_eq!(
+            responses[2],
+            main_menu_contents_packet(1, RenderSettings::default()).unwrap()
+        );
 
         let restored = restore_hotbar_packets().unwrap();
         assert_eq!(restored.len(), 2);
@@ -3805,6 +4186,7 @@ mod tests {
                 mode: 0,
             },
             None,
+            RenderSettings::default(),
         )
         .unwrap();
         assert_eq!(help_effect, MainMenuEffect::Close);
@@ -3823,6 +4205,7 @@ mod tests {
                 mode: 0,
             },
             None,
+            RenderSettings::default(),
         )
         .unwrap();
         assert_eq!(close_effect, MainMenuEffect::Close);
@@ -3836,6 +4219,7 @@ mod tests {
                 mode: 0,
             },
             None,
+            RenderSettings::default(),
         )
         .unwrap();
         assert_eq!(switch_effect, MainMenuEffect::SwitchAccount);
@@ -3850,6 +4234,7 @@ mod tests {
                 mode: 1,
             },
             None,
+            RenderSettings::default(),
         )
         .unwrap();
         assert_eq!(mode_effect, MainMenuEffect::None);
@@ -3866,6 +4251,7 @@ mod tests {
                 mode: 0,
             },
             Some(2),
+            RenderSettings::default(),
         )
         .unwrap();
         assert_eq!(open_effect, MainMenuEffect::OpenLogoutConfirm(2));
@@ -3883,6 +4269,7 @@ mod tests {
                 mode: 0,
             },
             Some(3),
+            RenderSettings::default(),
         )
         .unwrap();
         assert_eq!(cancel_effect, LogoutConfirmEffect::OpenMainMenu(3));
@@ -3899,6 +4286,7 @@ mod tests {
                 mode: 0,
             },
             None,
+            RenderSettings::default(),
         )
         .unwrap();
         assert_eq!(confirm_effect, LogoutConfirmEffect::Disconnect);
@@ -3909,6 +4297,193 @@ mod tests {
         assert_eq!(
             confirm[6],
             disconnect_play_packet("\u{00a7}aLogged out. See you!").unwrap()
+        );
+    }
+
+    #[test]
+    fn render_settings_menu_and_editor_have_the_complete_protocol_flow() {
+        let settings = RenderSettings::default();
+        let (packets, effect) = main_menu_click_packets(
+            WindowClick {
+                window_id: 1,
+                slot: 22,
+                action_number: 31,
+                mode: 0,
+            },
+            None,
+            settings,
+        )
+        .unwrap();
+        assert_eq!(effect, MainMenuEffect::OpenRenderSettings);
+        assert_eq!(
+            packets.iter().map(|packet| packet[0]).collect::<Vec<_>>(),
+            [
+                0x32, 0x2f, 0x30, 0x2e, 0x2f, 0x2f, 0x35, 0x36, 0x02, 0x02, 0x02, 0x02
+            ]
+        );
+        assert_eq!(packets[2], main_menu_contents_packet(1, settings).unwrap());
+        assert_eq!(&packets[6][..10], &[0x35, 0, 0, 0, 0, 0, 0, 0, 0, 9]);
+        assert_eq!(packets[7], [0x36, 0, 0, 0, 0, 0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn render_settings_updates_match_java_validation_and_partial_font_commit() {
+        let draft = MinecraftDraft::default();
+        let mut settings = RenderSettings::default();
+        let update = |lines: [&str; 4]| UpdateSign {
+            lines: lines.map(str::to_owned),
+        };
+
+        let valid = render_settings_update_packets(
+            update([
+                r#"{"text":"24"}"#,
+                r#"{"text":"20"}"#,
+                r#"{"text":"48"}"#,
+                r#"{"text":"W H Font"}"#,
+            ]),
+            &mut settings,
+            "BlackboxLogin",
+            "qa@example.test",
+            &draft,
+        )
+        .unwrap();
+        assert_eq!(
+            settings,
+            RenderSettings {
+                maps_x: 24,
+                maps_y: 20,
+                font_size: 48,
+            }
+        );
+        assert_eq!(
+            valid.iter().map(|packet| packet[0]).collect::<Vec<_>>(),
+            [
+                0x02, 0x3b, 0x3b, 0x3d, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c,
+                0x33, 0x33, 0x33, 0x33
+            ]
+        );
+
+        let invalid_width = render_settings_update_packets(
+            update(["1", "20", "48", ""]),
+            &mut settings,
+            "BlackboxLogin",
+            "qa@example.test",
+            &draft,
+        )
+        .unwrap();
+        assert_eq!(settings.maps_x, 24);
+        assert_eq!(
+            invalid_width
+                .iter()
+                .map(|packet| packet[0])
+                .collect::<Vec<_>>(),
+            [0x02, 0x33, 0x33, 0x33, 0x33]
+        );
+
+        let invalid_height = render_settings_update_packets(
+            update(["24", "21", "48", ""]),
+            &mut settings,
+            "BlackboxLogin",
+            "qa@example.test",
+            &draft,
+        )
+        .unwrap();
+        assert_eq!(settings.maps_y, 20);
+        assert_eq!(invalid_height.len(), 5);
+
+        let invalid_font = render_settings_update_packets(
+            update(["12", "8", "49", ""]),
+            &mut settings,
+            "BlackboxLogin",
+            "qa@example.test",
+            &draft,
+        )
+        .unwrap();
+        assert_eq!(
+            settings,
+            RenderSettings {
+                maps_x: 12,
+                maps_y: 8,
+                font_size: 48,
+            }
+        );
+        assert_eq!(invalid_font[0][0], 0x02);
+        assert_eq!(invalid_font[1][0], 0x02);
+        assert_eq!(invalid_font.len(), 19);
+
+        let non_integer = render_settings_update_packets(
+            update(["twelve", "8", "48", ""]),
+            &mut settings,
+            "BlackboxLogin",
+            "qa@example.test",
+            &draft,
+        )
+        .unwrap();
+        assert_eq!(settings.maps_x, 12);
+        assert_eq!(non_integer.len(), 5);
+    }
+
+    #[test]
+    fn update_sign_parser_enforces_four_bounded_utf16_lines() {
+        fn encoded(lines: [&str; 4]) -> Vec<u8> {
+            let mut packet = 0_i64.to_be_bytes().to_vec();
+            for line in lines {
+                write_string(&mut packet, line).unwrap();
+            }
+            packet
+        }
+
+        let ascii_limit = "a".repeat(UPDATE_SIGN_LINE_MAX_UTF16_UNITS);
+        let within = encoded([&ascii_limit, "", "", ""]);
+        let mut reader = PacketReader::new(&within);
+        assert!(read_update_sign(&mut reader).is_ok());
+        assert_eq!(reader.cursor, within.len());
+
+        let ascii_over = "a".repeat(UPDATE_SIGN_LINE_MAX_UTF16_UNITS + 1);
+        assert!(
+            read_update_sign(&mut PacketReader::new(&encoded([&ascii_over, "", "", ""]))).is_err()
+        );
+
+        let supplementary_limit = "\u{1f600}".repeat(UPDATE_SIGN_LINE_MAX_UTF16_UNITS / 2);
+        assert!(
+            read_update_sign(&mut PacketReader::new(&encoded([
+                &supplementary_limit,
+                "",
+                "",
+                ""
+            ])))
+            .is_ok()
+        );
+        let supplementary_over = format!("{supplementary_limit}\u{1f600}");
+        assert!(
+            read_update_sign(&mut PacketReader::new(&encoded([
+                &supplementary_over,
+                "",
+                "",
+                ""
+            ])))
+            .is_err()
+        );
+
+        let mut truncated = encoded(["24", "20", "48", ""]);
+        truncated.pop();
+        assert!(read_update_sign(&mut PacketReader::new(&truncated)).is_err());
+    }
+
+    #[test]
+    fn draft_sign_lines_match_java_utf16_substring_replacement() {
+        let split_pair = format!("{}\u{1f600}x", "a".repeat(14));
+        assert_eq!(
+            split_sign_lines(&split_pair),
+            [
+                format!("{}?", "a".repeat(14)),
+                "?x".to_owned(),
+                String::new()
+            ]
+        );
+        assert_eq!(
+            split_sign_lines(&"b".repeat(46)),
+            ["b".repeat(15), "b".repeat(15), "b".repeat(15)]
         );
     }
 
@@ -4932,6 +5507,10 @@ mod tests {
             let mut click = PacketReader::new(&bytes);
             let _ = read_window_click(&mut click);
             prop_assert!(click.cursor <= bytes.len());
+
+            let mut sign = PacketReader::new(&bytes);
+            let _ = read_update_sign(&mut sign);
+            prop_assert!(sign.cursor <= bytes.len());
         }
     }
 }

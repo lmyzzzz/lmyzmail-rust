@@ -119,8 +119,10 @@ window. Help, Close Menu, and Switch Account clicks now preserve the Java packet
 order and Switch Account returns the connection to the email/password flow.
 Logout now has its complete confirmation, cancel, and disconnect flow. The Rust
 runtime flushes the final Disconnect Play frame before EOF instead of preserving
-the frozen Java write/close race. Data-backed folders, render settings, video,
-and mail-view GUI paths remain outside this milestone and are not claimed as
+the frozen Java write/close race. Render Settings now preserves the complete
+sign-editor flow, per-session dimensions and font state, validation boundaries,
+scoreboard refresh, and updated menu NBT. Data-backed folders, video, and
+mail-view GUI paths remain outside this milestone and are not claimed as
 implemented.
 
 Outbound HTTP currently covers durable PostgreSQL admission, sender-scoped and

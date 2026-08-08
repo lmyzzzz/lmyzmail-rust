@@ -1,0 +1,190 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "0366ddb95b6642962c80281617ab700faa66f6831b916bb7824e8100ab7bc9e0",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "suite-manifest-v1"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-minecraft-render-settings"
+  },
+  "observation": {
+    "profile": "managed-minecraft-render-settings",
+    "scenarios": [
+      {
+        "contract": {
+          "cases": [
+            {
+              "lines": [
+                "24",
+                "20",
+                "48",
+                "W H Font"
+              ],
+              "name": "valid-upper-bounds",
+              "response_packet_ids": [
+                2,
+                59,
+                59,
+                61,
+                60,
+                60,
+                60,
+                60,
+                60,
+                60,
+                60,
+                60,
+                60,
+                60,
+                51,
+                51,
+                51,
+                51
+              ],
+              "state_after": {
+                "font_px": 48,
+                "maps_x": 24,
+                "maps_y": 20
+              }
+            },
+            {
+              "lines": [
+                "1",
+                "20",
+                "48",
+                ""
+              ],
+              "name": "invalid-width-low",
+              "response_packet_ids": [
+                2,
+                51,
+                51,
+                51,
+                51
+              ],
+              "state_after": {
+                "font_px": 48,
+                "maps_x": 24,
+                "maps_y": 20
+              }
+            },
+            {
+              "lines": [
+                "24",
+                "21",
+                "48",
+                ""
+              ],
+              "name": "invalid-height-high",
+              "response_packet_ids": [
+                2,
+                51,
+                51,
+                51,
+                51
+              ],
+              "state_after": {
+                "font_px": 48,
+                "maps_x": 24,
+                "maps_y": 20
+              }
+            },
+            {
+              "lines": [
+                "12",
+                "8",
+                "49",
+                ""
+              ],
+              "name": "invalid-font-retains-previous",
+              "response_packet_ids": [
+                2,
+                2,
+                59,
+                59,
+                61,
+                60,
+                60,
+                60,
+                60,
+                60,
+                60,
+                60,
+                60,
+                60,
+                60,
+                51,
+                51,
+                51,
+                51
+              ],
+              "state_after": {
+                "font_px": 48,
+                "maps_x": 12,
+                "maps_y": 8
+              }
+            },
+            {
+              "lines": [
+                "twelve",
+                "8",
+                "48",
+                ""
+              ],
+              "name": "non-integer-width",
+              "response_packet_ids": [
+                2,
+                51,
+                51,
+                51,
+                51
+              ],
+              "state_after": {
+                "font_px": 48,
+                "maps_x": 12,
+                "maps_y": 8
+              }
+            }
+          ],
+          "compression_threshold": 256,
+          "flow": "authenticated render-settings sign editor and per-session state",
+          "input_packet_id": 18,
+          "input_string_max_utf16_units": 384,
+          "malformed_boundary": {
+            "first_line_text_utf16_units": 385,
+            "result": "connection-closed-without-business-response"
+          },
+          "menu_slot": 22,
+          "normalization": "exclude scheduled 0x03/0x18 PLAY ticks covered by scheduled-play",
+          "protocol": "minecraft-1.8.9",
+          "protocol_version": 47,
+          "sign_position": [
+            0,
+            0,
+            0
+          ]
+        },
+        "name": "minecraft/render-settings",
+        "normalizers": []
+      }
+    ]
+  },
+  "schema_version": 2
+}

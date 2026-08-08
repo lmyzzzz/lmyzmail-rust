@@ -854,3 +854,16 @@ logout prefix. The frozen Java write/close race is normalized only for that
 terminal prefix; the candidate must instead flush the exact Disconnect Play
 frame and then reach EOF under the approved
 `minecraft-logout-flush-before-close` difference.
+
+The Minecraft render-settings milestone adds:
+
+- `managed-minecraft-render-settings-v1/`
+
+It freezes slot 22 across six menu windows, the exact Update Tile Entity and
+Sign Editor Open wire, all four instruction chats, and five Update Sign cases:
+valid upper bounds, invalid width, invalid height, invalid font, and non-integer
+width. Reopened menu frames prove per-session state and the oracle's partial
+font-validation commit. An overlong sign field must close the connection
+without a business response. Only independently frozen periodic `0x03` time and
+`0x18` hologram ticks may be excluded when they interleave; every render packet
+and state-bearing frame remains byte exact.

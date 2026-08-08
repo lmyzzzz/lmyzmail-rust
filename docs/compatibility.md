@@ -102,6 +102,12 @@ wire, state, storage, or recovery assertions.
   closing. The oracle calls `writeAndFlush` and immediately closes the channel,
   producing a nondeterministic proper prefix without the final disconnect in
   isolated runs; only that terminal race is normalized and allowlisted.
+- Minecraft render dimensions are connection-local and default to 10 by 20
+  maps with a 20px font. The sign editor accepts widths 2-24, heights 2-20, and
+  fonts 8-48 using the oracle's 384-UTF-16-unit field bound. Valid width and
+  height commit before font validation, so an invalid font preserves the prior
+  font while applying the new dimensions; malformed or oversized sign packets
+  close the connection without a business response.
 
 ## SMTP AUTH oracle behavior
 
