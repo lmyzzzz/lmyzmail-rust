@@ -9,8 +9,17 @@ use std::{
 };
 
 use flate2::{Compression, write::ZlibEncoder};
+use getrandom::fill as fill_random;
 use icu_casemap::CaseMapper;
 use md5::{Digest as _, Md5};
+use openssl::{
+    pkey::{PKey, Private},
+    rsa::{Padding, Rsa},
+    symm::{Cipher, Crypter, Mode},
+};
+use reqwest::{Client, StatusCode, redirect::Policy};
+use sha1::Sha1;
+use subtle::ConstantTimeEq;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
@@ -19,6 +28,7 @@ use tokio::{
     time::{Instant, timeout, timeout_at},
 };
 use tokio_util::sync::CancellationToken;
+use zeroize::Zeroize;
 
 use crate::{
     bounded_blocking::{BoundedBlockingPool, SubmitError},
@@ -33,6 +43,13 @@ const ACCEPT_RETRY_MAX: Duration = Duration::from_secs(1);
 const COMPRESSION_WORKERS: usize = 2;
 const COMPRESSION_QUEUE: usize = 8;
 const COMPRESSION_CHUNK_BYTES: usize = 64 * 1024;
+const CRYPTO_WORKERS: usize = 2;
+const CRYPTO_QUEUE: usize = 8;
+const ENCRYPTION_FIELD_MAX_BYTES: usize = 512;
+const VERIFY_TOKEN_BYTES: usize = 4;
+const SHARED_SECRET_BYTES: usize = 16;
+const AUTH_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
+const MAX_AUTH_RESPONSE_BYTES: usize = 64 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ConnectionState {
@@ -50,6 +67,89 @@ enum ProtocolError {
     Io(io::Error),
 }
 
+struct OnlineModeService {
+    private_key: Arc<Rsa<Private>>,
+    public_key_der: Arc<[u8]>,
+    crypto_pool: BoundedBlockingPool,
+    session_client: Client,
+    session_server_url: reqwest::Url,
+}
+
+impl OnlineModeService {
+    fn new(config: &MinecraftConfig) -> io::Result<Self> {
+        let rsa = Rsa::generate(1024).map_err(crypto_io)?;
+        let public_key_der = PKey::from_rsa(rsa.clone())
+            .and_then(|key| key.public_key_to_der())
+            .map_err(crypto_io)?;
+        if public_key_der.len() > ENCRYPTION_FIELD_MAX_BYTES {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Minecraft RSA public key exceeded the protocol field limit",
+            ));
+        }
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let session_client = Client::builder()
+            .no_proxy()
+            .redirect(Policy::none())
+            .connect_timeout(AUTH_REQUEST_TIMEOUT)
+            .timeout(AUTH_REQUEST_TIMEOUT)
+            .user_agent("lmyzmail-minecraft/0.1")
+            .build()
+            .map_err(io::Error::other)?;
+        let session_server_url = reqwest::Url::parse(&config.session_server_url)
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
+        Ok(Self {
+            private_key: Arc::new(rsa),
+            public_key_der: public_key_der.into(),
+            crypto_pool: BoundedBlockingPool::new(
+                "lmyzmail-minecraft-crypto",
+                CRYPTO_WORKERS,
+                CRYPTO_QUEUE,
+            )?,
+            session_client,
+            session_server_url,
+        })
+    }
+}
+
+struct PendingOnlineLogin {
+    username: String,
+    verify_token: [u8; VERIFY_TOKEN_BYTES],
+}
+
+struct MinecraftCipher {
+    decryptor: Crypter,
+    encryptor: Crypter,
+    decrypt_scratch: Vec<u8>,
+    encrypt_scratch: Vec<u8>,
+}
+
+impl MinecraftCipher {
+    fn new(secret: &[u8; SHARED_SECRET_BYTES]) -> Result<Self, ProtocolError> {
+        let cipher = Cipher::aes_128_cfb8();
+        let mut decryptor =
+            Crypter::new(cipher, Mode::Decrypt, secret, Some(secret)).map_err(crypto_protocol)?;
+        let mut encryptor =
+            Crypter::new(cipher, Mode::Encrypt, secret, Some(secret)).map_err(crypto_protocol)?;
+        decryptor.pad(false);
+        encryptor.pad(false);
+        Ok(Self {
+            decryptor,
+            encryptor,
+            decrypt_scratch: Vec::new(),
+            encrypt_scratch: Vec::new(),
+        })
+    }
+
+    fn decrypt_in_place(&mut self, bytes: &mut [u8]) -> Result<(), ProtocolError> {
+        transform_in_place(&mut self.decryptor, &mut self.decrypt_scratch, bytes)
+    }
+
+    fn encrypt<'a>(&'a mut self, bytes: &[u8]) -> Result<&'a [u8], ProtocolError> {
+        transform_to_scratch(&mut self.encryptor, &mut self.encrypt_scratch, bytes)
+    }
+}
+
 impl From<io::Error> for ProtocolError {
     fn from(error: io::Error) -> Self {
         Self::Io(error)
@@ -65,6 +165,7 @@ struct StatusService {
     whitelist_players: Arc<[String]>,
     blacklist_players: Arc<[String]>,
     compression_pool: BoundedBlockingPool,
+    online_mode: Option<OnlineModeService>,
     next_entity_id: AtomicI32,
     next_connection_id: AtomicU64,
     online_sessions: Arc<Mutex<HashMap<String, u64>>>,
@@ -91,6 +192,10 @@ impl StatusService {
                 COMPRESSION_WORKERS,
                 COMPRESSION_QUEUE,
             )?,
+            online_mode: config
+                .online_mode
+                .then(|| OnlineModeService::new(config))
+                .transpose()?,
             next_entity_id: AtomicI32::new(1),
             next_connection_id: AtomicU64::new(1),
             online_sessions: Arc::new(Mutex::new(HashMap::with_capacity(MAX_CONNECTIONS))),
@@ -249,10 +354,14 @@ async fn handle_connection(
     stream.set_nodelay(true)?;
     let mut state = ConnectionState::Handshake;
     let mut compression = None;
+    let mut cipher = None;
+    let mut pending_online = None;
     let mut _online_guard = None;
 
     loop {
-        let raw_frame = match read_frame(&mut stream, deadline, &cancellation).await {
+        let raw_frame = match read_frame(&mut stream, cipher.as_mut(), deadline, &cancellation)
+            .await
+        {
             Ok(Some(frame)) => frame,
             Ok(None)
             | Err(ProtocolError::Cancelled | ProtocolError::TimedOut | ProtocolError::Malformed) => {
@@ -306,7 +415,7 @@ async fn handle_connection(
                 0 => {
                     let frame = service.current_status_frame()?;
                     if let Err(error) =
-                        write_bytes(&mut stream, &frame, deadline, &cancellation).await
+                        write_bytes(&mut stream, &frame, None, deadline, &cancellation).await
                     {
                         return finish_write_error(error);
                     }
@@ -320,7 +429,7 @@ async fn handle_connection(
                     packet[1..].copy_from_slice(&payload.to_be_bytes());
                     let pong = encode_frame(&packet)?;
                     if let Err(error) =
-                        write_bytes(&mut stream, &pong, deadline, &cancellation).await
+                        write_bytes(&mut stream, &pong, None, deadline, &cancellation).await
                     {
                         return finish_write_error(error);
                     }
@@ -334,48 +443,162 @@ async fn handle_connection(
                 }
                 _ => {}
             },
-            ConnectionState::Login => {
-                if packet_id != 0 {
-                    continue;
-                }
-                let Ok(username) = packet.read_string(16) else {
-                    return Ok(());
-                };
-                if let Some(frame) = service.rejection_frame(&username) {
-                    if let Err(error) =
-                        write_bytes(&mut stream, frame, deadline, &cancellation).await
+            ConnectionState::Login => match packet_id {
+                0 => {
+                    let Ok(username) = packet.read_string(16) else {
+                        return Ok(());
+                    };
+                    if let Some(frame) = service.rejection_frame(&username) {
+                        if let Err(error) =
+                            write_bytes(&mut stream, frame, None, deadline, &cancellation).await
+                        {
+                            return finish_write_error(error);
+                        }
+                        shutdown_stream(&mut stream, deadline, &cancellation).await?;
+                        return Ok(());
+                    }
+                    if service.config.online_mode {
+                        let Some(online) = service.online_mode.as_ref() else {
+                            return Ok(());
+                        };
+                        let mut verify_token = [0_u8; VERIFY_TOKEN_BYTES];
+                        fill_random(&mut verify_token).map_err(io::Error::other)?;
+                        let frame =
+                            encryption_request_frame(&online.public_key_der, &verify_token)?;
+                        if let Err(error) =
+                            write_bytes(&mut stream, &frame, None, deadline, &cancellation).await
+                        {
+                            return finish_write_error(error);
+                        }
+                        pending_online = Some(PendingOnlineLogin {
+                            username,
+                            verify_token,
+                        });
+                        continue;
+                    }
+                    match complete_login(
+                        &mut stream,
+                        &service,
+                        offline_uuid(&username)?,
+                        &username,
+                        None,
+                        deadline,
+                        &cancellation,
+                    )
+                    .await
                     {
-                        return finish_write_error(error);
+                        Ok((active_compression, online_guard)) => {
+                            compression = active_compression;
+                            _online_guard = Some(online_guard);
+                            state = ConnectionState::Play;
+                        }
+                        Err(
+                            ProtocolError::Cancelled
+                            | ProtocolError::TimedOut
+                            | ProtocolError::Malformed,
+                        ) => return Ok(()),
+                        Err(ProtocolError::Io(error)) if connection_ended(&error) => {
+                            return Ok(());
+                        }
+                        Err(ProtocolError::Io(error)) => return Err(error),
                     }
-                    shutdown_stream(&mut stream, deadline, &cancellation).await?;
-                    return Ok(());
                 }
-                if service.config.online_mode {
-                    return Ok(());
-                }
-                match complete_offline_login(
-                    &mut stream,
-                    &service,
-                    &username,
-                    deadline,
-                    &cancellation,
-                )
-                .await
-                {
-                    Ok((active_compression, online_guard)) => {
-                        compression = active_compression;
-                        _online_guard = Some(online_guard);
-                        state = ConnectionState::Play;
+                1 => {
+                    let Some(pending) = pending_online.take() else {
+                        continue;
+                    };
+                    let Ok(encrypted_secret) = packet.read_byte_array(ENCRYPTION_FIELD_MAX_BYTES)
+                    else {
+                        return Ok(());
+                    };
+                    let Ok(encrypted_token) = packet.read_byte_array(ENCRYPTION_FIELD_MAX_BYTES)
+                    else {
+                        return Ok(());
+                    };
+                    let Some(online) = service.online_mode.as_ref() else {
+                        return Ok(());
+                    };
+                    let mut secret = match decrypt_online_response(
+                        online,
+                        encrypted_secret,
+                        encrypted_token,
+                        pending.verify_token,
+                        deadline,
+                        &cancellation,
+                    )
+                    .await
+                    {
+                        Ok(secret) => secret,
+                        Err(
+                            ProtocolError::Cancelled
+                            | ProtocolError::TimedOut
+                            | ProtocolError::Malformed,
+                        ) => return Ok(()),
+                        Err(ProtocolError::Io(error)) => return Err(error),
+                    };
+                    let mut active_cipher = match MinecraftCipher::new(&secret) {
+                        Ok(cipher) => cipher,
+                        Err(_) => {
+                            secret.zeroize();
+                            return Ok(());
+                        }
+                    };
+                    let auth = authenticate_online(
+                        online,
+                        &pending.username,
+                        &secret,
+                        deadline,
+                        &cancellation,
+                    )
+                    .await;
+                    secret.zeroize();
+                    let profile = match auth {
+                        Ok(profile) => profile,
+                        Err(error) => {
+                            let packet = authentication_failure_packet(error.message())?;
+                            let frame = encode_frame(&packet)?;
+                            let _ = write_bytes(
+                                &mut stream,
+                                &frame,
+                                Some(&mut active_cipher),
+                                deadline,
+                                &cancellation,
+                            )
+                            .await;
+                            let _ = shutdown_stream(&mut stream, deadline, &cancellation).await;
+                            return Ok(());
+                        }
+                    };
+                    match complete_login(
+                        &mut stream,
+                        &service,
+                        profile.uuid,
+                        &profile.name,
+                        Some(&mut active_cipher),
+                        deadline,
+                        &cancellation,
+                    )
+                    .await
+                    {
+                        Ok((active_compression, online_guard)) => {
+                            compression = active_compression;
+                            cipher = Some(active_cipher);
+                            _online_guard = Some(online_guard);
+                            state = ConnectionState::Play;
+                        }
+                        Err(
+                            ProtocolError::Cancelled
+                            | ProtocolError::TimedOut
+                            | ProtocolError::Malformed,
+                        ) => return Ok(()),
+                        Err(ProtocolError::Io(error)) if connection_ended(&error) => {
+                            return Ok(());
+                        }
+                        Err(ProtocolError::Io(error)) => return Err(error),
                     }
-                    Err(
-                        ProtocolError::Cancelled
-                        | ProtocolError::TimedOut
-                        | ProtocolError::Malformed,
-                    ) => return Ok(()),
-                    Err(ProtocolError::Io(error)) if connection_ended(&error) => return Ok(()),
-                    Err(ProtocolError::Io(error)) => return Err(error),
                 }
-            }
+                _ => {}
+            },
             ConnectionState::Play => {}
         }
     }
@@ -409,10 +632,279 @@ fn parse_handshake(packet: &mut PacketReader<'_>) -> Result<(), ()> {
     Ok(())
 }
 
-async fn complete_offline_login(
+fn encryption_request_frame(
+    public_key_der: &[u8],
+    verify_token: &[u8; VERIFY_TOKEN_BYTES],
+) -> io::Result<Vec<u8>> {
+    let mut packet = Vec::new();
+    packet
+        .try_reserve_exact(public_key_der.len() + verify_token.len() + 12)
+        .map_err(|error| io::Error::other(format!("Minecraft frame allocation failed: {error}")))?;
+    packet.push(0x01);
+    write_string(&mut packet, "")?;
+    write_byte_array(&mut packet, public_key_der)?;
+    write_byte_array(&mut packet, verify_token)?;
+    encode_frame(&packet)
+}
+
+async fn decrypt_online_response(
+    online: &OnlineModeService,
+    encrypted_secret: Vec<u8>,
+    encrypted_token: Vec<u8>,
+    expected_token: [u8; VERIFY_TOKEN_BYTES],
+    deadline: Instant,
+    cancellation: &CancellationToken,
+) -> Result<[u8; SHARED_SECRET_BYTES], ProtocolError> {
+    let private_key = Arc::clone(&online.private_key);
+    let worker_cancellation = cancellation.clone();
+    let receiver = online
+        .crypto_pool
+        .submit(move || {
+            compression_budget(&worker_cancellation, deadline)?;
+            let mut token = rsa_private_decrypt(&private_key, &encrypted_token)?;
+            let token_matches: bool = expected_token.as_slice().ct_eq(&token).into();
+            token.zeroize();
+            if !token_matches {
+                return Err(ProtocolError::Malformed);
+            }
+            compression_budget(&worker_cancellation, deadline)?;
+            let mut secret = rsa_private_decrypt(&private_key, &encrypted_secret)?;
+            if secret.len() != SHARED_SECRET_BYTES {
+                secret.zeroize();
+                return Err(ProtocolError::Malformed);
+            }
+            let mut result = [0_u8; SHARED_SECRET_BYTES];
+            result.copy_from_slice(&secret);
+            secret.zeroize();
+            compression_budget(&worker_cancellation, deadline)?;
+            Ok(result)
+        })
+        .map_err(submit_error)?;
+    await_compression(receiver, deadline, cancellation).await?
+}
+
+fn rsa_private_decrypt(
+    private_key: &Rsa<Private>,
+    encrypted: &[u8],
+) -> Result<Vec<u8>, ProtocolError> {
+    if encrypted.len() != private_key.size() as usize {
+        return Err(ProtocolError::Malformed);
+    }
+    let mut output = vec![0_u8; private_key.size() as usize];
+    let written = private_key
+        .private_decrypt(encrypted, &mut output, Padding::PKCS1)
+        .map_err(crypto_protocol)?;
+    output.truncate(written);
+    Ok(output)
+}
+
+#[derive(Debug)]
+struct JoinedProfile {
+    uuid: String,
+    name: String,
+}
+
+#[derive(Debug)]
+struct AuthenticationFailure {
+    message: String,
+}
+
+impl AuthenticationFailure {
+    fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+        }
+    }
+
+    fn message(&self) -> &str {
+        &self.message
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct JoinedResponse {
+    id: String,
+    name: String,
+}
+
+async fn authenticate_online(
+    online: &OnlineModeService,
+    username: &str,
+    shared_secret: &[u8; SHARED_SECRET_BYTES],
+    deadline: Instant,
+    cancellation: &CancellationToken,
+) -> Result<JoinedProfile, AuthenticationFailure> {
+    let operation_deadline = deadline.min(Instant::now() + AUTH_REQUEST_TIMEOUT);
+    let server_hash = minecraft_server_hash("", shared_secret, &online.public_key_der);
+    let mut url = online.session_server_url.clone();
+    url.query_pairs_mut()
+        .clear()
+        .append_pair("username", username)
+        .append_pair("serverId", &server_hash);
+    let response = tokio::select! {
+        biased;
+        _ = cancellation.cancelled() => {
+            return Err(AuthenticationFailure::new("Interrupted"));
+        }
+        response = timeout_at(operation_deadline, online.session_client.get(url).send()) => {
+            response
+                .map_err(|_| AuthenticationFailure::new("Auth server error: request timed out"))?
+                .map_err(|_| AuthenticationFailure::new("Auth server error: request failed"))?
+        }
+    };
+    let status = response.status();
+    if status == StatusCode::NO_CONTENT {
+        return Err(AuthenticationFailure::new("Session not found"));
+    }
+    if status != StatusCode::OK {
+        return Err(AuthenticationFailure::new(format!(
+            "HTTP {}",
+            status.as_u16()
+        )));
+    }
+    if response
+        .content_length()
+        .is_some_and(|length| length > MAX_AUTH_RESPONSE_BYTES as u64)
+    {
+        return Err(AuthenticationFailure::new(
+            "Auth server error: response exceeded byte limit",
+        ));
+    }
+    let mut response = response;
+    let mut body = Vec::new();
+    loop {
+        let chunk = tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => {
+                return Err(AuthenticationFailure::new("Interrupted"));
+            }
+            chunk = timeout_at(operation_deadline, response.chunk()) => {
+                chunk
+                    .map_err(|_| AuthenticationFailure::new("Auth server error: response timed out"))?
+                    .map_err(|_| AuthenticationFailure::new("Auth server error: response failed"))?
+            }
+        };
+        let Some(chunk) = chunk else {
+            break;
+        };
+        if body.len().saturating_add(chunk.len()) > MAX_AUTH_RESPONSE_BYTES {
+            return Err(AuthenticationFailure::new(
+                "Auth server error: response exceeded byte limit",
+            ));
+        }
+        body.try_reserve_exact(chunk.len()).map_err(|_| {
+            AuthenticationFailure::new("Auth server error: response allocation failed")
+        })?;
+        body.extend_from_slice(&chunk);
+    }
+    let profile: JoinedResponse = serde_json::from_slice(&body)
+        .map_err(|_| AuthenticationFailure::new("Auth server error: invalid response"))?;
+    let uuid = normalize_joined_uuid(&profile.id)
+        .ok_or_else(|| AuthenticationFailure::new("Auth server error: invalid response"))?;
+    if !valid_online_name(&profile.name) || !java_equals_ignore_case(&profile.name, username) {
+        return Err(AuthenticationFailure::new(
+            "Auth server error: invalid response",
+        ));
+    }
+    Ok(JoinedProfile {
+        uuid,
+        name: profile.name,
+    })
+}
+
+fn minecraft_server_hash(
+    server_id: &str,
+    shared_secret: &[u8; SHARED_SECRET_BYTES],
+    public_key_der: &[u8],
+) -> String {
+    let mut digest = Sha1::new();
+    digest.update(server_id.as_bytes());
+    digest.update(shared_secret);
+    digest.update(public_key_der);
+    signed_hex(digest.finalize().as_slice())
+}
+
+fn signed_hex(bytes: &[u8]) -> String {
+    let negative = bytes.first().is_some_and(|byte| byte & 0x80 != 0);
+    let mut magnitude = bytes.to_vec();
+    if negative {
+        for byte in &mut magnitude {
+            *byte = !*byte;
+        }
+        for byte in magnitude.iter_mut().rev() {
+            let (value, carry) = byte.overflowing_add(1);
+            *byte = value;
+            if !carry {
+                break;
+            }
+        }
+    }
+    let first = magnitude
+        .iter()
+        .position(|byte| *byte != 0)
+        .unwrap_or(magnitude.len());
+    if first == magnitude.len() {
+        return "0".to_owned();
+    }
+    let mut output = String::with_capacity((magnitude.len() - first) * 2 + usize::from(negative));
+    if negative {
+        output.push('-');
+    }
+    use std::fmt::Write as _;
+    write!(output, "{:x}", magnitude[first]).expect("writing to String cannot fail");
+    for byte in &magnitude[first + 1..] {
+        write!(output, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    output
+}
+
+fn normalize_joined_uuid(value: &str) -> Option<String> {
+    let valid_shape = value.len() == 32
+        || (value.len() == 36
+            && value.as_bytes()[8] == b'-'
+            && value.as_bytes()[13] == b'-'
+            && value.as_bytes()[18] == b'-'
+            && value.as_bytes()[23] == b'-');
+    if !valid_shape {
+        return None;
+    }
+    let compact: String = value
+        .chars()
+        .filter(|character| *character != '-')
+        .collect();
+    if compact.len() != 32 || !compact.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return None;
+    }
+    Some(format!(
+        "{}-{}-{}-{}-{}",
+        &compact[0..8].to_ascii_lowercase(),
+        &compact[8..12].to_ascii_lowercase(),
+        &compact[12..16].to_ascii_lowercase(),
+        &compact[16..20].to_ascii_lowercase(),
+        &compact[20..32].to_ascii_lowercase()
+    ))
+}
+
+fn valid_online_name(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 16
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+}
+
+fn authentication_failure_packet(message: &str) -> io::Result<Vec<u8>> {
+    let text = format!("Authentication failed: {message}");
+    let escaped = text.replace('\\', "\\\\").replace('"', "\\\"");
+    login_disconnect_packet(&format!(r#"{{"text":"{escaped}","color":"red"}}"#))
+}
+
+async fn complete_login(
     stream: &mut TcpStream,
     service: &StatusService,
+    uuid: String,
     username: &str,
+    mut cipher: Option<&mut MinecraftCipher>,
     deadline: Instant,
     cancellation: &CancellationToken,
 ) -> Result<(Option<i32>, OnlineCountGuard), ProtocolError> {
@@ -421,13 +913,19 @@ async fn complete_offline_login(
         let mut packet = vec![0x03];
         write_varint(&mut packet, threshold as u32);
         let frame = encode_frame(&packet)?;
-        write_bytes(stream, &frame, deadline, cancellation).await?;
+        write_bytes(
+            stream,
+            &frame,
+            cipher.as_deref_mut(),
+            deadline,
+            cancellation,
+        )
+        .await?;
         Some(threshold)
     } else {
         None
     };
 
-    let uuid = offline_uuid(username)?;
     let mut login_success = vec![0x02];
     write_string(&mut login_success, &uuid)?;
     write_string(&mut login_success, username)?;
@@ -436,6 +934,7 @@ async fn complete_offline_login(
         service,
         login_success,
         compression,
+        cipher.as_deref_mut(),
         deadline,
         cancellation,
     )
@@ -444,7 +943,16 @@ async fn complete_offline_login(
     let online_guard = service.register_online(uuid);
     let entity_id = service.next_entity_id();
     for packet in initial_play_packets(entity_id, &service.config)? {
-        write_packet(stream, service, packet, compression, deadline, cancellation).await?;
+        write_packet(
+            stream,
+            service,
+            packet,
+            compression,
+            cipher.as_deref_mut(),
+            deadline,
+            cancellation,
+        )
+        .await?;
     }
     Ok((compression, online_guard))
 }
@@ -454,11 +962,12 @@ async fn write_packet(
     service: &StatusService,
     packet: Vec<u8>,
     compression: Option<i32>,
+    cipher: Option<&mut MinecraftCipher>,
     deadline: Instant,
     cancellation: &CancellationToken,
 ) -> Result<(), ProtocolError> {
     let frame = encode_packet_frame(service, packet, compression, deadline, cancellation).await?;
-    write_bytes(stream, &frame, deadline, cancellation).await
+    write_bytes(stream, &frame, cipher, deadline, cancellation).await
 }
 
 async fn encode_packet_frame(
@@ -685,6 +1194,21 @@ fn write_string(output: &mut Vec<u8>, value: &str) -> io::Result<()> {
     Ok(())
 }
 
+fn write_byte_array(output: &mut Vec<u8>, value: &[u8]) -> io::Result<()> {
+    let length = u32::try_from(value.len()).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Minecraft byte array exceeded the protocol range",
+        )
+    })?;
+    output.try_reserve_exact(value.len() + 5).map_err(|error| {
+        io::Error::other(format!("Minecraft byte array allocation failed: {error}"))
+    })?;
+    write_varint(output, length);
+    output.extend_from_slice(value);
+    Ok(())
+}
+
 fn initial_play_packets(entity_id: i32, config: &MinecraftConfig) -> io::Result<Vec<Vec<u8>>> {
     let mut join_game = vec![0x01];
     join_game.extend_from_slice(&entity_id.to_be_bytes());
@@ -727,6 +1251,7 @@ fn initial_play_packets(entity_id: i32, config: &MinecraftConfig) -> io::Result<
 
 async fn read_frame(
     stream: &mut TcpStream,
+    mut cipher: Option<&mut MinecraftCipher>,
     deadline: Instant,
     cancellation: &CancellationToken,
 ) -> Result<Option<Vec<u8>>, ProtocolError> {
@@ -737,6 +1262,7 @@ async fn read_frame(
             let read = read_with_deadline(
                 stream,
                 &mut encoded_length[index..=index],
+                cipher.as_deref_mut(),
                 deadline,
                 cancellation,
             )
@@ -771,9 +1297,14 @@ async fn read_frame(
                 frame.resize(length, 0);
                 let mut cursor = 0;
                 while cursor < frame.len() {
-                    let read =
-                        read_with_deadline(stream, &mut frame[cursor..], deadline, cancellation)
-                            .await?;
+                    let read = read_with_deadline(
+                        stream,
+                        &mut frame[cursor..],
+                        cipher.as_deref_mut(),
+                        deadline,
+                        cancellation,
+                    )
+                    .await?;
                     if read == 0 {
                         return Err(ProtocolError::Malformed);
                     }
@@ -791,25 +1322,38 @@ async fn read_frame(
 async fn read_with_deadline(
     stream: &mut TcpStream,
     buffer: &mut [u8],
+    cipher: Option<&mut MinecraftCipher>,
     deadline: Instant,
     cancellation: &CancellationToken,
 ) -> Result<usize, ProtocolError> {
-    tokio::select! {
+    let read = tokio::select! {
         biased;
         _ = cancellation.cancelled() => Err(ProtocolError::Cancelled),
         result = timeout_at(deadline, stream.read(buffer)) => match result {
             Ok(result) => result.map_err(ProtocolError::Io),
             Err(_) => Err(ProtocolError::TimedOut),
         },
+    }?;
+    if let Some(cipher) = cipher {
+        cipher.decrypt_in_place(&mut buffer[..read])?;
     }
+    Ok(read)
 }
 
 async fn write_bytes(
     stream: &mut TcpStream,
     bytes: &[u8],
+    cipher: Option<&mut MinecraftCipher>,
     deadline: Instant,
     cancellation: &CancellationToken,
 ) -> Result<(), ProtocolError> {
+    let encrypted;
+    let bytes = if let Some(cipher) = cipher {
+        encrypted = cipher.encrypt(bytes)?;
+        encrypted
+    } else {
+        bytes
+    };
     tokio::select! {
         biased;
         _ = cancellation.cancelled() => Err(ProtocolError::Cancelled),
@@ -818,6 +1362,42 @@ async fn write_bytes(
             Err(_) => Err(ProtocolError::TimedOut),
         },
     }
+}
+
+fn transform_in_place(
+    crypter: &mut Crypter,
+    scratch: &mut Vec<u8>,
+    bytes: &mut [u8],
+) -> Result<(), ProtocolError> {
+    let transformed = transform_to_scratch(crypter, scratch, bytes)?;
+    bytes.copy_from_slice(transformed);
+    Ok(())
+}
+
+fn transform_to_scratch<'a>(
+    crypter: &mut Crypter,
+    scratch: &'a mut Vec<u8>,
+    bytes: &[u8],
+) -> Result<&'a [u8], ProtocolError> {
+    let capacity = bytes
+        .len()
+        .checked_add(Cipher::aes_128_cfb8().block_size())
+        .ok_or(ProtocolError::Malformed)?;
+    scratch.resize(capacity, 0);
+    let written = crypter.update(bytes, scratch).map_err(crypto_protocol)?;
+    if written != bytes.len() {
+        return Err(ProtocolError::Malformed);
+    }
+    scratch.truncate(written);
+    Ok(scratch)
+}
+
+fn crypto_io(error: openssl::error::ErrorStack) -> io::Error {
+    io::Error::other(format!("Minecraft crypto initialization failed: {error}"))
+}
+
+fn crypto_protocol(_error: openssl::error::ErrorStack) -> ProtocolError {
+    ProtocolError::Malformed
 }
 
 #[cfg(test)]
@@ -854,6 +1434,10 @@ fn build_status_frame(config: &MinecraftConfig, online: u32) -> io::Result<Vec<u
 }
 
 fn login_disconnect_frame(reason_json: &str) -> io::Result<Vec<u8>> {
+    encode_frame(&login_disconnect_packet(reason_json)?)
+}
+
+fn login_disconnect_packet(reason_json: &str) -> io::Result<Vec<u8>> {
     let mut payload = Vec::new();
     payload
         .try_reserve_exact(reason_json.len() + 6)
@@ -861,7 +1445,7 @@ fn login_disconnect_frame(reason_json: &str) -> io::Result<Vec<u8>> {
     write_varint(&mut payload, 0);
     write_varint(&mut payload, reason_json.len() as u32);
     payload.extend_from_slice(reason_json.as_bytes());
-    encode_frame(&payload)
+    Ok(payload)
 }
 
 fn contains_player(players: &[String], username: &str) -> bool {
@@ -1094,6 +1678,18 @@ impl<'a> PacketReader<'a> {
         Ok(value)
     }
 
+    fn read_byte_array(&mut self, max_bytes: usize) -> Result<Vec<u8>, ()> {
+        let length = self.read_varint()?;
+        if length < 0 || length as usize > max_bytes {
+            return Err(());
+        }
+        let length = length as usize;
+        let end = self.cursor.checked_add(length).ok_or(())?;
+        let value = self.bytes.get(self.cursor..end).ok_or(())?.to_vec();
+        self.cursor = end;
+        Ok(value)
+    }
+
     fn read_u16(&mut self) -> Result<u16, ()> {
         let end = self.cursor.checked_add(2).ok_or(())?;
         let bytes: [u8; 2] = self
@@ -1149,6 +1745,7 @@ mod tests {
     use super::*;
     use base64::{Engine as _, engine::general_purpose::STANDARD};
     use proptest::prelude::*;
+    use tokio::sync::oneshot;
     use tokio::time::sleep;
 
     const FROZEN_STATUS_FRAME: &str = "nAEAmQF7InZlcnNpb24iOnsibmFtZSI6IjEuOC45IiwicHJvdG9jb2wiOjQ3fSwicGxheWVycyI6eyJtYXgiOjIwLCJvbmxpbmUiOjAsInNhbXBsZSI6W119LCJkZXNjcmlwdGlvbiI6eyJ0ZXh0Ijoiwqc2TE1ZWk1BSUwgwqc3LSBTZW5kIGVtYWlscyBpbiBNaW5lY3JhZnQifX0=";
@@ -1162,6 +1759,8 @@ mod tests {
             motd: "§6LMYZMAIL §7- Send emails in Minecraft".to_owned(),
             favicon: String::new(),
             read_timeout_seconds: timeout.as_secs().max(1),
+            session_server_url: "https://sessionserver.mojang.com/session/minecraft/hasJoined"
+                .to_owned(),
             spawn: crate::config::MinecraftSpawnConfig {
                 x: 0.5,
                 y: 160.0,
@@ -1223,6 +1822,62 @@ mod tests {
                 async move { serve_listener(listener, service, child, max_connections).await },
             );
         (address, cancellation, task)
+    }
+
+    async fn start_session_fixture(
+        status: u16,
+        body: String,
+        response_delay: Duration,
+    ) -> (
+        std::net::SocketAddr,
+        oneshot::Receiver<Vec<u8>>,
+        tokio::task::JoinHandle<()>,
+    ) {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let (request_sender, request_receiver) = oneshot::channel();
+        let task = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            let mut buffer = [0_u8; 1024];
+            loop {
+                let read = stream.read(&mut buffer).await.unwrap();
+                assert_ne!(read, 0, "fixture client closed before HTTP headers");
+                assert!(request.len() + read <= 8 * 1024);
+                request.extend_from_slice(&buffer[..read]);
+                if request.windows(4).any(|window| window == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let _ = request_sender.send(request);
+            if !response_delay.is_zero() {
+                sleep(response_delay).await;
+            }
+            let reason = match status {
+                200 => "OK",
+                204 => "No Content",
+                _ => "Fixture",
+            };
+            let response = format!(
+                "HTTP/1.1 {status} {reason}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            let _ = stream.write_all(response.as_bytes()).await;
+        });
+        (address, request_receiver, task)
+    }
+
+    fn rsa_encrypt(public_key_der: &[u8], plaintext: &[u8]) -> Vec<u8> {
+        let public_key = PKey::public_key_from_der(public_key_der)
+            .unwrap()
+            .rsa()
+            .unwrap();
+        let mut encrypted = vec![0_u8; public_key.size() as usize];
+        let written = public_key
+            .public_encrypt(plaintext, &mut encrypted, Padding::PKCS1)
+            .unwrap();
+        encrypted.truncate(written);
+        encrypted
     }
 
     fn login_start(username: &[u8]) -> Vec<u8> {
@@ -1294,6 +1949,286 @@ mod tests {
         assert!(java_equals_ignore_case("\u{130}", "i"));
         assert!(java_equals_ignore_case("\u{3a3}", "\u{3c2}"));
         assert!(!java_equals_ignore_case("\u{df}", "ss"));
+    }
+
+    #[test]
+    fn encryption_request_uses_protocol_47_x509_and_four_byte_token() {
+        let mut configured = config(Duration::from_secs(3));
+        configured.online_mode = true;
+        let online = OnlineModeService::new(&configured).unwrap();
+        let token = [1, 2, 3, 4];
+        let frame = encryption_request_frame(&online.public_key_der, &token).unwrap();
+        let mut outer = PacketReader::new(&frame);
+        let length = outer.read_varint().unwrap() as usize;
+        assert_eq!(length, frame.len() - outer.cursor);
+        let mut packet = PacketReader::new(&frame[outer.cursor..]);
+        assert_eq!(packet.read_varint().unwrap(), 1);
+        assert_eq!(packet.read_string(20).unwrap(), "");
+        let der = packet.read_byte_array(ENCRYPTION_FIELD_MAX_BYTES).unwrap();
+        assert_eq!(der.as_slice(), online.public_key_der.as_ref());
+        assert!(PKey::public_key_from_der(&der).is_ok());
+        assert_eq!(
+            packet.read_byte_array(ENCRYPTION_FIELD_MAX_BYTES).unwrap(),
+            token
+        );
+        assert_eq!(packet.cursor, packet.bytes.len());
+    }
+
+    #[tokio::test]
+    async fn rsa_response_requires_matching_token_and_aes_128_secret() {
+        let mut configured = config(Duration::from_secs(3));
+        configured.online_mode = true;
+        let online = OnlineModeService::new(&configured).unwrap();
+        let public_key = PKey::public_key_from_der(&online.public_key_der)
+            .unwrap()
+            .rsa()
+            .unwrap();
+        let secret = *b"0123456789abcdef";
+        let token = [9, 8, 7, 6];
+        let mut encrypted_secret = vec![0_u8; public_key.size() as usize];
+        let secret_len = public_key
+            .public_encrypt(&secret, &mut encrypted_secret, Padding::PKCS1)
+            .unwrap();
+        encrypted_secret.truncate(secret_len);
+        let mut encrypted_token = vec![0_u8; public_key.size() as usize];
+        let token_len = public_key
+            .public_encrypt(&token, &mut encrypted_token, Padding::PKCS1)
+            .unwrap();
+        encrypted_token.truncate(token_len);
+        let cancellation = CancellationToken::new();
+        let deadline = Instant::now() + Duration::from_secs(3);
+        assert_eq!(
+            decrypt_online_response(
+                &online,
+                encrypted_secret.clone(),
+                encrypted_token.clone(),
+                token,
+                deadline,
+                &cancellation,
+            )
+            .await
+            .unwrap(),
+            secret
+        );
+        assert!(matches!(
+            decrypt_online_response(
+                &online,
+                encrypted_secret,
+                encrypted_token,
+                [0; VERIFY_TOKEN_BYTES],
+                deadline,
+                &cancellation,
+            )
+            .await,
+            Err(ProtocolError::Malformed)
+        ));
+    }
+
+    #[tokio::test]
+    async fn online_login_switches_to_aes_and_uses_bounded_session_fixture() {
+        let profile_uuid = "0123456789abcdef0123456789abcdef";
+        let profile_body = format!(r#"{{"id":"{profile_uuid}","name":"OnlineUser"}}"#);
+        let (fixture_address, request_receiver, fixture_task) =
+            start_session_fixture(200, profile_body, Duration::ZERO).await;
+        let mut configured = config(Duration::from_secs(5));
+        configured.online_mode = true;
+        configured.session_server_url =
+            format!("http://{fixture_address}/session/minecraft/hasJoined");
+        let (address, cancellation, server_task) = start_server_with_config(8, configured).await;
+        let mut client = TcpStream::connect(address).await.unwrap();
+        client
+            .write_all(&handshake(address.port(), 2))
+            .await
+            .unwrap();
+        client.write_all(&login_start(b"OnlineUser")).await.unwrap();
+
+        let io_cancellation = CancellationToken::new();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let request = read_frame(&mut client, None, deadline, &io_cancellation)
+            .await
+            .unwrap()
+            .unwrap();
+        let mut request = PacketReader::new(&request);
+        assert_eq!(request.read_varint().unwrap(), 1);
+        assert_eq!(request.read_string(20).unwrap(), "");
+        let public_key_der = request.read_byte_array(ENCRYPTION_FIELD_MAX_BYTES).unwrap();
+        let verify_token = request.read_byte_array(ENCRYPTION_FIELD_MAX_BYTES).unwrap();
+        assert_eq!(verify_token.len(), VERIFY_TOKEN_BYTES);
+
+        let secret = *b"0123456789abcdef";
+        let mut response = vec![0x01];
+        write_byte_array(&mut response, &rsa_encrypt(&public_key_der, &secret)).unwrap();
+        write_byte_array(&mut response, &rsa_encrypt(&public_key_der, &verify_token)).unwrap();
+        client
+            .write_all(&encode_frame(&response).unwrap())
+            .await
+            .unwrap();
+
+        let mut client_cipher = MinecraftCipher::new(&secret).unwrap();
+        let set_compression = read_frame(
+            &mut client,
+            Some(&mut client_cipher),
+            deadline,
+            &io_cancellation,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let mut set_compression = PacketReader::new(&set_compression);
+        assert_eq!(set_compression.read_varint().unwrap(), 3);
+        assert_eq!(set_compression.read_varint().unwrap(), 256);
+
+        let login_success = read_frame(
+            &mut client,
+            Some(&mut client_cipher),
+            deadline,
+            &io_cancellation,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let mut envelope = PacketReader::new(&login_success);
+        assert_eq!(envelope.read_varint().unwrap(), 0);
+        let mut login_success = PacketReader::new(&login_success[envelope.cursor..]);
+        assert_eq!(login_success.read_varint().unwrap(), 2);
+        assert_eq!(
+            login_success.read_string(36).unwrap(),
+            "01234567-89ab-cdef-0123-456789abcdef"
+        );
+        assert_eq!(login_success.read_string(16).unwrap(), "OnlineUser");
+
+        let request = request_receiver.await.unwrap();
+        let request = String::from_utf8(request).unwrap();
+        let request_line = request.lines().next().unwrap();
+        assert!(
+            request_line
+                .starts_with("GET /session/minecraft/hasJoined?username=OnlineUser&serverId=")
+        );
+        let hash = request_line
+            .split("serverId=")
+            .nth(1)
+            .unwrap()
+            .split_ascii_whitespace()
+            .next()
+            .unwrap();
+        assert!(!hash.is_empty());
+        assert!(
+            hash.bytes()
+                .all(|byte| byte == b'-' || byte.is_ascii_hexdigit())
+        );
+
+        cancellation.cancel();
+        timeout(Duration::from_secs(2), server_task)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        fixture_task.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn session_fixture_errors_are_bounded_and_stable() {
+        async fn run_case(
+            status: u16,
+            body: String,
+            response_delay: Duration,
+            request_budget: Duration,
+        ) -> String {
+            let (fixture_address, request_receiver, fixture_task) =
+                start_session_fixture(status, body, response_delay).await;
+            let mut configured = config(Duration::from_secs(5));
+            configured.online_mode = true;
+            configured.session_server_url = format!("http://{fixture_address}/hasJoined");
+            let online = OnlineModeService::new(&configured).unwrap();
+            let cancellation = CancellationToken::new();
+            let error = authenticate_online(
+                &online,
+                "OnlineUser",
+                b"0123456789abcdef",
+                Instant::now() + request_budget,
+                &cancellation,
+            )
+            .await
+            .unwrap_err();
+            request_receiver.await.unwrap();
+            fixture_task.await.unwrap();
+            error.message
+        }
+
+        assert_eq!(
+            run_case(204, String::new(), Duration::ZERO, Duration::from_secs(2)).await,
+            "Session not found"
+        );
+        assert_eq!(
+            run_case(200, "{}".to_owned(), Duration::ZERO, Duration::from_secs(2)).await,
+            "Auth server error: invalid response"
+        );
+        assert_eq!(
+            run_case(
+                200,
+                "x".repeat(MAX_AUTH_RESPONSE_BYTES + 1),
+                Duration::ZERO,
+                Duration::from_secs(2)
+            )
+            .await,
+            "Auth server error: response exceeded byte limit"
+        );
+        assert_eq!(
+            run_case(
+                200,
+                r#"{"id":"0123456789abcdef0123456789abcdef","name":"OnlineUser"}"#.to_owned(),
+                Duration::from_millis(200),
+                Duration::from_millis(40)
+            )
+            .await,
+            "Auth server error: request timed out"
+        );
+    }
+
+    #[test]
+    fn aes_cfb8_stream_state_survives_fragmentation() {
+        let secret = *b"0123456789abcdef";
+        let mut sender = MinecraftCipher::new(&secret).unwrap();
+        let mut ciphertext = Vec::new();
+        ciphertext.extend_from_slice(sender.encrypt(b"first-").unwrap());
+        ciphertext.extend_from_slice(sender.encrypt(b"second-payload").unwrap());
+
+        let mut receiver = MinecraftCipher::new(&secret).unwrap();
+        let mut first = ciphertext[..3].to_vec();
+        let mut second = ciphertext[3..11].to_vec();
+        let mut third = ciphertext[11..].to_vec();
+        receiver.decrypt_in_place(&mut first).unwrap();
+        receiver.decrypt_in_place(&mut second).unwrap();
+        receiver.decrypt_in_place(&mut third).unwrap();
+        first.extend_from_slice(&second);
+        first.extend_from_slice(&third);
+        assert_eq!(first, b"first-second-payload");
+    }
+
+    #[test]
+    fn signed_server_hash_matches_java_big_integer_hex_rules() {
+        assert_eq!(signed_hex(&[0]), "0");
+        assert_eq!(signed_hex(&[0, 0x0f]), "f");
+        assert_eq!(signed_hex(&[0x7f]), "7f");
+        assert_eq!(signed_hex(&[0x80]), "-80");
+        assert_eq!(signed_hex(&[0xff]), "-1");
+        assert_eq!(signed_hex(&[0xff, 0]), "-100");
+    }
+
+    #[test]
+    fn joined_profile_validation_is_strict_and_canonical() {
+        assert_eq!(
+            normalize_joined_uuid("0123456789ABCDEF0123456789ABCDEF").as_deref(),
+            Some("01234567-89ab-cdef-0123-456789abcdef")
+        );
+        assert_eq!(
+            normalize_joined_uuid("01234567-89ab-cdef-0123-456789abcdef").as_deref(),
+            Some("01234567-89ab-cdef-0123-456789abcdef")
+        );
+        assert!(normalize_joined_uuid("--0123456789abcdef0123456789abcdef").is_none());
+        assert!(valid_online_name("Player_1"));
+        assert!(!valid_online_name("player-name"));
+        assert!(!valid_online_name("12345678901234567"));
     }
 
     #[test]

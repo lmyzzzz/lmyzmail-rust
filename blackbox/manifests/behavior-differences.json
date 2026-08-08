@@ -351,6 +351,61 @@
       "oracle_behavior": "The frozen Java registry stores one session per UUID, so duplicate offline logins keep onlineCount() at one. Registration unconditionally overwrites the map entry, while either connection's later unregister(uuid) unconditionally removes whichever generation is current.",
       "reason": "An older connection must not erase a newer authenticated session's registry state. Reproducing that race would corrupt online counts and later UUID-scoped session ownership.",
       "scope": "Only disconnect ordering for simultaneous sessions with the same UUID. Unique-UUID registration, duplicate UUID count semantics, entity ID allocation, ordinary disconnect cleanup, status bytes, and all protocol behavior remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Generate each four-byte Minecraft online-mode verify token from the operating system CSPRNG, compare the decrypted value in constant time, zeroize decrypted token and secret buffers, and perform RSA private-key operations only through the dedicated two-worker, eight-entry bounded crypto pool under the connection deadline.",
+      "evidence": {
+        "candidate_test": "crates/lmyzmail/src/minecraft.rs::tests::rsa_response_requires_matching_token_and_aes_128_secret",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "oracle_golden": "blackbox/golden/java/managed-minecraft-online-v1/observations/minecraft/online-login-boundaries.json",
+        "source": "src/main/java/net/lmyz/lmyzmail/netty/minecraft/handler/MinecraftSessionHandler.java",
+        "source_sha256": "4325f6517ccffa9b94ee1b8fa274b1a9cf51d94c32a0e4ac9976003dd8c1d52c"
+      },
+      "id": "minecraft-online-verify-token-hardening",
+      "oracle_behavior": "The frozen Java handler generates the verify token with a newly constructed java.util.Random, compares the decrypted token with Arrays.equals, retains decrypted arrays until garbage collection, and performs RSA decryption on the Netty event-loop thread.",
+      "reason": "A login freshness token must not be predictable, secret comparisons and cleanup must not expose avoidable side channels, and attacker-triggered private-key operations must not block an unbounded number of protocol tasks or an event loop.",
+      "scope": "Only entropy, comparison, secret-memory cleanup, and CPU admission for the online-mode RSA exchange. The 1024-bit process-local RSA key, X.509 public-key DER, four-byte token length, PKCS#1 v1.5 wire format, AES-128/CFB8 state, packet ordering, and every valid encrypted byte remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Construct the Mojang hasJoined request with structured URL query pairs so username and signed server hash are percent-encoded as data. Reject a returned profile unless its name is a valid one-to-sixteen-character ASCII Minecraft username and matches the requested username under the frozen case-insensitive comparison.",
+      "evidence": {
+        "candidate_test": "crates/lmyzmail/src/minecraft.rs::tests::joined_profile_validation_is_strict_and_canonical",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "source": "src/main/java/net/lmyz/lmyzmail/netty/minecraft/auth/MojangAuthService.java",
+        "source_sha256": "c6077c703f848f5b357325dbde62b491d81cf09550289a7dedf98d78e0f3f00a"
+      },
+      "id": "minecraft-sessionserver-query-encoding",
+      "oracle_behavior": "The frozen Java service concatenates the Login Start username directly into the hasJoined query string and accepts the returned name without validating its character set, length, or relationship to the requested username.",
+      "reason": "Treating attacker-controlled login text as query syntax permits parameter injection and accepting a different returned identity breaks the binding between the encrypted login and the authenticated profile.",
+      "scope": "Only malformed usernames, URL metacharacters, and mismatched session-server profile names. Valid usernames, signed SHA-1 server hash bytes, query parameter names, case-insensitive identity matching, endpoint path, HTTP method, and successful profile values remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Accept a hasJoined HTTP 200 response only when it is valid JSON containing string id and name fields, the id is exactly a canonicalizable 32-hex or hyphenated UUID, and the name passes the authenticated-identity checks. Missing, malformed, or wrongly typed identity fields must fail authentication without synthesizing values.",
+      "evidence": {
+        "candidate_test": "crates/lmyzmail/src/minecraft.rs::tests::session_fixture_errors_are_bounded_and_stable",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "source": "src/main/java/net/lmyz/lmyzmail/netty/minecraft/auth/MojangAuthService.java",
+        "source_sha256": "c6077c703f848f5b357325dbde62b491d81cf09550289a7dedf98d78e0f3f00a"
+      },
+      "id": "minecraft-sessionserver-response-validation",
+      "oracle_behavior": "The frozen Java service locates id and name with substring searches instead of a JSON parser. A missing id becomes a random UUID, a missing name becomes Unknown, and a loosely shaped body can therefore be accepted as an authenticated profile.",
+      "reason": "Synthesizing or loosely extracting an authenticated identity from an untrusted response is an obvious authentication vulnerability excluded from bug-for-bug replication.",
+      "scope": "Only malformed, missing, wrongly typed, non-UUID, invalid-name, or mismatched identity fields in HTTP 200 responses. Valid Mojang response objects, optional additional response fields, UUID normalization, 204 handling, non-200 status mapping, and successful login packet bytes remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Read the hasJoined response incrementally with a 65536-byte hard limit and one absolute deadline capped at five seconds. Disable environment proxies and redirects, require HTTPS except for an explicitly configured loopback HTTP fixture, observe root cancellation during connect and body reads, and bound aggregate request concurrency through Minecraft connection admission without detached authentication tasks.",
+      "evidence": {
+        "candidate_test": "crates/lmyzmail/src/minecraft.rs::tests::session_fixture_errors_are_bounded_and_stable",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "server_source": "src/main/java/net/lmyz/lmyzmail/netty/minecraft/MinecraftServer.java",
+        "server_source_sha256": "3c997b4d378a6f1b57935ec1f2138b7bd770fb5d84daa0cdbc69f9d71b5f30d3",
+        "source": "src/main/java/net/lmyz/lmyzmail/netty/minecraft/auth/MojangAuthService.java",
+        "source_sha256": "c6077c703f848f5b357325dbde62b491d81cf09550289a7dedf98d78e0f3f00a"
+      },
+      "id": "minecraft-sessionserver-bounded-lifecycle",
+      "oracle_behavior": "The frozen Java request has five-second connect and request timeouts but BodyHandlers.ofString buffers the complete response without a byte ceiling. Each authentication is submitted to an unbounded virtual-thread-per-task executor, is not tied to server cancellation, and uses the JDK client's ambient networking behavior.",
+      "reason": "An authentication endpoint controls response size and latency, while clients control request concurrency. Unbounded buffering, detached work, and ambient proxy routing violate the rewrite's explicit hard-limit, deadline, cancellation, and security-boundary requirements.",
+      "scope": "Only oversized or slow responses, cancellation, redirects, ambient proxies, non-HTTPS configured endpoints, and concurrent authentication resource admission. The default Mojang HTTPS endpoint, five-second success budget, ordinary TLS validation, 200/204/other status semantics, and every in-budget successful response remain compatibility requirements."
     }
   ],
   "schema_version": 1

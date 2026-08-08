@@ -14,10 +14,10 @@ import pytest
 
 from lmyzmail_blackbox.differential import DifferentialRunner, RuntimeTarget, Scenario
 from lmyzmail_blackbox.errors import ProtocolError
-from lmyzmail_blackbox.golden import bytes_snapshot
 from lmyzmail_blackbox.persistent_runtime import PersistentJavaOracleRuntime
 from lmyzmail_blackbox.ports import PortSet
 from lmyzmail_blackbox.runtime import CandidateRuntime
+from lmyzmail_blackbox.snapshots import bytes_snapshot
 
 _GOLDEN = "managed-minecraft-login-v3"
 _MAX_FRAME = 2 * 1024 * 1024

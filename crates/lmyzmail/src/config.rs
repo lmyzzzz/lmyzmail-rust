@@ -355,6 +355,8 @@ struct JsonMinecraftConfig {
     favicon: String,
     #[serde(default = "default_minecraft_read_timeout_seconds")]
     read_timeout_seconds: u64,
+    #[serde(default = "default_minecraft_session_server_url")]
+    session_server_url: String,
     #[serde(default)]
     spawn: JsonMinecraftSpawnConfig,
     #[serde(default)]
@@ -375,6 +377,7 @@ impl Default for JsonMinecraftConfig {
             motd: default_minecraft_motd(),
             favicon: String::new(),
             read_timeout_seconds: default_minecraft_read_timeout_seconds(),
+            session_server_url: default_minecraft_session_server_url(),
             spawn: JsonMinecraftSpawnConfig::default(),
             whitelist_enabled: false,
             whitelist_players: Vec::new(),
@@ -602,6 +605,10 @@ fn default_minecraft_read_timeout_seconds() -> u64 {
     30
 }
 
+fn default_minecraft_session_server_url() -> String {
+    "https://sessionserver.mojang.com/session/minecraft/hasJoined".to_owned()
+}
+
 fn default_minecraft_compression_threshold() -> i32 {
     256
 }
@@ -695,6 +702,10 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
     properties.insert(
         "lmyzmail.minecraft.read-timeout-seconds".to_owned(),
         value.minecraft.read_timeout_seconds.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.session-server-url".to_owned(),
+        value.minecraft.session_server_url,
     )?;
     properties.insert(
         "lmyzmail.minecraft.spawn.x".to_owned(),
@@ -1149,6 +1160,7 @@ pub struct MinecraftConfig {
     pub motd: String,
     pub favicon: String,
     pub read_timeout_seconds: u64,
+    pub session_server_url: String,
     pub spawn: MinecraftSpawnConfig,
     pub whitelist_enabled: bool,
     pub whitelist_players: Vec<String>,
@@ -1706,6 +1718,14 @@ fn parse_minecraft_config(properties: &Properties) -> Result<MinecraftConfig, Co
             "minecraft read-timeout-seconds must be between 1 and {MAX_MINECRAFT_READ_TIMEOUT_SECONDS}"
         )));
     }
+    let session_server_url = preferred(
+        properties,
+        &["lmyzmail.minecraft.session-server-url"],
+        &["botmail.minecraft.session-server-url"],
+    )
+    .map(str::to_owned)
+    .unwrap_or_else(default_minecraft_session_server_url);
+    validate_minecraft_session_server_url(&session_server_url)?;
     let spawn = MinecraftSpawnConfig {
         x: preferred_f64(
             properties,
@@ -1769,11 +1789,39 @@ fn parse_minecraft_config(properties: &Properties) -> Result<MinecraftConfig, Co
         motd,
         favicon,
         read_timeout_seconds,
+        session_server_url,
         spawn,
         whitelist_enabled,
         whitelist_players,
         blacklist_players,
     })
+}
+
+fn validate_minecraft_session_server_url(raw: &str) -> Result<(), ConfigError> {
+    let parsed = Url::parse(raw)
+        .map_err(|_| ConfigError::Invalid("minecraft session-server-url is invalid".into()))?;
+    let host = parsed.host_str().ok_or_else(|| {
+        ConfigError::Invalid("minecraft session-server-url requires a host".into())
+    })?;
+    let loopback = host.eq_ignore_ascii_case("localhost")
+        || host
+            .parse::<IpAddr>()
+            .is_ok_and(|address| address.is_loopback());
+    if parsed.scheme() != "https" && !(parsed.scheme() == "http" && loopback) {
+        return Err(ConfigError::Invalid(
+            "minecraft session-server-url must use HTTPS, except for loopback fixtures".into(),
+        ));
+    }
+    if !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.query().is_some()
+        || parsed.fragment().is_some()
+    {
+        return Err(ConfigError::Invalid(
+            "minecraft session-server-url must not contain credentials, query, or fragment".into(),
+        ));
+    }
+    Ok(())
 }
 
 fn preferred_f64(
@@ -2874,6 +2922,7 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
                 "motd": "semantic-status",
                 "favicon": " cGl4ZWw= ",
                 "read_timeout_seconds": 75,
+                "session_server_url": "http://127.0.0.1:18081/session/minecraft/hasJoined",
                 "spawn": {"x": -12.75, "y": 70.9, "z": 34.5, "yaw": 45.0, "pitch": -15.0},
                 "whitelist_enabled": true,
                 "whitelist_players": ["SemanticAllowed"],
@@ -2896,6 +2945,10 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
         assert_eq!(config.minecraft.motd, "semantic-status");
         assert_eq!(config.minecraft.favicon, " cGl4ZWw= ");
         assert_eq!(config.minecraft.read_timeout_seconds, 75);
+        assert_eq!(
+            config.minecraft.session_server_url,
+            "http://127.0.0.1:18081/session/minecraft/hasJoined"
+        );
         assert_eq!(config.minecraft.spawn.x, -12.75);
         assert_eq!(config.minecraft.spawn.y, 70.9);
         assert_eq!(config.minecraft.spawn.z, 34.5);
@@ -2927,6 +2980,10 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
             "§6LMYZMAIL §7- Send emails in Minecraft"
         );
         assert_eq!(config.minecraft.read_timeout_seconds, 30);
+        assert_eq!(
+            config.minecraft.session_server_url,
+            "https://sessionserver.mojang.com/session/minecraft/hasJoined"
+        );
         assert!(config.minecraft.favicon.is_empty());
         assert_eq!(config.minecraft.spawn.x, 0.5);
         assert_eq!(config.minecraft.spawn.y, 160.0);
@@ -2971,6 +3028,7 @@ botmail.minecraft.max-players=40\n\
 botmail.minecraft.motd=legacy\n\
 botmail.minecraft.favicon=bGVnYWN5\n\
 botmail.minecraft.read-timeout-seconds=45\n\
+botmail.minecraft.session-server-url=https://legacy-session.example.test/hasJoined\n\
 botmail.minecraft.spawn.x=1.5\n\
 botmail.minecraft.spawn.y=65.25\n\
 botmail.minecraft.spawn.z=2.5\n\
@@ -2986,6 +3044,7 @@ lmyzmail.minecraft.max-players=20\n\
 lmyzmail.minecraft.motd=new\n\
 lmyzmail.minecraft.favicon=bmV3\n\
 lmyzmail.minecraft.read-timeout-seconds=30\n\
+lmyzmail.minecraft.session-server-url=http://127.0.0.1:18081/hasJoined\n\
 lmyzmail.minecraft.spawn.x=-12.75\n\
 lmyzmail.minecraft.spawn.y=70.9\n\
 lmyzmail.minecraft.spawn.z=34.5\n\
@@ -3005,6 +3064,10 @@ lmyzmail.minecraft.blacklist.players=NewBlocked\n",
         assert_eq!(config.minecraft.motd, "new");
         assert_eq!(config.minecraft.favicon, "bmV3");
         assert_eq!(config.minecraft.read_timeout_seconds, 30);
+        assert_eq!(
+            config.minecraft.session_server_url,
+            "http://127.0.0.1:18081/hasJoined"
+        );
         assert_eq!(config.minecraft.spawn.x, -12.75);
         assert_eq!(config.minecraft.spawn.y, 70.9);
         assert_eq!(config.minecraft.spawn.z, 34.5);
@@ -3027,6 +3090,9 @@ lmyzmail.minecraft.blacklist.players=NewBlocked\n",
             "lmyzmail.minecraft.read-timeout-seconds=0\n",
             "lmyzmail.minecraft.read-timeout-seconds=3601\n",
             "lmyzmail.minecraft.motd=bad\\u0009motd\n",
+            "lmyzmail.minecraft.session-server-url=http://session.example.test/hasJoined\n",
+            "lmyzmail.minecraft.session-server-url=https://session.example.test/hasJoined?bad=true\n",
+            "lmyzmail.minecraft.session-server-url=https://user:pass@session.example.test/hasJoined\n",
         ] {
             let properties = Properties::parse(value.as_bytes()).unwrap();
             assert!(RuntimeConfig::from_properties(properties).is_err());

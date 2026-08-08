@@ -90,6 +90,10 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "minecraft-absolute-connection-deadline",
         "minecraft-bounded-connection-admission",
         "minecraft-duplicate-session-removal-fencing",
+        "minecraft-online-verify-token-hardening",
+        "minecraft-sessionserver-bounded-lifecycle",
+        "minecraft-sessionserver-query-encoding",
+        "minecraft-sessionserver-response-validation",
         "minecraft-strict-compression-envelope",
     }
     starttls = next(
@@ -165,6 +169,18 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
     assert by_id["minecraft-duplicate-session-removal-fencing"]["evidence"][
         "source_sha256"
     ] == "422f57ef731635adcce19f1162dbb9bada1a2a8bc1373a4b6ef91c71023fec5a"
+    assert by_id["minecraft-online-verify-token-hardening"]["evidence"][
+        "source_sha256"
+    ] == "4325f6517ccffa9b94ee1b8fa274b1a9cf51d94c32a0e4ac9976003dd8c1d52c"
+    assert by_id["minecraft-sessionserver-query-encoding"]["evidence"][
+        "source_sha256"
+    ] == "c6077c703f848f5b357325dbde62b491d81cf09550289a7dedf98d78e0f3f00a"
+    assert by_id["minecraft-sessionserver-response-validation"]["evidence"][
+        "source_sha256"
+    ] == "c6077c703f848f5b357325dbde62b491d81cf09550289a7dedf98d78e0f3f00a"
+    assert by_id["minecraft-sessionserver-bounded-lifecycle"]["evidence"][
+        "server_source_sha256"
+    ] == "3c997b4d378a6f1b57935ec1f2138b7bd770fb5d84daa0cdbc69f9d71b5f30d3"
 
 
 def test_postgres_seed_is_structurally_valid_postgres_sql() -> None:
