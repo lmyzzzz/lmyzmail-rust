@@ -122,6 +122,26 @@ wire, state, storage, or recovery assertions.
   strings retain Java UTF-16 substring semantics, including CESU-8 for an
   isolated surrogate produced by a split supplementary character.
 
+## Minecraft mail-view contract
+
+Opening a folder item resolves the same indexed Maildir message as the frozen
+oracle, applies the same HTML/plain-text selection and attachment-card
+composition, and preserves case-sensitive first-resource CID ownership. The
+renderer accepts bounded raster formats and SVG CID resources, rejects SVG
+external resources, disables redirects and ambient proxies, pins every external
+image request to a bounded public DNS result, and carries one cancellation-aware
+deadline through DNS, admission, HTTP, decode, layout, dithering, and packet
+production. Native litehtml context calls are single-threaded and all Rust-owned
+HTML, CID, and RGBA storage remains live and immutable through context destroy.
+
+Pages use row-major map tiles and the configured wall orientation, base map ID,
+and base entity ID. Every page transition sends all wall map IDs; a short final
+page fills missing lower tiles with palette index 34 so pixels from the previous
+page cannot remain visible. Closing or replacing a GUI while a mail wall is
+active restores slots 36, 44, 39, 40, and 41 in that order and then selects held
+slot 4. The v2 fixture freezes seven Java pages, including the 128-pixel final
+page, full-wall padding, packet sequence, and rendered palette hashes.
+
 ## SMTP AUTH oracle behavior
 
 The frozen SMTP dispatcher registers `AUTH` as a probe sink, not as a login

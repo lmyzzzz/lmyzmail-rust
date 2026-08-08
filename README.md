@@ -125,9 +125,19 @@ per-session dimensions and font state, validation boundaries, scoreboard
 refresh, and updated menu NBT. Data-backed Inbox/Sent/Trash/Spam folder lists
 now use the legacy PostgreSQL index, preserve attachment glow and Java UTF-16
 truncation at the NBT boundary, and refresh pagination in place while discarding
-cancelled or late database results. Video, and clicking an item to enter the
-mail-view renderer, remain outside this milestone and are not claimed as
-implemented.
+cancelled or late database results. Clicking a message now loads the bounded
+legacy Maildir detail and renders plain text, HTML, CID images, safe external
+images, and attachment cards into Minecraft 1.8 map colors. Rust owns resource
+decoding, pagination, dithering, and tile storage; an ABI-versioned native
+boundary uses source-pinned litehtml with Cairo only for HTML layout and drawing.
+Rendering runs on a two-worker, two-slot blocking pool with a 60-second deadline,
+hard input/output/image budgets, cancellation, SSRF-resistant image fetching,
+and joined shutdown. The map wall preserves configurable orientation and IDs,
+restores covered blocks and hotbar state, and overwrites absent rows with the
+frozen blank palette color on short final pages. The complete v2 raw-socket
+candidate trace and all seven rendered page hashes match the frozen Java golden.
+Minecraft block/map video playback remains outside this milestone and is not
+claimed as implemented.
 
 Outbound HTTP currently covers durable PostgreSQL admission, sender-scoped and
 API status lookup, and quota reporting. A `202` response is emitted only after a
