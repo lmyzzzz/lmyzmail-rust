@@ -788,3 +788,13 @@ It freezes the zero-normalization `AwaitingEmail` chat flow: an address without
 receives the exact email echo, password prompt, and password-visibility warning.
 The suite also binds the C2S Chat limit to 100 UTF-16 code units and preserves
 Java `String.trim()` semantics rather than broader Unicode whitespace trimming.
+
+The Minecraft password-authentication milestone adds:
+
+- `managed-minecraft-password-auth-v1/`
+
+It freezes the zero-normalization `AwaitingPassword` flow for a wrong password
+and a fresh-connection successful password. The failure path preserves the
+exact remaining-attempt message and prompt. The success path preserves the
+eleven instruction chats, four empty-draft sign updates, book item, and
+sidebar scoreboard/objective packets byte-for-byte.

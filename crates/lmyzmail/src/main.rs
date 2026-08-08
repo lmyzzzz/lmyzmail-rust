@@ -65,11 +65,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
     let smtp_config = Arc::clone(&config);
+    let smtp_pool = database_pool.clone();
+    let smtp_redis_pool = redis_pool.clone();
     let smtp_cancellation = cancellation.clone();
     services.spawn(async move {
         (
             "SMTP",
-            smtp::serve_smtp(smtp_config, database_pool, redis_pool, smtp_cancellation).await,
+            smtp::serve_smtp(smtp_config, smtp_pool, smtp_redis_pool, smtp_cancellation).await,
         )
     });
     if config.htcpcp.enabled {
@@ -84,11 +86,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     if config.minecraft.enabled {
         let minecraft_config = Arc::clone(&config);
+        let minecraft_pool = database_pool.clone();
         let minecraft_cancellation = cancellation.clone();
         services.spawn(async move {
             (
                 "Minecraft",
-                minecraft::serve_minecraft(minecraft_config, minecraft_cancellation).await,
+                minecraft::serve_minecraft(
+                    minecraft_config,
+                    minecraft_pool,
+                    minecraft_cancellation,
+                )
+                .await,
             )
         });
     }

@@ -1,11 +1,11 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     io::{self, Write as _},
     sync::{
         Arc, Mutex,
         atomic::{AtomicI32, AtomicU64, Ordering},
     },
-    time::Duration,
+    time::{Duration, Instant as StdInstant},
 };
 
 use flate2::{Compression, write::ZlibEncoder};
@@ -28,9 +28,10 @@ use tokio::{
     time::{Instant, sleep_until, timeout, timeout_at},
 };
 use tokio_util::sync::CancellationToken;
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 use crate::{
+    auth::{AuthError, AuthService, LoginOutcome},
     bounded_blocking::{BoundedBlockingPool, SubmitError},
     config::{MinecraftConfig, RuntimeConfig},
     minecraft_world::{self, NbtValue, WorldTemplate},
@@ -70,6 +71,103 @@ enum ProtocolError {
     TimedOut,
     Malformed,
     Io(io::Error),
+}
+
+const MAX_MINECRAFT_AUTH_RECORDS: usize = 16_384;
+
+struct MinecraftAuthLimiter {
+    max_attempts: usize,
+    lockout: Duration,
+    window: Duration,
+    records: Mutex<HashMap<String, MinecraftAuthAttempt>>,
+}
+
+struct MinecraftAuthAttempt {
+    failures: VecDeque<StdInstant>,
+    locked_until: Option<StdInstant>,
+}
+
+impl MinecraftAuthLimiter {
+    fn new(config: &MinecraftConfig) -> Self {
+        Self {
+            max_attempts: config.auth_max_attempts as usize,
+            lockout: Duration::from_secs(config.auth_lockout_seconds),
+            window: Duration::from_secs(config.auth_window_seconds),
+            records: Mutex::new(HashMap::with_capacity(64)),
+        }
+    }
+
+    fn locked_remaining(&self, ip: &str) -> Option<u64> {
+        self.locked_remaining_at(ip, StdInstant::now())
+    }
+
+    fn locked_remaining_at(&self, ip: &str, now: StdInstant) -> Option<u64> {
+        let mut records = self
+            .records
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let record = records.get_mut(ip)?;
+        match record.locked_until {
+            Some(until) if until > now => Some(until.duration_since(now).as_secs()),
+            Some(_) => {
+                record.locked_until = None;
+                record.failures.clear();
+                None
+            }
+            None => None,
+        }
+    }
+
+    fn record_failure(&self, ip: &str) -> (bool, usize) {
+        self.record_failure_at(ip, StdInstant::now())
+    }
+
+    fn record_failure_at(&self, ip: &str, now: StdInstant) -> (bool, usize) {
+        let window_start = now.checked_sub(self.window).unwrap_or(now);
+        let mut records = self
+            .records
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if !records.contains_key(ip) && records.len() >= MAX_MINECRAFT_AUTH_RECORDS {
+            records.retain(|_, record| {
+                record.locked_until.is_some_and(|until| until > now)
+                    || record
+                        .failures
+                        .back()
+                        .is_some_and(|last| *last > window_start)
+            });
+            if records.len() >= MAX_MINECRAFT_AUTH_RECORDS {
+                return (true, 0);
+            }
+        }
+        let record = records
+            .entry(ip.to_owned())
+            .or_insert_with(|| MinecraftAuthAttempt {
+                failures: VecDeque::new(),
+                locked_until: None,
+            });
+        while record
+            .failures
+            .front()
+            .is_some_and(|failure| *failure < window_start)
+        {
+            record.failures.pop_front();
+        }
+        record.failures.push_back(now);
+        if record.failures.len() >= self.max_attempts {
+            record.locked_until = Some(now + self.lockout);
+            (true, 0)
+        } else {
+            (false, self.max_attempts - record.failures.len())
+        }
+    }
+
+    fn clear(&self, ip: &str) {
+        self.records
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(ip);
+    }
 }
 
 struct OnlineModeService {
@@ -177,6 +275,8 @@ struct StatusService {
     online_sessions: Arc<Mutex<HashMap<String, u64>>>,
     world: Arc<WorldTemplate>,
     connection_timeout: Duration,
+    auth: Option<Arc<AuthService>>,
+    auth_limiter: Arc<MinecraftAuthLimiter>,
 }
 
 impl StatusService {
@@ -210,7 +310,15 @@ impl StatusService {
             online_sessions: Arc::new(Mutex::new(HashMap::with_capacity(MAX_CONNECTIONS))),
             world,
             connection_timeout: Duration::from_secs(config.read_timeout_seconds),
+            auth: None,
+            auth_limiter: Arc::new(MinecraftAuthLimiter::new(config)),
         })
+    }
+
+    fn with_auth(config: &MinecraftConfig, auth: Arc<AuthService>) -> io::Result<Self> {
+        let mut service = Self::new(config)?;
+        service.auth = Some(auth);
+        Ok(service)
     }
 
     fn rejection_frame(&self, username: &str) -> Option<&[u8]> {
@@ -279,11 +387,13 @@ impl Drop for OnlineCountGuard {
 
 pub async fn serve_minecraft(
     config: Arc<RuntimeConfig>,
+    database_pool: deadpool_postgres::Pool,
     cancellation: CancellationToken,
 ) -> io::Result<()> {
     let listener =
         TcpListener::bind((config.listen.host.as_str(), config.listen.minecraft)).await?;
-    let service = Arc::new(StatusService::new(&config.minecraft)?);
+    let auth = AuthService::from_config(&config, database_pool).map_err(io::Error::other)?;
+    let service = Arc::new(StatusService::with_auth(&config.minecraft, Arc::new(auth))?);
     serve_listener(listener, service, cancellation, MAX_CONNECTIONS).await
 }
 
@@ -367,6 +477,10 @@ async fn handle_connection(
     deadline: Instant,
 ) -> io::Result<()> {
     stream.set_nodelay(true)?;
+    let client_ip = stream
+        .peer_addr()
+        .map(|address| address.ip().to_string())
+        .unwrap_or_else(|_| "unknown".to_owned());
     let (mut reader, mut writer) = stream.into_split();
     let mut state = ConnectionState::Handshake;
     let mut compression = None;
@@ -383,6 +497,8 @@ async fn handle_connection(
     let mut next_hologram_teleport = None;
     let mut next_time_update = None;
     let mut pending_email = None;
+    let mut authenticated = None;
+    let mut player_username = String::new();
 
     loop {
         let raw_frame_result = if state == ConnectionState::Play {
@@ -589,6 +705,7 @@ async fn handle_connection(
                             compression = active_compression;
                             _online_guard = Some(online_guard);
                             hologram_entity_base = entity_base;
+                            player_username = username;
                             let now = Instant::now();
                             next_position_check = Some(now + POSITION_CHECK_INTERVAL);
                             next_hologram_teleport = Some(now + HOLOGRAM_TELEPORT_INTERVAL);
@@ -688,6 +805,7 @@ async fn handle_connection(
                             cipher = Some(active_cipher);
                             _online_guard = Some(online_guard);
                             hologram_entity_base = entity_base;
+                            player_username = profile.name;
                             let now = Instant::now();
                             next_position_check = Some(now + POSITION_CHECK_INTERVAL);
                             next_hologram_teleport = Some(now + HOLOGRAM_TELEPORT_INTERVAL);
@@ -709,16 +827,37 @@ async fn handle_connection(
             },
             ConnectionState::Play => match packet_id {
                 0x01 => {
-                    let Ok(message) = packet.read_string(100) else {
+                    let Ok(mut message) = packet.read_string(100) else {
                         return Ok(());
                     };
-                    if pending_email.is_none() {
+                    if pending_email.is_none() && authenticated.is_none() {
                         let (email, responses) = awaiting_email_responses(&message)?;
-                        for response in responses {
-                            if let Err(error) = write_packet(
+                        if let Err(error) = write_packet_list(
+                            &mut writer,
+                            &service,
+                            responses,
+                            compression,
+                            cipher.as_mut(),
+                            deadline,
+                            &cancellation,
+                        )
+                        .await
+                        {
+                            return finish_write_error(error);
+                        }
+                        pending_email = email;
+                    } else if let Some(email) = pending_email.clone() {
+                        if let Some(remaining) = service.auth_limiter.locked_remaining(&client_ip) {
+                            let responses = vec![chat_packet(
+                                &format!(
+                                    "\u{00a7}cToo many failed attempts. Try again in {remaining} seconds."
+                                ),
+                                Some("red"),
+                            )?];
+                            if let Err(error) = write_packet_list(
                                 &mut writer,
                                 &service,
-                                response,
+                                responses,
                                 compression,
                                 cipher.as_mut(),
                                 deadline,
@@ -728,8 +867,118 @@ async fn handle_connection(
                             {
                                 return finish_write_error(error);
                             }
+                            message.zeroize();
+                            continue;
                         }
-                        pending_email = email;
+                        let Some(auth) = service.auth.as_ref().cloned() else {
+                            return Ok(());
+                        };
+                        let auth_cancellation = cancellation.child_token();
+                        let result = {
+                            let auth_future = auth.login_with_cancellation(
+                                &email,
+                                &message,
+                                &client_ip,
+                                Some("Minecraft"),
+                                &auth_cancellation,
+                            );
+                            tokio::pin!(auth_future);
+                            tokio::select! {
+                                biased;
+                                _ = cancellation.cancelled() => {
+                                    auth_cancellation.cancel();
+                                    let _ = auth_future.await;
+                                    None
+                                }
+                                result = timeout_at(deadline, &mut auth_future) => match result {
+                                    Ok(result) => Some(result),
+                                    Err(_) => {
+                                        auth_cancellation.cancel();
+                                        let _ = auth_future.await;
+                                        None
+                                    }
+                                },
+                            }
+                        };
+                        message.zeroize();
+                        let Some(result) = result else {
+                            return Ok(());
+                        };
+                        auth_cancellation.cancel();
+                        let mut close_after_write = false;
+                        let responses = match result {
+                            Ok((LoginOutcome::Invalid { .. }, _)) => {
+                                let (locked, remaining) =
+                                    service.auth_limiter.record_failure(&client_ip);
+                                if locked {
+                                    close_after_write = true;
+                                    vec![
+                                        chat_packet(
+                                            "\u{00a7}c\u{00a7}lToo many failed attempts!",
+                                            Some("red"),
+                                        )?,
+                                        chat_packet(
+                                            &format!(
+                                                "\u{00a7}cLocked out for {} seconds.",
+                                                service.config.auth_lockout_seconds
+                                            ),
+                                            Some("red"),
+                                        )?,
+                                        disconnect_play_packet(
+                                            "Too many failed authentication attempts",
+                                        )?,
+                                    ]
+                                } else {
+                                    vec![
+                                        chat_packet(
+                                            &format!(
+                                                "\u{00a7}cAuthentication failed. {remaining} attempt(s) remaining."
+                                            ),
+                                            Some("red"),
+                                        )?,
+                                        chat_packet(
+                                            "\u{00a7}aPlease enter your password:",
+                                            Some("green"),
+                                        )?,
+                                    ]
+                                }
+                            }
+                            Ok((LoginOutcome::Success, Some(login))) => {
+                                service.auth_limiter.clear(&client_ip);
+                                pending_email = None;
+                                authenticated = Some((email.clone(), Zeroizing::new(login.token)));
+                                authenticated_packets(&player_username, &email)?
+                            }
+                            Ok((LoginOutcome::Success, None))
+                            | Err(AuthError::Cancelled)
+                            | Err(AuthError::Database(_))
+                            | Err(AuthError::OutcomeUnknown)
+                            | Err(AuthError::Unavailable)
+                            | Err(AuthError::InvalidInput(_)) => vec![
+                                chat_packet(
+                                    "\u{00a7}cAuthentication service unavailable.",
+                                    Some("red"),
+                                )?,
+                                chat_packet("\u{00a7}aPlease enter your password:", Some("green"))?,
+                            ],
+                        };
+                        if let Err(error) = write_packet_list(
+                            &mut writer,
+                            &service,
+                            responses,
+                            compression,
+                            cipher.as_mut(),
+                            deadline,
+                            &cancellation,
+                        )
+                        .await
+                        {
+                            return finish_write_error(error);
+                        }
+                        if close_after_write {
+                            shutdown_stream(&mut writer, deadline, &cancellation).await?;
+                            return Ok(());
+                        }
                     }
                 }
                 0x04 | 0x06 => match read_player_position(&mut packet, packet_id) {
@@ -1326,20 +1575,8 @@ fn static_play_packets(uuid: &str, username: &str) -> io::Result<Vec<Vec<u8>>> {
 }
 
 fn post_static_play_packets(hologram_entity_base: i32) -> io::Result<Vec<Vec<u8>>> {
-    let mut packets = Vec::with_capacity(20);
-    for (x, label) in [
-        (2, "\u{00a7}1[To]"),
-        (4, "\u{00a7}1[CC]"),
-        (6, "\u{00a7}1[BCC]"),
-        (8, "\u{00a7}1[Subject]"),
-    ] {
-        let mut sign = vec![0x33];
-        write_block_position(&mut sign, x, 161, 3);
-        for text in [label, "", "", ""] {
-            write_string(&mut sign, &chat_json(text, None))?;
-        }
-        packets.push(sign);
-    }
+    let mut packets = empty_draft_sign_packets()?;
+    packets.reserve(16);
 
     let mut objective = vec![0x3b];
     write_string(&mut objective, "lmyz")?;
@@ -1452,6 +1689,132 @@ fn chat_packet(text: &str, color: Option<&str>) -> io::Result<Vec<u8>> {
     Ok(packet)
 }
 
+fn disconnect_play_packet(reason: &str) -> io::Result<Vec<u8>> {
+    let mut packet = vec![0x40];
+    write_string(&mut packet, &chat_json(reason, Some("red")))?;
+    Ok(packet)
+}
+
+fn authenticated_packets(username: &str, email: &str) -> io::Result<Vec<Vec<u8>>> {
+    let mut packets = vec![
+        chat_packet(
+            "\u{00a7}a\u{00a7}lAuthentication successful!",
+            Some("green"),
+        )?,
+        chat_packet(&format!("\u{00a7}aLogged in as: \u{00a7}f{email}"), None)?,
+        chat_packet("", None)?,
+    ];
+    for text in [
+        "\u{00a7}e\u{00a7}l=== How to Send Email ===",
+        "\u{00a7}71. Click the buttons next to signs to edit:",
+        "\u{00a7}7   \u{00a7}fTo\u{00a7}7, \u{00a7}fCC\u{00a7}7, \u{00a7}fBCC\u{00a7}7, \u{00a7}fSubject",
+        "\u{00a7}72. Write your email body in the \u{00a7}fBook & Quill",
+        "\u{00a7}73. Click the \u{00a7}cSend \u{00a7}7button when ready",
+        "\u{00a7}74. Hold \u{00a7}f\u{2605} Nether Star \u{00a7}7+ right-click \u{2192} Mail menu",
+        "\u{00a7}7   Or type \u{00a7}f/menu \u{00a7}7to open",
+        "\u{00a7}e================================",
+    ] {
+        packets.push(chat_packet(text, None)?);
+    }
+    packets.extend(empty_draft_sign_packets()?);
+    packets.push(draft_book_packet()?);
+    packets.extend(authenticated_scoreboard_packets(username, email)?);
+    debug_assert_eq!(packets.len(), 29);
+    Ok(packets)
+}
+
+fn empty_draft_sign_packets() -> io::Result<Vec<Vec<u8>>> {
+    let mut packets = Vec::with_capacity(4);
+    for (x, label) in [
+        (2, "\u{00a7}1[To]"),
+        (4, "\u{00a7}1[CC]"),
+        (6, "\u{00a7}1[BCC]"),
+        (8, "\u{00a7}1[Subject]"),
+    ] {
+        let mut sign = vec![0x33];
+        write_block_position(&mut sign, x, 161, 3);
+        for text in [label, "", "", ""] {
+            write_string(&mut sign, &chat_json(text, None))?;
+        }
+        packets.push(sign);
+    }
+    Ok(packets)
+}
+
+fn draft_book_packet() -> io::Result<Vec<u8>> {
+    let mut packet = vec![0x2f, 0];
+    packet.extend_from_slice(&36_i16.to_be_bytes());
+    packet.extend_from_slice(&386_i16.to_be_bytes());
+    packet.push(1);
+    packet.extend_from_slice(&0_i16.to_be_bytes());
+    minecraft_world::write_nbt(Some(&book_item_nbt()), &mut packet)?;
+    Ok(packet)
+}
+
+fn authenticated_scoreboard_packets(username: &str, email: &str) -> io::Result<Vec<Vec<u8>>> {
+    let email = if email.encode_utf16().count() > 20 {
+        format!("{}...", truncate_utf16(email, 17))
+    } else {
+        email.to_owned()
+    };
+    let divider = format!("\u{00a7}7{}", "\u{2501}".repeat(13));
+    let lines = [
+        divider.clone(),
+        format!("\u{00a7}fPlayer: \u{00a7}a{username}"),
+        format!("\u{00a7}fEmail: \u{00a7}b{email}"),
+        String::new(),
+        "\u{00a7}fRender: \u{00a7}e10\u{00d7}20 maps".to_owned(),
+        "\u{00a7}fFont: \u{00a7}e20px".to_owned(),
+        String::new(),
+        "\u{00a7}f/menu \u{00a7}7\u{2192} Open menu".to_owned(),
+        divider,
+        "\u{00a7}email.lmyz.net".to_owned(),
+    ];
+    let mut packets = Vec::with_capacity(13);
+    let mut remove = vec![0x3b];
+    write_string(&mut remove, "lmyz")?;
+    remove.push(1);
+    packets.push(remove);
+
+    let mut create = vec![0x3b];
+    write_string(&mut create, "lmyz")?;
+    create.push(0);
+    write_string(&mut create, "\u{00a7}6\u{00a7}lLMYZMAIL")?;
+    write_string(&mut create, "dummy")?;
+    packets.push(create);
+
+    let mut display = vec![0x3d, 1];
+    write_string(&mut display, "lmyz")?;
+    packets.push(display);
+
+    let line_count = lines.len();
+    for (index, line) in lines.into_iter().enumerate() {
+        let prefix = char::from_digit(index as u32, 16).unwrap_or('f');
+        let score_name = truncate_utf16(&format!("\u{00a7}{prefix}\u{00a7}r{line}"), 40);
+        let mut score = vec![0x3c];
+        write_string(&mut score, &score_name)?;
+        score.push(0);
+        write_string(&mut score, "lmyz")?;
+        write_varint(&mut score, (line_count - index) as u32);
+        packets.push(score);
+    }
+    Ok(packets)
+}
+
+fn truncate_utf16(value: &str, max_units: usize) -> String {
+    let mut output = String::new();
+    let mut units = 0;
+    for character in value.chars() {
+        let character_units = character.len_utf16();
+        if units + character_units > max_units {
+            break;
+        }
+        output.push(character);
+        units += character_units;
+    }
+    output
+}
+
 fn chat_json(text: &str, color: Option<&str>) -> String {
     let escaped = text.replace('\\', "\\\\").replace('"', "\\\"");
     match color {
@@ -1535,6 +1898,30 @@ async fn write_packet<W: AsyncWrite + Unpin>(
 ) -> Result<(), ProtocolError> {
     let frame = encode_packet_frame(service, packet, compression, deadline, cancellation).await?;
     write_bytes(stream, &frame, cipher, deadline, cancellation).await
+}
+
+async fn write_packet_list<W: AsyncWrite + Unpin>(
+    stream: &mut W,
+    service: &StatusService,
+    packets: Vec<Vec<u8>>,
+    compression: Option<i32>,
+    mut cipher: Option<&mut MinecraftCipher>,
+    deadline: Instant,
+    cancellation: &CancellationToken,
+) -> Result<(), ProtocolError> {
+    for packet in packets {
+        write_packet(
+            stream,
+            service,
+            packet,
+            compression,
+            cipher.as_deref_mut(),
+            deadline,
+            cancellation,
+        )
+        .await?;
+    }
+    Ok(())
 }
 
 async fn encode_packet_frame(
@@ -2366,6 +2753,9 @@ mod tests {
             whitelist_enabled: false,
             whitelist_players: Vec::new(),
             blacklist_players: Vec::new(),
+            auth_max_attempts: 5,
+            auth_lockout_seconds: 300,
+            auth_window_seconds: 600,
         }
     }
 
@@ -2507,6 +2897,101 @@ mod tests {
             service.status_frame.as_ref(),
             STANDARD.decode(FROZEN_STATUS_FRAME).unwrap()
         );
+    }
+
+    #[test]
+    fn minecraft_auth_limiter_matches_java_window_lockout_and_clear() {
+        let limiter = MinecraftAuthLimiter {
+            max_attempts: 3,
+            lockout: Duration::from_secs(30),
+            window: Duration::from_secs(10),
+            records: Mutex::new(HashMap::new()),
+        };
+        let start = StdInstant::now();
+        assert_eq!(limiter.record_failure_at("192.0.2.1", start), (false, 2));
+        assert_eq!(
+            limiter.record_failure_at("192.0.2.1", start + Duration::from_secs(10)),
+            (false, 1)
+        );
+        assert_eq!(
+            limiter.record_failure_at("192.0.2.1", start + Duration::from_secs(11)),
+            (false, 1)
+        );
+        assert_eq!(
+            limiter.record_failure_at("192.0.2.1", start + Duration::from_secs(12)),
+            (true, 0)
+        );
+        assert_eq!(
+            limiter.locked_remaining_at("192.0.2.1", start + Duration::from_secs(13)),
+            Some(29)
+        );
+        assert_eq!(
+            limiter.locked_remaining_at("192.0.2.1", start + Duration::from_secs(42)),
+            None
+        );
+        assert_eq!(
+            limiter
+                .records
+                .lock()
+                .unwrap()
+                .get("192.0.2.1")
+                .unwrap()
+                .failures
+                .len(),
+            0
+        );
+        limiter.clear("192.0.2.1");
+        assert!(limiter.records.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn minecraft_auth_limiter_fails_closed_at_record_capacity_and_reclaims_stale_entries() {
+        let limiter = MinecraftAuthLimiter {
+            max_attempts: 3,
+            lockout: Duration::from_secs(30),
+            window: Duration::from_secs(10),
+            records: Mutex::new(HashMap::new()),
+        };
+        let start = StdInstant::now();
+        {
+            let mut records = limiter.records.lock().unwrap();
+            for index in 0..MAX_MINECRAFT_AUTH_RECORDS {
+                records.insert(
+                    format!("198.51.100.{index}"),
+                    MinecraftAuthAttempt {
+                        failures: VecDeque::from([start + Duration::from_secs(1)]),
+                        locked_until: None,
+                    },
+                );
+            }
+        }
+        assert_eq!(
+            limiter.record_failure_at("203.0.113.1", start + Duration::from_secs(2)),
+            (true, 0)
+        );
+        assert_eq!(
+            limiter.records.lock().unwrap().len(),
+            MAX_MINECRAFT_AUTH_RECORDS
+        );
+
+        limiter.records.lock().unwrap().clear();
+        {
+            let mut records = limiter.records.lock().unwrap();
+            for index in 0..MAX_MINECRAFT_AUTH_RECORDS {
+                records.insert(
+                    format!("stale-{index}"),
+                    MinecraftAuthAttempt {
+                        failures: VecDeque::from([start]),
+                        locked_until: None,
+                    },
+                );
+            }
+        }
+        assert_eq!(
+            limiter.record_failure_at("203.0.113.1", start + Duration::from_secs(11)),
+            (false, 2)
+        );
+        assert_eq!(limiter.records.lock().unwrap().len(), 1);
     }
 
     #[test]

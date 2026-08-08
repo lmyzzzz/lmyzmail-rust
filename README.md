@@ -106,9 +106,12 @@ Minecraft now has an admitted 1.8.9 status slice, enabled only through
 Fragmented handshake, status, ping/pong, malformed framing, exact UTF-8 MOTD
 bytes, and close behavior match the Java golden. The listener has a fixed
 64-connection admission bound, a 2 MiB frame ceiling, one absolute configured
-connection deadline, and joined cancellation. Login, authentication, play,
-GUI, mail, world, and video remain outside this milestone and are not claimed
-as implemented.
+connection deadline, and joined cancellation. Offline login, world bootstrap,
+scheduled play maintenance, bounded position rebound, and the email/password
+authentication prompt now match frozen Java wire goldens. Auth attempts use the
+bounded `lmyzmail.minecraft.auth.*` settings with the legacy
+`botmail.minecraft.auth.*` aliases accepted at lower precedence. GUI, mail, and
+video remain outside this milestone and are not claimed as implemented.
 
 Outbound HTTP currently covers durable PostgreSQL admission, sender-scoped and
 API status lookup, and quota reporting. A `202` response is emitted only after a

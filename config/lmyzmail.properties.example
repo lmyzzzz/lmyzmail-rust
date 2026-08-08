@@ -12,6 +12,9 @@ lmyzmail.minecraft.max-players=20
 lmyzmail.minecraft.motd=§6LMYZMAIL §7- Send emails in Minecraft
 lmyzmail.minecraft.favicon=
 lmyzmail.minecraft.read-timeout-seconds=30
+lmyzmail.minecraft.auth.max-attempts=5
+lmyzmail.minecraft.auth.lockout-seconds=300
+lmyzmail.minecraft.auth.window-seconds=600
 
 lmyzmail.htcpcp.enabled=true
 lmyzmail.htcpcp.default-brew-time-seconds=30

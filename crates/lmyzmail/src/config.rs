@@ -372,6 +372,12 @@ struct JsonMinecraftConfig {
     whitelist_players: Vec<String>,
     #[serde(default)]
     blacklist_players: Vec<String>,
+    #[serde(default = "default_minecraft_auth_max_attempts")]
+    auth_max_attempts: u32,
+    #[serde(default = "default_minecraft_auth_lockout_seconds")]
+    auth_lockout_seconds: u64,
+    #[serde(default = "default_minecraft_auth_window_seconds")]
+    auth_window_seconds: u64,
 }
 
 impl Default for JsonMinecraftConfig {
@@ -392,6 +398,9 @@ impl Default for JsonMinecraftConfig {
             whitelist_enabled: false,
             whitelist_players: Vec::new(),
             blacklist_players: Vec::new(),
+            auth_max_attempts: default_minecraft_auth_max_attempts(),
+            auth_lockout_seconds: default_minecraft_auth_lockout_seconds(),
+            auth_window_seconds: default_minecraft_auth_window_seconds(),
         }
     }
 }
@@ -653,6 +662,18 @@ fn default_minecraft_video_wall_z() -> i32 {
     -50
 }
 
+fn default_minecraft_auth_max_attempts() -> u32 {
+    5
+}
+
+fn default_minecraft_auth_lockout_seconds() -> u64 {
+    300
+}
+
+fn default_minecraft_auth_window_seconds() -> u64 {
+    600
+}
+
 fn default_minecraft_compression_threshold() -> i32 {
     256
 }
@@ -803,6 +824,18 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
             player,
         )?;
     }
+    properties.insert(
+        "lmyzmail.minecraft.auth.max-attempts".to_owned(),
+        value.minecraft.auth_max_attempts.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.auth.lockout-seconds".to_owned(),
+        value.minecraft.auth_lockout_seconds.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.auth.window-seconds".to_owned(),
+        value.minecraft.auth_window_seconds.to_string(),
+    )?;
     properties.insert(
         "lmyzmail.honeypot.enabled".to_owned(),
         (!value.listen.honeypots.is_empty()).to_string(),
@@ -1228,6 +1261,9 @@ pub struct MinecraftConfig {
     pub whitelist_enabled: bool,
     pub whitelist_players: Vec<String>,
     pub blacklist_players: Vec<String>,
+    pub auth_max_attempts: u32,
+    pub auth_lockout_seconds: u64,
+    pub auth_window_seconds: u64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -1890,6 +1926,39 @@ fn parse_minecraft_config(properties: &Properties) -> Result<MinecraftConfig, Co
         "botmail.minecraft.blacklist.players",
         "minecraft blacklist",
     )?;
+    let auth_max_attempts = preferred_u64(
+        properties,
+        &["lmyzmail.minecraft.auth.max-attempts"],
+        &["botmail.minecraft.auth.max-attempts"],
+        u64::from(default_minecraft_auth_max_attempts()),
+    )?;
+    if !(1..=1_000).contains(&auth_max_attempts) {
+        return Err(ConfigError::Invalid(
+            "minecraft auth.max-attempts must be between 1 and 1000".into(),
+        ));
+    }
+    let auth_lockout_seconds = preferred_u64(
+        properties,
+        &["lmyzmail.minecraft.auth.lockout-seconds"],
+        &["botmail.minecraft.auth.lockout-seconds"],
+        default_minecraft_auth_lockout_seconds(),
+    )?;
+    if !(1..=86_400).contains(&auth_lockout_seconds) {
+        return Err(ConfigError::Invalid(
+            "minecraft auth.lockout-seconds must be between 1 and 86400".into(),
+        ));
+    }
+    let auth_window_seconds = preferred_u64(
+        properties,
+        &["lmyzmail.minecraft.auth.window-seconds"],
+        &["botmail.minecraft.auth.window-seconds"],
+        default_minecraft_auth_window_seconds(),
+    )?;
+    if !(1..=86_400).contains(&auth_window_seconds) {
+        return Err(ConfigError::Invalid(
+            "minecraft auth.window-seconds must be between 1 and 86400".into(),
+        ));
+    }
     Ok(MinecraftConfig {
         enabled,
         online_mode,
@@ -1908,6 +1977,11 @@ fn parse_minecraft_config(properties: &Properties) -> Result<MinecraftConfig, Co
         whitelist_enabled,
         whitelist_players,
         blacklist_players,
+        auth_max_attempts: u32::try_from(auth_max_attempts).map_err(|_| {
+            ConfigError::Invalid("minecraft auth.max-attempts exceeds the supported range".into())
+        })?,
+        auth_lockout_seconds,
+        auth_window_seconds,
     })
 }
 
@@ -3181,6 +3255,9 @@ botmail.minecraft.spawn.pitch=20.0\n\
 botmail.minecraft.whitelist.enabled=false\n\
 botmail.minecraft.whitelist.players=LegacyAllowed\n\
 botmail.minecraft.blacklist.players=LegacyBlocked\n\
+botmail.minecraft.auth.max-attempts=9\n\
+botmail.minecraft.auth.lockout-seconds=100\n\
+botmail.minecraft.auth.window-seconds=200\n\
 lmyzmail.minecraft.enabled=true\n\
 lmyzmail.minecraft.online-mode=false\n\
 lmyzmail.minecraft.compression-threshold=256\n\
@@ -3201,7 +3278,10 @@ lmyzmail.minecraft.spawn.pitch=-15.0\n\
 lmyzmail.minecraft.whitelist.enabled=true\n\
 lmyzmail.minecraft.whitelist.players=NewAllowed, SecondAllowed\n\
 lmyzmail.minecraft.whitelist.players[0]=IgnoredIndexedAllowed\n\
-lmyzmail.minecraft.blacklist.players=NewBlocked\n",
+lmyzmail.minecraft.blacklist.players=NewBlocked\n\
+lmyzmail.minecraft.auth.max-attempts=5\n\
+lmyzmail.minecraft.auth.lockout-seconds=300\n\
+lmyzmail.minecraft.auth.window-seconds=600\n",
         )
         .unwrap();
         let config = RuntimeConfig::from_properties(properties).unwrap();
@@ -3231,6 +3311,9 @@ lmyzmail.minecraft.blacklist.players=NewBlocked\n",
             ["NewAllowed", "SecondAllowed"]
         );
         assert_eq!(config.minecraft.blacklist_players, ["NewBlocked"]);
+        assert_eq!(config.minecraft.auth_max_attempts, 5);
+        assert_eq!(config.minecraft.auth_lockout_seconds, 300);
+        assert_eq!(config.minecraft.auth_window_seconds, 600);
 
         for value in [
             "lmyzmail.minecraft.max-players=2147483648\n",
@@ -3249,6 +3332,12 @@ lmyzmail.minecraft.blacklist.players=NewBlocked\n",
             "lmyzmail.minecraft.session-server-url=http://session.example.test/hasJoined\n",
             "lmyzmail.minecraft.session-server-url=https://session.example.test/hasJoined?bad=true\n",
             "lmyzmail.minecraft.session-server-url=https://user:pass@session.example.test/hasJoined\n",
+            "lmyzmail.minecraft.auth.max-attempts=0\n",
+            "lmyzmail.minecraft.auth.max-attempts=1001\n",
+            "lmyzmail.minecraft.auth.lockout-seconds=0\n",
+            "lmyzmail.minecraft.auth.lockout-seconds=86401\n",
+            "lmyzmail.minecraft.auth.window-seconds=0\n",
+            "lmyzmail.minecraft.auth.window-seconds=86401\n",
         ] {
             let properties = Properties::parse(value.as_bytes()).unwrap();
             assert!(RuntimeConfig::from_properties(properties).is_err());
