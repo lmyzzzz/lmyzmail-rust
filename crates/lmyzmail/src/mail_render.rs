@@ -37,6 +37,8 @@ const ABSOLUTE_MAX_INPUT_BYTES: usize = 4 * 1024 * 1024;
 const ABSOLUTE_MAX_DOCUMENT_HEIGHT: u32 = 32_768;
 const ABSOLUTE_MAX_PAGES: usize = 128;
 const ABSOLUTE_MAX_OUTPUT_BYTES: usize = 256 * 1024 * 1024;
+const ABSOLUTE_MAX_FRAME_PIXELS: usize =
+    (MAX_MAPS_X as usize) * MAP_EDGE * (MAX_PAGE_MAPS_Y as usize) * MAP_EDGE;
 const CHECKPOINT_PIXEL_INTERVAL: usize = 64;
 const MAX_GLYPH_WIDTH_CACHE_ENTRIES: usize = 256;
 const MAX_CAIRO_TEXT_CHUNK_BYTES: usize = 4 * 1024;
@@ -973,6 +975,43 @@ pub fn render(request: &RenderRequest<'_>) -> Result<RenderResult, RenderError> 
     }
 }
 
+/// Converts one bounded row-major RGB24 frame to Minecraft map protocol
+/// indices. The input slice is borrowed for the duration of conversion and is
+/// never copied; only the one-byte-per-pixel output and two error rows are
+/// allocated. `max_output_bytes` applies to the returned map-index buffer.
+pub(crate) fn rgb24_to_map_colors(
+    rgb: &[u8],
+    width: usize,
+    height: usize,
+    max_output_bytes: usize,
+    cancellation: &CancellationToken,
+    deadline: Instant,
+) -> Result<Vec<u8>, RenderError> {
+    if width == 0 || height == 0 {
+        return Err(RenderError::InvalidRequest("RGB24 frame dimensions"));
+    }
+    let pixels = width
+        .checked_mul(height)
+        .ok_or(RenderError::LimitExceeded("RGB24 frame pixels"))?;
+    if pixels > ABSOLUTE_MAX_FRAME_PIXELS {
+        return Err(RenderError::LimitExceeded("RGB24 frame pixels"));
+    }
+    let expected_bytes = pixels
+        .checked_mul(3)
+        .ok_or(RenderError::LimitExceeded("RGB24 input bytes"))?;
+    if rgb.len() != expected_bytes {
+        return Err(RenderError::InvalidRequest("RGB24 input length"));
+    }
+    if max_output_bytes == 0 || max_output_bytes > ABSOLUTE_MAX_OUTPUT_BYTES {
+        return Err(RenderError::InvalidRequest("RGB24 output budget"));
+    }
+    if pixels > max_output_bytes {
+        return Err(RenderError::LimitExceeded("RGB24 output bytes"));
+    }
+    checkpoint_at(cancellation, deadline)?;
+    floyd_steinberg(rgb, width, height, cancellation, deadline)
+}
+
 fn render_plain_text(request: &RenderRequest<'_>) -> Result<RenderResult, RenderError> {
     checkpoint(request)?;
 
@@ -1195,7 +1234,14 @@ fn render_html(
             )
         };
         map_native_status(status, &error, request)?;
-        let map_colors = floyd_steinberg(&rgb, viewport_width, pixel_height, request)?;
+        let map_colors = rgb24_to_map_colors(
+            &rgb,
+            viewport_width,
+            pixel_height,
+            request.limits.max_output_bytes,
+            request.cancellation,
+            request.deadline,
+        )?;
         pages.push(Page {
             maps_x: request.viewport_maps_x,
             maps_y: u8::try_from(pixel_height / MAP_EDGE)
@@ -1668,7 +1714,14 @@ fn render_page(
     drop(surface);
     checkpoint(request)?;
 
-    let map_colors = floyd_steinberg(&rgb, pixel_width, pixel_height, request)?;
+    let map_colors = rgb24_to_map_colors(
+        &rgb,
+        pixel_width,
+        pixel_height,
+        request.limits.max_output_bytes,
+        request.cancellation,
+        request.deadline,
+    )?;
     Ok(Page {
         maps_x: request.viewport_maps_x,
         maps_y: u8::try_from(pixel_height / MAP_EDGE)
@@ -1799,7 +1852,8 @@ fn floyd_steinberg(
     rgb: &[u8],
     width: usize,
     height: usize,
-    request: &RenderRequest<'_>,
+    cancellation: &CancellationToken,
+    deadline: Instant,
 ) -> Result<Vec<u8>, RenderError> {
     let mut output = vec![0u8; width * height];
     let mut current = vec![[0.0; 3]; width];
@@ -1814,10 +1868,10 @@ fn floyd_steinberg(
     let palette = minecraft_palette();
 
     for y in 0..height {
-        checkpoint(request)?;
+        checkpoint_at(cancellation, deadline)?;
         for x in 0..width {
             if x % CHECKPOINT_PIXEL_INTERVAL == 0 {
-                checkpoint(request)?;
+                checkpoint_at(cancellation, deadline)?;
             }
             let clamped = [
                 current[x][0].clamp(0.0, 255.0),
@@ -1927,10 +1981,14 @@ fn lab_component(component: f32) -> f32 {
 }
 
 fn checkpoint(request: &RenderRequest<'_>) -> Result<(), RenderError> {
-    if request.cancellation.is_cancelled() {
+    checkpoint_at(request.cancellation, request.deadline)
+}
+
+fn checkpoint_at(cancellation: &CancellationToken, deadline: Instant) -> Result<(), RenderError> {
+    if cancellation.is_cancelled() {
         return Err(RenderError::Cancelled);
     }
-    if Instant::now() >= request.deadline {
+    if Instant::now() >= deadline {
         return Err(RenderError::DeadlineExceeded);
     }
     Ok(())
@@ -2463,6 +2521,60 @@ mod tests {
         let result = render(&request).unwrap();
         let page = &result.pages()[0];
         assert!(page.map_colors().iter().all(|color| *color == 34));
+    }
+
+    #[test]
+    fn rgb24_helper_converts_without_copying_or_exceeding_budget() {
+        let cancellation = CancellationToken::new();
+        let input = vec![255u8; 4 * 3];
+        let output = rgb24_to_map_colors(
+            &input,
+            2,
+            2,
+            4,
+            &cancellation,
+            Instant::now() + Duration::from_secs(30),
+        )
+        .unwrap();
+        assert_eq!(output, vec![34; 4]);
+
+        assert!(matches!(
+            rgb24_to_map_colors(
+                &input,
+                2,
+                2,
+                3,
+                &cancellation,
+                Instant::now() + Duration::from_secs(30),
+            ),
+            Err(RenderError::LimitExceeded("RGB24 output bytes"))
+        ));
+    }
+
+    #[test]
+    fn rgb24_helper_rejects_malformed_dimensions_and_signals() {
+        let cancellation = CancellationToken::new();
+        let deadline = Instant::now() + Duration::from_secs(30);
+        assert!(matches!(
+            rgb24_to_map_colors(&[0; 2], 1, 1, 4, &cancellation, deadline),
+            Err(RenderError::InvalidRequest("RGB24 input length"))
+        ));
+        assert!(matches!(
+            rgb24_to_map_colors(&[], 0, 1, 1, &cancellation, deadline),
+            Err(RenderError::InvalidRequest("RGB24 frame dimensions"))
+        ));
+
+        cancellation.cancel();
+        assert!(matches!(
+            rgb24_to_map_colors(&[255; 3], 1, 1, 1, &cancellation, deadline),
+            Err(RenderError::Cancelled)
+        ));
+
+        let active = CancellationToken::new();
+        assert!(matches!(
+            rgb24_to_map_colors(&[255; 3], 1, 1, 1, &active, Instant::now()),
+            Err(RenderError::DeadlineExceeded)
+        ));
     }
 
     #[test]

@@ -33,6 +33,14 @@ const MAX_MINECRAFT_PLAYERS: u32 = i32::MAX as u32;
 const MAX_MINECRAFT_READ_TIMEOUT_SECONDS: u64 = 3_600;
 const MAX_MINECRAFT_COMPRESSION_THRESHOLD: i32 = 2 * 1024 * 1024;
 const MAX_MINECRAFT_VIEW_DISTANCE: u64 = 64;
+const MAX_MINECRAFT_VIDEO_SESSIONS: u64 = 64;
+const MAX_MINECRAFT_BLOCK_VIDEO_WIDTH: u64 = 256;
+const MAX_MINECRAFT_VIDEO_FPS: u64 = 60;
+const MAX_MINECRAFT_VIDEO_CLEAR_MARGIN: u64 = 64;
+const MAX_MINECRAFT_VIDEO_SPAWN_PROTECT_RADIUS: u64 = 256;
+const MAX_MINECRAFT_MAP_VIDEO_AXIS: u64 = 16;
+const MAX_MINECRAFT_WORLD_COORDINATE: i32 = 30_000_000;
+const MAX_MINECRAFT_WORLD_Y: i32 = 255;
 const MAX_MESSAGE_BYTES: u64 = 1024 * 1024 * 1024;
 
 #[derive(Debug)]
@@ -364,6 +372,8 @@ struct JsonMinecraftConfig {
     world_template: String,
     #[serde(default = "default_minecraft_view_distance")]
     view_distance: u64,
+    #[serde(default = "default_minecraft_max_concurrent_videos")]
+    max_concurrent_videos: u32,
     #[serde(default)]
     spawn: JsonMinecraftSpawnConfig,
     #[serde(default)]
@@ -395,6 +405,7 @@ impl Default for JsonMinecraftConfig {
             session_server_url: default_minecraft_session_server_url(),
             world_template: default_minecraft_world_template(),
             view_distance: default_minecraft_view_distance(),
+            max_concurrent_videos: default_minecraft_max_concurrent_videos(),
             spawn: JsonMinecraftSpawnConfig::default(),
             video: JsonMinecraftVideoConfig::default(),
             whitelist_enabled: false,
@@ -442,8 +453,24 @@ struct JsonMinecraftSpawnConfig {
 struct JsonMinecraftVideoConfig {
     #[serde(default = "default_minecraft_video_center_x")]
     center_x: i32,
+    #[serde(default = "default_minecraft_video_center_y")]
+    center_y: i32,
     #[serde(default = "default_minecraft_video_wall_z")]
     wall_z: i32,
+    #[serde(default = "default_minecraft_video_max_width")]
+    max_width: u32,
+    #[serde(default = "default_minecraft_video_max_fps")]
+    max_fps: u32,
+    #[serde(default = "default_minecraft_video_default_width")]
+    default_width: u32,
+    #[serde(default = "default_minecraft_video_default_fps")]
+    default_fps: u32,
+    #[serde(default = "default_minecraft_video_default_contrast")]
+    default_contrast: f32,
+    #[serde(default = "default_minecraft_video_spawn_protect_radius")]
+    spawn_protect_radius: u32,
+    #[serde(default = "default_minecraft_video_clear_margin")]
+    clear_margin: u32,
     #[serde(default = "default_minecraft_map_center_x")]
     map_center_x: i32,
     #[serde(default = "default_minecraft_map_center_y")]
@@ -452,6 +479,18 @@ struct JsonMinecraftVideoConfig {
     map_center_z: i32,
     #[serde(default = "default_minecraft_map_facing")]
     map_facing: String,
+    #[serde(default = "default_minecraft_map_max_maps_x")]
+    map_max_maps_x: u32,
+    #[serde(default = "default_minecraft_map_max_maps_y")]
+    map_max_maps_y: u32,
+    #[serde(default = "default_minecraft_map_max_fps")]
+    map_max_fps: u32,
+    #[serde(default = "default_minecraft_map_default_maps_x")]
+    map_default_maps_x: u32,
+    #[serde(default = "default_minecraft_map_default_fps")]
+    map_default_fps: u32,
+    #[serde(default = "default_minecraft_map_default_contrast")]
+    map_default_contrast: f32,
     #[serde(default = "default_minecraft_base_map_id")]
     base_map_id: i32,
     #[serde(default = "default_minecraft_base_entity_id")]
@@ -462,11 +501,25 @@ impl Default for JsonMinecraftVideoConfig {
     fn default() -> Self {
         Self {
             center_x: default_minecraft_video_center_x(),
+            center_y: default_minecraft_video_center_y(),
             wall_z: default_minecraft_video_wall_z(),
+            max_width: default_minecraft_video_max_width(),
+            max_fps: default_minecraft_video_max_fps(),
+            default_width: default_minecraft_video_default_width(),
+            default_fps: default_minecraft_video_default_fps(),
+            default_contrast: default_minecraft_video_default_contrast(),
+            spawn_protect_radius: default_minecraft_video_spawn_protect_radius(),
+            clear_margin: default_minecraft_video_clear_margin(),
             map_center_x: default_minecraft_map_center_x(),
             map_center_y: default_minecraft_map_center_y(),
             map_center_z: default_minecraft_map_center_z(),
             map_facing: default_minecraft_map_facing(),
+            map_max_maps_x: default_minecraft_map_max_maps_x(),
+            map_max_maps_y: default_minecraft_map_max_maps_y(),
+            map_max_fps: default_minecraft_map_max_fps(),
+            map_default_maps_x: default_minecraft_map_default_maps_x(),
+            map_default_fps: default_minecraft_map_default_fps(),
+            map_default_contrast: default_minecraft_map_default_contrast(),
             base_map_id: default_minecraft_base_map_id(),
             base_entity_id: default_minecraft_base_entity_id(),
         }
@@ -693,8 +746,40 @@ fn default_minecraft_video_center_x() -> i32 {
     0
 }
 
+fn default_minecraft_video_center_y() -> i32 {
+    180
+}
+
 fn default_minecraft_video_wall_z() -> i32 {
-    -50
+    -20
+}
+
+fn default_minecraft_video_max_width() -> u32 {
+    64
+}
+
+fn default_minecraft_video_max_fps() -> u32 {
+    20
+}
+
+fn default_minecraft_video_default_width() -> u32 {
+    32
+}
+
+fn default_minecraft_video_default_fps() -> u32 {
+    10
+}
+
+fn default_minecraft_video_default_contrast() -> f32 {
+    1.2
+}
+
+fn default_minecraft_video_spawn_protect_radius() -> u32 {
+    8
+}
+
+fn default_minecraft_video_clear_margin() -> u32 {
+    2
 }
 
 fn default_minecraft_map_center_x() -> i32 {
@@ -711,6 +796,30 @@ fn default_minecraft_map_center_z() -> i32 {
 
 fn default_minecraft_map_facing() -> String {
     "SOUTH".to_owned()
+}
+
+fn default_minecraft_map_max_maps_x() -> u32 {
+    10
+}
+
+fn default_minecraft_map_max_maps_y() -> u32 {
+    10
+}
+
+fn default_minecraft_map_max_fps() -> u32 {
+    20
+}
+
+fn default_minecraft_map_default_maps_x() -> u32 {
+    5
+}
+
+fn default_minecraft_map_default_fps() -> u32 {
+    10
+}
+
+fn default_minecraft_map_default_contrast() -> f32 {
+    1.2
 }
 
 fn default_minecraft_base_map_id() -> i32 {
@@ -731,6 +840,10 @@ fn default_minecraft_auth_lockout_seconds() -> u64 {
 
 fn default_minecraft_auth_window_seconds() -> u64 {
     600
+}
+
+fn default_minecraft_max_concurrent_videos() -> u32 {
+    2
 }
 
 fn default_minecraft_compression_threshold() -> i32 {
@@ -844,6 +957,10 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         value.minecraft.view_distance.to_string(),
     )?;
     properties.insert(
+        "lmyzmail.minecraft.max-concurrent-videos".to_owned(),
+        value.minecraft.max_concurrent_videos.to_string(),
+    )?;
+    properties.insert(
         "lmyzmail.minecraft.spawn.x".to_owned(),
         value.minecraft.spawn.x.to_string(),
     )?;
@@ -868,8 +985,40 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         value.minecraft.video.center_x.to_string(),
     )?;
     properties.insert(
+        "lmyzmail.minecraft.video.center-y".to_owned(),
+        value.minecraft.video.center_y.to_string(),
+    )?;
+    properties.insert(
         "lmyzmail.minecraft.video.wall-z".to_owned(),
         value.minecraft.video.wall_z.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.video.max-width".to_owned(),
+        value.minecraft.video.max_width.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.video.max-fps".to_owned(),
+        value.minecraft.video.max_fps.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.video.default-width".to_owned(),
+        value.minecraft.video.default_width.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.video.default-fps".to_owned(),
+        value.minecraft.video.default_fps.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.video.default-contrast".to_owned(),
+        value.minecraft.video.default_contrast.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.video.spawn-protect-radius".to_owned(),
+        value.minecraft.video.spawn_protect_radius.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.video.clear-margin".to_owned(),
+        value.minecraft.video.clear_margin.to_string(),
     )?;
     properties.insert(
         "lmyzmail.minecraft.map-video.center-x".to_owned(),
@@ -886,6 +1035,30 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
     properties.insert(
         "lmyzmail.minecraft.map-video.facing".to_owned(),
         value.minecraft.video.map_facing,
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.map-video.max-maps-x".to_owned(),
+        value.minecraft.video.map_max_maps_x.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.map-video.max-maps-y".to_owned(),
+        value.minecraft.video.map_max_maps_y.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.map-video.max-fps".to_owned(),
+        value.minecraft.video.map_max_fps.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.map-video.default-maps-x".to_owned(),
+        value.minecraft.video.map_default_maps_x.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.map-video.default-fps".to_owned(),
+        value.minecraft.video.map_default_fps.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.map-video.default-contrast".to_owned(),
+        value.minecraft.video.map_default_contrast.to_string(),
     )?;
     properties.insert(
         "lmyzmail.minecraft.map-video.base-map-id".to_owned(),
@@ -1348,6 +1521,7 @@ pub struct MinecraftConfig {
     pub session_server_url: String,
     pub world_template: String,
     pub view_distance: u32,
+    pub max_concurrent_videos: u32,
     pub spawn: MinecraftSpawnConfig,
     pub video: MinecraftVideoConfig,
     pub whitelist_enabled: bool,
@@ -1367,14 +1541,28 @@ pub struct MinecraftSpawnConfig {
     pub pitch: f32,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MinecraftVideoConfig {
     pub center_x: i32,
+    pub center_y: i32,
     pub wall_z: i32,
+    pub max_width: u32,
+    pub max_fps: u32,
+    pub default_width: u32,
+    pub default_fps: u32,
+    pub default_contrast: f32,
+    pub spawn_protect_radius: u32,
+    pub clear_margin: u32,
     pub map_center_x: i32,
     pub map_center_y: i32,
     pub map_center_z: i32,
     pub map_facing: String,
+    pub map_max_maps_x: u32,
+    pub map_max_maps_y: u32,
+    pub map_max_fps: u32,
+    pub map_default_maps_x: u32,
+    pub map_default_fps: u32,
+    pub map_default_contrast: f32,
     pub base_map_id: i32,
     pub base_entity_id: i32,
 }
@@ -1976,6 +2164,15 @@ fn parse_minecraft_config(properties: &Properties) -> Result<MinecraftConfig, Co
             "minecraft view-distance must be at most {MAX_MINECRAFT_VIEW_DISTANCE}"
         )));
     }
+    let max_concurrent_videos = preferred_minecraft_u32(
+        properties,
+        &["lmyzmail.minecraft.max-concurrent-videos"],
+        &["botmail.minecraft.max-concurrent-videos"],
+        default_minecraft_max_concurrent_videos(),
+        1,
+        MAX_MINECRAFT_VIDEO_SESSIONS,
+        "minecraft max-concurrent-videos",
+    )?;
     let spawn = MinecraftSpawnConfig {
         x: preferred_f64(
             properties,
@@ -2026,50 +2223,214 @@ fn parse_minecraft_config(properties: &Properties) -> Result<MinecraftConfig, Co
         _ => default_minecraft_map_facing(),
     })
     .unwrap_or_else(default_minecraft_map_facing);
+    let video_center_x = preferred_i32(
+        properties,
+        &["lmyzmail.minecraft.video.center-x"],
+        &["botmail.minecraft.video.center-x"],
+        default_minecraft_video_center_x(),
+    )?;
+    let video_center_y = preferred_i32(
+        properties,
+        &["lmyzmail.minecraft.video.center-y"],
+        &["botmail.minecraft.video.center-y"],
+        default_minecraft_video_center_y(),
+    )?;
+    let video_wall_z = preferred_i32(
+        properties,
+        &["lmyzmail.minecraft.video.wall-z"],
+        &["botmail.minecraft.video.wall-z"],
+        default_minecraft_video_wall_z(),
+    )?;
+    validate_minecraft_video_coordinate(video_center_x, "minecraft video.center-x", false)?;
+    validate_minecraft_video_coordinate(video_center_y, "minecraft video.center-y", true)?;
+    validate_minecraft_video_coordinate(video_wall_z, "minecraft video.wall-z", false)?;
+    let video_max_width = preferred_minecraft_u32(
+        properties,
+        &["lmyzmail.minecraft.video.max-width"],
+        &["botmail.minecraft.video.max-width"],
+        default_minecraft_video_max_width(),
+        4,
+        MAX_MINECRAFT_BLOCK_VIDEO_WIDTH,
+        "minecraft video.max-width",
+    )?;
+    let video_max_fps = preferred_minecraft_u32(
+        properties,
+        &["lmyzmail.minecraft.video.max-fps"],
+        &["botmail.minecraft.video.max-fps"],
+        default_minecraft_video_max_fps(),
+        1,
+        MAX_MINECRAFT_VIDEO_FPS,
+        "minecraft video.max-fps",
+    )?;
+    let video_default_width = preferred_minecraft_u32(
+        properties,
+        &["lmyzmail.minecraft.video.default-width"],
+        &["botmail.minecraft.video.default-width"],
+        default_minecraft_video_default_width(),
+        4,
+        u64::from(video_max_width),
+        "minecraft video.default-width",
+    )?;
+    let video_default_fps = preferred_minecraft_u32(
+        properties,
+        &["lmyzmail.minecraft.video.default-fps"],
+        &["botmail.minecraft.video.default-fps"],
+        default_minecraft_video_default_fps(),
+        1,
+        u64::from(video_max_fps),
+        "minecraft video.default-fps",
+    )?;
+    let video_default_contrast = preferred_f32(
+        properties,
+        &["lmyzmail.minecraft.video.default-contrast"],
+        &["botmail.minecraft.video.default-contrast"],
+        default_minecraft_video_default_contrast(),
+        "minecraft video.default-contrast",
+    )?;
+    validate_minecraft_contrast(video_default_contrast, "minecraft video.default-contrast")?;
+    let video_spawn_protect_radius = preferred_minecraft_u32(
+        properties,
+        &["lmyzmail.minecraft.video.spawn-protect-radius"],
+        &["botmail.minecraft.video.spawn-protect-radius"],
+        default_minecraft_video_spawn_protect_radius(),
+        0,
+        MAX_MINECRAFT_VIDEO_SPAWN_PROTECT_RADIUS,
+        "minecraft video.spawn-protect-radius",
+    )?;
+    let video_clear_margin = preferred_minecraft_u32(
+        properties,
+        &["lmyzmail.minecraft.video.clear-margin"],
+        &["botmail.minecraft.video.clear-margin"],
+        default_minecraft_video_clear_margin(),
+        0,
+        MAX_MINECRAFT_VIDEO_CLEAR_MARGIN,
+        "minecraft video.clear-margin",
+    )?;
+    let map_center_x = preferred_i32(
+        properties,
+        &["lmyzmail.minecraft.map-video.center-x"],
+        &["botmail.minecraft.map-video.center-x"],
+        default_minecraft_map_center_x(),
+    )?;
+    let map_center_y = preferred_i32(
+        properties,
+        &["lmyzmail.minecraft.map-video.center-y"],
+        &["botmail.minecraft.map-video.center-y"],
+        default_minecraft_map_center_y(),
+    )?;
+    let map_center_z = preferred_i32(
+        properties,
+        &["lmyzmail.minecraft.map-video.center-z"],
+        &["botmail.minecraft.map-video.center-z"],
+        default_minecraft_map_center_z(),
+    )?;
+    validate_minecraft_video_coordinate(map_center_x, "minecraft map-video.center-x", false)?;
+    validate_minecraft_video_coordinate(map_center_y, "minecraft map-video.center-y", true)?;
+    validate_minecraft_video_coordinate(map_center_z, "minecraft map-video.center-z", false)?;
+    let map_max_maps_x = preferred_minecraft_u32(
+        properties,
+        &["lmyzmail.minecraft.map-video.max-maps-x"],
+        &["botmail.minecraft.map-video.max-maps-x"],
+        default_minecraft_map_max_maps_x(),
+        2,
+        MAX_MINECRAFT_MAP_VIDEO_AXIS,
+        "minecraft map-video.max-maps-x",
+    )?;
+    let map_max_maps_y = preferred_minecraft_u32(
+        properties,
+        &["lmyzmail.minecraft.map-video.max-maps-y"],
+        &["botmail.minecraft.map-video.max-maps-y"],
+        default_minecraft_map_max_maps_y(),
+        1,
+        MAX_MINECRAFT_MAP_VIDEO_AXIS,
+        "minecraft map-video.max-maps-y",
+    )?;
+    let map_max_fps = preferred_minecraft_u32(
+        properties,
+        &["lmyzmail.minecraft.map-video.max-fps"],
+        &["botmail.minecraft.map-video.max-fps"],
+        default_minecraft_map_max_fps(),
+        1,
+        MAX_MINECRAFT_VIDEO_FPS,
+        "minecraft map-video.max-fps",
+    )?;
+    let map_default_maps_x = preferred_minecraft_u32(
+        properties,
+        &["lmyzmail.minecraft.map-video.default-maps-x"],
+        &["botmail.minecraft.map-video.default-maps-x"],
+        default_minecraft_map_default_maps_x(),
+        2,
+        u64::from(map_max_maps_x),
+        "minecraft map-video.default-maps-x",
+    )?;
+    let map_default_fps = preferred_minecraft_u32(
+        properties,
+        &["lmyzmail.minecraft.map-video.default-fps"],
+        &["botmail.minecraft.map-video.default-fps"],
+        default_minecraft_map_default_fps(),
+        1,
+        u64::from(map_max_fps),
+        "minecraft map-video.default-fps",
+    )?;
+    let map_default_contrast = preferred_f32(
+        properties,
+        &["lmyzmail.minecraft.map-video.default-contrast"],
+        &["botmail.minecraft.map-video.default-contrast"],
+        default_minecraft_map_default_contrast(),
+        "minecraft map-video.default-contrast",
+    )?;
+    validate_minecraft_contrast(map_default_contrast, "minecraft map-video.default-contrast")?;
+    let base_map_id = preferred_i32(
+        properties,
+        &["lmyzmail.minecraft.map-video.base-map-id"],
+        &["botmail.minecraft.map-video.base-map-id"],
+        default_minecraft_base_map_id(),
+    )?;
+    let base_entity_id = preferred_i32(
+        properties,
+        &["lmyzmail.minecraft.map-video.base-entity-id"],
+        &["botmail.minecraft.map-video.base-entity-id"],
+        default_minecraft_base_entity_id(),
+    )?;
+    if base_map_id < 0 || base_entity_id < 0 {
+        return Err(ConfigError::Invalid(
+            "minecraft map-video IDs must be non-negative".into(),
+        ));
+    }
+    let map_slots = u64::from(map_max_maps_x)
+        .checked_mul(u64::from(map_max_maps_y))
+        .ok_or_else(|| ConfigError::Invalid("minecraft map-video dimensions overflow".into()))?;
+    if i64::from(base_map_id) + i64::try_from(map_slots).unwrap_or(i64::MAX) > i64::from(i32::MAX)
+        || i64::from(base_entity_id) + i64::try_from(map_slots).unwrap_or(i64::MAX)
+            > i64::from(i32::MAX)
+    {
+        return Err(ConfigError::Invalid(
+            "minecraft map-video IDs exceed the supported range".into(),
+        ));
+    }
     let video = MinecraftVideoConfig {
-        center_x: preferred_i32(
-            properties,
-            &["lmyzmail.minecraft.video.center-x"],
-            &["botmail.minecraft.video.center-x"],
-            default_minecraft_video_center_x(),
-        )?,
-        wall_z: preferred_i32(
-            properties,
-            &["lmyzmail.minecraft.video.wall-z"],
-            &["botmail.minecraft.video.wall-z"],
-            default_minecraft_video_wall_z(),
-        )?,
-        map_center_x: preferred_i32(
-            properties,
-            &["lmyzmail.minecraft.map-video.center-x"],
-            &["botmail.minecraft.map-video.center-x"],
-            default_minecraft_map_center_x(),
-        )?,
-        map_center_y: preferred_i32(
-            properties,
-            &["lmyzmail.minecraft.map-video.center-y"],
-            &["botmail.minecraft.map-video.center-y"],
-            default_minecraft_map_center_y(),
-        )?,
-        map_center_z: preferred_i32(
-            properties,
-            &["lmyzmail.minecraft.map-video.center-z"],
-            &["botmail.minecraft.map-video.center-z"],
-            default_minecraft_map_center_z(),
-        )?,
+        center_x: video_center_x,
+        center_y: video_center_y,
+        wall_z: video_wall_z,
+        max_width: video_max_width,
+        max_fps: video_max_fps,
+        default_width: video_default_width,
+        default_fps: video_default_fps,
+        default_contrast: video_default_contrast,
+        spawn_protect_radius: video_spawn_protect_radius,
+        clear_margin: video_clear_margin,
+        map_center_x,
+        map_center_y,
+        map_center_z,
         map_facing,
-        base_map_id: preferred_i32(
-            properties,
-            &["lmyzmail.minecraft.map-video.base-map-id"],
-            &["botmail.minecraft.map-video.base-map-id"],
-            default_minecraft_base_map_id(),
-        )?,
-        base_entity_id: preferred_i32(
-            properties,
-            &["lmyzmail.minecraft.map-video.base-entity-id"],
-            &["botmail.minecraft.map-video.base-entity-id"],
-            default_minecraft_base_entity_id(),
-        )?,
+        map_max_maps_x,
+        map_max_maps_y,
+        map_max_fps,
+        map_default_maps_x,
+        map_default_fps,
+        map_default_contrast,
+        base_map_id,
+        base_entity_id,
     };
     let whitelist_enabled = preferred_bool(
         properties,
@@ -2134,6 +2495,11 @@ fn parse_minecraft_config(properties: &Properties) -> Result<MinecraftConfig, Co
         world_template,
         view_distance: u32::try_from(view_distance).map_err(|_| {
             ConfigError::Invalid("minecraft view-distance exceeds the supported range".into())
+        })?,
+        max_concurrent_videos: u32::try_from(max_concurrent_videos).map_err(|_| {
+            ConfigError::Invalid(
+                "minecraft max-concurrent-videos exceeds the supported range".into(),
+            )
         })?,
         spawn,
         video,
@@ -2496,6 +2862,67 @@ fn preferred_i32(
         default,
         "minecraft video coordinate",
     )
+}
+
+fn preferred_minecraft_u32(
+    properties: &Properties,
+    new_keys: &[&str],
+    legacy_keys: &[&str],
+    default: u32,
+    min: u64,
+    max: u64,
+    label: &str,
+) -> Result<u32, ConfigError> {
+    let parsed = preferred(properties, new_keys, legacy_keys)
+        .map(|value| {
+            value
+                .parse::<u64>()
+                .map_err(|_| ConfigError::Invalid(format!("{label} is not an unsigned integer")))
+        })
+        .transpose()?
+        .unwrap_or(u64::from(default));
+    if !(min..=max).contains(&parsed) {
+        return Err(ConfigError::Invalid(format!(
+            "{label} must be between {min} and {max}"
+        )));
+    }
+    u32::try_from(parsed)
+        .map_err(|_| ConfigError::Invalid(format!("{label} exceeds the supported range")))
+}
+
+fn validate_minecraft_video_coordinate(
+    value: i32,
+    label: &str,
+    vertical: bool,
+) -> Result<(), ConfigError> {
+    let valid = if vertical {
+        (0..=MAX_MINECRAFT_WORLD_Y).contains(&value)
+    } else {
+        (-MAX_MINECRAFT_WORLD_COORDINATE..=MAX_MINECRAFT_WORLD_COORDINATE).contains(&value)
+    };
+    if !valid {
+        let range = if vertical {
+            format!("0 and {MAX_MINECRAFT_WORLD_Y}")
+        } else {
+            format!(
+                "{} and {MAX_MINECRAFT_WORLD_COORDINATE}",
+                -MAX_MINECRAFT_WORLD_COORDINATE
+            )
+        };
+        return Err(ConfigError::Invalid(format!(
+            "{label} must be between {range}"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_minecraft_contrast(value: f32, label: &str) -> Result<(), ConfigError> {
+    if !value.is_finite() || !(0.1..=3.0).contains(&value) {
+        return Err(ConfigError::Invalid(format!(
+            "{label} must be a finite value between 0.1 and 3.0"
+        )));
+    }
+    Ok(())
 }
 
 fn preferred_u16(
@@ -3300,14 +3727,29 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
                 "session_server_url": "http://127.0.0.1:18081/session/minecraft/hasJoined",
                 "world_template": "worlds/mailroom",
                 "view_distance": 31,
+                "max_concurrent_videos": 7,
                 "spawn": {"x": -12.75, "y": 70.9, "z": 34.5, "yaw": 45.0, "pitch": -15.0},
                 "video": {
                     "center_x": 16,
+                    "center_y": 179,
                     "wall_z": -64,
+                    "max_width": 80,
+                    "max_fps": 24,
+                    "default_width": 40,
+                    "default_fps": 12,
+                    "default_contrast": 1.4,
+                    "spawn_protect_radius": 4,
+                    "clear_margin": 3,
                     "map_center_x": 17,
                     "map_center_y": 181,
                     "map_center_z": -21,
                     "map_facing": "west",
+                    "map_max_maps_x": 12,
+                    "map_max_maps_y": 11,
+                    "map_max_fps": 22,
+                    "map_default_maps_x": 6,
+                    "map_default_fps": 11,
+                    "map_default_contrast": 1.3,
                     "base_map_id": 11000,
                     "base_entity_id": 110000
                 },
@@ -3339,12 +3781,27 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
         );
         assert_eq!(config.minecraft.world_template, "worlds/mailroom");
         assert_eq!(config.minecraft.view_distance, 31);
+        assert_eq!(config.minecraft.max_concurrent_videos, 7);
         assert_eq!(config.minecraft.video.center_x, 16);
+        assert_eq!(config.minecraft.video.center_y, 179);
         assert_eq!(config.minecraft.video.wall_z, -64);
+        assert_eq!(config.minecraft.video.max_width, 80);
+        assert_eq!(config.minecraft.video.max_fps, 24);
+        assert_eq!(config.minecraft.video.default_width, 40);
+        assert_eq!(config.minecraft.video.default_fps, 12);
+        assert_eq!(config.minecraft.video.default_contrast, 1.4);
+        assert_eq!(config.minecraft.video.spawn_protect_radius, 4);
+        assert_eq!(config.minecraft.video.clear_margin, 3);
         assert_eq!(config.minecraft.video.map_center_x, 17);
         assert_eq!(config.minecraft.video.map_center_y, 181);
         assert_eq!(config.minecraft.video.map_center_z, -21);
         assert_eq!(config.minecraft.video.map_facing, "WEST");
+        assert_eq!(config.minecraft.video.map_max_maps_x, 12);
+        assert_eq!(config.minecraft.video.map_max_maps_y, 11);
+        assert_eq!(config.minecraft.video.map_max_fps, 22);
+        assert_eq!(config.minecraft.video.map_default_maps_x, 6);
+        assert_eq!(config.minecraft.video.map_default_fps, 11);
+        assert_eq!(config.minecraft.video.map_default_contrast, 1.3);
         assert_eq!(config.minecraft.video.base_map_id, 11_000);
         assert_eq!(config.minecraft.video.base_entity_id, 110_000);
         assert_eq!(config.minecraft.spawn.x, -12.75);
@@ -3385,12 +3842,27 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
         );
         assert_eq!(config.minecraft.world_template, "worlds/mailroom");
         assert_eq!(config.minecraft.view_distance, 32);
+        assert_eq!(config.minecraft.max_concurrent_videos, 2);
         assert_eq!(config.minecraft.video.center_x, 0);
-        assert_eq!(config.minecraft.video.wall_z, -50);
+        assert_eq!(config.minecraft.video.center_y, 180);
+        assert_eq!(config.minecraft.video.wall_z, -20);
+        assert_eq!(config.minecraft.video.max_width, 64);
+        assert_eq!(config.minecraft.video.max_fps, 20);
+        assert_eq!(config.minecraft.video.default_width, 32);
+        assert_eq!(config.minecraft.video.default_fps, 10);
+        assert_eq!(config.minecraft.video.default_contrast, 1.2);
+        assert_eq!(config.minecraft.video.spawn_protect_radius, 8);
+        assert_eq!(config.minecraft.video.clear_margin, 2);
         assert_eq!(config.minecraft.video.map_center_x, 0);
         assert_eq!(config.minecraft.video.map_center_y, 180);
         assert_eq!(config.minecraft.video.map_center_z, -20);
         assert_eq!(config.minecraft.video.map_facing, "SOUTH");
+        assert_eq!(config.minecraft.video.map_max_maps_x, 10);
+        assert_eq!(config.minecraft.video.map_max_maps_y, 10);
+        assert_eq!(config.minecraft.video.map_max_fps, 20);
+        assert_eq!(config.minecraft.video.map_default_maps_x, 5);
+        assert_eq!(config.minecraft.video.map_default_fps, 10);
+        assert_eq!(config.minecraft.video.map_default_contrast, 1.2);
         assert_eq!(config.minecraft.video.base_map_id, 10_000);
         assert_eq!(config.minecraft.video.base_entity_id, 100_000);
         assert_eq!(config.mail_render.simd_mode, MailRenderSimdMode::Auto);
@@ -3441,12 +3913,27 @@ botmail.minecraft.read-timeout-seconds=45\n\
 botmail.minecraft.session-server-url=https://legacy-session.example.test/hasJoined\n\
 botmail.minecraft.world-template=legacy-world\n\
 botmail.minecraft.view-distance=12\n\
+botmail.minecraft.max-concurrent-videos=4\n\
 botmail.minecraft.video.center-x=7\n\
+botmail.minecraft.video.center-y=170\n\
 botmail.minecraft.video.wall-z=-9\n\
+botmail.minecraft.video.max-width=80\n\
+botmail.minecraft.video.max-fps=25\n\
+botmail.minecraft.video.default-width=40\n\
+botmail.minecraft.video.default-fps=12\n\
+botmail.minecraft.video.default-contrast=1.4\n\
+botmail.minecraft.video.spawn-protect-radius=4\n\
+botmail.minecraft.video.clear-margin=3\n\
 botmail.minecraft.map-video.center-x=8\n\
 botmail.minecraft.map-video.center-y=170\n\
 botmail.minecraft.map-video.center-z=-19\n\
 botmail.minecraft.map-video.facing=north\n\
+botmail.minecraft.map-video.max-maps-x=12\n\
+botmail.minecraft.map-video.max-maps-y=11\n\
+botmail.minecraft.map-video.max-fps=25\n\
+botmail.minecraft.map-video.default-maps-x=6\n\
+botmail.minecraft.map-video.default-fps=12\n\
+botmail.minecraft.map-video.default-contrast=1.4\n\
 botmail.minecraft.map-video.base-map-id=9000\n\
 botmail.minecraft.map-video.base-entity-id=90000\n\
 botmail.minecraft.spawn.x=1.5\n\
@@ -3470,12 +3957,27 @@ lmyzmail.minecraft.read-timeout-seconds=30\n\
 lmyzmail.minecraft.session-server-url=http://127.0.0.1:18081/hasJoined\n\
 lmyzmail.minecraft.world-template=worlds/mailroom\n\
 lmyzmail.minecraft.view-distance=32\n\
+lmyzmail.minecraft.max-concurrent-videos=3\n\
 lmyzmail.minecraft.video.center-x=0\n\
+lmyzmail.minecraft.video.center-y=161\n\
 lmyzmail.minecraft.video.wall-z=-50\n\
+lmyzmail.minecraft.video.max-width=64\n\
+lmyzmail.minecraft.video.max-fps=20\n\
+lmyzmail.minecraft.video.default-width=32\n\
+lmyzmail.minecraft.video.default-fps=10\n\
+lmyzmail.minecraft.video.default-contrast=1.2\n\
+lmyzmail.minecraft.video.spawn-protect-radius=1\n\
+lmyzmail.minecraft.video.clear-margin=2\n\
 lmyzmail.minecraft.map-video.center-x=1\n\
 lmyzmail.minecraft.map-video.center-y=180\n\
 lmyzmail.minecraft.map-video.center-z=-20\n\
 lmyzmail.minecraft.map-video.facing=east\n\
+lmyzmail.minecraft.map-video.max-maps-x=10\n\
+lmyzmail.minecraft.map-video.max-maps-y=9\n\
+lmyzmail.minecraft.map-video.max-fps=20\n\
+lmyzmail.minecraft.map-video.default-maps-x=5\n\
+lmyzmail.minecraft.map-video.default-fps=10\n\
+lmyzmail.minecraft.map-video.default-contrast=1.2\n\
 lmyzmail.minecraft.map-video.base-map-id=10000\n\
 lmyzmail.minecraft.map-video.base-entity-id=100000\n\
 lmyzmail.minecraft.spawn.x=-12.75\n\
@@ -3506,12 +4008,27 @@ lmyzmail.minecraft.auth.window-seconds=600\n",
         );
         assert_eq!(config.minecraft.world_template, "worlds/mailroom");
         assert_eq!(config.minecraft.view_distance, 32);
+        assert_eq!(config.minecraft.max_concurrent_videos, 3);
         assert_eq!(config.minecraft.video.center_x, 0);
+        assert_eq!(config.minecraft.video.center_y, 161);
         assert_eq!(config.minecraft.video.wall_z, -50);
+        assert_eq!(config.minecraft.video.max_width, 64);
+        assert_eq!(config.minecraft.video.max_fps, 20);
+        assert_eq!(config.minecraft.video.default_width, 32);
+        assert_eq!(config.minecraft.video.default_fps, 10);
+        assert_eq!(config.minecraft.video.default_contrast, 1.2);
+        assert_eq!(config.minecraft.video.spawn_protect_radius, 1);
+        assert_eq!(config.minecraft.video.clear_margin, 2);
         assert_eq!(config.minecraft.video.map_center_x, 1);
         assert_eq!(config.minecraft.video.map_center_y, 180);
         assert_eq!(config.minecraft.video.map_center_z, -20);
         assert_eq!(config.minecraft.video.map_facing, "EAST");
+        assert_eq!(config.minecraft.video.map_max_maps_x, 10);
+        assert_eq!(config.minecraft.video.map_max_maps_y, 9);
+        assert_eq!(config.minecraft.video.map_max_fps, 20);
+        assert_eq!(config.minecraft.video.map_default_maps_x, 5);
+        assert_eq!(config.minecraft.video.map_default_fps, 10);
+        assert_eq!(config.minecraft.video.map_default_contrast, 1.2);
         assert_eq!(config.minecraft.video.base_map_id, 10_000);
         assert_eq!(config.minecraft.video.base_entity_id, 100_000);
         assert_eq!(config.minecraft.spawn.x, -12.75);
@@ -3540,7 +4057,24 @@ lmyzmail.minecraft.auth.window-seconds=600\n",
             "lmyzmail.minecraft.read-timeout-seconds=3601\n",
             "lmyzmail.minecraft.view-distance=65\n",
             "lmyzmail.minecraft.view-distance=-1\n",
+            "lmyzmail.minecraft.max-concurrent-videos=0\n",
+            "lmyzmail.minecraft.max-concurrent-videos=65\n",
             "lmyzmail.minecraft.video.center-x=nope\n",
+            "lmyzmail.minecraft.video.center-y=256\n",
+            "lmyzmail.minecraft.video.max-width=3\n",
+            "lmyzmail.minecraft.video.max-width=257\n",
+            "lmyzmail.minecraft.video.max-fps=0\n",
+            "lmyzmail.minecraft.video.max-fps=61\n",
+            "lmyzmail.minecraft.video.default-width=65\n",
+            "lmyzmail.minecraft.video.default-fps=21\n",
+            "lmyzmail.minecraft.video.default-contrast=NaN\n",
+            "lmyzmail.minecraft.video.spawn-protect-radius=257\n",
+            "lmyzmail.minecraft.video.clear-margin=65\n",
+            "lmyzmail.minecraft.map-video.max-maps-x=1\n",
+            "lmyzmail.minecraft.map-video.max-maps-x=17\n",
+            "lmyzmail.minecraft.map-video.default-maps-x=11\n",
+            "lmyzmail.minecraft.map-video.default-contrast=Infinity\n",
+            "lmyzmail.minecraft.map-video.base-map-id=-1\n",
             "lmyzmail.minecraft.world-template=\n",
             "lmyzmail.minecraft.motd=bad\\u0009motd\n",
             "lmyzmail.minecraft.session-server-url=http://session.example.test/hasJoined\n",
