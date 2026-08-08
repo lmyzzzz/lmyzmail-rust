@@ -21,11 +21,11 @@ use reqwest::{Client, StatusCode, redirect::Policy};
 use sha1::Sha1;
 use subtle::ConstantTimeEq;
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     net::{TcpListener, TcpStream},
     sync::{OwnedSemaphorePermit, Semaphore},
     task::JoinSet,
-    time::{Instant, timeout, timeout_at},
+    time::{Instant, sleep_until, timeout, timeout_at},
 };
 use tokio_util::sync::CancellationToken;
 use zeroize::Zeroize;
@@ -51,6 +51,10 @@ const VERIFY_TOKEN_BYTES: usize = 4;
 const SHARED_SECRET_BYTES: usize = 16;
 const AUTH_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 const MAX_AUTH_RESPONSE_BYTES: usize = 64 * 1024;
+const POSITION_CHECK_INTERVAL: Duration = Duration::from_secs(2);
+const HOLOGRAM_TELEPORT_INTERVAL: Duration = Duration::from_secs(2);
+const TIME_UPDATE_INTERVAL: Duration = Duration::from_secs(15);
+const MAX_SPAWN_DISTANCE: f64 = 100.0;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ConnectionState {
@@ -356,23 +360,105 @@ async fn serve_listener(
 }
 
 async fn handle_connection(
-    mut stream: TcpStream,
+    stream: TcpStream,
     service: Arc<StatusService>,
     cancellation: CancellationToken,
     _permit: OwnedSemaphorePermit,
     deadline: Instant,
 ) -> io::Result<()> {
     stream.set_nodelay(true)?;
+    let (mut reader, mut writer) = stream.into_split();
     let mut state = ConnectionState::Handshake;
     let mut compression = None;
     let mut cipher = None;
     let mut pending_online = None;
     let mut _online_guard = None;
+    let mut player_position = (
+        service.config.spawn.x,
+        service.config.spawn.y,
+        service.config.spawn.z,
+    );
+    let mut hologram_entity_base = 0;
+    let mut next_position_check = None;
+    let mut next_hologram_teleport = None;
+    let mut next_time_update = None;
 
     loop {
-        let raw_frame = match read_frame(&mut stream, cipher.as_mut(), deadline, &cancellation)
-            .await
-        {
+        let raw_frame_result = if state == ConnectionState::Play {
+            let position_at = next_position_check.expect("PLAY position timer was not armed");
+            let hologram_at = next_hologram_teleport.expect("PLAY hologram timer was not armed");
+            let time_update_at = next_time_update.expect("PLAY time timer was not armed");
+            tokio::select! {
+                biased;
+                _ = cancellation.cancelled() => return Ok(()),
+                _ = sleep_until(position_at) => {
+                    next_position_check = Some(position_at + POSITION_CHECK_INTERVAL);
+                    let spawn = &service.config.spawn;
+                    let dx = player_position.0 - spawn.x;
+                    let dy = player_position.1 - spawn.y;
+                    let dz = player_position.2 - spawn.z;
+                    if dx * dx + dy * dy + dz * dz > MAX_SPAWN_DISTANCE * MAX_SPAWN_DISTANCE {
+                        for packet in teleport_back_packets(&service.config)? {
+                            if let Err(error) = write_packet(
+                                &mut writer,
+                                &service,
+                                packet,
+                                compression,
+                                cipher.as_mut(),
+                                deadline,
+                                &cancellation,
+                            )
+                            .await
+                            {
+                                return finish_write_error(error);
+                            }
+                        }
+                        player_position = (spawn.x, spawn.y, spawn.z);
+                    }
+                    continue;
+                }
+                _ = sleep_until(hologram_at) => {
+                    next_hologram_teleport = Some(hologram_at + HOLOGRAM_TELEPORT_INTERVAL);
+                    for packet in hologram_teleport_packets(hologram_entity_base) {
+                        if let Err(error) = write_packet(
+                            &mut writer,
+                            &service,
+                            packet,
+                            compression,
+                            cipher.as_mut(),
+                            deadline,
+                            &cancellation,
+                        )
+                        .await
+                        {
+                            return finish_write_error(error);
+                        }
+                    }
+                    continue;
+                }
+                _ = sleep_until(time_update_at) => {
+                    next_time_update = Some(time_update_at + TIME_UPDATE_INTERVAL);
+                    if let Err(error) = write_packet(
+                        &mut writer,
+                        &service,
+                        time_update_packet(),
+                        compression,
+                        cipher.as_mut(),
+                        deadline,
+                        &cancellation,
+                    )
+                    .await
+                    {
+                        return finish_write_error(error);
+                    }
+                    continue;
+                }
+                result = read_frame(&mut reader, cipher.as_mut(), deadline, &cancellation) => result,
+            }
+        } else {
+            read_frame(&mut reader, cipher.as_mut(), deadline, &cancellation).await
+        };
+        let raw_frame = match raw_frame_result {
             Ok(Some(frame)) => frame,
             Ok(None)
             | Err(ProtocolError::Cancelled | ProtocolError::TimedOut | ProtocolError::Malformed) => {
@@ -426,7 +512,7 @@ async fn handle_connection(
                 0 => {
                     let frame = service.current_status_frame()?;
                     if let Err(error) =
-                        write_bytes(&mut stream, &frame, None, deadline, &cancellation).await
+                        write_bytes(&mut writer, &frame, None, deadline, &cancellation).await
                     {
                         return finish_write_error(error);
                     }
@@ -440,14 +526,14 @@ async fn handle_connection(
                     packet[1..].copy_from_slice(&payload.to_be_bytes());
                     let pong = encode_frame(&packet)?;
                     if let Err(error) =
-                        write_bytes(&mut stream, &pong, None, deadline, &cancellation).await
+                        write_bytes(&mut writer, &pong, None, deadline, &cancellation).await
                     {
                         return finish_write_error(error);
                     }
                     let _ = tokio::select! {
                         biased;
                         _ = cancellation.cancelled() => Ok(()),
-                        result = timeout_at(deadline, stream.shutdown()) => result
+                        result = timeout_at(deadline, writer.shutdown()) => result
                             .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "Minecraft shutdown timed out"))?,
                     };
                     return Ok(());
@@ -461,11 +547,11 @@ async fn handle_connection(
                     };
                     if let Some(frame) = service.rejection_frame(&username) {
                         if let Err(error) =
-                            write_bytes(&mut stream, frame, None, deadline, &cancellation).await
+                            write_bytes(&mut writer, frame, None, deadline, &cancellation).await
                         {
                             return finish_write_error(error);
                         }
-                        shutdown_stream(&mut stream, deadline, &cancellation).await?;
+                        shutdown_stream(&mut writer, deadline, &cancellation).await?;
                         return Ok(());
                     }
                     if service.config.online_mode {
@@ -477,7 +563,7 @@ async fn handle_connection(
                         let frame =
                             encryption_request_frame(&online.public_key_der, &verify_token)?;
                         if let Err(error) =
-                            write_bytes(&mut stream, &frame, None, deadline, &cancellation).await
+                            write_bytes(&mut writer, &frame, None, deadline, &cancellation).await
                         {
                             return finish_write_error(error);
                         }
@@ -488,7 +574,7 @@ async fn handle_connection(
                         continue;
                     }
                     match complete_login(
-                        &mut stream,
+                        &mut writer,
                         &service,
                         offline_uuid(&username)?,
                         &username,
@@ -498,9 +584,14 @@ async fn handle_connection(
                     )
                     .await
                     {
-                        Ok((active_compression, online_guard)) => {
+                        Ok((active_compression, online_guard, entity_base)) => {
                             compression = active_compression;
                             _online_guard = Some(online_guard);
+                            hologram_entity_base = entity_base;
+                            let now = Instant::now();
+                            next_position_check = Some(now + POSITION_CHECK_INTERVAL);
+                            next_hologram_teleport = Some(now + HOLOGRAM_TELEPORT_INTERVAL);
+                            next_time_update = Some(now + TIME_UPDATE_INTERVAL);
                             state = ConnectionState::Play;
                         }
                         Err(
@@ -569,19 +660,19 @@ async fn handle_connection(
                             let packet = authentication_failure_packet(error.message())?;
                             let frame = encode_frame(&packet)?;
                             let _ = write_bytes(
-                                &mut stream,
+                                &mut writer,
                                 &frame,
                                 Some(&mut active_cipher),
                                 deadline,
                                 &cancellation,
                             )
                             .await;
-                            let _ = shutdown_stream(&mut stream, deadline, &cancellation).await;
+                            let _ = shutdown_stream(&mut writer, deadline, &cancellation).await;
                             return Ok(());
                         }
                     };
                     match complete_login(
-                        &mut stream,
+                        &mut writer,
                         &service,
                         profile.uuid,
                         &profile.name,
@@ -591,10 +682,15 @@ async fn handle_connection(
                     )
                     .await
                     {
-                        Ok((active_compression, online_guard)) => {
+                        Ok((active_compression, online_guard, entity_base)) => {
                             compression = active_compression;
                             cipher = Some(active_cipher);
                             _online_guard = Some(online_guard);
+                            hologram_entity_base = entity_base;
+                            let now = Instant::now();
+                            next_position_check = Some(now + POSITION_CHECK_INTERVAL);
+                            next_hologram_teleport = Some(now + HOLOGRAM_TELEPORT_INTERVAL);
+                            next_time_update = Some(now + TIME_UPDATE_INTERVAL);
                             state = ConnectionState::Play;
                         }
                         Err(
@@ -610,13 +706,19 @@ async fn handle_connection(
                 }
                 _ => {}
             },
-            ConnectionState::Play => {}
+            ConnectionState::Play => match packet_id {
+                0x04 | 0x06 => match read_player_position(&mut packet, packet_id) {
+                    Ok(position) => player_position = position,
+                    Err(()) => return Ok(()),
+                },
+                _ => {}
+            },
         }
     }
 }
 
-async fn shutdown_stream(
-    stream: &mut TcpStream,
+async fn shutdown_stream<W: AsyncWrite + Unpin>(
+    stream: &mut W,
     deadline: Instant,
     cancellation: &CancellationToken,
 ) -> io::Result<()> {
@@ -641,6 +743,19 @@ fn parse_handshake(packet: &mut PacketReader<'_>) -> Result<(), ()> {
     packet.read_string(255)?;
     packet.read_u16()?;
     Ok(())
+}
+
+fn read_player_position(
+    packet: &mut PacketReader<'_>,
+    packet_id: i32,
+) -> Result<(f64, f64, f64), ()> {
+    let position = (packet.read_f64()?, packet.read_f64()?, packet.read_f64()?);
+    if packet_id == 0x06 {
+        packet.read_f32()?;
+        packet.read_f32()?;
+    }
+    packet.read_u8()?;
+    Ok(position)
 }
 
 fn encryption_request_frame(
@@ -910,15 +1025,15 @@ fn authentication_failure_packet(message: &str) -> io::Result<Vec<u8>> {
     login_disconnect_packet(&format!(r#"{{"text":"{escaped}","color":"red"}}"#))
 }
 
-async fn complete_login(
-    stream: &mut TcpStream,
+async fn complete_login<W: AsyncWrite + Unpin>(
+    stream: &mut W,
     service: &StatusService,
     uuid: String,
     username: &str,
     mut cipher: Option<&mut MinecraftCipher>,
     deadline: Instant,
     cancellation: &CancellationToken,
-) -> Result<(Option<i32>, OnlineCountGuard), ProtocolError> {
+) -> Result<(Option<i32>, OnlineCountGuard, i32), ProtocolError> {
     let compression = if service.config.compression_threshold >= 0 {
         let threshold = service.config.compression_threshold;
         let mut packet = vec![0x03];
@@ -1002,11 +1117,11 @@ async fn complete_login(
         )
         .await?;
     }
-    Ok((compression, online_guard))
+    Ok((compression, online_guard, hologram_entity_base))
 }
 
-async fn send_world_bootstrap(
-    stream: &mut TcpStream,
+async fn send_world_bootstrap<W: AsyncWrite + Unpin>(
+    stream: &mut W,
     service: &StatusService,
     compression: Option<i32>,
     mut cipher: Option<&mut MinecraftCipher>,
@@ -1246,6 +1361,47 @@ fn post_static_play_packets(hologram_entity_base: i32) -> io::Result<Vec<Vec<u8>
     Ok(packets)
 }
 
+fn time_update_packet() -> Vec<u8> {
+    let mut packet = vec![0x03];
+    packet.extend_from_slice(&0_i64.to_be_bytes());
+    packet.extend_from_slice(&(-6000_i64).to_be_bytes());
+    packet
+}
+
+fn teleport_back_packets(config: &MinecraftConfig) -> io::Result<Vec<Vec<u8>>> {
+    let mut position = vec![0x08];
+    position.extend_from_slice(&config.spawn.x.to_be_bytes());
+    position.extend_from_slice(&config.spawn.y.to_be_bytes());
+    position.extend_from_slice(&config.spawn.z.to_be_bytes());
+    position.extend_from_slice(&config.spawn.yaw.to_be_bytes());
+    position.extend_from_slice(&config.spawn.pitch.to_be_bytes());
+    position.push(0);
+
+    let mut chat = vec![0x02];
+    write_string(
+        &mut chat,
+        &chat_json("\u{00a7}cYou were teleported back to spawn!", Some("red")),
+    )?;
+    chat.push(0);
+    Ok(vec![position, chat])
+}
+
+fn hologram_teleport_packets(hologram_entity_base: i32) -> Vec<Vec<u8>> {
+    let mut packets = Vec::with_capacity(7);
+    for index in 0..7 {
+        let entity_id = hologram_entity_base + index;
+        let y = (163.0 - f64::from(index) * 0.55) * 32.0;
+        let mut packet = vec![0x18];
+        write_varint(&mut packet, entity_id as u32);
+        packet.extend_from_slice(&16_i32.to_be_bytes());
+        packet.extend_from_slice(&(y as i32).to_be_bytes());
+        packet.extend_from_slice(&16_i32.to_be_bytes());
+        packet.extend_from_slice(&[0, 0, 0]);
+        packets.push(packet);
+    }
+    packets
+}
+
 fn chat_json(text: &str, color: Option<&str>) -> String {
     let escaped = text.replace('\\', "\\\\").replace('"', "\\\"");
     match color {
@@ -1318,8 +1474,8 @@ fn menu_star_nbt() -> NbtValue {
     ])
 }
 
-async fn write_packet(
-    stream: &mut TcpStream,
+async fn write_packet<W: AsyncWrite + Unpin>(
+    stream: &mut W,
     service: &StatusService,
     packet: Vec<u8>,
     compression: Option<i32>,
@@ -1610,8 +1766,8 @@ fn initial_play_packets(entity_id: i32, config: &MinecraftConfig) -> io::Result<
     ])
 }
 
-async fn read_frame(
-    stream: &mut TcpStream,
+async fn read_frame<R: AsyncRead + Unpin>(
+    stream: &mut R,
     mut cipher: Option<&mut MinecraftCipher>,
     deadline: Instant,
     cancellation: &CancellationToken,
@@ -1680,8 +1836,8 @@ async fn read_frame(
     }
 }
 
-async fn read_with_deadline(
-    stream: &mut TcpStream,
+async fn read_with_deadline<R: AsyncRead + Unpin>(
+    stream: &mut R,
     buffer: &mut [u8],
     cipher: Option<&mut MinecraftCipher>,
     deadline: Instant,
@@ -1701,8 +1857,8 @@ async fn read_with_deadline(
     Ok(read)
 }
 
-async fn write_bytes(
-    stream: &mut TcpStream,
+async fn write_bytes<W: AsyncWrite + Unpin>(
+    stream: &mut W,
     bytes: &[u8],
     cipher: Option<&mut MinecraftCipher>,
     deadline: Instant,
@@ -2063,6 +2219,12 @@ impl<'a> PacketReader<'a> {
         Ok(u16::from_be_bytes(bytes))
     }
 
+    fn read_u8(&mut self) -> Result<u8, ()> {
+        let value = *self.bytes.get(self.cursor).ok_or(())?;
+        self.cursor += 1;
+        Ok(value)
+    }
+
     fn read_i64(&mut self) -> Result<i64, ()> {
         let end = self.cursor.checked_add(8).ok_or(())?;
         let bytes: [u8; 8] = self
@@ -2073,6 +2235,22 @@ impl<'a> PacketReader<'a> {
             .map_err(|_| ())?;
         self.cursor = end;
         Ok(i64::from_be_bytes(bytes))
+    }
+
+    fn read_f64(&mut self) -> Result<f64, ()> {
+        Ok(f64::from_bits(self.read_i64()? as u64))
+    }
+
+    fn read_f32(&mut self) -> Result<f32, ()> {
+        let end = self.cursor.checked_add(4).ok_or(())?;
+        let bytes: [u8; 4] = self
+            .bytes
+            .get(self.cursor..end)
+            .ok_or(())?
+            .try_into()
+            .map_err(|_| ())?;
+        self.cursor = end;
+        Ok(f32::from_be_bytes(bytes))
     }
 }
 
@@ -2991,6 +3169,91 @@ mod tests {
                 .unwrap();
             assert_eq!(frame, STANDARD.decode(frozen).unwrap());
         }
+    }
+
+    #[test]
+    fn scheduled_play_packets_match_protocol_fields() {
+        let time_update = time_update_packet();
+        let mut expected_time_update = vec![0x03];
+        expected_time_update.extend_from_slice(&0_i64.to_be_bytes());
+        expected_time_update.extend_from_slice(&(-6000_i64).to_be_bytes());
+        assert_eq!(time_update, expected_time_update);
+
+        let packets = hologram_teleport_packets(900_000);
+        assert_eq!(packets.len(), 7);
+        for (index, packet) in packets.into_iter().enumerate() {
+            let mut expected = vec![0x18];
+            write_varint(&mut expected, 900_000 + index as u32);
+            expected.extend_from_slice(&16_i32.to_be_bytes());
+            expected
+                .extend_from_slice(&(((163.0 - index as f64 * 0.55) * 32.0) as i32).to_be_bytes());
+            expected.extend_from_slice(&16_i32.to_be_bytes());
+            expected.extend_from_slice(&[0, 0, 0]);
+            assert_eq!(packet, expected);
+        }
+
+        let mut configured = config(Duration::from_secs(3));
+        configured.spawn.x = -12.75;
+        configured.spawn.y = 70.9;
+        configured.spawn.z = 34.5;
+        configured.spawn.yaw = 45.0;
+        configured.spawn.pitch = -15.0;
+        let packets = teleport_back_packets(&configured).unwrap();
+        assert_eq!(packets.len(), 2);
+        let mut expected_position = vec![0x08];
+        expected_position.extend_from_slice(&configured.spawn.x.to_be_bytes());
+        expected_position.extend_from_slice(&configured.spawn.y.to_be_bytes());
+        expected_position.extend_from_slice(&configured.spawn.z.to_be_bytes());
+        expected_position.extend_from_slice(&configured.spawn.yaw.to_be_bytes());
+        expected_position.extend_from_slice(&configured.spawn.pitch.to_be_bytes());
+        expected_position.push(0);
+        assert_eq!(packets[0], expected_position);
+
+        let mut expected_chat = vec![0x02];
+        write_string(
+            &mut expected_chat,
+            &chat_json("\u{00a7}cYou were teleported back to spawn!", Some("red")),
+        )
+        .unwrap();
+        expected_chat.push(0);
+        assert_eq!(packets[1], expected_chat);
+    }
+
+    #[test]
+    fn player_position_parser_rejects_truncated_packets() {
+        let mut position = Vec::new();
+        position.extend_from_slice(&1.0_f64.to_be_bytes());
+        position.extend_from_slice(&2.0_f64.to_be_bytes());
+        position.extend_from_slice(&3.0_f64.to_be_bytes());
+        position.push(1);
+        assert_eq!(
+            read_player_position(&mut PacketReader::new(&position), 0x04).unwrap(),
+            (1.0, 2.0, 3.0)
+        );
+        assert!(
+            read_player_position(
+                &mut PacketReader::new(&position[..position.len() - 1]),
+                0x04
+            )
+            .is_err()
+        );
+
+        let mut position_and_look = position;
+        position_and_look.pop();
+        position_and_look.extend_from_slice(&45.0_f32.to_be_bytes());
+        position_and_look.extend_from_slice(&(-15.0_f32).to_be_bytes());
+        position_and_look.push(0);
+        assert_eq!(
+            read_player_position(&mut PacketReader::new(&position_and_look), 0x06).unwrap(),
+            (1.0, 2.0, 3.0)
+        );
+        assert!(
+            read_player_position(
+                &mut PacketReader::new(&position_and_look[..position_and_look.len() - 1]),
+                0x06
+            )
+            .is_err()
+        );
     }
 
     #[test]

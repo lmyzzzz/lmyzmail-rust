@@ -760,3 +760,21 @@ empty-draft sign updates, sidebar objective/display initialization, and seven
 default hologram armor stands with their separate custom-name metadata. The
 evidence preserves block positions, JSON text, objective fields, entity IDs,
 Java floating-point coordinate truncation, entity flags, and metadata order.
+
+The scheduled Minecraft PLAY milestone adds three zero-normalization sets under
+the same `538e2e8f9e547e91001efc02b99582de1d0111943b3ea13953443fca3189d318`
+definition tree:
+
+- `managed-minecraft-scheduled-play-v1/`
+- `managed-minecraft-time-update-v1/`
+- `managed-minecraft-position-rebound-v1/`
+
+Scheduled PLAY v1 freezes the first two-second anti-gravity tick as seven exact
+Entity Teleport frames. Time-update v1 observes seven such ticks followed by the
+15-second scheduler packet and preserves the oracle oddity that the task sends
+`Time Update(0, -6000)`, not a Keep Alive packet. Position-rebound v1 sends a
+compressed-envelope Player Position more than 100 blocks from spawn and freezes
+the response order: Player Position And Look, red Chat, then the seven hologram
+teleports. It also proves that both implementations require the trailing
+`onGround` byte. All three sets preserve exact packet bytes, compression-envelope
+behavior, entity IDs, coordinates, and Java floating-point truncation.
