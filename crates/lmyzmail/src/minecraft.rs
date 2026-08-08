@@ -168,6 +168,7 @@ struct StatusService {
     compression_pool: BoundedBlockingPool,
     online_mode: Option<OnlineModeService>,
     next_entity_id: AtomicI32,
+    next_hologram_entity_id: AtomicI32,
     next_connection_id: AtomicU64,
     online_sessions: Arc<Mutex<HashMap<String, u64>>>,
     world: Arc<WorldTemplate>,
@@ -200,6 +201,7 @@ impl StatusService {
                 .then(|| OnlineModeService::new(config))
                 .transpose()?,
             next_entity_id: AtomicI32::new(1),
+            next_hologram_entity_id: AtomicI32::new(900_000),
             next_connection_id: AtomicU64::new(1),
             online_sessions: Arc::new(Mutex::new(HashMap::with_capacity(MAX_CONNECTIONS))),
             world,
@@ -232,6 +234,11 @@ impl StatusService {
 
     fn next_entity_id(&self) -> i32 {
         self.next_entity_id.fetch_add(1, Ordering::Relaxed)
+    }
+
+    fn reserve_hologram_entity_ids(&self, count: i32) -> i32 {
+        self.next_hologram_entity_id
+            .fetch_add(count, Ordering::Relaxed)
     }
 
     fn register_online(&self, uuid: String) -> OnlineCountGuard {
@@ -982,6 +989,19 @@ async fn complete_login(
         )
         .await?;
     }
+    let hologram_entity_base = service.reserve_hologram_entity_ids(7);
+    for packet in post_static_play_packets(hologram_entity_base).map_err(ProtocolError::Io)? {
+        write_packet(
+            stream,
+            service,
+            packet,
+            compression,
+            cipher.as_deref_mut(),
+            deadline,
+            cancellation,
+        )
+        .await?;
+    }
     Ok((compression, online_guard))
 }
 
@@ -1162,6 +1182,67 @@ fn static_play_packets(uuid: &str, username: &str) -> io::Result<Vec<Vec<u8>>> {
         packets.push(item);
     }
     debug_assert_eq!(packets.len(), 11);
+    Ok(packets)
+}
+
+fn post_static_play_packets(hologram_entity_base: i32) -> io::Result<Vec<Vec<u8>>> {
+    let mut packets = Vec::with_capacity(20);
+    for (x, label) in [
+        (2, "\u{00a7}1[To]"),
+        (4, "\u{00a7}1[CC]"),
+        (6, "\u{00a7}1[BCC]"),
+        (8, "\u{00a7}1[Subject]"),
+    ] {
+        let mut sign = vec![0x33];
+        write_block_position(&mut sign, x, 161, 3);
+        for text in [label, "", "", ""] {
+            write_string(&mut sign, &chat_json(text, None))?;
+        }
+        packets.push(sign);
+    }
+
+    let mut objective = vec![0x3b];
+    write_string(&mut objective, "lmyz")?;
+    objective.push(0);
+    write_string(&mut objective, "\u{00a7}6\u{00a7}lLMYZMAIL")?;
+    write_string(&mut objective, "dummy")?;
+    packets.push(objective);
+
+    let mut display = vec![0x3d, 1];
+    write_string(&mut display, "lmyz")?;
+    packets.push(display);
+
+    let lines = [
+        "\u{00a7}6\u{00a7}lLMYZMAIL",
+        "\u{00a7}7Minecraft Skibidi Email Server",
+        "\u{00a7}7by \u{00a7}elmyzzz the great skibidi scientist",
+        " ",
+        "\u{00a7}eHold \u{00a7}fNether Star \u{00a7}e+ Right-click -> \u{00a7}fMenu",
+        "\u{00a7}eWrite in \u{00a7}fBook & Quill \u{00a7}e-> Email body",
+        "\u{00a7}eClick \u{00a7}fSign Buttons \u{00a7}e-> Set To/Subject",
+    ];
+    for (index, line) in lines.into_iter().enumerate() {
+        let entity_id = hologram_entity_base + index as i32;
+        let y = 163.0 - index as f64 * 0.55;
+        let mut spawn = vec![0x0f];
+        write_varint(&mut spawn, entity_id as u32);
+        spawn.push(30);
+        spawn.extend_from_slice(&16_i32.to_be_bytes());
+        spawn.extend_from_slice(&((y * 32.0) as i32).to_be_bytes());
+        spawn.extend_from_slice(&16_i32.to_be_bytes());
+        spawn.extend_from_slice(&[0, 0, 0]);
+        spawn.extend_from_slice(&[0, 0, 0, 0, 0, 0]);
+        spawn.extend_from_slice(&[0x00, 0x20, 0x0a, 0x09, 0x7f]);
+        packets.push(spawn);
+
+        let mut metadata = vec![0x1c];
+        write_varint(&mut metadata, entity_id as u32);
+        metadata.push(0x82);
+        write_string(&mut metadata, line)?;
+        metadata.extend_from_slice(&[0x03, 1, 0x7f]);
+        packets.push(metadata);
+    }
+    debug_assert_eq!(packets.len(), 20);
     Ok(packets)
 }
 
@@ -2875,6 +2956,43 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn post_static_play_bootstrap_matches_frozen_java_frames() {
+        let service = StatusService::new(&config(Duration::from_secs(3))).unwrap();
+        let cancellation = CancellationToken::new();
+        let deadline = Instant::now() + Duration::from_secs(3);
+        let expected = [
+            "QQAzAAAAgoQAAAMSeyJ0ZXh0IjoiwqcxW1RvXSJ9C3sidGV4dCI6IiJ9C3sidGV4dCI6IiJ9C3sidGV4dCI6IiJ9",
+            "QQAzAAABAoQAAAMSeyJ0ZXh0IjoiwqcxW0NDXSJ9C3sidGV4dCI6IiJ9C3sidGV4dCI6IiJ9C3sidGV4dCI6IiJ9",
+            "QgAzAAABgoQAAAMTeyJ0ZXh0IjoiwqcxW0JDQ10ifQt7InRleHQiOiIifQt7InRleHQiOiIifQt7InRleHQiOiIifQ==",
+            "RgAzAAACAoQAAAMXeyJ0ZXh0IjoiwqcxW1N1YmplY3RdIn0LeyJ0ZXh0IjoiIn0LeyJ0ZXh0IjoiIn0LeyJ0ZXh0IjoiIn0=",
+            "HQA7BGxteXoADsKnNsKnbExNWVpNQUlMBWR1bW15",
+            "CAA9AQRsbXl6",
+            "IAAPoPc2HgAAABAAABRgAAAAEAAAAAAAAAAAAAAgCgl/",
+            "GAAcoPc2gg7CpzbCp2xMTVlaTUFJTAMBfw==",
+            "IAAPofc2HgAAABAAABROAAAAEAAAAAAAAAAAAAAgCgl/",
+            "KwAcofc2giHCpzdNaW5lY3JhZnQgU2tpYmlkaSBFbWFpbCBTZXJ2ZXIDAX8=",
+            "IAAPovc2HgAAABAAABQ8AAAAEAAAAAAAAAAAAAAgCgl/",
+            "NQAcovc2givCpzdieSDCp2VsbXl6enogdGhlIGdyZWF0IHNraWJpZGkgc2NpZW50aXN0AwF/",
+            "IAAPo/c2HgAAABAAABQrAAAAEAAAAAAAAAAAAAAgCgl/",
+            "CwAco/c2ggEgAwF/",
+            "IAAPpPc2HgAAABAAABQZAAAAEAAAAAAAAAAAAAAgCgl/",
+            "PAAcpPc2gjLCp2VIb2xkIMKnZk5ldGhlciBTdGFyIMKnZSsgUmlnaHQtY2xpY2sgLT4gwqdmTWVudQMBfw==",
+            "IAAPpfc2HgAAABAAABQIAAAAEAAAAAAAAAAAAAAgCgl/",
+            "NgAcpfc2gizCp2VXcml0ZSBpbiDCp2ZCb29rICYgUXVpbGwgwqdlLT4gRW1haWwgYm9keQMBfw==",
+            "IAAPpvc2HgAAABAAABP2AAAAEAAAAAAAAAAAAAAgCgl/",
+            "NwAcpvc2gi3Cp2VDbGljayDCp2ZTaWduIEJ1dHRvbnMgwqdlLT4gU2V0IFRvL1N1YmplY3QDAX8=",
+        ];
+        let packets = post_static_play_packets(900_000).unwrap();
+        assert_eq!(packets.len(), expected.len());
+        for (packet, frozen) in packets.into_iter().zip(expected) {
+            let frame = encode_packet_frame(&service, packet, Some(256), deadline, &cancellation)
+                .await
+                .unwrap();
+            assert_eq!(frame, STANDARD.decode(frozen).unwrap());
+        }
+    }
+
     #[test]
     fn static_play_uuid_and_json_inputs_are_strict_and_escaped() {
         assert_eq!(
@@ -2891,6 +3009,13 @@ mod tests {
             r#"{"text":"quote=\" slash=\\","color":"gray"}"#
         );
         assert!(static_play_packets("not-a-uuid", "Player").is_err());
+    }
+
+    #[test]
+    fn hologram_entity_ids_are_reserved_per_process() {
+        let service = StatusService::new(&config(Duration::from_secs(3))).unwrap();
+        assert_eq!(service.reserve_hologram_entity_ids(7), 900_000);
+        assert_eq!(service.reserve_hologram_entity_ids(7), 900_007);
     }
 
     #[tokio::test]

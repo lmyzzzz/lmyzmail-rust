@@ -750,3 +750,13 @@ Position And Look: Player List Item, header/footer, three Title packets, four
 Chat packets, and the Book & Quill plus menu Nether Star SetSlot packets. This
 freezes UUID bytes, chat JSON, title timing, item metadata, NBT field order, and
 compression-envelope behavior against the same frozen Java oracle.
+
+The post-static Minecraft bootstrap milestone adds:
+
+- `managed-minecraft-post-static-v1/`
+
+It freezes the next 20 uncompressed PLAY frames without normalization: four
+empty-draft sign updates, sidebar objective/display initialization, and seven
+default hologram armor stands with their separate custom-name metadata. The
+evidence preserves block positions, JSON text, objective fields, entity IDs,
+Java floating-point coordinate truncation, entity flags, and metadata order.
