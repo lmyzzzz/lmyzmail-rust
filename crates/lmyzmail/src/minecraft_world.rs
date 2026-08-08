@@ -69,6 +69,7 @@ pub enum NbtValue {
     Double(f64),
     ByteArray(Vec<u8>),
     String(String),
+    Utf16String(Vec<u16>),
     List {
         element_type: u8,
         values: Vec<NbtValue>,
@@ -314,6 +315,7 @@ fn write_nbt_payload(value: &NbtValue, output: &mut Vec<u8>, depth: usize) -> io
             output.extend_from_slice(values);
         }
         NbtValue::String(value) => write_nbt_string(value, output)?,
+        NbtValue::Utf16String(value) => write_nbt_utf16_string(value, output)?,
         NbtValue::List {
             element_type,
             values,
@@ -351,7 +353,7 @@ fn nbt_type(value: &NbtValue) -> u8 {
         NbtValue::Float(_) => 5,
         NbtValue::Double(_) => 6,
         NbtValue::ByteArray(_) => 7,
-        NbtValue::String(_) => 8,
+        NbtValue::String(_) | NbtValue::Utf16String(_) => 8,
         NbtValue::List { .. } => 9,
         NbtValue::Compound(_) => 10,
         NbtValue::IntArray(_) => 11,
@@ -370,7 +372,14 @@ fn write_nbt_len(length: usize, output: &mut Vec<u8>) -> io::Result<()> {
 }
 
 fn write_nbt_string(value: &str, output: &mut Vec<u8>) -> io::Result<()> {
-    let bytes = encode_modified_utf8(value);
+    write_encoded_nbt_string(&encode_modified_utf8(value), output)
+}
+
+fn write_nbt_utf16_string(value: &[u16], output: &mut Vec<u8>) -> io::Result<()> {
+    write_encoded_nbt_string(&encode_modified_utf8_units(value.iter().copied()), output)
+}
+
+fn write_encoded_nbt_string(bytes: &[u8], output: &mut Vec<u8>) -> io::Result<()> {
     let length = u16::try_from(bytes.len()).map_err(|_| {
         io::Error::new(
             io::ErrorKind::InvalidData,
@@ -378,7 +387,7 @@ fn write_nbt_string(value: &str, output: &mut Vec<u8>) -> io::Result<()> {
         )
     })?;
     output.extend_from_slice(&length.to_be_bytes());
-    output.extend_from_slice(&bytes);
+    output.extend_from_slice(bytes);
     Ok(())
 }
 
@@ -1051,6 +1060,9 @@ fn estimated_nbt_heap_bytes(value: &NbtValue) -> usize {
     match value {
         NbtValue::ByteArray(values) => base.saturating_add(values.capacity()),
         NbtValue::String(value) => base.saturating_add(value.capacity()),
+        NbtValue::Utf16String(value) => {
+            base.saturating_add(value.capacity() * std::mem::size_of::<u16>())
+        }
         NbtValue::List { values, .. } => values.iter().fold(
             base.saturating_add(values.capacity() * std::mem::size_of::<NbtValue>()),
             |total, value| total.saturating_add(estimated_nbt_heap_bytes(value)),
@@ -1573,8 +1585,13 @@ fn decode_modified_utf8(bytes: &[u8]) -> io::Result<String> {
 }
 
 fn encode_modified_utf8(value: &str) -> Vec<u8> {
-    let mut output = Vec::with_capacity(value.len());
-    for unit in value.encode_utf16() {
+    encode_modified_utf8_units(value.encode_utf16())
+}
+
+fn encode_modified_utf8_units(units: impl IntoIterator<Item = u16>) -> Vec<u8> {
+    let units = units.into_iter();
+    let mut output = Vec::with_capacity(units.size_hint().0);
+    for unit in units {
         match unit {
             0 => output.extend_from_slice(&[0xc0, 0x80]),
             1..=0x7f => output.push(unit as u8),
@@ -1709,6 +1726,21 @@ mod tests {
         assert!(decode_modified_utf8(&[0]).is_err());
         assert!(decode_modified_utf8(&[0xc1, 0x81]).is_err());
         assert!(decode_modified_utf8(&[0xed, 0xa0, 0x80]).is_err());
+    }
+
+    #[test]
+    fn nbt_utf16_string_preserves_java_isolated_surrogate_cesu8() {
+        let value = NbtValue::Compound(vec![(
+            "Name".to_owned(),
+            NbtValue::Utf16String(vec![0xd83d]),
+        )]);
+        let mut encoded = Vec::new();
+        write_nbt(Some(&value), &mut encoded).unwrap();
+        assert!(
+            encoded
+                .windows(3)
+                .any(|window| window == [0xed, 0xa0, 0xbd])
+        );
     }
 
     #[test]

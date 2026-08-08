@@ -1,6 +1,8 @@
 use std::{
     collections::{HashMap, VecDeque},
+    future::Future,
     io::{self, Write as _},
+    pin::Pin,
     sync::{
         Arc, Mutex,
         atomic::{AtomicI32, AtomicU64, Ordering},
@@ -8,6 +10,7 @@ use std::{
     time::{Duration, Instant as StdInstant},
 };
 
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use flate2::{Compression, write::ZlibEncoder};
 use getrandom::fill as fill_random;
 use icu_casemap::CaseMapper;
@@ -34,6 +37,7 @@ use crate::{
     auth::{AuthError, AuthService, LoginOutcome},
     bounded_blocking::{BoundedBlockingPool, SubmitError},
     config::{MinecraftConfig, RuntimeConfig},
+    mailbox::{EmailListItem, EmailListPage, MailboxService},
     minecraft_world::{self, NbtValue, WorldTemplate},
 };
 
@@ -66,6 +70,8 @@ const RENDER_FONT_SIZE_DEFAULT: i32 = 20;
 const RENDER_FONT_SIZE_MIN: i32 = 8;
 const RENDER_FONT_SIZE_MAX: i32 = 48;
 const UPDATE_SIGN_LINE_MAX_UTF16_UNITS: usize = 384;
+const FOLDER_PAGE_SIZE: i32 = 36;
+const FOLDER_LOAD_TIMEOUT: Duration = Duration::from_secs(8);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ConnectionState {
@@ -141,6 +147,7 @@ enum MainMenuEffect {
     SwitchAccount,
     OpenRenderSettings,
     OpenLogoutConfirm(u8),
+    OpenFolder(&'static str),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -148,6 +155,32 @@ enum LogoutConfirmEffect {
     None,
     OpenMainMenu(u8),
     Disconnect,
+}
+
+struct FolderGui {
+    window_id: u8,
+    folder: String,
+    page: EmailListPage,
+}
+
+enum FolderLoadAction {
+    Open { folder: String },
+    Refresh { window_id: u8, folder: String },
+}
+
+type FolderLoadFuture =
+    Pin<Box<dyn Future<Output = Result<EmailListPage, String>> + Send + 'static>>;
+
+struct PendingFolderLoad {
+    action: FolderLoadAction,
+    future: FolderLoadFuture,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum FolderGuiEffect {
+    None,
+    LoadPage(i32),
+    OpenMainMenu(u8),
 }
 
 impl MinecraftDraft {
@@ -378,6 +411,7 @@ struct StatusService {
     world: Arc<WorldTemplate>,
     connection_timeout: Duration,
     auth: Option<Arc<AuthService>>,
+    mailbox: Option<Arc<MailboxService>>,
     auth_limiter: Arc<MinecraftAuthLimiter>,
 }
 
@@ -414,13 +448,19 @@ impl StatusService {
             world,
             connection_timeout: Duration::from_secs(config.read_timeout_seconds),
             auth: None,
+            mailbox: None,
             auth_limiter: Arc::new(MinecraftAuthLimiter::new(config)),
         })
     }
 
-    fn with_auth(config: &MinecraftConfig, auth: Arc<AuthService>) -> io::Result<Self> {
+    fn with_services(
+        config: &MinecraftConfig,
+        auth: Arc<AuthService>,
+        mailbox: Arc<MailboxService>,
+    ) -> io::Result<Self> {
         let mut service = Self::new(config)?;
         service.auth = Some(auth);
+        service.mailbox = Some(mailbox);
         Ok(service)
     }
 
@@ -503,8 +543,14 @@ pub async fn serve_minecraft(
 ) -> io::Result<()> {
     let listener =
         TcpListener::bind((config.listen.host.as_str(), config.listen.minecraft)).await?;
-    let auth = AuthService::from_config(&config, database_pool).map_err(io::Error::other)?;
-    let service = Arc::new(StatusService::with_auth(&config.minecraft, Arc::new(auth))?);
+    let auth =
+        AuthService::from_config(&config, database_pool.clone()).map_err(io::Error::other)?;
+    let mailbox = MailboxService::from_config(&config, database_pool);
+    let service = Arc::new(StatusService::with_services(
+        &config.minecraft,
+        Arc::new(auth),
+        Arc::new(mailbox),
+    )?);
     serve_listener(listener, service, cancellation, MAX_CONNECTIONS).await
 }
 
@@ -613,6 +659,8 @@ async fn handle_connection(
     let mut draft = MinecraftDraft::default();
     let mut open_menu_window_id = None;
     let mut logout_confirm_window_id = None;
+    let mut open_folder_gui: Option<FolderGui> = None;
+    let mut pending_folder_load: Option<PendingFolderLoad> = None;
     let mut render_settings = RenderSettings::default();
     let mut render_settings_pending = false;
 
@@ -624,6 +672,73 @@ async fn handle_connection(
             tokio::select! {
                 biased;
                 _ = cancellation.cancelled() => return Ok(()),
+                folder_result = async {
+                    pending_folder_load
+                        .as_mut()
+                        .expect("guarded folder load was missing")
+                        .future
+                        .as_mut()
+                        .await
+                }, if pending_folder_load.is_some() => {
+                    let pending = pending_folder_load
+                        .take()
+                        .expect("completed folder load was missing");
+                    let responses = match (pending.action, folder_result) {
+                        (FolderLoadAction::Open { folder }, Ok(page)) => {
+                            let gui = FolderGui {
+                                window_id: service.next_window_id(),
+                                folder,
+                                page,
+                            };
+                            let packets = folder_gui_packets(&gui)?;
+                            open_folder_gui = Some(gui);
+                            packets
+                        }
+                        (FolderLoadAction::Open { .. }, Err(error)) => vec![chat_packet(
+                            &format!("\u{00a7}cFailed to load: {error}"),
+                            Some("red"),
+                        )?],
+                        (
+                            FolderLoadAction::Refresh { window_id, folder },
+                            Ok(page),
+                        ) => {
+                            if let Some(gui) = open_folder_gui.as_mut().filter(|gui| {
+                                gui.window_id == window_id && gui.folder == folder
+                            }) {
+                                gui.page = page;
+                                vec![folder_contents_packet(gui)?]
+                            } else {
+                                Vec::new()
+                            }
+                        }
+                        (FolderLoadAction::Refresh { window_id, folder }, Err(error)) => {
+                            if open_folder_gui.as_ref().is_some_and(|gui| {
+                                gui.window_id == window_id && gui.folder == folder
+                            }) {
+                                vec![chat_packet(
+                                    &format!("\u{00a7}cFailed: {error}"),
+                                    Some("red"),
+                                )?]
+                            } else {
+                                Vec::new()
+                            }
+                        }
+                    };
+                    if let Err(error) = write_packet_list(
+                        &mut writer,
+                        &service,
+                        responses,
+                        compression,
+                        cipher.as_mut(),
+                        deadline,
+                        &cancellation,
+                    )
+                    .await
+                    {
+                        return finish_write_error(error);
+                    }
+                    continue;
+                }
                 _ = sleep_until(position_at) => {
                     next_position_check = Some(position_at + POSITION_CHECK_INTERVAL);
                     let spawn = &service.config.spawn;
@@ -1102,10 +1217,14 @@ async fn handle_connection(
                             .eq_ignore_ascii_case("/menu")
                             .then(|| service.next_window_id());
                         let mut responses = Vec::new();
-                        let replaced_gui = open_menu_window_id.take().is_some()
-                            | logout_confirm_window_id.take().is_some();
-                        if menu_window_id.is_some() && replaced_gui {
-                            responses.extend(restore_hotbar_packets()?);
+                        if menu_window_id.is_some() {
+                            let replaced_gui = open_menu_window_id.take().is_some()
+                                | logout_confirm_window_id.take().is_some()
+                                | open_folder_gui.take().is_some();
+                            pending_folder_load = None;
+                            if replaced_gui {
+                                responses.extend(restore_hotbar_packets()?);
+                            }
                         }
                         if let Some((command_packets, opens_render_settings)) =
                             render_size_command_packets(
@@ -1151,7 +1270,11 @@ async fn handle_connection(
                         return Ok(());
                     }
                     let closed_gui = open_menu_window_id.take().is_some()
-                        | logout_confirm_window_id.take().is_some();
+                        | logout_confirm_window_id.take().is_some()
+                        | open_folder_gui.take().is_some();
+                    if closed_gui {
+                        pending_folder_load = None;
+                    }
                     if closed_gui
                         && let Err(error) = write_packet_list(
                             &mut writer,
@@ -1196,6 +1319,24 @@ async fn handle_connection(
                             MainMenuEffect::OpenLogoutConfirm(window_id) => {
                                 open_menu_window_id = None;
                                 logout_confirm_window_id = Some(window_id);
+                            }
+                            MainMenuEffect::OpenFolder(folder) => {
+                                open_menu_window_id = None;
+                                logout_confirm_window_id = None;
+                                open_folder_gui = None;
+                                let Some((email, _)) = authenticated.as_ref() else {
+                                    return Ok(());
+                                };
+                                pending_folder_load = Some(start_folder_load(
+                                    &service,
+                                    email,
+                                    folder,
+                                    0,
+                                    FolderLoadAction::Open {
+                                        folder: folder.to_owned(),
+                                    },
+                                    deadline,
+                                )?);
                             }
                         }
                         if let Err(error) = write_packet_list(
@@ -1248,6 +1389,63 @@ async fn handle_connection(
                         if effect == LogoutConfirmEffect::Disconnect {
                             shutdown_stream(&mut writer, deadline, &cancellation).await?;
                             return Ok(());
+                        }
+                    } else if open_folder_gui
+                        .as_ref()
+                        .is_some_and(|gui| gui.window_id == click.window_id)
+                    {
+                        let main_window_id =
+                            (click.mode == 0 && click.slot == 49).then(|| service.next_window_id());
+                        let (responses, effect) = folder_gui_click_packets(
+                            click,
+                            open_folder_gui
+                                .as_ref()
+                                .expect("matched folder GUI was missing"),
+                            main_window_id,
+                            render_settings,
+                        )?;
+                        match effect {
+                            FolderGuiEffect::None => {}
+                            FolderGuiEffect::LoadPage(page) => {
+                                if pending_folder_load.is_none() {
+                                    let gui = open_folder_gui
+                                        .as_ref()
+                                        .expect("folder GUI page request lost its state");
+                                    let Some((email, _)) = authenticated.as_ref() else {
+                                        return Ok(());
+                                    };
+                                    pending_folder_load = Some(start_folder_load(
+                                        &service,
+                                        email,
+                                        &gui.folder,
+                                        page,
+                                        FolderLoadAction::Refresh {
+                                            window_id: gui.window_id,
+                                            folder: gui.folder.clone(),
+                                        },
+                                        deadline,
+                                    )?);
+                                }
+                            }
+                            FolderGuiEffect::OpenMainMenu(window_id) => {
+                                pending_folder_load = None;
+                                open_folder_gui = None;
+                                open_menu_window_id = Some(window_id);
+                                logout_confirm_window_id = None;
+                            }
+                        }
+                        if let Err(error) = write_packet_list(
+                            &mut writer,
+                            &service,
+                            responses,
+                            compression,
+                            cipher.as_mut(),
+                            deadline,
+                            &cancellation,
+                        )
+                        .await
+                        {
+                            return finish_write_error(error);
                         }
                     }
                 }
@@ -2380,6 +2578,21 @@ fn main_menu_click_packets(
         MainMenuEffect::None
     } else {
         match click.slot {
+            10 | 12 | 14 | 16 => {
+                let folder = match click.slot {
+                    10 => "inbox",
+                    12 => "sent",
+                    14 => "trash",
+                    16 => "spam",
+                    _ => unreachable!(),
+                };
+                packets.push(chat_packet(
+                    &format!("\u{00a7}7Loading {folder}..."),
+                    Some("gray"),
+                )?);
+                packets.extend(close_menu_packets(click.window_id)?);
+                MainMenuEffect::OpenFolder(folder)
+            }
             22 => {
                 packets.extend(close_menu_packets(click.window_id)?);
                 packets.extend(render_settings_editor_packets(render_settings)?);
@@ -2414,6 +2627,266 @@ fn main_menu_click_packets(
                 MainMenuEffect::Close
             }
             _ => MainMenuEffect::None,
+        }
+    };
+    Ok((packets, effect))
+}
+
+fn start_folder_load(
+    service: &StatusService,
+    email: &str,
+    folder: &str,
+    page: i32,
+    action: FolderLoadAction,
+    connection_deadline: Instant,
+) -> io::Result<PendingFolderLoad> {
+    let mailbox = service.mailbox.as_ref().cloned().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::NotConnected,
+            "Minecraft mailbox service is unavailable",
+        )
+    })?;
+    let email = email.to_owned();
+    let folder = folder.to_owned();
+    let load_deadline = connection_deadline.min(Instant::now() + FOLDER_LOAD_TIMEOUT);
+    let future = Box::pin(async move {
+        match timeout_at(
+            load_deadline,
+            mailbox.list_folder(&email, &folder, page, FOLDER_PAGE_SIZE, false),
+        )
+        .await
+        {
+            Ok(Ok(page)) => Ok(page),
+            Ok(Err(error)) => Err(error.to_string()),
+            Err(_) => Err("mailbox backend unavailable".to_owned()),
+        }
+    });
+    Ok(PendingFolderLoad { action, future })
+}
+
+fn folder_gui_packets(gui: &FolderGui) -> io::Result<Vec<Vec<u8>>> {
+    let mut open = vec![0x2d, gui.window_id];
+    write_string(&mut open, "minecraft:chest")?;
+    let label = match gui.folder.as_str() {
+        "inbox" => "\u{00a7}9Inbox".to_owned(),
+        "sent" => "\u{00a7}bSent".to_owned(),
+        "trash" => "\u{00a7}cTrash".to_owned(),
+        "spam" => "\u{00a7}4Spam".to_owned(),
+        folder => format!("\u{00a7}8{folder}"),
+    };
+    let title = format!(
+        "{label} \u{00a7}8(Page {}/{})",
+        gui.page.current_page + 1,
+        gui.page.total_pages.max(1)
+    );
+    write_string(&mut open, &chat_json(&title, None))?;
+    open.push(54);
+    Ok(vec![open, folder_contents_packet(gui)?])
+}
+
+fn folder_contents_packet(gui: &FolderGui) -> io::Result<Vec<u8>> {
+    let mut slots = vec![MinecraftSlot::empty(); 54];
+    slots.extend((0..36).map(|_| MinecraftSlot::empty()));
+
+    for (index, item) in gui
+        .page
+        .content
+        .iter()
+        .take(FOLDER_PAGE_SIZE as usize)
+        .enumerate()
+    {
+        slots[index] = folder_email_slot(item);
+    }
+
+    let separator = gui_slot(160, 7, " ", &[], false);
+    for slot in &mut slots[36..45] {
+        *slot = separator.clone();
+    }
+    let page_name = format!(
+        "\u{00a7}ePage {}/{}",
+        gui.page.current_page + 1,
+        gui.page.total_pages.max(1)
+    );
+    let page_lore = format!("\u{00a7}7{} email(s) total", gui.page.total_elements);
+    slots[40] = gui_slot(339, 0, &page_name, &[&page_lore], false);
+
+    let filler = gui_slot(160, 15, " ", &[], false);
+    for slot in &mut slots[45..54] {
+        *slot = filler.clone();
+    }
+    if gui.page.current_page > 0 {
+        let lore = format!("\u{00a7}7Page {}", gui.page.current_page);
+        slots[46] = skull_gui_slot(
+            TEXTURE_ARROW_LEFT,
+            "\u{00a7}a\u{25c0} Previous Page",
+            &[&lore],
+        );
+    }
+    slots[49] = gui_slot(
+        262,
+        0,
+        "\u{00a7}c\u{2190} Back to Menu",
+        &["\u{00a7}7Return to main menu"],
+        false,
+    );
+    if gui.page.current_page < gui.page.total_pages - 1 {
+        let lore = format!("\u{00a7}7Page {}", gui.page.current_page + 2);
+        slots[52] = skull_gui_slot(TEXTURE_ARROW_RIGHT, "\u{00a7}aNext Page \u{25b6}", &[&lore]);
+    }
+
+    slots[81] = MinecraftSlot::item(386, 0, book_item_nbt());
+    slots[89] = MinecraftSlot::item(399, 0, menu_star_nbt());
+    let mut contents = vec![0x30, gui.window_id];
+    contents.extend_from_slice(&(slots.len() as i16).to_be_bytes());
+    for slot in &slots {
+        write_slot(&mut contents, slot)?;
+    }
+    Ok(contents)
+}
+
+fn folder_email_slot(item: &EmailListItem) -> MinecraftSlot {
+    let subject = java_truncated_nbt_line("\u{00a7}f", item.subject.as_deref(), 32);
+    let sender = java_truncated_nbt_line("\u{00a7}7From: \u{00a7}f", item.from.as_deref(), 28);
+    let date = format!("\u{00a7}7Date: \u{00a7}f{}", folder_date(&item.received_at));
+    let display = NbtValue::Compound(vec![
+        ("Name".to_owned(), NbtValue::Utf16String(subject)),
+        (
+            "Lore".to_owned(),
+            NbtValue::List {
+                element_type: 8,
+                values: vec![
+                    NbtValue::Utf16String(sender),
+                    NbtValue::String(date),
+                    NbtValue::String(String::new()),
+                    NbtValue::String("\u{00a7}eClick to view on map wall".to_owned()),
+                ],
+            },
+        ),
+    ]);
+    let mut root = vec![("display".to_owned(), display)];
+    if item.has_attachments {
+        root.push((
+            "ench".to_owned(),
+            NbtValue::List {
+                element_type: 10,
+                values: vec![NbtValue::Compound(vec![
+                    ("id".to_owned(), NbtValue::Short(0)),
+                    ("lvl".to_owned(), NbtValue::Short(1)),
+                ])],
+            },
+        ));
+        root.push(("HideFlags".to_owned(), NbtValue::Int(63)));
+    }
+    MinecraftSlot::item(339, 0, NbtValue::Compound(root))
+}
+
+const TEXTURE_ARROW_LEFT: &str = "http://textures.minecraft.net/texture/de1dfc11a837111d22b001a14461f9a7fc093522f88c58faefd6adeffcd4e9ab";
+const TEXTURE_ARROW_RIGHT: &str = "http://textures.minecraft.net/texture/7c69d41076a8dea4f06d3f1a9ac47cc996988b74a0913ab2ac1a74caf7081918";
+
+fn skull_gui_slot(texture_url: &str, name: &str, lore: &[&str]) -> MinecraftSlot {
+    let display = vec![
+        ("Name".to_owned(), NbtValue::String(name.to_owned())),
+        (
+            "Lore".to_owned(),
+            NbtValue::List {
+                element_type: 8,
+                values: lore
+                    .iter()
+                    .map(|line| NbtValue::String((*line).to_owned()))
+                    .collect(),
+            },
+        ),
+    ];
+    let texture_json = serde_json::json!({
+        "textures": {"SKIN": {"url": texture_url}}
+    })
+    .to_string();
+    let texture_value = STANDARD.encode(texture_json.as_bytes());
+    let skull_owner = NbtValue::Compound(vec![
+        (
+            "Id".to_owned(),
+            NbtValue::String(java_name_uuid(texture_url.as_bytes())),
+        ),
+        (
+            "Properties".to_owned(),
+            NbtValue::Compound(vec![(
+                "textures".to_owned(),
+                NbtValue::List {
+                    element_type: 10,
+                    values: vec![NbtValue::Compound(vec![(
+                        "Value".to_owned(),
+                        NbtValue::String(texture_value),
+                    )])],
+                },
+            )]),
+        ),
+    ]);
+    MinecraftSlot::item(
+        397,
+        3,
+        NbtValue::Compound(vec![
+            ("display".to_owned(), NbtValue::Compound(display)),
+            ("SkullOwner".to_owned(), skull_owner),
+        ]),
+    )
+}
+
+fn java_truncated_nbt_line(prefix: &str, value: Option<&str>, max_utf16_units: usize) -> Vec<u16> {
+    let encoded = value.unwrap_or("(none)").encode_utf16().collect::<Vec<_>>();
+    let mut output = prefix.encode_utf16().collect::<Vec<_>>();
+    if encoded.len() > max_utf16_units {
+        output.extend_from_slice(&encoded[..max_utf16_units]);
+        output.extend("...".encode_utf16());
+    } else {
+        output.extend_from_slice(&encoded);
+    }
+    output
+}
+
+fn folder_date(value: &str) -> String {
+    chrono::DateTime::parse_from_rfc3339(value).map_or_else(
+        |_| "?".to_owned(),
+        |date| {
+            date.with_timezone(&chrono::Local)
+                .format("%m/%d %H:%M")
+                .to_string()
+        },
+    )
+}
+
+fn folder_gui_click_packets(
+    click: WindowClick,
+    gui: &FolderGui,
+    main_window_id: Option<u8>,
+    render_settings: RenderSettings,
+) -> io::Result<(Vec<Vec<u8>>, FolderGuiEffect)> {
+    let mut confirmation = vec![0x32, click.window_id];
+    confirmation.extend_from_slice(&click.action_number.to_be_bytes());
+    confirmation.push(0);
+    let mut clear_cursor = vec![0x2f, u8::MAX];
+    clear_cursor.extend_from_slice(&(-1_i16).to_be_bytes());
+    clear_cursor.extend_from_slice(&(-1_i16).to_be_bytes());
+    let mut packets = vec![confirmation, clear_cursor, folder_contents_packet(gui)?];
+    let effect = if click.mode != 0 || !(0..54).contains(&click.slot) {
+        FolderGuiEffect::None
+    } else {
+        match click.slot {
+            46 if gui.page.current_page > 0 => FolderGuiEffect::LoadPage(gui.page.current_page - 1),
+            49 => {
+                let Some(window_id) = main_window_id else {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "Minecraft main-menu window ID is missing",
+                    ));
+                };
+                packets.extend(restore_hotbar_packets()?);
+                packets.extend(main_menu_packets(window_id, render_settings)?);
+                FolderGuiEffect::OpenMainMenu(window_id)
+            }
+            52 if gui.page.current_page < gui.page.total_pages - 1 => {
+                FolderGuiEffect::LoadPage(gui.page.current_page + 1)
+            }
+            _ => FolderGuiEffect::None,
         }
     };
     Ok((packets, effect))
@@ -3202,7 +3675,11 @@ fn decompress_packet(
 
 fn offline_uuid(username: &str) -> io::Result<String> {
     let input = format!("OfflinePlayer:{username}");
-    let mut bytes: [u8; 16] = Md5::digest(input.as_bytes()).into();
+    Ok(java_name_uuid(input.as_bytes()))
+}
+
+fn java_name_uuid(input: &[u8]) -> String {
+    let mut bytes: [u8; 16] = Md5::digest(input).into();
     bytes[6] = (bytes[6] & 0x0f) | 0x30;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
     let mut value = String::with_capacity(36);
@@ -3214,7 +3691,7 @@ fn offline_uuid(username: &str) -> io::Result<String> {
         value.push(HEX[usize::from(byte >> 4)] as char);
         value.push(HEX[usize::from(byte & 0x0f)] as char);
     }
-    Ok(value)
+    value
 }
 
 fn write_string(output: &mut Vec<u8>, value: &str) -> io::Result<()> {
@@ -3820,7 +4297,6 @@ fn retryable_accept_error(error: &io::Error) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use base64::{Engine as _, engine::general_purpose::STANDARD};
     use proptest::prelude::*;
     use tokio::sync::oneshot;
     use tokio::time::sleep;
@@ -4294,6 +4770,99 @@ mod tests {
             assert_eq!(service.next_window_id(), expected);
         }
         assert_eq!(service.next_window_id(), 1);
+    }
+
+    #[test]
+    fn folder_gui_builds_java_navigation_and_utf16_nbt_boundaries() {
+        let (opening, opening_effect) = main_menu_click_packets(
+            WindowClick {
+                window_id: 1,
+                slot: 10,
+                action_number: 7,
+                mode: 0,
+            },
+            None,
+            RenderSettings::default(),
+        )
+        .unwrap();
+        assert_eq!(opening_effect, MainMenuEffect::OpenFolder("inbox"));
+        assert_eq!(
+            opening.iter().map(|packet| packet[0]).collect::<Vec<_>>(),
+            [0x32, 0x2f, 0x30, 0x02, 0x2e, 0x2f, 0x2f]
+        );
+
+        let subject = "Unicode subject xxxxxxxxxxxxxxx\u{1f4e7}tail";
+        let item = EmailListItem {
+            file_name: "folder.eml".to_owned(),
+            subject: Some(subject.to_owned()),
+            from: Some("sender@example.test".to_owned()),
+            to: vec!["qa@example.test".to_owned()],
+            received_at: "2024-02-02T10:00:00Z".to_owned(),
+            starred: false,
+            has_attachments: true,
+            labels: Vec::new(),
+            send_status: None,
+            send_status_description: None,
+            retry_count: None,
+            last_error: None,
+        };
+        let gui = FolderGui {
+            window_id: 2,
+            folder: "inbox".to_owned(),
+            page: EmailListPage {
+                content: vec![item],
+                current_page: 0,
+                page_size: 36,
+                total_elements: 37,
+                total_pages: 2,
+                has_next: true,
+                has_previous: false,
+            },
+        };
+        let packets = folder_gui_packets(&gui).unwrap();
+        assert_eq!(packets[0][0], 0x2d);
+        assert_eq!(packets[1][0], 0x30);
+        assert!(
+            packets[1]
+                .windows(3)
+                .any(|window| window == [0xed, 0xa0, 0xbd])
+        );
+
+        let (next, next_effect) = folder_gui_click_packets(
+            WindowClick {
+                window_id: 2,
+                slot: 52,
+                action_number: 8,
+                mode: 0,
+            },
+            &gui,
+            None,
+            RenderSettings::default(),
+        )
+        .unwrap();
+        assert_eq!(next_effect, FolderGuiEffect::LoadPage(1));
+        assert_eq!(
+            next.iter().map(|packet| packet[0]).collect::<Vec<_>>(),
+            [0x32, 0x2f, 0x30]
+        );
+
+        let (back, back_effect) = folder_gui_click_packets(
+            WindowClick {
+                window_id: 2,
+                slot: 49,
+                action_number: 9,
+                mode: 0,
+            },
+            &gui,
+            Some(3),
+            RenderSettings::default(),
+        )
+        .unwrap();
+        assert_eq!(back_effect, FolderGuiEffect::OpenMainMenu(3));
+        assert_eq!(
+            back.iter().map(|packet| packet[0]).collect::<Vec<_>>(),
+            [0x32, 0x2f, 0x30, 0x2f, 0x2f, 0x2d, 0x30]
+        );
     }
 
     #[test]

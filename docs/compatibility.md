@@ -113,6 +113,14 @@ wire, state, storage, or recovery assertions.
   malformed, or out-of-range optional font, then refresh the scoreboard before
   the confirmation chat. With fewer than two value arguments they open the
   render-settings sign editor.
+- Minecraft folder lists use the legacy `email_index` ordering (`received_at`
+  descending), 36 items per page, and the Java slot map 46/49/52 for previous,
+  back, and next. Opening a folder emits the loading/close/hotbar sequence
+  before a new six-row chest; pagination refreshes only `WindowItems` under the
+  same window ID. Database loads have an eight-second bound and are dropped on
+  connection close, GUI replacement, or service cancellation. NBT display
+  strings retain Java UTF-16 substring semantics, including CESU-8 for an
+  isolated surrogate produced by a split supplementary character.
 
 ## SMTP AUTH oracle behavior
 

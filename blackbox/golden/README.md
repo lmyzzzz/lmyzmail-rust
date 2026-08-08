@@ -878,3 +878,14 @@ and the parameterless sign-editor path. The final sign submission and reopened
 menu prove that both public entry points share one connection-local state.
 Periodic `0x03` and `0x18` packets use the same narrow scheduled-play exclusion;
 all command, scoreboard, sign, and menu packets remain byte exact.
+
+The Minecraft folder GUI milestone adds:
+
+- `managed-minecraft-folder-gui-v1/`
+
+It freezes isolated PostgreSQL-backed Inbox, Sent, Trash, and Spam lists with
+37/36 pagination, an attachment glow, null subject/from rendering, Java
+UTF-16 truncation at the NBT boundary, same-window previous/next refresh, and
+return-to-menu window allocation. Only periodic `0x03` and `0x18` PLAY ticks
+are excluded while a bounded database load completes; all folder, navigation,
+slot, and hotbar frames remain byte exact.
