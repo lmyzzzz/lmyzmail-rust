@@ -106,6 +106,34 @@ impl MinecraftDraft {
     }
 }
 
+#[derive(Clone)]
+struct MinecraftSlot {
+    item_id: i16,
+    count: u8,
+    damage: i16,
+    nbt: Option<NbtValue>,
+}
+
+impl MinecraftSlot {
+    fn empty() -> Self {
+        Self {
+            item_id: -1,
+            count: 0,
+            damage: 0,
+            nbt: None,
+        }
+    }
+
+    fn item(item_id: i16, damage: i16, nbt: NbtValue) -> Self {
+        Self {
+            item_id,
+            count: 1,
+            damage,
+            nbt: Some(nbt),
+        }
+    }
+}
+
 impl MinecraftAuthLimiter {
     fn new(config: &MinecraftConfig) -> Self {
         Self {
@@ -290,6 +318,7 @@ struct StatusService {
     online_mode: Option<OnlineModeService>,
     next_entity_id: AtomicI32,
     next_hologram_entity_id: AtomicI32,
+    next_window_id: AtomicI32,
     next_connection_id: AtomicU64,
     online_sessions: Arc<Mutex<HashMap<String, u64>>>,
     world: Arc<WorldTemplate>,
@@ -325,6 +354,7 @@ impl StatusService {
                 .transpose()?,
             next_entity_id: AtomicI32::new(1),
             next_hologram_entity_id: AtomicI32::new(900_000),
+            next_window_id: AtomicI32::new(1),
             next_connection_id: AtomicU64::new(1),
             online_sessions: Arc::new(Mutex::new(HashMap::with_capacity(MAX_CONNECTIONS))),
             world,
@@ -370,6 +400,14 @@ impl StatusService {
     fn reserve_hologram_entity_ids(&self, count: i32) -> i32 {
         self.next_hologram_entity_id
             .fetch_add(count, Ordering::Relaxed)
+    }
+
+    fn next_window_id(&self) -> u8 {
+        self.next_window_id
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                Some((current % 100) + 1)
+            })
+            .unwrap_or_else(|current| current) as u8
     }
 
     fn register_online(&self, uuid: String) -> OnlineCountGuard {
@@ -1000,8 +1038,17 @@ async fn handle_connection(
                             return Ok(());
                         }
                     } else if authenticated.is_some() {
-                        let responses =
-                            authenticated_command_packets(&message, &service.config, &mut draft)?;
+                        let command = java_trim(&message);
+                        let command_end = command.find(java_regex_space).unwrap_or(command.len());
+                        let menu_window_id = command[..command_end]
+                            .eq_ignore_ascii_case("/menu")
+                            .then(|| service.next_window_id());
+                        let responses = authenticated_command_packets(
+                            &message,
+                            &service.config,
+                            &mut draft,
+                            menu_window_id,
+                        )?;
                         message.zeroize();
                         if let Err(error) = write_packet_list(
                             &mut writer,
@@ -1769,6 +1816,7 @@ fn authenticated_command_packets(
     message: &str,
     config: &MinecraftConfig,
     draft: &mut MinecraftDraft,
+    menu_window_id: Option<u8>,
 ) -> io::Result<Vec<Vec<u8>>> {
     let command = java_trim(message);
     if !command.starts_with('/') {
@@ -1803,7 +1851,8 @@ fn authenticated_command_packets(
             packets.push(draft_book_packet()?);
             Ok(packets)
         }
-        "/menu" | "/mail" | "/video" => Ok(Vec::new()),
+        "/menu" => menu_window_id.map_or_else(|| Ok(Vec::new()), main_menu_packets),
+        "/mail" | "/video" => Ok(Vec::new()),
         _ => Ok(vec![chat_packet(
             "\u{00a7}cUnknown command. Use /help",
             Some("red"),
@@ -1834,6 +1883,172 @@ fn draft_display(value: &str) -> &str {
     } else {
         value
     }
+}
+
+fn main_menu_packets(window_id: u8) -> io::Result<Vec<Vec<u8>>> {
+    let mut open = vec![0x2d, window_id];
+    write_string(&mut open, "minecraft:chest")?;
+    write_string(&mut open, &chat_json("\u{00a7}8LMYZMAIL Menu", None))?;
+    open.push(54);
+
+    let filler = gui_slot(160, 15, " ", &[], false);
+    let mut slots = vec![filler; 54];
+    slots.extend((0..36).map(|_| MinecraftSlot::empty()));
+    slots[4] = gui_slot(
+        399,
+        0,
+        "\u{00a7}6\u{00a7}lLMYZMAIL",
+        &[
+            "\u{00a7}7Minecraft Mail Server",
+            "\u{00a7}7Skibidi dop dop yes yes!",
+        ],
+        true,
+    );
+    slots[10] = gui_slot(
+        54,
+        0,
+        "\u{00a7}a\u{00a7}lInbox",
+        &[
+            "\u{00a7}7View received emails",
+            "",
+            "\u{00a7}eClick to open",
+        ],
+        false,
+    );
+    slots[12] = gui_slot(
+        262,
+        0,
+        "\u{00a7}b\u{00a7}lSent",
+        &["\u{00a7}7View sent emails", "", "\u{00a7}eClick to open"],
+        false,
+    );
+    slots[14] = gui_slot(
+        327,
+        0,
+        "\u{00a7}c\u{00a7}lTrash",
+        &["\u{00a7}7View deleted emails", "", "\u{00a7}eClick to open"],
+        false,
+    );
+    slots[16] = gui_slot(
+        367,
+        0,
+        "\u{00a7}4\u{00a7}lSpam",
+        &["\u{00a7}7View spam emails", "", "\u{00a7}eClick to open"],
+        false,
+    );
+    slots[22] = gui_slot(
+        323,
+        0,
+        "\u{00a7}e\u{00a7}lRender Settings",
+        &[
+            "\u{00a7}7Mail render dimensions",
+            "\u{00a7}7Current: \u{00a7}f10\u{00d7}20 \u{00a7}7maps",
+            "\u{00a7}7(1280\u{00d7}2560 px)",
+            "\u{00a7}7Font: \u{00a7}f20px",
+            "",
+            "\u{00a7}eClick to change",
+        ],
+        false,
+    );
+    slots[28] = gui_slot(
+        49,
+        0,
+        "\u{00a7}c\u{00a7}lVideo Player",
+        &[
+            "\u{00a7}7Watch Skibidi Toilet EP.1",
+            "\u{00a7}7in Minecraft!",
+            "",
+            "\u{00a7}eClick to choose mode",
+        ],
+        false,
+    );
+    slots[30] = gui_slot(
+        340,
+        0,
+        "\u{00a7}f\u{00a7}lHelp",
+        &["\u{00a7}7Show command help", "", "\u{00a7}eClick for help"],
+        false,
+    );
+    slots[32] = gui_slot(
+        345,
+        0,
+        "\u{00a7}e\u{00a7}lSwitch Account",
+        &[
+            "\u{00a7}7Log out and sign in",
+            "\u{00a7}7with a different email",
+            "",
+            "\u{00a7}eClick to switch",
+        ],
+        false,
+    );
+    slots[34] = gui_slot(
+        166,
+        0,
+        "\u{00a7}c\u{00a7}lLogout",
+        &[
+            "\u{00a7}7Disconnect from LMYZMAIL",
+            "",
+            "\u{00a7}eClick to logout",
+        ],
+        false,
+    );
+    slots[49] = gui_slot(
+        331,
+        0,
+        "\u{00a7}7Close Menu",
+        &["\u{00a7}8Click to close"],
+        false,
+    );
+    slots[81] = MinecraftSlot::item(386, 0, book_item_nbt());
+    slots[89] = MinecraftSlot::item(399, 0, menu_star_nbt());
+
+    let mut contents = vec![0x30, window_id];
+    contents.extend_from_slice(&(slots.len() as i16).to_be_bytes());
+    for slot in &slots {
+        write_slot(&mut contents, slot)?;
+    }
+    Ok(vec![open, contents])
+}
+
+fn gui_slot(item_id: i16, damage: i16, name: &str, lore: &[&str], glow: bool) -> MinecraftSlot {
+    let mut display = vec![("Name".to_owned(), NbtValue::String(name.to_owned()))];
+    if !lore.is_empty() {
+        display.push((
+            "Lore".to_owned(),
+            NbtValue::List {
+                element_type: 8,
+                values: lore
+                    .iter()
+                    .map(|line| NbtValue::String((*line).to_owned()))
+                    .collect(),
+            },
+        ));
+    }
+    let mut root = vec![("display".to_owned(), NbtValue::Compound(display))];
+    if glow {
+        root.push((
+            "ench".to_owned(),
+            NbtValue::List {
+                element_type: 10,
+                values: vec![NbtValue::Compound(vec![
+                    ("id".to_owned(), NbtValue::Short(0)),
+                    ("lvl".to_owned(), NbtValue::Short(1)),
+                ])],
+            },
+        ));
+        root.push(("HideFlags".to_owned(), NbtValue::Int(63)));
+    }
+    MinecraftSlot::item(item_id, damage, NbtValue::Compound(root))
+}
+
+fn write_slot(output: &mut Vec<u8>, slot: &MinecraftSlot) -> io::Result<()> {
+    output.extend_from_slice(&slot.item_id.to_be_bytes());
+    if slot.item_id >= 0 {
+        output.push(slot.count);
+        output.extend_from_slice(&slot.damage.to_be_bytes());
+        minecraft_world::write_nbt(slot.nbt.as_ref(), output)?;
+    }
+    Ok(())
 }
 
 fn stuck_command_packets(config: &MinecraftConfig) -> io::Result<Vec<Vec<u8>>> {
@@ -3133,32 +3348,33 @@ mod tests {
     fn authenticated_basic_commands_match_java_trim_case_and_packet_order() {
         let configured = config(Duration::from_secs(30));
         let mut draft = MinecraftDraft::default();
-        let help = authenticated_command_packets("  /HeLp  ", &configured, &mut draft).unwrap();
+        let help =
+            authenticated_command_packets("  /HeLp  ", &configured, &mut draft, None).unwrap();
         assert_eq!(help, email_instruction_packets().unwrap());
         assert_eq!(help.len(), 8);
         assert!(help.iter().all(|packet| packet[0] == 0x02));
 
-        let stuck = authenticated_command_packets("/stuck", &configured, &mut draft).unwrap();
+        let stuck = authenticated_command_packets("/stuck", &configured, &mut draft, None).unwrap();
         assert_eq!(stuck.len(), 2);
         assert_eq!(stuck[0][0], 0x08);
         assert_eq!(stuck[1][0], 0x02);
         assert_eq!(
-            authenticated_command_packets("/skibidi", &configured, &mut draft).unwrap()[0],
+            authenticated_command_packets("/skibidi", &configured, &mut draft, None).unwrap()[0],
             chat_packet("Brrrrrr Skibidi dop dop dop yes yes!", None).unwrap()
         );
         assert_eq!(
-            authenticated_command_packets("/video", &configured, &mut draft)
+            authenticated_command_packets("/video", &configured, &mut draft, None)
                 .unwrap()
                 .len(),
             3
         );
         assert_eq!(
-            authenticated_command_packets("/definitely-unknown", &configured, &mut draft).unwrap()
-                [0],
+            authenticated_command_packets("/definitely-unknown", &configured, &mut draft, None,)
+                .unwrap()[0],
             chat_packet("\u{00a7}cUnknown command. Use /help", Some("red")).unwrap()
         );
         assert!(
-            authenticated_command_packets("plain chat", &configured, &mut draft)
+            authenticated_command_packets("plain chat", &configured, &mut draft, None)
                 .unwrap()
                 .is_empty()
         );
@@ -3174,7 +3390,8 @@ mod tests {
             subject: "subject".to_owned(),
             body_pages: vec!["page one".to_owned(), "page two".to_owned()],
         };
-        let summary = authenticated_command_packets("/draft", &configured, &mut draft).unwrap();
+        let summary =
+            authenticated_command_packets("/draft", &configured, &mut draft, None).unwrap();
         assert_eq!(summary.len(), 6);
         assert_eq!(
             summary[1],
@@ -3185,7 +3402,7 @@ mod tests {
             chat_packet("\u{00a7}7Body: \u{00a7}f2 page(s)", None).unwrap()
         );
 
-        let clear = authenticated_command_packets("/clear", &configured, &mut draft).unwrap();
+        let clear = authenticated_command_packets("/clear", &configured, &mut draft, None).unwrap();
         assert_eq!(
             clear.iter().map(|packet| packet[0]).collect::<Vec<_>>(),
             [0x02, 0x33, 0x33, 0x33, 0x33, 0x2f]
@@ -3195,6 +3412,24 @@ mod tests {
         assert!(draft.bcc.is_empty());
         assert!(draft.subject.is_empty());
         assert!(draft.body_pages.is_empty());
+    }
+
+    #[test]
+    fn main_menu_payload_and_window_id_cycle_are_bounded() {
+        let packets = main_menu_packets(1).unwrap();
+        assert_eq!(packets.len(), 2);
+        assert_eq!(packets[0][0], 0x2d);
+        assert_eq!(packets[0].len(), 47);
+        assert_eq!(packets[1][0], 0x30);
+        assert_eq!(packets[1][1], 1);
+        assert_eq!(i16::from_be_bytes([packets[1][2], packets[1][3]]), 90);
+        assert_eq!(packets[1].len(), 2771);
+
+        let service = StatusService::new(&config(Duration::from_secs(30))).unwrap();
+        for expected in 1..=100 {
+            assert_eq!(service.next_window_id(), expected);
+        }
+        assert_eq!(service.next_window_id(), 1);
     }
 
     #[test]

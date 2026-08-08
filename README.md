@@ -113,7 +113,8 @@ authentication prompt plus the basic authenticated `/help`, `/stuck`,
 frozen Java wire goldens. Auth attempts use the bounded
 `lmyzmail.minecraft.auth.*` settings with the legacy `botmail.minecraft.auth.*`
 aliases accepted at lower precedence. GUI, mail, and video remain outside this
-milestone and are not claimed as implemented.
+milestone and are not claimed as implemented, except that the authenticated
+six-row main menu now opens with its exact frozen slot and NBT layout.
 
 Outbound HTTP currently covers durable PostgreSQL admission, sender-scoped and
 API status lookup, and quota reporting. A `202` response is emitted only after a

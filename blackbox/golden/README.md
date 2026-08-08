@@ -815,3 +815,12 @@ The initial draft-command milestone adds:
 It freezes empty `/draft`, `/clear`, and the cleared `/draft` state without
 normalization. The clear response includes the exact confirmation chat, four
 empty Update Sign packets, and refreshed empty Book & Quill SetSlot packet.
+
+The Minecraft main-menu opening milestone adds:
+
+- `managed-minecraft-main-menu-v1/`
+
+It freezes the first `/menu` Open Window and complete 90-slot Window Items
+frames without normalization. The latter expands to 2,771 bytes and fixes the
+54 chest slots, 36 player slots, every item/NBT field, the initial window ID,
+and the exact JDK Deflater-compatible zlib wire bytes.
