@@ -96,6 +96,33 @@ inputs, and must never be overwritten in place.
 - `managed-outbound-queue-v1.json` is the rejected first outbound recording. It
   exposed generated sent-filenames before field-scoped normalization and is
   retained only as historical evidence.
+- `managed-mail-api-poll-v1/` is the first exploratory recording for the
+  mailbox polling/raw API and is retained unchanged after the active harness
+  definition was re-attested.
+- `managed-mail-api-poll-v2/` re-attests the same seven API scenarios under the
+  frozen oracle and is retained unchanged.
+- `managed-mail-api-poll-v3/` is the active mailbox polling/raw API set. It
+  adds limit-zero fallback and missing-key validation for poll/raw/rawDecoded,
+  and is retained unchanged after adding decoded-missing behavior.
+- `managed-mail-api-poll-v4/` freezes the Java
+  `500 {"error":"not found"}` response for a missing rawDecoded file and is
+  retained unchanged.
+- `managed-mail-api-poll-v5/` is the active mailbox polling/raw API set. It
+  additionally freezes the full signed 64-bit `sinceEpochMillis` range and is
+  bound to the frozen oracle commit and the current harness definition.
+
+The mailbox polling/raw profile is intentionally kept outside
+`blackbox/tests`: adding it to the attested definition roots would invalidate
+all existing create-once generations before the next complete recording pass.
+Run its Java and candidate verification explicitly from WSL:
+
+```sh
+PYTHONPATH=blackbox/src:blackbox/tests:blackbox/tools \
+  blackbox/.venv/bin/python -m pytest blackbox/tools/test_mail_api_poll.py
+```
+
+Creating a new immutable generation requires
+`LMYZMAIL_RECORD_JAVA_GOLDEN=1`; an existing generation is never overwritten.
 
 ## Attestation generations
 

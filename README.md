@@ -93,6 +93,14 @@ plus the exact durable identity or intended final state to distinguish a
 committed result from a safe retry; conflicts and failed reconciliation remain
 outcome-unknown.
 
+The read API now also includes `POST /api/mail/poll`, `/api/mail/raw`, and
+`/api/mail/rawDecoded`. It preserves mailbox-password authentication and ban
+responses, the legacy 32 KiB raw-read ceiling, decoded plain/HTML selection,
+missing-file errors, nonpositive-limit fallback, and the complete signed
+64-bit `sinceEpochMillis` input range. Polling is a bounded indexed PostgreSQL
+query, and raw mail is streamed to the socket without copying the whole message
+into an HTTP response buffer.
+
 Outbound HTTP currently covers durable PostgreSQL admission, sender-scoped and
 API status lookup, and quota reporting. A `202` response is emitted only after a
 complete `PENDING` row commits; PostgreSQL advisory locks make queue-depth and

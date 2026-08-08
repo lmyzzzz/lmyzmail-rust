@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use deadpool_postgres::Pool;
 use deadpool_redis::Pool as RedisPool;
 use percent_encoding::percent_decode_str;
@@ -24,9 +24,12 @@ use tokio_util::sync::CancellationToken;
 use url::Url;
 
 use crate::{
-    auth::{AuthError, AuthService, LoginOutcome},
+    auth::{AuthError, AuthService, CredentialOutcome, LoginOutcome},
     config::RuntimeConfig,
-    mailbox::{AttachmentData, AttachmentMeta, EmailDetail, MailboxError, MailboxService},
+    mailbox::{
+        AttachmentData, AttachmentMeta, EmailDetail, MAX_API_RAW_BYTES, MailboxError,
+        MailboxService,
+    },
     outbound::{OutboundError, OutboundService, SendRequest},
     userdata::{ContactRecord, UserDataError, UserDataService},
 };
@@ -772,6 +775,98 @@ async fn handle_connection(
             {
                 Ok(result) => write_json_response(stream, Status::Accepted, &result).await,
                 Err(error) => write_outbound_error(stream, error, true).await,
+            }
+        }
+        ParsedRequest::ApiPoll => {
+            let Some(input) = parse_json_body::<ApiPollRequest>(&request) else {
+                return write_json_error(stream, Status::BadRequest, "invalid_request").await;
+            };
+            let address = match authenticate_api_mailbox(
+                auth,
+                input.address.as_deref(),
+                input.password.as_deref(),
+                &client_ip,
+                cancellation,
+            )
+            .await
+            {
+                Ok(address) => address,
+                Err(error) => return write_api_mailbox_error(stream, error, true).await,
+            };
+            let since = match input.since_epoch_millis {
+                Some(value) => match DateTime::from_timestamp_millis(value) {
+                    Some(value) => Some(value),
+                    None if value >= 0 => Some(DateTime::<Utc>::MAX_UTC),
+                    None => None,
+                },
+                None => None,
+            };
+            let limit = input.limit.filter(|value| *value > 0).unwrap_or(50) as i64;
+            match mailbox.poll_emails(&address, since, limit).await {
+                Ok(items) => write_json_response(stream, Status::Ok, &items).await,
+                Err(MailboxError::InvalidInput(_)) => {
+                    write_json_error(stream, Status::BadRequest, "invalid_request").await
+                }
+                Err(_) => write_json_error(stream, Status::InternalServerError, "internal_error").await,
+            }
+        }
+        ParsedRequest::ApiRaw => {
+            let Some(input) = parse_json_body::<ApiRawRequest>(&request) else {
+                return write_json_error(stream, Status::BadRequest, "invalid_request").await;
+            };
+            let address = match authenticate_api_mailbox(
+                auth,
+                input.address.as_deref(),
+                input.password.as_deref(),
+                &client_ip,
+                cancellation,
+            )
+            .await
+            {
+                Ok(address) => address,
+                Err(error) => return write_api_mailbox_error(stream, error, false).await,
+            };
+            let Some(file) = input.file.as_deref().filter(|value| !value.trim().is_empty())
+            else {
+                return write_json_error(stream, Status::BadRequest, "invalid_request").await;
+            };
+            match mailbox
+                .open_raw_limited(&address, "inbox", file, MAX_API_RAW_BYTES)
+                .await
+            {
+                Ok((body, length)) => write_api_raw_mail_response(stream, body, length).await,
+                Err(_) => write_not_found(stream).await,
+            }
+        }
+        ParsedRequest::ApiRawDecoded => {
+            let Some(input) = parse_json_body::<ApiRawDecodedRequest>(&request) else {
+                return write_json_error(stream, Status::BadRequest, "invalid_request").await;
+            };
+            let address = match authenticate_api_mailbox(
+                auth,
+                input.address.as_deref(),
+                input.password.as_deref(),
+                &client_ip,
+                cancellation,
+            )
+            .await
+            {
+                Ok(address) => address,
+                Err(error) => return write_api_mailbox_error(stream, error, false).await,
+            };
+            let Some(file) = input.file.as_deref().filter(|value| !value.trim().is_empty())
+            else {
+                return write_json_error(stream, Status::BadRequest, "invalid_request").await;
+            };
+            match mailbox
+                .read_decoded_text(&address, "inbox", file, input.html.unwrap_or(false))
+                .await
+            {
+                Ok(decoded) => write_json_response(stream, Status::Ok, &decoded).await,
+                Err(MailboxError::NotFound) => {
+                    write_json_error(stream, Status::InternalServerError, "not found").await
+                }
+                Err(_) => write_json_error(stream, Status::InternalServerError, "internal_error").await,
             }
         }
         ParsedRequest::ApiStatusById(queue_id) => match outbound.api_status_by_id(queue_id).await {
@@ -1812,6 +1907,9 @@ enum ParsedRequest {
     Skibidi,
     ApiStatus,
     ApiSend,
+    ApiPoll,
+    ApiRaw,
+    ApiRawDecoded,
     ApiStatusById(i64),
     ApiStatusByMessage(String),
     ApiQuota(String),
@@ -1951,6 +2049,21 @@ fn parse_request(
         ("POST", "/api/mail/send") => match api_permission(config, api_key, true) {
             ApiPermission::Granted => ParsedRequest::ApiSend,
             ApiPermission::Forbidden => ParsedRequest::ForbiddenWrite,
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+        },
+        ("POST", "/api/mail/poll") => match api_permission(config, api_key, false) {
+            ApiPermission::Granted => ParsedRequest::ApiPoll,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+        },
+        ("POST", "/api/mail/raw") => match api_permission(config, api_key, false) {
+            ApiPermission::Granted => ParsedRequest::ApiRaw,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+        },
+        ("POST", "/api/mail/rawDecoded") => match api_permission(config, api_key, false) {
+            ApiPermission::Granted => ParsedRequest::ApiRawDecoded,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
             ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
         },
         ("GET", path) if path.starts_with("/api/mail/status/") => {
@@ -2226,6 +2339,64 @@ struct WebConfigResponse<'a> {
 struct Credentials {
     address: Option<String>,
     password: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ApiPollRequest {
+    address: Option<String>,
+    password: Option<String>,
+    since_epoch_millis: Option<i64>,
+    limit: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ApiRawRequest {
+    address: Option<String>,
+    password: Option<String>,
+    file: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ApiRawDecodedRequest {
+    address: Option<String>,
+    password: Option<String>,
+    file: Option<String>,
+    html: Option<bool>,
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+enum ApiMailboxError {
+    InvalidRequest,
+    InvalidCredentials,
+    IpBanned,
+    Backend,
+}
+
+async fn authenticate_api_mailbox(
+    auth: &AuthService,
+    address: Option<&str>,
+    password: Option<&str>,
+    client_ip: &str,
+    cancellation: &CancellationToken,
+) -> Result<String, ApiMailboxError> {
+    let Some(address) = address.filter(|value| !value.trim().is_empty()) else {
+        return Err(ApiMailboxError::InvalidRequest);
+    };
+    let Some(password) = password.filter(|value| !value.trim().is_empty()) else {
+        return Err(ApiMailboxError::InvalidRequest);
+    };
+    match auth
+        .verify_mailbox_credentials_with_cancellation(address, password, client_ip, cancellation)
+        .await
+    {
+        Ok(CredentialOutcome::Valid { address }) => Ok(address),
+        Ok(CredentialOutcome::Invalid { ip_banned: true }) => Err(ApiMailboxError::IpBanned),
+        Ok(CredentialOutcome::Invalid { ip_banned: false }) => {
+            Err(ApiMailboxError::InvalidCredentials)
+        }
+        Err(_) => Err(ApiMailboxError::Backend),
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -2655,6 +2826,58 @@ async fn write_raw_mail_response(
     Ok(())
 }
 
+async fn write_api_raw_mail_response(
+    mut stream: TcpStream,
+    mut body: tokio::fs::File,
+    length: u64,
+) -> io::Result<()> {
+    let head = format!(
+        "HTTP/1.1 200 OK\r\ncontent-type: application/octet-stream\r\ncontent-length: {length}\r\n\r\n"
+    );
+    stream.write_all(head.as_bytes()).await?;
+    let mut remaining = length;
+    let mut buffer = [0_u8; 16 * 1024];
+    while remaining > 0 {
+        let to_read = remaining.min(buffer.len() as u64) as usize;
+        let read = body.read(&mut buffer[..to_read]).await?;
+        if read == 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "raw mail file ended before its declared length",
+            ));
+        }
+        stream.write_all(&buffer[..read]).await?;
+        remaining -= read as u64;
+    }
+    Ok(())
+}
+
+async fn write_api_mailbox_error(
+    stream: TcpStream,
+    error: ApiMailboxError,
+    include_ban_message: bool,
+) -> io::Result<()> {
+    match error {
+        ApiMailboxError::InvalidRequest => {
+            write_json_error(stream, Status::BadRequest, "invalid_request").await
+        }
+        ApiMailboxError::InvalidCredentials => {
+            write_json_error(stream, Status::Unauthorized, "invalid_credentials").await
+        }
+        ApiMailboxError::IpBanned if include_ban_message => write_response(
+            stream,
+            Status::Forbidden,
+            br#"{"error":"ip_banned","message":"Too many failed attempts. Please try again later."}"#,
+            "application/json; charset=UTF-8",
+        )
+        .await,
+        ApiMailboxError::IpBanned => write_json_error(stream, Status::Forbidden, "ip_banned").await,
+        ApiMailboxError::Backend => {
+            write_json_error(stream, Status::InternalServerError, "internal_error").await
+        }
+    }
+}
+
 async fn write_attachment_response(
     mut stream: TcpStream,
     attachment: AttachmentData,
@@ -3049,6 +3272,27 @@ lmyzmail.public-registration-enabled=true\n",
             parse_request(request("read-key").as_bytes(), 1024, &config),
             ParsedRequest::ApiStatus
         );
+        for (path, expected) in [
+            ("/api/mail/poll", ParsedRequest::ApiPoll),
+            ("/api/mail/raw", ParsedRequest::ApiRaw),
+            ("/api/mail/rawDecoded", ParsedRequest::ApiRawDecoded),
+        ] {
+            let request = |key: &str| {
+                format!("POST {path} HTTP/1.1\r\nX-API-Key: {key}\r\nContent-Length: 2\r\n\r\n{{}}")
+            };
+            assert_eq!(
+                parse_request(request("missing").as_bytes(), 1024, &config),
+                ParsedRequest::Unauthorized
+            );
+            assert_eq!(
+                parse_request(request("write-key").as_bytes(), 1024, &config),
+                ParsedRequest::ForbiddenRead
+            );
+            assert_eq!(
+                parse_request(request("read-key").as_bytes(), 1024, &config),
+                expected
+            );
+        }
         let write_request =
             |key: &str| format!("POST /api/mailboxes HTTP/1.1\r\nX-API-Key: {key}\r\n\r\n");
         assert_eq!(

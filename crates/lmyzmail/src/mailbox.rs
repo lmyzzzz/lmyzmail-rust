@@ -21,6 +21,7 @@ const DATABASE_TIMEOUT: Duration = Duration::from_secs(8);
 const MAX_HEADER_BYTES: usize = 256 * 1024;
 const MAX_TEXT_BYTES: usize = 2 * 1024 * 1024;
 const MAX_RAW_BYTES: u64 = 64 * 1024 * 1024;
+pub const MAX_API_RAW_BYTES: u64 = 32 * 1024;
 const MAX_FILENAME_BYTES: usize = 255;
 
 #[derive(Debug)]
@@ -94,6 +95,15 @@ pub struct EmailListPage {
     pub total_pages: i32,
     pub has_next: bool,
     pub has_previous: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiPollEmail {
+    pub file_name: String,
+    pub subject: Option<String>,
+    pub from: Option<String>,
+    pub received_at: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -270,6 +280,57 @@ impl MailboxService {
             has_next: page + 1 < total_pages,
             has_previous: page > 0,
         })
+    }
+
+    pub async fn poll_emails(
+        &self,
+        mailbox: &str,
+        since: Option<chrono::DateTime<chrono::Utc>>,
+        limit: i64,
+    ) -> Result<Vec<ApiPollEmail>, MailboxError> {
+        let mailbox = normalize_mailbox(mailbox)?;
+        let limit = limit.clamp(1, 1_000);
+        let client = self.db().await?;
+        let rows = if let Some(since) = since {
+            timeout(
+                DATABASE_TIMEOUT,
+                client.query(
+                    "SELECT file_name, subject, from_address, received_at
+                     FROM email_index
+                     WHERE mailbox_address=$1 AND folder='inbox' AND received_at >= $2
+                     ORDER BY received_at DESC LIMIT $3",
+                    &[&mailbox, &since, &limit],
+                ),
+            )
+            .await
+            .map_err(|_| MailboxError::Database("poll query timeout".into()))?
+            .map_err(db_error)?
+        } else {
+            timeout(
+                DATABASE_TIMEOUT,
+                client.query(
+                    "SELECT file_name, subject, from_address, received_at
+                     FROM email_index
+                     WHERE mailbox_address=$1 AND folder='inbox'
+                     ORDER BY received_at DESC LIMIT $2",
+                    &[&mailbox, &limit],
+                ),
+            )
+            .await
+            .map_err(|_| MailboxError::Database("poll query timeout".into()))?
+            .map_err(db_error)?
+        };
+        Ok(rows
+            .into_iter()
+            .map(|row| ApiPollEmail {
+                file_name: row.get(0),
+                subject: row.get(1),
+                from: row.get(2),
+                received_at: row
+                    .get::<_, chrono::DateTime<chrono::Utc>>(3)
+                    .to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true),
+            })
+            .collect())
     }
 
     pub async fn list_starred(
@@ -674,11 +735,24 @@ impl MailboxService {
         folder: &str,
         file_name: &str,
     ) -> Result<(tokio::fs::File, u64), MailboxError> {
+        self.open_raw_limited(mailbox, folder, file_name, self.max_email_size)
+            .await
+    }
+
+    pub async fn open_raw_limited(
+        &self,
+        mailbox: &str,
+        folder: &str,
+        file_name: &str,
+        requested_max_size: u64,
+    ) -> Result<(tokio::fs::File, u64), MailboxError> {
         let path = self.authorized_path(mailbox, folder, file_name).await?;
         let metadata = tokio::fs::metadata(&path)
             .await
             .map_err(|_| MailboxError::NotFound)?;
-        let max_size = self.max_email_size.clamp(1, MAX_RAW_BYTES);
+        let max_size = requested_max_size
+            .min(self.max_email_size)
+            .clamp(1, MAX_RAW_BYTES);
         if metadata.len() > max_size {
             return Err(MailboxError::TooLarge);
         }
@@ -687,6 +761,22 @@ impl MailboxService {
             .await
             .map_err(MailboxError::Io)?;
         Ok((file, length))
+    }
+
+    pub async fn read_decoded_text(
+        &self,
+        mailbox: &str,
+        folder: &str,
+        file_name: &str,
+        prefer_html: bool,
+    ) -> Result<String, MailboxError> {
+        let path = self.authorized_path(mailbox, folder, file_name).await?;
+        let max_size = self.max_email_size.clamp(1, MAX_RAW_BYTES);
+        spawn_blocking(move || parse_decoded_text(&path, max_size, prefer_html))
+            .await
+            .map_err(|error| {
+                MailboxError::Database(format!("decoded parser task failed: {error}"))
+            })?
     }
 
     pub async fn read_attachment(
@@ -1060,6 +1150,33 @@ fn parse_detail(path: &Path, max_size: u64) -> Result<EmailDetail, MailboxError>
         starred: false,
         labels: Vec::new(),
     })
+}
+
+fn parse_decoded_text(
+    path: &Path,
+    max_size: u64,
+    prefer_html: bool,
+) -> Result<String, MailboxError> {
+    let bytes = read_bounded(path, max_size)?;
+    let message = MessageParser::default()
+        .with_minimal_headers()
+        .parse(&bytes)
+        .ok_or(MailboxError::NotFound)?;
+    let text = message.parts.iter().find_map(|part| match &part.body {
+        PartType::Text(value) => Some(truncate_text(value)),
+        _ => None,
+    });
+    let html = message.parts.iter().find_map(|part| match &part.body {
+        PartType::Html(value) => Some(truncate_text(value)),
+        _ => None,
+    });
+    if prefer_html && let Some(html) = html {
+        return Ok(clean(&html));
+    }
+    if let Some(text) = text {
+        return Ok(text);
+    }
+    Ok(html.map(|value| clean(&value)).unwrap_or_default())
 }
 
 fn parse_attachment(
