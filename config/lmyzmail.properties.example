@@ -5,6 +5,14 @@ lmyzmail.smtp.port=25
 lmyzmail.htcpcp.port=8888
 lmyzmail.minecraft.port=25565
 
+# Minecraft 1.8.9 status is disabled unless explicitly enabled. Login and play
+# configuration will be admitted only with their corresponding differential suites.
+lmyzmail.minecraft.enabled=false
+lmyzmail.minecraft.max-players=20
+lmyzmail.minecraft.motd=§6LMYZMAIL §7- Send emails in Minecraft
+lmyzmail.minecraft.favicon=
+lmyzmail.minecraft.read-timeout-seconds=30
+
 lmyzmail.htcpcp.enabled=true
 lmyzmail.htcpcp.default-brew-time-seconds=30
 lmyzmail.htcpcp.pots[0].id=pot-0

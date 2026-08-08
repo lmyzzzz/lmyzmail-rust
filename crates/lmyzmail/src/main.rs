@@ -2,7 +2,7 @@ use std::{env, io, path::PathBuf, sync::Arc, time::Duration};
 
 use lmyzmail::{
     config::{Properties, RuntimeConfig},
-    database, honeypot, htcpcp, http, lifecycle,
+    database, honeypot, htcpcp, http, lifecycle, minecraft,
     outbound_worker::OutboundWorker,
     redis, smtp,
 };
@@ -79,6 +79,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             (
                 "HTCPCP",
                 htcpcp::serve_htcpcp(htcpcp_config, htcpcp_cancellation).await,
+            )
+        });
+    }
+    if config.minecraft.enabled {
+        let minecraft_config = Arc::clone(&config);
+        let minecraft_cancellation = cancellation.clone();
+        services.spawn(async move {
+            (
+                "Minecraft",
+                minecraft::serve_minecraft(minecraft_config, minecraft_cancellation).await,
             )
         });
     }

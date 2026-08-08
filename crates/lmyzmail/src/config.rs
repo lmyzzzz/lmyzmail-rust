@@ -28,6 +28,9 @@ const MAX_HONEYPOTS: usize = 256;
 const MAX_HTCPCP_POTS: usize = 64;
 const MAX_HTCPCP_LIST_ITEMS: usize = 64;
 const MAX_HTCPCP_BREW_SECONDS: u64 = 86_400;
+const MAX_MINECRAFT_STATUS_JSON_BYTES: usize = 32_767;
+const MAX_MINECRAFT_PLAYERS: u32 = i32::MAX as u32;
+const MAX_MINECRAFT_READ_TIMEOUT_SECONDS: u64 = 3_600;
 const MAX_MESSAGE_BYTES: u64 = 1024 * 1024 * 1024;
 
 #[derive(Debug)]
@@ -209,6 +212,8 @@ struct JsonRuntimeConfig {
     #[serde(default)]
     htcpcp: JsonHtcpcpConfig,
     #[serde(default)]
+    minecraft: JsonMinecraftConfig,
+    #[serde(default)]
     tls: JsonTlsConfig,
     #[serde(default)]
     limits: JsonLimitConfig,
@@ -330,6 +335,33 @@ struct JsonHtcpcpPotConfig {
     tea_varieties: Vec<String>,
     #[serde(default = "default_htcpcp_additions")]
     supported_additions: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct JsonMinecraftConfig {
+    #[serde(default)]
+    enabled: bool,
+    #[serde(default = "default_minecraft_max_players")]
+    max_players: u32,
+    #[serde(default = "default_minecraft_motd")]
+    motd: String,
+    #[serde(default)]
+    favicon: String,
+    #[serde(default = "default_minecraft_read_timeout_seconds")]
+    read_timeout_seconds: u64,
+}
+
+impl Default for JsonMinecraftConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            max_players: default_minecraft_max_players(),
+            motd: default_minecraft_motd(),
+            favicon: String::new(),
+            read_timeout_seconds: default_minecraft_read_timeout_seconds(),
+        }
+    }
 }
 
 impl Default for JsonFeatureConfig {
@@ -512,6 +544,18 @@ fn default_max_honeypot_read_bytes() -> usize {
     1_024
 }
 
+fn default_minecraft_max_players() -> u32 {
+    20
+}
+
+fn default_minecraft_motd() -> String {
+    "\u{00a7}6LMYZMAIL \u{00a7}7- Send emails in Minecraft".to_owned()
+}
+
+fn default_minecraft_read_timeout_seconds() -> u64 {
+    30
+}
+
 fn default_max_email_size_bytes() -> u64 {
     15 * 1024 * 1024
 }
@@ -564,6 +608,23 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
     properties.insert(
         "lmyzmail.minecraft.port".to_owned(),
         value.listen.minecraft.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.enabled".to_owned(),
+        value.minecraft.enabled.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.max-players".to_owned(),
+        value.minecraft.max_players.to_string(),
+    )?;
+    properties.insert("lmyzmail.minecraft.motd".to_owned(), value.minecraft.motd)?;
+    properties.insert(
+        "lmyzmail.minecraft.favicon".to_owned(),
+        value.minecraft.favicon,
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.read-timeout-seconds".to_owned(),
+        value.minecraft.read_timeout_seconds.to_string(),
     )?;
     properties.insert(
         "lmyzmail.honeypot.enabled".to_owned(),
@@ -884,6 +945,7 @@ pub struct RuntimeConfig {
     pub outbound_route: OutboundRouteConfig,
     pub features: FeatureConfig,
     pub htcpcp: HtcpcpConfig,
+    pub minecraft: MinecraftConfig,
     pub tls: TlsConfig,
     pub limits: LimitConfig,
 }
@@ -972,6 +1034,15 @@ pub struct HtcpcpPotConfig {
     pub supported_additions: Vec<String>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MinecraftConfig {
+    pub enabled: bool,
+    pub max_players: u32,
+    pub motd: String,
+    pub favicon: String,
+    pub read_timeout_seconds: u64,
+}
+
 #[derive(Clone, Debug)]
 pub struct TlsConfig {
     pub enabled: bool,
@@ -1035,6 +1106,7 @@ impl RuntimeConfig {
             &["botmail.minecraft.port"],
             25565,
         )?;
+        let minecraft_config = parse_minecraft_config(&properties)?;
 
         let datasource_url = preferred(
             &properties,
@@ -1403,6 +1475,7 @@ impl RuntimeConfig {
             outbound_route,
             features,
             htcpcp: htcpcp_config,
+            minecraft: minecraft_config,
             tls,
             limits,
         })
@@ -1422,6 +1495,80 @@ fn preferred<'a>(
         .iter()
         .find_map(|key| properties.get(key))
         .or_else(|| legacy_keys.iter().find_map(|key| properties.get(key)))
+}
+
+fn parse_minecraft_config(properties: &Properties) -> Result<MinecraftConfig, ConfigError> {
+    let enabled = preferred_bool(
+        properties,
+        &["lmyzmail.minecraft.enabled"],
+        &["botmail.minecraft.enabled"],
+        false,
+    )?;
+    let max_players = preferred_u64(
+        properties,
+        &["lmyzmail.minecraft.max-players"],
+        &["botmail.minecraft.max-players"],
+        u64::from(default_minecraft_max_players()),
+    )?;
+    let max_players = u32::try_from(max_players).map_err(|_| {
+        ConfigError::Invalid("minecraft max-players exceeds the supported range".into())
+    })?;
+    if max_players > MAX_MINECRAFT_PLAYERS {
+        return Err(ConfigError::Invalid(format!(
+            "minecraft max-players must be at most {MAX_MINECRAFT_PLAYERS}"
+        )));
+    }
+    let motd = preferred(
+        properties,
+        &["lmyzmail.minecraft.motd"],
+        &["botmail.minecraft.motd"],
+    )
+    .map(str::to_owned)
+    .unwrap_or_else(default_minecraft_motd);
+    if motd.chars().any(char::is_control) {
+        return Err(ConfigError::Invalid(
+            "minecraft motd contains control characters".into(),
+        ));
+    }
+    let favicon = preferred(
+        properties,
+        &["lmyzmail.minecraft.favicon"],
+        &["botmail.minecraft.favicon"],
+    )
+    .map(str::to_owned)
+    .unwrap_or_default();
+    let escaped_motd = motd.replace('\\', "\\\\").replace('"', "\\\"");
+    let favicon_field = if favicon.trim().is_empty() {
+        String::new()
+    } else {
+        format!(",\"favicon\":\"data:image/png;base64,{}\"", favicon.trim())
+    };
+    let status_json = format!(
+        "{{\"version\":{{\"name\":\"1.8.9\",\"protocol\":47}},\"players\":{{\"max\":{max_players},\"online\":0,\"sample\":[]}},\"description\":{{\"text\":\"{escaped_motd}\"}}{favicon_field}}}"
+    );
+    if status_json.len() > MAX_MINECRAFT_STATUS_JSON_BYTES {
+        return Err(ConfigError::Invalid(format!(
+            "minecraft status JSON exceeds {MAX_MINECRAFT_STATUS_JSON_BYTES} UTF-8 bytes"
+        )));
+    }
+    let read_timeout_seconds = preferred_u64(
+        properties,
+        &["lmyzmail.minecraft.read-timeout-seconds"],
+        &["botmail.minecraft.read-timeout-seconds"],
+        default_minecraft_read_timeout_seconds(),
+    )?;
+    if !(1..=MAX_MINECRAFT_READ_TIMEOUT_SECONDS).contains(&read_timeout_seconds) {
+        return Err(ConfigError::Invalid(format!(
+            "minecraft read-timeout-seconds must be between 1 and {MAX_MINECRAFT_READ_TIMEOUT_SECONDS}"
+        )));
+    }
+    Ok(MinecraftConfig {
+        enabled,
+        max_players,
+        motd,
+        favicon,
+        read_timeout_seconds,
+    })
 }
 
 fn parse_htcpcp_config(properties: &Properties) -> Result<HtcpcpConfig, ConfigError> {
@@ -2431,6 +2578,13 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
             "domain": "example.test",
             "trusted_proxies": ["127.0.0.1", "10.0.0.0/8"],
             "features": {"smtp_skibidi_mode": "JAVA"},
+            "minecraft": {
+                "enabled": true,
+                "max_players": 42,
+                "motd": "semantic-status",
+                "favicon": " cGl4ZWw= ",
+                "read_timeout_seconds": 75
+            },
             "limits": {"max_http_request_bytes": 65536}
         }"#;
         let properties = parse_semantic_json(json).unwrap();
@@ -2441,6 +2595,11 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
         assert_eq!(config.redis.port, 16379);
         assert_eq!(config.limits.max_http_request_bytes, 65536);
         assert_eq!(config.trusted_proxies.len(), 2);
+        assert!(config.minecraft.enabled);
+        assert_eq!(config.minecraft.max_players, 42);
+        assert_eq!(config.minecraft.motd, "semantic-status");
+        assert_eq!(config.minecraft.favicon, " cGl4ZWw= ");
+        assert_eq!(config.minecraft.read_timeout_seconds, 75);
     }
 
     #[test]
@@ -2455,6 +2614,14 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
             config.htcpcp.pots[0].tea_varieties,
             ["darjeeling", "earl-grey", "peppermint"]
         );
+        assert!(!config.minecraft.enabled);
+        assert_eq!(config.minecraft.max_players, 20);
+        assert_eq!(
+            config.minecraft.motd,
+            "§6LMYZMAIL §7- Send emails in Minecraft"
+        );
+        assert_eq!(config.minecraft.read_timeout_seconds, 30);
+        assert!(config.minecraft.favicon.is_empty());
     }
 
     #[test]
@@ -2478,6 +2645,48 @@ lmyzmail.htcpcp.pots[0].tea-varieties=new-tea\n",
         assert_eq!(config.htcpcp.pots[0].id, "new-pot");
         assert_eq!(config.htcpcp.pots[0].pot_type, "coffee");
         assert_eq!(config.htcpcp.pots[0].tea_varieties, ["new-tea"]);
+    }
+
+    #[test]
+    fn minecraft_aliases_are_bounded_and_new_keys_win() {
+        let properties = Properties::parse(
+            b"botmail.minecraft.enabled=false\n\
+botmail.minecraft.max-players=40\n\
+botmail.minecraft.motd=legacy\n\
+botmail.minecraft.favicon=bGVnYWN5\n\
+botmail.minecraft.read-timeout-seconds=45\n\
+lmyzmail.minecraft.enabled=true\n\
+lmyzmail.minecraft.max-players=20\n\
+lmyzmail.minecraft.motd=new\n\
+lmyzmail.minecraft.favicon=bmV3\n\
+lmyzmail.minecraft.read-timeout-seconds=30\n",
+        )
+        .unwrap();
+        let config = RuntimeConfig::from_properties(properties).unwrap();
+        assert!(config.minecraft.enabled);
+        assert_eq!(config.minecraft.max_players, 20);
+        assert_eq!(config.minecraft.motd, "new");
+        assert_eq!(config.minecraft.favicon, "bmV3");
+        assert_eq!(config.minecraft.read_timeout_seconds, 30);
+
+        for value in [
+            "lmyzmail.minecraft.max-players=2147483648\n",
+            "lmyzmail.minecraft.read-timeout-seconds=0\n",
+            "lmyzmail.minecraft.read-timeout-seconds=3601\n",
+            "lmyzmail.minecraft.motd=bad\\u0009motd\n",
+        ] {
+            let properties = Properties::parse(value.as_bytes()).unwrap();
+            assert!(RuntimeConfig::from_properties(properties).is_err());
+        }
+
+        let mut oversized = Properties::default();
+        oversized
+            .insert(
+                "lmyzmail.minecraft.motd".to_owned(),
+                "\\".repeat(MAX_MINECRAFT_STATUS_JSON_BYTES),
+            )
+            .unwrap();
+        assert!(RuntimeConfig::from_properties(oversized).is_err());
     }
 
     #[test]

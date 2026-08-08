@@ -84,6 +84,11 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "htcpcp-connection-close-lifecycle",
         "htcpcp-absolute-request-deadline",
         "htcpcp-ambiguous-http-framing",
+        "honeypot-incremental-protocol-framing",
+        "honeypot-bounded-admission-and-client-state",
+        "honeypot-durable-cringe-write",
+        "minecraft-absolute-connection-deadline",
+        "minecraft-bounded-connection-admission",
     }
     starttls = next(
         entry
@@ -143,6 +148,14 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
     )
     assert auth_cancellation["evidence"]["session_source_sha256"] == (
         "a68edfb3beab48e8b43fa8951f56cf266d43540aa6fe13d3dd4b9df6b24e49b8"
+    )
+    assert (
+        by_id["minecraft-absolute-connection-deadline"]["evidence"]["source_sha256"]
+        == "fed5b8de13b875d549a6cf706cb9def4422b7fd3b09eabfa7b7d6017e4c52a52"
+    )
+    assert (
+        by_id["minecraft-bounded-connection-admission"]["evidence"]["source_sha256"]
+        == "3c997b4d378a6f1b57935ec1f2138b7bd770fb5d84daa0cdbc69f9d71b5f30d3"
     )
 
 

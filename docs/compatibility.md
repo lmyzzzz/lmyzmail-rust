@@ -92,6 +92,12 @@ wire, state, storage, or recovery assertions.
   retaining a connection indefinitely by sending one byte before each idle
   boundary; complete and ordinarily fragmented requests remain exact-wire
   compatibility requirements.
+- A Minecraft connection has one absolute configured deadline from acceptance
+  through pong and close. The oracle resets a read-idle timer for every byte,
+  allowing a deliberately fragmented packet to retain state indefinitely.
+- Minecraft status admission is fixed at 64 concurrent connections, with
+  overload closed before task creation and all admitted tasks joined during
+  bounded shutdown. The oracle has no application-level connection bound.
 
 ## SMTP AUTH oracle behavior
 

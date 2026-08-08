@@ -101,6 +101,15 @@ missing-file errors, nonpositive-limit fallback, and the complete signed
 query, and raw mail is streamed to the socket without copying the whole message
 into an HTTP response buffer.
 
+Minecraft now has an admitted 1.8.9 status slice, enabled only through
+`lmyzmail.minecraft.enabled` or its frozen `botmail.minecraft.enabled` alias.
+Fragmented handshake, status, ping/pong, malformed framing, exact UTF-8 MOTD
+bytes, and close behavior match the Java golden. The listener has a fixed
+64-connection admission bound, a 2 MiB frame ceiling, one absolute configured
+connection deadline, and joined cancellation. Login, authentication, play,
+GUI, mail, world, and video remain outside this milestone and are not claimed
+as implemented.
+
 Outbound HTTP currently covers durable PostgreSQL admission, sender-scoped and
 API status lookup, and quota reporting. A `202` response is emitted only after a
 complete `PENDING` row commits; PostgreSQL advisory locks make queue-depth and

@@ -1,0 +1,183 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "76fcf2c2e2afc79ceeca0320470d47da3ab6d3ff54320b62e7f9a67b10a990c1",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-outbound-http"
+  },
+  "observation": {
+    "active": {
+      "body_json": {
+        "aggregatedStatus": "PROCESSING",
+        "createdAt": "2024-01-01T00:00:00Z",
+        "domainDetails": [
+          {
+            "domain": "alpha.test",
+            "recipients": [
+              "one@alpha.test"
+            ],
+            "status": "PENDING",
+            "statusDescription": "等待发送",
+            "updatedAt": "2026-08-07T00:00:00Z"
+          },
+          {
+            "domain": "beta.test",
+            "recipients": [
+              "two@beta.test"
+            ],
+            "status": "SENDING",
+            "statusDescription": "正在发送...",
+            "updatedAt": "2026-08-07T00:00:00Z"
+          }
+        ],
+        "lastError": "Cancelled before migration fixture",
+        "maxRetries": 5,
+        "messageId": "<legacy-outbound@example.test>",
+        "nextRetryAt": "2100-01-01T00:00:00Z",
+        "queueId": 2101,
+        "retryCount": 0,
+        "status": "CANCELLED",
+        "statusDescription": "正在发送..."
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "612"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJxdWV1ZUlkIjoyMTAxLCJtZXNzYWdlSWQiOiI8bGVnYWN5LW91dGJvdW5kQGV4YW1wbGUudGVzdD4iLCJzdGF0dXMiOiJDQU5DRUxMRUQiLCJhZ2dyZWdhdGVkU3RhdHVzIjoiUFJPQ0VTU0lORyIsInN0YXR1c0Rlc2NyaXB0aW9uIjoi5q2j5Zyo5Y+R6YCBLi4uIiwicmV0cnlDb3VudCI6MCwibWF4UmV0cmllcyI6NSwibGFzdEVycm9yIjoiQ2FuY2VsbGVkIGJlZm9yZSBtaWdyYXRpb24gZml4dHVyZSIsImNyZWF0ZWRBdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibmV4dFJldHJ5QXQiOiIyMTAwLTAxLTAxVDAwOjAwOjAwWiIsImRvbWFpbkRldGFpbHMiOlt7ImRvbWFpbiI6ImFscGhhLnRlc3QiLCJzdGF0dXMiOiJQRU5ESU5HIiwic3RhdHVzRGVzY3JpcHRpb24iOiLnrYnlvoXlj5HpgIEiLCJyZWNpcGllbnRzIjpbIm9uZUBhbHBoYS50ZXN0Il0sInVwZGF0ZWRBdCI6IjIwMjYtMDgtMDdUMDA6MDA6MDBaIn0seyJkb21haW4iOiJiZXRhLnRlc3QiLCJzdGF0dXMiOiJTRU5ESU5HIiwic3RhdHVzRGVzY3JpcHRpb24iOiLmraPlnKjlj5HpgIEuLi4iLCJyZWNpcGllbnRzIjpbInR3b0BiZXRhLnRlc3QiXSwidXBkYXRlZEF0IjoiMjAyNi0wOC0wN1QwMDowMDowMFoifV19",
+        "length": 612,
+        "sha256": "136254e7a62efaf318094b7dd4c7bf33283f7709b3ef840dbc5a24c22a203796"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "domain_ttl_present": true,
+    "mixed_terminal": {
+      "body_json": {
+        "aggregatedStatus": "PARTIAL_SUCCESS",
+        "createdAt": "2024-01-01T00:00:00Z",
+        "domainDetails": [
+          {
+            "domain": "alpha.test",
+            "recipients": [
+              "one@alpha.test"
+            ],
+            "status": "SENT",
+            "statusDescription": "发送成功",
+            "updatedAt": "2026-08-07T00:00:00Z"
+          },
+          {
+            "domain": "beta.test",
+            "error": "550 5.1.1 user unknown",
+            "recipients": [
+              "two@beta.test"
+            ],
+            "status": "FAILED",
+            "statusDescription": "发送失败",
+            "updatedAt": "2026-08-07T00:00:00Z"
+          }
+        ],
+        "lastError": "Cancelled before migration fixture",
+        "maxRetries": 5,
+        "messageId": "<legacy-outbound@example.test>",
+        "nextRetryAt": "2100-01-01T00:00:00Z",
+        "queueId": 2101,
+        "retryCount": 0,
+        "status": "CANCELLED",
+        "statusDescription": "部分发送成功"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "646"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJxdWV1ZUlkIjoyMTAxLCJtZXNzYWdlSWQiOiI8bGVnYWN5LW91dGJvdW5kQGV4YW1wbGUudGVzdD4iLCJzdGF0dXMiOiJDQU5DRUxMRUQiLCJhZ2dyZWdhdGVkU3RhdHVzIjoiUEFSVElBTF9TVUNDRVNTIiwic3RhdHVzRGVzY3JpcHRpb24iOiLpg6jliIblj5HpgIHmiJDlip8iLCJyZXRyeUNvdW50IjowLCJtYXhSZXRyaWVzIjo1LCJsYXN0RXJyb3IiOiJDYW5jZWxsZWQgYmVmb3JlIG1pZ3JhdGlvbiBmaXh0dXJlIiwiY3JlYXRlZEF0IjoiMjAyNC0wMS0wMVQwMDowMDowMFoiLCJuZXh0UmV0cnlBdCI6IjIxMDAtMDEtMDFUMDA6MDA6MDBaIiwiZG9tYWluRGV0YWlscyI6W3siZG9tYWluIjoiYWxwaGEudGVzdCIsInN0YXR1cyI6IlNFTlQiLCJzdGF0dXNEZXNjcmlwdGlvbiI6IuWPkemAgeaIkOWKnyIsInJlY2lwaWVudHMiOlsib25lQGFscGhhLnRlc3QiXSwidXBkYXRlZEF0IjoiMjAyNi0wOC0wN1QwMDowMDowMFoifSx7ImRvbWFpbiI6ImJldGEudGVzdCIsInN0YXR1cyI6IkZBSUxFRCIsInN0YXR1c0Rlc2NyaXB0aW9uIjoi5Y+R6YCB5aSx6LSlIiwiZXJyb3IiOiI1NTAgNS4xLjEgdXNlciB1bmtub3duIiwicmVjaXBpZW50cyI6WyJ0d29AYmV0YS50ZXN0Il0sInVwZGF0ZWRBdCI6IjIwMjYtMDgtMDdUMDA6MDA6MDBaIn1dfQ==",
+        "length": 646,
+        "sha256": "61f8f72fb9755a51ccd01d208965abd975233a8b1aec899d8c3957d31dac3e72"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "terminal": {
+      "body_json": {
+        "aggregatedStatus": "SENT",
+        "createdAt": "2024-01-01T00:00:00Z",
+        "domainDetails": [
+          {
+            "domain": "alpha.test",
+            "recipients": [
+              "one@alpha.test"
+            ],
+            "status": "SENT",
+            "statusDescription": "发送成功",
+            "updatedAt": "2026-08-07T00:00:00Z"
+          },
+          {
+            "domain": "beta.test",
+            "recipients": [
+              "two@beta.test"
+            ],
+            "status": "SENT",
+            "statusDescription": "发送成功",
+            "updatedAt": "2026-08-07T00:00:00Z"
+          }
+        ],
+        "lastError": "Cancelled before migration fixture",
+        "maxRetries": 5,
+        "messageId": "<legacy-outbound@example.test>",
+        "nextRetryAt": "2100-01-01T00:00:00Z",
+        "queueId": 2101,
+        "retryCount": 0,
+        "status": "CANCELLED",
+        "statusDescription": "发送成功"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "594"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJxdWV1ZUlkIjoyMTAxLCJtZXNzYWdlSWQiOiI8bGVnYWN5LW91dGJvdW5kQGV4YW1wbGUudGVzdD4iLCJzdGF0dXMiOiJDQU5DRUxMRUQiLCJhZ2dyZWdhdGVkU3RhdHVzIjoiU0VOVCIsInN0YXR1c0Rlc2NyaXB0aW9uIjoi5Y+R6YCB5oiQ5YqfIiwicmV0cnlDb3VudCI6MCwibWF4UmV0cmllcyI6NSwibGFzdEVycm9yIjoiQ2FuY2VsbGVkIGJlZm9yZSBtaWdyYXRpb24gZml4dHVyZSIsImNyZWF0ZWRBdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibmV4dFJldHJ5QXQiOiIyMTAwLTAxLTAxVDAwOjAwOjAwWiIsImRvbWFpbkRldGFpbHMiOlt7ImRvbWFpbiI6ImFscGhhLnRlc3QiLCJzdGF0dXMiOiJTRU5UIiwic3RhdHVzRGVzY3JpcHRpb24iOiLlj5HpgIHmiJDlip8iLCJyZWNpcGllbnRzIjpbIm9uZUBhbHBoYS50ZXN0Il0sInVwZGF0ZWRBdCI6IjIwMjYtMDgtMDdUMDA6MDA6MDBaIn0seyJkb21haW4iOiJiZXRhLnRlc3QiLCJzdGF0dXMiOiJTRU5UIiwic3RhdHVzRGVzY3JpcHRpb24iOiLlj5HpgIHmiJDlip8iLCJyZWNpcGllbnRzIjpbInR3b0BiZXRhLnRlc3QiXSwidXBkYXRlZEF0IjoiMjAyNi0wOC0wN1QwMDowMDowMFoifV19",
+        "length": 594,
+        "sha256": "87f5ed8fc096212ad355d91f31cd9f9df67a380ee3ed3f440a98b851de279b97"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    }
+  },
+  "schema_version": 2
+}

@@ -107,9 +107,12 @@ inputs, and must never be overwritten in place.
 - `managed-mail-api-poll-v4/` freezes the Java
   `500 {"error":"not found"}` response for a missing rawDecoded file and is
   retained unchanged.
-- `managed-mail-api-poll-v5/` is the active mailbox polling/raw API set. It
-  additionally freezes the full signed 64-bit `sinceEpochMillis` range and is
-  bound to the frozen oracle commit and the current harness definition.
+- `managed-mail-api-poll-v5/` additionally freezes the full signed 64-bit
+  `sinceEpochMillis` range and is retained unchanged after the complete active
+  definition tree was re-attested.
+- `managed-mail-api-poll-v6/` is the active mailbox polling/raw API set. It
+  preserves the v5 scenarios and binds them to the complete current harness
+  definition alongside the Minecraft status contract.
 
 The mailbox polling/raw profile is intentionally kept outside
 `blackbox/tests`: adding it to the attested definition roots would invalidate
@@ -573,7 +576,65 @@ ephemeral embedded-servlet port, to definition tree
 - `managed-htcpcp-oracle-evidence-v7/`
 - `managed-honeypot-v6/`
 - `managed-honeypot-oracle-evidence-v6/`
+- `managed-minecraft-status-v1/`
 
-Only the d15... sets are consumed by active tests. The 0689... sets and all
-earlier generations remain immutable provenance; `oracle-evidence` remains
-evidence only.
+The d15... sets that are not superseded below remain active. The 0689... sets
+and all earlier generations remain immutable provenance; `oracle-evidence`
+remains evidence only.
+
+Minecraft status v1 is the create-once recording from before its two bounded
+lifecycle differences were added to the behavior manifest. Its v2 recording
+captured the intermediate definition tree while the foundation references were
+being advanced. Minecraft status v3 binds the stable foundation-only successor
+definition tree; v1 through v3 remain immutable historical provenance.
+
+The foundation HTTP, SMTP, and authentication sets were re-attested after the
+Minecraft safety definitions were added, under definition tree
+`41f2866c3d4adec2d48e319e1a946a6d9aa4c7d332c110cdb6338bd8db2cc9d6`:
+
+- `managed-candidate-public-config-v22/`
+- `managed-basic-v44/`
+- `managed-candidate-auth-v21/`
+- `managed-minecraft-status-v3/`
+
+The preceding d15... foundation generations remain immutable history.
+
+The complete active recording pass binds every referenced oracle suite to
+`attestation.harness.definition_tree_sha256`
+`76fcf2c2e2afc79ceeca0320470d47da3ab6d3ff54320b62e7f9a67b10a990c1`:
+
+- `managed-candidate-public-config-v23/`
+- `managed-basic-v45/`
+- `managed-candidate-auth-v22/`
+- `managed-mail-read-v19/`
+- `managed-mail-attachment-v14/`
+- `managed-mail-state-v17/`
+- `managed-mail-mutations-v16/`
+- `managed-mail-delete-v16/`
+- `managed-mailbox-api-v8/`
+- `managed-starttls-v32/`
+- `managed-starttls-oracle-evidence-v32/`
+- `managed-smtp-auth-v31/`
+- `managed-smtp-auth-starttls-v31/`
+- `managed-smtp-command-v29/`
+- `managed-smtp-command-oracle-evidence-v29/`
+- `managed-smtp-data-v28/`
+- `managed-smtp-data-oracle-evidence-v28/`
+- `managed-smtp-mime-v28/`
+- `managed-outbound-http-v14/`
+- `managed-outbound-queue-v29.json`
+- `managed-userdata-v12/`
+- `managed-userdata-oracle-evidence-v11/`
+- `managed-htcpcp-v11/`
+- `managed-htcpcp-oracle-evidence-v8/`
+- `managed-honeypot-v7/`
+- `managed-honeypot-oracle-evidence-v7/`
+- `managed-minecraft-status-v4/`
+- `managed-minecraft-status-config-v1/`
+- `managed-mail-api-poll-v6/`
+
+Minecraft status v4 is the active default status/framing expectation. The
+separate status-config v1 generation freezes custom max-player, MOTD, favicon
+trimming, and exact response bytes. Mail API poll v6 remains an explicitly run
+tool profile, while every other non-evidence generation above is consumed by
+the regular blackbox tests. All earlier generations remain create-once history.

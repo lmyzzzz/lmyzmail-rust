@@ -299,6 +299,32 @@
       "oracle_behavior": "The frozen Java batch path drains events from its bounded in-memory queue before opening the PostgreSQL transaction. A database failure discards the drained batch, a full queue drops new events, and a process crash loses every event not yet flushed. XDP evaluation may also run before the corresponding transaction is known committed.",
       "reason": "Silent security-event loss and enforcement before durable state violate restart recovery and transactional consistency. Crash-loss and database-outage races are explicitly excluded from bug-for-bug replication.",
       "scope": "Only queue-full, database-failure, crash-recovery, duplicate suppression, and XDP ordering behavior. HONEYPOT_HIT score 8, table and column names, transaction semantics on success, metadata, source-IP exclusions, protocol replies, and committed aggregate values remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Apply one absolute configured deadline from Minecraft connection acceptance through handshake, status, ping, pong, and close. Cancellation and every read, write, and shutdown wait must observe the same deadline; ordinary in-budget fragmentation must preserve exact protocol bytes.",
+      "evidence": {
+        "candidate_test": "crates/lmyzmail/src/minecraft.rs::tests::connection_deadline_is_absolute_across_fragmented_input",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "source": "src/main/java/net/lmyz/lmyzmail/netty/minecraft/MinecraftChannelInitializer.java",
+        "source_sha256": "fed5b8de13b875d549a6cf706cb9def4422b7fd3b09eabfa7b7d6017e4c52a52"
+      },
+      "id": "minecraft-absolute-connection-deadline",
+      "oracle_behavior": "The frozen Java pipeline uses only a Netty read-idle timeout. Every incoming byte resets the configured interval, so a client can retain its channel, frame decoder, and session state indefinitely by sending one byte before each idle boundary.",
+      "reason": "The rewrite requires deadlines and cancellation throughout incremental protocol parsing. A resettable idle timer is not an operation deadline and permits trivial slow-client resource retention.",
+      "scope": "Only Minecraft connections whose complete lifecycle exceeds the configured deadline. Complete handshakes, status JSON and framing, ping/pong bytes, ordinary fragmentation, malformed-input closure, and all future admitted login/play behavior remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Admit at most 64 concurrent Minecraft connections with a fixed-capacity semaphore and bounded task set. Close overload before spawning connection work, and on shutdown cancel and join every admitted task within twenty seconds before aborting any remainder.",
+      "evidence": {
+        "candidate_test": "crates/lmyzmail/src/minecraft.rs::tests::admission_is_bounded_and_cancellation_drains_partial_reads",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "source": "src/main/java/net/lmyz/lmyzmail/netty/minecraft/MinecraftServer.java",
+        "source_sha256": "3c997b4d378a6f1b57935ec1f2138b7bd770fb5d84daa0cdbc69f9d71b5f30d3"
+      },
+      "id": "minecraft-bounded-connection-admission",
+      "oracle_behavior": "The frozen Java server binds a Netty listener with a socket backlog but has no application-level active-connection limit or admission semaphore. Accepted channels are registered with the worker group until peers close or a timeout fires.",
+      "reason": "An unbounded accepted-connection population violates the rewrite's hard limits and lets idle or fragmented clients consume descriptors, channel state, and scheduler work without an application-level ceiling.",
+      "scope": "Only overload admission and bounded shutdown behavior above 64 simultaneous Minecraft connections. Every admitted connection's protocol bytes, state transitions, timeout configuration, close semantics, and all future admitted login/play behavior remain compatibility requirements."
     }
   ],
   "schema_version": 1
