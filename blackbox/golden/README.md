@@ -778,3 +778,13 @@ the response order: Player Position And Look, red Chat, then the seven hologram
 teleports. It also proves that both implementations require the trailing
 `onGround` byte. All three sets preserve exact packet bytes, compression-envelope
 behavior, entity IDs, coordinates, and Java floating-point truncation.
+
+The Minecraft email-authentication entry milestone adds:
+
+- `managed-minecraft-email-prompt-v1/`
+
+It freezes the zero-normalization `AwaitingEmail` chat flow: an address without
+`@` receives one red error, while an ASCII-padded valid address is trimmed and
+receives the exact email echo, password prompt, and password-visibility warning.
+The suite also binds the C2S Chat limit to 100 UTF-16 code units and preserves
+Java `String.trim()` semantics rather than broader Unicode whitespace trimming.

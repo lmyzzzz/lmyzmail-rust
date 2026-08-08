@@ -382,6 +382,7 @@ async fn handle_connection(
     let mut next_position_check = None;
     let mut next_hologram_teleport = None;
     let mut next_time_update = None;
+    let mut pending_email = None;
 
     loop {
         let raw_frame_result = if state == ConnectionState::Play {
@@ -707,6 +708,30 @@ async fn handle_connection(
                 _ => {}
             },
             ConnectionState::Play => match packet_id {
+                0x01 => {
+                    let Ok(message) = packet.read_string(100) else {
+                        return Ok(());
+                    };
+                    if pending_email.is_none() {
+                        let (email, responses) = awaiting_email_responses(&message)?;
+                        for response in responses {
+                            if let Err(error) = write_packet(
+                                &mut writer,
+                                &service,
+                                response,
+                                compression,
+                                cipher.as_mut(),
+                                deadline,
+                                &cancellation,
+                            )
+                            .await
+                            {
+                                return finish_write_error(error);
+                            }
+                        }
+                        pending_email = email;
+                    }
+                }
                 0x04 | 0x06 => match read_player_position(&mut packet, packet_id) {
                     Ok(position) => player_position = position,
                     Err(()) => return Ok(()),
@@ -1377,13 +1402,10 @@ fn teleport_back_packets(config: &MinecraftConfig) -> io::Result<Vec<Vec<u8>>> {
     position.extend_from_slice(&config.spawn.pitch.to_be_bytes());
     position.push(0);
 
-    let mut chat = vec![0x02];
-    write_string(
-        &mut chat,
-        &chat_json("\u{00a7}cYou were teleported back to spawn!", Some("red")),
-    )?;
-    chat.push(0);
-    Ok(vec![position, chat])
+    Ok(vec![
+        position,
+        chat_packet("\u{00a7}cYou were teleported back to spawn!", Some("red"))?,
+    ])
 }
 
 fn hologram_teleport_packets(hologram_entity_base: i32) -> Vec<Vec<u8>> {
@@ -1400,6 +1422,34 @@ fn hologram_teleport_packets(hologram_entity_base: i32) -> Vec<Vec<u8>> {
         packets.push(packet);
     }
     packets
+}
+
+fn awaiting_email_responses(message: &str) -> io::Result<(Option<String>, Vec<Vec<u8>>)> {
+    let email = message.trim_matches(|character| character <= '\u{20}');
+    if email.is_empty() || !email.contains('@') {
+        return Ok((
+            None,
+            vec![chat_packet(
+                "\u{00a7}cInvalid email format. Please try again:",
+                Some("red"),
+            )?],
+        ));
+    }
+    Ok((
+        Some(email.to_owned()),
+        vec![
+            chat_packet(&format!("\u{00a7}aEmail: \u{00a7}f{email}"), None)?,
+            chat_packet("\u{00a7}aPlease enter your password:", Some("green"))?,
+            chat_packet("\u{00a7}7(Your password will not be visible)", Some("gray"))?,
+        ],
+    ))
+}
+
+fn chat_packet(text: &str, color: Option<&str>) -> io::Result<Vec<u8>> {
+    let mut packet = vec![0x02];
+    write_string(&mut packet, &chat_json(text, color))?;
+    packet.push(0);
+    Ok(packet)
 }
 
 fn chat_json(text: &str, color: Option<&str>) -> String {
@@ -3253,6 +3303,54 @@ mod tests {
                 0x06
             )
             .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn awaiting_email_prompts_match_frozen_java_frames_and_trim_rules() {
+        let service = StatusService::new(&config(Duration::from_secs(3))).unwrap();
+        let cancellation = CancellationToken::new();
+        let deadline = Instant::now() + Duration::from_secs(3);
+
+        let (email, invalid) = awaiting_email_responses("not-an-email").unwrap();
+        assert_eq!(email, None);
+        let (email, valid) = awaiting_email_responses("  qa@example.test  ").unwrap();
+        assert_eq!(email.as_deref(), Some("qa@example.test"));
+
+        let expected = [
+            "RwACQ3sidGV4dCI6IsKnY0ludmFsaWQgZW1haWwgZm9ybWF0LiBQbGVhc2UgdHJ5IGFnYWluOiIsImNvbG9yIjoicmVkIn0A",
+            "KwACJ3sidGV4dCI6IsKnYUVtYWlsOiDCp2ZxYUBleGFtcGxlLnRlc3QifQA=",
+            "PQACOXsidGV4dCI6IsKnYVBsZWFzZSBlbnRlciB5b3VyIHBhc3N3b3JkOiIsImNvbG9yIjoiZ3JlZW4ifQA=",
+            "RAACQHsidGV4dCI6IsKnNyhZb3VyIHBhc3N3b3JkIHdpbGwgbm90IGJlIHZpc2libGUpIiwiY29sb3IiOiJncmF5In0A",
+        ];
+        for (packet, frozen) in invalid.into_iter().chain(valid).zip(expected) {
+            let frame = encode_packet_frame(&service, packet, Some(256), deadline, &cancellation)
+                .await
+                .unwrap();
+            assert_eq!(frame, STANDARD.decode(frozen).unwrap());
+        }
+
+        assert_eq!(awaiting_email_responses("\t \r\n").unwrap().0, None);
+        assert_eq!(
+            awaiting_email_responses("\u{00a0}qa@example.test\u{00a0}")
+                .unwrap()
+                .0
+                .as_deref(),
+            Some("\u{00a0}qa@example.test\u{00a0}")
+        );
+
+        let mut overlong = Vec::new();
+        write_varint(&mut overlong, 101);
+        overlong.extend_from_slice(&[b'x'; 101]);
+        assert!(PacketReader::new(&overlong).read_string(100).is_err());
+
+        let supplementary = "\u{1f600}".repeat(51);
+        let mut supplementary_packet = Vec::new();
+        write_string(&mut supplementary_packet, &supplementary).unwrap();
+        assert!(
+            PacketReader::new(&supplementary_packet)
+                .read_string(100)
+                .is_err()
         );
     }
 
