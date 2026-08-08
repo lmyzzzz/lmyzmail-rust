@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "version": "1.8.0",
+  "source_commit": "4bc484c15b780d578ee8e53cab968f2819958215",
+  "byte_source": "frozen_worktree",
+  "files": {
+    "LICENSE": "d122208095d6dc4b616ea7aa0bf1174ac0d82967b306f7b2ca8c1962fd05474f",
+    "skibidi_avx.c": "7e8e7f3ee5bea0ac8d0857bd5bc8d806b44e5142c17ec8b5b6583db7c62fc613",
+    "skibidi_avx.h": "bde8e9d19d6668c644aba1cdd81fb9f56c2236ff827ddd16fb366369bc68bbea",
+    "tests/test_skibidi.c": "d32a5fa97283ff8098bc5a2678254aa6c7b9a4f72e0bd3f36d7b7cc4f25bd590"
+  }
+}
