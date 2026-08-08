@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+  "attestation_command": "python blackbox/tools/attest_java_map_video_semaphore.py --java-repository <frozen-java-repository>",
+  "sources": {
+    "map_video_player": {
+      "path": "src/main/java/net/lmyz/lmyzmail/netty/minecraft/video/MapVideoPlayer.java",
+      "sha256": "e7b15fb65ef8671e91b4ad427153285504b646c01a22b37ed453c275d22185b6"
+    },
+    "server": {
+      "path": "src/main/java/net/lmyz/lmyzmail/netty/minecraft/MinecraftServer.java",
+      "sha256": "c83c853b411ec9299a8509a34fe5ca6fa2e4141262e3488ed7453e1f0b2b3797"
+    },
+    "properties": {
+      "path": "src/main/java/net/lmyz/lmyzmail/netty/minecraft/MinecraftProperties.java",
+      "sha256": "07a3b56cc170437ecfe29420d1b44b8f203a37cfc565e22329b9669857ebaaf9"
+    }
+  },
+  "default_max_concurrent_videos": 2,
+  "map_video_lines": {
+    "try_acquire": 91,
+    "release": 104,
+    "worker_execute": 106
+  },
+  "observation": {
+    "release_precedes_worker_submission": true,
+    "permit_held_for_playback_lifecycle": false,
+    "configured_map_video_concurrency_enforced": false
+  },
+  "contrast": "The block VideoPlayer releases its permit in the playback worker finally block, after decode and world restoration begin teardown."
+}

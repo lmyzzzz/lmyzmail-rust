@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "source": {
+    "branch": "codex/java-oracle-freeze",
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "parent": "17c227c7315fc044fe628d5372da126aef7bedb9",
+    "patch_sha256": "2daa0c6074b393f46736d81e86a82578f60f1a15b22e487c73c417f783d6dca0"
+  },
+  "artifacts": {
+    "provided_incremental": {
+      "sha256": "040bfa648cd0b3a1826ca61811dd6c71c8f2bd906578392f914020eb766fb70e",
+      "bytes": 220386558,
+      "command": ".\\gradlew.bat bootJar --no-daemon",
+      "command_started_at_utc": "2026-08-05T12:37:52.403Z",
+      "file_last_write_at_utc": "2026-08-05T12:38:08Z",
+      "hash_observed_at_utc": "2026-08-05T12:41:38.209Z",
+      "runtime_observation": "The WSL smoke oracle ran this exact path and hash before the mandatory clean rebuild.",
+      "available": false,
+      "selected": false
+    },
+    "forced_clean_rebuild": {
+      "sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc",
+      "bytes": 220386558,
+      "command": ".\\gradlew.bat clean test bootJar --rerun-tasks --no-daemon",
+      "command_started_at_utc": "2026-08-05T14:38:22.908Z",
+      "file_last_write_at_utc": "2026-08-05T14:39:02Z",
+      "tests": 93,
+      "failures": 0,
+      "selected": true
+    }
+  },
+  "source_state_equivalence": {
+    "status": "same_worktree_content",
+    "interval_start_utc": "2026-08-05T12:38:08Z",
+    "interval_end_utc": "2026-08-05T14:38:22.908Z",
+    "source_or_resource_writes_observed": 0,
+    "non_source_writes": [
+      "Deleted JVM crash artifacts hs_err_pid86.log and core.86."
+    ],
+    "intermediate_compile_check": "compileJava was UP-TO-DATE at 2026-08-05T14:19:38.981Z.",
+    "intermediate_test_check": "All Java classes, resources, test classes, and tests were UP-TO-DATE at 2026-08-05T14:20:00.034Z.",
+    "artifact_size_equal": true,
+    "byte_hash_difference_cause": "The first bootJar reused incremental outputs with historical ZIP entry timestamps; the clean rebuild regenerated those outputs and their timestamps."
+  },
+  "selection": {
+    "identity": "forced_clean_rebuild",
+    "reason": "It is the artifact produced by the user-required clean test and bootJar verification from the committed freeze source state.",
+    "runtime_policy": "Only the selected SHA-256 may launch as the Java oracle."
+  }
+}

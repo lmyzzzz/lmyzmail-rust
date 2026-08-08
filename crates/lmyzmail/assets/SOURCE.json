@@ -1,0 +1,19 @@
+{
+  "asset": "skibidi_toilet_episode_1.mp4",
+  "source": {
+    "kind": "frozen_java_oracle_jar_member",
+    "jar_member": "BOOT-INF/classes/skibidi_toilet_episode_1.mp4",
+    "jar_sha256": "0e76229bb77ebcf471aec692fa34709cfbbe3dc192127a852a518e34bdd0ecc7",
+    "oracle_commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8"
+  },
+  "bytes": 15048248,
+  "sha256": "0e76229bb77ebcf471aec692fa34709cfbbe3dc192127a852a518e34bdd0ecc7",
+  "decode_attestation": {
+    "codec": "H.264 High",
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "frames": 1987,
+    "duration_seconds": 66.292971
+  }
+}

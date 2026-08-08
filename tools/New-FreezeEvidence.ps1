@@ -166,8 +166,12 @@ $javaManifest = [ordered]@{
         bytes = (Get-Item -LiteralPath $OracleJar).Length
         provided_pre_rebuild_sha256 = '040bfa648cd0b3a1826ca61811dd6c71c8f2bd906578392f914020eb766fb70e'
         forced_rebuild_sha256 = Get-FileSha256Hex $OracleJar
+        selected_sha256 = Get-FileSha256Hex $OracleJar
+        selected_identity = 'forced_clean_rebuild'
+        selection_reason = 'The selected artifact was produced by the mandatory clean test and bootJar run from the frozen source state. The provided hash identifies the earlier incremental bootJar and remains provenance evidence, not the executable oracle artifact.'
         resource_inventory = 'jar-resources.csv'
-        reproducibility_observation = 'Gradle bootJar preserved compile and resource timestamps, so a forced rebuild did not reproduce the provided pre-rebuild hash.'
+        artifact_provenance = 'artifact-provenance.json'
+        reproducibility_observation = 'Gradle bootJar preserved incremental class and resource timestamps. The mandatory clean rebuild used the same source state but therefore did not reproduce the earlier incremental JAR byte hash.'
     }
     verification = [ordered]@{
         command = '.\gradlew.bat clean test bootJar --rerun-tasks --no-daemon'

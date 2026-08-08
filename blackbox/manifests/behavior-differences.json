@@ -420,6 +420,21 @@
       "oracle_behavior": "The frozen Java session calls writeAndFlush for Disconnect Play and immediately calls channel.close(). Repeated isolated recordings receive a nondeterministic proper prefix of the expected seven-packet close-and-restore sequence followed by EOF, and never receive the final 0x40 Disconnect Play frame.",
       "reason": "Whether a final protocol frame reaches the client must not depend on an asynchronous write-versus-close race. Deliberately dropping a queued logout reason would reproduce an obvious lifecycle race excluded from bug-for-bug replication.",
       "scope": "Only the final confirmed-logout Disconnect Play flush before EOF. Confirmation GUI bytes, click transaction rejection, window close, hotbar restoration, reason text and JSON, connection termination, and every earlier packet remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Acquire one fixed-capacity video permit before admitting either map or block playback, move the permit into the bounded playback task, and hold it until decode, cancellation, map-wall or world teardown, hotbar restoration scheduling, and completion-state publication have entered their terminal path. Release exactly once on every success, error, disconnect, cancellation, executor rejection, and shutdown path.",
+      "evidence": {
+        "attestation": "blackbox/tools/attest_java_map_video_semaphore.py",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "oracle_evidence": "evidence/freeze/java-oracle/map-video-semaphore.json",
+        "oracle_golden": "blackbox/golden/java/managed-minecraft-video-v1/observations/minecraft/video.json",
+        "source": "src/main/java/net/lmyz/lmyzmail/netty/minecraft/video/MapVideoPlayer.java",
+        "source_sha256": "e7b15fb65ef8671e91b4ad427153285504b646c01a22b37ed453c275d22185b6"
+      },
+      "id": "minecraft-map-video-permit-lifetime",
+      "oracle_behavior": "The frozen Java map player successfully calls tryAcquire(), publishes its ACTIVE control, and immediately releases the permit before submitting the decode task. The configured default limit is two, but any number of map sessions can pass this check as permits are returned before playback starts. The block player holds its permit until its worker finally block.",
+      "reason": "Releasing admission before the admitted CPU, native-memory, outbound-buffer, entity, and world lifecycle begins makes the configured hard limit ineffective. Reproducing that resource-admission bug would violate the rewrite's mandatory bounded-concurrency and cancellation requirements.",
+      "scope": "Only map-video overload admission, permit ownership, executor rejection, shutdown, and terminal release ordering. Every admitted session's menu, commands, map IDs, item frames, pixels, dirty rectangles, timing-visible messages, pause/resume/stop behavior, teardown packets, and healthy block-video behavior remain compatibility requirements."
     }
   ],
   "schema_version": 1
