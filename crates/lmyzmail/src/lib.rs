@@ -6,6 +6,7 @@ pub mod honeypot;
 pub mod htcpcp;
 pub mod http;
 pub mod lifecycle;
+pub mod mail_render;
 pub mod mailbox;
 pub mod minecraft;
 pub(crate) mod minecraft_world;

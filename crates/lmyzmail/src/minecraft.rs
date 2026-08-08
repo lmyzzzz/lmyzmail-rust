@@ -1,10 +1,11 @@
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     future::Future,
     io::{self, Write as _},
+    net::{IpAddr, SocketAddr},
     pin::Pin,
     sync::{
-        Arc, Mutex,
+        Arc, Mutex, OnceLock,
         atomic::{AtomicI32, AtomicU64, Ordering},
     },
     time::{Duration, Instant as StdInstant},
@@ -13,6 +14,7 @@ use std::{
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use flate2::{Compression, write::ZlibEncoder};
 use getrandom::fill as fill_random;
+use hickory_resolver::{TokioResolver, config::LookupIpStrategy};
 use icu_casemap::CaseMapper;
 use md5::{Digest as _, Md5};
 use openssl::{
@@ -20,6 +22,7 @@ use openssl::{
     rsa::{Padding, Rsa},
     symm::{Cipher, Crypter, Mode},
 };
+use regex::Regex;
 use reqwest::{Client, StatusCode, redirect::Policy};
 use sha1::Sha1;
 use subtle::ConstantTimeEq;
@@ -37,6 +40,7 @@ use crate::{
     auth::{AuthError, AuthService, LoginOutcome},
     bounded_blocking::{BoundedBlockingPool, SubmitError},
     config::{MinecraftConfig, RuntimeConfig},
+    mail_render,
     mailbox::{EmailListItem, EmailListPage, MailboxService},
     minecraft_world::{self, NbtValue, WorldTemplate},
 };
@@ -72,6 +76,19 @@ const RENDER_FONT_SIZE_MAX: i32 = 48;
 const UPDATE_SIGN_LINE_MAX_UTF16_UNITS: usize = 384;
 const FOLDER_PAGE_SIZE: i32 = 36;
 const FOLDER_LOAD_TIMEOUT: Duration = Duration::from_secs(8);
+const MAIL_RENDER_TIMEOUT: Duration = Duration::from_secs(60);
+const MAIL_RENDER_WORKERS: usize = 2;
+const MAIL_RENDER_QUEUE: usize = 2;
+const IMAGE_DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(10);
+const IMAGE_DOWNLOAD_PERMITS: usize = 16;
+const IMAGE_DNS_TIMEOUT: Duration = Duration::from_secs(5);
+const IMAGE_DNS_CACHE_ENTRIES: u64 = 256;
+const IMAGE_DNS_MAX_ACTIVE_REQUESTS: usize = 16;
+const MAX_IMAGE_ADDRESSES: usize = 16;
+const MAP_TILE_PIXELS: usize = 128 * 128;
+const MAP_BLANK_COLOR: u8 = 34;
+const MAP_SUPPORT_BLOCK_STATE: i32 = 155 << 4;
+const HOTBAR_CLICK_COOLDOWN: Duration = Duration::from_millis(400);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ConnectionState {
@@ -121,6 +138,15 @@ struct WindowClick {
 
 struct UpdateSign {
     lines: [String; 4],
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum HotbarAction {
+    None,
+    PreviousPage,
+    CloseMailView,
+    NextPage,
+    OpenMainMenu,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -176,11 +202,62 @@ struct PendingFolderLoad {
     future: FolderLoadFuture,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 enum FolderGuiEffect {
     None,
     LoadPage(i32),
     OpenMainMenu(u8),
+    OpenMail { folder: String, file_name: String },
+}
+
+#[derive(Debug)]
+enum MailRenderFailure {
+    Busy,
+    Unavailable,
+    Read(String),
+    Render(String),
+    Cancelled,
+}
+
+type MailRenderFuture = Pin<
+    Box<dyn Future<Output = Result<mail_render::RenderResult, MailRenderFailure>> + Send + 'static>,
+>;
+
+struct PendingMailRender {
+    cancellation: CancellationToken,
+    future: MailRenderFuture,
+}
+
+impl Drop for PendingMailRender {
+    fn drop(&mut self) {
+        self.cancellation.cancel();
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum MapWallFacing {
+    South,
+    West,
+    North,
+    East,
+}
+
+struct MapWall {
+    maps_x: usize,
+    maps_y: usize,
+    facing: MapWallFacing,
+    center_x: i32,
+    center_y: i32,
+    center_z: i32,
+    map_ids: Box<[i32]>,
+    entity_ids: Box<[i32]>,
+    saved_blocks: Vec<((i32, i32, i32), i32)>,
+}
+
+struct ActiveMailView {
+    wall: MapWall,
+    result: mail_render::RenderResult,
+    current_page: usize,
 }
 
 impl MinecraftDraft {
@@ -393,6 +470,303 @@ impl From<io::Error> for ProtocolError {
     }
 }
 
+#[derive(Clone)]
+struct PinnedImageClient {
+    resolver: TokioResolver,
+    permits: Arc<Semaphore>,
+}
+
+#[derive(Debug)]
+struct DownloadedImage {
+    body: Vec<u8>,
+    mime_type: String,
+}
+
+impl PinnedImageClient {
+    fn new() -> io::Result<Self> {
+        let mut builder = TokioResolver::builder_tokio().map_err(|error| {
+            io::Error::other(format!("image DNS configuration is unavailable: {error}"))
+        })?;
+        builder.options_mut().timeout = IMAGE_DNS_TIMEOUT;
+        builder.options_mut().attempts = 2;
+        builder.options_mut().cache_size = IMAGE_DNS_CACHE_ENTRIES;
+        builder.options_mut().max_active_requests = IMAGE_DNS_MAX_ACTIVE_REQUESTS;
+        builder.options_mut().ip_strategy = LookupIpStrategy::Ipv4AndIpv6;
+        let resolver = builder.build().map_err(|error| {
+            io::Error::other(format!("image DNS resolver initialization failed: {error}"))
+        })?;
+        Ok(Self {
+            resolver,
+            permits: Arc::new(Semaphore::new(IMAGE_DOWNLOAD_PERMITS)),
+        })
+    }
+
+    async fn get(
+        &self,
+        url: &reqwest::Url,
+        deadline: Instant,
+        cancellation: &CancellationToken,
+    ) -> Result<Option<DownloadedImage>, String> {
+        let operation_deadline = deadline.min(Instant::now() + IMAGE_DOWNLOAD_TIMEOUT);
+        let _permit = tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => return Err("image download cancelled".to_owned()),
+            result = timeout_at(operation_deadline, self.permits.clone().acquire_owned()) => result
+                .map_err(|_| "image download admission timed out".to_owned())?
+                .map_err(|_| "image download admission closed".to_owned())?,
+        };
+        let host = url
+            .host_str()
+            .ok_or_else(|| "external image URL has no host".to_owned())?
+            .to_owned();
+        let port = url
+            .port_or_known_default()
+            .ok_or_else(|| "external image URL has no port".to_owned())?;
+        let addresses = if let Ok(address) = host.parse::<IpAddr>() {
+            vec![address]
+        } else {
+            let lookup = tokio::select! {
+                biased;
+                _ = cancellation.cancelled() => return Err("image DNS lookup cancelled".to_owned()),
+                result = timeout_at(operation_deadline, self.resolver.lookup_ip(&host)) => result
+                    .map_err(|_| "image DNS lookup timed out".to_owned())?
+                    .map_err(|_| "image DNS lookup failed".to_owned())?,
+            };
+            lookup.iter().collect::<Vec<_>>()
+        };
+        if addresses.is_empty() || addresses.len() > MAX_IMAGE_ADDRESSES {
+            return Err("image DNS answer exceeds its address budget".to_owned());
+        }
+        if addresses
+            .iter()
+            .any(|address| !crate::outbound_smtp::is_public_smtp_ip(*address))
+        {
+            return Err("external image resolved to a non-public address".to_owned());
+        }
+
+        let socket_addresses = addresses
+            .iter()
+            .map(|address| SocketAddr::new(*address, port))
+            .collect::<Vec<_>>();
+        let remaining = operation_deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err("image download deadline exceeded".to_owned());
+        }
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let client = Client::builder()
+            .no_proxy()
+            .redirect(Policy::none())
+            .connect_timeout(remaining)
+            .timeout(remaining)
+            .resolve_to_addrs(&host, &socket_addresses)
+            .build()
+            .map_err(|_| "image HTTP client initialization failed".to_owned())?;
+        let response = tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => return Err("image download cancelled".to_owned()),
+            result = timeout_at(
+                operation_deadline,
+                client
+                    .get(url.clone())
+                    .header("User-Agent", "MailRenderer/1.0")
+                    .header("Accept", "image/*")
+                    .send(),
+            ) => result
+                .map_err(|_| "image HTTP request timed out".to_owned())?
+                .map_err(|_| "image HTTP request failed".to_owned())?,
+        };
+        if response.status() != StatusCode::OK {
+            return Ok(None);
+        }
+        if response
+            .content_length()
+            .is_some_and(|length| length > mail_render::MAX_EXTERNAL_RESOURCE_BYTES as u64)
+        {
+            return Err("external image exceeds its byte budget".to_owned());
+        }
+        let mime_type = mail_render::normalize_image_content_type(
+            response
+                .headers()
+                .get(reqwest::header::CONTENT_TYPE)
+                .and_then(|value| value.to_str().ok()),
+        );
+        if !mail_render::is_safe_external_image_type(Some(&mime_type)) {
+            return Ok(None);
+        }
+
+        let mut response = response;
+        let mut body = Vec::with_capacity(
+            response.content_length().unwrap_or_default().min(16 * 1024) as usize,
+        );
+        loop {
+            let chunk = tokio::select! {
+                biased;
+                _ = cancellation.cancelled() => return Err("image download cancelled".to_owned()),
+                result = timeout_at(operation_deadline, response.chunk()) => result
+                    .map_err(|_| "image response body timed out".to_owned())?
+                    .map_err(|_| "image response body failed".to_owned())?,
+            };
+            let Some(chunk) = chunk else {
+                break;
+            };
+            if body.len().saturating_add(chunk.len()) > mail_render::MAX_EXTERNAL_RESOURCE_BYTES {
+                return Err("external image exceeds its byte budget".to_owned());
+            }
+            body.extend_from_slice(&chunk);
+        }
+        Ok((!body.is_empty()).then_some(DownloadedImage { body, mime_type }))
+    }
+}
+
+#[derive(Debug)]
+struct ExternalImageTarget {
+    source: String,
+    url: reqwest::Url,
+    content_id: String,
+}
+
+#[derive(Debug)]
+struct CidAttachmentTarget {
+    index: i32,
+    content_id: String,
+    mime_type: String,
+}
+
+#[derive(Debug)]
+struct MailRenderPreparation {
+    document: mail_render::PreparedDocument,
+    cid_targets: Vec<CidAttachmentTarget>,
+    external_targets: Vec<ExternalImageTarget>,
+}
+
+fn prepare_mail_render(
+    detail: crate::mailbox::EmailDetail,
+) -> Result<MailRenderPreparation, String> {
+    let descriptors = detail
+        .attachments
+        .iter()
+        .map(|attachment| mail_render::AttachmentDescriptor {
+            filename: Some(attachment.filename.as_str()),
+            content_type: attachment.content_type.as_deref(),
+            size: attachment.size,
+            inline: attachment.inline,
+        })
+        .collect::<Vec<_>>();
+    let document = mail_render::PreparedDocument::compose(
+        detail.raw_html.as_deref(),
+        detail.text.as_deref(),
+        &descriptors,
+    )
+    .map_err(|error| error.to_string())?;
+
+    let mut seen_content_ids = HashSet::with_capacity(mail_render::MAX_CID_RESOURCES);
+    let mut cid_targets = Vec::with_capacity(mail_render::MAX_CID_RESOURCES);
+    for (index, attachment) in detail.attachments.iter().enumerate() {
+        if cid_targets.len() >= mail_render::MAX_CID_RESOURCES {
+            break;
+        }
+        let Some(content_id) = attachment
+            .content_id
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+        else {
+            continue;
+        };
+        if !attachment.inline
+            || attachment.size == 0
+            || attachment.size > mail_render::MAX_CID_RESOURCE_BYTES as u64
+            || !mail_render::is_safe_cid_image_type(attachment.content_type.as_deref())
+            || !seen_content_ids.insert(content_id.to_owned())
+        {
+            continue;
+        }
+        let Ok(index) = i32::try_from(index) else {
+            break;
+        };
+        cid_targets.push(CidAttachmentTarget {
+            index,
+            content_id: content_id.to_owned(),
+            mime_type: mail_render::normalize_image_content_type(
+                attachment.content_type.as_deref(),
+            ),
+        });
+    }
+
+    let mut external_targets = match &document {
+        mail_render::PreparedDocument::Html(html) => {
+            collect_external_image_targets(html, cid_targets.len())
+        }
+        mail_render::PreparedDocument::PlainText(_) => Vec::new(),
+    };
+    for (sequence, target) in external_targets.iter_mut().enumerate() {
+        let mut suffix = sequence;
+        while seen_content_ids.contains(&target.content_id) {
+            suffix = suffix.saturating_add(1);
+            target.content_id = format!("__http_{suffix}");
+        }
+        seen_content_ids.insert(target.content_id.clone());
+    }
+
+    Ok(MailRenderPreparation {
+        document,
+        cid_targets,
+        external_targets,
+    })
+}
+
+fn collect_external_image_targets(
+    html: &str,
+    current_resource_count: usize,
+) -> Vec<ExternalImageTarget> {
+    static SRC_PATTERN: OnceLock<Regex> = OnceLock::new();
+    let pattern = SRC_PATTERN.get_or_init(|| {
+        Regex::new(r#"(?i)src(?-u:\s)*=(?-u:\s)*["'](https?://[^"'\t\n\x0B\x0C\r >]+)["']"#)
+            .expect("the external image source pattern is valid")
+    });
+    let remaining_slots = mail_render::MAX_IMAGE_RESOURCES.saturating_sub(current_resource_count);
+    let target_count = mail_render::MAX_EXTERNAL_RESOURCES.min(remaining_slots);
+    let mut seen = HashSet::with_capacity(target_count);
+    let mut targets = Vec::with_capacity(target_count);
+
+    for captures in pattern.captures_iter(html) {
+        if targets.len() >= target_count {
+            break;
+        }
+        let Some(source) = captures.get(1).map(|value| value.as_str()) else {
+            continue;
+        };
+        if seen.contains(source) {
+            continue;
+        }
+        let Some(url) = parse_allowed_external_image_url(source) else {
+            continue;
+        };
+        seen.insert(source.to_owned());
+        targets.push(ExternalImageTarget {
+            source: source.to_owned(),
+            url,
+            content_id: format!("__http_{}", targets.len()),
+        });
+    }
+    targets
+}
+
+fn parse_allowed_external_image_url(source: &str) -> Option<reqwest::Url> {
+    let url = reqwest::Url::parse(source).ok()?;
+    if !url.username().is_empty() || url.password().is_some() || url.fragment().is_some() {
+        return None;
+    }
+    let allowed_port = match url.scheme() {
+        "http" => 80,
+        "https" => 443,
+        _ => return None,
+    };
+    if url.host_str().is_none() || url.port_or_known_default() != Some(allowed_port) {
+        return None;
+    }
+    Some(url)
+}
+
 struct StatusService {
     config: MinecraftConfig,
     status_frame: Arc<[u8]>,
@@ -402,9 +776,13 @@ struct StatusService {
     whitelist_players: Arc<[String]>,
     blacklist_players: Arc<[String]>,
     compression_pool: BoundedBlockingPool,
+    mail_render_pool: BoundedBlockingPool,
+    image_http: Option<PinnedImageClient>,
     online_mode: Option<OnlineModeService>,
     next_entity_id: AtomicI32,
     next_hologram_entity_id: AtomicI32,
+    next_map_id: AtomicI32,
+    next_map_entity_id: AtomicI32,
     next_window_id: AtomicI32,
     next_connection_id: AtomicU64,
     online_sessions: Arc<Mutex<HashMap<String, u64>>>,
@@ -436,12 +814,20 @@ impl StatusService {
                 COMPRESSION_WORKERS,
                 COMPRESSION_QUEUE,
             )?,
+            mail_render_pool: BoundedBlockingPool::new(
+                "lmyzmail-minecraft-mail-render",
+                MAIL_RENDER_WORKERS,
+                MAIL_RENDER_QUEUE,
+            )?,
+            image_http: PinnedImageClient::new().ok(),
             online_mode: config
                 .online_mode
                 .then(|| OnlineModeService::new(config))
                 .transpose()?,
             next_entity_id: AtomicI32::new(1),
             next_hologram_entity_id: AtomicI32::new(900_000),
+            next_map_id: AtomicI32::new(config.video.base_map_id),
+            next_map_entity_id: AtomicI32::new(config.video.base_entity_id),
             next_window_id: AtomicI32::new(1),
             next_connection_id: AtomicU64::new(1),
             online_sessions: Arc::new(Mutex::new(HashMap::with_capacity(MAX_CONNECTIONS))),
@@ -494,6 +880,26 @@ impl StatusService {
     fn reserve_hologram_entity_ids(&self, count: i32) -> i32 {
         self.next_hologram_entity_id
             .fetch_add(count, Ordering::Relaxed)
+    }
+
+    fn reserve_map_wall_ids(&self, count: i32) -> io::Result<(i32, i32)> {
+        fn reserve(counter: &AtomicI32, count: i32, label: &str) -> io::Result<i32> {
+            counter
+                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                    current.checked_add(count)
+                })
+                .map_err(|_| io::Error::other(format!("Minecraft {label} ID space exhausted")))
+        }
+
+        if count <= 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Minecraft map wall must contain at least one tile",
+            ));
+        }
+        let map_base = reserve(&self.next_map_id, count, "map")?;
+        let entity_base = reserve(&self.next_map_entity_id, count, "map entity")?;
+        Ok((map_base, entity_base))
     }
 
     fn next_window_id(&self) -> u8 {
@@ -654,15 +1060,19 @@ async fn handle_connection(
     let mut next_hologram_teleport = None;
     let mut next_time_update = None;
     let mut pending_email = None;
-    let mut authenticated = None;
+    let mut authenticated: Option<(String, Zeroizing<String>)> = None;
     let mut player_username = String::new();
     let mut draft = MinecraftDraft::default();
     let mut open_menu_window_id = None;
     let mut logout_confirm_window_id = None;
     let mut open_folder_gui: Option<FolderGui> = None;
     let mut pending_folder_load: Option<PendingFolderLoad> = None;
+    let mut pending_mail_render: Option<PendingMailRender> = None;
+    let mut active_mail_view: Option<ActiveMailView> = None;
     let mut render_settings = RenderSettings::default();
     let mut render_settings_pending = false;
+    let mut held_slot = 0_i16;
+    let mut last_hotbar_click = None;
 
     loop {
         let raw_frame_result = if state == ConnectionState::Play {
@@ -724,6 +1134,78 @@ async fn handle_connection(
                             }
                         }
                     };
+                    if let Err(error) = write_packet_list(
+                        &mut writer,
+                        &service,
+                        responses,
+                        compression,
+                        cipher.as_mut(),
+                        deadline,
+                        &cancellation,
+                    )
+                    .await
+                    {
+                        return finish_write_error(error);
+                    }
+                    continue;
+                }
+                render_result = async {
+                    pending_mail_render
+                        .as_mut()
+                        .expect("guarded mail render was missing")
+                        .future
+                        .as_mut()
+                        .await
+                }, if pending_mail_render.is_some() => {
+                    let pending = pending_mail_render
+                        .take()
+                        .expect("completed mail render was missing");
+                    let responses = match render_result {
+                        Ok(result) if result.pages().is_empty() => vec![chat_packet(
+                            "\u{00a7}cEmail rendered with no content",
+                            Some("red"),
+                        )?],
+                        Ok(result) => {
+                            let maps_x = usize::from(result.pages()[0].maps_x());
+                            let maps_y = result
+                                .pages()
+                                .iter()
+                                .map(|page| usize::from(page.maps_y()))
+                                .max()
+                                .unwrap_or(1);
+                            let mut wall = MapWall::new(&service, maps_x, maps_y)?;
+                            let mut packets = wall.setup_packets(&service.world)?;
+                            packets.extend(mail_view_page_packets(
+                                &wall,
+                                &result.pages()[0],
+                            )?);
+                            packets.extend(mail_view_started_packets(result.pages().len())?);
+                            active_mail_view = Some(ActiveMailView {
+                                wall,
+                                result,
+                                current_page: 0,
+                            });
+                            packets
+                        }
+                        Err(MailRenderFailure::Busy) => vec![chat_packet(
+                            "\u{00a7}cServer busy rendering. Try again later.",
+                            Some("red"),
+                        )?],
+                        Err(MailRenderFailure::Unavailable) => vec![chat_packet(
+                            "\u{00a7}cMail rendering not available",
+                            Some("red"),
+                        )?],
+                        Err(MailRenderFailure::Read(error)) => vec![chat_packet(
+                            &format!("\u{00a7}cFailed to read email: {error}"),
+                            Some("red"),
+                        )?],
+                        Err(MailRenderFailure::Render(error)) => vec![chat_packet(
+                            &format!("\u{00a7}cRender error: {error}"),
+                            Some("red"),
+                        )?],
+                        Err(MailRenderFailure::Cancelled) => Vec::new(),
+                    };
+                    drop(pending);
                     if let Err(error) = write_packet_list(
                         &mut writer,
                         &service,
@@ -1057,6 +1539,82 @@ async fn handle_connection(
                 _ => {}
             },
             ConnectionState::Play => match packet_id {
+                0x02 | 0x08 => {
+                    let primary_interaction = if packet_id == 0x02 {
+                        let Ok((_target_id, action)) = read_use_entity(&mut packet) else {
+                            return Ok(());
+                        };
+                        action == 0
+                    } else {
+                        if read_player_block_placement(&mut packet).is_err() {
+                            return Ok(());
+                        }
+                        true
+                    };
+                    let action = hotbar_action(
+                        active_mail_view.is_some(),
+                        authenticated.is_some(),
+                        held_slot,
+                        primary_interaction,
+                        Instant::now(),
+                        &mut last_hotbar_click,
+                    );
+                    let responses = match action {
+                        HotbarAction::None => Vec::new(),
+                        HotbarAction::PreviousPage => mail_view_navigation_packets(
+                            active_mail_view
+                                .as_mut()
+                                .expect("previous-page action lost its mail view"),
+                            -1,
+                        )?,
+                        HotbarAction::NextPage => mail_view_navigation_packets(
+                            active_mail_view
+                                .as_mut()
+                                .expect("next-page action lost its mail view"),
+                            1,
+                        )?,
+                        HotbarAction::CloseMailView => {
+                            let Some((email, _)) = authenticated.as_ref() else {
+                                return Ok(());
+                            };
+                            let view = active_mail_view
+                                .take()
+                                .expect("close action lost its mail view");
+                            mail_view_close_packets(view, &player_username, email, render_settings)?
+                        }
+                        HotbarAction::OpenMainMenu => {
+                            let mut packets = Vec::new();
+                            let window_id = service.next_window_id();
+                            let replaced_gui = open_menu_window_id.take().is_some()
+                                | logout_confirm_window_id.take().is_some()
+                                | open_folder_gui.take().is_some();
+                            pending_folder_load = None;
+                            if replaced_gui {
+                                packets.extend(restore_gui_hotbar_packets(
+                                    active_mail_view.is_some(),
+                                )?);
+                            }
+                            packets.extend(main_menu_packets(window_id, render_settings)?);
+                            open_menu_window_id = Some(window_id);
+                            logout_confirm_window_id = None;
+                            packets
+                        }
+                    };
+                    if !responses.is_empty()
+                        && let Err(error) = write_packet_list(
+                            &mut writer,
+                            &service,
+                            responses,
+                            compression,
+                            cipher.as_mut(),
+                            deadline,
+                            &cancellation,
+                        )
+                        .await
+                    {
+                        return finish_write_error(error);
+                    }
+                }
                 0x01 => {
                     let Ok(mut message) = packet.read_string(100) else {
                         return Ok(());
@@ -1212,6 +1770,90 @@ async fn handle_connection(
                         }
                     } else if let Some((authenticated_email, _)) = authenticated.as_ref() {
                         let command = java_trim(&message);
+                        if active_mail_view.is_some() {
+                            let parts = command.split_ascii_whitespace().collect::<Vec<_>>();
+                            let subcommand = parts
+                                .get(1)
+                                .map(|value| value.to_ascii_lowercase())
+                                .unwrap_or_default();
+                            let responses = if command.starts_with("/mail") {
+                                match subcommand.as_str() {
+                                    "next" | "n" => mail_view_navigation_packets(
+                                        active_mail_view
+                                            .as_mut()
+                                            .expect("active mail view disappeared"),
+                                        1,
+                                    )?,
+                                    "prev" | "p" | "previous" => mail_view_navigation_packets(
+                                        active_mail_view
+                                            .as_mut()
+                                            .expect("active mail view disappeared"),
+                                        -1,
+                                    )?,
+                                    "close" | "c" | "exit" => {
+                                        let view = active_mail_view
+                                            .take()
+                                            .expect("active mail view disappeared");
+                                        mail_view_close_packets(
+                                            view,
+                                            &player_username,
+                                            authenticated_email,
+                                            render_settings,
+                                        )?
+                                    }
+                                    "rendersize" | "rs" => {
+                                        if let Some((packets, opens_editor)) =
+                                            render_size_command_packets(
+                                                &message,
+                                                &mut render_settings,
+                                                &player_username,
+                                                authenticated_email,
+                                            )?
+                                        {
+                                            render_settings_pending |= opens_editor;
+                                            packets
+                                        } else {
+                                            Vec::new()
+                                        }
+                                    }
+                                    _ => {
+                                        let view = active_mail_view
+                                            .as_ref()
+                                            .expect("active mail view disappeared");
+                                        vec![chat_packet(
+                                            &format!(
+                                                "\u{00a7}ePage \u{00a7}f{}\u{00a7}e/\u{00a7}f{} \u{00a7}e\u{2014} hotbar arrows or /mail next|prev|close",
+                                                view.current_page + 1,
+                                                view.result.pages().len(),
+                                            ),
+                                            None,
+                                        )?]
+                                    }
+                                }
+                            } else if command.starts_with("/stuck") {
+                                stuck_command_packets(&service.config)?
+                            } else {
+                                vec![chat_packet(
+                                    "\u{00a7}7Use hotbar items or \u{00a7}f/mail close \u{00a7}7to exit",
+                                    Some("gray"),
+                                )?]
+                            };
+                            message.zeroize();
+                            if let Err(error) = write_packet_list(
+                                &mut writer,
+                                &service,
+                                responses,
+                                compression,
+                                cipher.as_mut(),
+                                deadline,
+                                &cancellation,
+                            )
+                            .await
+                            {
+                                return finish_write_error(error);
+                            }
+                            continue;
+                        }
                         let command_end = command.find(java_regex_space).unwrap_or(command.len());
                         let menu_window_id = command[..command_end]
                             .eq_ignore_ascii_case("/menu")
@@ -1223,7 +1865,9 @@ async fn handle_connection(
                                 | open_folder_gui.take().is_some();
                             pending_folder_load = None;
                             if replaced_gui {
-                                responses.extend(restore_hotbar_packets()?);
+                                responses.extend(restore_gui_hotbar_packets(
+                                    active_mail_view.is_some(),
+                                )?);
                             }
                         }
                         if let Some((command_packets, opens_render_settings)) =
@@ -1279,7 +1923,7 @@ async fn handle_connection(
                         && let Err(error) = write_packet_list(
                             &mut writer,
                             &service,
-                            restore_hotbar_packets()?,
+                            restore_gui_hotbar_packets(active_mail_view.is_some())?,
                             compression,
                             cipher.as_mut(),
                             deadline,
@@ -1297,8 +1941,12 @@ async fn handle_connection(
                     if open_menu_window_id == Some(click.window_id) {
                         let logout_window_id =
                             (click.mode == 0 && click.slot == 34).then(|| service.next_window_id());
-                        let (responses, effect) =
-                            main_menu_click_packets(click, logout_window_id, render_settings)?;
+                        let (responses, effect) = main_menu_click_packets(
+                            click,
+                            logout_window_id,
+                            render_settings,
+                            active_mail_view.is_some(),
+                        )?;
                         match effect {
                             MainMenuEffect::None => {}
                             MainMenuEffect::Close => {
@@ -1359,6 +2007,7 @@ async fn handle_connection(
                             click,
                             main_window_id,
                             render_settings,
+                            active_mail_view.is_some(),
                         )?;
                         match effect {
                             LogoutConfirmEffect::None => {}
@@ -1396,13 +2045,14 @@ async fn handle_connection(
                     {
                         let main_window_id =
                             (click.mode == 0 && click.slot == 49).then(|| service.next_window_id());
-                        let (responses, effect) = folder_gui_click_packets(
+                        let (mut responses, effect) = folder_gui_click_packets(
                             click,
                             open_folder_gui
                                 .as_ref()
                                 .expect("matched folder GUI was missing"),
                             main_window_id,
                             render_settings,
+                            active_mail_view.is_some(),
                         )?;
                         match effect {
                             FolderGuiEffect::None => {}
@@ -1433,6 +2083,31 @@ async fn handle_connection(
                                 open_menu_window_id = Some(window_id);
                                 logout_confirm_window_id = None;
                             }
+                            FolderGuiEffect::OpenMail { folder, file_name } => {
+                                pending_folder_load = None;
+                                open_folder_gui = None;
+                                open_menu_window_id = None;
+                                logout_confirm_window_id = None;
+                                let Some((email, _)) = authenticated.as_ref() else {
+                                    return Ok(());
+                                };
+                                if let Some(view) = active_mail_view.take() {
+                                    responses.extend(mail_view_close_packets(
+                                        view,
+                                        &player_username,
+                                        email,
+                                        render_settings,
+                                    )?);
+                                }
+                                pending_mail_render = Some(start_mail_render(
+                                    Arc::clone(&service),
+                                    email,
+                                    folder,
+                                    file_name,
+                                    render_settings,
+                                    deadline,
+                                )?);
+                            }
                         }
                         if let Err(error) = write_packet_list(
                             &mut writer,
@@ -1448,6 +2123,12 @@ async fn handle_connection(
                             return finish_write_error(error);
                         }
                     }
+                }
+                0x09 => {
+                    let Ok(slot) = read_held_item_change(&mut packet) else {
+                        return Ok(());
+                    };
+                    held_slot = slot;
                 }
                 0x12 => {
                     let Ok(update) = read_update_sign(&mut packet) else {
@@ -1526,6 +2207,65 @@ fn read_player_position(
     }
     packet.read_u8()?;
     Ok(position)
+}
+
+fn read_use_entity(packet: &mut PacketReader<'_>) -> Result<(i32, i32), ()> {
+    let target_id = packet.read_varint()?;
+    let action = packet.read_varint()?;
+    Ok((target_id, action))
+}
+
+fn read_player_block_placement(packet: &mut PacketReader<'_>) -> Result<(i32, i32, i32, i8), ()> {
+    let packed = packet.read_i64()? as u64;
+    let x = ((packed >> 38) as i32) << 6 >> 6;
+    let y = ((packed >> 26) & 0xfff) as i32;
+    let z = (packed as i32) << 6 >> 6;
+    let face = packet.read_u8()? as i8;
+    packet.skip_slot()?;
+    packet.read_u8()?;
+    packet.read_u8()?;
+    packet.read_u8()?;
+    Ok((x, y, z, face))
+}
+
+fn read_held_item_change(packet: &mut PacketReader<'_>) -> Result<i16, ()> {
+    Ok(packet.read_i16()? & 0x0f)
+}
+
+fn hotbar_action(
+    mail_view_active: bool,
+    authenticated: bool,
+    held_slot: i16,
+    primary_interaction: bool,
+    now: Instant,
+    last_hotbar_click: &mut Option<Instant>,
+) -> HotbarAction {
+    if !authenticated || !primary_interaction {
+        return HotbarAction::None;
+    }
+    if held_slot == 8 {
+        return HotbarAction::OpenMainMenu;
+    }
+    if !mail_view_active {
+        return HotbarAction::None;
+    }
+    let action = match held_slot {
+        3 => HotbarAction::PreviousPage,
+        4 => HotbarAction::CloseMailView,
+        5 => HotbarAction::NextPage,
+        _ => HotbarAction::None,
+    };
+    if action == HotbarAction::None {
+        return action;
+    }
+    if last_hotbar_click.is_some_and(|last| {
+        now.checked_duration_since(last)
+            .is_none_or(|elapsed| elapsed < HOTBAR_CLICK_COOLDOWN)
+    }) {
+        return HotbarAction::None;
+    }
+    *last_hotbar_click = Some(now);
+    action
 }
 
 fn read_window_click(packet: &mut PacketReader<'_>) -> Result<WindowClick, ()> {
@@ -2560,6 +3300,7 @@ fn main_menu_click_packets(
     click: WindowClick,
     logout_window_id: Option<u8>,
     render_settings: RenderSettings,
+    mail_view_active: bool,
 ) -> io::Result<(Vec<Vec<u8>>, MainMenuEffect)> {
     let mut confirmation = vec![0x32, click.window_id];
     confirmation.extend_from_slice(&click.action_number.to_be_bytes());
@@ -2590,21 +3331,21 @@ fn main_menu_click_packets(
                     &format!("\u{00a7}7Loading {folder}..."),
                     Some("gray"),
                 )?);
-                packets.extend(close_menu_packets(click.window_id)?);
+                packets.extend(close_menu_packets(click.window_id, mail_view_active)?);
                 MainMenuEffect::OpenFolder(folder)
             }
             22 => {
-                packets.extend(close_menu_packets(click.window_id)?);
+                packets.extend(close_menu_packets(click.window_id, mail_view_active)?);
                 packets.extend(render_settings_editor_packets(render_settings)?);
                 MainMenuEffect::OpenRenderSettings
             }
             30 => {
-                packets.extend(close_menu_packets(click.window_id)?);
+                packets.extend(close_menu_packets(click.window_id, mail_view_active)?);
                 packets.extend(help_menu_packets()?);
                 MainMenuEffect::Close
             }
             32 => {
-                packets.extend(close_menu_packets(click.window_id)?);
+                packets.extend(close_menu_packets(click.window_id, mail_view_active)?);
                 packets.push(chat_packet(
                     "\u{00a7}aPlease enter your new email address:",
                     Some("green"),
@@ -2618,12 +3359,12 @@ fn main_menu_click_packets(
                         "Minecraft logout confirmation window ID is missing",
                     ));
                 };
-                packets.extend(restore_hotbar_packets()?);
+                packets.extend(restore_gui_hotbar_packets(mail_view_active)?);
                 packets.extend(logout_confirmation_packets(window_id)?);
                 MainMenuEffect::OpenLogoutConfirm(window_id)
             }
             49 => {
-                packets.extend(close_menu_packets(click.window_id)?);
+                packets.extend(close_menu_packets(click.window_id, mail_view_active)?);
                 MainMenuEffect::Close
             }
             _ => MainMenuEffect::None,
@@ -2662,6 +3403,722 @@ fn start_folder_load(
         }
     });
     Ok(PendingFolderLoad { action, future })
+}
+
+fn start_mail_render(
+    service: Arc<StatusService>,
+    email: &str,
+    folder: String,
+    file_name: String,
+    settings: RenderSettings,
+    connection_deadline: Instant,
+) -> io::Result<PendingMailRender> {
+    let mailbox = service.mailbox.as_ref().cloned().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::NotConnected,
+            "Minecraft mailbox service is unavailable",
+        )
+    })?;
+    let email = email.to_owned();
+    let cancellation = CancellationToken::new();
+    let future_cancellation = cancellation.clone();
+    let render_deadline = connection_deadline.min(Instant::now() + MAIL_RENDER_TIMEOUT);
+    let future = Box::pin(async move {
+        let detail = tokio::select! {
+            biased;
+            _ = future_cancellation.cancelled() => return Err(MailRenderFailure::Cancelled),
+            result = timeout_at(
+                render_deadline,
+                mailbox.read_detail(&email, &folder, &file_name),
+            ) => match result {
+                Ok(Ok(detail)) => detail,
+                Ok(Err(error)) => return Err(MailRenderFailure::Read(error.to_string())),
+                Err(_) => return Err(MailRenderFailure::Read("mailbox backend unavailable".to_owned())),
+            },
+        };
+        if future_cancellation.is_cancelled() {
+            return Err(MailRenderFailure::Cancelled);
+        }
+
+        let preparation_receiver = service
+            .mail_render_pool
+            .submit(move || prepare_mail_render(detail))
+            .map_err(|error| match error {
+                SubmitError::Full => MailRenderFailure::Busy,
+                SubmitError::Closed => MailRenderFailure::Unavailable,
+            })?;
+        let mut preparation = tokio::select! {
+            biased;
+            _ = future_cancellation.cancelled() => return Err(MailRenderFailure::Cancelled),
+            result = timeout_at(render_deadline, preparation_receiver) => match result {
+                Ok(Ok(Ok(preparation))) => preparation,
+                Ok(Ok(Err(error))) => return Err(MailRenderFailure::Render(error)),
+                Ok(Err(_)) => return Err(MailRenderFailure::Unavailable),
+                Err(_) => {
+                    future_cancellation.cancel();
+                    return Err(MailRenderFailure::Render(
+                        "mail rendering deadline exceeded".to_owned(),
+                    ));
+                }
+            },
+        };
+
+        let mut resources = Vec::with_capacity(
+            preparation
+                .cid_targets
+                .len()
+                .saturating_add(preparation.external_targets.len()),
+        );
+        let mut total_resource_bytes = 0usize;
+        for target in preparation.cid_targets.drain(..) {
+            let attachment = tokio::select! {
+                biased;
+                _ = future_cancellation.cancelled() => {
+                    return Err(MailRenderFailure::Cancelled);
+                }
+                result = timeout_at(
+                    render_deadline,
+                    mailbox.read_attachment(&email, &folder, &file_name, target.index),
+                ) => match result {
+                    Ok(Ok(attachment)) => attachment,
+                    Ok(Err(_)) => continue,
+                    Err(_) => {
+                        future_cancellation.cancel();
+                        return Err(MailRenderFailure::Render(
+                            "mail rendering deadline exceeded".to_owned(),
+                        ));
+                    }
+                },
+            };
+            let body_len = attachment.body.len();
+            if body_len == 0
+                || body_len > mail_render::MAX_CID_RESOURCE_BYTES
+                || !mail_render::is_safe_cid_image_type(attachment.content_type.as_deref())
+            {
+                continue;
+            }
+            let Some(next_total) = total_resource_bytes.checked_add(body_len) else {
+                return Err(MailRenderFailure::Render(
+                    "mail image resource budget overflowed".to_owned(),
+                ));
+            };
+            if next_total > mail_render::MAX_TOTAL_RESOURCE_BYTES {
+                break;
+            }
+            total_resource_bytes = next_total;
+            resources.push(mail_render::EmbeddedResource::new(
+                target.content_id,
+                attachment.body,
+                target.mime_type,
+            ));
+        }
+
+        let mut successful_replacements = Vec::new();
+        if let Some(image_http) = service.image_http.clone() {
+            for target in preparation.external_targets.drain(..) {
+                if resources.len() >= mail_render::MAX_IMAGE_RESOURCES {
+                    break;
+                }
+                let downloaded = match image_http
+                    .get(&target.url, render_deadline, &future_cancellation)
+                    .await
+                {
+                    Ok(Some(downloaded)) => downloaded,
+                    Ok(None) => continue,
+                    Err(_) if future_cancellation.is_cancelled() => {
+                        return Err(MailRenderFailure::Cancelled);
+                    }
+                    Err(_) if Instant::now() >= render_deadline => {
+                        future_cancellation.cancel();
+                        return Err(MailRenderFailure::Render(
+                            "mail rendering deadline exceeded".to_owned(),
+                        ));
+                    }
+                    Err(_) => continue,
+                };
+                let Some(next_total) = total_resource_bytes.checked_add(downloaded.body.len())
+                else {
+                    return Err(MailRenderFailure::Render(
+                        "mail image resource budget overflowed".to_owned(),
+                    ));
+                };
+                if next_total > mail_render::MAX_TOTAL_RESOURCE_BYTES {
+                    break;
+                }
+                total_resource_bytes = next_total;
+                successful_replacements.push((target.source, format!("cid:{}", target.content_id)));
+                resources.push(mail_render::EmbeddedResource::new(
+                    target.content_id,
+                    downloaded.body,
+                    downloaded.mime_type,
+                ));
+            }
+        }
+
+        let worker_cancellation = future_cancellation.clone();
+        let receiver = service
+            .mail_render_pool
+            .submit(move || {
+                let mut request = match &mut preparation.document {
+                    mail_render::PreparedDocument::PlainText(plain_text) => {
+                        mail_render::RenderRequest::plain_text(
+                            plain_text,
+                            settings.maps_x as u8,
+                            settings.maps_y as u8,
+                            &worker_cancellation,
+                            render_deadline.into_std(),
+                        )
+                    }
+                    mail_render::PreparedDocument::Html(html) => {
+                        for (source, replacement) in successful_replacements {
+                            *html = html.replace(&source, &replacement);
+                        }
+                        *html = mail_render::preprocess_html(html);
+                        mail_render::RenderRequest::html(
+                            html,
+                            &resources,
+                            settings.maps_x as u8,
+                            settings.maps_y as u8,
+                            &worker_cancellation,
+                            render_deadline.into_std(),
+                        )
+                    }
+                };
+                request.style.font_size_px = f64::from(settings.font_size);
+                mail_render::render(&request)
+            })
+            .map_err(|error| match error {
+                SubmitError::Full => MailRenderFailure::Busy,
+                SubmitError::Closed => MailRenderFailure::Unavailable,
+            })?;
+        tokio::select! {
+            biased;
+            _ = future_cancellation.cancelled() => Err(MailRenderFailure::Cancelled),
+            result = timeout_at(render_deadline, receiver) => match result {
+                Ok(Ok(Ok(result))) => Ok(result),
+                Ok(Ok(Err(error))) => Err(MailRenderFailure::Render(error.to_string())),
+                Ok(Err(_)) => Err(MailRenderFailure::Unavailable),
+                Err(_) => {
+                    future_cancellation.cancel();
+                    Err(MailRenderFailure::Render("mail rendering deadline exceeded".to_owned()))
+                }
+            },
+        }
+    });
+    Ok(PendingMailRender {
+        cancellation,
+        future,
+    })
+}
+
+impl MapWallFacing {
+    fn parse(value: &str) -> Self {
+        match value.trim().to_ascii_uppercase().as_str() {
+            "WEST" => Self::West,
+            "NORTH" => Self::North,
+            "EAST" => Self::East,
+            _ => Self::South,
+        }
+    }
+
+    fn frame_direction(self) -> i32 {
+        match self {
+            Self::South => 0,
+            Self::West => 1,
+            Self::North => 2,
+            Self::East => 3,
+        }
+    }
+}
+
+impl MapWall {
+    fn new(service: &StatusService, maps_x: usize, maps_y: usize) -> io::Result<Self> {
+        if maps_x == 0
+            || maps_y == 0
+            || maps_x > RENDER_MAPS_X_MAX as usize
+            || maps_y > RENDER_MAPS_Y_MAX as usize
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Minecraft map wall dimensions are out of bounds",
+            ));
+        }
+        let total = maps_x
+            .checked_mul(maps_y)
+            .and_then(|value| i32::try_from(value).ok())
+            .ok_or_else(|| io::Error::other("Minecraft map wall size overflow"))?;
+        let (map_base, entity_base) = service.reserve_map_wall_ids(total)?;
+        let map_ids = (0..total)
+            .map(|offset| map_base + offset)
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
+        let entity_ids = (0..total)
+            .map(|offset| entity_base + offset)
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
+        Ok(Self {
+            maps_x,
+            maps_y,
+            facing: MapWallFacing::parse(&service.config.video.map_facing),
+            center_x: service.config.video.map_center_x,
+            center_y: service.config.video.map_center_y,
+            center_z: service.config.video.map_center_z,
+            map_ids,
+            entity_ids,
+            saved_blocks: Vec::with_capacity(total as usize * 2),
+        })
+    }
+
+    fn map_id(&self, col: usize, row: usize) -> io::Result<i32> {
+        self.map_ids
+            .get(row.saturating_mul(self.maps_x).saturating_add(col))
+            .copied()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "map tile is out of range"))
+    }
+
+    fn support_position(&self, col: usize, y: i32) -> (i32, i32, i32) {
+        let col = col as i32;
+        let maps_x = self.maps_x as i32;
+        match self.facing {
+            MapWallFacing::South => {
+                let start_x = self.center_x - (maps_x - 1) / 2;
+                (start_x + col, y, self.center_z)
+            }
+            MapWallFacing::North => {
+                let start_x = self.center_x + (maps_x - 1) / 2;
+                (start_x - col, y, self.center_z)
+            }
+            MapWallFacing::East => {
+                let start_z = self.center_z + (maps_x - 1) / 2;
+                (self.center_x, y, start_z - col)
+            }
+            MapWallFacing::West => {
+                let start_z = self.center_z - (maps_x - 1) / 2;
+                (self.center_x, y, start_z + col)
+            }
+        }
+    }
+
+    fn air_position(&self, support: (i32, i32, i32)) -> (i32, i32, i32) {
+        let (x, y, z) = support;
+        match self.facing {
+            MapWallFacing::South => (x, y, z + 1),
+            MapWallFacing::North => (x, y, z - 1),
+            MapWallFacing::East => (x + 1, y, z),
+            MapWallFacing::West => (x - 1, y, z),
+        }
+    }
+
+    fn fixed_entity_position(&self, air: (i32, i32, i32)) -> (i32, i32, i32) {
+        let (x, y, z) = air;
+        match self.facing {
+            MapWallFacing::South => (x * 32 + 16, y * 32 + 16, z * 32 + 1),
+            MapWallFacing::North => (x * 32 + 16, y * 32 + 16, z * 32 + 31),
+            MapWallFacing::East => (x * 32 + 1, y * 32 + 16, z * 32 + 16),
+            MapWallFacing::West => (x * 32 + 31, y * 32 + 16, z * 32 + 16),
+        }
+    }
+
+    fn setup_packets(&mut self, world: &WorldTemplate) -> io::Result<Vec<Vec<u8>>> {
+        let total = self.maps_x * self.maps_y;
+        let mut packets = Vec::with_capacity(total * 5);
+        let mut saved = HashSet::with_capacity(total * 2);
+        let blank = [MAP_BLANK_COLOR; MAP_TILE_PIXELS];
+        let max_y = self.center_y + (self.maps_y as i32 - 1) / 2;
+        for row in 0..self.maps_y {
+            let y = max_y - row as i32;
+            for col in 0..self.maps_x {
+                let index = row * self.maps_x + col;
+                let support = self.support_position(col, y);
+                let air = self.air_position(support);
+                for position in [support, air] {
+                    if saved.insert(position) {
+                        self.saved_blocks.push((
+                            position,
+                            world.block_state_at(position.0, position.1, position.2),
+                        ));
+                    }
+                }
+                packets.push(block_change_packet(support, MAP_SUPPORT_BLOCK_STATE));
+                packets.push(block_change_packet(air, 0));
+                packets.push(spawn_object_packet(
+                    self.entity_ids[index],
+                    self.fixed_entity_position(air),
+                    self.facing.frame_direction(),
+                ));
+                packets.push(entity_metadata_map_packet(
+                    self.entity_ids[index],
+                    self.map_ids[index],
+                ));
+                packets.push(map_data_packet(self.map_ids[index], &blank)?);
+            }
+        }
+        Ok(packets)
+    }
+
+    fn teardown_packets(self) -> Vec<Vec<u8>> {
+        let mut packets = Vec::with_capacity(self.saved_blocks.len() + 1);
+        packets.push(destroy_entities_packet(&self.entity_ids));
+        packets.extend(
+            self.saved_blocks
+                .into_iter()
+                .map(|(position, state)| block_change_packet(position, state)),
+        );
+        packets
+    }
+}
+
+fn block_change_packet(position: (i32, i32, i32), block_state: i32) -> Vec<u8> {
+    let mut packet = Vec::with_capacity(14);
+    packet.push(0x23);
+    write_block_position(&mut packet, position.0, position.1, position.2);
+    write_varint(&mut packet, block_state as u32);
+    packet
+}
+
+fn spawn_object_packet(
+    entity_id: i32,
+    fixed_position: (i32, i32, i32),
+    object_data: i32,
+) -> Vec<u8> {
+    let mut packet = Vec::with_capacity(32);
+    packet.push(0x0e);
+    write_varint(&mut packet, entity_id as u32);
+    packet.push(71);
+    packet.extend_from_slice(&fixed_position.0.to_be_bytes());
+    packet.extend_from_slice(&fixed_position.1.to_be_bytes());
+    packet.extend_from_slice(&fixed_position.2.to_be_bytes());
+    packet.extend_from_slice(&[0, 0]);
+    packet.extend_from_slice(&object_data.to_be_bytes());
+    if object_data > 0 {
+        packet.extend_from_slice(&[0; 6]);
+    }
+    packet
+}
+
+fn entity_metadata_map_packet(entity_id: i32, map_id: i32) -> Vec<u8> {
+    let mut packet = Vec::with_capacity(16);
+    packet.push(0x1c);
+    write_varint(&mut packet, entity_id as u32);
+    packet.push(0xa8);
+    packet.extend_from_slice(&358_i16.to_be_bytes());
+    packet.push(1);
+    packet.extend_from_slice(&(map_id as i16).to_be_bytes());
+    packet.extend_from_slice(&[0, 0x7f]);
+    packet
+}
+
+fn map_data_packet(map_id: i32, pixels: &[u8]) -> io::Result<Vec<u8>> {
+    if pixels.len() != MAP_TILE_PIXELS {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Minecraft map tile must contain exactly 16384 pixels",
+        ));
+    }
+    let mut packet = Vec::with_capacity(MAP_TILE_PIXELS + 16);
+    packet.push(0x34);
+    write_varint(&mut packet, map_id as u32);
+    packet.push(0);
+    write_varint(&mut packet, 0);
+    packet.extend_from_slice(&[128, 128, 0, 0]);
+    write_varint(&mut packet, MAP_TILE_PIXELS as u32);
+    packet.extend_from_slice(pixels);
+    Ok(packet)
+}
+
+fn destroy_entities_packet(entity_ids: &[i32]) -> Vec<u8> {
+    let mut packet = Vec::with_capacity(entity_ids.len() * 5 + 6);
+    packet.push(0x13);
+    write_varint(&mut packet, entity_ids.len() as u32);
+    for &entity_id in entity_ids {
+        write_varint(&mut packet, entity_id as u32);
+    }
+    packet
+}
+
+fn mail_view_page_packets(wall: &MapWall, page: &mail_render::Page) -> io::Result<Vec<Vec<u8>>> {
+    if usize::from(page.maps_x()) != wall.maps_x || usize::from(page.maps_y()) > wall.maps_y {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "rendered page dimensions do not fit the map wall",
+        ));
+    }
+    let mut packets = Vec::with_capacity(wall.maps_x * wall.maps_y);
+    let mut tile_pixels = [0_u8; MAP_TILE_PIXELS];
+    for row in 0..usize::from(page.maps_y()) {
+        for col in 0..wall.maps_x {
+            page.tile_at(col, row)
+                .ok_or_else(|| io::Error::other("rendered map tile is missing"))?
+                .copy_into(&mut tile_pixels);
+            packets.push(map_data_packet(wall.map_id(col, row)?, &tile_pixels)?);
+        }
+    }
+    tile_pixels.fill(MAP_BLANK_COLOR);
+    for row in usize::from(page.maps_y())..wall.maps_y {
+        for col in 0..wall.maps_x {
+            packets.push(map_data_packet(wall.map_id(col, row)?, &tile_pixels)?);
+        }
+    }
+    Ok(packets)
+}
+
+fn hotbar_skull_nbt(texture_url: &str, name: &str, lore: &str) -> NbtValue {
+    let texture_json = serde_json::json!({
+        "textures": {"SKIN": {"url": texture_url}}
+    })
+    .to_string();
+    let skull_owner = NbtValue::Compound(vec![
+        (
+            "Id".to_owned(),
+            NbtValue::String(java_name_uuid(texture_url.as_bytes())),
+        ),
+        (
+            "Properties".to_owned(),
+            NbtValue::Compound(vec![(
+                "textures".to_owned(),
+                NbtValue::List {
+                    element_type: 10,
+                    values: vec![NbtValue::Compound(vec![(
+                        "Value".to_owned(),
+                        NbtValue::String(STANDARD.encode(texture_json.as_bytes())),
+                    )])],
+                },
+            )]),
+        ),
+    ]);
+    let display = NbtValue::Compound(vec![
+        ("Name".to_owned(), NbtValue::String(name.to_owned())),
+        (
+            "Lore".to_owned(),
+            NbtValue::List {
+                element_type: 8,
+                values: vec![NbtValue::String(lore.to_owned())],
+            },
+        ),
+    ]);
+    NbtValue::Compound(vec![
+        ("SkullOwner".to_owned(), skull_owner),
+        ("display".to_owned(), display),
+    ])
+}
+
+fn hotbar_display_nbt(name: &str, lore: &str) -> NbtValue {
+    NbtValue::Compound(vec![(
+        "display".to_owned(),
+        NbtValue::Compound(vec![
+            ("Name".to_owned(), NbtValue::String(name.to_owned())),
+            (
+                "Lore".to_owned(),
+                NbtValue::List {
+                    element_type: 8,
+                    values: vec![NbtValue::String(lore.to_owned())],
+                },
+            ),
+        ]),
+    )])
+}
+
+fn set_slot_packet(slot: i16, item: &MinecraftSlot) -> io::Result<Vec<u8>> {
+    let mut packet = vec![0x2f, 0];
+    packet.extend_from_slice(&slot.to_be_bytes());
+    write_slot(&mut packet, item)?;
+    Ok(packet)
+}
+
+fn mail_view_hotbar_packets() -> io::Result<Vec<Vec<u8>>> {
+    Ok(vec![
+        set_slot_packet(
+            39,
+            &MinecraftSlot::item(
+                397,
+                3,
+                hotbar_skull_nbt(
+                    TEXTURE_ARROW_LEFT,
+                    "\u{00a7}a\u{25c0} Previous Page",
+                    "\u{00a7}7Right-click to go back",
+                ),
+            ),
+        )?,
+        set_slot_packet(
+            40,
+            &MinecraftSlot::item(
+                166,
+                0,
+                hotbar_display_nbt(
+                    "\u{00a7}c\u{2716} Close View",
+                    "\u{00a7}7Right-click to close",
+                ),
+            ),
+        )?,
+        set_slot_packet(
+            41,
+            &MinecraftSlot::item(
+                397,
+                3,
+                hotbar_skull_nbt(
+                    TEXTURE_ARROW_RIGHT,
+                    "\u{00a7}aNext Page \u{25b6}",
+                    "\u{00a7}7Right-click to advance",
+                ),
+            ),
+        )?,
+        vec![0x09, 4],
+    ])
+}
+
+fn restore_default_hotbar_packets() -> io::Result<Vec<Vec<u8>>> {
+    let mut packets = Vec::with_capacity(10);
+    for slot in 37_i16..=43 {
+        packets.push(set_slot_packet(slot, &MinecraftSlot::empty())?);
+    }
+    packets.push(draft_book_packet()?);
+    let mut menu_star = vec![0x2f, 0];
+    menu_star.extend_from_slice(&44_i16.to_be_bytes());
+    write_slot(
+        &mut menu_star,
+        &MinecraftSlot::item(399, 0, menu_star_nbt()),
+    )?;
+    packets.push(menu_star);
+    packets.push(vec![0x09, 0]);
+    Ok(packets)
+}
+
+fn scoreboard_packets(lines: &[String]) -> io::Result<Vec<Vec<u8>>> {
+    let mut packets = Vec::with_capacity(lines.len() + 3);
+    let mut remove = vec![0x3b];
+    write_string(&mut remove, "lmyz")?;
+    remove.push(1);
+    packets.push(remove);
+
+    let mut create = vec![0x3b];
+    write_string(&mut create, "lmyz")?;
+    create.push(0);
+    write_string(&mut create, "\u{00a7}6\u{00a7}lLMYZMAIL")?;
+    write_string(&mut create, "dummy")?;
+    packets.push(create);
+
+    let mut display = vec![0x3d, 1];
+    write_string(&mut display, "lmyz")?;
+    packets.push(display);
+
+    for (index, line) in lines.iter().enumerate() {
+        let prefix = char::from_digit(index as u32, 16).unwrap_or('f');
+        let score_name = truncate_utf16(&format!("\u{00a7}{prefix}\u{00a7}r{line}"), 40);
+        let mut score = vec![0x3c];
+        write_string(&mut score, &score_name)?;
+        score.push(0);
+        write_string(&mut score, "lmyz")?;
+        write_varint(&mut score, (lines.len() - index) as u32);
+        packets.push(score);
+    }
+    Ok(packets)
+}
+
+fn email_view_scoreboard_packets(page: usize, total_pages: usize) -> io::Result<Vec<Vec<u8>>> {
+    let divider = format!("\u{00a7}7{}", "\u{2501}".repeat(13));
+    scoreboard_packets(&[
+        divider.clone(),
+        "\u{00a7}bViewing Email".to_owned(),
+        format!(
+            "\u{00a7}fPage: \u{00a7}a{}\u{00a7}7/\u{00a7}f{total_pages}",
+            page + 1
+        ),
+        String::new(),
+        "\u{00a7}f\u{25c0} \u{00a7}7Prev  \u{00a7}f\u{2716} \u{00a7}7Close  \u{00a7}f\u{25b6} \u{00a7}7Next"
+            .to_owned(),
+        divider,
+        "\u{00a7}email.lmyz.net".to_owned(),
+    ])
+}
+
+fn positioned_chat_packet(text: &str, position: u8) -> io::Result<Vec<u8>> {
+    let mut packet = vec![0x02];
+    write_string(&mut packet, &chat_json(text, None))?;
+    packet.push(position);
+    Ok(packet)
+}
+
+fn mail_view_actionbar_packet(page: usize, total_pages: usize) -> io::Result<Vec<u8>> {
+    positioned_chat_packet(
+        &format!(
+            "\u{00a7}7\u{1f4e7} Page \u{00a7}f{}\u{00a7}7/\u{00a7}f{total_pages} \u{00a7}8| \u{00a7}f\u{25c0} Prev \u{00a7}8| \u{00a7}f\u{2716} Close \u{00a7}8| \u{00a7}fNext \u{25b6}",
+            page + 1
+        ),
+        2,
+    )
+}
+
+fn mail_view_started_packets(total_pages: usize) -> io::Result<Vec<Vec<u8>>> {
+    let mut packets = mail_view_hotbar_packets()?;
+    packets.extend(email_view_scoreboard_packets(0, total_pages)?);
+    packets.push(mail_view_actionbar_packet(0, total_pages)?);
+    packets.push(chat_packet(
+        "\u{00a7}a\u{00a7}lEmail rendered on map wall!",
+        Some("green"),
+    )?);
+    if total_pages > 1 {
+        packets.push(chat_packet(
+            &format!(
+                "\u{00a7}7Page \u{00a7}f1\u{00a7}7/\u{00a7}f{total_pages} \u{00a7}7\u{2014} Use hotbar arrows or \u{00a7}f/mail next\u{00a7}7/\u{00a7}fprev"
+            ),
+            Some("gray"),
+        )?);
+    }
+    packets.push(chat_packet(
+        "\u{00a7}7Use \u{00a7}fbarrier item \u{00a7}7or \u{00a7}f/mail close \u{00a7}7to close",
+        Some("gray"),
+    )?);
+    Ok(packets)
+}
+
+fn mail_view_navigation_packets(
+    view: &mut ActiveMailView,
+    direction: i32,
+) -> io::Result<Vec<Vec<u8>>> {
+    let total_pages = view.result.pages().len();
+    let next = view.current_page as i32 + direction;
+    if next < 0 {
+        return Ok(vec![chat_packet(
+            "\u{00a7}cAlready on the first page",
+            Some("red"),
+        )?]);
+    }
+    let next = next as usize;
+    if next >= total_pages {
+        return Ok(vec![chat_packet(
+            "\u{00a7}cAlready on the last page",
+            Some("red"),
+        )?]);
+    }
+    view.current_page = next;
+    let mut packets = mail_view_page_packets(&view.wall, &view.result.pages()[next])?;
+    packets.extend(email_view_scoreboard_packets(next, total_pages)?);
+    packets.push(mail_view_actionbar_packet(next, total_pages)?);
+    packets.push(chat_packet(
+        &format!(
+            "\u{00a7}7Page \u{00a7}f{}\u{00a7}7/\u{00a7}f{total_pages}",
+            next + 1
+        ),
+        Some("gray"),
+    )?);
+    Ok(packets)
+}
+
+fn mail_view_close_packets(
+    view: ActiveMailView,
+    username: &str,
+    email: &str,
+    render_settings: RenderSettings,
+) -> io::Result<Vec<Vec<u8>>> {
+    let mut packets = view.wall.teardown_packets();
+    packets.extend(restore_default_hotbar_packets()?);
+    packets.extend(authenticated_scoreboard_packets(
+        username,
+        email,
+        render_settings,
+    )?);
+    packets.push(chat_packet("\u{00a7}aMail view closed.", Some("green"))?);
+    Ok(packets)
 }
 
 fn folder_gui_packets(gui: &FolderGui) -> io::Result<Vec<Vec<u8>>> {
@@ -2859,6 +4316,7 @@ fn folder_gui_click_packets(
     gui: &FolderGui,
     main_window_id: Option<u8>,
     render_settings: RenderSettings,
+    mail_view_active: bool,
 ) -> io::Result<(Vec<Vec<u8>>, FolderGuiEffect)> {
     let mut confirmation = vec![0x32, click.window_id];
     confirmation.extend_from_slice(&click.action_number.to_be_bytes());
@@ -2871,6 +4329,15 @@ fn folder_gui_click_packets(
         FolderGuiEffect::None
     } else {
         match click.slot {
+            slot @ 0..36 if (slot as usize) < gui.page.content.len() => {
+                let item = &gui.page.content[slot as usize];
+                packets.extend(close_menu_packets(click.window_id, mail_view_active)?);
+                packets.push(chat_packet("\u{00a7}7Rendering email...", Some("gray"))?);
+                FolderGuiEffect::OpenMail {
+                    folder: gui.folder.clone(),
+                    file_name: item.file_name.clone(),
+                }
+            }
             46 if gui.page.current_page > 0 => FolderGuiEffect::LoadPage(gui.page.current_page - 1),
             49 => {
                 let Some(window_id) = main_window_id else {
@@ -2879,7 +4346,7 @@ fn folder_gui_click_packets(
                         "Minecraft main-menu window ID is missing",
                     ));
                 };
-                packets.extend(restore_hotbar_packets()?);
+                packets.extend(restore_gui_hotbar_packets(mail_view_active)?);
                 packets.extend(main_menu_packets(window_id, render_settings)?);
                 FolderGuiEffect::OpenMainMenu(window_id)
             }
@@ -3102,6 +4569,7 @@ fn logout_confirmation_click_packets(
     click: WindowClick,
     main_window_id: Option<u8>,
     render_settings: RenderSettings,
+    mail_view_active: bool,
 ) -> io::Result<(Vec<Vec<u8>>, LogoutConfirmEffect)> {
     let mut confirmation = vec![0x32, click.window_id];
     confirmation.extend_from_slice(&click.action_number.to_be_bytes());
@@ -3121,7 +4589,7 @@ fn logout_confirmation_click_packets(
     } else {
         match click.slot {
             11 => {
-                packets.extend(close_menu_packets(click.window_id)?);
+                packets.extend(close_menu_packets(click.window_id, mail_view_active)?);
                 packets.push(disconnect_play_packet("\u{00a7}aLogged out. See you!")?);
                 LogoutConfirmEffect::Disconnect
             }
@@ -3132,7 +4600,7 @@ fn logout_confirmation_click_packets(
                         "Minecraft main-menu return window ID is missing",
                     ));
                 };
-                packets.extend(close_menu_packets(click.window_id)?);
+                packets.extend(close_menu_packets(click.window_id, mail_view_active)?);
                 packets.extend(main_menu_packets(window_id, render_settings)?);
                 LogoutConfirmEffect::OpenMainMenu(window_id)
             }
@@ -3142,9 +4610,9 @@ fn logout_confirmation_click_packets(
     Ok((packets, effect))
 }
 
-fn close_menu_packets(window_id: u8) -> io::Result<Vec<Vec<u8>>> {
+fn close_menu_packets(window_id: u8, mail_view_active: bool) -> io::Result<Vec<Vec<u8>>> {
     let mut packets = vec![vec![0x2e, window_id]];
-    packets.extend(restore_hotbar_packets()?);
+    packets.extend(restore_gui_hotbar_packets(mail_view_active)?);
     Ok(packets)
 }
 
@@ -3300,6 +4768,14 @@ fn restore_hotbar_packets() -> io::Result<Vec<Vec<u8>>> {
     menu_star.extend_from_slice(&0_i16.to_be_bytes());
     minecraft_world::write_nbt(Some(&menu_star_nbt()), &mut menu_star)?;
     Ok(vec![draft_book_packet()?, menu_star])
+}
+
+fn restore_gui_hotbar_packets(mail_view_active: bool) -> io::Result<Vec<Vec<u8>>> {
+    let mut packets = restore_hotbar_packets()?;
+    if mail_view_active {
+        packets.extend(mail_view_hotbar_packets()?);
+    }
+    Ok(packets)
 }
 
 fn authenticated_scoreboard_packets(
@@ -4298,6 +5774,7 @@ fn retryable_accept_error(error: &io::Error) -> bool {
 mod tests {
     use super::*;
     use proptest::prelude::*;
+    use sha2::Sha256;
     use tokio::sync::oneshot;
     use tokio::time::sleep;
 
@@ -4326,6 +5803,12 @@ mod tests {
             video: crate::config::MinecraftVideoConfig {
                 center_x: 0,
                 wall_z: -50,
+                map_center_x: 0,
+                map_center_y: 180,
+                map_center_z: -20,
+                map_facing: "SOUTH".to_owned(),
+                base_map_id: 10_000,
+                base_entity_id: 100_000,
             },
             whitelist_enabled: false,
             whitelist_players: Vec::new(),
@@ -4333,6 +5816,45 @@ mod tests {
             auth_max_attempts: 5,
             auth_lockout_seconds: 300,
             auth_window_seconds: 600,
+        }
+    }
+
+    #[test]
+    fn external_image_targets_match_java_quoted_src_and_uri_policy() {
+        let html = concat!(
+            "<img src=\"https://example.test/a.png\">",
+            "<img SRC = 'http://8.8.8.8/b.jpg?x=1'>",
+            "<img src=\"https://example.test/a.png\">",
+            "<img src=https://example.test/unquoted.png>",
+            "<img src=\"https://user@example.test/no.png\">",
+            "<img src=\"https://example.test:444/no.png\">",
+            "<img src=\"https://example.test/no.png#fragment\">"
+        );
+        let targets = collect_external_image_targets(html, 0);
+        assert_eq!(targets.len(), 2);
+        assert_eq!(targets[0].source, "https://example.test/a.png");
+        assert_eq!(targets[0].content_id, "__http_0");
+        assert_eq!(targets[1].source, "http://8.8.8.8/b.jpg?x=1");
+        assert_eq!(targets[1].content_id, "__http_1");
+
+        let one_slot = collect_external_image_targets(html, mail_render::MAX_IMAGE_RESOURCES - 1);
+        assert_eq!(one_slot.len(), 1);
+    }
+
+    #[test]
+    fn external_image_uri_policy_accepts_only_default_http_ports() {
+        assert!(parse_allowed_external_image_url("https://8.8.8.8/a.png").is_some());
+        assert!(parse_allowed_external_image_url("http://example.test:80/a.png").is_some());
+        for value in [
+            "file:///etc/passwd",
+            "http://8.8.8.8:22/a.png",
+            "https://user@example.test/a.png",
+            "https://example.test/a.png#fragment",
+        ] {
+            assert!(
+                parse_allowed_external_image_url(value).is_none(),
+                "accepted {value}"
+            );
         }
     }
 
@@ -4572,6 +6094,272 @@ mod tests {
     }
 
     #[test]
+    fn mail_view_serverbound_parsers_are_bounded_and_match_protocol_47() {
+        for (encoded, expected) in [
+            ([0x00, 0x00], 0),
+            ([0x00, 0x03], 3),
+            ([0x00, 0x08], 8),
+            ([0x12, 0x3f], 15),
+        ] {
+            let mut reader = PacketReader::new(&encoded);
+            assert_eq!(read_held_item_change(&mut reader), Ok(expected));
+            assert_eq!(reader.cursor, encoded.len());
+        }
+        assert!(read_held_item_change(&mut PacketReader::new(&[0])).is_err());
+
+        let mut interact = PacketReader::new(&[0xac, 0x02, 0]);
+        assert_eq!(read_use_entity(&mut interact), Ok((300, 0)));
+        assert_eq!(interact.cursor, 3);
+
+        let mut interact_at = vec![7, 2];
+        interact_at.extend_from_slice(&1.25_f32.to_be_bytes());
+        interact_at.extend_from_slice(&(-2.5_f32).to_be_bytes());
+        interact_at.extend_from_slice(&3.75_f32.to_be_bytes());
+        let mut reader = PacketReader::new(&interact_at);
+        assert_eq!(read_use_entity(&mut reader), Ok((7, 2)));
+        assert_eq!(reader.cursor, 2);
+        assert_eq!(
+            read_use_entity(&mut PacketReader::new(&interact_at[..2])),
+            Ok((7, 2))
+        );
+        assert!(read_use_entity(&mut PacketReader::new(&[7])).is_err());
+
+        let mut placement = Vec::new();
+        write_block_position(&mut placement, -12, 4095, -33_554_432);
+        placement.push(0xff);
+        write_slot(&mut placement, &MinecraftSlot::empty()).unwrap();
+        placement.extend_from_slice(&[1, 2, 3]);
+        let mut reader = PacketReader::new(&placement);
+        assert_eq!(
+            read_player_block_placement(&mut reader),
+            Ok((-12, 4095, -33_554_432, -1))
+        );
+        assert_eq!(reader.cursor, placement.len());
+
+        let mut placement_with_item = Vec::new();
+        write_block_position(&mut placement_with_item, 33_554_431, 0, 17);
+        placement_with_item.push(5);
+        write_slot(
+            &mut placement_with_item,
+            &MinecraftSlot::item(399, 0, menu_star_nbt()),
+        )
+        .unwrap();
+        placement_with_item.extend_from_slice(&[0, 8, 15]);
+        let mut reader = PacketReader::new(&placement_with_item);
+        assert_eq!(
+            read_player_block_placement(&mut reader),
+            Ok((33_554_431, 0, 17, 5))
+        );
+        assert_eq!(reader.cursor, placement_with_item.len());
+        for length in 0..placement_with_item.len() {
+            assert!(
+                read_player_block_placement(&mut PacketReader::new(&placement_with_item[..length]))
+                    .is_err(),
+                "truncated placement of length {length} was accepted"
+            );
+        }
+    }
+
+    #[test]
+    fn mail_view_hotbar_actions_match_java_slots_and_cooldown() {
+        let start = Instant::now();
+        let mut last_click = None;
+        assert_eq!(
+            hotbar_action(true, true, 3, true, start, &mut last_click),
+            HotbarAction::PreviousPage
+        );
+        assert_eq!(last_click, Some(start));
+        assert_eq!(
+            hotbar_action(
+                true,
+                true,
+                5,
+                true,
+                start + Duration::from_millis(399),
+                &mut last_click,
+            ),
+            HotbarAction::None
+        );
+        assert_eq!(last_click, Some(start));
+        assert_eq!(
+            hotbar_action(
+                true,
+                true,
+                5,
+                true,
+                start + HOTBAR_CLICK_COOLDOWN,
+                &mut last_click,
+            ),
+            HotbarAction::NextPage
+        );
+        assert_eq!(
+            hotbar_action(
+                true,
+                true,
+                4,
+                true,
+                start + HOTBAR_CLICK_COOLDOWN * 2,
+                &mut last_click,
+            ),
+            HotbarAction::CloseMailView
+        );
+        assert_eq!(
+            hotbar_action(
+                true,
+                true,
+                8,
+                true,
+                start + HOTBAR_CLICK_COOLDOWN * 2,
+                &mut last_click,
+            ),
+            HotbarAction::OpenMainMenu
+        );
+        assert_eq!(
+            hotbar_action(
+                false,
+                true,
+                8,
+                true,
+                start + HOTBAR_CLICK_COOLDOWN * 2,
+                &mut last_click,
+            ),
+            HotbarAction::OpenMainMenu
+        );
+        for (active, authenticated, slot, primary) in [
+            (false, true, 3, true),
+            (true, false, 3, true),
+            (true, true, 3, false),
+            (true, true, 2, true),
+            (true, true, 15, true),
+        ] {
+            assert_eq!(
+                hotbar_action(
+                    active,
+                    authenticated,
+                    slot,
+                    primary,
+                    start + Duration::from_secs(2),
+                    &mut last_click,
+                ),
+                HotbarAction::None
+            );
+        }
+    }
+
+    #[test]
+    fn map_wall_teardown_restores_every_saved_block_and_entity() {
+        let wall = MapWall {
+            maps_x: 2,
+            maps_y: 2,
+            facing: MapWallFacing::South,
+            center_x: 0,
+            center_y: 180,
+            center_z: -20,
+            map_ids: vec![10_000, 10_001, 10_002, 10_003].into_boxed_slice(),
+            entity_ids: vec![100_000, 100_001, 100_002, 100_003].into_boxed_slice(),
+            saved_blocks: vec![((-1, 180, -20), 16), ((-1, 180, -19), 0)],
+        };
+        let packets = wall.teardown_packets();
+        assert_eq!(packets.len(), 3);
+        assert_eq!(
+            packets[0],
+            destroy_entities_packet(&[100_000, 100_001, 100_002, 100_003])
+        );
+        assert_eq!(packets[1], block_change_packet((-1, 180, -20), 16));
+        assert_eq!(packets[2], block_change_packet((-1, 180, -19), 0));
+    }
+
+    #[test]
+    fn one_row_mail_page_overwrites_the_full_wall_with_blank_lower_maps() {
+        let cancellation = CancellationToken::new();
+        let result = mail_render::render(&mail_render::RenderRequest::plain_text(
+            "short page",
+            2,
+            2,
+            &cancellation,
+            StdInstant::now() + Duration::from_secs(5),
+        ))
+        .unwrap();
+        assert_eq!(result.pages().len(), 1);
+        assert_eq!(result.pages()[0].maps_y(), 1);
+        assert_eq!(result.pages()[0].pixel_height(), 128);
+
+        let wall = MapWall {
+            maps_x: 2,
+            maps_y: 2,
+            facing: MapWallFacing::South,
+            center_x: 0,
+            center_y: 180,
+            center_z: -20,
+            map_ids: vec![10, 11, 12, 13].into_boxed_slice(),
+            entity_ids: vec![100, 101, 102, 103].into_boxed_slice(),
+            saved_blocks: Vec::new(),
+        };
+        let packets = mail_view_page_packets(&wall, &result.pages()[0]).unwrap();
+        assert_eq!(packets.len(), 4);
+        assert_eq!(
+            mail_view_page_packets(&wall, &result.pages()[0]).unwrap(),
+            packets
+        );
+        assert_eq!(
+            packets.iter().map(|packet| packet[1]).collect::<Vec<_>>(),
+            [10, 11, 12, 13]
+        );
+        let blank = [MAP_BLANK_COLOR; MAP_TILE_PIXELS];
+        for packet in &packets[2..] {
+            assert_eq!(&packet[packet.len() - MAP_TILE_PIXELS..], &blank);
+        }
+    }
+
+    #[test]
+    fn gui_close_restores_the_java_mail_view_hotbar_order() {
+        let packets = restore_gui_hotbar_packets(true).unwrap();
+        let digest = Sha256::digest(packets.concat())
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        assert_eq!(
+            digest,
+            "8349f0f3eaf435a751e244edcbd17885d746e10550f61cd719de75b2226c5292"
+        );
+        assert_eq!(packets.len(), 6);
+        assert_eq!(
+            packets.iter().map(|packet| packet[0]).collect::<Vec<_>>(),
+            [0x2f, 0x2f, 0x2f, 0x2f, 0x2f, 0x09]
+        );
+        assert_eq!(
+            packets[..5]
+                .iter()
+                .map(|packet| i16::from_be_bytes([packet[2], packet[3]]))
+                .collect::<Vec<_>>(),
+            [36, 44, 39, 40, 41]
+        );
+        assert_eq!(packets[5], [0x09, 4]);
+
+        let base_only = restore_gui_hotbar_packets(false).unwrap();
+        assert_eq!(base_only, restore_hotbar_packets().unwrap());
+
+        let (close, effect) = main_menu_click_packets(
+            WindowClick {
+                window_id: 7,
+                slot: 49,
+                action_number: 15,
+                mode: 0,
+            },
+            None,
+            RenderSettings::default(),
+            true,
+        )
+        .unwrap();
+        assert_eq!(effect, MainMenuEffect::Close);
+        assert_eq!(
+            close.iter().map(|packet| packet[0]).collect::<Vec<_>>(),
+            [0x32, 0x2f, 0x30, 0x2e, 0x2f, 0x2f, 0x2f, 0x2f, 0x2f, 0x09]
+        );
+        assert_eq!(close.last().unwrap(), &[0x09, 4]);
+    }
+
+    #[test]
     fn authenticated_basic_commands_match_java_trim_case_and_packet_order() {
         let configured = config(Duration::from_secs(30));
         let mut draft = MinecraftDraft::default();
@@ -4783,6 +6571,7 @@ mod tests {
             },
             None,
             RenderSettings::default(),
+            false,
         )
         .unwrap();
         assert_eq!(opening_effect, MainMenuEffect::OpenFolder("inbox"));
@@ -4838,6 +6627,7 @@ mod tests {
             &gui,
             None,
             RenderSettings::default(),
+            false,
         )
         .unwrap();
         assert_eq!(next_effect, FolderGuiEffect::LoadPage(1));
@@ -4856,6 +6646,7 @@ mod tests {
             &gui,
             Some(3),
             RenderSettings::default(),
+            false,
         )
         .unwrap();
         assert_eq!(back_effect, FolderGuiEffect::OpenMainMenu(3));
@@ -4882,7 +6673,7 @@ mod tests {
         assert_eq!(reader.cursor, encoded_click.len());
 
         let (responses, effect) =
-            main_menu_click_packets(click, None, RenderSettings::default()).unwrap();
+            main_menu_click_packets(click, None, RenderSettings::default(), false).unwrap();
         assert_eq!(effect, MainMenuEffect::None);
         assert_eq!(responses.len(), 3);
         assert_eq!(responses[0], [0x32, 1, 0, 7, 0]);
@@ -4909,6 +6700,7 @@ mod tests {
             },
             None,
             RenderSettings::default(),
+            false,
         )
         .unwrap();
         assert_eq!(help_effect, MainMenuEffect::Close);
@@ -4928,6 +6720,7 @@ mod tests {
             },
             None,
             RenderSettings::default(),
+            false,
         )
         .unwrap();
         assert_eq!(close_effect, MainMenuEffect::Close);
@@ -4942,6 +6735,7 @@ mod tests {
             },
             None,
             RenderSettings::default(),
+            false,
         )
         .unwrap();
         assert_eq!(switch_effect, MainMenuEffect::SwitchAccount);
@@ -4957,6 +6751,7 @@ mod tests {
             },
             None,
             RenderSettings::default(),
+            false,
         )
         .unwrap();
         assert_eq!(mode_effect, MainMenuEffect::None);
@@ -4974,6 +6769,7 @@ mod tests {
             },
             Some(2),
             RenderSettings::default(),
+            false,
         )
         .unwrap();
         assert_eq!(open_effect, MainMenuEffect::OpenLogoutConfirm(2));
@@ -4992,6 +6788,7 @@ mod tests {
             },
             Some(3),
             RenderSettings::default(),
+            false,
         )
         .unwrap();
         assert_eq!(cancel_effect, LogoutConfirmEffect::OpenMainMenu(3));
@@ -5009,6 +6806,7 @@ mod tests {
             },
             None,
             RenderSettings::default(),
+            false,
         )
         .unwrap();
         assert_eq!(confirm_effect, LogoutConfirmEffect::Disconnect);
@@ -5034,6 +6832,7 @@ mod tests {
             },
             None,
             settings,
+            false,
         )
         .unwrap();
         assert_eq!(effect, MainMenuEffect::OpenRenderSettings);

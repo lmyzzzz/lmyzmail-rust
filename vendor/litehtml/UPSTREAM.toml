@@ -1,0 +1,14 @@
+name = "litehtml"
+repository = "https://github.com/litehtml/litehtml.git"
+commit = "8836bc1bc35ca0cfd71dc0386ef841d5cbc3bd5e"
+commit_timestamp = 1768000356
+license_file = "LICENSE"
+
+[import]
+method = "git archive"
+tracked_files = 235
+excluded = [".git", "build"]
+
+[lmyzmail]
+purpose = "Pinned HTML layout engine source for the Linux x86_64 mail renderer"
+policy = "Build from this vendored tree; do not use an absolute source checkout"

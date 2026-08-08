@@ -3,6 +3,7 @@ native/lmyzmail-skibidi/upstream/LICENSE binary
 native/lmyzmail-skibidi/upstream/skibidi_avx.c binary
 native/lmyzmail-skibidi/upstream/skibidi_avx.h binary
 native/lmyzmail-skibidi/upstream/tests/test_skibidi.c binary
+vendor/litehtml/** -whitespace
 *.ico binary
 *.eml binary
 *.jar binary

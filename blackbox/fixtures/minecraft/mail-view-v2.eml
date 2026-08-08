@@ -1,0 +1,78 @@
+From: render-fixture@sender.example
+To: qa@example.test
+Subject: Minecraft composite map wall fixture
+Date: Thu, 01 Feb 2024 12:00:00 +0000
+Message-ID: <minecraft-mail-view-v2@sender.example>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="lmyzmail-mixed-v2"
+
+--lmyzmail-mixed-v2
+Content-Type: multipart/alternative; boundary="lmyzmail-alternative-v2"
+
+--lmyzmail-alternative-v2
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Minecraft composite renderer fixture.
+This plain-text alternative is deterministic and must remain available.
+The HTML alternative contains the pixel-golden content.
+
+--lmyzmail-alternative-v2
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+<!doctype html>
+<html><head><style>
+body { color: #202124; background: #ffffff; font-family: sans-serif; }
+h1 { color: #114477; font-size: 22px; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid #445566; padding: 4px; }
+.notice { background: #e9f4df; color: #173d11; padding: 6px; }
+.wrap { width: 210px; }
+</style></head><body>
+<h1>Minecraft composite renderer fixture</h1>
+<p class="notice">Escaping: &lt;tag&gt; &amp; quotes &quot;stay literal&quot;.</p>
+<table><tr><th>Field</th><th>Deterministic value</th></tr>
+<tr><td>Status</td><td>Ready</td></tr><tr><td>Seed</td><td>20240201</td></tr></table>
+<p><img src="cid:fixture-image" width="48" height="48" alt="CID fixture"></p>
+<div class="wrap">
+<p>Paragraph 01: Alpha beta gamma delta epsilon zeta eta theta iota kappa.</p>
+<p>Paragraph 02: Fixed wrapping verifies line layout across the first page.</p>
+<p>Paragraph 03: The quick brown fox jumps over the deterministic map wall.</p>
+<p>Paragraph 04: Numbers 0123456789 and punctuation !?.,:; remain stable.</p>
+<p>Paragraph 05: Alpha beta gamma delta epsilon zeta eta theta iota kappa.</p>
+<p>Paragraph 06: Fixed wrapping verifies line layout across another page.</p>
+<p>Paragraph 07: The quick brown fox jumps over the deterministic map wall.</p>
+<p>Paragraph 08: Numbers 0123456789 and punctuation !?.,:; remain stable.</p>
+<p>Paragraph 09: Alpha beta gamma delta epsilon zeta eta theta iota kappa.</p>
+<p>Paragraph 10: Fixed wrapping verifies line layout across another page.</p>
+<p>Paragraph 11: The quick brown fox jumps over the deterministic map wall.</p>
+<p>Paragraph 12: Numbers 0123456789 and punctuation !?.,:; remain stable.</p>
+<p>Paragraph 13: Alpha beta gamma delta epsilon zeta eta theta iota kappa.</p>
+<p>Paragraph 14: Fixed wrapping verifies line layout across another page.</p>
+<p>Paragraph 15: The quick brown fox jumps over the deterministic map wall.</p>
+<p>Paragraph 16: Numbers 0123456789 and punctuation !?.,:; remain stable.</p>
+<p>Paragraph 17: Alpha beta gamma delta epsilon zeta eta theta iota kappa.</p>
+<p>Paragraph 18: Fixed wrapping verifies line layout across the last page.</p>
+</div>
+</body></html>
+
+--lmyzmail-alternative-v2--
+
+--lmyzmail-mixed-v2
+Content-Type: image/png; name="fixture.png"
+Content-Transfer-Encoding: base64
+Content-ID: <fixture-image>
+Content-Disposition: inline; filename="fixture.png"
+
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB
+9Wl2JwAAAABJRU5ErkJggg==
+
+--lmyzmail-mixed-v2
+Content-Type: application/octet-stream; name="status<&>.txt"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="status<&>.txt"
+
+Zml4ZWQtYXR0YWNobWVudC12Mgo=
+
+--lmyzmail-mixed-v2--

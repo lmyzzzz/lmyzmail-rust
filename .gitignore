@@ -8,6 +8,7 @@
 /blackbox/test-results/
 /blackbox/golden/generated/
 /blackbox/.venv/
+/blackbox/uv.lock
 /blackbox/venv/
 /blackbox/build/
 /blackbox/dist/

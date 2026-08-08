@@ -229,6 +229,34 @@ impl WorldTemplate {
     pub fn chunks(&self) -> &[ChunkData] {
         &self.chunks
     }
+
+    /// Return the 1.8 block state at a world coordinate.
+    ///
+    /// Anvil sections are addressed by a non-negative section Y in the
+    /// 0..=15 range and store blocks in Y/Z/X order.  Coordinates outside the
+    /// 1.8 world height, absent chunks/sections, and malformed short section
+    /// buffers are treated as air, matching the world's default block state.
+    pub fn block_state_at(&self, x: i32, y: i32, z: i32) -> i32 {
+        if !(0..=255).contains(&y) {
+            return 0;
+        }
+
+        let chunk_x = x.div_euclid(16);
+        let chunk_z = z.div_euclid(16);
+        let local_x = x.rem_euclid(16) as usize;
+        let local_z = z.rem_euclid(16) as usize;
+        let section_y = (y / 16) as usize;
+        let local_y = (y % 16) as usize;
+        let block_index = (local_y << 8) | (local_z << 4) | local_x;
+
+        self.chunks
+            .iter()
+            .find(|chunk| chunk.chunk_x == chunk_x && chunk.chunk_z == chunk_z)
+            .and_then(|chunk| chunk.sections.get(section_y).and_then(Option::as_ref))
+            .and_then(|section| section.blocks.get(block_index))
+            .map(|&state| i32::from(state))
+            .unwrap_or(0)
+    }
 }
 
 pub fn serialize_chunk(chunk: &ChunkData, has_sky_light: bool, ground_up: bool) -> (u16, Vec<u8>) {
@@ -1690,6 +1718,43 @@ mod tests {
             assert_eq!(bytes.len(), expected_len);
             assert_eq!(sha256_hex(&bytes), expected_digest);
         }
+    }
+
+    #[test]
+    fn block_state_at_handles_negative_coordinates_sections_and_world_boundaries() {
+        let mut blocks = vec![0_u16; 4096];
+        blocks[(3 << 8) | (5 << 4) | 7] = 0x1234;
+        blocks[0] = 0x0abc;
+
+        let mut sections = vec![None; 16];
+        sections[2] = Some(SectionData {
+            blocks,
+            block_light: vec![0; 2048],
+            sky_light: None,
+        });
+        let world = WorldTemplate {
+            chunks: vec![ChunkData {
+                chunk_x: -1,
+                chunk_z: -2,
+                sections,
+                biomes: vec![0; 256],
+                tile_entities: Vec::new(),
+            }],
+        };
+
+        // -9/-27 belongs to chunk (-1,-2), local (7,5), and y=35 belongs to
+        // section 2, local y=3.
+        assert_eq!(world.block_state_at(-9, 35, -27), 0x1234);
+        // The first block of section 2 verifies the negative chunk boundary
+        // and the lower edge of the valid 0..=255 world height.
+        assert_eq!(world.block_state_at(-16, 32, -32), 0x0abc);
+
+        // The neighboring negative chunk is absent, and section 1 is absent.
+        assert_eq!(world.block_state_at(-17, 32, -32), 0);
+        assert_eq!(world.block_state_at(-9, 20, -27), 0);
+        // Both sides of the 1.8 height range are air.
+        assert_eq!(world.block_state_at(-9, -1, -27), 0);
+        assert_eq!(world.block_state_at(-9, 256, -27), 0);
     }
 
     #[test]

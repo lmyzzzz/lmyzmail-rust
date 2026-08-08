@@ -216,6 +216,8 @@ struct JsonRuntimeConfig {
     #[serde(default)]
     minecraft: JsonMinecraftConfig,
     #[serde(default)]
+    mail_render: JsonMailRenderConfig,
+    #[serde(default)]
     tls: JsonTlsConfig,
     #[serde(default)]
     limits: JsonLimitConfig,
@@ -407,6 +409,21 @@ impl Default for JsonMinecraftConfig {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+struct JsonMailRenderConfig {
+    #[serde(default = "default_mail_render_simd_mode")]
+    simd_mode: String,
+}
+
+impl Default for JsonMailRenderConfig {
+    fn default() -> Self {
+        Self {
+            simd_mode: default_mail_render_simd_mode(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct JsonMinecraftSpawnConfig {
     #[serde(default = "default_minecraft_spawn_x")]
     x: f64,
@@ -427,6 +444,18 @@ struct JsonMinecraftVideoConfig {
     center_x: i32,
     #[serde(default = "default_minecraft_video_wall_z")]
     wall_z: i32,
+    #[serde(default = "default_minecraft_map_center_x")]
+    map_center_x: i32,
+    #[serde(default = "default_minecraft_map_center_y")]
+    map_center_y: i32,
+    #[serde(default = "default_minecraft_map_center_z")]
+    map_center_z: i32,
+    #[serde(default = "default_minecraft_map_facing")]
+    map_facing: String,
+    #[serde(default = "default_minecraft_base_map_id")]
+    base_map_id: i32,
+    #[serde(default = "default_minecraft_base_entity_id")]
+    base_entity_id: i32,
 }
 
 impl Default for JsonMinecraftVideoConfig {
@@ -434,6 +463,12 @@ impl Default for JsonMinecraftVideoConfig {
         Self {
             center_x: default_minecraft_video_center_x(),
             wall_z: default_minecraft_video_wall_z(),
+            map_center_x: default_minecraft_map_center_x(),
+            map_center_y: default_minecraft_map_center_y(),
+            map_center_z: default_minecraft_map_center_z(),
+            map_facing: default_minecraft_map_facing(),
+            base_map_id: default_minecraft_base_map_id(),
+            base_entity_id: default_minecraft_base_entity_id(),
         }
     }
 }
@@ -662,6 +697,30 @@ fn default_minecraft_video_wall_z() -> i32 {
     -50
 }
 
+fn default_minecraft_map_center_x() -> i32 {
+    0
+}
+
+fn default_minecraft_map_center_y() -> i32 {
+    180
+}
+
+fn default_minecraft_map_center_z() -> i32 {
+    -20
+}
+
+fn default_minecraft_map_facing() -> String {
+    "SOUTH".to_owned()
+}
+
+fn default_minecraft_base_map_id() -> i32 {
+    10_000
+}
+
+fn default_minecraft_base_entity_id() -> i32 {
+    100_000
+}
+
 fn default_minecraft_auth_max_attempts() -> u32 {
     5
 }
@@ -676,6 +735,10 @@ fn default_minecraft_auth_window_seconds() -> u64 {
 
 fn default_minecraft_compression_threshold() -> i32 {
     256
+}
+
+fn default_mail_render_simd_mode() -> String {
+    "AUTO".to_owned()
 }
 
 fn default_minecraft_spawn_x() -> f64 {
@@ -809,6 +872,30 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         value.minecraft.video.wall_z.to_string(),
     )?;
     properties.insert(
+        "lmyzmail.minecraft.map-video.center-x".to_owned(),
+        value.minecraft.video.map_center_x.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.map-video.center-y".to_owned(),
+        value.minecraft.video.map_center_y.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.map-video.center-z".to_owned(),
+        value.minecraft.video.map_center_z.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.map-video.facing".to_owned(),
+        value.minecraft.video.map_facing,
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.map-video.base-map-id".to_owned(),
+        value.minecraft.video.base_map_id.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.map-video.base-entity-id".to_owned(),
+        value.minecraft.video.base_entity_id.to_string(),
+    )?;
+    properties.insert(
         "lmyzmail.minecraft.whitelist.enabled".to_owned(),
         value.minecraft.whitelist_enabled.to_string(),
     )?;
@@ -835,6 +922,10 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
     properties.insert(
         "lmyzmail.minecraft.auth.window-seconds".to_owned(),
         value.minecraft.auth_window_seconds.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.mailrender.simd-mode".to_owned(),
+        value.mail_render.simd_mode,
     )?;
     properties.insert(
         "lmyzmail.honeypot.enabled".to_owned(),
@@ -1156,6 +1247,7 @@ pub struct RuntimeConfig {
     pub features: FeatureConfig,
     pub htcpcp: HtcpcpConfig,
     pub minecraft: MinecraftConfig,
+    pub mail_render: MailRenderConfig,
     pub tls: TlsConfig,
     pub limits: LimitConfig,
 }
@@ -1279,6 +1371,25 @@ pub struct MinecraftSpawnConfig {
 pub struct MinecraftVideoConfig {
     pub center_x: i32,
     pub wall_z: i32,
+    pub map_center_x: i32,
+    pub map_center_y: i32,
+    pub map_center_z: i32,
+    pub map_facing: String,
+    pub base_map_id: i32,
+    pub base_entity_id: i32,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MailRenderSimdMode {
+    Auto,
+    Scalar,
+    Avx2,
+    Avx512,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MailRenderConfig {
+    pub simd_mode: MailRenderSimdMode,
 }
 
 #[derive(Clone, Debug)]
@@ -1345,6 +1456,13 @@ impl RuntimeConfig {
             25565,
         )?;
         let minecraft_config = parse_minecraft_config(&properties)?;
+        let mail_render = MailRenderConfig {
+            simd_mode: parse_mail_render_simd_mode(preferred(
+                &properties,
+                &["lmyzmail.mailrender.simd-mode"],
+                &["botmail.mailrender.simd-mode"],
+            )),
+        };
 
         let datasource_url = preferred(
             &properties,
@@ -1714,6 +1832,7 @@ impl RuntimeConfig {
             features,
             htcpcp: htcpcp_config,
             minecraft: minecraft_config,
+            mail_render,
             tls,
             limits,
         })
@@ -1894,6 +2013,19 @@ fn parse_minecraft_config(properties: &Properties) -> Result<MinecraftConfig, Co
             "minecraft spawn.pitch",
         )?,
     };
+    let map_facing = preferred(
+        properties,
+        &["lmyzmail.minecraft.map-video.facing"],
+        &["botmail.minecraft.map-video.facing"],
+    )
+    .map(|value| match value.trim().to_ascii_uppercase().as_str() {
+        "SOUTH" => "SOUTH".to_owned(),
+        "WEST" => "WEST".to_owned(),
+        "NORTH" => "NORTH".to_owned(),
+        "EAST" => "EAST".to_owned(),
+        _ => default_minecraft_map_facing(),
+    })
+    .unwrap_or_else(default_minecraft_map_facing);
     let video = MinecraftVideoConfig {
         center_x: preferred_i32(
             properties,
@@ -1906,6 +2038,37 @@ fn parse_minecraft_config(properties: &Properties) -> Result<MinecraftConfig, Co
             &["lmyzmail.minecraft.video.wall-z"],
             &["botmail.minecraft.video.wall-z"],
             default_minecraft_video_wall_z(),
+        )?,
+        map_center_x: preferred_i32(
+            properties,
+            &["lmyzmail.minecraft.map-video.center-x"],
+            &["botmail.minecraft.map-video.center-x"],
+            default_minecraft_map_center_x(),
+        )?,
+        map_center_y: preferred_i32(
+            properties,
+            &["lmyzmail.minecraft.map-video.center-y"],
+            &["botmail.minecraft.map-video.center-y"],
+            default_minecraft_map_center_y(),
+        )?,
+        map_center_z: preferred_i32(
+            properties,
+            &["lmyzmail.minecraft.map-video.center-z"],
+            &["botmail.minecraft.map-video.center-z"],
+            default_minecraft_map_center_z(),
+        )?,
+        map_facing,
+        base_map_id: preferred_i32(
+            properties,
+            &["lmyzmail.minecraft.map-video.base-map-id"],
+            &["botmail.minecraft.map-video.base-map-id"],
+            default_minecraft_base_map_id(),
+        )?,
+        base_entity_id: preferred_i32(
+            properties,
+            &["lmyzmail.minecraft.map-video.base-entity-id"],
+            &["botmail.minecraft.map-video.base-entity-id"],
+            default_minecraft_base_entity_id(),
         )?,
     };
     let whitelist_enabled = preferred_bool(
@@ -1983,6 +2146,15 @@ fn parse_minecraft_config(properties: &Properties) -> Result<MinecraftConfig, Co
         auth_lockout_seconds,
         auth_window_seconds,
     })
+}
+
+fn parse_mail_render_simd_mode(value: Option<&str>) -> MailRenderSimdMode {
+    match value.map(str::to_ascii_uppercase).as_deref() {
+        Some("SCALAR") => MailRenderSimdMode::Scalar,
+        Some("AVX2") => MailRenderSimdMode::Avx2,
+        Some("AVX512") => MailRenderSimdMode::Avx512,
+        Some("AUTO") | Some(_) | None => MailRenderSimdMode::Auto,
+    }
 }
 
 fn validate_minecraft_session_server_url(raw: &str) -> Result<(), ConfigError> {
@@ -3129,11 +3301,21 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
                 "world_template": "worlds/mailroom",
                 "view_distance": 31,
                 "spawn": {"x": -12.75, "y": 70.9, "z": 34.5, "yaw": 45.0, "pitch": -15.0},
-                "video": {"center_x": 16, "wall_z": -64},
+                "video": {
+                    "center_x": 16,
+                    "wall_z": -64,
+                    "map_center_x": 17,
+                    "map_center_y": 181,
+                    "map_center_z": -21,
+                    "map_facing": "west",
+                    "base_map_id": 11000,
+                    "base_entity_id": 110000
+                },
                 "whitelist_enabled": true,
                 "whitelist_players": ["SemanticAllowed"],
                 "blacklist_players": ["SemanticBlocked"]
             },
+            "mail_render": {"simd_mode": "AVX2"},
             "limits": {"max_http_request_bytes": 65536}
         }"#;
         let properties = parse_semantic_json(json).unwrap();
@@ -3159,6 +3341,12 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
         assert_eq!(config.minecraft.view_distance, 31);
         assert_eq!(config.minecraft.video.center_x, 16);
         assert_eq!(config.minecraft.video.wall_z, -64);
+        assert_eq!(config.minecraft.video.map_center_x, 17);
+        assert_eq!(config.minecraft.video.map_center_y, 181);
+        assert_eq!(config.minecraft.video.map_center_z, -21);
+        assert_eq!(config.minecraft.video.map_facing, "WEST");
+        assert_eq!(config.minecraft.video.base_map_id, 11_000);
+        assert_eq!(config.minecraft.video.base_entity_id, 110_000);
         assert_eq!(config.minecraft.spawn.x, -12.75);
         assert_eq!(config.minecraft.spawn.y, 70.9);
         assert_eq!(config.minecraft.spawn.z, 34.5);
@@ -3167,6 +3355,7 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
         assert!(config.minecraft.whitelist_enabled);
         assert_eq!(config.minecraft.whitelist_players, ["SemanticAllowed"]);
         assert_eq!(config.minecraft.blacklist_players, ["SemanticBlocked"]);
+        assert_eq!(config.mail_render.simd_mode, MailRenderSimdMode::Avx2);
     }
 
     #[test]
@@ -3198,6 +3387,13 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
         assert_eq!(config.minecraft.view_distance, 32);
         assert_eq!(config.minecraft.video.center_x, 0);
         assert_eq!(config.minecraft.video.wall_z, -50);
+        assert_eq!(config.minecraft.video.map_center_x, 0);
+        assert_eq!(config.minecraft.video.map_center_y, 180);
+        assert_eq!(config.minecraft.video.map_center_z, -20);
+        assert_eq!(config.minecraft.video.map_facing, "SOUTH");
+        assert_eq!(config.minecraft.video.base_map_id, 10_000);
+        assert_eq!(config.minecraft.video.base_entity_id, 100_000);
+        assert_eq!(config.mail_render.simd_mode, MailRenderSimdMode::Auto);
         assert!(config.minecraft.favicon.is_empty());
         assert_eq!(config.minecraft.spawn.x, 0.5);
         assert_eq!(config.minecraft.spawn.y, 160.0);
@@ -3247,6 +3443,12 @@ botmail.minecraft.world-template=legacy-world\n\
 botmail.minecraft.view-distance=12\n\
 botmail.minecraft.video.center-x=7\n\
 botmail.minecraft.video.wall-z=-9\n\
+botmail.minecraft.map-video.center-x=8\n\
+botmail.minecraft.map-video.center-y=170\n\
+botmail.minecraft.map-video.center-z=-19\n\
+botmail.minecraft.map-video.facing=north\n\
+botmail.minecraft.map-video.base-map-id=9000\n\
+botmail.minecraft.map-video.base-entity-id=90000\n\
 botmail.minecraft.spawn.x=1.5\n\
 botmail.minecraft.spawn.y=65.25\n\
 botmail.minecraft.spawn.z=2.5\n\
@@ -3270,6 +3472,12 @@ lmyzmail.minecraft.world-template=worlds/mailroom\n\
 lmyzmail.minecraft.view-distance=32\n\
 lmyzmail.minecraft.video.center-x=0\n\
 lmyzmail.minecraft.video.wall-z=-50\n\
+lmyzmail.minecraft.map-video.center-x=1\n\
+lmyzmail.minecraft.map-video.center-y=180\n\
+lmyzmail.minecraft.map-video.center-z=-20\n\
+lmyzmail.minecraft.map-video.facing=east\n\
+lmyzmail.minecraft.map-video.base-map-id=10000\n\
+lmyzmail.minecraft.map-video.base-entity-id=100000\n\
 lmyzmail.minecraft.spawn.x=-12.75\n\
 lmyzmail.minecraft.spawn.y=70.9\n\
 lmyzmail.minecraft.spawn.z=34.5\n\
@@ -3300,6 +3508,12 @@ lmyzmail.minecraft.auth.window-seconds=600\n",
         assert_eq!(config.minecraft.view_distance, 32);
         assert_eq!(config.minecraft.video.center_x, 0);
         assert_eq!(config.minecraft.video.wall_z, -50);
+        assert_eq!(config.minecraft.video.map_center_x, 1);
+        assert_eq!(config.minecraft.video.map_center_y, 180);
+        assert_eq!(config.minecraft.video.map_center_z, -20);
+        assert_eq!(config.minecraft.video.map_facing, "EAST");
+        assert_eq!(config.minecraft.video.base_map_id, 10_000);
+        assert_eq!(config.minecraft.video.base_entity_id, 100_000);
         assert_eq!(config.minecraft.spawn.x, -12.75);
         assert_eq!(config.minecraft.spawn.y, 70.9);
         assert_eq!(config.minecraft.spawn.z, 34.5);
@@ -3376,6 +3590,38 @@ botmail.minecraft.blacklist.players[0]=LegacyBlocked\n",
         ] {
             let properties = Properties::parse(value.as_bytes()).unwrap();
             assert!(RuntimeConfig::from_properties(properties).is_err());
+        }
+    }
+
+    #[test]
+    fn mail_render_simd_alias_matches_java_fallback_and_new_key_precedence() {
+        let config = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.mailrender.simd-mode=AVX512\n\
+lmyzmail.mailrender.simd-mode=scalar\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(config.mail_render.simd_mode, MailRenderSimdMode::Scalar);
+
+        for (value, expected) in [
+            ("AVX2", MailRenderSimdMode::Avx2),
+            ("avx512", MailRenderSimdMode::Avx512),
+            ("AUTO", MailRenderSimdMode::Auto),
+            (" AVX2 ", MailRenderSimdMode::Auto),
+            ("unknown", MailRenderSimdMode::Auto),
+        ] {
+            let properties =
+                Properties::parse(format!("botmail.mailrender.simd-mode={value}\n").as_bytes())
+                    .unwrap();
+            assert_eq!(
+                RuntimeConfig::from_properties(properties)
+                    .unwrap()
+                    .mail_render
+                    .simd_mode,
+                expected
+            );
         }
     }
 
