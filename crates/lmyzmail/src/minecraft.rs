@@ -1,5 +1,16 @@
-use std::{io, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    io::{self, Write as _},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicI32, AtomicU64, Ordering},
+    },
+    time::Duration,
+};
 
+use flate2::{Compression, write::ZlibEncoder};
+use icu_casemap::CaseMapper;
+use md5::{Digest as _, Md5};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
@@ -9,18 +20,26 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 
-use crate::config::{MinecraftConfig, RuntimeConfig};
+use crate::{
+    bounded_blocking::{BoundedBlockingPool, SubmitError},
+    config::{MinecraftConfig, RuntimeConfig},
+};
 
 const MAX_FRAME_LENGTH: usize = 2 * 1024 * 1024;
 const MAX_CONNECTIONS: usize = 64;
 const SHUTDOWN_DEADLINE: Duration = Duration::from_secs(20);
 const ACCEPT_RETRY_MIN: Duration = Duration::from_millis(25);
 const ACCEPT_RETRY_MAX: Duration = Duration::from_secs(1);
+const COMPRESSION_WORKERS: usize = 2;
+const COMPRESSION_QUEUE: usize = 8;
+const COMPRESSION_CHUNK_BYTES: usize = 64 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ConnectionState {
     Handshake,
     Status,
+    Login,
+    Play,
 }
 
 #[derive(Debug)]
@@ -38,25 +57,103 @@ impl From<io::Error> for ProtocolError {
 }
 
 struct StatusService {
+    config: MinecraftConfig,
     status_frame: Arc<[u8]>,
+    blacklist_frame: Arc<[u8]>,
+    whitelist_frame: Arc<[u8]>,
+    whitelist_enabled: bool,
+    whitelist_players: Arc<[String]>,
+    blacklist_players: Arc<[String]>,
+    compression_pool: BoundedBlockingPool,
+    next_entity_id: AtomicI32,
+    next_connection_id: AtomicU64,
+    online_sessions: Arc<Mutex<HashMap<String, u64>>>,
     connection_timeout: Duration,
 }
 
 impl StatusService {
     fn new(config: &MinecraftConfig) -> io::Result<Self> {
-        let json = status_json(config);
-        let mut payload = Vec::new();
-        payload.try_reserve_exact(json.len() + 6).map_err(|error| {
-            io::Error::other(format!("Minecraft status allocation failed: {error}"))
-        })?;
-        write_varint(&mut payload, 0);
-        write_varint(&mut payload, json.len() as u32);
-        payload.extend_from_slice(json.as_bytes());
-        let status_frame = encode_frame(&payload)?;
+        let status_frame = build_status_frame(config, 0)?;
+        let blacklist_frame =
+            login_disconnect_frame(r#"{"text":"You are banned from this server.","color":"red"}"#)?;
+        let whitelist_frame =
+            login_disconnect_frame(r#"{"text":"You are not whitelisted.","color":"red"}"#)?;
         Ok(Self {
+            config: config.clone(),
             status_frame: status_frame.into(),
+            blacklist_frame: blacklist_frame.into(),
+            whitelist_frame: whitelist_frame.into(),
+            whitelist_enabled: config.whitelist_enabled,
+            whitelist_players: config.whitelist_players.clone().into(),
+            blacklist_players: config.blacklist_players.clone().into(),
+            compression_pool: BoundedBlockingPool::new(
+                "lmyzmail-minecraft-zlib",
+                COMPRESSION_WORKERS,
+                COMPRESSION_QUEUE,
+            )?,
+            next_entity_id: AtomicI32::new(1),
+            next_connection_id: AtomicU64::new(1),
+            online_sessions: Arc::new(Mutex::new(HashMap::with_capacity(MAX_CONNECTIONS))),
             connection_timeout: Duration::from_secs(config.read_timeout_seconds),
         })
+    }
+
+    fn rejection_frame(&self, username: &str) -> Option<&[u8]> {
+        if contains_player(&self.blacklist_players, username) {
+            Some(&self.blacklist_frame)
+        } else if self.whitelist_enabled && !contains_player(&self.whitelist_players, username) {
+            Some(&self.whitelist_frame)
+        } else {
+            None
+        }
+    }
+
+    fn current_status_frame(&self) -> io::Result<Vec<u8>> {
+        let online = self
+            .online_sessions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .len() as u32;
+        if online == 0 {
+            Ok(self.status_frame.to_vec())
+        } else {
+            build_status_frame(&self.config, online)
+        }
+    }
+
+    fn next_entity_id(&self) -> i32 {
+        self.next_entity_id.fetch_add(1, Ordering::Relaxed)
+    }
+
+    fn register_online(&self, uuid: String) -> OnlineCountGuard {
+        let connection_id = self.next_connection_id.fetch_add(1, Ordering::Relaxed);
+        self.online_sessions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(uuid.clone(), connection_id);
+        OnlineCountGuard {
+            sessions: Arc::clone(&self.online_sessions),
+            uuid,
+            connection_id,
+        }
+    }
+}
+
+struct OnlineCountGuard {
+    sessions: Arc<Mutex<HashMap<String, u64>>>,
+    uuid: String,
+    connection_id: u64,
+}
+
+impl Drop for OnlineCountGuard {
+    fn drop(&mut self) {
+        let mut sessions = self
+            .sessions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if sessions.get(&self.uuid) == Some(&self.connection_id) {
+            sessions.remove(&self.uuid);
+        }
     }
 }
 
@@ -151,9 +248,11 @@ async fn handle_connection(
 ) -> io::Result<()> {
     stream.set_nodelay(true)?;
     let mut state = ConnectionState::Handshake;
+    let mut compression = None;
+    let mut _online_guard = None;
 
     loop {
-        let frame = match read_frame(&mut stream, deadline, &cancellation).await {
+        let raw_frame = match read_frame(&mut stream, deadline, &cancellation).await {
             Ok(Some(frame)) => frame,
             Ok(None)
             | Err(ProtocolError::Cancelled | ProtocolError::TimedOut | ProtocolError::Malformed) => {
@@ -161,6 +260,27 @@ async fn handle_connection(
             }
             Err(ProtocolError::Io(error)) if connection_ended(&error) => return Ok(()),
             Err(ProtocolError::Io(error)) => return Err(error),
+        };
+        let frame = match compression {
+            Some(threshold) => match decode_compression_envelope(
+                &service,
+                raw_frame,
+                threshold,
+                deadline,
+                &cancellation,
+            )
+            .await
+            {
+                Ok(frame) => frame,
+                Err(
+                    ProtocolError::Cancelled | ProtocolError::TimedOut | ProtocolError::Malformed,
+                ) => {
+                    return Ok(());
+                }
+                Err(ProtocolError::Io(error)) if connection_ended(&error) => return Ok(()),
+                Err(ProtocolError::Io(error)) => return Err(error),
+            },
+            None => raw_frame,
         };
 
         let mut packet = PacketReader::new(&frame);
@@ -178,14 +298,15 @@ async fn handle_connection(
                 }
                 match packet.read_varint() {
                     Ok(1) => state = ConnectionState::Status,
+                    Ok(2) => state = ConnectionState::Login,
                     Ok(_) | Err(_) => return Ok(()),
                 }
             }
             ConnectionState::Status => match packet_id {
                 0 => {
+                    let frame = service.current_status_frame()?;
                     if let Err(error) =
-                        write_bytes(&mut stream, &service.status_frame, deadline, &cancellation)
-                            .await
+                        write_bytes(&mut stream, &frame, deadline, &cancellation).await
                     {
                         return finish_write_error(error);
                     }
@@ -213,7 +334,63 @@ async fn handle_connection(
                 }
                 _ => {}
             },
+            ConnectionState::Login => {
+                if packet_id != 0 {
+                    continue;
+                }
+                let Ok(username) = packet.read_string(16) else {
+                    return Ok(());
+                };
+                if let Some(frame) = service.rejection_frame(&username) {
+                    if let Err(error) =
+                        write_bytes(&mut stream, frame, deadline, &cancellation).await
+                    {
+                        return finish_write_error(error);
+                    }
+                    shutdown_stream(&mut stream, deadline, &cancellation).await?;
+                    return Ok(());
+                }
+                if service.config.online_mode {
+                    return Ok(());
+                }
+                match complete_offline_login(
+                    &mut stream,
+                    &service,
+                    &username,
+                    deadline,
+                    &cancellation,
+                )
+                .await
+                {
+                    Ok((active_compression, online_guard)) => {
+                        compression = active_compression;
+                        _online_guard = Some(online_guard);
+                        state = ConnectionState::Play;
+                    }
+                    Err(
+                        ProtocolError::Cancelled
+                        | ProtocolError::TimedOut
+                        | ProtocolError::Malformed,
+                    ) => return Ok(()),
+                    Err(ProtocolError::Io(error)) if connection_ended(&error) => return Ok(()),
+                    Err(ProtocolError::Io(error)) => return Err(error),
+                }
+            }
+            ConnectionState::Play => {}
         }
+    }
+}
+
+async fn shutdown_stream(
+    stream: &mut TcpStream,
+    deadline: Instant,
+    cancellation: &CancellationToken,
+) -> io::Result<()> {
+    tokio::select! {
+        biased;
+        _ = cancellation.cancelled() => Ok(()),
+        result = timeout_at(deadline, stream.shutdown()) => result
+            .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "Minecraft shutdown timed out"))?,
     }
 }
 
@@ -230,6 +407,322 @@ fn parse_handshake(packet: &mut PacketReader<'_>) -> Result<(), ()> {
     packet.read_string(255)?;
     packet.read_u16()?;
     Ok(())
+}
+
+async fn complete_offline_login(
+    stream: &mut TcpStream,
+    service: &StatusService,
+    username: &str,
+    deadline: Instant,
+    cancellation: &CancellationToken,
+) -> Result<(Option<i32>, OnlineCountGuard), ProtocolError> {
+    let compression = if service.config.compression_threshold >= 0 {
+        let threshold = service.config.compression_threshold;
+        let mut packet = vec![0x03];
+        write_varint(&mut packet, threshold as u32);
+        let frame = encode_frame(&packet)?;
+        write_bytes(stream, &frame, deadline, cancellation).await?;
+        Some(threshold)
+    } else {
+        None
+    };
+
+    let uuid = offline_uuid(username)?;
+    let mut login_success = vec![0x02];
+    write_string(&mut login_success, &uuid)?;
+    write_string(&mut login_success, username)?;
+    write_packet(
+        stream,
+        service,
+        login_success,
+        compression,
+        deadline,
+        cancellation,
+    )
+    .await?;
+
+    let online_guard = service.register_online(uuid);
+    let entity_id = service.next_entity_id();
+    for packet in initial_play_packets(entity_id, &service.config)? {
+        write_packet(stream, service, packet, compression, deadline, cancellation).await?;
+    }
+    Ok((compression, online_guard))
+}
+
+async fn write_packet(
+    stream: &mut TcpStream,
+    service: &StatusService,
+    packet: Vec<u8>,
+    compression: Option<i32>,
+    deadline: Instant,
+    cancellation: &CancellationToken,
+) -> Result<(), ProtocolError> {
+    let frame = encode_packet_frame(service, packet, compression, deadline, cancellation).await?;
+    write_bytes(stream, &frame, deadline, cancellation).await
+}
+
+async fn encode_packet_frame(
+    service: &StatusService,
+    packet: Vec<u8>,
+    compression: Option<i32>,
+    deadline: Instant,
+    cancellation: &CancellationToken,
+) -> Result<Vec<u8>, ProtocolError> {
+    let Some(threshold) = compression else {
+        return encode_frame(&packet).map_err(ProtocolError::Io);
+    };
+    let mut envelope = Vec::new();
+    if packet.len() < threshold as usize {
+        envelope
+            .try_reserve_exact(packet.len() + 1)
+            .map_err(|error| {
+                ProtocolError::Io(io::Error::other(format!(
+                    "Minecraft packet allocation failed: {error}"
+                )))
+            })?;
+        envelope.push(0);
+        envelope.extend_from_slice(&packet);
+    } else {
+        let uncompressed_length =
+            u32::try_from(packet.len()).map_err(|_| ProtocolError::Malformed)?;
+        let worker_cancellation = cancellation.clone();
+        let receiver = service
+            .compression_pool
+            .submit(move || compress_packet(packet, &worker_cancellation, deadline))
+            .map_err(submit_error)?;
+        let compressed = await_compression(receiver, deadline, cancellation).await??;
+        envelope
+            .try_reserve_exact(compressed.len() + 5)
+            .map_err(|error| {
+                ProtocolError::Io(io::Error::other(format!(
+                    "Minecraft packet allocation failed: {error}"
+                )))
+            })?;
+        write_varint(&mut envelope, uncompressed_length);
+        envelope.extend_from_slice(&compressed);
+    }
+    encode_frame(&envelope).map_err(ProtocolError::Io)
+}
+
+async fn decode_compression_envelope(
+    service: &StatusService,
+    mut frame: Vec<u8>,
+    threshold: i32,
+    deadline: Instant,
+    cancellation: &CancellationToken,
+) -> Result<Vec<u8>, ProtocolError> {
+    let mut reader = PacketReader::new(&frame);
+    let data_length = reader
+        .read_varint()
+        .map_err(|()| ProtocolError::Malformed)?;
+    if data_length < 0 {
+        return Err(ProtocolError::Malformed);
+    }
+    let cursor = reader.cursor;
+    if cursor == frame.len() {
+        return Err(ProtocolError::Malformed);
+    }
+    if data_length == 0 {
+        let packet_length = frame.len() - cursor;
+        if packet_length >= threshold as usize {
+            return Err(ProtocolError::Malformed);
+        }
+        frame.copy_within(cursor.., 0);
+        frame.truncate(packet_length);
+        return Ok(frame);
+    }
+
+    let expected = data_length as usize;
+    if expected > MAX_FRAME_LENGTH || expected < threshold as usize {
+        return Err(ProtocolError::Malformed);
+    }
+    let receiver = service
+        .compression_pool
+        .submit({
+            let worker_cancellation = cancellation.clone();
+            move || decompress_packet(frame, cursor, expected, &worker_cancellation, deadline)
+        })
+        .map_err(submit_error)?;
+    await_compression(receiver, deadline, cancellation).await?
+}
+
+fn submit_error(error: SubmitError) -> ProtocolError {
+    match error {
+        SubmitError::Closed | SubmitError::Full => ProtocolError::Malformed,
+    }
+}
+
+async fn await_compression<T>(
+    receiver: tokio::sync::oneshot::Receiver<T>,
+    deadline: Instant,
+    cancellation: &CancellationToken,
+) -> Result<T, ProtocolError> {
+    tokio::select! {
+        biased;
+        _ = cancellation.cancelled() => Err(ProtocolError::Cancelled),
+        result = timeout_at(deadline, receiver) => match result {
+            Ok(Ok(value)) => Ok(value),
+            Ok(Err(_)) => Err(ProtocolError::Io(io::Error::other(
+                "Minecraft compression worker stopped",
+            ))),
+            Err(_) => Err(ProtocolError::TimedOut),
+        },
+    }
+}
+
+fn compression_budget(
+    cancellation: &CancellationToken,
+    deadline: Instant,
+) -> Result<(), ProtocolError> {
+    if cancellation.is_cancelled() {
+        Err(ProtocolError::Cancelled)
+    } else if Instant::now() >= deadline {
+        Err(ProtocolError::TimedOut)
+    } else {
+        Ok(())
+    }
+}
+
+fn compress_packet(
+    packet: Vec<u8>,
+    cancellation: &CancellationToken,
+    deadline: Instant,
+) -> Result<Vec<u8>, ProtocolError> {
+    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    for chunk in packet.chunks(COMPRESSION_CHUNK_BYTES) {
+        compression_budget(cancellation, deadline)?;
+        encoder.write_all(chunk).map_err(ProtocolError::Io)?;
+    }
+    compression_budget(cancellation, deadline)?;
+    let output = encoder.finish().map_err(ProtocolError::Io)?;
+    compression_budget(cancellation, deadline)?;
+    Ok(output)
+}
+
+fn decompress_packet(
+    frame: Vec<u8>,
+    cursor: usize,
+    expected: usize,
+    cancellation: &CancellationToken,
+    deadline: Instant,
+) -> Result<Vec<u8>, ProtocolError> {
+    let mut decoder = flate2::Decompress::new(true);
+    let mut output = vec![0_u8; expected];
+    let input = &frame[cursor..];
+    let mut input_cursor = 0;
+    let mut output_cursor: usize = 0;
+    let mut overflow_probe = [0_u8; 1];
+    loop {
+        compression_budget(cancellation, deadline)?;
+        let output_end = output_cursor
+            .saturating_add(COMPRESSION_CHUNK_BYTES)
+            .min(output.len());
+        let output_chunk = if output_cursor < output.len() {
+            &mut output[output_cursor..output_end]
+        } else {
+            &mut overflow_probe[..]
+        };
+        let input_before = decoder.total_in();
+        let output_before = decoder.total_out();
+        let status = decoder
+            .decompress(
+                &input[input_cursor..],
+                output_chunk,
+                flate2::FlushDecompress::Finish,
+            )
+            .map_err(|_| ProtocolError::Malformed)?;
+        let consumed = (decoder.total_in() - input_before) as usize;
+        let produced = (decoder.total_out() - output_before) as usize;
+        input_cursor += consumed;
+        if output_cursor == output.len() && produced != 0 {
+            return Err(ProtocolError::Malformed);
+        }
+        output_cursor += produced;
+        if status == flate2::Status::StreamEnd {
+            break;
+        }
+        if consumed == 0 && produced == 0 {
+            return Err(ProtocolError::Malformed);
+        }
+    }
+    compression_budget(cancellation, deadline)?;
+    if input_cursor != input.len() || output_cursor != expected {
+        return Err(ProtocolError::Malformed);
+    }
+    Ok(output)
+}
+
+fn offline_uuid(username: &str) -> io::Result<String> {
+    let input = format!("OfflinePlayer:{username}");
+    let mut bytes: [u8; 16] = Md5::digest(input.as_bytes()).into();
+    bytes[6] = (bytes[6] & 0x0f) | 0x30;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    let mut value = String::with_capacity(36);
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    for (index, byte) in bytes.into_iter().enumerate() {
+        if matches!(index, 4 | 6 | 8 | 10) {
+            value.push('-');
+        }
+        value.push(HEX[usize::from(byte >> 4)] as char);
+        value.push(HEX[usize::from(byte & 0x0f)] as char);
+    }
+    Ok(value)
+}
+
+fn write_string(output: &mut Vec<u8>, value: &str) -> io::Result<()> {
+    let bytes = value.as_bytes();
+    if bytes.len() > 32_767 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Minecraft outbound string exceeded 32767 bytes",
+        ));
+    }
+    output.try_reserve_exact(bytes.len() + 5).map_err(|error| {
+        io::Error::other(format!("Minecraft string allocation failed: {error}"))
+    })?;
+    write_varint(output, bytes.len() as u32);
+    output.extend_from_slice(bytes);
+    Ok(())
+}
+
+fn initial_play_packets(entity_id: i32, config: &MinecraftConfig) -> io::Result<Vec<Vec<u8>>> {
+    let mut join_game = vec![0x01];
+    join_game.extend_from_slice(&entity_id.to_be_bytes());
+    join_game.extend_from_slice(&[0x02, 0x00, 0x00, config.max_players as u8]);
+    write_string(&mut join_game, "default")?;
+    join_game.push(0);
+
+    let mut spawn = vec![0x05];
+    let spawn_x = config.spawn.x as i32;
+    let spawn_y = config.spawn.y as i32;
+    let spawn_z = config.spawn.z as i32;
+    let packed_spawn = ((i64::from(spawn_x) & 0x3ff_ffff) << 38)
+        | ((i64::from(spawn_y) & 0xfff) << 26)
+        | (i64::from(spawn_z) & 0x3ff_ffff);
+    spawn.extend_from_slice(&packed_spawn.to_be_bytes());
+
+    let mut abilities = vec![0x39, 0x05];
+    abilities.extend_from_slice(&0.05_f32.to_be_bytes());
+    abilities.extend_from_slice(&0.1_f32.to_be_bytes());
+
+    let mut time = vec![0x03];
+    time.extend_from_slice(&0_i64.to_be_bytes());
+    time.extend_from_slice(&(-6000_i64).to_be_bytes());
+
+    let mut health = vec![0x06];
+    health.extend_from_slice(&20.0_f32.to_be_bytes());
+    write_varint(&mut health, 20);
+    health.extend_from_slice(&5.0_f32.to_be_bytes());
+
+    Ok(vec![
+        join_game,
+        vec![0x41, 0x00],
+        spawn,
+        abilities,
+        time,
+        health,
+        vec![0x09, 0x00],
+    ])
 }
 
 async fn read_frame(
@@ -327,7 +820,12 @@ async fn write_bytes(
     }
 }
 
+#[cfg(test)]
 fn status_json(config: &MinecraftConfig) -> String {
+    status_json_with_online(config, 0)
+}
+
+fn status_json_with_online(config: &MinecraftConfig, online: u32) -> String {
     let motd = config.motd.replace('\\', "\\\\").replace('"', "\\\"");
     let favicon = if config.favicon.trim().is_empty() {
         String::new()
@@ -338,9 +836,67 @@ fn status_json(config: &MinecraftConfig) -> String {
         )
     };
     format!(
-        "{{\"version\":{{\"name\":\"1.8.9\",\"protocol\":47}},\"players\":{{\"max\":{},\"online\":0,\"sample\":[]}},\"description\":{{\"text\":\"{}\"}}{}}}",
-        config.max_players, motd, favicon
+        "{{\"version\":{{\"name\":\"1.8.9\",\"protocol\":47}},\"players\":{{\"max\":{},\"online\":{},\"sample\":[]}},\"description\":{{\"text\":\"{}\"}}{}}}",
+        config.max_players, online, motd, favicon
     )
+}
+
+fn build_status_frame(config: &MinecraftConfig, online: u32) -> io::Result<Vec<u8>> {
+    let json = status_json_with_online(config, online);
+    let mut payload = Vec::new();
+    payload.try_reserve_exact(json.len() + 6).map_err(|error| {
+        io::Error::other(format!("Minecraft status allocation failed: {error}"))
+    })?;
+    write_varint(&mut payload, 0);
+    write_varint(&mut payload, json.len() as u32);
+    payload.extend_from_slice(json.as_bytes());
+    encode_frame(&payload)
+}
+
+fn login_disconnect_frame(reason_json: &str) -> io::Result<Vec<u8>> {
+    let mut payload = Vec::new();
+    payload
+        .try_reserve_exact(reason_json.len() + 6)
+        .map_err(|error| io::Error::other(format!("Minecraft frame allocation failed: {error}")))?;
+    write_varint(&mut payload, 0);
+    write_varint(&mut payload, reason_json.len() as u32);
+    payload.extend_from_slice(reason_json.as_bytes());
+    encode_frame(&payload)
+}
+
+fn contains_player(players: &[String], username: &str) -> bool {
+    players
+        .iter()
+        .any(|player| java_equals_ignore_case(player, username))
+}
+
+fn java_equals_ignore_case(left: &str, right: &str) -> bool {
+    if left.encode_utf16().count() != right.encode_utf16().count() {
+        return false;
+    }
+    // JDK 22 uses Unicode 15.1; Cargo pins the matching ICU4X data generation.
+    let case_mapper = CaseMapper::new();
+    let mut left = left.chars();
+    let mut right = right.chars();
+    loop {
+        match (left.next(), right.next()) {
+            (None, None) => return true,
+            (Some(left), Some(right)) => {
+                if left == right {
+                    continue;
+                }
+                let left_upper = case_mapper.simple_uppercase(left);
+                let right_upper = case_mapper.simple_uppercase(right);
+                if left_upper != right_upper
+                    && case_mapper.simple_lowercase(left_upper)
+                        != case_mapper.simple_lowercase(right_upper)
+                {
+                    return false;
+                }
+            }
+            _ => return false,
+        }
+    }
 }
 
 fn encode_frame(payload: &[u8]) -> io::Result<Vec<u8>> {
@@ -368,6 +924,132 @@ fn write_varint(output: &mut Vec<u8>, mut value: u32) {
         output.push(((value & 0x7f) | 0x80) as u8);
         value >>= 7;
     }
+}
+
+fn decode_java_utf8(bytes: &[u8]) -> Result<String, ()> {
+    let mut output = String::new();
+    output
+        .try_reserve_exact(bytes.len().saturating_mul(3))
+        .map_err(|_| ())?;
+    let mut cursor = 0;
+    while cursor < bytes.len() {
+        let b1 = bytes[cursor];
+        if b1 < 0x80 {
+            output.push(char::from(b1));
+            cursor += 1;
+            continue;
+        }
+        if (0xc2..=0xdf).contains(&b1) {
+            if cursor + 1 < bytes.len() && is_utf8_continuation(bytes[cursor + 1]) {
+                let codepoint = (u32::from(b1 & 0x1f) << 6) | u32::from(bytes[cursor + 1] & 0x3f);
+                output.push(char::from_u32(codepoint).ok_or(())?);
+                cursor += 2;
+            } else {
+                output.push('\u{fffd}');
+                cursor += 1;
+            }
+            continue;
+        }
+        if (0xe0..=0xef).contains(&b1) {
+            let remaining = bytes.len() - cursor;
+            if remaining < 3 {
+                if remaining > 1
+                    && ((b1 == 0xe0 && bytes[cursor + 1] & 0xe0 == 0x80)
+                        || !is_utf8_continuation(bytes[cursor + 1]))
+                {
+                    output.push('\u{fffd}');
+                    cursor += 1;
+                } else {
+                    output.push('\u{fffd}');
+                    cursor = bytes.len();
+                }
+                continue;
+            }
+            let b2 = bytes[cursor + 1];
+            let b3 = bytes[cursor + 2];
+            if (b1 == 0xe0 && b2 & 0xe0 == 0x80)
+                || !is_utf8_continuation(b2)
+                || !is_utf8_continuation(b3)
+            {
+                let malformed_length =
+                    if (b1 == 0xe0 && b2 & 0xe0 == 0x80) || !is_utf8_continuation(b2) {
+                        1
+                    } else {
+                        2
+                    };
+                output.push('\u{fffd}');
+                cursor += malformed_length;
+                continue;
+            }
+            let codepoint =
+                (u32::from(b1 & 0x0f) << 12) | (u32::from(b2 & 0x3f) << 6) | u32::from(b3 & 0x3f);
+            if (0xd800..=0xdfff).contains(&codepoint) {
+                output.push('\u{fffd}');
+            } else {
+                output.push(char::from_u32(codepoint).ok_or(())?);
+            }
+            cursor += 3;
+            continue;
+        }
+        if (0xf0..=0xf7).contains(&b1) {
+            let remaining = bytes.len() - cursor;
+            if remaining < 4 {
+                if b1 > 0xf4
+                    || (remaining > 1 && invalid_java_utf8_four_byte_second(b1, bytes[cursor + 1]))
+                {
+                    output.push('\u{fffd}');
+                    cursor += 1;
+                } else if remaining > 2 && !is_utf8_continuation(bytes[cursor + 2]) {
+                    output.push('\u{fffd}');
+                    cursor += 2;
+                } else {
+                    output.push('\u{fffd}');
+                    cursor = bytes.len();
+                }
+                continue;
+            }
+            let b2 = bytes[cursor + 1];
+            let b3 = bytes[cursor + 2];
+            let b4 = bytes[cursor + 3];
+            let codepoint = (u32::from(b1 & 0x07) << 18)
+                | (u32::from(b2 & 0x3f) << 12)
+                | (u32::from(b3 & 0x3f) << 6)
+                | u32::from(b4 & 0x3f);
+            if !is_utf8_continuation(b2)
+                || !is_utf8_continuation(b3)
+                || !is_utf8_continuation(b4)
+                || !(0x1_0000..=0x10_ffff).contains(&codepoint)
+            {
+                let malformed_length = if invalid_java_utf8_four_byte_second(b1, b2) {
+                    1
+                } else if !is_utf8_continuation(b3) {
+                    2
+                } else {
+                    3
+                };
+                output.push('\u{fffd}');
+                cursor += malformed_length;
+                continue;
+            }
+            output.push(char::from_u32(codepoint).ok_or(())?);
+            cursor += 4;
+            continue;
+        }
+        output.push('\u{fffd}');
+        cursor += 1;
+    }
+    Ok(output)
+}
+
+const fn is_utf8_continuation(byte: u8) -> bool {
+    byte & 0xc0 == 0x80
+}
+
+const fn invalid_java_utf8_four_byte_second(first: u8, second: u8) -> bool {
+    first > 0xf4
+        || (first == 0xf0 && (second < 0x90 || second > 0xbf))
+        || (first == 0xf4 && second & 0xf0 != 0x80)
+        || !is_utf8_continuation(second)
 }
 
 struct PacketReader<'a> {
@@ -405,7 +1087,7 @@ impl<'a> PacketReader<'a> {
         let end = self.cursor.checked_add(length).ok_or(())?;
         let bytes = self.bytes.get(self.cursor..end).ok_or(())?;
         self.cursor = end;
-        let value = String::from_utf8_lossy(bytes).into_owned();
+        let value = decode_java_utf8(bytes)?;
         if value.encode_utf16().count() > max_utf16_units {
             return Err(());
         }
@@ -474,10 +1156,22 @@ mod tests {
     fn config(timeout: Duration) -> MinecraftConfig {
         MinecraftConfig {
             enabled: true,
+            online_mode: false,
+            compression_threshold: 256,
             max_players: 20,
             motd: "§6LMYZMAIL §7- Send emails in Minecraft".to_owned(),
             favicon: String::new(),
             read_timeout_seconds: timeout.as_secs().max(1),
+            spawn: crate::config::MinecraftSpawnConfig {
+                x: 0.5,
+                y: 160.0,
+                z: 0.5,
+                yaw: 0.0,
+                pitch: 0.0,
+            },
+            whitelist_enabled: false,
+            whitelist_players: Vec::new(),
+            blacklist_players: Vec::new(),
         }
     }
 
@@ -509,6 +1203,33 @@ mod tests {
                 async move { serve_listener(listener, service, child, max_connections).await },
             );
         (address, cancellation, task)
+    }
+
+    async fn start_server_with_config(
+        max_connections: usize,
+        config: MinecraftConfig,
+    ) -> (
+        std::net::SocketAddr,
+        CancellationToken,
+        tokio::task::JoinHandle<io::Result<()>>,
+    ) {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let service = Arc::new(StatusService::new(&config).unwrap());
+        let cancellation = CancellationToken::new();
+        let child = cancellation.clone();
+        let task =
+            tokio::spawn(
+                async move { serve_listener(listener, service, child, max_connections).await },
+            );
+        (address, cancellation, task)
+    }
+
+    fn login_start(username: &[u8]) -> Vec<u8> {
+        let mut packet = vec![0];
+        write_varint(&mut packet, username.len() as u32);
+        packet.extend_from_slice(username);
+        encode_frame(&packet).unwrap()
     }
 
     async fn assert_closed_without_response(address: std::net::SocketAddr, payload: &[u8]) {
@@ -548,6 +1269,149 @@ mod tests {
             status_json(&configured),
             "{\"version\":{\"name\":\"1.8.9\",\"protocol\":47},\"players\":{\"max\":42,\"online\":0,\"sample\":[]},\"description\":{\"text\":\"quoted \\\\\\\"status\\\\\\\"\"},\"favicon\":\"data:image/png;base64,cGl4ZWw=\"}"
         );
+    }
+
+    #[test]
+    fn login_rejection_frames_match_frozen_java_wire() {
+        let service = StatusService::new(&config(Duration::from_secs(30))).unwrap();
+        assert_eq!(
+            service.blacklist_frame.as_ref(),
+            STANDARD
+                .decode("OwA5eyJ0ZXh0IjoiWW91IGFyZSBiYW5uZWQgZnJvbSB0aGlzIHNlcnZlci4iLCJjb2xvciI6InJlZCJ9")
+                .unwrap()
+        );
+        assert_eq!(
+            service.whitelist_frame.as_ref(),
+            STANDARD
+                .decode("MwAxeyJ0ZXh0IjoiWW91IGFyZSBub3Qgd2hpdGVsaXN0ZWQuIiwiY29sb3IiOiJyZWQifQ==")
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn admission_uses_java_unicode_simple_case_comparison() {
+        assert!(java_equals_ignore_case("\u{c4}User", "\u{e4}user"));
+        assert!(java_equals_ignore_case("\u{130}", "i"));
+        assert!(java_equals_ignore_case("\u{3a3}", "\u{3c2}"));
+        assert!(!java_equals_ignore_case("\u{df}", "ss"));
+    }
+
+    #[test]
+    fn java_utf8_replacement_consumes_the_frozen_malformed_lengths() {
+        assert_eq!(decode_java_utf8(b"valid").unwrap(), "valid");
+        assert_eq!(decode_java_utf8(&[0xed, 0xa0, 0x80]).unwrap(), "\u{fffd}");
+        assert_eq!(decode_java_utf8(&[0xe2, 0x82, b'A']).unwrap(), "\u{fffd}A");
+        assert_eq!(
+            decode_java_utf8(&[0xe0, 0x80, 0x80]).unwrap(),
+            "\u{fffd}\u{fffd}\u{fffd}"
+        );
+        assert_eq!(
+            decode_java_utf8(&[0xf0, 0x80, 0x80, 0x80]).unwrap(),
+            "\u{fffd}\u{fffd}\u{fffd}\u{fffd}"
+        );
+        assert_eq!(
+            decode_java_utf8(&[0xf0, 0x90, 0x80, b'A']).unwrap(),
+            "\u{fffd}A"
+        );
+        assert_eq!(decode_java_utf8(&[0xe2, 0x82]).unwrap(), "\u{fffd}");
+        assert_eq!(
+            decode_java_utf8(&[0xf0, 0x9f, 0x92, 0xa9]).unwrap(),
+            "\u{1f4a9}"
+        );
+    }
+
+    #[test]
+    fn duplicate_uuid_status_is_unique_and_old_disconnect_is_fenced() {
+        let service = StatusService::new(&config(Duration::from_secs(30))).unwrap();
+        let old = service.register_online("same-uuid".to_owned());
+        assert_eq!(
+            service
+                .online_sessions
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .len(),
+            1
+        );
+        let current = service.register_online("same-uuid".to_owned());
+        assert_eq!(
+            service
+                .online_sessions
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .len(),
+            1
+        );
+        drop(old);
+        assert_eq!(
+            service
+                .online_sessions
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .len(),
+            1
+        );
+        drop(current);
+        assert!(
+            service
+                .online_sessions
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn login_admission_matches_frozen_rejections_and_username_bound() {
+        let mut configured = config(Duration::from_secs(3));
+        configured.whitelist_enabled = true;
+        configured.whitelist_players = vec!["AllowedUser".to_owned(), "BlockedUser".to_owned()];
+        configured.blacklist_players = vec!["BlockedUser".to_owned()];
+        let (address, cancellation, task) = start_server_with_config(8, configured).await;
+
+        for (username, expected) in [
+            (
+                b"blockeduser".as_slice(),
+                "OwA5eyJ0ZXh0IjoiWW91IGFyZSBiYW5uZWQgZnJvbSB0aGlzIHNlcnZlci4iLCJjb2xvciI6InJlZCJ9",
+            ),
+            (
+                b"OtherUser".as_slice(),
+                "MwAxeyJ0ZXh0IjoiWW91IGFyZSBub3Qgd2hpdGVsaXN0ZWQuIiwiY29sb3IiOiJyZWQifQ==",
+            ),
+        ] {
+            let mut client = TcpStream::connect(address).await.unwrap();
+            client
+                .write_all(&handshake(address.port(), 2))
+                .await
+                .unwrap();
+            client.write_all(&login_start(username)).await.unwrap();
+            let expected = STANDARD.decode(expected).unwrap();
+            let mut actual = vec![0_u8; expected.len()];
+            client.read_exact(&mut actual).await.unwrap();
+            assert_eq!(actual, expected);
+            let mut trailing = [0_u8; 1];
+            assert_eq!(client.read(&mut trailing).await.unwrap(), 0);
+        }
+
+        let mut allowed = TcpStream::connect(address).await.unwrap();
+        allowed
+            .write_all(&handshake(address.port(), 2))
+            .await
+            .unwrap();
+        allowed
+            .write_all(&login_start(b"alloweduser"))
+            .await
+            .unwrap();
+        let mut compression_prefix = [0_u8; 4];
+        allowed.read_exact(&mut compression_prefix).await.unwrap();
+        assert_eq!(compression_prefix, [3, 3, 0x80, 2]);
+
+        let mut overlong = Vec::new();
+        overlong.extend_from_slice(&handshake(address.port(), 2));
+        overlong.extend_from_slice(&login_start(b"12345678901234567"));
+        assert_closed_without_response(address, &overlong).await;
+
+        cancellation.cancel();
+        task.await.unwrap().unwrap();
     }
 
     #[tokio::test]
@@ -681,12 +1545,11 @@ mod tests {
         let server_cancellation = cancellation.clone();
         let server = tokio::spawn(async move {
             let (stream, _) = listener.accept().await.unwrap();
+            let mut service = StatusService::new(&config(Duration::from_secs(1))).unwrap();
+            service.connection_timeout = Duration::from_millis(150);
             handle_connection(
                 stream,
-                Arc::new(StatusService {
-                    status_frame: Arc::from([]),
-                    connection_timeout: Duration::from_millis(150),
-                }),
+                Arc::new(service),
                 server_cancellation,
                 Arc::new(Semaphore::new(1)).try_acquire_owned().unwrap(),
                 Instant::now() + Duration::from_millis(150),
@@ -707,6 +1570,175 @@ mod tests {
         );
         assert!(started.elapsed() < Duration::from_millis(350));
         server.await.unwrap().unwrap();
+    }
+
+    #[test]
+    fn offline_uuid_matches_frozen_java_name_uuid() {
+        assert_eq!(
+            offline_uuid("BlackboxLogin").unwrap(),
+            "fba9f5f2-955e-359f-ae31-9d00075473c2"
+        );
+        assert_eq!(
+            offline_uuid("\u{fffd}").unwrap(),
+            "7f21183c-0ff2-3465-9df0-9ca82956deb0"
+        );
+    }
+
+    #[tokio::test]
+    async fn offline_login_prefix_matches_frozen_java_frames() {
+        let service = StatusService::new(&config(Duration::from_secs(3))).unwrap();
+        let cancellation = CancellationToken::new();
+        let deadline = Instant::now() + Duration::from_secs(3);
+
+        let mut login_success = vec![0x02];
+        write_string(&mut login_success, "fba9f5f2-955e-359f-ae31-9d00075473c2").unwrap();
+        write_string(&mut login_success, "BlackboxLogin").unwrap();
+        let login_frame =
+            encode_packet_frame(&service, login_success, Some(256), deadline, &cancellation)
+                .await
+                .unwrap();
+        assert_eq!(
+            login_frame,
+            STANDARD
+                .decode("NQACJGZiYTlmNWYyLTk1NWUtMzU5Zi1hZTMxLTlkMDAwNzU0NzNjMg1CbGFja2JveExvZ2lu")
+                .unwrap()
+        );
+
+        let expected = [
+            "EwABAAAAAAIAABQHZGVmYXVsdAA=",
+            "AwBBAA==",
+            "CgAFAAAAAoAAAAA=",
+            "CwA5BT1MzM09zMzN",
+            "EgADAAAAAAAAAAD////////okA==",
+            "CwAGQaAAABRAoAAA",
+            "AwAJAA==",
+        ];
+        for (packet, frozen) in initial_play_packets(0, &config(Duration::from_secs(3)))
+            .unwrap()
+            .into_iter()
+            .zip(expected)
+        {
+            let frame = encode_packet_frame(&service, packet, Some(256), deadline, &cancellation)
+                .await
+                .unwrap();
+            assert_eq!(frame, STANDARD.decode(frozen).unwrap());
+        }
+    }
+
+    #[tokio::test]
+    async fn compression_envelope_is_exact_and_bounded() {
+        let service = StatusService::new(&config(Duration::from_secs(3))).unwrap();
+        let cancellation = CancellationToken::new();
+        let deadline = Instant::now() + Duration::from_secs(3);
+
+        let packet = vec![0x5a; 256];
+        let compressed = compress_packet(packet.clone(), &cancellation, deadline).unwrap();
+        let mut envelope = Vec::new();
+        write_varint(&mut envelope, packet.len() as u32);
+        envelope.extend_from_slice(&compressed);
+        assert_eq!(
+            decode_compression_envelope(&service, envelope.clone(), 256, deadline, &cancellation,)
+                .await
+                .unwrap(),
+            packet
+        );
+
+        envelope.push(0);
+        assert!(matches!(
+            decode_compression_envelope(&service, envelope, 256, deadline, &cancellation).await,
+            Err(ProtocolError::Malformed)
+        ));
+
+        let mut uncompressed_at_threshold = vec![0];
+        uncompressed_at_threshold.extend_from_slice(&vec![0x5a; 256]);
+        assert!(matches!(
+            decode_compression_envelope(
+                &service,
+                uncompressed_at_threshold,
+                256,
+                deadline,
+                &cancellation,
+            )
+            .await,
+            Err(ProtocolError::Malformed)
+        ));
+
+        let mut oversized = Vec::new();
+        write_varint(&mut oversized, MAX_FRAME_LENGTH as u32 + 1);
+        oversized.push(0);
+        assert!(matches!(
+            decode_compression_envelope(&service, oversized, 256, deadline, &cancellation).await,
+            Err(ProtocolError::Malformed)
+        ));
+
+        let mut negative = Vec::new();
+        write_varint(&mut negative, u32::MAX);
+        negative.push(0);
+        assert!(matches!(
+            decode_compression_envelope(&service, negative, 256, deadline, &cancellation).await,
+            Err(ProtocolError::Malformed)
+        ));
+
+        let short_packet = vec![0x5a; 128];
+        let short_compressed = compress_packet(short_packet, &cancellation, deadline).unwrap();
+        let mut below_threshold = Vec::new();
+        write_varint(&mut below_threshold, 128);
+        below_threshold.extend_from_slice(&short_compressed);
+        assert!(matches!(
+            decode_compression_envelope(&service, below_threshold, 256, deadline, &cancellation,)
+                .await,
+            Err(ProtocolError::Malformed)
+        ));
+
+        let mut truncated = Vec::new();
+        write_varint(&mut truncated, 256);
+        truncated.extend_from_slice(&compressed[..compressed.len() - 1]);
+        assert!(matches!(
+            decode_compression_envelope(&service, truncated, 256, deadline, &cancellation).await,
+            Err(ProtocolError::Malformed)
+        ));
+
+        let mut mismatched = Vec::new();
+        write_varint(&mut mismatched, 257);
+        mismatched.extend_from_slice(&compressed);
+        assert!(matches!(
+            decode_compression_envelope(&service, mismatched, 1, deadline, &cancellation).await,
+            Err(ProtocolError::Malformed)
+        ));
+    }
+
+    #[test]
+    fn compression_workers_observe_cancellation_and_deadline() {
+        let cancellation = CancellationToken::new();
+        cancellation.cancel();
+        assert!(matches!(
+            compress_packet(
+                vec![0; COMPRESSION_CHUNK_BYTES * 2],
+                &cancellation,
+                Instant::now() + Duration::from_secs(1),
+            ),
+            Err(ProtocolError::Cancelled)
+        ));
+        let active = CancellationToken::new();
+        assert!(matches!(
+            compress_packet(vec![0; 1], &active, Instant::now()),
+            Err(ProtocolError::TimedOut)
+        ));
+    }
+
+    #[test]
+    fn configured_spawn_position_uses_java_integer_cast_and_wire_packing() {
+        let mut configured = config(Duration::from_secs(3));
+        configured.spawn.x = -12.75;
+        configured.spawn.y = 70.9;
+        configured.spawn.z = 34.5;
+        let packets = initial_play_packets(1, &configured).unwrap();
+        let expected_packed = ((i64::from(-12_i32) & 0x3ff_ffff) << 38)
+            | ((i64::from(70_i32) & 0xfff) << 26)
+            | (i64::from(34_i32) & 0x3ff_ffff);
+        let mut expected = vec![0x05];
+        expected.extend_from_slice(&expected_packed.to_be_bytes());
+        assert_eq!(packets[2], expected);
     }
 
     proptest! {

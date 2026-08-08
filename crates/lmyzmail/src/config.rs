@@ -31,6 +31,7 @@ const MAX_HTCPCP_BREW_SECONDS: u64 = 86_400;
 const MAX_MINECRAFT_STATUS_JSON_BYTES: usize = 32_767;
 const MAX_MINECRAFT_PLAYERS: u32 = i32::MAX as u32;
 const MAX_MINECRAFT_READ_TIMEOUT_SECONDS: u64 = 3_600;
+const MAX_MINECRAFT_COMPRESSION_THRESHOLD: i32 = 2 * 1024 * 1024;
 const MAX_MESSAGE_BYTES: u64 = 1024 * 1024 * 1024;
 
 #[derive(Debug)]
@@ -342,6 +343,10 @@ struct JsonHtcpcpPotConfig {
 struct JsonMinecraftConfig {
     #[serde(default)]
     enabled: bool,
+    #[serde(default = "default_true")]
+    online_mode: bool,
+    #[serde(default = "default_minecraft_compression_threshold")]
+    compression_threshold: i32,
     #[serde(default = "default_minecraft_max_players")]
     max_players: u32,
     #[serde(default = "default_minecraft_motd")]
@@ -350,16 +355,57 @@ struct JsonMinecraftConfig {
     favicon: String,
     #[serde(default = "default_minecraft_read_timeout_seconds")]
     read_timeout_seconds: u64,
+    #[serde(default)]
+    spawn: JsonMinecraftSpawnConfig,
+    #[serde(default)]
+    whitelist_enabled: bool,
+    #[serde(default)]
+    whitelist_players: Vec<String>,
+    #[serde(default)]
+    blacklist_players: Vec<String>,
 }
 
 impl Default for JsonMinecraftConfig {
     fn default() -> Self {
         Self {
             enabled: false,
+            online_mode: true,
+            compression_threshold: default_minecraft_compression_threshold(),
             max_players: default_minecraft_max_players(),
             motd: default_minecraft_motd(),
             favicon: String::new(),
             read_timeout_seconds: default_minecraft_read_timeout_seconds(),
+            spawn: JsonMinecraftSpawnConfig::default(),
+            whitelist_enabled: false,
+            whitelist_players: Vec::new(),
+            blacklist_players: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct JsonMinecraftSpawnConfig {
+    #[serde(default = "default_minecraft_spawn_x")]
+    x: f64,
+    #[serde(default = "default_minecraft_spawn_y")]
+    y: f64,
+    #[serde(default = "default_minecraft_spawn_z")]
+    z: f64,
+    #[serde(default)]
+    yaw: f32,
+    #[serde(default)]
+    pitch: f32,
+}
+
+impl Default for JsonMinecraftSpawnConfig {
+    fn default() -> Self {
+        Self {
+            x: default_minecraft_spawn_x(),
+            y: default_minecraft_spawn_y(),
+            z: default_minecraft_spawn_z(),
+            yaw: 0.0,
+            pitch: 0.0,
         }
     }
 }
@@ -556,6 +602,22 @@ fn default_minecraft_read_timeout_seconds() -> u64 {
     30
 }
 
+fn default_minecraft_compression_threshold() -> i32 {
+    256
+}
+
+fn default_minecraft_spawn_x() -> f64 {
+    0.5
+}
+
+fn default_minecraft_spawn_y() -> f64 {
+    160.0
+}
+
+fn default_minecraft_spawn_z() -> f64 {
+    0.5
+}
+
 fn default_max_email_size_bytes() -> u64 {
     15 * 1024 * 1024
 }
@@ -614,6 +676,14 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         value.minecraft.enabled.to_string(),
     )?;
     properties.insert(
+        "lmyzmail.minecraft.online-mode".to_owned(),
+        value.minecraft.online_mode.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.compression-threshold".to_owned(),
+        value.minecraft.compression_threshold.to_string(),
+    )?;
+    properties.insert(
         "lmyzmail.minecraft.max-players".to_owned(),
         value.minecraft.max_players.to_string(),
     )?;
@@ -626,6 +696,42 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         "lmyzmail.minecraft.read-timeout-seconds".to_owned(),
         value.minecraft.read_timeout_seconds.to_string(),
     )?;
+    properties.insert(
+        "lmyzmail.minecraft.spawn.x".to_owned(),
+        value.minecraft.spawn.x.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.spawn.y".to_owned(),
+        value.minecraft.spawn.y.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.spawn.z".to_owned(),
+        value.minecraft.spawn.z.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.spawn.yaw".to_owned(),
+        value.minecraft.spawn.yaw.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.spawn.pitch".to_owned(),
+        value.minecraft.spawn.pitch.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.minecraft.whitelist.enabled".to_owned(),
+        value.minecraft.whitelist_enabled.to_string(),
+    )?;
+    for (index, player) in value.minecraft.whitelist_players.into_iter().enumerate() {
+        properties.insert(
+            format!("lmyzmail.minecraft.whitelist.players[{index}]"),
+            player,
+        )?;
+    }
+    for (index, player) in value.minecraft.blacklist_players.into_iter().enumerate() {
+        properties.insert(
+            format!("lmyzmail.minecraft.blacklist.players[{index}]"),
+            player,
+        )?;
+    }
     properties.insert(
         "lmyzmail.honeypot.enabled".to_owned(),
         (!value.listen.honeypots.is_empty()).to_string(),
@@ -1034,13 +1140,28 @@ pub struct HtcpcpPotConfig {
     pub supported_additions: Vec<String>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MinecraftConfig {
     pub enabled: bool,
+    pub online_mode: bool,
+    pub compression_threshold: i32,
     pub max_players: u32,
     pub motd: String,
     pub favicon: String,
     pub read_timeout_seconds: u64,
+    pub spawn: MinecraftSpawnConfig,
+    pub whitelist_enabled: bool,
+    pub whitelist_players: Vec<String>,
+    pub blacklist_players: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct MinecraftSpawnConfig {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub yaw: f32,
+    pub pitch: f32,
 }
 
 #[derive(Clone, Debug)]
@@ -1504,6 +1625,29 @@ fn parse_minecraft_config(properties: &Properties) -> Result<MinecraftConfig, Co
         &["botmail.minecraft.enabled"],
         false,
     )?;
+    let online_mode = preferred_bool(
+        properties,
+        &["lmyzmail.minecraft.online-mode"],
+        &["botmail.minecraft.online-mode"],
+        true,
+    )?;
+    let compression_threshold = preferred(
+        properties,
+        &["lmyzmail.minecraft.compression-threshold"],
+        &["botmail.minecraft.compression-threshold"],
+    )
+    .map(|value| {
+        value.parse::<i32>().map_err(|_| {
+            ConfigError::Invalid("minecraft compression-threshold is not a signed integer".into())
+        })
+    })
+    .transpose()?
+    .unwrap_or_else(default_minecraft_compression_threshold);
+    if !(-1..=MAX_MINECRAFT_COMPRESSION_THRESHOLD).contains(&compression_threshold) {
+        return Err(ConfigError::Invalid(format!(
+            "minecraft compression-threshold must be between -1 and {MAX_MINECRAFT_COMPRESSION_THRESHOLD}"
+        )));
+    }
     let max_players = preferred_u64(
         properties,
         &["lmyzmail.minecraft.max-players"],
@@ -1562,13 +1706,157 @@ fn parse_minecraft_config(properties: &Properties) -> Result<MinecraftConfig, Co
             "minecraft read-timeout-seconds must be between 1 and {MAX_MINECRAFT_READ_TIMEOUT_SECONDS}"
         )));
     }
+    let spawn = MinecraftSpawnConfig {
+        x: preferred_f64(
+            properties,
+            &["lmyzmail.minecraft.spawn.x"],
+            &["botmail.minecraft.spawn.x"],
+            default_minecraft_spawn_x(),
+            "minecraft spawn.x",
+        )?,
+        y: preferred_f64(
+            properties,
+            &["lmyzmail.minecraft.spawn.y"],
+            &["botmail.minecraft.spawn.y"],
+            default_minecraft_spawn_y(),
+            "minecraft spawn.y",
+        )?,
+        z: preferred_f64(
+            properties,
+            &["lmyzmail.minecraft.spawn.z"],
+            &["botmail.minecraft.spawn.z"],
+            default_minecraft_spawn_z(),
+            "minecraft spawn.z",
+        )?,
+        yaw: preferred_f32(
+            properties,
+            &["lmyzmail.minecraft.spawn.yaw"],
+            &["botmail.minecraft.spawn.yaw"],
+            0.0,
+            "minecraft spawn.yaw",
+        )?,
+        pitch: preferred_f32(
+            properties,
+            &["lmyzmail.minecraft.spawn.pitch"],
+            &["botmail.minecraft.spawn.pitch"],
+            0.0,
+            "minecraft spawn.pitch",
+        )?,
+    };
+    let whitelist_enabled = preferred_bool(
+        properties,
+        &["lmyzmail.minecraft.whitelist.enabled"],
+        &["botmail.minecraft.whitelist.enabled"],
+        false,
+    )?;
+    let whitelist_players = parse_minecraft_player_list(
+        properties,
+        "lmyzmail.minecraft.whitelist.players",
+        "botmail.minecraft.whitelist.players",
+        "minecraft whitelist",
+    )?;
+    let blacklist_players = parse_minecraft_player_list(
+        properties,
+        "lmyzmail.minecraft.blacklist.players",
+        "botmail.minecraft.blacklist.players",
+        "minecraft blacklist",
+    )?;
     Ok(MinecraftConfig {
         enabled,
+        online_mode,
+        compression_threshold,
         max_players,
         motd,
         favicon,
         read_timeout_seconds,
+        spawn,
+        whitelist_enabled,
+        whitelist_players,
+        blacklist_players,
     })
+}
+
+fn preferred_f64(
+    properties: &Properties,
+    new_keys: &[&str],
+    legacy_keys: &[&str],
+    default: f64,
+    label: &str,
+) -> Result<f64, ConfigError> {
+    preferred(properties, new_keys, legacy_keys)
+        .map(|value| {
+            value
+                .parse::<f64>()
+                .map_err(|_| ConfigError::Invalid(format!("{label} is not a double")))
+        })
+        .transpose()
+        .map(|value| value.unwrap_or(default))
+}
+
+fn preferred_f32(
+    properties: &Properties,
+    new_keys: &[&str],
+    legacy_keys: &[&str],
+    default: f32,
+    label: &str,
+) -> Result<f32, ConfigError> {
+    preferred(properties, new_keys, legacy_keys)
+        .map(|value| {
+            value
+                .parse::<f32>()
+                .map_err(|_| ConfigError::Invalid(format!("{label} is not a float")))
+        })
+        .transpose()
+        .map(|value| value.unwrap_or(default))
+}
+
+fn parse_minecraft_player_list(
+    properties: &Properties,
+    new_prefix: &str,
+    legacy_prefix: &str,
+    label: &str,
+) -> Result<Vec<String>, ConfigError> {
+    let scalar_new = properties.get(new_prefix);
+    let indexed_new = properties.get(&format!("{new_prefix}[0]")).is_some();
+    let scalar_legacy = properties.get(legacy_prefix);
+    let indexed_legacy = properties.get(&format!("{legacy_prefix}[0]")).is_some();
+
+    let raw_values = if let Some(value) = scalar_new {
+        split_minecraft_player_list(value)
+    } else if indexed_new {
+        indexed_minecraft_player_list(properties, new_prefix)
+    } else if let Some(value) = scalar_legacy {
+        split_minecraft_player_list(value)
+    } else if indexed_legacy {
+        indexed_minecraft_player_list(properties, legacy_prefix)
+    } else {
+        Vec::new()
+    };
+    let mut players = Vec::with_capacity(raw_values.len());
+    for value in raw_values {
+        let value = value.trim();
+        if value.is_empty() {
+            return Err(ConfigError::Invalid(format!(
+                "{label} contains an empty entry"
+            )));
+        }
+        players.push(value.to_owned());
+    }
+    Ok(players)
+}
+
+fn split_minecraft_player_list(value: &str) -> Vec<&str> {
+    if value.trim().is_empty() {
+        Vec::new()
+    } else {
+        value.split(',').collect()
+    }
+}
+
+fn indexed_minecraft_player_list<'a>(properties: &'a Properties, prefix: &str) -> Vec<&'a str> {
+    (0..MAX_PROPERTY_COUNT)
+        .map_while(|index| properties.get(&format!("{prefix}[{index}]")))
+        .collect()
 }
 
 fn parse_htcpcp_config(properties: &Properties) -> Result<HtcpcpConfig, ConfigError> {
@@ -2580,10 +2868,16 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
             "features": {"smtp_skibidi_mode": "JAVA"},
             "minecraft": {
                 "enabled": true,
+                "online_mode": false,
+                "compression_threshold": 512,
                 "max_players": 42,
                 "motd": "semantic-status",
                 "favicon": " cGl4ZWw= ",
-                "read_timeout_seconds": 75
+                "read_timeout_seconds": 75,
+                "spawn": {"x": -12.75, "y": 70.9, "z": 34.5, "yaw": 45.0, "pitch": -15.0},
+                "whitelist_enabled": true,
+                "whitelist_players": ["SemanticAllowed"],
+                "blacklist_players": ["SemanticBlocked"]
             },
             "limits": {"max_http_request_bytes": 65536}
         }"#;
@@ -2596,10 +2890,20 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
         assert_eq!(config.limits.max_http_request_bytes, 65536);
         assert_eq!(config.trusted_proxies.len(), 2);
         assert!(config.minecraft.enabled);
+        assert!(!config.minecraft.online_mode);
+        assert_eq!(config.minecraft.compression_threshold, 512);
         assert_eq!(config.minecraft.max_players, 42);
         assert_eq!(config.minecraft.motd, "semantic-status");
         assert_eq!(config.minecraft.favicon, " cGl4ZWw= ");
         assert_eq!(config.minecraft.read_timeout_seconds, 75);
+        assert_eq!(config.minecraft.spawn.x, -12.75);
+        assert_eq!(config.minecraft.spawn.y, 70.9);
+        assert_eq!(config.minecraft.spawn.z, 34.5);
+        assert_eq!(config.minecraft.spawn.yaw, 45.0);
+        assert_eq!(config.minecraft.spawn.pitch, -15.0);
+        assert!(config.minecraft.whitelist_enabled);
+        assert_eq!(config.minecraft.whitelist_players, ["SemanticAllowed"]);
+        assert_eq!(config.minecraft.blacklist_players, ["SemanticBlocked"]);
     }
 
     #[test]
@@ -2615,6 +2919,8 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
             ["darjeeling", "earl-grey", "peppermint"]
         );
         assert!(!config.minecraft.enabled);
+        assert!(config.minecraft.online_mode);
+        assert_eq!(config.minecraft.compression_threshold, 256);
         assert_eq!(config.minecraft.max_players, 20);
         assert_eq!(
             config.minecraft.motd,
@@ -2622,6 +2928,14 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
         );
         assert_eq!(config.minecraft.read_timeout_seconds, 30);
         assert!(config.minecraft.favicon.is_empty());
+        assert_eq!(config.minecraft.spawn.x, 0.5);
+        assert_eq!(config.minecraft.spawn.y, 160.0);
+        assert_eq!(config.minecraft.spawn.z, 0.5);
+        assert_eq!(config.minecraft.spawn.yaw, 0.0);
+        assert_eq!(config.minecraft.spawn.pitch, 0.0);
+        assert!(!config.minecraft.whitelist_enabled);
+        assert!(config.minecraft.whitelist_players.is_empty());
+        assert!(config.minecraft.blacklist_players.is_empty());
     }
 
     #[test]
@@ -2651,26 +2965,65 @@ lmyzmail.htcpcp.pots[0].tea-varieties=new-tea\n",
     fn minecraft_aliases_are_bounded_and_new_keys_win() {
         let properties = Properties::parse(
             b"botmail.minecraft.enabled=false\n\
+botmail.minecraft.online-mode=true\n\
+botmail.minecraft.compression-threshold=1024\n\
 botmail.minecraft.max-players=40\n\
 botmail.minecraft.motd=legacy\n\
 botmail.minecraft.favicon=bGVnYWN5\n\
 botmail.minecraft.read-timeout-seconds=45\n\
+botmail.minecraft.spawn.x=1.5\n\
+botmail.minecraft.spawn.y=65.25\n\
+botmail.minecraft.spawn.z=2.5\n\
+botmail.minecraft.spawn.yaw=10.0\n\
+botmail.minecraft.spawn.pitch=20.0\n\
+botmail.minecraft.whitelist.enabled=false\n\
+botmail.minecraft.whitelist.players=LegacyAllowed\n\
+botmail.minecraft.blacklist.players=LegacyBlocked\n\
 lmyzmail.minecraft.enabled=true\n\
+lmyzmail.minecraft.online-mode=false\n\
+lmyzmail.minecraft.compression-threshold=256\n\
 lmyzmail.minecraft.max-players=20\n\
 lmyzmail.minecraft.motd=new\n\
 lmyzmail.minecraft.favicon=bmV3\n\
-lmyzmail.minecraft.read-timeout-seconds=30\n",
+lmyzmail.minecraft.read-timeout-seconds=30\n\
+lmyzmail.minecraft.spawn.x=-12.75\n\
+lmyzmail.minecraft.spawn.y=70.9\n\
+lmyzmail.minecraft.spawn.z=34.5\n\
+lmyzmail.minecraft.spawn.yaw=45.0\n\
+lmyzmail.minecraft.spawn.pitch=-15.0\n\
+lmyzmail.minecraft.whitelist.enabled=true\n\
+lmyzmail.minecraft.whitelist.players=NewAllowed, SecondAllowed\n\
+lmyzmail.minecraft.whitelist.players[0]=IgnoredIndexedAllowed\n\
+lmyzmail.minecraft.blacklist.players=NewBlocked\n",
         )
         .unwrap();
         let config = RuntimeConfig::from_properties(properties).unwrap();
         assert!(config.minecraft.enabled);
+        assert!(!config.minecraft.online_mode);
+        assert_eq!(config.minecraft.compression_threshold, 256);
         assert_eq!(config.minecraft.max_players, 20);
         assert_eq!(config.minecraft.motd, "new");
         assert_eq!(config.minecraft.favicon, "bmV3");
         assert_eq!(config.minecraft.read_timeout_seconds, 30);
+        assert_eq!(config.minecraft.spawn.x, -12.75);
+        assert_eq!(config.minecraft.spawn.y, 70.9);
+        assert_eq!(config.minecraft.spawn.z, 34.5);
+        assert_eq!(config.minecraft.spawn.yaw, 45.0);
+        assert_eq!(config.minecraft.spawn.pitch, -15.0);
+        assert!(config.minecraft.whitelist_enabled);
+        assert_eq!(
+            config.minecraft.whitelist_players,
+            ["NewAllowed", "SecondAllowed"]
+        );
+        assert_eq!(config.minecraft.blacklist_players, ["NewBlocked"]);
 
         for value in [
             "lmyzmail.minecraft.max-players=2147483648\n",
+            "lmyzmail.minecraft.compression-threshold=-2\n",
+            "lmyzmail.minecraft.compression-threshold=2097153\n",
+            "lmyzmail.minecraft.compression-threshold=nope\n",
+            "lmyzmail.minecraft.spawn.x=nope\n",
+            "lmyzmail.minecraft.spawn.yaw=nope\n",
             "lmyzmail.minecraft.read-timeout-seconds=0\n",
             "lmyzmail.minecraft.read-timeout-seconds=3601\n",
             "lmyzmail.minecraft.motd=bad\\u0009motd\n",
@@ -2687,6 +3040,32 @@ lmyzmail.minecraft.read-timeout-seconds=30\n",
             )
             .unwrap();
         assert!(RuntimeConfig::from_properties(oversized).is_err());
+
+        let legacy_indexed = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.minecraft.whitelist.players[0]=LegacyOne\n\
+botmail.minecraft.whitelist.players[1]=LegacyTwo\n\
+botmail.minecraft.blacklist.players[0]=LegacyBlocked\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            legacy_indexed.minecraft.whitelist_players,
+            ["LegacyOne", "LegacyTwo"]
+        );
+        assert_eq!(
+            legacy_indexed.minecraft.blacklist_players,
+            ["LegacyBlocked"]
+        );
+
+        for value in [
+            "lmyzmail.minecraft.whitelist.players=One,,Two\n",
+            "lmyzmail.minecraft.blacklist.players=,\n",
+        ] {
+            let properties = Properties::parse(value.as_bytes()).unwrap();
+            assert!(RuntimeConfig::from_properties(properties).is_err());
+        }
     }
 
     #[test]

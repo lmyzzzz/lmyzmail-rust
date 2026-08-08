@@ -481,7 +481,7 @@ def test_frozen_java_mail_read_golden(
     record_java_golden: bool,
 ) -> None:
     repository = Path(__file__).resolve().parents[2]
-    golden = repository / "blackbox/golden/java/managed-mail-read-v19"
+    golden = repository / "blackbox/golden/java/managed-mail-read-v21"
     runner = DifferentialRunner(
         repository,
         golden,
@@ -504,7 +504,7 @@ def test_rust_candidate_mail_read_matches_frozen_java_golden() -> None:
     with _candidate(repository) as candidate:
         DifferentialRunner(
             repository,
-            repository / "blackbox/golden/java/managed-mail-read-v19",
+            repository / "blackbox/golden/java/managed-mail-read-v21",
             "managed-mail-read",
         ).verify_candidate(MAIL_READ_SCENARIOS, candidate)
 
@@ -517,7 +517,7 @@ def test_frozen_java_mail_attachment_golden(
     record_java_golden: bool,
 ) -> None:
     repository = Path(__file__).resolve().parents[2]
-    golden = repository / "blackbox/golden/java/managed-mail-attachment-v14"
+    golden = repository / "blackbox/golden/java/managed-mail-attachment-v16"
     runner = DifferentialRunner(
         repository,
         golden,
@@ -540,7 +540,7 @@ def test_rust_candidate_mail_attachment_matches_frozen_java_golden() -> None:
     with _candidate(repository) as candidate:
         DifferentialRunner(
             repository,
-            repository / "blackbox/golden/java/managed-mail-attachment-v14",
+            repository / "blackbox/golden/java/managed-mail-attachment-v16",
             "managed-mail-attachment",
         ).verify_candidate(MAIL_ATTACHMENT_SCENARIOS, candidate)
 
@@ -553,7 +553,7 @@ def test_frozen_java_mail_state_golden(
     record_java_golden: bool,
 ) -> None:
     repository = Path(__file__).resolve().parents[2]
-    golden = repository / "blackbox/golden/java/managed-mail-state-v17"
+    golden = repository / "blackbox/golden/java/managed-mail-state-v19"
     runner = DifferentialRunner(
         repository,
         golden,
@@ -576,7 +576,7 @@ def test_rust_candidate_mail_state_matches_frozen_java_golden() -> None:
     with _candidate(repository) as candidate:
         DifferentialRunner(
             repository,
-            repository / "blackbox/golden/java/managed-mail-state-v17",
+            repository / "blackbox/golden/java/managed-mail-state-v19",
             "managed-mail-state",
         ).verify_candidate(MAIL_STATE_SCENARIOS, candidate)
 
@@ -589,7 +589,7 @@ def test_frozen_java_mail_mutations_golden(
     record_java_golden: bool,
 ) -> None:
     repository = Path(__file__).resolve().parents[2]
-    golden = repository / "blackbox/golden/java/managed-mail-mutations-v16"
+    golden = repository / "blackbox/golden/java/managed-mail-mutations-v18"
     runner = DifferentialRunner(
         repository,
         golden,
@@ -612,7 +612,7 @@ def test_rust_candidate_mail_mutations_match_frozen_java_golden() -> None:
     with _candidate(repository) as candidate:
         DifferentialRunner(
             repository,
-            repository / "blackbox/golden/java/managed-mail-mutations-v16",
+            repository / "blackbox/golden/java/managed-mail-mutations-v18",
             "managed-mail-mutations",
         ).verify_candidate(MAIL_MUTATION_SCENARIOS, candidate)
 
@@ -625,7 +625,7 @@ def test_frozen_java_delete_email_golden(
     record_java_golden: bool,
 ) -> None:
     repository = Path(__file__).resolve().parents[2]
-    golden = repository / "blackbox/golden/java/managed-mail-delete-v16"
+    golden = repository / "blackbox/golden/java/managed-mail-delete-v18"
     runner = DifferentialRunner(
         repository,
         golden,
@@ -648,7 +648,7 @@ def test_rust_candidate_delete_email_matches_frozen_java_golden() -> None:
     with _candidate(repository) as candidate:
         DifferentialRunner(
             repository,
-            repository / "blackbox/golden/java/managed-mail-delete-v16",
+            repository / "blackbox/golden/java/managed-mail-delete-v18",
             "managed-mail-delete",
         ).verify_candidate(MAIL_DELETE_SCENARIOS, candidate)
 

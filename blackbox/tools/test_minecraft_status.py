@@ -17,8 +17,8 @@ from lmyzmail_blackbox.persistent_runtime import PersistentJavaOracleRuntime
 from lmyzmail_blackbox.ports import PortSet
 from lmyzmail_blackbox.runtime import CandidateRuntime
 
-_GOLDEN = "managed-minecraft-status-v4"
-_CUSTOM_GOLDEN = "managed-minecraft-status-config-v1"
+_GOLDEN = "managed-minecraft-status-v6"
+_CUSTOM_GOLDEN = "managed-minecraft-status-config-v3"
 _MAX_FRAME = 2 * 1024 * 1024
 _PING_PAYLOAD = 0x0123456789ABCDEF
 _CUSTOM_MOTD = "Custom status"

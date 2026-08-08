@@ -638,3 +638,91 @@ separate status-config v1 generation freezes custom max-player, MOTD, favicon
 trimming, and exact response bytes. Mail API poll v6 remains an explicitly run
 tool profile, while every other non-evidence generation above is consumed by
 the regular blackbox tests. All earlier generations remain create-once history.
+
+The Minecraft offline-login milestone adds strict compression-envelope evidence
+and advances every referenced suite to definition tree
+`f1084837b01f3fe2a57b90e216fd6ba13f65f7dc93214d01f00a39352c5f4b35`:
+
+- `managed-candidate-public-config-v24/`
+- `managed-basic-v46/`
+- `managed-candidate-auth-v23/`
+- `managed-mail-read-v20/`
+- `managed-mail-attachment-v15/`
+- `managed-mail-state-v18/`
+- `managed-mail-mutations-v17/`
+- `managed-mail-delete-v17/`
+- `managed-mailbox-api-v9/`
+- `managed-starttls-v33/`
+- `managed-starttls-oracle-evidence-v33/`
+- `managed-smtp-auth-v32/`
+- `managed-smtp-auth-starttls-v32/`
+- `managed-smtp-command-v30/`
+- `managed-smtp-command-oracle-evidence-v30/`
+- `managed-smtp-data-v29/`
+- `managed-smtp-data-oracle-evidence-v29/`
+- `managed-smtp-mime-v29/`
+- `managed-outbound-http-v15/`
+- `managed-outbound-queue-v30.json`
+- `managed-userdata-v13/`
+- `managed-userdata-oracle-evidence-v12/`
+- `managed-htcpcp-v12/`
+- `managed-htcpcp-oracle-evidence-v9/`
+- `managed-honeypot-v8/`
+- `managed-honeypot-oracle-evidence-v8/`
+- `managed-minecraft-status-v5/`
+- `managed-minecraft-status-config-v2/`
+- `managed-minecraft-login-v2/`
+- `managed-minecraft-login-admission-v2/`
+- `managed-mail-api-poll-v7/`
+
+Minecraft login v2 freezes offline UUID derivation, Set Compression ordering,
+Login Success, the first seven PLAY packets, UTF-8 replacement behavior,
+unknown-packet handling, and malformed/compression rejection boundaries. The
+separate login-admission v2 suite freezes case-insensitive blacklist priority,
+whitelist rejection, and exact disconnect bytes. Minecraft v1 login recordings
+and the complete `76fc...` generation remain immutable historical provenance;
+the `f108...` generations above form the next immutable provenance generation.
+
+The reviewed offline-login generation advances all active references to
+definition tree
+`4527bafacf7d0e8887a82e842218082735aa650698302282878f235e68d401c2`:
+
+- `managed-candidate-public-config-v25/`
+- `managed-basic-v47/`
+- `managed-candidate-auth-v24/`
+- `managed-mail-read-v21/`
+- `managed-mail-attachment-v16/`
+- `managed-mail-state-v19/`
+- `managed-mail-mutations-v18/`
+- `managed-mail-delete-v18/`
+- `managed-mailbox-api-v10/`
+- `managed-starttls-v34/`
+- `managed-starttls-oracle-evidence-v34/`
+- `managed-smtp-auth-v33/`
+- `managed-smtp-auth-starttls-v33/`
+- `managed-smtp-command-v31/`
+- `managed-smtp-command-oracle-evidence-v31/`
+- `managed-smtp-data-v30/`
+- `managed-smtp-data-oracle-evidence-v30/`
+- `managed-smtp-mime-v30/`
+- `managed-outbound-http-v16/`
+- `managed-outbound-queue-v31.json`
+- `managed-userdata-v14/`
+- `managed-userdata-oracle-evidence-v13/`
+- `managed-htcpcp-v13/`
+- `managed-htcpcp-oracle-evidence-v10/`
+- `managed-honeypot-v9/`
+- `managed-honeypot-oracle-evidence-v9/`
+- `managed-minecraft-status-v6/`
+- `managed-minecraft-status-config-v3/`
+- `managed-minecraft-login-v3/`
+- `managed-minecraft-login-admission-v3/`
+- `managed-mail-api-poll-v8/`
+
+Minecraft login v3 adds frozen JDK malformed-sequence replacement for a UTF-8
+surrogate encoding, legacy spawn-coordinate wire behavior, and Unicode
+`String.equalsIgnoreCase` admission evidence. The candidate also preserves the
+oracle's one-entry-per-UUID online count while generation-fencing disconnect
+cleanup so an old duplicate session cannot erase the current session. These
+`4527bafa...` generations are the active references; every earlier generation
+remains create-once history.

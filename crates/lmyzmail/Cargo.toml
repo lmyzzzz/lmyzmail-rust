@@ -18,13 +18,16 @@ chrono = { version = "0.4.41", default-features = false, features = ["clock", "s
 deadpool-postgres = "0.14.1"
 deadpool-redis = { version = "0.23.0", default-features = false, features = ["rt_tokio_1", "tokio-rustls-comp", "tls-rustls-webpki-roots"] }
 getrandom = "0.4.3"
+flate2 = "1.1.2"
 hickory-resolver = "0.26.1"
 httparse = "1.10.1"
 idna = "1.1.0"
+icu_casemap = "=1.5.1"
 ipnet = "2.11.0"
 mail-parser = "0.11.5"
 mail-auth = { version = "0.11.2", default-features = false, features = ["dns-hickory", "rust-crypto"] }
 mail-builder = { version = "0.4.4", default-features = false }
+md-5 = "0.11.0"
 mime = "0.3.17"
 moka = { version = "0.12.15", features = ["future"] }
 percent-encoding = "2.3.1"

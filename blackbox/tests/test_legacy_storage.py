@@ -89,6 +89,8 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "honeypot-durable-cringe-write",
         "minecraft-absolute-connection-deadline",
         "minecraft-bounded-connection-admission",
+        "minecraft-duplicate-session-removal-fencing",
+        "minecraft-strict-compression-envelope",
     }
     starttls = next(
         entry
@@ -157,6 +159,12 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         by_id["minecraft-bounded-connection-admission"]["evidence"]["source_sha256"]
         == "3c997b4d378a6f1b57935ec1f2138b7bd770fb5d84daa0cdbc69f9d71b5f30d3"
     )
+    assert by_id["minecraft-strict-compression-envelope"]["evidence"][
+        "source_sha256"
+    ] == "57ded840303dba8df6356246d8ad30f5ee98b6cce6a258d0883bc652d3e652f0"
+    assert by_id["minecraft-duplicate-session-removal-fencing"]["evidence"][
+        "source_sha256"
+    ] == "422f57ef731635adcce19f1162dbb9bada1a2a8bc1373a4b6ef91c71023fec5a"
 
 
 def test_postgres_seed_is_structurally_valid_postgres_sql() -> None:

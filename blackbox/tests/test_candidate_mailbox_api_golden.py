@@ -27,7 +27,7 @@ from lmyzmail_blackbox.runtime import (
 from lmyzmail_blackbox.snapshots import http_json_snapshot
 
 _PROFILE = "managed-mailbox-api"
-_GOLDEN = "blackbox/golden/java/managed-mailbox-api-v8"
+_GOLDEN = "blackbox/golden/java/managed-mailbox-api-v10"
 _ADMIN_HEADERS = (("X-API-Key", API_KEY),)
 
 

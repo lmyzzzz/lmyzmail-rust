@@ -325,6 +325,32 @@
       "oracle_behavior": "The frozen Java server binds a Netty listener with a socket backlog but has no application-level active-connection limit or admission semaphore. Accepted channels are registered with the worker group until peers close or a timeout fires.",
       "reason": "An unbounded accepted-connection population violates the rewrite's hard limits and lets idle or fragmented clients consume descriptors, channel state, and scheduler work without an application-level ceiling.",
       "scope": "Only overload admission and bounded shutdown behavior above 64 simultaneous Minecraft connections. Every admitted connection's protocol bytes, state transitions, timeout configuration, close semantics, and all future admitted login/play behavior remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Accept Minecraft compression thresholds only from -1 through 2097152. After compression is enabled, reject negative or oversized declared lengths, compressed packets declared below the threshold, uncompressed packets at or above the threshold, output-length mismatches, non-terminating zlib streams, and trailing compressed bytes. Perform every in-budget zlib operation in a two-worker, eight-entry dedicated bounded pool under the connection's absolute deadline.",
+      "evidence": {
+        "candidate_test": "crates/lmyzmail/src/minecraft.rs::tests::compression_envelope_is_exact_and_bounded",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "source": "src/main/java/net/lmyz/lmyzmail/netty/minecraft/protocol/CompressionCodec.java",
+        "source_sha256": "57ded840303dba8df6356246d8ad30f5ee98b6cce6a258d0883bc652d3e652f0"
+      },
+      "id": "minecraft-strict-compression-envelope",
+      "oracle_behavior": "The frozen Java decoder limits positive declared output to 2 MiB and checks the first inflate result length, but it does not reject a negative declaration before allocation, enforce the negotiated threshold, require Inflater.finished(), reject trailing input, or bound compression CPU work outside the Netty event loop. Its signed integer threshold configuration is otherwise unrestricted.",
+      "reason": "Ambiguous compression envelopes and event-loop decompression permit parser disagreement, hidden trailing data, avoidable allocation failures, and CPU starvation. Malformed framing, undefined inflater states, and unbounded blocking work are explicitly excluded from bug-for-bug replication.",
+      "scope": "Only malformed compression envelopes, invalid threshold configuration, compression CPU admission, and deadline cancellation. Set Compression ordering and bytes, every valid in-budget envelope, zlib payload semantics, packet contents, login state transitions, and all uncompressed protocol behavior remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Track online Minecraft sessions by UUID as the frozen registry does, but associate each UUID with a monotonically increasing connection generation. Replacing a duplicate UUID keeps the online count at one, and disconnect cleanup removes the entry only when its generation is still current.",
+      "evidence": {
+        "candidate_test": "crates/lmyzmail/src/minecraft.rs::tests::duplicate_uuid_status_is_unique_and_old_disconnect_is_fenced",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "source": "src/main/java/net/lmyz/lmyzmail/netty/minecraft/session/PlayerRegistry.java",
+        "source_sha256": "422f57ef731635adcce19f1162dbb9bada1a2a8bc1373a4b6ef91c71023fec5a"
+      },
+      "id": "minecraft-duplicate-session-removal-fencing",
+      "oracle_behavior": "The frozen Java registry stores one session per UUID, so duplicate offline logins keep onlineCount() at one. Registration unconditionally overwrites the map entry, while either connection's later unregister(uuid) unconditionally removes whichever generation is current.",
+      "reason": "An older connection must not erase a newer authenticated session's registry state. Reproducing that race would corrupt online counts and later UUID-scoped session ownership.",
+      "scope": "Only disconnect ordering for simultaneous sessions with the same UUID. Unique-UUID registration, duplicate UUID count semantics, entity ID allocation, ordinary disconnect cleanup, status bytes, and all protocol behavior remain compatibility requirements."
     }
   ],
   "schema_version": 1

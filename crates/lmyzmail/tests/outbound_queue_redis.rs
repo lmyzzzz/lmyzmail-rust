@@ -32,6 +32,10 @@ struct RedisProcess {
     port: u16,
 }
 
+// Keep the bind(0)-release-spawn window exclusive so parallel tests cannot
+// launch two Redis processes on the same ephemeral port.
+static REDIS_START_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 struct DropResponseProxy {
     port: u16,
     response_dropped: Arc<AtomicBool>,
@@ -241,6 +245,9 @@ impl Drop for DropResponseProxy {
 
 impl RedisProcess {
     fn start() -> Self {
+        let _start_guard = REDIS_START_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
         let port = listener.local_addr().unwrap().port();
         drop(listener);
