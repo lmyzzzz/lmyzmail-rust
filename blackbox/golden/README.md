@@ -833,3 +833,13 @@ It freezes a filler-slot Click Window with its action number and empty clicked
 slot, the rejected Confirm Transaction, cursor clear, full compressed menu
 refresh, and the two Set Slot packets emitted when the client closes the
 window. All five response frames are preserved without normalization.
+
+The synchronous Minecraft main-menu action milestone adds:
+
+- `managed-minecraft-main-menu-actions-v1/`
+
+It freezes Help, Close Menu, and Switch Account clicks across window IDs 1, 2,
+and 3. The golden preserves each rejected transaction and compressed refresh,
+server close, hotbar restoration, all six Help messages, the new-email prompt,
+and the post-switch return to the email-authentication state without
+normalization.

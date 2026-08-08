@@ -98,7 +98,16 @@ struct MinecraftDraft {
 
 struct WindowClick {
     window_id: u8,
+    slot: i16,
     action_number: i16,
+    mode: u8,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum MainMenuEffect {
+    None,
+    Close,
+    SwitchAccount,
 }
 
 impl MinecraftDraft {
@@ -1101,19 +1110,30 @@ async fn handle_connection(
                     let Ok(click) = read_window_click(&mut packet) else {
                         return Ok(());
                     };
-                    if open_menu_window_id == Some(click.window_id)
-                        && let Err(error) = write_packet_list(
+                    if open_menu_window_id == Some(click.window_id) {
+                        let (responses, effect) = main_menu_click_packets(click)?;
+                        match effect {
+                            MainMenuEffect::None => {}
+                            MainMenuEffect::Close => open_menu_window_id = None,
+                            MainMenuEffect::SwitchAccount => {
+                                open_menu_window_id = None;
+                                pending_email = None;
+                                authenticated = None;
+                            }
+                        }
+                        if let Err(error) = write_packet_list(
                             &mut writer,
                             &service,
-                            main_menu_click_packets(click)?,
+                            responses,
                             compression,
                             cipher.as_mut(),
                             deadline,
                             &cancellation,
                         )
                         .await
-                    {
-                        return finish_write_error(error);
+                        {
+                            return finish_write_error(error);
+                        }
                     }
                 }
                 0x04 | 0x06 => match read_player_position(&mut packet, packet_id) {
@@ -1169,14 +1189,16 @@ fn read_player_position(
 
 fn read_window_click(packet: &mut PacketReader<'_>) -> Result<WindowClick, ()> {
     let window_id = packet.read_u8()?;
-    let _slot = packet.read_i16()?;
+    let slot = packet.read_i16()?;
     let _button = packet.read_u8()?;
     let action_number = packet.read_i16()?;
-    let _mode = packet.read_u8()?;
+    let mode = packet.read_u8()?;
     packet.skip_slot()?;
     Ok(WindowClick {
         window_id,
+        slot,
         action_number,
+        mode,
     })
 }
 
@@ -2078,7 +2100,7 @@ fn main_menu_contents_packet(window_id: u8) -> io::Result<Vec<u8>> {
     Ok(contents)
 }
 
-fn main_menu_click_packets(click: WindowClick) -> io::Result<Vec<Vec<u8>>> {
+fn main_menu_click_packets(click: WindowClick) -> io::Result<(Vec<Vec<u8>>, MainMenuEffect)> {
     let mut confirmation = vec![0x32, click.window_id];
     confirmation.extend_from_slice(&click.action_number.to_be_bytes());
     confirmation.push(0);
@@ -2087,11 +2109,56 @@ fn main_menu_click_packets(click: WindowClick) -> io::Result<Vec<Vec<u8>>> {
     clear_cursor.extend_from_slice(&(-1_i16).to_be_bytes());
     clear_cursor.extend_from_slice(&(-1_i16).to_be_bytes());
 
-    Ok(vec![
+    let mut packets = vec![
         confirmation,
         clear_cursor,
         main_menu_contents_packet(click.window_id)?,
-    ])
+    ];
+    let effect = if click.mode != 0 || !(0..54).contains(&click.slot) {
+        MainMenuEffect::None
+    } else {
+        match click.slot {
+            30 => {
+                packets.extend(close_menu_packets(click.window_id)?);
+                packets.extend(help_menu_packets()?);
+                MainMenuEffect::Close
+            }
+            32 => {
+                packets.extend(close_menu_packets(click.window_id)?);
+                packets.push(chat_packet(
+                    "\u{00a7}aPlease enter your new email address:",
+                    Some("green"),
+                )?);
+                MainMenuEffect::SwitchAccount
+            }
+            49 => {
+                packets.extend(close_menu_packets(click.window_id)?);
+                MainMenuEffect::Close
+            }
+            _ => MainMenuEffect::None,
+        }
+    };
+    Ok((packets, effect))
+}
+
+fn close_menu_packets(window_id: u8) -> io::Result<Vec<Vec<u8>>> {
+    let mut packets = vec![vec![0x2e, window_id]];
+    packets.extend(restore_hotbar_packets()?);
+    Ok(packets)
+}
+
+fn help_menu_packets() -> io::Result<Vec<Vec<u8>>> {
+    [
+        "\u{00a7}e\u{00a7}l=== Help ===",
+        "\u{00a7}7Hold \u{00a7}f\u{2605} Nether Star \u{00a7}7and right-click \u{2192} Open menu",
+        "\u{00a7}7/mail close \u{00a7}7\u{2192} Close email view",
+        "\u{00a7}7/mail next/prev \u{00a7}7\u{2192} Navigate pages",
+        "\u{00a7}7/video play map \u{00a7}7\u{2192} Play video",
+        "\u{00a7}7/draft, /clear, /stuck, /help",
+    ]
+    .into_iter()
+    .map(|text| chat_packet(text, None))
+    .collect()
 }
 
 fn gui_slot(item_id: i16, damage: i16, name: &str, lore: &[&str], glow: bool) -> MinecraftSlot {
@@ -3553,10 +3620,13 @@ mod tests {
         let mut reader = PacketReader::new(&encoded_click);
         let click = read_window_click(&mut reader).unwrap();
         assert_eq!(click.window_id, 1);
+        assert_eq!(click.slot, 0);
         assert_eq!(click.action_number, 7);
+        assert_eq!(click.mode, 0);
         assert_eq!(reader.cursor, encoded_click.len());
 
-        let responses = main_menu_click_packets(click).unwrap();
+        let (responses, effect) = main_menu_click_packets(click).unwrap();
+        assert_eq!(effect, MainMenuEffect::None);
         assert_eq!(responses.len(), 3);
         assert_eq!(responses[0], [0x32, 1, 0, 7, 0]);
         assert_eq!(responses[1], [0x2f, 0xff, 0xff, 0xff, 0xff, 0xff]);
@@ -3566,6 +3636,55 @@ mod tests {
         assert_eq!(restored.len(), 2);
         assert_eq!(restored[0][..6], [0x2f, 0, 0, 36, 1, 130]);
         assert_eq!(restored[1][..6], [0x2f, 0, 0, 44, 1, 143]);
+    }
+
+    #[test]
+    fn synchronous_main_menu_actions_close_or_switch_state_after_base_refresh() {
+        let (help, help_effect) = main_menu_click_packets(WindowClick {
+            window_id: 1,
+            slot: 30,
+            action_number: 11,
+            mode: 0,
+        })
+        .unwrap();
+        assert_eq!(help_effect, MainMenuEffect::Close);
+        assert_eq!(
+            help.iter().map(|packet| packet[0]).collect::<Vec<_>>(),
+            [
+                0x32, 0x2f, 0x30, 0x2e, 0x2f, 0x2f, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02
+            ]
+        );
+
+        let (close, close_effect) = main_menu_click_packets(WindowClick {
+            window_id: 2,
+            slot: 49,
+            action_number: 12,
+            mode: 0,
+        })
+        .unwrap();
+        assert_eq!(close_effect, MainMenuEffect::Close);
+        assert_eq!(close.len(), 6);
+
+        let (switch, switch_effect) = main_menu_click_packets(WindowClick {
+            window_id: 3,
+            slot: 32,
+            action_number: 13,
+            mode: 0,
+        })
+        .unwrap();
+        assert_eq!(switch_effect, MainMenuEffect::SwitchAccount);
+        assert_eq!(switch.len(), 7);
+        assert_eq!(switch[6][0], 0x02);
+
+        let (mode_only, mode_effect) = main_menu_click_packets(WindowClick {
+            window_id: 4,
+            slot: 30,
+            action_number: 14,
+            mode: 1,
+        })
+        .unwrap();
+        assert_eq!(mode_effect, MainMenuEffect::None);
+        assert_eq!(mode_only.len(), 3);
     }
 
     #[test]
@@ -4584,6 +4703,10 @@ mod tests {
             let _ = packet.read_u16();
             let _ = packet.read_i64();
             prop_assert!(packet.cursor <= bytes.len());
+
+            let mut click = PacketReader::new(&bytes);
+            let _ = read_window_click(&mut click);
+            prop_assert!(click.cursor <= bytes.len());
         }
     }
 }

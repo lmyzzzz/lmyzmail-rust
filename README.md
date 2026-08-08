@@ -115,8 +115,10 @@ frozen Java wire goldens. Auth attempts use the bounded
 aliases accepted at lower precedence. The authenticated six-row main menu now
 opens with its exact frozen slot/NBT layout, rejects and refreshes a filler
 click, and restores the Book & Quill and Nether Star when the client closes the
-window. Actionable GUI paths, mail, and video remain outside this milestone and
-are not claimed as implemented.
+window. Help, Close Menu, and Switch Account clicks now preserve the Java packet
+order and Switch Account returns the connection to the email/password flow.
+Data-backed folders, render settings, logout confirmation, video, and mail-view
+GUI paths remain outside this milestone and are not claimed as implemented.
 
 Outbound HTTP currently covers durable PostgreSQL admission, sender-scoped and
 API status lookup, and quota reporting. A `202` response is emitted only after a
