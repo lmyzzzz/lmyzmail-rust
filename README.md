@@ -112,9 +112,11 @@ authentication prompt plus the basic authenticated `/help`, `/stuck`,
 `/skibidi`, `/video` usage, empty `/draft`, and `/clear` commands now match
 frozen Java wire goldens. Auth attempts use the bounded
 `lmyzmail.minecraft.auth.*` settings with the legacy `botmail.minecraft.auth.*`
-aliases accepted at lower precedence. GUI, mail, and video remain outside this
-milestone and are not claimed as implemented, except that the authenticated
-six-row main menu now opens with its exact frozen slot and NBT layout.
+aliases accepted at lower precedence. The authenticated six-row main menu now
+opens with its exact frozen slot/NBT layout, rejects and refreshes a filler
+click, and restores the Book & Quill and Nether Star when the client closes the
+window. Actionable GUI paths, mail, and video remain outside this milestone and
+are not claimed as implemented.
 
 Outbound HTTP currently covers durable PostgreSQL admission, sender-scoped and
 API status lookup, and quota reporting. A `202` response is emitted only after a

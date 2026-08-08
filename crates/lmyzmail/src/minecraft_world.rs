@@ -286,6 +286,15 @@ pub fn write_nbt(value: Option<&NbtValue>, output: &mut Vec<u8>) -> io::Result<(
     write_nbt_payload(value, output, 0)
 }
 
+pub(crate) fn network_nbt_len(bytes: &[u8]) -> io::Result<usize> {
+    if bytes.first() == Some(&0) {
+        return Ok(1);
+    }
+    let mut reader = NbtReader::new(bytes);
+    reader.skip_root()?;
+    Ok(reader.cursor)
+}
+
 fn write_nbt_payload(value: &NbtValue, output: &mut Vec<u8>, depth: usize) -> io::Result<()> {
     if depth > MAX_NBT_DEPTH {
         return Err(io::Error::new(
@@ -1264,6 +1273,84 @@ impl<'a> NbtReader<'a> {
         self.read_compound(0)
     }
 
+    fn skip_root(&mut self) -> io::Result<()> {
+        if self.read_u8()? != 10 {
+            return Err(invalid_nbt("root is not a compound"));
+        }
+        self.skip_string()?;
+        self.record_tag()?;
+        self.skip_compound(0)
+    }
+
+    fn skip_compound(&mut self, depth: usize) -> io::Result<()> {
+        self.check_depth(depth)?;
+        loop {
+            let kind = self.read_u8()?;
+            if kind == 0 {
+                return Ok(());
+            }
+            if !(1..=11).contains(&kind) {
+                return Err(invalid_nbt("tag type is unknown"));
+            }
+            self.skip_string()?;
+            self.record_tag()?;
+            self.skip_payload(kind, depth + 1)?;
+        }
+    }
+
+    fn skip_payload(&mut self, kind: u8, depth: usize) -> io::Result<()> {
+        self.check_depth(depth)?;
+        match kind {
+            1 => {
+                self.take(1)?;
+            }
+            2 => {
+                self.take(2)?;
+            }
+            3 | 5 => {
+                self.take(4)?;
+            }
+            4 | 6 => {
+                self.take(8)?;
+            }
+            7 => {
+                let count = self.read_count()?;
+                self.take(count)?;
+            }
+            8 => self.skip_string()?,
+            9 => {
+                let element_type = self.read_u8()?;
+                let count = self.read_count()?;
+                if element_type == 0 && count != 0 {
+                    return Err(invalid_nbt("TAG_End list is not empty"));
+                }
+                if element_type > 11 {
+                    return Err(invalid_nbt("list element type is unknown"));
+                }
+                for _ in 0..count {
+                    self.record_tag()?;
+                    self.skip_payload(element_type, depth + 1)?;
+                }
+            }
+            10 => self.skip_compound(depth)?,
+            11 => {
+                let count = self.read_count()?;
+                let bytes = count
+                    .checked_mul(std::mem::size_of::<i32>())
+                    .ok_or_else(|| invalid_nbt("int array byte count overflowed"))?;
+                self.take(bytes)?;
+            }
+            _ => return Err(invalid_nbt("tag type is unknown")),
+        }
+        Ok(())
+    }
+
+    fn skip_string(&mut self) -> io::Result<()> {
+        let count = usize::from(self.read_u16()?);
+        decode_modified_utf8(self.take(count)?)?;
+        Ok(())
+    }
+
     fn read_compound(&mut self, depth: usize) -> io::Result<NbtValue> {
         self.check_depth(depth)?;
         let mut entries = Vec::new();
@@ -1642,6 +1729,31 @@ mod tests {
         let mut bytes = vec![10, 0, 0, 7, 0, 0];
         bytes.extend_from_slice(&((MAX_NBT_ELEMENTS as i32) + 1).to_be_bytes());
         assert!(NbtReader::new(&bytes).read_root().is_err());
+    }
+
+    #[test]
+    fn network_nbt_skip_is_bounded_and_reports_the_consumed_prefix() {
+        assert_eq!(network_nbt_len(&[0, 0xff]).unwrap(), 1);
+
+        let value = NbtValue::Compound(vec![
+            ("name".to_owned(), NbtValue::String("value".to_owned())),
+            (
+                "values".to_owned(),
+                NbtValue::List {
+                    element_type: 3,
+                    values: vec![NbtValue::Int(1), NbtValue::Int(2)],
+                },
+            ),
+        ]);
+        let mut encoded = Vec::new();
+        write_nbt(Some(&value), &mut encoded).unwrap();
+        let encoded_len = encoded.len();
+        encoded.extend_from_slice(&[0xaa, 0xbb]);
+        assert_eq!(network_nbt_len(&encoded).unwrap(), encoded_len);
+
+        encoded.truncate(encoded_len - 1);
+        assert!(network_nbt_len(&encoded).is_err());
+        assert!(network_nbt_len(&[1, 0, 0, 0]).is_err());
     }
 
     #[test]

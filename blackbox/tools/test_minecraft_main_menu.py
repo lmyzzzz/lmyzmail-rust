@@ -55,7 +55,7 @@ def _capture_main_menu(target: RuntimeTarget) -> dict[str, Any]:
             raise ProtocolError(f"unexpected main-menu packet order: {actual_ids!r}")
         if packets[0].data_length != 0:
             raise ProtocolError("Open Window was unexpectedly zlib-compressed")
-        if packets[1].data_length <= 0:
+        if packets[1].data_length is None or packets[1].data_length <= 0:
             raise ProtocolError("Window Items did not use the configured compression threshold")
 
     return {

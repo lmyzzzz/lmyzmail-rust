@@ -824,3 +824,12 @@ It freezes the first `/menu` Open Window and complete 90-slot Window Items
 frames without normalization. The latter expands to 2,771 bytes and fixes the
 54 chest slots, 36 player slots, every item/NBT field, the initial window ID,
 and the exact JDK Deflater-compatible zlib wire bytes.
+
+The Minecraft main-menu lifecycle milestone adds:
+
+- `managed-minecraft-main-menu-lifecycle-v1/`
+
+It freezes a filler-slot Click Window with its action number and empty clicked
+slot, the rejected Confirm Transaction, cursor clear, full compressed menu
+refresh, and the two Set Slot packets emitted when the client closes the
+window. All five response frames are preserved without normalization.

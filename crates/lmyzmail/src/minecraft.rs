@@ -96,6 +96,11 @@ struct MinecraftDraft {
     body_pages: Vec<String>,
 }
 
+struct WindowClick {
+    window_id: u8,
+    action_number: i16,
+}
+
 impl MinecraftDraft {
     fn clear(&mut self) {
         self.to.clear();
@@ -557,6 +562,7 @@ async fn handle_connection(
     let mut authenticated = None;
     let mut player_username = String::new();
     let mut draft = MinecraftDraft::default();
+    let mut open_menu_window_id = None;
 
     loop {
         let raw_frame_result = if state == ConnectionState::Play {
@@ -1043,13 +1049,20 @@ async fn handle_connection(
                         let menu_window_id = command[..command_end]
                             .eq_ignore_ascii_case("/menu")
                             .then(|| service.next_window_id());
-                        let responses = authenticated_command_packets(
+                        let mut responses = Vec::new();
+                        if menu_window_id.is_some() && open_menu_window_id.take().is_some() {
+                            responses.extend(restore_hotbar_packets()?);
+                        }
+                        responses.extend(authenticated_command_packets(
                             &message,
                             &service.config,
                             &mut draft,
                             menu_window_id,
-                        )?;
+                        )?);
                         message.zeroize();
+                        if let Some(window_id) = menu_window_id {
+                            open_menu_window_id = Some(window_id);
+                        }
                         if let Err(error) = write_packet_list(
                             &mut writer,
                             &service,
@@ -1063,6 +1076,44 @@ async fn handle_connection(
                         {
                             return finish_write_error(error);
                         }
+                    }
+                }
+                0x0d => {
+                    if packet.read_u8().is_err() {
+                        return Ok(());
+                    }
+                    if open_menu_window_id.take().is_some()
+                        && let Err(error) = write_packet_list(
+                            &mut writer,
+                            &service,
+                            restore_hotbar_packets()?,
+                            compression,
+                            cipher.as_mut(),
+                            deadline,
+                            &cancellation,
+                        )
+                        .await
+                    {
+                        return finish_write_error(error);
+                    }
+                }
+                0x0e => {
+                    let Ok(click) = read_window_click(&mut packet) else {
+                        return Ok(());
+                    };
+                    if open_menu_window_id == Some(click.window_id)
+                        && let Err(error) = write_packet_list(
+                            &mut writer,
+                            &service,
+                            main_menu_click_packets(click)?,
+                            compression,
+                            cipher.as_mut(),
+                            deadline,
+                            &cancellation,
+                        )
+                        .await
+                    {
+                        return finish_write_error(error);
                     }
                 }
                 0x04 | 0x06 => match read_player_position(&mut packet, packet_id) {
@@ -1114,6 +1165,19 @@ fn read_player_position(
     }
     packet.read_u8()?;
     Ok(position)
+}
+
+fn read_window_click(packet: &mut PacketReader<'_>) -> Result<WindowClick, ()> {
+    let window_id = packet.read_u8()?;
+    let _slot = packet.read_i16()?;
+    let _button = packet.read_u8()?;
+    let action_number = packet.read_i16()?;
+    let _mode = packet.read_u8()?;
+    packet.skip_slot()?;
+    Ok(WindowClick {
+        window_id,
+        action_number,
+    })
 }
 
 fn encryption_request_frame(
@@ -1891,6 +1955,10 @@ fn main_menu_packets(window_id: u8) -> io::Result<Vec<Vec<u8>>> {
     write_string(&mut open, &chat_json("\u{00a7}8LMYZMAIL Menu", None))?;
     open.push(54);
 
+    Ok(vec![open, main_menu_contents_packet(window_id)?])
+}
+
+fn main_menu_contents_packet(window_id: u8) -> io::Result<Vec<u8>> {
     let filler = gui_slot(160, 15, " ", &[], false);
     let mut slots = vec![filler; 54];
     slots.extend((0..36).map(|_| MinecraftSlot::empty()));
@@ -2007,7 +2075,23 @@ fn main_menu_packets(window_id: u8) -> io::Result<Vec<Vec<u8>>> {
     for slot in &slots {
         write_slot(&mut contents, slot)?;
     }
-    Ok(vec![open, contents])
+    Ok(contents)
+}
+
+fn main_menu_click_packets(click: WindowClick) -> io::Result<Vec<Vec<u8>>> {
+    let mut confirmation = vec![0x32, click.window_id];
+    confirmation.extend_from_slice(&click.action_number.to_be_bytes());
+    confirmation.push(0);
+
+    let mut clear_cursor = vec![0x2f, u8::MAX];
+    clear_cursor.extend_from_slice(&(-1_i16).to_be_bytes());
+    clear_cursor.extend_from_slice(&(-1_i16).to_be_bytes());
+
+    Ok(vec![
+        confirmation,
+        clear_cursor,
+        main_menu_contents_packet(click.window_id)?,
+    ])
 }
 
 fn gui_slot(item_id: i16, damage: i16, name: &str, lore: &[&str], glow: bool) -> MinecraftSlot {
@@ -2099,6 +2183,16 @@ fn draft_book_packet() -> io::Result<Vec<u8>> {
     packet.extend_from_slice(&0_i16.to_be_bytes());
     minecraft_world::write_nbt(Some(&book_item_nbt()), &mut packet)?;
     Ok(packet)
+}
+
+fn restore_hotbar_packets() -> io::Result<Vec<Vec<u8>>> {
+    let mut menu_star = vec![0x2f, 0];
+    menu_star.extend_from_slice(&44_i16.to_be_bytes());
+    menu_star.extend_from_slice(&399_i16.to_be_bytes());
+    menu_star.push(1);
+    menu_star.extend_from_slice(&0_i16.to_be_bytes());
+    minecraft_world::write_nbt(Some(&menu_star_nbt()), &mut menu_star)?;
+    Ok(vec![draft_book_packet()?, menu_star])
 }
 
 fn authenticated_scoreboard_packets(username: &str, email: &str) -> io::Result<Vec<Vec<u8>>> {
@@ -3006,10 +3100,26 @@ impl<'a> PacketReader<'a> {
         Ok(u16::from_be_bytes(bytes))
     }
 
+    fn read_i16(&mut self) -> Result<i16, ()> {
+        Ok(self.read_u16()? as i16)
+    }
+
     fn read_u8(&mut self) -> Result<u8, ()> {
         let value = *self.bytes.get(self.cursor).ok_or(())?;
         self.cursor += 1;
         Ok(value)
+    }
+
+    fn skip_slot(&mut self) -> Result<(), ()> {
+        let item_id = self.read_i16()?;
+        if item_id >= 0 {
+            self.read_u8()?;
+            self.read_i16()?;
+            let encoded = self.bytes.get(self.cursor..).ok_or(())?;
+            let length = minecraft_world::network_nbt_len(encoded).map_err(|_| ())?;
+            self.cursor = self.cursor.checked_add(length).ok_or(())?;
+        }
+        Ok(())
     }
 
     fn read_i64(&mut self) -> Result<i64, ()> {
@@ -3430,6 +3540,53 @@ mod tests {
             assert_eq!(service.next_window_id(), expected);
         }
         assert_eq!(service.next_window_id(), 1);
+    }
+
+    #[test]
+    fn main_menu_click_and_close_packets_match_the_protocol_lifecycle() {
+        let mut encoded_click = vec![1];
+        encoded_click.extend_from_slice(&0_i16.to_be_bytes());
+        encoded_click.push(0);
+        encoded_click.extend_from_slice(&7_i16.to_be_bytes());
+        encoded_click.push(0);
+        encoded_click.extend_from_slice(&(-1_i16).to_be_bytes());
+        let mut reader = PacketReader::new(&encoded_click);
+        let click = read_window_click(&mut reader).unwrap();
+        assert_eq!(click.window_id, 1);
+        assert_eq!(click.action_number, 7);
+        assert_eq!(reader.cursor, encoded_click.len());
+
+        let responses = main_menu_click_packets(click).unwrap();
+        assert_eq!(responses.len(), 3);
+        assert_eq!(responses[0], [0x32, 1, 0, 7, 0]);
+        assert_eq!(responses[1], [0x2f, 0xff, 0xff, 0xff, 0xff, 0xff]);
+        assert_eq!(responses[2], main_menu_contents_packet(1).unwrap());
+
+        let restored = restore_hotbar_packets().unwrap();
+        assert_eq!(restored.len(), 2);
+        assert_eq!(restored[0][..6], [0x2f, 0, 0, 36, 1, 130]);
+        assert_eq!(restored[1][..6], [0x2f, 0, 0, 44, 1, 143]);
+    }
+
+    #[test]
+    fn click_slot_parser_skips_bounded_nbt_and_rejects_truncation() {
+        let mut encoded_click = vec![1];
+        encoded_click.extend_from_slice(&0_i16.to_be_bytes());
+        encoded_click.push(0);
+        encoded_click.extend_from_slice(&7_i16.to_be_bytes());
+        encoded_click.push(0);
+        encoded_click.extend_from_slice(&386_i16.to_be_bytes());
+        encoded_click.push(1);
+        encoded_click.extend_from_slice(&0_i16.to_be_bytes());
+        minecraft_world::write_nbt(Some(&book_item_nbt()), &mut encoded_click).unwrap();
+
+        let mut reader = PacketReader::new(&encoded_click);
+        let click = read_window_click(&mut reader).unwrap();
+        assert_eq!(click.window_id, 1);
+        assert_eq!(reader.cursor, encoded_click.len());
+
+        encoded_click.pop();
+        assert!(read_window_click(&mut PacketReader::new(&encoded_click)).is_err());
     }
 
     #[test]
