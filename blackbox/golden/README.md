@@ -843,3 +843,14 @@ and 3. The golden preserves each rejected transaction and compressed refresh,
 server close, hotbar restoration, all six Help messages, the new-email prompt,
 and the post-switch return to the email-authentication state without
 normalization.
+
+The Minecraft logout confirmation milestone adds:
+
+- `managed-minecraft-logout-confirmation-v1/`
+
+It freezes opening the three-row confirmation GUI, cancelling back to a newly
+allocated main-menu window, reopening confirmation, and the common confirmed
+logout prefix. The frozen Java write/close race is normalized only for that
+terminal prefix; the candidate must instead flush the exact Disconnect Play
+frame and then reach EOF under the approved
+`minecraft-logout-flush-before-close` difference.

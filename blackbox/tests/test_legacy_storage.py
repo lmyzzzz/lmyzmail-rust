@@ -95,6 +95,7 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "minecraft-sessionserver-query-encoding",
         "minecraft-sessionserver-response-validation",
         "minecraft-strict-compression-envelope",
+        "minecraft-logout-flush-before-close",
     }
     starttls = next(
         entry

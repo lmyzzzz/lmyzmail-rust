@@ -406,6 +406,20 @@
       "oracle_behavior": "The frozen Java request has five-second connect and request timeouts but BodyHandlers.ofString buffers the complete response without a byte ceiling. Each authentication is submitted to an unbounded virtual-thread-per-task executor, is not tied to server cancellation, and uses the JDK client's ambient networking behavior.",
       "reason": "An authentication endpoint controls response size and latency, while clients control request concurrency. Unbounded buffering, detached work, and ambient proxy routing violate the rewrite's explicit hard-limit, deadline, cancellation, and security-boundary requirements.",
       "scope": "Only oversized or slow responses, cancellation, redirects, ambient proxies, non-HTTPS configured endpoints, and concurrent authentication resource admission. The default Mojang HTTPS endpoint, five-second success budget, ordinary TLS validation, 200/204/other status semantics, and every in-budget successful response remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "On confirmed Minecraft logout, flush the exact protocol-47 Disconnect Play frame with reason `§aLogged out. See you!` and red JSON color, then shut down the connection under the existing absolute deadline and cancellation token.",
+      "evidence": {
+        "candidate_test": "blackbox/tools/test_minecraft_logout_confirmation.py::test_rust_candidate_minecraft_logout_confirmation_matches_golden",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "oracle_golden": "blackbox/golden/java/managed-minecraft-logout-confirmation-v1/observations/minecraft/logout-confirmation.json",
+        "source": "src/main/java/net/lmyz/lmyzmail/netty/minecraft/session/PlayerSession.java",
+        "source_sha256": "13a22f99b1c0c31ad82b03354592649a7bc23c2fe2d434c1e54a4436696039c4"
+      },
+      "id": "minecraft-logout-flush-before-close",
+      "oracle_behavior": "The frozen Java session calls writeAndFlush for Disconnect Play and immediately calls channel.close(). Repeated isolated recordings receive a nondeterministic proper prefix of the expected seven-packet close-and-restore sequence followed by EOF, and never receive the final 0x40 Disconnect Play frame.",
+      "reason": "Whether a final protocol frame reaches the client must not depend on an asynchronous write-versus-close race. Deliberately dropping a queued logout reason would reproduce an obvious lifecycle race excluded from bug-for-bug replication.",
+      "scope": "Only the final confirmed-logout Disconnect Play flush before EOF. Confirmation GUI bytes, click transaction rejection, window close, hotbar restoration, reason text and JSON, connection termination, and every earlier packet remain compatibility requirements."
     }
   ],
   "schema_version": 1

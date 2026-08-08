@@ -108,6 +108,14 @@ enum MainMenuEffect {
     None,
     Close,
     SwitchAccount,
+    OpenLogoutConfirm(u8),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum LogoutConfirmEffect {
+    None,
+    OpenMainMenu(u8),
+    Disconnect,
 }
 
 impl MinecraftDraft {
@@ -572,6 +580,7 @@ async fn handle_connection(
     let mut player_username = String::new();
     let mut draft = MinecraftDraft::default();
     let mut open_menu_window_id = None;
+    let mut logout_confirm_window_id = None;
 
     loop {
         let raw_frame_result = if state == ConnectionState::Play {
@@ -1059,7 +1068,9 @@ async fn handle_connection(
                             .eq_ignore_ascii_case("/menu")
                             .then(|| service.next_window_id());
                         let mut responses = Vec::new();
-                        if menu_window_id.is_some() && open_menu_window_id.take().is_some() {
+                        let replaced_gui = open_menu_window_id.take().is_some()
+                            | logout_confirm_window_id.take().is_some();
+                        if menu_window_id.is_some() && replaced_gui {
                             responses.extend(restore_hotbar_packets()?);
                         }
                         responses.extend(authenticated_command_packets(
@@ -1071,6 +1082,7 @@ async fn handle_connection(
                         message.zeroize();
                         if let Some(window_id) = menu_window_id {
                             open_menu_window_id = Some(window_id);
+                            logout_confirm_window_id = None;
                         }
                         if let Err(error) = write_packet_list(
                             &mut writer,
@@ -1091,7 +1103,9 @@ async fn handle_connection(
                     if packet.read_u8().is_err() {
                         return Ok(());
                     }
-                    if open_menu_window_id.take().is_some()
+                    let closed_gui = open_menu_window_id.take().is_some()
+                        | logout_confirm_window_id.take().is_some();
+                    if closed_gui
                         && let Err(error) = write_packet_list(
                             &mut writer,
                             &service,
@@ -1111,11 +1125,52 @@ async fn handle_connection(
                         return Ok(());
                     };
                     if open_menu_window_id == Some(click.window_id) {
-                        let (responses, effect) = main_menu_click_packets(click)?;
+                        let logout_window_id =
+                            (click.mode == 0 && click.slot == 34).then(|| service.next_window_id());
+                        let (responses, effect) = main_menu_click_packets(click, logout_window_id)?;
                         match effect {
                             MainMenuEffect::None => {}
-                            MainMenuEffect::Close => open_menu_window_id = None,
+                            MainMenuEffect::Close => {
+                                open_menu_window_id = None;
+                                logout_confirm_window_id = None;
+                            }
                             MainMenuEffect::SwitchAccount => {
+                                open_menu_window_id = None;
+                                logout_confirm_window_id = None;
+                                pending_email = None;
+                                authenticated = None;
+                            }
+                            MainMenuEffect::OpenLogoutConfirm(window_id) => {
+                                open_menu_window_id = None;
+                                logout_confirm_window_id = Some(window_id);
+                            }
+                        }
+                        if let Err(error) = write_packet_list(
+                            &mut writer,
+                            &service,
+                            responses,
+                            compression,
+                            cipher.as_mut(),
+                            deadline,
+                            &cancellation,
+                        )
+                        .await
+                        {
+                            return finish_write_error(error);
+                        }
+                    } else if logout_confirm_window_id == Some(click.window_id) {
+                        let main_window_id =
+                            (click.mode == 0 && click.slot == 15).then(|| service.next_window_id());
+                        let (responses, effect) =
+                            logout_confirmation_click_packets(click, main_window_id)?;
+                        match effect {
+                            LogoutConfirmEffect::None => {}
+                            LogoutConfirmEffect::OpenMainMenu(window_id) => {
+                                logout_confirm_window_id = None;
+                                open_menu_window_id = Some(window_id);
+                            }
+                            LogoutConfirmEffect::Disconnect => {
+                                logout_confirm_window_id = None;
                                 open_menu_window_id = None;
                                 pending_email = None;
                                 authenticated = None;
@@ -1133,6 +1188,10 @@ async fn handle_connection(
                         .await
                         {
                             return finish_write_error(error);
+                        }
+                        if effect == LogoutConfirmEffect::Disconnect {
+                            shutdown_stream(&mut writer, deadline, &cancellation).await?;
+                            return Ok(());
                         }
                     }
                 }
@@ -2100,7 +2159,10 @@ fn main_menu_contents_packet(window_id: u8) -> io::Result<Vec<u8>> {
     Ok(contents)
 }
 
-fn main_menu_click_packets(click: WindowClick) -> io::Result<(Vec<Vec<u8>>, MainMenuEffect)> {
+fn main_menu_click_packets(
+    click: WindowClick,
+    logout_window_id: Option<u8>,
+) -> io::Result<(Vec<Vec<u8>>, MainMenuEffect)> {
     let mut confirmation = vec![0x32, click.window_id];
     confirmation.extend_from_slice(&click.action_number.to_be_bytes());
     confirmation.push(0);
@@ -2131,11 +2193,106 @@ fn main_menu_click_packets(click: WindowClick) -> io::Result<(Vec<Vec<u8>>, Main
                 )?);
                 MainMenuEffect::SwitchAccount
             }
+            34 => {
+                let Some(window_id) = logout_window_id else {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "Minecraft logout confirmation window ID is missing",
+                    ));
+                };
+                packets.extend(restore_hotbar_packets()?);
+                packets.extend(logout_confirmation_packets(window_id)?);
+                MainMenuEffect::OpenLogoutConfirm(window_id)
+            }
             49 => {
                 packets.extend(close_menu_packets(click.window_id)?);
                 MainMenuEffect::Close
             }
             _ => MainMenuEffect::None,
+        }
+    };
+    Ok((packets, effect))
+}
+
+fn logout_confirmation_packets(window_id: u8) -> io::Result<Vec<Vec<u8>>> {
+    let mut open = vec![0x2d, window_id];
+    write_string(&mut open, "minecraft:chest")?;
+    write_string(&mut open, &chat_json("\u{00a7}cConfirm Logout", None))?;
+    open.push(27);
+    Ok(vec![open, logout_confirmation_contents_packet(window_id)?])
+}
+
+fn logout_confirmation_contents_packet(window_id: u8) -> io::Result<Vec<u8>> {
+    let filler = gui_slot(160, 15, " ", &[], false);
+    let mut slots = vec![filler; 27];
+    slots.extend((0..36).map(|_| MinecraftSlot::empty()));
+    slots[11] = gui_slot(
+        35,
+        5,
+        "\u{00a7}a\u{00a7}lConfirm",
+        &[
+            "\u{00a7}7You will be disconnected.",
+            "",
+            "\u{00a7}aClick to confirm",
+        ],
+        false,
+    );
+    slots[15] = gui_slot(
+        35,
+        14,
+        "\u{00a7}c\u{00a7}lCancel",
+        &["\u{00a7}7Go back"],
+        false,
+    );
+    slots[54] = MinecraftSlot::item(386, 0, book_item_nbt());
+    slots[62] = MinecraftSlot::item(399, 0, menu_star_nbt());
+
+    let mut contents = vec![0x30, window_id];
+    contents.extend_from_slice(&(slots.len() as i16).to_be_bytes());
+    for slot in &slots {
+        write_slot(&mut contents, slot)?;
+    }
+    Ok(contents)
+}
+
+fn logout_confirmation_click_packets(
+    click: WindowClick,
+    main_window_id: Option<u8>,
+) -> io::Result<(Vec<Vec<u8>>, LogoutConfirmEffect)> {
+    let mut confirmation = vec![0x32, click.window_id];
+    confirmation.extend_from_slice(&click.action_number.to_be_bytes());
+    confirmation.push(0);
+
+    let mut clear_cursor = vec![0x2f, u8::MAX];
+    clear_cursor.extend_from_slice(&(-1_i16).to_be_bytes());
+    clear_cursor.extend_from_slice(&(-1_i16).to_be_bytes());
+
+    let mut packets = vec![
+        confirmation,
+        clear_cursor,
+        logout_confirmation_contents_packet(click.window_id)?,
+    ];
+    let effect = if click.mode != 0 || !(0..27).contains(&click.slot) {
+        LogoutConfirmEffect::None
+    } else {
+        match click.slot {
+            11 => {
+                packets.extend(close_menu_packets(click.window_id)?);
+                packets.push(disconnect_play_packet("\u{00a7}aLogged out. See you!")?);
+                LogoutConfirmEffect::Disconnect
+            }
+            15 => {
+                let Some(window_id) = main_window_id else {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "Minecraft main-menu return window ID is missing",
+                    ));
+                };
+                packets.extend(close_menu_packets(click.window_id)?);
+                packets.extend(main_menu_packets(window_id)?);
+                LogoutConfirmEffect::OpenMainMenu(window_id)
+            }
+            _ => LogoutConfirmEffect::None,
         }
     };
     Ok((packets, effect))
@@ -3625,7 +3782,7 @@ mod tests {
         assert_eq!(click.mode, 0);
         assert_eq!(reader.cursor, encoded_click.len());
 
-        let (responses, effect) = main_menu_click_packets(click).unwrap();
+        let (responses, effect) = main_menu_click_packets(click, None).unwrap();
         assert_eq!(effect, MainMenuEffect::None);
         assert_eq!(responses.len(), 3);
         assert_eq!(responses[0], [0x32, 1, 0, 7, 0]);
@@ -3640,12 +3797,15 @@ mod tests {
 
     #[test]
     fn synchronous_main_menu_actions_close_or_switch_state_after_base_refresh() {
-        let (help, help_effect) = main_menu_click_packets(WindowClick {
-            window_id: 1,
-            slot: 30,
-            action_number: 11,
-            mode: 0,
-        })
+        let (help, help_effect) = main_menu_click_packets(
+            WindowClick {
+                window_id: 1,
+                slot: 30,
+                action_number: 11,
+                mode: 0,
+            },
+            None,
+        )
         .unwrap();
         assert_eq!(help_effect, MainMenuEffect::Close);
         assert_eq!(
@@ -3655,36 +3815,101 @@ mod tests {
             ]
         );
 
-        let (close, close_effect) = main_menu_click_packets(WindowClick {
-            window_id: 2,
-            slot: 49,
-            action_number: 12,
-            mode: 0,
-        })
+        let (close, close_effect) = main_menu_click_packets(
+            WindowClick {
+                window_id: 2,
+                slot: 49,
+                action_number: 12,
+                mode: 0,
+            },
+            None,
+        )
         .unwrap();
         assert_eq!(close_effect, MainMenuEffect::Close);
         assert_eq!(close.len(), 6);
 
-        let (switch, switch_effect) = main_menu_click_packets(WindowClick {
-            window_id: 3,
-            slot: 32,
-            action_number: 13,
-            mode: 0,
-        })
+        let (switch, switch_effect) = main_menu_click_packets(
+            WindowClick {
+                window_id: 3,
+                slot: 32,
+                action_number: 13,
+                mode: 0,
+            },
+            None,
+        )
         .unwrap();
         assert_eq!(switch_effect, MainMenuEffect::SwitchAccount);
         assert_eq!(switch.len(), 7);
         assert_eq!(switch[6][0], 0x02);
 
-        let (mode_only, mode_effect) = main_menu_click_packets(WindowClick {
-            window_id: 4,
-            slot: 30,
-            action_number: 14,
-            mode: 1,
-        })
+        let (mode_only, mode_effect) = main_menu_click_packets(
+            WindowClick {
+                window_id: 4,
+                slot: 30,
+                action_number: 14,
+                mode: 1,
+            },
+            None,
+        )
         .unwrap();
         assert_eq!(mode_effect, MainMenuEffect::None);
         assert_eq!(mode_only.len(), 3);
+    }
+
+    #[test]
+    fn logout_confirmation_cancel_and_confirm_have_complete_bounded_flows() {
+        let (open, open_effect) = main_menu_click_packets(
+            WindowClick {
+                window_id: 1,
+                slot: 34,
+                action_number: 21,
+                mode: 0,
+            },
+            Some(2),
+        )
+        .unwrap();
+        assert_eq!(open_effect, MainMenuEffect::OpenLogoutConfirm(2));
+        assert_eq!(
+            open.iter().map(|packet| packet[0]).collect::<Vec<_>>(),
+            [0x32, 0x2f, 0x30, 0x2f, 0x2f, 0x2d, 0x30]
+        );
+        assert_eq!(open[6], logout_confirmation_contents_packet(2).unwrap());
+
+        let (cancel, cancel_effect) = logout_confirmation_click_packets(
+            WindowClick {
+                window_id: 2,
+                slot: 15,
+                action_number: 22,
+                mode: 0,
+            },
+            Some(3),
+        )
+        .unwrap();
+        assert_eq!(cancel_effect, LogoutConfirmEffect::OpenMainMenu(3));
+        assert_eq!(
+            cancel.iter().map(|packet| packet[0]).collect::<Vec<_>>(),
+            [0x32, 0x2f, 0x30, 0x2e, 0x2f, 0x2f, 0x2d, 0x30]
+        );
+
+        let (confirm, confirm_effect) = logout_confirmation_click_packets(
+            WindowClick {
+                window_id: 4,
+                slot: 11,
+                action_number: 24,
+                mode: 0,
+            },
+            None,
+        )
+        .unwrap();
+        assert_eq!(confirm_effect, LogoutConfirmEffect::Disconnect);
+        assert_eq!(
+            confirm.iter().map(|packet| packet[0]).collect::<Vec<_>>(),
+            [0x32, 0x2f, 0x30, 0x2e, 0x2f, 0x2f, 0x40]
+        );
+        assert_eq!(
+            confirm[6],
+            disconnect_play_packet("\u{00a7}aLogged out. See you!").unwrap()
+        );
     }
 
     #[test]

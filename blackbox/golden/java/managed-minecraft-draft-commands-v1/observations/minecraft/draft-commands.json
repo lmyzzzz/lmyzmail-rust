@@ -1,7 +1,7 @@
 {
   "attestation": {
     "harness": {
-      "definition_tree_sha256": "538e2e8f9e547e91001efc02b99582de1d0111943b3ea13953443fca3189d318",
+      "definition_tree_sha256": "0366ddb95b6642962c80281617ab700faa66f6831b916bb7824e8100ab7bc9e0",
       "input_sha256": {
         "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
         "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",

@@ -98,6 +98,10 @@ wire, state, storage, or recovery assertions.
 - Minecraft status admission is fixed at 64 concurrent connections, with
   overload closed before task creation and all admitted tasks joined during
   bounded shutdown. The oracle has no application-level connection bound.
+- Confirmed Minecraft logout flushes the exact Disconnect Play reason before
+  closing. The oracle calls `writeAndFlush` and immediately closes the channel,
+  producing a nondeterministic proper prefix without the final disconnect in
+  isolated runs; only that terminal race is normalized and allowlisted.
 
 ## SMTP AUTH oracle behavior
 
