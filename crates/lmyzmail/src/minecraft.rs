@@ -1095,7 +1095,7 @@ async fn handle_connection(
                             shutdown_stream(&mut writer, deadline, &cancellation).await?;
                             return Ok(());
                         }
-                    } else if authenticated.is_some() {
+                    } else if let Some((authenticated_email, _)) = authenticated.as_ref() {
                         let command = java_trim(&message);
                         let command_end = command.find(java_regex_space).unwrap_or(command.len());
                         let menu_window_id = command[..command_end]
@@ -1107,13 +1107,25 @@ async fn handle_connection(
                         if menu_window_id.is_some() && replaced_gui {
                             responses.extend(restore_hotbar_packets()?);
                         }
-                        responses.extend(authenticated_command_packets(
-                            &message,
-                            &service.config,
-                            &mut draft,
-                            menu_window_id,
-                            render_settings,
-                        )?);
+                        if let Some((command_packets, opens_render_settings)) =
+                            render_size_command_packets(
+                                &message,
+                                &mut render_settings,
+                                &player_username,
+                                authenticated_email,
+                            )?
+                        {
+                            render_settings_pending |= opens_render_settings;
+                            responses.extend(command_packets);
+                        } else {
+                            responses.extend(authenticated_command_packets(
+                                &message,
+                                &service.config,
+                                &mut draft,
+                                menu_window_id,
+                                render_settings,
+                            )?);
+                        }
                         message.zeroize();
                         if let Some(window_id) = menu_window_id {
                             open_menu_window_id = Some(window_id);
@@ -2099,6 +2111,81 @@ fn authenticated_command_packets(
             Some("red"),
         )?]),
     }
+}
+
+fn render_size_command_packets(
+    message: &str,
+    render_settings: &mut RenderSettings,
+    username: &str,
+    email: &str,
+) -> io::Result<Option<(Vec<Vec<u8>>, bool)>> {
+    let command = java_trim(message);
+    let parts = command
+        .split(java_regex_space)
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>();
+    if parts
+        .first()
+        .is_none_or(|name| !name.eq_ignore_ascii_case("/mail"))
+        || parts.get(1).is_none_or(|subcommand| {
+            !subcommand.eq_ignore_ascii_case("rendersize") && !subcommand.eq_ignore_ascii_case("rs")
+        })
+    {
+        return Ok(None);
+    }
+    if parts.len() < 4 {
+        return Ok(Some((
+            render_settings_editor_packets(*render_settings)?,
+            true,
+        )));
+    }
+
+    let width = parts[2].parse::<i32>();
+    let height = parts[3].parse::<i32>();
+    let (Ok(width), Ok(height)) = (width, height) else {
+        return Ok(Some((
+            vec![chat_packet(
+                "\u{00a7}cUsage: /mail rendersize <width> <height>",
+                Some("red"),
+            )?],
+            false,
+        )));
+    };
+    if !(RENDER_MAPS_X_MIN..=RENDER_MAPS_X_MAX).contains(&width) {
+        return Ok(Some((
+            vec![chat_packet(
+                "\u{00a7}cWidth must be 2-24 maps",
+                Some("red"),
+            )?],
+            false,
+        )));
+    }
+    if !(RENDER_MAPS_Y_MIN..=RENDER_MAPS_Y_MAX).contains(&height) {
+        return Ok(Some((
+            vec![chat_packet(
+                "\u{00a7}cHeight must be 2-20 maps",
+                Some("red"),
+            )?],
+            false,
+        )));
+    }
+
+    render_settings.maps_x = width;
+    render_settings.maps_y = height;
+    if let Some(font) = parts.get(4).and_then(|font| font.parse::<i32>().ok())
+        && (RENDER_FONT_SIZE_MIN..=RENDER_FONT_SIZE_MAX).contains(&font)
+    {
+        render_settings.font_size = font;
+    }
+    let mut packets = authenticated_scoreboard_packets(username, email, *render_settings)?;
+    packets.push(chat_packet(
+        &format!(
+            "\u{00a7}aRender: \u{00a7}f{}\u{00d7}{} \u{00a7}amaps, font \u{00a7}f{}px",
+            render_settings.maps_x, render_settings.maps_y, render_settings.font_size
+        ),
+        Some("green"),
+    )?);
+    Ok(Some((packets, false)))
 }
 
 fn draft_summary_packets(draft: &MinecraftDraft) -> io::Result<Vec<Vec<u8>>> {
@@ -4075,6 +4162,72 @@ mod tests {
             )
             .unwrap()
             .is_empty()
+        );
+    }
+
+    #[test]
+    fn render_size_commands_match_direct_validation_and_sign_alias() {
+        let mut settings = RenderSettings::default();
+        let (valid, opens_editor) = render_size_command_packets(
+            "/MAIL RenderSize 24 20 48",
+            &mut settings,
+            "BlackboxLogin",
+            "qa@example.test",
+        )
+        .unwrap()
+        .unwrap();
+        assert!(!opens_editor);
+        assert_eq!(
+            settings,
+            RenderSettings {
+                maps_x: 24,
+                maps_y: 20,
+                font_size: 48,
+            }
+        );
+        assert_eq!(
+            valid.iter().map(|packet| packet[0]).collect::<Vec<_>>(),
+            [
+                0x3b, 0x3b, 0x3d, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x3c, 0x02
+            ]
+        );
+
+        let (invalid_font, opens_editor) = render_size_command_packets(
+            "/mail rs 12 8 49",
+            &mut settings,
+            "BlackboxLogin",
+            "qa@example.test",
+        )
+        .unwrap()
+        .unwrap();
+        assert!(!opens_editor);
+        assert_eq!(settings.maps_x, 12);
+        assert_eq!(settings.maps_y, 8);
+        assert_eq!(settings.font_size, 48);
+        assert_eq!(invalid_font.len(), 14);
+
+        let (editor, opens_editor) = render_size_command_packets(
+            "/mail rs 12",
+            &mut settings,
+            "BlackboxLogin",
+            "qa@example.test",
+        )
+        .unwrap()
+        .unwrap();
+        assert!(opens_editor);
+        assert_eq!(
+            editor.iter().map(|packet| packet[0]).collect::<Vec<_>>(),
+            [0x35, 0x36, 0x02, 0x02, 0x02, 0x02]
+        );
+        assert!(
+            render_size_command_packets(
+                "/mail close",
+                &mut settings,
+                "BlackboxLogin",
+                "qa@example.test",
+            )
+            .unwrap()
+            .is_none()
         );
     }
 

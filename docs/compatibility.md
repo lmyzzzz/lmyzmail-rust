@@ -108,6 +108,11 @@ wire, state, storage, or recovery assertions.
   height commit before font validation, so an invalid font preserves the prior
   font while applying the new dimensions; malformed or oversized sign packets
   close the connection without a business response.
+- `/mail rendersize` and `/mail rs` use the same connection-local state. With
+  width and height arguments they update dimensions directly, ignore an absent,
+  malformed, or out-of-range optional font, then refresh the scoreboard before
+  the confirmation chat. With fewer than two value arguments they open the
+  render-settings sign editor.
 
 ## SMTP AUTH oracle behavior
 

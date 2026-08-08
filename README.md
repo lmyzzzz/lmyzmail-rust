@@ -120,10 +120,10 @@ order and Switch Account returns the connection to the email/password flow.
 Logout now has its complete confirmation, cancel, and disconnect flow. The Rust
 runtime flushes the final Disconnect Play frame before EOF instead of preserving
 the frozen Java write/close race. Render Settings now preserves the complete
-sign-editor flow, per-session dimensions and font state, validation boundaries,
-scoreboard refresh, and updated menu NBT. Data-backed folders, video, and
-mail-view GUI paths remain outside this milestone and are not claimed as
-implemented.
+menu and `/mail rendersize|rs` sign-editor flows, direct command updates,
+per-session dimensions and font state, validation boundaries, scoreboard
+refresh, and updated menu NBT. Data-backed folders, video, and mail-view GUI
+paths remain outside this milestone and are not claimed as implemented.
 
 Outbound HTTP currently covers durable PostgreSQL admission, sender-scoped and
 API status lookup, and quota reporting. A `202` response is emitted only after a

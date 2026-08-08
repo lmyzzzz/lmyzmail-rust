@@ -867,3 +867,14 @@ font-validation commit. An overlong sign field must close the connection
 without a business response. Only independently frozen periodic `0x03` time and
 `0x18` hologram ticks may be excluded when they interleave; every render packet
 and state-bearing frame remains byte exact.
+
+The Minecraft render-size command milestone adds:
+
+- `managed-minecraft-render-size-commands-v1/`
+
+It freezes `/mail rendersize` and its `rs` alias for direct upper-bound updates,
+invalid width and height, a silently retained prior font, non-integer usage,
+and the parameterless sign-editor path. The final sign submission and reopened
+menu prove that both public entry points share one connection-local state.
+Periodic `0x03` and `0x18` packets use the same narrow scheduled-play exclusion;
+all command, scoreboard, sign, and menu packets remain byte exact.
