@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = ["crates/lmyzmail"]
+exclude = ["tools/lmyzmail-xdp-check"]
 default-members = ["crates/lmyzmail"]
 
 [workspace.package]
