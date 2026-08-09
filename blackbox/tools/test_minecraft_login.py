@@ -19,7 +19,7 @@ from lmyzmail_blackbox.ports import PortSet
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-login-v4"
+_GOLDEN = "managed-minecraft-login-v5"
 _MAX_FRAME = 2 * 1024 * 1024
 _MAX_REJECTION_DRAIN = 32 * 1024 * 1024
 _USERNAME = "BlackboxLogin"
@@ -475,7 +475,7 @@ def test_frozen_java_minecraft_offline_login_golden(tmp_path: Path) -> None:
     runner = DifferentialRunner(
         repository,
         golden,
-        "managed-minecraft-login",
+        _GOLDEN,
         record_java=record,
     )
     with _LoginJavaOracleRuntime(tmp_path / "java-minecraft-login") as oracle:
@@ -509,5 +509,5 @@ def test_rust_candidate_minecraft_offline_login_matches_golden() -> None:
         DifferentialRunner(
             repository,
             repository / "blackbox/golden/java" / _GOLDEN,
-            "managed-minecraft-login",
+            _GOLDEN,
         ).verify_candidate(SCENARIOS, candidate)
