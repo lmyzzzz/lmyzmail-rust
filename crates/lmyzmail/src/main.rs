@@ -57,12 +57,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     let xdp_service = Arc::new(XdpService::from_config(&config.xdp)?);
+    let xdp_sync = Arc::new(XdpSyncService::new(
+        Arc::clone(&xdp_service),
+        CringeService::new(database_pool.clone()),
+    ));
     xdp_service.initialize(&cancellation).await;
     let xdp_startup_task = if config.xdp.sync_on_startup && xdp_service.ready() {
-        let xdp_sync = XdpSyncService::new(
-            Arc::clone(&xdp_service),
-            CringeService::new(database_pool.clone()),
-        );
+        let xdp_sync = Arc::clone(&xdp_sync);
         let xdp_sync_cancellation = cancellation.clone();
         Some(tokio::spawn(async move {
             if let Err(error) = xdp_sync.perform_full_sync(&xdp_sync_cancellation).await {
@@ -79,6 +80,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let http_reporting = Arc::clone(&reporting_service);
     let http_outbound = Arc::clone(&outbound_service);
     let http_xdp = Arc::clone(&xdp_service);
+    let http_xdp_sync = Arc::clone(&xdp_sync);
     services.spawn(async move {
         (
             "HTTP",
@@ -88,6 +90,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 http_reporting,
                 http_outbound,
                 http_xdp,
+                http_xdp_sync,
                 http_cancellation,
             )
             .await,
@@ -225,6 +228,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(task) = xdp_startup_task {
         let _ = task.await;
     }
+    xdp_sync.shutdown().await;
     xdp_service.shutdown().await;
     match failure {
         Some(error) => Err(error.into()),

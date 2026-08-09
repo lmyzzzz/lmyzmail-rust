@@ -184,6 +184,7 @@ pub async fn serve_http(
     reporting: Arc<ReportingService>,
     outbound: Arc<OutboundService>,
     xdp: Arc<XdpService>,
+    xdp_sync: Arc<XdpSyncService>,
     cancellation: CancellationToken,
 ) -> io::Result<()> {
     let listener = TcpListener::bind((config.listen.host.as_str(), config.listen.http)).await?;
@@ -194,7 +195,6 @@ pub async fn serve_http(
     let userdata = Arc::new(UserDataService::new(database_pool.clone()));
     let cringe_pool = database_pool.clone();
     let cringe = Arc::new(CringeService::new(cringe_pool));
-    let xdp_sync = Arc::new(XdpSyncService::new(Arc::clone(&xdp), (*cringe).clone()));
     let reconciliation_outbound = Arc::clone(&outbound);
     let reconciliation_cancellation = cancellation.clone();
     let mut reconciliation_task = tokio::spawn(async move {
