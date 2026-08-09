@@ -28,7 +28,7 @@ from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-main-menu-v1"
+_GOLDEN = "managed-minecraft-main-menu-v2"
 _MENU_IDS = (0x2D, 0x30)
 
 
@@ -104,7 +104,7 @@ def test_frozen_java_minecraft_main_menu_golden(tmp_path: Path) -> None:
     runner = DifferentialRunner(
         repository,
         golden,
-        "managed-minecraft-main-menu",
+        _GOLDEN,
         record_java=record,
     )
     with _LoginJavaOracleRuntime(tmp_path / "java-minecraft-main-menu") as oracle:
@@ -140,5 +140,5 @@ def test_rust_candidate_minecraft_main_menu_matches_golden() -> None:
         DifferentialRunner(
             repository,
             repository / "blackbox/golden/java" / _GOLDEN,
-            "managed-minecraft-main-menu",
+            _GOLDEN,
         ).verify_candidate(SCENARIOS, candidate)
