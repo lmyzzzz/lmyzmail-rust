@@ -171,6 +171,18 @@ and final messages. The only allowlisted behavior difference is permit lifetime:
 the Java map player returns its permit before submitting decode work, while the
 candidate holds the permit for the complete admitted lifecycle.
 
+## SMTP DATA and BDAT contract
+
+The Rust candidate matches the v31 DATA/BDAT profile across incremental DATA
+terminator parsing and dot transparency, fragmented binary BDAT with exact
+octet counts, coalesced multi-chunk delivery, zero-length and 15,728,640-byte
+state boundaries, and partial DATA/BDAT disconnect recovery. Each accepted
+message is checked through the normalized Maildir bytes, PostgreSQL
+`email_index`, and Redis mail-count state; failed partial transactions leave no
+temporary or durable delivery state, and a fresh session can deliver normally.
+The companion v31 evidence profile remains Java-only for the oracle's
+terminator-tail command loss and coalesced prerequisite-state stall.
+
 ## SMTP command contract
 
 The Rust candidate matches the v32 command profile byte for byte across utility

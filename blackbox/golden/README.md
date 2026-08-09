@@ -702,8 +702,8 @@ definition tree
 - `managed-smtp-auth-starttls-v34/`
 - `managed-smtp-command-v32/`
 - `managed-smtp-command-oracle-evidence-v32/`
-- `managed-smtp-data-v30/`
-- `managed-smtp-data-oracle-evidence-v30/`
+- `managed-smtp-data-v31/`
+- `managed-smtp-data-oracle-evidence-v31/`
 - `managed-smtp-mime-v30/`
 - `managed-outbound-http-v18/`
 - `managed-outbound-queue-v31.json`
