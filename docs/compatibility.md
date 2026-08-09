@@ -171,6 +171,17 @@ and final messages. The only allowlisted behavior difference is permit lifetime:
 the Java map player returns its permit before submitting decode work, while the
 candidate holds the permit for the complete admitted lifecycle.
 
+## SMTP STARTTLS contract
+
+The Rust candidate matches the v35 STARTTLS profile for TLS 1.2 and TLS 1.3
+negotiation, TLS 1.1 rejection, certificate chain and `smtp.example.test`
+hostname verification, post-upgrade EHLO state reset, repeated-upgrade
+rejection, ESMTPS DATA storage, and recovery after a malformed handshake. The
+ephemeral PKCS#12 password is passed only through
+`LMYZMAIL_SSL_KEYSTORE_PASSWORD`; runtime configuration and goldens contain no
+password or private key. The companion evidence profile remains Java-only for
+the approved buffered-plaintext command-smuggling fix.
+
 ## SMTP DATA and BDAT contract
 
 The Rust candidate matches the v31 DATA/BDAT profile across incremental DATA

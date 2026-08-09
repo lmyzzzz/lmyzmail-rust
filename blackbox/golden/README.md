@@ -696,8 +696,8 @@ definition tree
 - `managed-mail-mutations-v18/`
 - `managed-mail-delete-v18/`
 - `managed-mailbox-api-v10/`
-- `managed-starttls-v34/`
-- `managed-starttls-oracle-evidence-v34/`
+- `managed-starttls-v35/`
+- `managed-starttls-oracle-evidence-v35/`
 - `managed-smtp-auth-v34/`
 - `managed-smtp-auth-starttls-v34/`
 - `managed-smtp-command-v32/`
