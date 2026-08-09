@@ -26,7 +26,7 @@ from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-password-auth-v1"
+_GOLDEN = "managed-minecraft-password-auth-v2"
 _USERNAME = b"PassAuthProbe"
 _EMAIL = "qa@example.test"
 _BAD_PASSWORD = "DefinitelyWrong123!"  # noqa: S105
@@ -128,7 +128,7 @@ def test_frozen_java_minecraft_password_auth_golden(tmp_path: Path) -> None:
     runner = DifferentialRunner(
         repository,
         golden,
-        "managed-minecraft-password-auth",
+        _GOLDEN,
         record_java=record,
     )
     with _LoginJavaOracleRuntime(tmp_path / "java-minecraft-password-auth") as oracle:
@@ -164,5 +164,5 @@ def test_rust_candidate_minecraft_password_auth_matches_golden() -> None:
         DifferentialRunner(
             repository,
             repository / "blackbox/golden/java" / _GOLDEN,
-            "managed-minecraft-password-auth",
+            _GOLDEN,
         ).verify_candidate(SCENARIOS, candidate)
