@@ -16,7 +16,7 @@ from lmyzmail_blackbox.persistent_runtime import PersistentJavaOracleRuntime
 from lmyzmail_blackbox.ports import PortSet
 from lmyzmail_blackbox.runtime import CandidateRuntime
 
-_GOLDEN = "managed-minecraft-login-admission-v3"
+_GOLDEN = "managed-minecraft-login-admission-v4"
 _MAX_FRAME = 2 * 1024 * 1024
 
 
@@ -229,7 +229,7 @@ def test_frozen_java_minecraft_login_admission_golden(tmp_path: Path) -> None:
     runner = DifferentialRunner(
         repository,
         repository / "blackbox/golden/java" / _GOLDEN,
-        "managed-minecraft-login-admission",
+        _GOLDEN,
         record_java=record,
     )
     with _AdmissionJavaOracleRuntime(
@@ -263,5 +263,5 @@ def test_rust_candidate_minecraft_login_admission_matches_golden() -> None:
         DifferentialRunner(
             repository,
             repository / "blackbox/golden/java" / _GOLDEN,
-            "managed-minecraft-login-admission",
+            _GOLDEN,
         ).verify_candidate(SCENARIOS, candidate)
