@@ -1198,9 +1198,6 @@ pub async fn serve_honeypots(
             "honeypot service requires at least one configured trap",
         ));
     }
-    let assets = Arc::new(HoneypotAssets::load()?);
-    let tls = Arc::new(HoneypotTls::generate()?);
-    let persistence = HoneypotPersistence::open(&config.maildir, pool).await?;
     let mut traps = Vec::with_capacity(config.listen.honeypots.len());
     for trap in &config.listen.honeypots {
         let listener = match TcpListener::bind((trap.bind_address.as_str(), trap.port)).await {
@@ -1224,6 +1221,9 @@ pub async fn serve_honeypots(
             "none of the configured honeypot traps could bind",
         ));
     }
+    let assets = Arc::new(HoneypotAssets::load()?);
+    let tls = Arc::new(HoneypotTls::generate()?);
+    let persistence = HoneypotPersistence::open(&config.maildir, pool).await?;
 
     let service_cancellation = cancellation.child_token();
     let mut listeners = JoinSet::new();
