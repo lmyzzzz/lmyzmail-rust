@@ -155,7 +155,7 @@
       "scope": "Only answers exceeding the stated ceilings. Every in-budget record retains Java ordering, TXT concatenation and selection, all-address public validation, first-address SMTP pinning, policy parsing, and MX failover semantics."
     },
     {
-      "candidate_requirement": "Apply one eight-second absolute deadline to each report-address discovery, admit at most 32 active report DNS queries process-wide, and bound each TXT lookup to 32 records and 65536 aggregate TXT bytes. Normalize the requested domain to a valid lower-case ASCII DNS name no longer than 253 bytes, reject control bytes, path separators, empty or overlong labels, and retain the frozen combined mailto-first RUA limit of 10.",
+      "candidate_requirement": "Apply one eight-second absolute deadline to each report-address discovery, admit at most 32 active report DNS queries process-wide, and bound each TXT lookup to 32 records and 65536 aggregate TXT bytes. Cache at most 1024 positive responses for their received TTL while retaining no NXDOMAIN response. Normalize the requested domain to a valid lower-case ASCII DNS name no longer than 253 bytes, reject control bytes, path separators, empty or overlong labels, and retain the frozen combined mailto-first RUA limit of 10.",
       "evidence": {
         "candidate_test": "crates/lmyzmail/src/reporting.rs::tests::domain_and_destination_parsing_is_bounded_and_normalized",
         "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
@@ -166,10 +166,10 @@
       "id": "reporting-dns-input-and-answer-budgets",
       "oracle_behavior": "The frozen Java service lowercases a nonblank domain and processes every returned TXT record and TXT fragment without an explicit byte or record ceiling. Its asynchronous entrypoints use a shared executor, but the discovery service does not own a process-wide DNS admission limit or one absolute deadline covering primary and external-authorization lookups.",
       "reason": "Report domains and DNS answers are attacker-controlled. Unbounded TXT materialization, query admission, authorization fanout, or malformed-name processing violates the rewrite's mandatory hard limits, deadlines, and cancellation requirements.",
-      "scope": "Only malformed domain names, over-budget TXT answers, report-DNS overload, and discoveries exceeding the absolute deadline. Every in-budget query name and order, TXT-fragment concatenation, exact first version tag, RUA parsing and deduplication, same-domain and external authorization, NXDOMAIN downgrade, address ordering, and HTTP body remain differential requirements."
+      "scope": "Only malformed domain names, over-budget TXT answers, report-DNS overload, cache churn beyond 1024 distinct live positive responses, and discoveries exceeding the absolute deadline. Every in-budget query name and order, positive TTL reuse, TXT-fragment concatenation, exact first version tag, RUA parsing and deduplication, same-domain and external authorization, NXDOMAIN retry and downgrade, address ordering, and HTTP body remain differential requirements."
     },
     {
-      "candidate_requirement": "Render one DMARC or TLS aggregate from at most 10000 database groups and 4194304 aggregate input bytes, with each text field limited to 4096 bytes and every count required to fit signed 32-bit report fields. Limit both compressed and uncompressed report output to 4194304 bytes. Execute rendering on a dedicated pool of two workers and eight queued jobs under one ten-second deadline with cancellation and bounded drain; reject overload or any exceeded budget without publishing a queue task or Maildir file.",
+      "candidate_requirement": "Select at most 10000 reportable domains per protocol and render one DMARC or TLS aggregate from at most 10000 database groups and 4194304 aggregate input bytes, with each text field limited to 4096 bytes and every count required to fit signed 32-bit report fields. Limit both compressed and uncompressed report output to 4194304 bytes. Execute rendering on a dedicated pool of two workers and eight queued jobs under one ten-second deadline with cancellation and bounded drain; reject overload or any exceeded budget without publishing a queue task or Maildir file.",
       "evidence": {
         "candidate_golden_tests": [
           "crates/lmyzmail/src/reporting.rs::tests::seeded_dmarc_render_matches_the_frozen_java_golden",
@@ -179,14 +179,14 @@
         "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
         "dmarc_source": "src/main/java/net/lmyz/lmyzmail/report/service/DmarcReportGenerator.java",
         "dmarc_source_sha256": "8dc8bcf8093d24016fe08090167f543f98cb679700ce957f9d300329c8ca936c",
-        "oracle_golden": "blackbox/golden/java/managed-reports-v11/observations/http/reports/seeded-delivery.json",
+        "oracle_golden": "blackbox/golden/java/managed-reports-v15/observations/http/reports/seeded-trigger.json",
         "tls_source": "src/main/java/net/lmyz/lmyzmail/report/service/TlsReportGenerator.java",
         "tls_source_sha256": "86bf8523a747fbffc52491780851da4b48221038f0a6fedcef38e82ce92d7d8e"
       },
       "id": "reporting-aggregate-render-budgets",
-      "oracle_behavior": "The frozen Java generators materialize every aggregate row, convert the complete result into a second object graph, serialize the entire XML or JSON report into one String, and then gzip it into another in-memory byte array. They impose no aggregate-group, field-size, input-byte, output-byte, rendering-admission, or rendering-deadline ceiling; long TLS counts are narrowed to int fields.",
-      "reason": "Legacy report rows and policy fields are database-controlled inputs that can amplify into multiple full heap copies and monopolize request or scheduler execution. The rewrite requires hard bounds for every collection, output, CPU job, deadline, and queue, and must reject numeric truncation rather than reproduce it.",
-      "scope": "Only aggregate inputs, counts, outputs, rendering admission, or rendering time that exceed the stated ceilings. Every in-budget SQL grouping semantic, XML/JSON byte, gzip attachment type and filename, report count, MIME message, outbound queue publication, Redis state, Maildir write, and HTTP result remains an exact differential requirement."
+      "oracle_behavior": "The frozen Java scheduler materializes every reportable domain without a ceiling. Its generators materialize every aggregate row, convert the complete result into a second object graph, serialize the entire XML or JSON report into one String, and then gzip it into another in-memory byte array. They impose no report-domain, aggregate-group, field-size, input-byte, output-byte, rendering-admission, or rendering-deadline ceiling; long TLS counts are narrowed to int fields.",
+      "reason": "Legacy report domains, rows, and policy fields are database-controlled inputs that can amplify into unbounded work and multiple full heap copies while monopolizing request or scheduler execution. The rewrite requires hard bounds for every collection, output, CPU job, deadline, and queue, and must reject numeric truncation rather than reproduce it.",
+      "scope": "Only reportable-domain sets, aggregate inputs, counts, outputs, rendering admission, or rendering time that exceed the stated ceilings. Every in-budget SQL grouping semantic, XML/JSON byte, gzip attachment type and filename, report count, MIME message, outbound queue publication, Redis state, Maildir write, and HTTP result remains an exact differential requirement."
     },
     {
       "candidate_requirement": "When an intact legacy `mta-sts:{domain}` NONE value has a positive Redis TTL, reuse it only for that remaining TTL, never longer than 300 seconds. Preserve the exact Java serialization, do not extend the TTL on read, and perform fresh DNS discovery after expiry.",

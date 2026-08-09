@@ -67,19 +67,20 @@ downloads, inbound SMTP persistence, and the complete HTCPCP coffee/tea state
 machine. Each admitted surface is exercised by the external Java/Rust
 differential harness.
 
-The single-domain reporting slice now discovers Java-compatible DMARC and
-TLSRPT RUA destinations, reads the legacy PostgreSQL aggregates, renders
-byte-exact gzip attachments on a bounded blocking pool, and publishes email
-deliveries through the durable PostgreSQL/Redis/Sent-Maildir outbound queue.
-The seeded v12 differential covers DNS order, HTTP bodies, MIME, decompressed
-XML/JSON, queue fields and TTLs, Maildir shards, and unchanged source rows.
+The reporting slice now discovers Java-compatible DMARC and TLSRPT RUA
+destinations, reads the legacy PostgreSQL aggregates, renders byte-exact gzip
+attachments on a bounded blocking pool, and publishes single-domain or full
+manual-trigger deliveries through the durable PostgreSQL/Redis/Sent-Maildir
+outbound queue. The seeded v15 differential covers DNS order and positive TTL
+cache reuse, HTTP summary counts, MIME, decompressed XML/JSON, queue fields and
+TTLs, Maildir shards, and unchanged source rows.
 TLSRPT HTTPS RUA delivery now performs the frozen POST through one validated,
 pinned DNS answer set with public-address enforcement, hostname-verified TLS,
 no proxy or redirects, exact request framing, bounded response headers, no
 response-body consumption, and one absolute deadline/cancellation path. The
-User-Agent uses the authorized `lmyzmail` product identifier. Scheduled
-multi-domain generation and retention remain outside this reporting milestone,
-so it is not yet the complete reporting replacement.
+User-Agent uses the authorized `lmyzmail` product identifier. Automatic 01:00
+UTC scheduling and retention remain outside this reporting milestone, so it is
+not yet the complete reporting replacement.
 
 HTCPCP runs as a bounded Tokio listener only when enabled. It preserves the
 frozen eight-pot configuration, BREW/POST/GET/HEAD/OPTIONS/PROPFIND/WHEN wire

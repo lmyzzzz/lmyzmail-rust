@@ -995,7 +995,7 @@ normalizations. Recording and immediate verification used two fresh Java,
 PostgreSQL, Redis, Maildir, and DNS workspaces; a third fresh Java workspace
 replayed v11 without record mode.
 
-The active report-management API set is:
+The first bounded aggregate-render report-management set is retained as:
 
 - `managed-reports-v12/`
 
@@ -1007,5 +1007,34 @@ cancellation security difference. No v11 file was rewritten. Recording and
 immediate verification used two fresh Java, PostgreSQL, Redis, Maildir, and DNS
 workspaces; a third fresh Java workspace replayed v12 without record mode.
 
-The post-recording Rust candidate driver now targets v12 so the candidate
+The full-trigger extension retains two subsequent create-once generations:
+
+- `managed-reports-v13/` contains the suite and the first seven observations.
+  The first recording stopped at the new final trigger and correctly exposed
+  that the prior single-domain scenario had already warmed dnsjava's positive
+  TXT cache, invalidating the observer's initial expectation of three
+  additional UDP queries.
+- `managed-reports-v14/` contains all eight observations and binds definition
+  tree `b5850d30bf3d16c67b469f5a3955584afd23ba8b15581010d6fe6b23156ab19d`.
+  It froze the corrected warm-cache behavior and passed Java recording,
+  independent Java replay, and the Rust candidate. It was superseded without
+  rewriting when the 10,000-domain and 1,024-response cache ceilings were
+  added to the authoritative security difference manifest.
+
+The active report-management API set is:
+
+- `managed-reports-v15/`
+
+It binds definition tree
+`2d87535a93467a45f2765b641d10d38b055d1b4c349052b3ae6f05bb0306d301`
+and preserves all eight observations under the final resource-bound contract.
+The seeded full trigger freezes DMARC-before-TLS summary counts, process-local
+publication, warm positive-TTL cache reuse with no duplicate DNS traffic,
+Redis task/domain state and TTL, Sent Maildir MIME and gzip payloads, unchanged
+source report rows, and exact threshold restoration. Recording and immediate
+verification used two fresh Java, PostgreSQL, Redis, Maildir, and DNS
+workspaces; a third fresh Java workspace replayed v15 without record mode, and
+the Linux x86_64 Rust release matched it in a separate candidate workspace.
+
+The post-recording Rust candidate driver now targets v15 so the candidate
 cannot pass an earlier definition tree.

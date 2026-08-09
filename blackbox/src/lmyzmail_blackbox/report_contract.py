@@ -47,9 +47,7 @@ _UUID_V4 = re.compile(
     re.IGNORECASE,
 )
 _REPORT_PERIOD = re.compile(r"(?m)^Report Period: \d{4}-\d{2}-\d{2}(?=\r?$)")
-_RFC3339_INSTANT = re.compile(
-    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z"
-)
+_RFC3339_INSTANT = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z")
 _REDIS_QUEUE_PREFIX = "botmail:mail:queue:"
 _MAX_DECOMPRESSED_REPORT_BYTES = 4 * 1024 * 1024
 
@@ -78,9 +76,7 @@ _REPORT_DNS_ANSWERS = {
         txt=(TxtAnswer(("v=DMARC1",)),)
     ),
     ("_smtp._tls.mixed.example", _TXT): DnsAnswer(
-        txt=(
-            TxtAnswer(("v=TLSRPTv1; rua=mailto:tls@mixed.example,https://mixed.example/tls",)),
-        )
+        txt=(TxtAnswer(("v=TLSRPTv1; rua=mailto:tls@mixed.example,https://mixed.example/tls",)),)
     ),
     ("_dmarc.ambiguous.example", _TXT): DnsAnswer(
         txt=(
@@ -846,6 +842,42 @@ def _task_snapshot(client: redis.Redis, task_id: int) -> tuple[str, dict[str, An
     }
 
 
+def _capture_report_publications(
+    target: RuntimeTarget,
+    client: redis.Redis,
+    before_pending: list[int],
+    before_files: dict[str, Path],
+) -> tuple[list[str], dict[str, dict[str, Any]], dict[str, dict[str, Any]], dict[str, Path]]:
+    new_ids, added_files = _wait_for_report_side_effects(
+        target,
+        client,
+        before_pending,
+        before_files,
+    )
+    tasks: dict[str, dict[str, Any]] = {}
+    pending_order: list[str] = []
+    for task_id in new_ids:
+        label, snapshot = _task_snapshot(client, task_id)
+        if label in tasks:
+            raise AssertionError(f"duplicate generated report task: {label}")
+        tasks[label] = snapshot
+        pending_order.append(label)
+
+    maildir_messages: dict[str, dict[str, Any]] = {}
+    for path in added_files.values():
+        snapshot = _report_message_snapshot(path.read_bytes())
+        report_format = cast(str, cast(dict[str, Any], snapshot["attachment"])["format"])
+        maildir_label = {"dmarc-xml": "dmarc", "tlsrpt-json": "tls"}.get(report_format)
+        if maildir_label is None or maildir_label in maildir_messages:
+            raise AssertionError("report Maildir publication had an unexpected format")
+        maildir_messages[maildir_label] = snapshot
+    if set(tasks) != {"dmarc", "tls"} or maildir_messages != {
+        label: snapshot["message"] for label, snapshot in tasks.items()
+    }:
+        raise AssertionError("report Redis and Maildir publications were not byte-equivalent")
+    return pending_order, tasks, maildir_messages, added_files
+
+
 def capture_seeded_report_delivery(target: RuntimeTarget) -> dict[str, Any]:
     if _drain_report_dns_queries(target):
         raise AssertionError("scripted report DNS trace was not empty before delivery")
@@ -894,33 +926,12 @@ def capture_seeded_report_delivery(target: RuntimeTarget) -> dict[str, Any]:
                 },
             },
         )
-        new_ids, added_files = _wait_for_report_side_effects(
+        pending_order, tasks, maildir_messages, added_files = _capture_report_publications(
             target,
             client,
             before_pending,
             before_files,
         )
-        tasks: dict[str, dict[str, Any]] = {}
-        pending_order: list[str] = []
-        for task_id in new_ids:
-            label, snapshot = _task_snapshot(client, task_id)
-            if label in tasks:
-                raise AssertionError(f"duplicate generated report task: {label}")
-            tasks[label] = snapshot
-            pending_order.append(label)
-
-        maildir_messages: dict[str, dict[str, Any]] = {}
-        for path in added_files.values():
-            snapshot = _report_message_snapshot(path.read_bytes())
-            report_format = cast(str, cast(dict[str, Any], snapshot["attachment"])["format"])
-            maildir_label = {"dmarc-xml": "dmarc", "tlsrpt-json": "tls"}.get(report_format)
-            if maildir_label is None or maildir_label in maildir_messages:
-                raise AssertionError("report Maildir publication had an unexpected format")
-            maildir_messages[maildir_label] = snapshot
-        if set(tasks) != {"dmarc", "tls"} or maildir_messages != {
-            label: snapshot["message"] for label, snapshot in tasks.items()
-        }:
-            raise AssertionError("report Redis and Maildir publications were not byte-equivalent")
     finally:
         client.close()
 
@@ -977,6 +988,103 @@ cast(Any, capture_seeded_report_delivery).__lmyzmail_contract__ = {
 }
 
 
+def capture_seeded_report_trigger(target: RuntimeTarget) -> dict[str, Any]:
+    if _drain_report_dns_queries(target):
+        raise AssertionError("scripted report DNS trace was not empty before trigger")
+    baseline_database = _report_database_state(target)
+    original = _seed_volume_threshold(target)
+    try:
+        before_database = _report_database_state(target)
+        before_files = _sent_files(target)
+        if target.ports is None:
+            raise AssertionError("reports target is not started")
+        client: redis.Redis = redis.Redis(
+            host=_HOST,
+            port=target.ports.redis,
+            decode_responses=False,
+        )
+        try:
+            before_pending = _redis_pending(client)
+            response = _expect_json(
+                _request(target, "POST", f"/api/reports/trigger?date={_REPORT_DATE}"),
+                status=200,
+                body={
+                    "date": _REPORT_DATE,
+                    "dmarcSent": 1,
+                    "dmarcFailed": 0,
+                    "tlsSent": 1,
+                    "tlsFailed": 0,
+                    "error": "none",
+                },
+            )
+            pending_order, tasks, maildir_messages, added_files = _capture_report_publications(
+                target,
+                client,
+                before_pending,
+                before_files,
+            )
+        finally:
+            client.close()
+
+        after_database = _report_database_state(target)
+        if after_database != before_database:
+            raise AssertionError("report trigger mutated the source DMARC/TLS log rows")
+        queries = _drain_report_dns_queries(target)
+        # The prior seeded-delivery scenario warms the JVM resolver cache.
+        expected_queries: tuple[str, ...] = ()
+        if tuple(query.qname for query in queries) != expected_queries:
+            raise AssertionError(
+                f"seeded report trigger unexpectedly bypassed the warm DNS cache: {queries!r}"
+            )
+    finally:
+        _restore_volume_threshold(target, original)
+
+    restored_database = _report_database_state(target)
+    if restored_database != baseline_database:
+        raise AssertionError("report trigger threshold fixture was not restored exactly")
+    return {
+        "response": response,
+        "dnsQueries": [query.qname for query in queries],
+        "queue": {
+            "pendingOrder": pending_order,
+            "tasks": tasks,
+        },
+        "maildir": {
+            "addedCount": len(added_files),
+            "messages": maildir_messages,
+            "noTemporaryFiles": not any(".tmp" in key for key in added_files),
+        },
+        "sourceDatabaseUnchanged": True,
+        "thresholdCountsRestored": True,
+    }
+
+
+cast(Any, capture_seeded_report_trigger).__lmyzmail_contract__ = {
+    "protocol": "http/raw-socket+scripted-udp-dns+postgresql+redis+maildir+mime",
+    "method": "POST",
+    "target": f"/api/reports/trigger?date={_REPORT_DATE}",
+    "authentication": "admin API key",
+    "fixture": "transactionally set both frozen seed volumes to the inclusive threshold 10",
+    "cleanup": "restore both original volumes in finally and verify exact database restoration",
+    "coverage": [
+        "multi-domain DMARC and TLSRPT generation in one trigger",
+        "warm resolver cache reuse without duplicate DNS traffic",
+        "delivery success and failure summary counters",
+        "external DMARC destination authorization",
+        "Redis task/domain state and Maildir byte equivalence",
+        "source report rows remain unchanged",
+    ],
+    "normalized_fields": [
+        "UUIDv4 report id",
+        "message Date and Message-ID headers excluded after MIME parsing",
+        "wall-clock report body period",
+        "Redis domain status updatedAt",
+        "MIME boundary and generated Maildir filename excluded after MIME parsing",
+    ],
+    "json_object_order": "canonicalized recursively by key",
+}
+
+
 REPORT_SCENARIOS = (
     Scenario(
         "http/reports/status",
@@ -1011,6 +1119,18 @@ REPORT_SCENARIOS = (
     Scenario(
         "http/reports/seeded-delivery",
         capture_seeded_report_delivery,
+        normalizers=(
+            *_NORMALIZERS,
+            "report-id:uuid-v4",
+            "rfc5322:parsed-message",
+            "report-body:wall-clock-period",
+            "redis-domain-status:updated-at",
+            "maildir:generated-filename",
+        ),
+    ),
+    Scenario(
+        "http/reports/seeded-trigger",
+        capture_seeded_report_trigger,
         normalizers=(
             *_NORMALIZERS,
             "report-id:uuid-v4",

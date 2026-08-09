@@ -51,7 +51,9 @@ const DNS_ATTEMPTS: usize = 2;
 const DNS_MAX_ACTIVE_REQUESTS: usize = 32;
 const DNS_MAX_TXT_RECORDS: usize = 32;
 const DNS_MAX_TXT_BYTES: usize = 64 * 1024;
+const DNS_CACHE_RESPONSES: u64 = 1_024;
 const MAX_RUA_ADDRESSES: usize = 10;
+const MAX_REPORT_DOMAINS: usize = 10_000;
 const MAX_AGGREGATE_RECORDS: i64 = 10_000;
 const MAX_AGGREGATE_FIELD_BYTES: usize = 4 * 1024;
 const MAX_AGGREGATE_INPUT_BYTES: i64 = 4 * 1024 * 1024;
@@ -135,6 +137,15 @@ pub struct SingleDomainReportResult {
     pub date: String,
     pub dmarc: ProtocolReportResult,
     pub tls: ProtocolReportResult,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct ReportGenerationSummary {
+    pub dmarc_sent: i32,
+    pub dmarc_failed: i32,
+    pub tls_sent: i32,
+    pub tls_failed: i32,
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -282,6 +293,7 @@ pub struct ReportingService {
     dns_permits: Arc<Semaphore>,
     render_pool: Arc<BoundedBlockingPool>,
     http_delivery: TlsReportHttpDelivery,
+    generation_running: Arc<AtomicBool>,
 }
 
 impl ReportingService {
@@ -313,6 +325,7 @@ impl ReportingService {
             dns_permits,
             render_pool: Arc::new(render_pool),
             http_delivery,
+            generation_running: Arc::new(AtomicBool::new(false)),
         })
     }
 
@@ -567,6 +580,8 @@ impl ReportingService {
         let connection = DatabaseConnection::new(client);
         let cancel_token = connection.cancel_token();
         let minimum = i64::from(self.config.min_volume_for_report);
+        let domain_limit = i64::try_from(MAX_REPORT_DOMAINS + 1)
+            .expect("report domain limit fits PostgreSQL bigint");
         let outcome = database_read(deadline, cancellation, &cancel_token, async {
             let dmarc_rows = connection
                 .client()
@@ -575,8 +590,9 @@ impl ReportingService {
                      FROM inbound_dmarc_log \
                      WHERE report_date = $1 AND header_from_domain IS NOT NULL \
                      GROUP BY header_from_domain \
-                     HAVING COALESCE(SUM(message_count), 0) >= $2",
-                    &[&report_date, &minimum],
+                     HAVING COALESCE(SUM(message_count), 0) >= $2 \
+                     LIMIT $3",
+                    &[&report_date, &minimum, &domain_limit],
                 )
                 .await
                 .map_err(database_error)?;
@@ -587,11 +603,14 @@ impl ReportingService {
                      FROM outbound_tls_log \
                      WHERE report_date = $1 AND recipient_domain IS NOT NULL \
                      GROUP BY recipient_domain \
-                     HAVING COALESCE(SUM(connection_count), 0) >= $2",
-                    &[&report_date, &minimum],
+                     HAVING COALESCE(SUM(connection_count), 0) >= $2 \
+                     LIMIT $3",
+                    &[&report_date, &minimum, &domain_limit],
                 )
                 .await
                 .map_err(database_error)?;
+            check_report_domain_count(dmarc_rows.len())?;
+            check_report_domain_count(tls_rows.len())?;
             Ok(ReportDomains {
                 dmarc: non_blank_domains(dmarc_rows),
                 tls: non_blank_domains(tls_rows),
@@ -599,6 +618,74 @@ impl ReportingService {
         })
         .await;
         connection.finish(outcome)
+    }
+
+    pub async fn generate_all(
+        &self,
+        report_date: NaiveDate,
+        our_domain: &str,
+        outbound: &OutboundService,
+        cancellation: &CancellationToken,
+    ) -> Result<ReportGenerationSummary, ReportingError> {
+        let Some(_guard) = ReportGenerationGuard::try_acquire(&self.generation_running) else {
+            return Ok(ReportGenerationSummary {
+                dmarc_sent: 0,
+                dmarc_failed: 0,
+                tls_sent: 0,
+                tls_failed: 0,
+                error: Some("Already running".into()),
+            });
+        };
+        let domains = match self.domains(report_date, cancellation).await {
+            Ok(domains) => domains,
+            Err(ReportingError::Cancelled) => return Err(ReportingError::Cancelled),
+            Err(error) => {
+                return Ok(ReportGenerationSummary {
+                    dmarc_sent: 0,
+                    dmarc_failed: 0,
+                    tls_sent: 0,
+                    tls_failed: 0,
+                    error: Some(error.to_string()),
+                });
+            }
+        };
+
+        let mut summary = ReportGenerationSummary {
+            dmarc_sent: 0,
+            dmarc_failed: 0,
+            tls_sent: 0,
+            tls_failed: 0,
+            error: None,
+        };
+        for domain in domains.dmarc {
+            match self
+                .generate_dmarc_for_domain(&domain, report_date, our_domain, outbound, cancellation)
+                .await
+            {
+                Ok(result) => count_deliveries(
+                    &result.results,
+                    &mut summary.dmarc_sent,
+                    &mut summary.dmarc_failed,
+                ),
+                Err(ReportingError::Cancelled) => return Err(ReportingError::Cancelled),
+                Err(_) => summary.dmarc_failed += 1,
+            }
+        }
+        for domain in domains.tls {
+            match self
+                .generate_tls_for_domain(&domain, report_date, our_domain, outbound, cancellation)
+                .await
+            {
+                Ok(result) => count_deliveries(
+                    &result.results,
+                    &mut summary.tls_sent,
+                    &mut summary.tls_failed,
+                ),
+                Err(ReportingError::Cancelled) => return Err(ReportingError::Cancelled),
+                Err(_) => summary.tls_failed += 1,
+            }
+        }
+        Ok(summary)
     }
 
     pub async fn domain_data_presence(
@@ -2362,9 +2449,10 @@ fn build_dns_resolver(server: Option<SocketAddr>) -> Result<TokioResolver, NetEr
     builder.options_mut().timeout = DNS_QUERY_TIMEOUT;
     builder.options_mut().max_active_requests = DNS_MAX_ACTIVE_REQUESTS;
     builder.options_mut().num_concurrent_reqs = 1;
-    // The frozen dnsjava oracle performs one explicit NXDOMAIN retry. Keep
-    // this reporting-only resolver uncached so that the retry reaches DNS.
-    builder.options_mut().cache_size = 0;
+    // Cache successful TXT lookups like dnsjava, but never retain NXDOMAIN:
+    // the frozen oracle performs one explicit negative-response retry.
+    builder.options_mut().cache_size = DNS_CACHE_RESPONSES;
+    builder.options_mut().negative_max_ttl = Some(Duration::ZERO);
     builder.build()
 }
 
@@ -2456,6 +2544,45 @@ fn non_blank_domains(rows: Vec<tokio_postgres::Row>) -> Vec<String> {
         .map(|row| row.get::<_, String>(0))
         .filter(|domain| !domain.trim().is_empty())
         .collect()
+}
+
+fn check_report_domain_count(count: usize) -> Result<(), ReportingError> {
+    if count > MAX_REPORT_DOMAINS {
+        Err(ReportingError::ResourceLimit)
+    } else {
+        Ok(())
+    }
+}
+
+fn count_deliveries(results: &[ReportDeliveryResult], sent: &mut i32, failed: &mut i32) {
+    for result in results {
+        if result.success {
+            *sent += 1;
+        } else {
+            *failed += 1;
+        }
+    }
+}
+
+struct ReportGenerationGuard {
+    running: Arc<AtomicBool>,
+}
+
+impl ReportGenerationGuard {
+    fn try_acquire(running: &Arc<AtomicBool>) -> Option<Self> {
+        running
+            .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
+            .ok()
+            .map(|_| Self {
+                running: Arc::clone(running),
+            })
+    }
+}
+
+impl Drop for ReportGenerationGuard {
+    fn drop(&mut self) {
+        self.running.store(false, Ordering::Release);
+    }
 }
 
 fn database_error(error: tokio_postgres::Error) -> ReportingError {
@@ -2573,17 +2700,86 @@ mod tests {
     };
 
     use flate2::read::GzDecoder;
+    use proptest::prelude::*;
     use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
     use super::*;
 
     const SEEDED_REPORT_GOLDEN: &str = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../blackbox/golden/java/managed-reports-v12/observations/http/reports/seeded-delivery.json"
+        "/../../blackbox/golden/java/managed-reports-v15/observations/http/reports/seeded-delivery.json"
     ));
 
     fn report_date() -> NaiveDate {
         NaiveDate::from_ymd_opt(2024, 1, 1).expect("fixture date is valid")
+    }
+
+    #[test]
+    fn report_generation_guard_rejects_overlap_and_releases_on_drop() {
+        let running = Arc::new(AtomicBool::new(false));
+        let first = ReportGenerationGuard::try_acquire(&running).expect("first run is admitted");
+        assert!(ReportGenerationGuard::try_acquire(&running).is_none());
+        drop(first);
+        assert!(ReportGenerationGuard::try_acquire(&running).is_some());
+    }
+
+    #[test]
+    fn report_generation_counts_each_delivery_result() {
+        let results = [
+            ReportDeliveryResult {
+                success: true,
+                method: "email",
+                target: "first@example.test".into(),
+                error: None,
+            },
+            ReportDeliveryResult {
+                success: false,
+                method: "https",
+                target: "https://reports.example.test/tls".into(),
+                error: Some("HTTP 503".into()),
+            },
+            ReportDeliveryResult {
+                success: true,
+                method: "email",
+                target: "second@example.test".into(),
+                error: None,
+            },
+        ];
+        let (mut sent, mut failed) = (0, 0);
+        count_deliveries(&results, &mut sent, &mut failed);
+        assert_eq!((sent, failed), (2, 1));
+    }
+
+    proptest! {
+        #[test]
+        fn report_delivery_counting_partitions_every_bounded_result_set(
+            successes in proptest::collection::vec(any::<bool>(), 0..=MAX_RUA_ADDRESSES),
+        ) {
+            let results: Vec<_> = successes
+                .iter()
+                .enumerate()
+                .map(|(index, success)| ReportDeliveryResult {
+                    success: *success,
+                    method: "email",
+                    target: format!("report-{index}@example.test"),
+                    error: (!success).then(|| "delivery failed".into()),
+                })
+                .collect();
+            let (mut sent, mut failed) = (0, 0);
+            count_deliveries(&results, &mut sent, &mut failed);
+            let expected_sent = successes.iter().filter(|success| **success).count();
+            prop_assert_eq!(sent as usize, expected_sent);
+            prop_assert_eq!(failed as usize, successes.len() - expected_sent);
+        }
+    }
+
+    #[test]
+    fn report_domain_selection_rejects_only_the_over_limit_sentinel() {
+        assert_eq!(check_report_domain_count(MAX_REPORT_DOMAINS), Ok(()));
+        assert_eq!(
+            check_report_domain_count(MAX_REPORT_DOMAINS + 1),
+            Err(ReportingError::ResourceLimit)
+        );
     }
 
     fn gunzip(bytes: &[u8]) -> String {
@@ -2597,7 +2793,7 @@ mod tests {
 
     fn seeded_attachment(kind: &str) -> serde_json::Value {
         let golden: serde_json::Value =
-            serde_json::from_str(SEEDED_REPORT_GOLDEN).expect("v12 report golden is valid JSON");
+            serde_json::from_str(SEEDED_REPORT_GOLDEN).expect("v15 report golden is valid JSON");
         golden["observation"]["maildir"]["messages"][kind]["attachment"].clone()
     }
 

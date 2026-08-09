@@ -1009,24 +1009,27 @@ async fn handle_connection(
                 )
                 .await;
             };
-            match reporting.domains(date, cancellation).await {
-                Ok(domains) if domains.dmarc.is_empty() && domains.tls.is_empty() => {
+            match reporting
+                .generate_all(date, &config.domain, outbound, cancellation)
+                .await
+            {
+                Ok(summary) => {
                     let date_text = date.to_string();
                     write_json_response(
                         stream,
                         Status::Ok,
                         &ReportExecutionSummary {
                             date: &date_text,
-                            dmarc_sent: 0,
-                            dmarc_failed: 0,
-                            tls_sent: 0,
-                            tls_failed: 0,
-                            error: "none",
+                            dmarc_sent: summary.dmarc_sent,
+                            dmarc_failed: summary.dmarc_failed,
+                            tls_sent: summary.tls_sent,
+                            tls_failed: summary.tls_failed,
+                            error: summary.error.as_deref().unwrap_or("none"),
                         },
                     )
                     .await
                 }
-                Ok(_) | Err(_) => {
+                Err(_) => {
                     write_json_error(stream, Status::InternalServerError, "internal_error").await
                 }
             }
