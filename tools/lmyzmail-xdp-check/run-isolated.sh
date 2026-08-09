@@ -6,7 +6,8 @@ CHECKER=${1:-"${SCRIPT_DIR}/target/x86_64-unknown-linux-gnu/debug/lmyzmail-xdp-c
 INTERFACE=lmyz-xdp0
 PEER_INTERFACE=lmyz-xdp1
 PEER_NAMESPACE=lmyz-xdp-peer
-PIN_PATH=/sys/fs/bpf/lmyzmail-xdp-check
+PIN_PATH=/sys/fs/bpf/lmyzmail
+LEGACY_PIN_PATH=/sys/fs/bpf/botmail
 
 if [[ ${EUID} -ne 0 ]]; then
     echo "run-isolated.sh must run as root" >&2
@@ -41,9 +42,10 @@ if mountpoint -q /sys/fs/bpf; then
     umount /sys/fs/bpf
 fi
 mount -t tmpfs -o mode=0700,size=1m tmpfs /sys/fs/bpf
-mkdir "${PIN_PATH}" "${PIN_PATH}.rollback"
+mkdir "${PIN_PATH}" "${PIN_PATH}.rollback" "${LEGACY_PIN_PATH}"
 mount -t bpf -o mode=0700 bpf "${PIN_PATH}"
 mount -t bpf -o mode=0700 bpf "${PIN_PATH}.rollback"
+mount -t bpf -o mode=0700 bpf "${LEGACY_PIN_PATH}"
 
 ip link set lo up
 ip netns add "${PEER_NAMESPACE}"

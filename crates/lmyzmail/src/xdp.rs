@@ -37,6 +37,8 @@ const MAX_BANNED_IPS_PER_FAMILY: usize = 100_000;
 const MAX_BANNED_IPS: usize = MAX_BANNED_IPS_PER_FAMILY * 2;
 const MAX_PER_IP_STATS: usize = 100_000;
 const XDP_LOCK_DIRECTORY: &str = "/run/lmyzmail";
+const DEFAULT_XDP_PIN_PATH: &str = "/sys/fs/bpf/lmyzmail";
+const LEGACY_XDP_PIN_PATH: &str = "/sys/fs/bpf/botmail";
 const EMBEDDED_BPF_OBJECT: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/xdp_firewall.bpf.o"));
 
 static NATIVE_OWNER: AtomicBool = AtomicBool::new(false);
@@ -745,14 +747,38 @@ impl NativeFirewall {
         }
         let interface_lock = acquire_interface_lock(interface_index)?;
         let pin_path = path_to_cstring(&config.pin_path)?;
+        let legacy_pin_path = if config.pin_path == Path::new(DEFAULT_XDP_PIN_PATH) {
+            Some(path_to_cstring(Path::new(LEGACY_XDP_PIN_PATH))?)
+        } else {
+            None
+        };
         let existing = ffi::attached_programs(interface_index)?;
         let recovery = match existing.as_slice() {
             [] => {
+                if let Some(legacy_pin_path) = &legacy_pin_path {
+                    ffi::adopt_legacy_pins(&pin_path, legacy_pin_path)?;
+                }
                 ffi::validate_pinned_maps(&pin_path, false)?;
                 None
             }
             [attachment] => {
-                if let Err(error) = ffi::validate_program(&pin_path, attachment.program_id) {
+                let validation = match ffi::validate_program(&pin_path, attachment.program_id) {
+                    Ok(()) => Ok(()),
+                    Err(primary_error) => match &legacy_pin_path {
+                        Some(legacy_pin_path)
+                            if ffi::validate_program(legacy_pin_path, attachment.program_id)
+                                .is_ok() =>
+                        {
+                            match ffi::adopt_legacy_pins(&pin_path, legacy_pin_path) {
+                                Ok(true) => ffi::validate_program(&pin_path, attachment.program_id),
+                                Ok(false) => Err(primary_error),
+                                Err(adoption_error) => Err(adoption_error),
+                            }
+                        }
+                        _ => Err(primary_error),
+                    },
+                };
+                if let Err(error) = validation {
                     return Err(XdpError::Native {
                         code: ffi::ERR_ALREADY,
                         message: format!(
@@ -1236,6 +1262,10 @@ mod ffi {
         fn lmyzmail_xdp_detach_owned(expected_program_id: u32) -> c_int;
         fn lmyzmail_xdp_validate_pinned_maps(pin_path: *const c_char, require_all: c_int) -> c_int;
         fn lmyzmail_xdp_validate_program(pin_path: *const c_char, program_id: u32) -> c_int;
+        fn lmyzmail_xdp_adopt_legacy_pins(
+            pin_path: *const c_char,
+            legacy_pin_path: *const c_char,
+        ) -> c_int;
         fn lmyzmail_xdp_stage_recovery_maps(pin_path: *const c_char, program_id: u32) -> c_int;
         fn lmyzmail_xdp_unstage_recovery_maps(pin_path: *const c_char, program_id: u32) -> c_int;
         fn xdp_fw_init(opts: *const XdpFwOpts) -> c_int;
@@ -1411,6 +1441,25 @@ mod ffi {
                 code,
                 message: "attached XDP program/map identity validation failed".into(),
             })
+        }
+    }
+
+    pub(super) fn adopt_legacy_pins(
+        pin_path: &CString,
+        legacy_pin_path: &CString,
+    ) -> Result<bool, XdpError> {
+        // SAFETY: both paths are NUL-terminated. The native helper opens only
+        // fixed persistent map names, validates their full ABI, and removes
+        // only aliases whose kernel map IDs match this adoption attempt.
+        let code =
+            unsafe { lmyzmail_xdp_adopt_legacy_pins(pin_path.as_ptr(), legacy_pin_path.as_ptr()) };
+        match code {
+            0 => Ok(false),
+            1 => Ok(true),
+            _ => Err(XdpError::Native {
+                code,
+                message: "failed to adopt legacy XDP map pins".into(),
+            }),
         }
     }
 

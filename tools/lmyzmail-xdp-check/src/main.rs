@@ -21,6 +21,8 @@ use tokio_util::sync::CancellationToken;
 
 const INTERFACE_DEFAULT: &str = "lmyz-xdp0";
 const PEER_NAMESPACE_DEFAULT: &str = "lmyz-xdp-peer";
+const PIN_PATH_DEFAULT: &str = "/sys/fs/bpf/lmyzmail";
+const LEGACY_PIN_PATH: &str = "/sys/fs/bpf/botmail";
 const IPV4_SOURCE: &str = "198.51.100.2";
 const IPV4_TARGET: &str = "198.51.100.1";
 const IPV6_SOURCE: &str = "2001:db8:1::2";
@@ -158,6 +160,7 @@ async fn main() {
     let mode = env::args().nth(1);
     let result = match mode.as_deref() {
         Some("--attach-and-exit") => attach_and_exit().await,
+        Some("--attach-legacy-and-exit") => attach_legacy_and_exit().await,
         Some("--expect-lock-conflict") => expect_lock_conflict().await,
         Some(mode) => Err(failure(format!("unknown checker mode: {mode}"))),
         None => run().await,
@@ -175,15 +178,21 @@ async fn run() -> CheckResult<()> {
         .unwrap_or_else(|_| PEER_NAMESPACE_DEFAULT.to_owned());
     let pin_path = env::var_os("LMYZMAIL_XDP_CHECK_PIN_PATH")
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/sys/fs/bpf/lmyzmail-xdp-check"));
+        .unwrap_or_else(|| PathBuf::from(PIN_PATH_DEFAULT));
+    let legacy_pin_path = Path::new(LEGACY_PIN_PATH);
 
-    verify_isolation(&interface, &peer_namespace, &pin_path).await?;
+    verify_isolation(&interface, &peer_namespace, &pin_path, legacy_pin_path).await?;
     let maps_before = map_ids()?;
     verify_failed_initialization_rolls_back(&interface, &pin_path).await?;
     verify_lock_symlink_is_rejected(&interface, &pin_path).await?;
     verify_incompatible_pin_is_rejected(&interface, &pin_path).await?;
     verify_initialization_cancellation(&interface, &pin_path).await?;
-    let refused_program_id = verify_foreign_program_is_not_replaced(&interface, &pin_path).await?;
+    verify_incompatible_legacy_pin_is_rejected(&interface, &pin_path, legacy_pin_path).await?;
+    verify_partial_legacy_pins_are_rejected(&interface, &pin_path, legacy_pin_path).await?;
+    let legacy_recovered_program_id =
+        verify_legacy_pin_takeover(&interface, &peer_namespace, &pin_path, legacy_pin_path).await?;
+    let refused_program_id =
+        verify_foreign_program_is_not_replaced(&interface, &pin_path, legacy_pin_path).await?;
     let recoverable_program_id = leave_recoverable_program(&interface).await?;
 
     let cancellation = CancellationToken::new();
@@ -346,6 +355,12 @@ async fn run() -> CheckResult<()> {
             "secondProgramId": second_program_id,
             "refusedExistingProgramId": refused_program_id,
             "recoveredProgramId": recoverable_program_id,
+            "legacyRecoveredProgramId": legacy_recovered_program_id,
+            "legacyPinsAdopted": true,
+            "legacyPinsRetained": true,
+            "legacyPartialStateRejected": true,
+            "legacyIncompatibleStateRejected": true,
+            "newPinsPrioritized": true,
             "incompatiblePinRejected": true,
             "lockSymlinkRejected": true,
             "attachGuardVerified": true,
@@ -407,6 +422,23 @@ async fn attach_and_exit() -> CheckResult<()> {
     std::process::exit(0);
 }
 
+async fn attach_legacy_and_exit() -> CheckResult<()> {
+    let (interface, _) = checker_config();
+    let pin_path = PathBuf::from(LEGACY_PIN_PATH);
+    verify_child_isolation(&interface, &pin_path)?;
+    let cancellation = CancellationToken::new();
+    let service = XdpService::from_config(&xdp_config(&interface, pin_path))?;
+    service.initialize(&cancellation).await;
+    require_ready(&service, "legacy crash-owner initialization")?;
+    require(
+        service.ban(IPV4_SOURCE, 73, &cancellation).await?,
+        "legacy crash-owner failed to persist the IPv4 ban",
+    )?;
+    println!("attached legacy program with a persisted ban for takeover");
+    std::mem::forget(service);
+    std::process::exit(0);
+}
+
 async fn expect_lock_conflict() -> CheckResult<()> {
     let (interface, pin_path) = checker_config();
     verify_child_isolation(&interface, &pin_path)?;
@@ -432,7 +464,7 @@ fn checker_config() -> (String, PathBuf) {
         env::var("LMYZMAIL_XDP_CHECK_INTERFACE").unwrap_or_else(|_| INTERFACE_DEFAULT.to_owned());
     let pin_path = env::var_os("LMYZMAIL_XDP_CHECK_PIN_PATH")
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/sys/fs/bpf/lmyzmail-xdp-check"));
+        .unwrap_or_else(|| PathBuf::from(PIN_PATH_DEFAULT));
     (interface, pin_path)
 }
 
@@ -455,7 +487,8 @@ fn verify_child_isolation(interface: &str, pin_path: &Path) -> CheckResult<()> {
         )?;
     }
     require(
-        interface == INTERFACE_DEFAULT && pin_path == Path::new("/sys/fs/bpf/lmyzmail-xdp-check"),
+        interface == INTERFACE_DEFAULT
+            && (pin_path == Path::new(PIN_PATH_DEFAULT) || pin_path == Path::new(LEGACY_PIN_PATH)),
         "child checker received a non-reserved interface or pin path",
     )
 }
@@ -464,6 +497,7 @@ async fn verify_isolation(
     interface: &str,
     peer_namespace: &str,
     pin_path: &Path,
+    legacy_pin_path: &Path,
 ) -> CheckResult<()> {
     require(
         env::var_os("LMYZMAIL_XDP_CHECK_ISOLATED").as_deref() == Some(std::ffi::OsStr::new("1")),
@@ -486,9 +520,11 @@ async fn verify_isolation(
     let mountinfo = fs::read_to_string("/proc/self/mountinfo")?;
     let pin_mount = format!(" {} ", pin_path.display());
     let rollback_mount = format!(" {}.rollback ", pin_path.display());
+    let legacy_mount = format!(" {} ", legacy_pin_path.display());
     for (mount_path, label) in [
         (pin_mount.as_str(), "primary"),
         (rollback_mount.as_str(), "rollback"),
+        (legacy_mount.as_str(), "legacy"),
     ] {
         require(
             mountinfo.lines().any(|line| {
@@ -526,14 +562,25 @@ async fn verify_isolation(
         "checker interface or peer namespace does not use the reserved isolated names",
     )?;
     require(
-        pin_path.starts_with("/sys/fs/bpf/") && !pin_path.starts_with("/sys/fs/bpf/botmail"),
-        format!("unsafe or legacy XDP pin path: {}", pin_path.display()),
+        pin_path == Path::new(PIN_PATH_DEFAULT) && legacy_pin_path == Path::new(LEGACY_PIN_PATH),
+        format!(
+            "checker received unsafe XDP pin paths: primary={}, legacy={}",
+            pin_path.display(),
+            legacy_pin_path.display()
+        ),
     )?;
     require(
         pin_path.is_dir() && fs::read_dir(pin_path)?.next().is_none(),
         format!(
             "XDP check pin path is absent or not empty: {}",
             pin_path.display()
+        ),
+    )?;
+    require(
+        legacy_pin_path.is_dir() && fs::read_dir(legacy_pin_path)?.next().is_none(),
+        format!(
+            "legacy XDP check pin path is absent or not empty: {}",
+            legacy_pin_path.display()
         ),
     )?;
     for tool in ["ip", "ping"] {
@@ -680,12 +727,152 @@ async fn verify_initialization_cancellation(interface: &str, pin_path: &Path) ->
         "cancelled XDP initialization retained guard ownership",
     )?;
     service.shutdown().await?;
+    drop(service);
+    remove_persistent_pins(pin_path)?;
+    require(
+        fs::read_dir(pin_path)?.next().is_none(),
+        "cancelled initialization fixture left pin state behind after cleanup",
+    )?;
     Ok(())
+}
+
+async fn verify_incompatible_legacy_pin_is_rejected(
+    interface: &str,
+    pin_path: &Path,
+    legacy_pin_path: &Path,
+) -> CheckResult<()> {
+    let incompatible = legacy_pin_path.join("blocked_ips");
+    let incompatible_c = CString::new(incompatible.as_os_str().as_bytes())
+        .map_err(|_| failure("legacy incompatible pin path contains NUL"))?;
+    // SAFETY: incompatible_c names one fixed file in the private legacy bpffs.
+    let code = unsafe { lmyz_xdp_create_incompatible_pin(incompatible_c.as_ptr()) };
+    require(
+        code == 0,
+        format!("failed to create incompatible legacy pin: {code}"),
+    )?;
+
+    let service = XdpService::from_config(&xdp_config(interface, pin_path.to_owned()))?;
+    service.initialize(&CancellationToken::new()).await;
+    require(
+        !service.ready(),
+        "incompatible legacy pinned map was adopted",
+    )?;
+    let error = service
+        .last_error()
+        .ok_or_else(|| failure("incompatible legacy pin rejection returned no error"))?;
+    require(
+        error.contains("failed to adopt legacy XDP map pins"),
+        format!("incompatible legacy pin rejection returned the wrong error: {error}"),
+    )?;
+    require(
+        attached_program_id(interface).await?.is_none(),
+        "incompatible legacy pin rejection attached an XDP program",
+    )?;
+    service.shutdown().await?;
+    fs::remove_file(&incompatible)?;
+    require(
+        fs::read_dir(pin_path)?.next().is_none() && fs::read_dir(legacy_pin_path)?.next().is_none(),
+        "incompatible legacy pin rejection left aliases behind",
+    )
+}
+
+async fn verify_partial_legacy_pins_are_rejected(
+    interface: &str,
+    pin_path: &Path,
+    legacy_pin_path: &Path,
+) -> CheckResult<()> {
+    let legacy = XdpService::from_config(&xdp_config(interface, legacy_pin_path.to_owned()))?;
+    legacy.initialize(&CancellationToken::new()).await;
+    require_ready(&legacy, "partial legacy-state setup")?;
+    legacy.shutdown().await?;
+    drop(legacy);
+    verify_pins_exist(legacy_pin_path)?;
+    fs::remove_file(legacy_pin_path.join("stats"))?;
+
+    let service = XdpService::from_config(&xdp_config(interface, pin_path.to_owned()))?;
+    service.initialize(&CancellationToken::new()).await;
+    require(!service.ready(), "partial legacy pin set was adopted")?;
+    let error = service
+        .last_error()
+        .ok_or_else(|| failure("partial legacy pin rejection returned no error"))?;
+    require(
+        error.contains("failed to adopt legacy XDP map pins"),
+        format!("partial legacy pin rejection returned the wrong error: {error}"),
+    )?;
+    require(
+        attached_program_id(interface).await?.is_none(),
+        "partial legacy pin rejection attached an XDP program",
+    )?;
+    service.shutdown().await?;
+    remove_persistent_pins(legacy_pin_path)?;
+    require(
+        fs::read_dir(pin_path)?.next().is_none() && fs::read_dir(legacy_pin_path)?.next().is_none(),
+        "partial legacy pin rejection left test state behind",
+    )
+}
+
+async fn verify_legacy_pin_takeover(
+    interface: &str,
+    peer_namespace: &str,
+    pin_path: &Path,
+    legacy_pin_path: &Path,
+) -> CheckResult<u64> {
+    let output = run_checker_mode("--attach-legacy-and-exit").await?;
+    require(
+        output.status.success(),
+        format!(
+            "legacy crash-owner probe failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ),
+    )?;
+    let legacy_program_id = attached_program_id(interface)
+        .await?
+        .ok_or_else(|| failure("legacy crash-owner probe left no attached XDP program"))?;
+    require(
+        fs::read_dir(pin_path)?.next().is_none(),
+        "legacy crash-owner unexpectedly created new-path aliases",
+    )?;
+    verify_pins_exist(legacy_pin_path)?;
+
+    let guard_before = attach_guard_counts();
+    let cancellation = CancellationToken::new();
+    let service = XdpService::from_config(&xdp_config(interface, pin_path.to_owned()))?;
+    service.initialize(&cancellation).await;
+    require_ready(&service, "legacy pin takeover")?;
+    require(
+        attached_program_id(interface).await? == Some(legacy_program_id),
+        "legacy pin takeover replaced the attached program",
+    )?;
+    verify_attach_guard_owned(legacy_program_id, guard_before, false)?;
+    validate_attached_program_map_abi(legacy_program_id, pin_path)?;
+    verify_pin_aliases(pin_path, legacy_pin_path)?;
+
+    let banned = service.all_banned(&cancellation).await?;
+    let expected_ban: IpAddr = IPV4_SOURCE.parse()?;
+    require(
+        banned == [expected_ban],
+        format!("legacy persisted ban was not visible after takeover: {banned:?}"),
+    )?;
+    verify_ping(peer_namespace, false, false).await?;
+    require(
+        service.unban(IPV4_SOURCE, &cancellation).await?,
+        "legacy persisted ban could not be removed after takeover",
+    )?;
+    verify_ping(peer_namespace, false, true).await?;
+    service.shutdown().await?;
+    verify_attach_guard_owned(legacy_program_id, guard_before, true)?;
+    require(
+        attached_program_id(interface).await?.is_none(),
+        "legacy takeover program remained attached after shutdown",
+    )?;
+    verify_pin_aliases(pin_path, legacy_pin_path)?;
+    Ok(legacy_program_id)
 }
 
 async fn verify_foreign_program_is_not_replaced(
     interface: &str,
     pin_path: &Path,
+    legacy_pin_path: &Path,
 ) -> CheckResult<u64> {
     let output = run_checker_mode("--attach-and-exit").await?;
     require(
@@ -698,6 +885,7 @@ async fn verify_foreign_program_is_not_replaced(
     let existing = attached_program_id(interface)
         .await?
         .ok_or_else(|| failure("crash-owner probe left no attached XDP program"))?;
+    verify_pin_aliases(pin_path, legacy_pin_path)?;
     fs::remove_file(pin_path.join("blocked_ips"))?;
 
     let service = XdpService::from_config(&xdp_config(interface, pin_path.to_owned()))?;
@@ -1024,6 +1212,35 @@ fn verify_pins_exist(pin_path: &Path) -> CheckResult<()> {
                     path.display()
                 )));
             }
+            Err(error) => return Err(error.into()),
+        }
+    }
+    Ok(())
+}
+
+fn verify_pin_aliases(pin_path: &Path, legacy_pin_path: &Path) -> CheckResult<()> {
+    verify_pins_exist(pin_path)?;
+    verify_pins_exist(legacy_pin_path)?;
+    for abi in MAP_ABI.iter().filter(|abi| abi.pinned) {
+        let current = map_info_by_pin(&pin_path.join(abi.name))?;
+        let legacy = map_info_by_pin(&legacy_pin_path.join(abi.name))?;
+        require(
+            current.id == legacy.id,
+            format!(
+                "new and legacy pins reference different maps for {}: {} != {}",
+                abi.name, current.id, legacy.id
+            ),
+        )?;
+    }
+    Ok(())
+}
+
+fn remove_persistent_pins(pin_path: &Path) -> CheckResult<()> {
+    for abi in MAP_ABI.iter().filter(|abi| abi.pinned) {
+        let path = pin_path.join(abi.name);
+        match fs::remove_file(&path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(error.into()),
         }
     }

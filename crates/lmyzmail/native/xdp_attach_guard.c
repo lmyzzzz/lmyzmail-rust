@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+#define _POSIX_C_SOURCE 200809L
+
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
 #include <errno.h>
@@ -11,6 +13,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 static _Atomic uint32_t expected_detach_program_id;
@@ -528,7 +531,7 @@ cleanup:
     return result;
 }
 
-static int recovery_map_path(char *path, size_t length,
+static int expected_map_path(char *path, size_t length,
                              const char *pin_path,
                              const struct expected_map *expected) {
     int written = snprintf(path, length, "%s/%s", pin_path, expected->name);
@@ -556,7 +559,7 @@ int lmyzmail_xdp_stage_recovery_maps(const char *pin_path,
         if (!expected->program_used || expected->pinned) {
             continue;
         }
-        result = recovery_map_path(path, sizeof(path), pin_path, expected);
+        result = expected_map_path(path, sizeof(path), pin_path, expected);
         if (result != 0) {
             goto cleanup;
         }
@@ -574,7 +577,7 @@ cleanup:
             const struct expected_map *expected = &expected_maps[index];
             char path[512];
             if (staged[index] != 0 &&
-                recovery_map_path(path, sizeof(path), pin_path, expected) == 0) {
+                expected_map_path(path, sizeof(path), pin_path, expected) == 0) {
                 unlink(path);
             }
         }
@@ -606,7 +609,7 @@ int lmyzmail_xdp_unstage_recovery_maps(const char *pin_path,
         if (!expected->program_used || expected->pinned) {
             continue;
         }
-        result = recovery_map_path(path, sizeof(path), pin_path, expected);
+        result = expected_map_path(path, sizeof(path), pin_path, expected);
         if (result != 0) {
             break;
         }
@@ -632,6 +635,170 @@ int lmyzmail_xdp_unstage_recovery_maps(const char *pin_path,
         if (unlink(path) != 0) {
             result = -errno;
             break;
+        }
+    }
+    close_map_fds(fds, count);
+    return result;
+}
+
+static int validate_pin_directory(const char *path) {
+    struct stat info;
+
+    if (lstat(path, &info) != 0) {
+        return -errno;
+    }
+    if (!S_ISDIR(info.st_mode) || info.st_uid != 0 ||
+        (info.st_mode & (S_IWGRP | S_IWOTH)) != 0) {
+        return -EPERM;
+    }
+    return 0;
+}
+
+static int remove_pin_if_same(const char *path, int expected_fd) {
+    struct bpf_map_info expected_info = {};
+    struct bpf_map_info pinned_info = {};
+    int pinned_fd;
+    int result;
+
+    result = map_info_by_fd(expected_fd, &expected_info);
+    if (result != 0) {
+        return result;
+    }
+    pinned_fd = bpf_obj_get(path);
+    if (pinned_fd < 0) {
+        return -errno;
+    }
+    result = map_info_by_fd(pinned_fd, &pinned_info);
+    close(pinned_fd);
+    if (result != 0) {
+        return result;
+    }
+    if (pinned_info.id != expected_info.id) {
+        return -ESTALE;
+    }
+    return unlink(path) == 0 ? 0 : -errno;
+}
+
+int lmyzmail_xdp_adopt_legacy_pins(const char *pin_path,
+                                   const char *legacy_pin_path) {
+    size_t count = sizeof(expected_maps) / sizeof(expected_maps[0]);
+    int fds[sizeof(expected_maps) / sizeof(expected_maps[0])];
+    int staged[sizeof(expected_maps) / sizeof(expected_maps[0])] = {};
+    size_t legacy_count = 0;
+    int result = 0;
+
+    if (pin_path == NULL || legacy_pin_path == NULL ||
+        strcmp(pin_path, legacy_pin_path) == 0) {
+        return -EINVAL;
+    }
+    for (size_t index = 0; index < count; index++) {
+        fds[index] = -1;
+    }
+    for (size_t index = 0; index < count; index++) {
+        const struct expected_map *expected = &expected_maps[index];
+        char path[512];
+        int fd;
+
+        if (!expected->pinned) {
+            continue;
+        }
+        result = expected_map_path(path, sizeof(path), pin_path, expected);
+        if (result != 0) {
+            goto cleanup;
+        }
+        fd = bpf_obj_get(path);
+        if (fd >= 0) {
+            close(fd);
+            result = 0;
+            goto cleanup;
+        }
+        if (errno != ENOENT) {
+            result = -errno;
+            goto cleanup;
+        }
+    }
+    result = validate_pin_directory(legacy_pin_path);
+    if (result == -ENOENT) {
+        result = 0;
+        goto cleanup;
+    }
+    if (result != 0) {
+        goto cleanup;
+    }
+    for (size_t index = 0; index < count; index++) {
+        const struct expected_map *expected = &expected_maps[index];
+        struct bpf_map_info info = {};
+        char path[512];
+
+        if (!expected->pinned) {
+            continue;
+        }
+        result = expected_map_path(path, sizeof(path), legacy_pin_path,
+                                   expected);
+        if (result != 0) {
+            goto cleanup;
+        }
+        fds[index] = bpf_obj_get(path);
+        if (fds[index] < 0) {
+            if (errno == ENOENT) {
+                continue;
+            }
+            result = -errno;
+            goto cleanup;
+        }
+        legacy_count++;
+        result = map_info_by_fd(fds[index], &info);
+        if (result != 0 || !map_info_matches(&info, expected)) {
+            result = result != 0 ? result : -EINVAL;
+            goto cleanup;
+        }
+    }
+    if (legacy_count == 0) {
+        result = 0;
+        goto cleanup;
+    }
+    for (size_t index = 0; index < count; index++) {
+        if (expected_maps[index].pinned && fds[index] < 0) {
+            result = -ENOENT;
+            goto cleanup;
+        }
+    }
+    if (mkdir(pin_path, 0755) != 0 && errno != EEXIST) {
+        result = -errno;
+        goto cleanup;
+    }
+    result = validate_pin_directory(pin_path);
+    if (result != 0) {
+        goto cleanup;
+    }
+    for (size_t index = 0; index < count; index++) {
+        const struct expected_map *expected = &expected_maps[index];
+        char path[512];
+
+        if (!expected->pinned) {
+            continue;
+        }
+        result = expected_map_path(path, sizeof(path), pin_path, expected);
+        if (result != 0) {
+            goto cleanup;
+        }
+        if (bpf_obj_pin(fds[index], path) != 0) {
+            result = -errno;
+            goto cleanup;
+        }
+        staged[index] = 1;
+    }
+    result = 1;
+
+cleanup:
+    if (result < 0) {
+        for (size_t index = 0; index < count; index++) {
+            const struct expected_map *expected = &expected_maps[index];
+            char path[512];
+            if (staged[index] != 0 &&
+                expected_map_path(path, sizeof(path), pin_path, expected) == 0) {
+                remove_pin_if_same(path, fds[index]);
+            }
         }
     }
     close_map_fds(fds, count);

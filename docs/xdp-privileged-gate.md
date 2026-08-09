@@ -5,8 +5,9 @@ workspace. It is a Linux x86_64 acceptance tool, not part of the lmyzmail
 runtime or release binary.
 
 The runner refuses to operate unless it is root and has entered private mount
-and network namespaces. It mounts fresh bpffs instances at the final test pin
-paths, creates a veth pair
+and network namespaces. It mounts fresh bpffs instances at the production
+`/sys/fs/bpf/lmyzmail` path, the legacy `/sys/fs/bpf/botmail` path, and the
+rollback fixture path, then creates a veth pair
 with the peer in a nested network namespace backed by a private `/run/netns`
 tmpfs, and uses only the reserved
 `lmyz-xdp0`, `lmyz-xdp1`, and `lmyz-xdp-peer` names. This prevents the gate from
@@ -24,6 +25,11 @@ sudo tools/lmyzmail-xdp-check/run-isolated.sh \
 The gate checks:
 
 - failed initialization releases the Rust/native singleton and leaves no pin;
+- incompatible and partial legacy pin sets are rejected before attach;
+- a crash-owned program, persistent ban, and all five maps under the legacy
+  path are adopted through same-map-ID aliases under the new default path;
+- legacy aliases remain present for rollback, while any existing new-path pin
+  prevents fallback to legacy state;
 - a pre-existing XDP program is rejected without replacement;
 - an incompatible pinned map ABI is rejected before attach;
 - a concurrent lmyzmail process cannot acquire the netns/interface lock;
@@ -66,3 +72,24 @@ to the recovery program's map ID before unlink, and the checker rejects any
 residual pin. This keeps the frozen C/eBPF source and normal five-pin ABI
 unchanged while ensuring traffic and userspace statistics refer to the same
 maps after a process crash.
+
+## Legacy pin takeover
+
+Legacy takeover is attempted only when the configured pin path is exactly the
+new default `/sys/fs/bpf/lmyzmail`. Custom paths and an explicitly configured
+legacy path do not trigger it. If any persistent new-path pin exists, that
+state has priority and no legacy alias is created.
+
+When the new path has no persistent pins, the native guard requires the legacy
+directory to be a real root-owned directory with no group or world write bit.
+All five legacy maps must exist and match the complete frozen ABI. For crash
+recovery, Rust additionally proves that those exact map IDs belong to the
+already attached program before adoption. The guard then pins the same kernel
+map file descriptors under the new names, validates the new directory with the
+same ownership and mode rules, and Rust repeats full program/map identity
+validation through the new aliases.
+
+Adoption never unlinks `/sys/fs/bpf/botmail`, so a rollback can continue to use
+the old pins. A failed partial adoption removes only new aliases whose kernel
+map IDs match the current attempt; it never removes a pre-existing or replaced
+object.
