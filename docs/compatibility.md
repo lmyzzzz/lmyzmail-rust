@@ -183,6 +183,15 @@ temporary or durable delivery state, and a fresh session can deliver normally.
 The companion v31 evidence profile remains Java-only for the oracle's
 terminator-tail command loss and coalesced prerequisite-state stall.
 
+## SMTP MIME contract
+
+The Rust candidate matches the v31 MIME profile for multipart DATA and BDAT
+delivery, base64 attachment decoding, `From`/`To` index materialization, exact
+Maildir publication, and Redis mail-count updates. It intentionally preserves
+the frozen first-body-part indexing rule: when a multipart message puts a text
+body before its attachment, `email_index.has_attachments` remains `false` even
+though the stored message contains the attachment.
+
 ## SMTP command contract
 
 The Rust candidate matches the v32 command profile byte for byte across utility

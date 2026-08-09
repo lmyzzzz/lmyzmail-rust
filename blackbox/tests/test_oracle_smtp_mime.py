@@ -1,10 +1,25 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 import pytest
 
 from lmyzmail_blackbox.differential import DifferentialRunner
-from lmyzmail_blackbox.runtime import JavaOracleRuntime
+from lmyzmail_blackbox.runtime import CandidateRuntime, JavaOracleRuntime
 from lmyzmail_blackbox.smtp_mime_contract import SMTP_MIME_SCENARIOS
+
+
+def _candidate(repository: Path) -> CandidateRuntime:
+    if os.environ.get("LMYZMAIL_CANDIDATE_COMMAND_JSON") is not None:
+        return CandidateRuntime.from_environment()
+    return CandidateRuntime(
+        command_template=(
+            str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+            "--config",
+            "{config}",
+        )
+    )
 
 
 @pytest.mark.integration
@@ -14,7 +29,7 @@ def test_managed_java_smtp_mime_goldens(record_java_golden: bool) -> None:
     paths = JavaOracleRuntime().paths
     differential = DifferentialRunner(
         paths.repository,
-        paths.repository / "blackbox/golden/java/managed-smtp-mime-v30",
+        paths.repository / "blackbox/golden/java/managed-smtp-mime-v31",
         "managed-smtp-mime",
         record_java=record_java_golden,
     )
@@ -24,3 +39,17 @@ def test_managed_java_smtp_mime_goldens(record_java_golden: bool) -> None:
             differential.record_from_java(SMTP_MIME_SCENARIOS, oracle)
         else:
             differential.verify_java(SMTP_MIME_SCENARIOS, oracle)
+
+
+@pytest.mark.integration
+@pytest.mark.candidate
+@pytest.mark.timeout(240)
+def test_rust_candidate_smtp_mime_matches_frozen_java_golden() -> None:
+    repository = Path(__file__).resolve().parents[2]
+    differential = DifferentialRunner(
+        repository,
+        repository / "blackbox/golden/java/managed-smtp-mime-v31",
+        "managed-smtp-mime",
+    )
+    with _candidate(repository) as candidate:
+        differential.verify_candidate(SMTP_MIME_SCENARIOS, candidate)
