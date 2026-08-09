@@ -310,6 +310,7 @@ pub struct CringeIp {
     pub ip_address: String,
     pub total_score: i32,
     pub current_score: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub last_decay_at: Option<String>,
     pub activity_count: i32,
     pub first_seen_at: String,
@@ -336,11 +337,17 @@ pub struct CringeActivity {
     pub activity_type: String,
     pub score: i32,
     pub timestamp: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub mail_from: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub rcpt_to: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub helo_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub response_message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<String>,
 }
 
@@ -592,8 +599,45 @@ mod tests {
             .expect("page must serialize");
         assert_eq!(
             json,
-            r#"{"content":[{"id":7,"ipAddress":"203.0.113.77","activityType":"SELF_SPOOFING","score":10,"timestamp":"2024-01-02T03:04:05.123456Z","mailFrom":"from@example.test","rcptTo":null,"heloName":null,"sessionId":"session-1","responseMessage":"insult","metadata":null}],"pageable":{"pageNumber":0,"pageSize":50,"sort":{"sorted":false,"empty":true,"unsorted":true},"offset":0,"paged":true,"unpaged":false},"last":true,"totalElements":1,"totalPages":1,"first":true,"size":50,"number":0,"sort":{"sorted":false,"empty":true,"unsorted":true},"numberOfElements":1,"empty":false}"#
+            r#"{"content":[{"id":7,"ipAddress":"203.0.113.77","activityType":"SELF_SPOOFING","score":10,"timestamp":"2024-01-02T03:04:05.123456Z","mailFrom":"from@example.test","sessionId":"session-1","responseMessage":"insult"}],"pageable":{"pageNumber":0,"pageSize":50,"sort":{"sorted":false,"empty":true,"unsorted":true},"offset":0,"paged":true,"unpaged":false},"last":true,"totalElements":1,"totalPages":1,"first":true,"size":50,"number":0,"sort":{"sorted":false,"empty":true,"unsorted":true},"numberOfElements":1,"empty":false}"#
         );
+    }
+
+    #[test]
+    fn optional_cringe_fields_match_jackson_non_null_serialization() {
+        let activity_json = serde_json::to_value(CringeActivity {
+            response_message: Some(String::new()),
+            ..activity(8)
+        })
+        .expect("activity must serialize");
+        assert_eq!(activity_json["responseMessage"], "");
+        assert!(activity_json.get("rcptTo").is_none());
+        assert!(activity_json.get("heloName").is_none());
+        assert!(activity_json.get("metadata").is_none());
+
+        let ip_json = serde_json::to_value(CringeIp {
+            ip_address: "198.51.100.9".to_owned(),
+            total_score: 5,
+            current_score: 19,
+            last_decay_at: None,
+            activity_count: 1,
+            first_seen_at: "2024-01-01T12:00:00Z".to_owned(),
+            last_seen_at: "2024-01-04T00:00:00Z".to_owned(),
+            self_spoofing_count: 1,
+            open_relay_count: 0,
+            auth_probe_count: 0,
+            illegal_domain_count: 0,
+            spamhaus_count: 0,
+            http_on_smtp_count: 0,
+            ssh_on_smtp_count: 0,
+            http_port_scanning_count: 0,
+            honeypot_hit_count: 0,
+            ssh_bruteforce_count: 0,
+            other_count: 0,
+            protocol_mismatch_count: 0,
+        })
+        .expect("IP must serialize");
+        assert!(ip_json.get("lastDecayAt").is_none());
     }
 
     #[test]

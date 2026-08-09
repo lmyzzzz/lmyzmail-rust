@@ -81,6 +81,9 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "userdata-contact-admission-race",
         "userdata-contact-list-bound",
         "auth-postgres-cancellation-and-pool-health",
+        "cringe-pagination-input-validation",
+        "cringe-score-query-row-cap",
+        "cringe-postgres-cancellation-and-pool-health",
         "htcpcp-connection-close-lifecycle",
         "htcpcp-absolute-request-deadline",
         "htcpcp-ambiguous-http-framing",
@@ -96,6 +99,7 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "minecraft-sessionserver-response-validation",
         "minecraft-strict-compression-envelope",
         "minecraft-logout-flush-before-close",
+        "minecraft-map-video-permit-lifetime",
     }
     starttls = next(
         entry
@@ -156,6 +160,15 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
     assert auth_cancellation["evidence"]["session_source_sha256"] == (
         "a68edfb3beab48e8b43fa8951f56cf266d43540aa6fe13d3dd4b9df6b24e49b8"
     )
+    assert by_id["cringe-pagination-input-validation"]["evidence"][
+        "controller_source_sha256"
+    ] == "59fa65284de9f2820956aed0bc5fe19b69114d21951962986b867822302ad621"
+    assert by_id["cringe-score-query-row-cap"]["evidence"][
+        "repository_source_sha256"
+    ] == "0922f48caf76cff11474d7882952e21df10351881a4cbf5f446fe26af7210e01"
+    assert by_id["cringe-postgres-cancellation-and-pool-health"]["evidence"][
+        "service_source_sha256"
+    ] == "392c021dcc834005d6e08188d1aed03ca68399ceb665755c4f445ddd19644675"
     assert (
         by_id["minecraft-absolute-connection-deadline"]["evidence"]["source_sha256"]
         == "fed5b8de13b875d549a6cf706cb9def4422b7fd3b09eabfa7b7d6017e4c52a52"
