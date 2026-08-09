@@ -1,20 +1,46 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
 import pytest
 
 from lmyzmail_blackbox.differential import DifferentialRunner
-from lmyzmail_blackbox.errors import HarnessError
-from lmyzmail_blackbox.report_contract import REPORT_SCENARIOS
+from lmyzmail_blackbox.report_contract import REPORT_SCENARIOS, report_dns_server
 from lmyzmail_blackbox.runtime import CandidateRuntime
+from lmyzmail_blackbox.scripted_dns import DnsQuery, ScriptedDnsServer
 
 
 class _LegacyReportsCandidateRuntime(CandidateRuntime):
+    def __init__(
+        self,
+        *,
+        command_template: tuple[str, ...],
+        dns: ScriptedDnsServer,
+    ) -> None:
+        super().__init__(command_template=command_template)
+        self.report_dns = dns
+
     @property
     def requires_qa_account(self) -> bool:
         return False
+
+    def _candidate_configuration(self) -> Path:
+        path = super()._candidate_configuration()
+        value = json.loads(path.read_text(encoding="utf-8"))
+        value["reporting"] = {
+            "enabled": True,
+            "dns_server": f"{self.report_dns.host}:{self.report_dns.port}",
+        }
+        path.write_text(
+            json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return path
+
+    def drain_report_dns_queries(self) -> tuple[DnsQuery, ...]:
+        return self.report_dns.drain_queries()
 
     def _start_postgres(self) -> None:
         super()._start_postgres()
@@ -37,23 +63,27 @@ class _LegacyReportsCandidateRuntime(CandidateRuntime):
         )
 
 
-def _candidate(repository: Path) -> _LegacyReportsCandidateRuntime:
+def _candidate(
+    repository: Path,
+    dns: ScriptedDnsServer,
+) -> _LegacyReportsCandidateRuntime:
     if os.environ.get("LMYZMAIL_CANDIDATE_COMMAND_JSON") is not None:
-        candidate = _LegacyReportsCandidateRuntime.from_environment()
-        if not isinstance(candidate, _LegacyReportsCandidateRuntime):
-            raise HarnessError("reports candidate runtime type was not preserved")
-        candidate.command_template = (
-            *candidate.command_template,
-            "--lmyzmail.reporting.enabled=true",
+        configured = CandidateRuntime.from_environment()
+        return _LegacyReportsCandidateRuntime(
+            dns=dns,
+            command_template=(
+                *configured.command_template,
+                "--lmyzmail.reporting.enabled=true",
+            ),
         )
-        return candidate
     return _LegacyReportsCandidateRuntime(
+        dns=dns,
         command_template=(
             str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
             "--config",
             "{config}",
             "--lmyzmail.reporting.enabled=true",
-        )
+        ),
     )
 
 
@@ -62,9 +92,10 @@ def _candidate(repository: Path) -> _LegacyReportsCandidateRuntime:
 @pytest.mark.timeout(240)
 def test_rust_candidate_reports_match_frozen_java_golden() -> None:
     repository = Path(__file__).resolve().parents[2]
-    with _candidate(repository) as candidate:
-        DifferentialRunner(
-            repository,
-            repository / "blackbox/golden/java/managed-reports-v1",
-            "managed-reports",
-        ).verify_candidate(REPORT_SCENARIOS, candidate)
+    with report_dns_server() as dns:
+        with _candidate(repository, dns) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java/managed-reports-v6",
+                "managed-reports",
+            ).verify_candidate(REPORT_SCENARIOS, candidate)

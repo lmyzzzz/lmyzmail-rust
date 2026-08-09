@@ -188,10 +188,10 @@ pub async fn serve_http(
     let mailbox = Arc::new(MailboxService::from_config(&config, database_pool.clone()));
     let userdata = Arc::new(UserDataService::new(database_pool.clone()));
     let cringe_pool = database_pool.clone();
-    let reporting = Arc::new(ReportingService::new(
-        database_pool.clone(),
-        config.reporting.clone(),
-    ));
+    let reporting = Arc::new(
+        ReportingService::new(database_pool.clone(), config.reporting.clone())
+            .map_err(io::Error::other)?,
+    );
     let outbound = Arc::new(
         OutboundService::from_config(&config, database_pool, redis_pool)
             .map_err(io::Error::other)?,
@@ -940,6 +940,31 @@ async fn handle_connection(
                 },
             )
             .await
+        }
+        ParsedRequest::ReportAddresses(domain) => {
+            match reporting.addresses(&domain, cancellation).await {
+                Ok(addresses) => {
+                    write_json_response(
+                        stream,
+                        Status::Ok,
+                        &ReportAddressesResponse {
+                            domain: &domain,
+                            dmarc: ReportAddressListResponse {
+                                mailto: &addresses.dmarc.mailto,
+                                https: &addresses.dmarc.https,
+                            },
+                            tlsrpt: ReportAddressListResponse {
+                                mailto: &addresses.tlsrpt.mailto,
+                                https: &addresses.tlsrpt.https,
+                            },
+                        },
+                    )
+                    .await
+                }
+                Err(_) => {
+                    write_json_error(stream, Status::InternalServerError, "internal_error").await
+                }
+            }
         }
         ParsedRequest::ReportDomains(date) => {
             let Some(date) = report_date(date.as_deref()) else {
@@ -2029,6 +2054,11 @@ fn report_domain_path(path: &str) -> Option<&str> {
     (!domain.is_empty() && !domain.contains('/')).then_some(domain)
 }
 
+fn report_addresses_path(path: &str) -> Option<&str> {
+    let domain = path.strip_prefix("/api/reports/addresses/")?;
+    (!domain.is_empty() && !domain.contains('/')).then_some(domain)
+}
+
 fn report_date(value: Option<&str>) -> Option<NaiveDate> {
     match value {
         None => Utc::now().date_naive().pred_opt(),
@@ -2261,6 +2291,7 @@ enum ParsedRequest {
     ApiQuota(String),
     ApiQuotaMissing,
     ReportStatus,
+    ReportAddresses(String),
     ReportDomains(Option<String>),
     ReportTrigger(Option<String>),
     ReportDomain {
@@ -2474,6 +2505,19 @@ fn parse_request(
             ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
             ApiPermission::Granted => ParsedRequest::ReportStatus,
         },
+        ("GET", routing) if report_addresses_path(routing).is_some() => {
+            match api_permission(config, api_key, false) {
+                ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+                ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
+                ApiPermission::Granted => {
+                    let encoded = report_addresses_path(routing).unwrap_or_default();
+                    percent_decode_str(encoded)
+                        .decode_utf8()
+                        .map(|domain| ParsedRequest::ReportAddresses(domain.into_owned()))
+                        .unwrap_or(ParsedRequest::BadRequest)
+                }
+            }
+        }
         ("GET", "/api/reports/domains") => match api_permission(config, api_key, false) {
             ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
             ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
@@ -2747,6 +2791,19 @@ struct ReportDomainsResponse<'a> {
     min_volume: i32,
     dmarc_domains: &'a [String],
     tls_domains: &'a [String],
+}
+
+#[derive(Serialize)]
+struct ReportAddressListResponse<'a> {
+    mailto: &'a [String],
+    https: &'a [String],
+}
+
+#[derive(Serialize)]
+struct ReportAddressesResponse<'a> {
+    domain: &'a str,
+    dmarc: ReportAddressListResponse<'a>,
+    tlsrpt: ReportAddressListResponse<'a>,
 }
 
 #[derive(Serialize)]
@@ -4118,6 +4175,22 @@ lmyzmail.public-registration-enabled=true\n",
         assert_eq!(
             parse_request(
                 b"GET /api/reports/status HTTP/1.1\r\nX-API-Key: write-key\r\n\r\n",
+                1024,
+                &config,
+            ),
+            ParsedRequest::ForbiddenRead
+        );
+        assert_eq!(
+            parse_request(
+                b"GET /api/reports/addresses/MiXeD%2EExample HTTP/1.1\r\nX-API-Key: read-key\r\n\r\n",
+                1024,
+                &config,
+            ),
+            ParsedRequest::ReportAddresses("MiXeD.Example".to_owned())
+        );
+        assert_eq!(
+            parse_request(
+                b"GET /api/reports/addresses/mixed.example HTTP/1.1\r\nX-API-Key: write-key\r\n\r\n",
                 1024,
                 &config,
             ),

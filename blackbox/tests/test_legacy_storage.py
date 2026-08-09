@@ -75,6 +75,7 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "outbound-smtp-commit-ambiguity-no-retry",
         "outbound-null-mx-rejection",
         "outbound-route-dns-answer-budgets",
+        "reporting-dns-input-and-answer-budgets",
         "mta-sts-negative-cache-restart",
         "outbound-http-redis-outage-deadline",
         "userdata-malformed-write-rejection",
@@ -138,6 +139,9 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         by_id["outbound-route-dns-answer-budgets"]["evidence"]["network_source_sha256"]
         == "1a46e5938bdfdc4b0f7cd6d8e2377ea157b7181768a392c954e037f04442e063"
     )
+    assert by_id["reporting-dns-input-and-answer-budgets"]["evidence"][
+        "source_sha256"
+    ] == "5430c390a10dcd642ae8b6414c0bb448e05582b48b5c0805ab47677fdfeb2fad"
     assert by_id["mta-sts-negative-cache-restart"]["evidence"]["source_sha256"] == (
         "31f8a4d250152c4626bea26f6a5e3fea6f3359fc5ac42daaa205b55a46200d46"
     )

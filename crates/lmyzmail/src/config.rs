@@ -3,7 +3,7 @@ use std::{
     fmt,
     fs::File,
     io::{self, Read},
-    net::IpAddr,
+    net::{IpAddr, SocketAddr},
     path::{Path, PathBuf},
     str,
 };
@@ -331,6 +331,7 @@ struct JsonReportingConfig {
     organization_email: Option<String>,
     http_delivery_enabled: Option<bool>,
     http_delivery_timeout_seconds: u64,
+    dns_server: Option<String>,
 }
 
 impl Default for JsonReportingConfig {
@@ -350,6 +351,7 @@ impl Default for JsonReportingConfig {
             organization_email: None,
             http_delivery_enabled: None,
             http_delivery_timeout_seconds: 30,
+            dns_server: None,
         }
     }
 }
@@ -1326,6 +1328,11 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         "lmyzmail.reporting.organization-email",
         value.reporting.organization_email,
     )?;
+    insert_optional_property(
+        &mut properties,
+        "lmyzmail.reporting.dns-server",
+        value.reporting.dns_server.map(|value| value.to_string()),
+    )?;
     properties.insert(
         "lmyzmail.reporting.http-delivery-timeout-seconds".to_owned(),
         value.reporting.http_delivery_timeout_seconds.to_string(),
@@ -1617,6 +1624,7 @@ pub struct ReportingConfig {
     pub organization_email: Option<String>,
     pub http_delivery_enabled: bool,
     pub http_delivery_timeout_seconds: u64,
+    pub dns_server: Option<SocketAddr>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -2087,6 +2095,20 @@ impl RuntimeConfig {
                 30_u64,
                 "reporting HTTP delivery timeout",
             )?,
+            dns_server: preferred(
+                &properties,
+                &["lmyzmail.reporting.dns-server"],
+                &["botmail.reporting.dns-server", "dns.server"],
+            )
+            .filter(|value| !value.trim().is_empty())
+            .map(|value| {
+                value.parse::<SocketAddr>().map_err(|_| {
+                    ConfigError::Invalid(
+                        "reporting DNS server must be a numeric IP:port socket address".into(),
+                    )
+                })
+            })
+            .transpose()?,
         };
         validate_reporting(&reporting)?;
 
@@ -3931,6 +3953,8 @@ botmail.reporting.organization-name=Legacy Org\n\
 botmail.reporting.organization-email=legacy@example.test\n\
 botmail.reporting.http-delivery-enabled=true\n\
 botmail.reporting.http-delivery-timeout-seconds=45\n\
+dns.server=127.0.0.1:5353\n\
+botmail.reporting.dns-server=127.0.0.1:5354\n\
 lmyzmail.reporting.enabled=true\n\
 lmyzmail.reporting.dmarc-report-sender-address=\n\
 lmyzmail.reporting.min-volume-for-report=10\n\
@@ -3964,6 +3988,24 @@ lmyzmail.reporting.http-delivery-enabled=false\n",
         );
         assert!(!config.reporting.http_delivery_enabled);
         assert_eq!(config.reporting.http_delivery_timeout_seconds, 45);
+        assert_eq!(
+            config.reporting.dns_server,
+            Some("127.0.0.1:5354".parse().unwrap())
+        );
+
+        let new_dns_wins = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"dns.server=127.0.0.1:5353\n\
+botmail.reporting.dns-server=127.0.0.1:5354\n\
+lmyzmail.reporting.dns-server=127.0.0.1:5355\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            new_dns_wins.reporting.dns_server,
+            Some("127.0.0.1:5355".parse().unwrap())
+        );
 
         for input in [
             b"lmyzmail.reporting.batch-size=0\n".as_slice(),
@@ -3973,6 +4015,7 @@ lmyzmail.reporting.http-delivery-enabled=false\n",
             b"lmyzmail.reporting.retention-days=36501\n".as_slice(),
             b"lmyzmail.reporting.http-delivery-timeout-seconds=0\n".as_slice(),
             b"lmyzmail.reporting.http-delivery-timeout-seconds=301\n".as_slice(),
+            b"lmyzmail.reporting.dns-server=dns.example.test:53\n".as_slice(),
         ] {
             assert!(
                 RuntimeConfig::from_properties(Properties::parse(input).unwrap()).is_err(),

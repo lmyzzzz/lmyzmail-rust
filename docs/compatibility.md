@@ -64,6 +64,11 @@ wire, state, storage, or recovery assertions.
 - MX, address, MTA-STS TXT, policy-pattern, and policy-body processing have the
   exact hard ceilings recorded in the allowlist rather than the oracle's
   unbounded DNS fanout.
+- Report-address discovery has one absolute deadline, process-wide DNS
+  admission, per-query TXT record and byte ceilings, and bounded ASCII domain
+  normalization. The frozen RUA limit of 10 and every in-budget query, TXT,
+  authorization, ordering, and HTTP behavior remain exact compatibility
+  requirements.
 - A live legacy MTA-STS NONE value is reusable only for its remaining Redis TTL,
   capped at five minutes. This repairs the oracle's restart-only negative-cache
   expiry bug without changing bytes, keys, or post-expiry discovery.

@@ -931,7 +931,7 @@ generations without rewriting them:
   unit tests changed the attested definition tree, so it remains immutable
   historical provenance.
 
-The active report-management API set is:
+The first complete deterministic-DNS report-management set is retained as:
 
 - `managed-reports-v5/`
 
@@ -944,6 +944,19 @@ authorization, one authorization query per destination domain, the combined
 10-address limit, and dnsjava's two NXDOMAIN attempts. Recording and immediate
 verification used two separate Java, PostgreSQL, Redis, Maildir, and DNS
 workspaces; a third fresh workspace replayed the generation independently.
+
+The active report-management API set is:
+
+- `managed-reports-v6/`
+
+It preserves the same six strict observations and advances the definition tree
+to `2754faf562fd02b0f2017d4d429f9656de955635238bf656208c84caf5089212`
+after the report DNS input, answer-budget, deadline, and admission difference
+was added to the authoritative security allowlist and its structural test.
+Recording and immediate verification used two fresh Java, PostgreSQL, Redis,
+Maildir, and DNS workspaces. A third fresh Java workspace replayed v6 without
+record mode, and the Linux x86_64 Rust release matched it in a separate
+candidate workspace.
 
 The post-recording Rust candidate driver remains in `blackbox/tools` so it does
 not invalidate create-once generations. Advance it to the active generation

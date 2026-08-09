@@ -72,7 +72,7 @@ def test_frozen_java_reports_golden(
     repository = Path(__file__).resolve().parents[2]
     runner = DifferentialRunner(
         repository,
-        repository / "blackbox/golden/java/managed-reports-v5",
+        repository / "blackbox/golden/java/managed-reports-v6",
         "managed-reports",
         record_java=record_java_golden,
     )

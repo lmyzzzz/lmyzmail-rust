@@ -116,6 +116,8 @@ lmyzmail.reporting.tls-report-sender-address=
 lmyzmail.reporting.tls-report-sender-password=
 lmyzmail.reporting.organization-name=
 lmyzmail.reporting.organization-email=
+# Optional numeric IP:port override; leave empty to use the system DNS resolver.
+lmyzmail.reporting.dns-server=
 lmyzmail.reporting.http-delivery-enabled=false
 lmyzmail.reporting.http-delivery-timeout-seconds=30
 lmyzmail.show-internet-nl-badge=false
