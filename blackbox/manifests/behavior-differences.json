@@ -513,6 +513,20 @@
       "oracle_behavior": "The frozen Java map player successfully calls tryAcquire(), publishes its ACTIVE control, and immediately releases the permit before submitting the decode task. The configured default limit is two, but any number of map sessions can pass this check as permits are returned before playback starts. The block player holds its permit until its worker finally block.",
       "reason": "Releasing admission before the admitted CPU, native-memory, outbound-buffer, entity, and world lifecycle begins makes the configured hard limit ineffective. Reproducing that resource-admission bug would violate the rewrite's mandatory bounded-concurrency and cancellation requirements.",
       "scope": "Only map-video overload admission, permit ownership, executor rejection, shutdown, and terminal release ordering. Every admitted session's menu, commands, map IDs, item frames, pixels, dirty rectangles, timing-visible messages, pause/resume/stop behavior, teardown packets, and healthy block-video behavior remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Return a 5xx internal_error response when an enabled, ready XDP firewall fails to clear either native ban map. Mark status not ready and retain a diagnostic after native status dispatch fails instead of reporting a healthy zero-valued snapshot.",
+      "evidence": {
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "controller_source": "src/main/java/net/lmyz/lmyzmail/cringe/api/XdpFirewallController.java",
+        "controller_source_sha256": "4570514c56253618401a9dd825c00a2f4687273b9d7877950342281d8b14bcec",
+        "service_source": "src/main/java/net/lmyz/lmyzmail/util/native_/XdpFirewallService.java",
+        "service_source_sha256": "3932aeed253a4c0dfd739dede3c684afa4476de911f29bc900eecc4d88ada19c"
+      },
+      "id": "xdp-management-failure-reporting",
+      "oracle_behavior": "The frozen Java clear service converts every native exception into the integer zero, and the controller always returns HTTP 200 with All XDP bans cleared. Stats failures are likewise converted to an undifferentiated null/not-found result.",
+      "reason": "Acknowledging a failed security-state mutation as successful can leave hostile addresses unblocked while operators and automation believe enforcement was cleared. False healthy status is an explicit security-control integrity failure and is excluded from bug-for-bug replication.",
+      "scope": "Only native failure, timeout, cancellation, and worker-admission failure responses for XDP clear and status. Successful clear counts and JSON, disabled/not-ready oracle behavior, authentication, permissions, ban semantics, map contents, and statistics values remain compatibility requirements."
     }
   ],
   "schema_version": 1

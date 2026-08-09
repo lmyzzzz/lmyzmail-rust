@@ -4,6 +4,8 @@ use std::{
     process::Command,
 };
 
+use sha2::{Digest, Sha256};
+
 const GUMBO_SOURCES: &[&str] = &[
     "attribute.c",
     "char_ref.c",
@@ -83,6 +85,29 @@ const LITEHTML_SOURCES: &[&str] = &[
 
 const FFMPEG_NORMALIZATION_VERSION: &str = "lf-text-v2";
 const FFMPEG_BUILD_VERSION: &str = "n7.1-minimal-static-v1-lf-text-v2";
+const XDP_CLANG_VERSION: &str = "18.1.3";
+const XDP_FROZEN_SOURCES: &[(&str, &str)] = &[
+    (
+        "vmlinux.h",
+        "4f6a6a70c6542e4692ecfaba15c981c41954fd776f9a21606c3c128234882fd4",
+    ),
+    (
+        "xdp_firewall.bpf.c",
+        "7d0d684a65306b44b9b9b1280329e900b9fefd4dabd0018caf40326d34411af5",
+    ),
+    (
+        "xdp_firewall.c",
+        "d78c80a1116cab5e0836af7ddb5c51f8b041b19b39a4b0d02922a8d69567b609",
+    ),
+    (
+        "xdp_firewall.h",
+        "add5775287fe628e07e30485fac0f54f02a159aa5d2e02b11c0f0c80a5d9935d",
+    ),
+    (
+        "xdp_abi_probe.c",
+        "5d2764f5c58467e829c3995593095b522b1b39b82c8785049441863427a0484a",
+    ),
+];
 
 fn main() {
     let target_os = env::var("CARGO_CFG_TARGET_OS").expect("Cargo did not set target OS");
@@ -98,9 +123,11 @@ fn main() {
         env::var_os("CARGO_MANIFEST_DIR").expect("Cargo did not set CARGO_MANIFEST_DIR"),
     );
     let native_dir = manifest_dir.join("native");
+    let xdp_source = manifest_dir.join("../../native/lmyzmail-xdp");
     let ffmpeg_source = manifest_dir.join("../../vendor/ffmpeg-n7.1");
     let out_dir = PathBuf::from(env::var_os("OUT_DIR").expect("Cargo did not set OUT_DIR"));
     let (ffmpeg_include, ffmpeg_lib) = build_ffmpeg(&ffmpeg_source, &out_dir);
+    build_xdp(&xdp_source, &out_dir);
     let litehtml_dir = manifest_dir.join("../../vendor/litehtml");
     let litehtml_src = litehtml_dir.join("src");
     let litehtml_include = litehtml_dir.join("include");
@@ -109,6 +136,7 @@ fn main() {
     let gumbo_include = gumbo_dir.join("include");
 
     println!("cargo:rerun-if-changed={}", native_dir.display());
+    println!("cargo:rerun-if-changed={}", xdp_source.display());
     println!("cargo:rerun-if-changed={}", ffmpeg_source.display());
     println!("cargo:rerun-if-changed={}", litehtml_src.display());
     println!("cargo:rerun-if-changed={}", litehtml_include.display());
@@ -177,6 +205,7 @@ fn main() {
     }
     println!("cargo:rustc-link-lib=static=lmyzmail_mail_html");
     println!("cargo:rustc-link-lib=static=lmyzmail_gumbo");
+    println!("cargo:rustc-link-lib=static=lmyzmail_xdp");
     println!("cargo:rustc-link-lib=dylib=stdc++");
     for library in &cairo.libs {
         println!("cargo:rustc-link-lib=dylib={library}");
@@ -189,9 +218,90 @@ fn main() {
         );
     }
     println!("cargo:rustc-link-arg=-Wl,--end-group");
-    for library in ["z", "m", "dl", "pthread"] {
+    for library in ["bpf", "elf", "cap", "z", "m", "dl", "pthread"] {
         println!("cargo:rustc-link-lib=dylib={library}");
     }
+}
+
+fn build_xdp(source: &Path, out_dir: &Path) {
+    verify_xdp_sources(source);
+    let bpf_object = out_dir.join("xdp_firewall.bpf.o");
+    let clang = env::var_os("LMYZMAIL_BPF_CLANG").unwrap_or_else(|| "clang".into());
+    verify_tool_version(&clang, XDP_CLANG_VERSION);
+    run(
+        Command::new(clang)
+            .current_dir(source)
+            .args([
+                "-target",
+                "bpf",
+                "-D__TARGET_ARCH_x86",
+                "-O2",
+                "-g",
+                "-fno-stack-protector",
+                "-fdebug-prefix-map=.=native/lmyzmail-xdp",
+                "-I",
+            ])
+            .arg(source)
+            .args(["-c", "xdp_firewall.bpf.c", "-o"])
+            .arg(&bpf_object),
+        "build frozen XDP BPF object",
+    );
+
+    let mut native = cc::Build::new();
+    native
+        .cargo_metadata(false)
+        .include(source)
+        .file(source.join("xdp_firewall.c"))
+        .flag_if_supported("-std=c11")
+        .flag_if_supported("-fPIC")
+        .warnings(true)
+        .compile("lmyzmail_xdp");
+
+    cc::Build::new()
+        .cargo_metadata(false)
+        .include(source)
+        .file(source.join("xdp_abi_probe.c"))
+        .flag_if_supported("-std=c11")
+        .warnings(true)
+        .compile("lmyzmail_xdp_abi_probe");
+}
+
+fn verify_xdp_sources(source: &Path) {
+    for (name, expected) in XDP_FROZEN_SOURCES {
+        let path = source.join(name);
+        let bytes = fs::read(&path).unwrap_or_else(|error| {
+            panic!(
+                "failed to read frozen XDP source {}: {error}",
+                path.display()
+            )
+        });
+        let actual = Sha256::digest(bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        assert_eq!(
+            actual,
+            *expected,
+            "frozen XDP source hash mismatch for {}",
+            path.display()
+        );
+    }
+}
+
+fn verify_tool_version(program: &std::ffi::OsStr, expected: &str) {
+    let output = Command::new(program)
+        .arg("--version")
+        .output()
+        .unwrap_or_else(|error| panic!("failed to run BPF clang --version: {error}"));
+    assert!(output.status.success(), "BPF clang --version failed");
+    let version = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        version
+            .lines()
+            .next()
+            .is_some_and(|line| line.contains(expected)),
+        "BPF clang must be version {expected}; got {version:?}"
+    );
 }
 
 fn build_ffmpeg(source: &Path, out_dir: &Path) -> (PathBuf, PathBuf) {

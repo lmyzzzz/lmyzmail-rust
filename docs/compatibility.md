@@ -80,6 +80,17 @@ wire, state, storage, or recovery assertions.
   dedicated two-worker/eight-waiter pool applies one ten-second deadline with
   cancellation and bounded drain. In-budget DMARC XML and TLSRPT JSON remain
   byte-exact with the frozen Java golden.
+- XDP full reconciliation must not reuse the 10,000-row Cringe export API.
+  Existing IPv4 and IPv6 bans are enumerated up to their independent native
+  100,000-entry capacities, their scores are resolved in 500-address chunks,
+  and new threshold candidates use deterministic keyset pagination inside one
+  read-only repeatable-read snapshot. Capacity or snapshot failure aborts
+  before native reconciliation, and a ban added after the initial enumeration
+  is retained rather than inferred stale.
+- XDP clear/status native failures are fail-closed. The frozen Java controller
+  reports clear success with count zero after native exceptions; the candidate
+  returns a fixed 5xx and records the reviewed difference in
+  `blackbox/manifests/behavior-differences.json`.
 - TLSRPT HTTPS delivery accepts only HTTPS endpoints with a hostname and no
   userinfo, fragment, or non-443 port. The complete DNS answer set must pass
   the frozen Java public-address policy before the candidate pins at most 16

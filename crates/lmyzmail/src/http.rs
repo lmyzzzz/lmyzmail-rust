@@ -33,6 +33,8 @@ use crate::{
     outbound::{OutboundError, OutboundService, SendRequest},
     reporting::ReportingService,
     userdata::{ContactRecord, UserDataError, UserDataService},
+    xdp::XdpService,
+    xdp_sync::XdpSyncService,
 };
 
 const DEFAULT_MAX_REQUEST_BYTES: usize = 16 * 1024;
@@ -112,6 +114,8 @@ struct ConnectionContext<'a> {
     outbound: &'a OutboundService,
     cringe: &'a CringeService,
     reporting: &'a ReportingService,
+    xdp: &'a XdpService,
+    xdp_sync: &'a XdpSyncService,
     cancellation: &'a CancellationToken,
 }
 
@@ -179,6 +183,7 @@ pub async fn serve_http(
     database_pool: Pool,
     reporting: Arc<ReportingService>,
     outbound: Arc<OutboundService>,
+    xdp: Arc<XdpService>,
     cancellation: CancellationToken,
 ) -> io::Result<()> {
     let listener = TcpListener::bind((config.listen.host.as_str(), config.listen.http)).await?;
@@ -189,6 +194,7 @@ pub async fn serve_http(
     let userdata = Arc::new(UserDataService::new(database_pool.clone()));
     let cringe_pool = database_pool.clone();
     let cringe = Arc::new(CringeService::new(cringe_pool));
+    let xdp_sync = Arc::new(XdpSyncService::new(Arc::clone(&xdp), (*cringe).clone()));
     let reconciliation_outbound = Arc::clone(&outbound);
     let reconciliation_cancellation = cancellation.clone();
     let mut reconciliation_task = tokio::spawn(async move {
@@ -261,6 +267,8 @@ pub async fn serve_http(
         let outbound = Arc::clone(&outbound);
         let cringe = Arc::clone(&cringe);
         let reporting = Arc::clone(&reporting);
+        let xdp = Arc::clone(&xdp);
+        let xdp_sync = Arc::clone(&xdp_sync);
         let request_cancellation = cancellation.child_token();
         tasks.spawn(async move {
             let _permit = permit;
@@ -277,6 +285,8 @@ pub async fn serve_http(
                         outbound: &outbound,
                         cringe: &cringe,
                         reporting: &reporting,
+                        xdp: &xdp,
+                        xdp_sync: &xdp_sync,
                         cancellation: &request_cancellation,
                     },
                 ),
@@ -469,6 +479,8 @@ async fn handle_connection(
         outbound,
         cringe,
         reporting,
+        xdp,
+        xdp_sync,
         cancellation,
     } = *context;
     let request = read_request(&mut stream, max_request_bytes).await?;
@@ -1113,6 +1125,131 @@ async fn handle_connection(
                 Err(error) => write_cringe_error(stream, error).await,
             }
         }
+        ParsedRequest::XdpStatus => {
+            let status = xdp.status(cancellation).await;
+            write_json_response(stream, Status::Ok, &status).await
+        }
+        ParsedRequest::XdpBan { ip, reason } => {
+            let Ok(reason) = reason else {
+                return write_json_error(stream, Status::InternalServerError, "internal_error")
+                    .await;
+            };
+            if !xdp.ready() {
+                return write_response(
+                    stream,
+                    Status::Ok,
+                    br#"{"success":false,"message":"XDP Firewall is not ready"}"#,
+                    "application/json; charset=UTF-8",
+                )
+                .await;
+            }
+            let Some(ip) = ip else {
+                return write_json_error(stream, Status::InternalServerError, "internal_error")
+                    .await;
+            };
+            match xdp.ban(&ip, reason, cancellation).await {
+                Ok(success) => write_json_response(
+                    stream,
+                    Status::Ok,
+                    &XdpBanResponse {
+                        success,
+                        ip: &ip,
+                        reason,
+                        message: if success {
+                            "IP banned in XDP"
+                        } else {
+                            "Failed to ban IP"
+                        },
+                    },
+                )
+                .await,
+                Err(_) => write_json_error(stream, Status::InternalServerError, "internal_error").await,
+            }
+        }
+        ParsedRequest::XdpUnban(ip) => {
+            if !xdp.ready() {
+                return write_response(
+                    stream,
+                    Status::Ok,
+                    br#"{"success":false,"message":"XDP Firewall is not ready"}"#,
+                    "application/json; charset=UTF-8",
+                )
+                .await;
+            }
+            let Some(ip) = ip else {
+                return write_json_error(stream, Status::InternalServerError, "internal_error")
+                    .await;
+            };
+            match xdp.unban(&ip, cancellation).await {
+                Ok(success) => write_json_response(
+                    stream,
+                    Status::Ok,
+                    &XdpUnbanResponse {
+                        success,
+                        ip: &ip,
+                        message: if success {
+                            "IP unbanned from XDP"
+                        } else {
+                            "Failed to unban IP"
+                        },
+                    },
+                )
+                .await,
+                Err(_) => write_json_error(stream, Status::InternalServerError, "internal_error").await,
+            }
+        }
+        ParsedRequest::XdpCheck(ip) => {
+            let Some(ip) = ip else {
+                return write_json_error(stream, Status::InternalServerError, "internal_error")
+                    .await;
+            };
+            match xdp.is_banned(&ip, cancellation).await {
+                Ok(banned) => {
+                    write_json_response(stream, Status::Ok, &XdpCheckResponse { ip: &ip, xdp_banned: banned }).await
+                }
+                Err(_) => write_json_error(stream, Status::InternalServerError, "internal_error").await,
+            }
+        }
+        ParsedRequest::XdpWhitelistCheck(ip) => {
+            let Some(ip) = ip else {
+                return write_json_error(stream, Status::InternalServerError, "internal_error")
+                    .await;
+            };
+            match xdp.is_whitelisted(&ip, cancellation).await {
+                Ok(whitelisted) => write_json_response(
+                    stream,
+                    Status::Ok,
+                    &XdpWhitelistResponse {
+                        ip: &ip,
+                        whitelisted,
+                    },
+                )
+                .await,
+                Err(_) => write_json_error(stream, Status::InternalServerError, "internal_error").await,
+            }
+        }
+        ParsedRequest::XdpSync => match xdp_sync.perform_full_sync(cancellation).await {
+            Ok(result) => write_json_response(stream, Status::Ok, &result).await,
+            Err(_) => write_json_error(stream, Status::InternalServerError, "internal_error").await,
+        },
+        ParsedRequest::XdpClear => match xdp.clear_all(cancellation).await {
+            Ok(cleared) => write_json_response(
+                stream,
+                Status::Ok,
+                &XdpClearResponse {
+                    cleared,
+                    message: "All XDP bans cleared",
+                },
+            )
+            .await,
+            Err(_) => {
+                write_json_error(stream, Status::InternalServerError, "internal_error").await
+            }
+        },
+        ParsedRequest::XdpStats => match xdp.stats(cancellation).await {
+            Ok(Some(stats)) => write_json_response(stream, Status::Ok, &stats).await,
+            Ok(None) | Err(_) => write_not_found(stream).await,
+        },
         ParsedRequest::InvalidSession => write_invalid_session(stream).await,
         ParsedRequest::CorsPreflight(origin) => write_cors_preflight(stream, &origin).await,
         ParsedRequest::CorsRejected => {
@@ -2294,6 +2431,17 @@ enum ParsedRequest {
         min_score: i32,
         score_type: String,
     },
+    XdpStatus,
+    XdpBan {
+        ip: Option<String>,
+        reason: Result<i32, ()>,
+    },
+    XdpUnban(Option<String>),
+    XdpCheck(Option<String>),
+    XdpWhitelistCheck(Option<String>),
+    XdpSync,
+    XdpClear,
+    XdpStats,
     ApiCreateMailbox,
     ApiMailboxExists(String),
     WebDomains,
@@ -2526,6 +2674,52 @@ fn parse_request(
                 }
             }
         }
+        ("GET", "/api/xdp-firewall/status") => match api_permission(config, api_key, false) {
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
+            ApiPermission::Granted => ParsedRequest::XdpStatus,
+        },
+        ("POST", "/api/xdp-firewall/ban") => match api_permission(config, api_key, true) {
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenWrite,
+            ApiPermission::Granted => ParsedRequest::XdpBan {
+                ip: query_value(path, "ip"),
+                reason: query_value(path, "reason")
+                    .map_or(Ok(0), |value| value.parse::<i32>().map_err(|_| ())),
+            },
+        },
+        ("POST", "/api/xdp-firewall/unban") => match api_permission(config, api_key, true) {
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenWrite,
+            ApiPermission::Granted => ParsedRequest::XdpUnban(query_value(path, "ip")),
+        },
+        ("GET", "/api/xdp-firewall/check") => match api_permission(config, api_key, false) {
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
+            ApiPermission::Granted => ParsedRequest::XdpCheck(query_value(path, "ip")),
+        },
+        ("GET", "/api/xdp-firewall/whitelist/check") => {
+            match api_permission(config, api_key, false) {
+                ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+                ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
+                ApiPermission::Granted => ParsedRequest::XdpWhitelistCheck(query_value(path, "ip")),
+            }
+        }
+        ("POST", "/api/xdp-firewall/sync") => match api_permission(config, api_key, true) {
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenWrite,
+            ApiPermission::Granted => ParsedRequest::XdpSync,
+        },
+        ("DELETE", "/api/xdp-firewall/clear") => match api_permission(config, api_key, true) {
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenWrite,
+            ApiPermission::Granted => ParsedRequest::XdpClear,
+        },
+        ("GET", "/api/xdp-firewall/stats") => match api_permission(config, api_key, false) {
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
+            ApiPermission::Granted => ParsedRequest::XdpStats,
+        },
         ("GET", "/api/cringe-ips/insults") => match api_permission(config, api_key, false) {
             ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
             ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
@@ -2797,6 +2991,40 @@ struct ReportExecutionSummary<'a> {
     tls_sent: i32,
     tls_failed: i32,
     error: &'a str,
+}
+
+#[derive(Serialize)]
+struct XdpBanResponse<'a> {
+    success: bool,
+    ip: &'a str,
+    reason: i32,
+    message: &'static str,
+}
+
+#[derive(Serialize)]
+struct XdpUnbanResponse<'a> {
+    success: bool,
+    ip: &'a str,
+    message: &'static str,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct XdpCheckResponse<'a> {
+    ip: &'a str,
+    xdp_banned: bool,
+}
+
+#[derive(Serialize)]
+struct XdpWhitelistResponse<'a> {
+    ip: &'a str,
+    whitelisted: bool,
+}
+
+#[derive(Serialize)]
+struct XdpClearResponse {
+    cleared: usize,
+    message: &'static str,
 }
 
 #[derive(Serialize)]
@@ -3224,7 +3452,7 @@ async fn write_cringe_error(stream: TcpStream, error: CringeError) -> io::Result
             io::ErrorKind::Interrupted,
             "cringe request cancelled",
         )),
-        CringeError::Timeout | CringeError::Database(_) => {
+        CringeError::Timeout | CringeError::CapacityExceeded | CringeError::Database(_) => {
             write_json_error(stream, Status::InternalServerError, "internal_error").await
         }
     }
@@ -4126,6 +4354,68 @@ lmyzmail.public-registration-enabled=true\n",
                 page: 1,
                 size: 25,
             }
+        );
+    }
+
+    #[test]
+    fn xdp_routes_preserve_permissions_and_controller_binding_shapes() {
+        let config = config_with_api_keys();
+        assert_eq!(
+            parse_request(
+                b"GET /api/xdp-firewall/status HTTP/1.1\r\nX-API-Key: read-key\r\n\r\n",
+                4096,
+                &config,
+            ),
+            ParsedRequest::XdpStatus
+        );
+        assert_eq!(
+            parse_request(
+                b"POST /api/xdp-firewall/ban?ip=203.0.113.77&reason=6 HTTP/1.1\r\nX-API-Key: write-key\r\n\r\n",
+                4096,
+                &config,
+            ),
+            ParsedRequest::XdpBan {
+                ip: Some("203.0.113.77".into()),
+                reason: Ok(6),
+            }
+        );
+        assert_eq!(
+            parse_request(
+                b"POST /api/xdp-firewall/ban?ip=203.0.113.77&reason=nope HTTP/1.1\r\nX-API-Key: write-key\r\n\r\n",
+                4096,
+                &config,
+            ),
+            ParsedRequest::XdpBan {
+                ip: Some("203.0.113.77".into()),
+                reason: Err(()),
+            }
+        );
+        assert_eq!(
+            parse_request(
+                b"POST /api/xdp-firewall/ban HTTP/1.1\r\nX-API-Key: write-key\r\n\r\n",
+                4096,
+                &config,
+            ),
+            ParsedRequest::XdpBan {
+                ip: None,
+                reason: Ok(0),
+            }
+        );
+        assert_eq!(
+            parse_request(
+                b"GET /api/xdp-firewall/check HTTP/1.1\r\nX-API-Key: read-key\r\n\r\n",
+                4096,
+                &config,
+            ),
+            ParsedRequest::XdpCheck(None)
+        );
+        assert_eq!(
+            parse_request(
+                b"DELETE /api/xdp-firewall/clear HTTP/1.1\r\nX-API-Key: read-key\r\n\r\n",
+                4096,
+                &config,
+            ),
+            ParsedRequest::ForbiddenWrite
         );
     }
 

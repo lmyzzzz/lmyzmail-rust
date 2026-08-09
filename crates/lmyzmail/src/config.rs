@@ -28,6 +28,7 @@ const MAX_HONEYPOTS: usize = 256;
 const MAX_HTCPCP_POTS: usize = 64;
 const MAX_HTCPCP_LIST_ITEMS: usize = 64;
 const MAX_HTCPCP_BREW_SECONDS: u64 = 86_400;
+const MAX_XDP_WHITELIST: usize = 256;
 const MAX_MINECRAFT_STATUS_JSON_BYTES: usize = 32_767;
 const MAX_MINECRAFT_PLAYERS: u32 = i32::MAX as u32;
 const MAX_MINECRAFT_READ_TIMEOUT_SECONDS: u64 = 3_600;
@@ -220,6 +221,8 @@ struct JsonRuntimeConfig {
     #[serde(default)]
     features: JsonFeatureConfig,
     #[serde(default)]
+    xdp: JsonXdpConfig,
+    #[serde(default)]
     reporting: JsonReportingConfig,
     #[serde(default)]
     htcpcp: JsonHtcpcpConfig,
@@ -312,6 +315,80 @@ struct JsonFeatureConfig {
     report_delivery: bool,
     #[serde(default)]
     show_internet_nl_badge: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct JsonXdpConfig {
+    interface_name: String,
+    bpf_object_path: Option<String>,
+    pin_path: String,
+    ban_threshold: i32,
+    unban_threshold: i32,
+    force_generic_mode: bool,
+    verbose: bool,
+    sync_on_startup: bool,
+    whitelist: Vec<String>,
+    reason_code_default: i32,
+    pps_monitor: JsonXdpPpsMonitorConfig,
+}
+
+impl Default for JsonXdpConfig {
+    fn default() -> Self {
+        Self {
+            interface_name: "eth0".into(),
+            bpf_object_path: None,
+            pin_path: "/sys/fs/bpf/lmyzmail".into(),
+            ban_threshold: 50,
+            unban_threshold: -1,
+            force_generic_mode: false,
+            verbose: false,
+            sync_on_startup: true,
+            whitelist: vec!["127.0.0.1".into(), "::1".into()],
+            reason_code_default: 0,
+            pps_monitor: JsonXdpPpsMonitorConfig::default(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct JsonXdpPpsMonitorConfig {
+    enabled: bool,
+    poll_interval_ms: u64,
+    pps_warn_threshold: u64,
+    pps_critical_threshold: u64,
+    syn_pps_warn_threshold: u64,
+    syn_pps_critical_threshold: u64,
+    per_ip_pps_warn_threshold: u64,
+    per_ip_pps_critical_threshold: u64,
+    per_ip_syn_pps_warn_threshold: u64,
+    per_ip_syn_pps_critical_threshold: u64,
+    consecutive_exceed_count: u32,
+    record_to_cringe: bool,
+    max_ips_per_poll: u32,
+    ring_buffer_size: u32,
+}
+
+impl Default for JsonXdpPpsMonitorConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            poll_interval_ms: 1_000,
+            pps_warn_threshold: 100_000,
+            pps_critical_threshold: 200_000,
+            syn_pps_warn_threshold: 10_000,
+            syn_pps_critical_threshold: 20_000,
+            per_ip_pps_warn_threshold: 1_000,
+            per_ip_pps_critical_threshold: 5_000,
+            per_ip_syn_pps_warn_threshold: 100,
+            per_ip_syn_pps_critical_threshold: 500,
+            consecutive_exceed_count: 3,
+            record_to_cringe: true,
+            max_ips_per_poll: 10_000,
+            ring_buffer_size: 1_024,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -1261,6 +1338,104 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         value.features.xdp.to_string(),
     )?;
     properties.insert(
+        "lmyzmail.xdp.interface-name".to_owned(),
+        value.xdp.interface_name,
+    )?;
+    insert_optional_property(
+        &mut properties,
+        "lmyzmail.xdp.bpf-object-path",
+        value.xdp.bpf_object_path,
+    )?;
+    properties.insert("lmyzmail.xdp.pin-path".to_owned(), value.xdp.pin_path)?;
+    properties.insert(
+        "lmyzmail.xdp.ban-threshold".to_owned(),
+        value.xdp.ban_threshold.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.xdp.unban-threshold".to_owned(),
+        value.xdp.unban_threshold.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.xdp.force-generic-mode".to_owned(),
+        value.xdp.force_generic_mode.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.xdp.verbose".to_owned(),
+        value.xdp.verbose.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.xdp.sync-on-startup".to_owned(),
+        value.xdp.sync_on_startup.to_string(),
+    )?;
+    if value.xdp.whitelist.is_empty() {
+        properties.insert("lmyzmail.xdp.whitelist".to_owned(), String::new())?;
+    } else {
+        for (index, network) in value.xdp.whitelist.into_iter().enumerate() {
+            properties.insert(format!("lmyzmail.xdp.whitelist[{index}]"), network)?;
+        }
+    }
+    properties.insert(
+        "lmyzmail.xdp.reason-code-default".to_owned(),
+        value.xdp.reason_code_default.to_string(),
+    )?;
+    let pps = value.xdp.pps_monitor;
+    properties.insert(
+        "lmyzmail.xdp.pps-monitor.enabled".to_owned(),
+        pps.enabled.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.xdp.pps-monitor.poll-interval-ms".to_owned(),
+        pps.poll_interval_ms.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.xdp.pps-monitor.pps-warn-threshold".to_owned(),
+        pps.pps_warn_threshold.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.xdp.pps-monitor.pps-critical-threshold".to_owned(),
+        pps.pps_critical_threshold.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.xdp.pps-monitor.syn-pps-warn-threshold".to_owned(),
+        pps.syn_pps_warn_threshold.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.xdp.pps-monitor.syn-pps-critical-threshold".to_owned(),
+        pps.syn_pps_critical_threshold.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.xdp.pps-monitor.per-ip-pps-warn-threshold".to_owned(),
+        pps.per_ip_pps_warn_threshold.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.xdp.pps-monitor.per-ip-pps-critical-threshold".to_owned(),
+        pps.per_ip_pps_critical_threshold.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.xdp.pps-monitor.per-ip-syn-pps-warn-threshold".to_owned(),
+        pps.per_ip_syn_pps_warn_threshold.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.xdp.pps-monitor.per-ip-syn-pps-critical-threshold".to_owned(),
+        pps.per_ip_syn_pps_critical_threshold.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.xdp.pps-monitor.consecutive-exceed-count".to_owned(),
+        pps.consecutive_exceed_count.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.xdp.pps-monitor.record-to-cringe".to_owned(),
+        pps.record_to_cringe.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.xdp.pps-monitor.max-ips-per-poll".to_owned(),
+        pps.max_ips_per_poll.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.xdp.pps-monitor.ring-buffer-size".to_owned(),
+        pps.ring_buffer_size.to_string(),
+    )?;
+    properties.insert(
         "lmyzmail.fail2ban.enabled".to_owned(),
         value.features.fail2ban.to_string(),
     )?;
@@ -1531,6 +1706,7 @@ pub struct RuntimeConfig {
     pub api_keys: Vec<ApiKeyConfig>,
     pub outbound_route: OutboundRouteConfig,
     pub features: FeatureConfig,
+    pub xdp: XdpConfig,
     pub reporting: ReportingConfig,
     pub htcpcp: HtcpcpConfig,
     pub minecraft: MinecraftConfig,
@@ -1606,6 +1782,40 @@ pub struct FeatureConfig {
     pub fail2ban: bool,
     pub report_delivery: bool,
     pub show_internet_nl_badge: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct XdpConfig {
+    pub enabled: bool,
+    pub interface_name: String,
+    pub bpf_object_path: Option<PathBuf>,
+    pub pin_path: PathBuf,
+    pub ban_threshold: i32,
+    pub unban_threshold: i32,
+    pub force_generic_mode: bool,
+    pub verbose: bool,
+    pub sync_on_startup: bool,
+    pub whitelist: Vec<IpNet>,
+    pub reason_code_default: i32,
+    pub pps_monitor: XdpPpsMonitorConfig,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct XdpPpsMonitorConfig {
+    pub enabled: bool,
+    pub poll_interval_ms: u64,
+    pub pps_warn_threshold: u64,
+    pub pps_critical_threshold: u64,
+    pub syn_pps_warn_threshold: u64,
+    pub syn_pps_critical_threshold: u64,
+    pub per_ip_pps_warn_threshold: u64,
+    pub per_ip_pps_critical_threshold: u64,
+    pub per_ip_syn_pps_warn_threshold: u64,
+    pub per_ip_syn_pps_critical_threshold: u64,
+    pub consecutive_exceed_count: u32,
+    pub record_to_cringe: bool,
+    pub max_ips_per_poll: u32,
+    pub ring_buffer_size: u32,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1949,6 +2159,7 @@ impl RuntimeConfig {
             )?,
         };
         validate_outbound_route(&outbound_route)?;
+        let xdp = parse_xdp_config(&properties)?;
 
         let features = FeatureConfig {
             public_registration: preferred_bool(
@@ -1982,12 +2193,7 @@ impl RuntimeConfig {
                 &["botmail.smtp.mta-sts-enabled"],
                 true,
             )?,
-            xdp: preferred_bool(
-                &properties,
-                &["lmyzmail.xdp.enabled"],
-                &["botmail.xdp.enabled"],
-                false,
-            )?,
+            xdp: xdp.enabled,
             fail2ban: preferred_bool(
                 &properties,
                 &["lmyzmail.fail2ban.enabled"],
@@ -2255,6 +2461,7 @@ impl RuntimeConfig {
             api_keys,
             outbound_route,
             features,
+            xdp,
             reporting,
             htcpcp: htcpcp_config,
             minecraft: minecraft_config,
@@ -3519,6 +3726,286 @@ fn parse_honeypots(
     Ok(traps)
 }
 
+fn parse_xdp_config(properties: &Properties) -> Result<XdpConfig, ConfigError> {
+    let enabled = preferred_bool(
+        properties,
+        &["lmyzmail.xdp.enabled"],
+        &["botmail.xdp.enabled"],
+        false,
+    )?;
+    let interface_name = preferred(
+        properties,
+        &["lmyzmail.xdp.interface-name"],
+        &["botmail.xdp.interface-name"],
+    )
+    .unwrap_or("eth0")
+    .to_owned();
+    validate_simple(&interface_name, 15, "xdp.interface-name")?;
+
+    let bpf_object_path = preferred(
+        properties,
+        &["lmyzmail.xdp.bpf-object-path"],
+        &["botmail.xdp.bpf-object-path"],
+    )
+    .filter(|value| !value.trim().is_empty())
+    .map(PathBuf::from);
+    if let Some(path) = bpf_object_path.as_deref() {
+        validate_path(
+            path.to_str()
+                .ok_or_else(|| ConfigError::Invalid("xdp.bpf-object-path is not UTF-8".into()))?,
+            "xdp.bpf-object-path",
+        )?;
+    }
+
+    let pin_path = preferred(
+        properties,
+        &["lmyzmail.xdp.pin-path"],
+        &["botmail.xdp.pin-path"],
+    )
+    .unwrap_or("/sys/fs/bpf/lmyzmail");
+    validate_xdp_pin_path(pin_path)?;
+    let pin_path = PathBuf::from(pin_path);
+    if !pin_path.is_absolute()
+        || pin_path
+            .components()
+            .any(|component| matches!(component, std::path::Component::ParentDir))
+    {
+        return Err(ConfigError::Invalid(
+            "xdp.pin-path must be an absolute path without parent traversal".into(),
+        ));
+    }
+
+    let ban_threshold = preferred_xdp_i32(
+        properties,
+        "lmyzmail.xdp.ban-threshold",
+        "botmail.xdp.ban-threshold",
+        50,
+    )?;
+    let configured_unban_threshold = preferred_xdp_i32(
+        properties,
+        "lmyzmail.xdp.unban-threshold",
+        "botmail.xdp.unban-threshold",
+        -1,
+    )?;
+    if ban_threshold < 0 || configured_unban_threshold < -1 {
+        return Err(ConfigError::Invalid(
+            "xdp thresholds must be non-negative; unban-threshold may also be -1".into(),
+        ));
+    }
+    let unban_threshold = if configured_unban_threshold == -1 {
+        ban_threshold / 2
+    } else {
+        configured_unban_threshold
+    };
+
+    let pps_monitor = XdpPpsMonitorConfig {
+        enabled: preferred_bool(
+            properties,
+            &["lmyzmail.xdp.pps-monitor.enabled"],
+            &["botmail.xdp.pps-monitor.enabled"],
+            true,
+        )?,
+        poll_interval_ms: preferred_u64(
+            properties,
+            &["lmyzmail.xdp.pps-monitor.poll-interval-ms"],
+            &["botmail.xdp.pps-monitor.poll-interval-ms"],
+            1_000,
+        )?,
+        pps_warn_threshold: preferred_u64(
+            properties,
+            &["lmyzmail.xdp.pps-monitor.pps-warn-threshold"],
+            &["botmail.xdp.pps-monitor.pps-warn-threshold"],
+            100_000,
+        )?,
+        pps_critical_threshold: preferred_u64(
+            properties,
+            &["lmyzmail.xdp.pps-monitor.pps-critical-threshold"],
+            &["botmail.xdp.pps-monitor.pps-critical-threshold"],
+            200_000,
+        )?,
+        syn_pps_warn_threshold: preferred_u64(
+            properties,
+            &["lmyzmail.xdp.pps-monitor.syn-pps-warn-threshold"],
+            &["botmail.xdp.pps-monitor.syn-pps-warn-threshold"],
+            10_000,
+        )?,
+        syn_pps_critical_threshold: preferred_u64(
+            properties,
+            &["lmyzmail.xdp.pps-monitor.syn-pps-critical-threshold"],
+            &["botmail.xdp.pps-monitor.syn-pps-critical-threshold"],
+            20_000,
+        )?,
+        per_ip_pps_warn_threshold: preferred_u64(
+            properties,
+            &["lmyzmail.xdp.pps-monitor.per-ip-pps-warn-threshold"],
+            &["botmail.xdp.pps-monitor.per-ip-pps-warn-threshold"],
+            1_000,
+        )?,
+        per_ip_pps_critical_threshold: preferred_u64(
+            properties,
+            &["lmyzmail.xdp.pps-monitor.per-ip-pps-critical-threshold"],
+            &["botmail.xdp.pps-monitor.per-ip-pps-critical-threshold"],
+            5_000,
+        )?,
+        per_ip_syn_pps_warn_threshold: preferred_u64(
+            properties,
+            &["lmyzmail.xdp.pps-monitor.per-ip-syn-pps-warn-threshold"],
+            &["botmail.xdp.pps-monitor.per-ip-syn-pps-warn-threshold"],
+            100,
+        )?,
+        per_ip_syn_pps_critical_threshold: preferred_u64(
+            properties,
+            &["lmyzmail.xdp.pps-monitor.per-ip-syn-pps-critical-threshold"],
+            &["botmail.xdp.pps-monitor.per-ip-syn-pps-critical-threshold"],
+            500,
+        )?,
+        consecutive_exceed_count: preferred_u32(
+            properties,
+            &["lmyzmail.xdp.pps-monitor.consecutive-exceed-count"],
+            &["botmail.xdp.pps-monitor.consecutive-exceed-count"],
+            3,
+        )?,
+        record_to_cringe: preferred_bool(
+            properties,
+            &["lmyzmail.xdp.pps-monitor.record-to-cringe"],
+            &["botmail.xdp.pps-monitor.record-to-cringe"],
+            true,
+        )?,
+        max_ips_per_poll: preferred_u32(
+            properties,
+            &["lmyzmail.xdp.pps-monitor.max-ips-per-poll"],
+            &["botmail.xdp.pps-monitor.max-ips-per-poll"],
+            10_000,
+        )?,
+        ring_buffer_size: preferred_u32(
+            properties,
+            &["lmyzmail.xdp.pps-monitor.ring-buffer-size"],
+            &["botmail.xdp.pps-monitor.ring-buffer-size"],
+            1_024,
+        )?,
+    };
+    validate_xdp_pps_monitor(&pps_monitor)?;
+
+    Ok(XdpConfig {
+        enabled,
+        interface_name,
+        bpf_object_path,
+        pin_path,
+        ban_threshold,
+        unban_threshold,
+        force_generic_mode: preferred_bool(
+            properties,
+            &["lmyzmail.xdp.force-generic-mode"],
+            &["botmail.xdp.force-generic-mode"],
+            false,
+        )?,
+        verbose: preferred_bool(
+            properties,
+            &["lmyzmail.xdp.verbose"],
+            &["botmail.xdp.verbose"],
+            false,
+        )?,
+        sync_on_startup: preferred_bool(
+            properties,
+            &["lmyzmail.xdp.sync-on-startup"],
+            &["botmail.xdp.sync-on-startup"],
+            true,
+        )?,
+        whitelist: parse_xdp_whitelist(properties)?,
+        reason_code_default: preferred_xdp_i32(
+            properties,
+            "lmyzmail.xdp.reason-code-default",
+            "botmail.xdp.reason-code-default",
+            0,
+        )?,
+        pps_monitor,
+    })
+}
+
+fn preferred_xdp_i32(
+    properties: &Properties,
+    new_key: &str,
+    legacy_key: &str,
+    default: i32,
+) -> Result<i32, ConfigError> {
+    preferred(properties, &[new_key], &[legacy_key])
+        .map(|value| {
+            value
+                .parse::<i32>()
+                .map_err(|_| ConfigError::Invalid(format!("{new_key} is not a valid integer")))
+        })
+        .transpose()
+        .map(|value| value.unwrap_or(default))
+}
+
+fn parse_xdp_whitelist(properties: &Properties) -> Result<Vec<IpNet>, ConfigError> {
+    let scalar_new = properties.get("lmyzmail.xdp.whitelist");
+    let indexed_new = properties.get("lmyzmail.xdp.whitelist[0]").is_some();
+    let scalar_legacy = properties.get("botmail.xdp.whitelist");
+    let indexed_legacy = properties.get("botmail.xdp.whitelist[0]").is_some();
+    let raw_values = if let Some(value) = scalar_new {
+        value.split(',').map(str::trim).collect::<Vec<_>>()
+    } else if indexed_new {
+        (0..MAX_XDP_WHITELIST)
+            .map_while(|index| properties.get(&format!("lmyzmail.xdp.whitelist[{index}]")))
+            .collect()
+    } else if let Some(value) = scalar_legacy {
+        value.split(',').map(str::trim).collect::<Vec<_>>()
+    } else if indexed_legacy {
+        (0..MAX_XDP_WHITELIST)
+            .map_while(|index| properties.get(&format!("botmail.xdp.whitelist[{index}]")))
+            .collect()
+    } else {
+        vec!["127.0.0.1", "::1"]
+    };
+    if raw_values.len() > MAX_XDP_WHITELIST {
+        return Err(ConfigError::Invalid(format!(
+            "xdp whitelist exceeds {MAX_XDP_WHITELIST} entries"
+        )));
+    }
+    let mut whitelist = Vec::with_capacity(raw_values.len());
+    for value in raw_values {
+        if value.is_empty() {
+            continue;
+        }
+        let network = value
+            .parse::<IpNet>()
+            .or_else(|_| value.parse::<IpAddr>().map(IpNet::from))
+            .map_err(|_| ConfigError::Invalid(format!("invalid xdp whitelist entry: {value}")))?;
+        if !whitelist.contains(&network) {
+            whitelist.push(network);
+        }
+    }
+    Ok(whitelist)
+}
+
+fn validate_xdp_pps_monitor(value: &XdpPpsMonitorConfig) -> Result<(), ConfigError> {
+    if value.poll_interval_ms == 0
+        || value.poll_interval_ms > 60_000
+        || value.consecutive_exceed_count == 0
+        || value.consecutive_exceed_count > 10_000
+        || value.max_ips_per_poll == 0
+        || value.max_ips_per_poll > 100_000
+        || value.ring_buffer_size == 0
+        || value.ring_buffer_size > 1_000_000
+    {
+        return Err(ConfigError::Invalid(
+            "xdp PPS monitor bounds are invalid".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_xdp_pin_path(value: &str) -> Result<(), ConfigError> {
+    validate_path(value, "xdp.pin-path")?;
+    if value.len() > 255 {
+        return Err(ConfigError::Invalid(
+            "xdp.pin-path exceeds the native 255-byte limit".into(),
+        ));
+    }
+    Ok(())
+}
+
 fn validate_database(value: &DatabaseConfig) -> Result<(), ConfigError> {
     validate_host(&value.host, "postgres.host")?;
     validate_port(value.port, "postgres.port", false)?;
@@ -3895,6 +4382,49 @@ lmyzmail.htcpcp.pots[{index}].supported-additions=\n"
     }
 
     #[test]
+    fn xdp_configuration_accepts_legacy_aliases_and_new_precedence() {
+        let config = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.xdp.enabled=true\n\
+botmail.xdp.interface-name=legacy0\n\
+botmail.xdp.pin-path=/sys/fs/bpf/botmail\n\
+botmail.xdp.ban-threshold=80\n\
+botmail.xdp.unban-threshold=-1\n\
+botmail.xdp.whitelist=192.0.2.0/24\n\
+lmyzmail.xdp.interface-name=new0\n\
+lmyzmail.xdp.ban-threshold=100\n\
+lmyzmail.xdp.whitelist=198.51.100.0/24,2001:db8::/32\n\
+lmyzmail.xdp.pps-monitor.poll-interval-ms=250\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(config.xdp.enabled);
+        assert!(config.features.xdp);
+        assert_eq!(config.xdp.interface_name, "new0");
+        assert_eq!(config.xdp.pin_path, PathBuf::from("/sys/fs/bpf/botmail"));
+        assert_eq!(config.xdp.ban_threshold, 100);
+        assert_eq!(config.xdp.unban_threshold, 50);
+        assert_eq!(config.xdp.pps_monitor.poll_interval_ms, 250);
+        assert_eq!(config.xdp.whitelist.len(), 2);
+        assert!(config.xdp.whitelist[0].contains(&"198.51.100.44".parse::<IpAddr>().unwrap()));
+        assert!(config.xdp.whitelist[1].contains(&"2001:db8::44".parse::<IpAddr>().unwrap()));
+    }
+
+    #[test]
+    fn xdp_pin_path_respects_the_frozen_native_buffer() {
+        let valid = format!("/{}", "a".repeat(254));
+        let too_long = format!("/{}", "a".repeat(255));
+        assert_eq!(valid.len(), 255);
+        assert!(validate_xdp_pin_path(&valid).is_ok());
+        assert!(matches!(
+            validate_xdp_pin_path(&too_long),
+            Err(ConfigError::Invalid(message))
+                if message == "xdp.pin-path exceeds the native 255-byte limit"
+        ));
+    }
+
+    #[test]
     fn outbound_route_accepts_frozen_dns_keys_with_new_precedence() {
         let properties = Properties::parse(
             b"dns.cache.mx.l1-max-size=111\n\
@@ -4105,7 +4635,23 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
             "maildir": "/tmp/lmyzmail-mail",
             "domain": "example.test",
             "trusted_proxies": ["127.0.0.1", "10.0.0.0/8"],
-            "features": {"smtp_skibidi_mode": "JAVA"},
+            "features": {"smtp_skibidi_mode": "JAVA", "xdp": true},
+            "xdp": {
+                "interface_name": "semantic0",
+                "pin_path": "/sys/fs/bpf/lmyzmail-semantic",
+                "ban_threshold": 80,
+                "unban_threshold": 30,
+                "force_generic_mode": true,
+                "sync_on_startup": false,
+                "whitelist": ["198.51.100.0/24", "2001:db8::/32"],
+                "reason_code_default": 6,
+                "pps_monitor": {
+                    "poll_interval_ms": 250,
+                    "record_to_cringe": false,
+                    "max_ips_per_poll": 128,
+                    "ring_buffer_size": 64
+                }
+            },
             "minecraft": {
                 "enabled": true,
                 "online_mode": false,
@@ -4158,6 +4704,22 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
         assert_eq!(config.redis.port, 16379);
         assert_eq!(config.limits.max_http_request_bytes, 65536);
         assert_eq!(config.trusted_proxies.len(), 2);
+        assert!(config.xdp.enabled);
+        assert_eq!(config.xdp.interface_name, "semantic0");
+        assert_eq!(
+            config.xdp.pin_path,
+            PathBuf::from("/sys/fs/bpf/lmyzmail-semantic")
+        );
+        assert_eq!(config.xdp.ban_threshold, 80);
+        assert_eq!(config.xdp.unban_threshold, 30);
+        assert!(config.xdp.force_generic_mode);
+        assert!(!config.xdp.sync_on_startup);
+        assert_eq!(config.xdp.whitelist.len(), 2);
+        assert_eq!(config.xdp.reason_code_default, 6);
+        assert_eq!(config.xdp.pps_monitor.poll_interval_ms, 250);
+        assert!(!config.xdp.pps_monitor.record_to_cringe);
+        assert_eq!(config.xdp.pps_monitor.max_ips_per_poll, 128);
+        assert_eq!(config.xdp.pps_monitor.ring_buffer_size, 64);
         assert!(config.minecraft.enabled);
         assert!(!config.minecraft.online_mode);
         assert_eq!(config.minecraft.compression_threshold, 512);

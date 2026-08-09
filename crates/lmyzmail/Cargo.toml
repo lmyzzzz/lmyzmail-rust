@@ -60,3 +60,4 @@ proptest = "1.7.0"
 [build-dependencies]
 cc = "1.4.0"
 pkg-config = "0.3.33"
+sha2 = "0.11.0"

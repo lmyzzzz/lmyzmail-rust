@@ -11,6 +11,9 @@ Maildir, certificate, and port state and can produce a repeatable Java golden.
 The report API harness records a separate `managed-reports` golden from raw
 HTTP sockets and an attested legacy PostgreSQL fixture, then replays it against
 a second independently initialized Java oracle before admitting that golden.
+The XDP harness separately freezes the disabled control plane before any
+privileged attach testing, so ordinary HTTP compatibility cannot be confused
+with kernel-map or program-ownership evidence.
 
 ## Compatibility rules
 
@@ -83,6 +86,18 @@ and automatic sending are enabled, a cancellation-aware root task runs the same
 bounded generation path at 01:00 UTC. The frozen Java retention queries are not
 invoked by its scheduler, so the candidate likewise performs no implicit
 report-row deletion.
+
+The XDP foundation embeds the frozen C/eBPF source behind a serialized Rust FFI
+worker. Its build verifies every frozen source hash, requires Clang 18.1.3, and
+compiles x86_64 C ABI layout assertions. Configuration accepts the complete
+legacy `botmail.xdp.*` namespace with `lmyzmail.xdp.*` precedence and fixed
+limits. Cringe reconciliation reads every existing IPv4/IPv6 ban in a
+repeatable PostgreSQL snapshot and keyset-pages new candidates, rather than
+reusing the 10,000-row management export. Initialization cancellation closes a
+late native attach, management failures fail closed, and cache capacity matches
+the two 100,000-entry native maps. Disabled HTTP behavior is frozen separately;
+enabled takeover is admitted only by the privileged veth/netns, pinned-map,
+restart, ownership, and rollback tests.
 
 HTCPCP runs as a bounded Tokio listener only when enabled. It preserves the
 frozen eight-pot configuration, BREW/POST/GET/HEAD/OPTIONS/PROPFIND/WHEN wire

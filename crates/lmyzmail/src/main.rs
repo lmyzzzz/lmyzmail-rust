@@ -2,12 +2,15 @@ use std::{env, io, path::PathBuf, sync::Arc, time::Duration};
 
 use lmyzmail::{
     config::{Properties, RuntimeConfig},
+    cringe::CringeService,
     database, honeypot, htcpcp, http, lifecycle, minecraft,
     outbound::OutboundService,
     outbound_worker::OutboundWorker,
     redis,
     reporting::{self, ReportingService},
     smtp,
+    xdp::XdpService,
+    xdp_sync::XdpSyncService,
 };
 use tokio::{task::JoinSet, time::timeout};
 use tokio_util::sync::CancellationToken;
@@ -53,12 +56,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let _ = signal_task.await;
         return Ok(());
     }
+    let xdp_service = Arc::new(XdpService::from_config(&config.xdp)?);
+    xdp_service.initialize(&cancellation).await;
+    let xdp_startup_task = if config.xdp.sync_on_startup && xdp_service.ready() {
+        let xdp_sync = XdpSyncService::new(
+            Arc::clone(&xdp_service),
+            CringeService::new(database_pool.clone()),
+        );
+        let xdp_sync_cancellation = cancellation.clone();
+        Some(tokio::spawn(async move {
+            if let Err(error) = xdp_sync.perform_full_sync(&xdp_sync_cancellation).await {
+                eprintln!("lmyzmail XDP startup sync failed: {error}");
+            }
+        }))
+    } else {
+        None
+    };
     let mut services = JoinSet::new();
     let http_config = Arc::clone(&config);
     let http_cancellation = cancellation.clone();
     let http_pool = database_pool.clone();
     let http_reporting = Arc::clone(&reporting_service);
     let http_outbound = Arc::clone(&outbound_service);
+    let http_xdp = Arc::clone(&xdp_service);
     services.spawn(async move {
         (
             "HTTP",
@@ -67,6 +87,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 http_pool,
                 http_reporting,
                 http_outbound,
+                http_xdp,
                 http_cancellation,
             )
             .await,
@@ -201,6 +222,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     signal_task.abort();
     let _ = signal_task.await;
+    if let Some(task) = xdp_startup_task {
+        let _ = task.await;
+    }
+    xdp_service.shutdown().await;
     match failure {
         Some(error) => Err(error.into()),
         None => Ok(()),

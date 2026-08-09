@@ -1,16 +1,20 @@
-use std::{fmt, future::Future, time::Duration};
+use std::{collections::HashMap, fmt, future::Future, net::IpAddr, time::Duration};
 
 use chrono::{DateTime, Utc};
 use deadpool_postgres::{Object, Pool};
 use serde::Serialize;
 use tokio::time::{Instant, timeout_at};
-use tokio_postgres::{CancelToken, NoTls, Row};
+use tokio_postgres::{CancelToken, IsolationLevel, NoTls, Row};
 use tokio_util::sync::CancellationToken;
 
 const DATABASE_DEADLINE: Duration = Duration::from_secs(8);
 const DATABASE_CANCEL_DRAIN_TIMEOUT: Duration = Duration::from_secs(2);
 const MAX_PAGE_SIZE: i64 = 500;
 const MAX_EXPORT_ROWS: i64 = 10_000;
+const XDP_SYNC_PAGE_SIZE: i64 = 500;
+const MAX_XDP_EXISTING_BANS: usize = 200_000;
+const MAX_XDP_NEW_CANDIDATES: usize = 200_000;
+const MAX_XDP_RECONCILE_CANDIDATES: usize = MAX_XDP_EXISTING_BANS + MAX_XDP_NEW_CANDIDATES;
 
 const IP_COLUMNS: &str = "ip_address, total_score, current_score, activity_count, \
     self_spoofing_count, open_relay_count, auth_probe_count, illegal_domain_count, \
@@ -58,6 +62,107 @@ impl CringeService {
                 .await
                 .map_err(database_error)?;
             Ok(rows.iter().map(cringe_ip_from_row).collect())
+        })
+        .await;
+        connection.finish(outcome)
+    }
+
+    pub(crate) async fn xdp_reconcile_candidates(
+        &self,
+        existing_bans: &[IpAddr],
+        ban_threshold: i32,
+        unban_threshold: i32,
+        cancellation: &CancellationToken,
+    ) -> Result<Vec<(IpAddr, i32)>, CringeError> {
+        if existing_bans.len() > MAX_XDP_EXISTING_BANS || ban_threshold < unban_threshold {
+            return Err(CringeError::InvalidInput);
+        }
+        let deadline = Instant::now() + DATABASE_DEADLINE;
+        let client = self.client(deadline, cancellation).await?;
+        let mut connection = DatabaseConnection::new(client);
+        let cancel_token = connection.cancel_token();
+        let outcome = database_read(deadline, cancellation, &cancel_token, async {
+            let transaction = connection
+                .client_mut()
+                .build_transaction()
+                .isolation_level(IsolationLevel::RepeatableRead)
+                .read_only(true)
+                .start()
+                .await
+                .map_err(database_error)?;
+            let mut candidates = HashMap::with_capacity(existing_bans.len());
+
+            for chunk in existing_bans.chunks(XDP_SYNC_PAGE_SIZE as usize) {
+                let addresses = chunk.iter().map(ToString::to_string).collect::<Vec<_>>();
+                let rows = transaction
+                    .query(
+                        "SELECT ip_address, current_score FROM skibidi_cringe_ip \
+                         WHERE ip_address = ANY($1::text[])",
+                        &[&addresses],
+                    )
+                    .await
+                    .map_err(database_error)?;
+                for row in rows {
+                    let score = row.get::<_, i32>("current_score");
+                    if score >= unban_threshold {
+                        insert_xdp_candidate(&mut candidates, &row, score)?;
+                    }
+                }
+            }
+
+            let mut cursor: Option<(i32, String)> = None;
+            let mut high_candidate_rows = 0_usize;
+            loop {
+                let rows = match cursor.as_ref() {
+                    Some((last_score, last_ip)) => transaction
+                        .query(
+                            "SELECT ip_address, current_score FROM skibidi_cringe_ip \
+                                 WHERE current_score >= $1 \
+                                   AND (current_score < $2 OR \
+                                        (current_score = $2 AND ip_address < $3)) \
+                                 ORDER BY current_score DESC, ip_address DESC LIMIT $4",
+                            &[&ban_threshold, last_score, last_ip, &XDP_SYNC_PAGE_SIZE],
+                        )
+                        .await
+                        .map_err(database_error)?,
+                    None => transaction
+                        .query(
+                            "SELECT ip_address, current_score FROM skibidi_cringe_ip \
+                                 WHERE current_score >= $1 \
+                                 ORDER BY current_score DESC, ip_address DESC LIMIT $2",
+                            &[&ban_threshold, &XDP_SYNC_PAGE_SIZE],
+                        )
+                        .await
+                        .map_err(database_error)?,
+                };
+                if rows.is_empty() {
+                    break;
+                }
+                high_candidate_rows = high_candidate_rows
+                    .checked_add(rows.len())
+                    .ok_or(CringeError::CapacityExceeded)?;
+                if high_candidate_rows > MAX_XDP_NEW_CANDIDATES {
+                    return Err(CringeError::CapacityExceeded);
+                }
+                for row in &rows {
+                    let score = row.get::<_, i32>("current_score");
+                    insert_xdp_candidate(&mut candidates, row, score)?;
+                }
+                let last = rows.last().expect("non-empty XDP candidate page");
+                cursor = Some((
+                    last.get::<_, i32>("current_score"),
+                    last.get::<_, String>("ip_address"),
+                ));
+                if rows.len() < XDP_SYNC_PAGE_SIZE as usize {
+                    break;
+                }
+            }
+
+            if candidates.len() > MAX_XDP_RECONCILE_CANDIDATES {
+                return Err(CringeError::CapacityExceeded);
+            }
+            transaction.commit().await.map_err(database_error)?;
+            Ok(candidates.into_iter().collect())
         })
         .await;
         connection.finish(outcome)
@@ -356,6 +461,7 @@ pub enum CringeError {
     Cancelled,
     Timeout,
     InvalidInput,
+    CapacityExceeded,
     Database(String),
 }
 
@@ -365,6 +471,9 @@ impl fmt::Display for CringeError {
             Self::Cancelled => formatter.write_str("cringe request cancelled"),
             Self::Timeout => formatter.write_str("cringe database deadline exceeded"),
             Self::InvalidInput => formatter.write_str("invalid cringe request"),
+            Self::CapacityExceeded => {
+                formatter.write_str("XDP reconcile candidate capacity exceeded")
+            }
             Self::Database(error) => write!(formatter, "cringe database failure: {error}"),
         }
     }
@@ -401,6 +510,29 @@ fn cringe_ip_from_row(row: &Row) -> CringeIp {
             .wrapping_add(ssh_on_smtp_count)
             .wrapping_add(http_port_scanning_count),
     }
+}
+
+fn insert_xdp_candidate(
+    candidates: &mut HashMap<IpAddr, i32>,
+    row: &Row,
+    score: i32,
+) -> Result<(), CringeError> {
+    merge_xdp_candidate(candidates, &row.get::<_, String>("ip_address"), score)
+}
+
+fn merge_xdp_candidate(
+    candidates: &mut HashMap<IpAddr, i32>,
+    address: &str,
+    score: i32,
+) -> Result<(), CringeError> {
+    let address = address
+        .parse::<IpAddr>()
+        .map_err(|_| CringeError::Database("stored cringe IP address is invalid".into()))?;
+    candidates
+        .entry(address)
+        .and_modify(|existing| *existing = (*existing).max(score))
+        .or_insert(score);
+    Ok(())
 }
 
 fn activity_from_row(row: &Row) -> CringeActivity {
@@ -490,6 +622,12 @@ impl DatabaseConnection {
     fn client(&self) -> &Object {
         self.client
             .as_ref()
+            .expect("database connection is present")
+    }
+
+    fn client_mut(&mut self) -> &mut Object {
+        self.client
+            .as_mut()
             .expect("database connection is present")
     }
 
@@ -649,5 +787,23 @@ mod tests {
         assert_eq!(json["empty"], true);
         assert_eq!(json["totalPages"], 0);
         assert_eq!(json["numberOfElements"], 0);
+    }
+
+    #[test]
+    fn xdp_candidate_merge_is_bounded_and_keeps_the_highest_score() {
+        let mut candidates = HashMap::new();
+        merge_xdp_candidate(&mut candidates, "192.0.2.44", 51).unwrap();
+        merge_xdp_candidate(&mut candidates, "192.0.2.44", 80).unwrap();
+        merge_xdp_candidate(&mut candidates, "192.0.2.44", 60).unwrap();
+        assert_eq!(candidates[&"192.0.2.44".parse().unwrap()], 80);
+        assert!(matches!(
+            merge_xdp_candidate(&mut candidates, "not-an-ip", 100),
+            Err(CringeError::Database(_))
+        ));
+        assert!(MAX_XDP_EXISTING_BANS > MAX_EXPORT_ROWS as usize);
+        assert_eq!(
+            MAX_XDP_RECONCILE_CANDIDATES,
+            MAX_XDP_EXISTING_BANS + MAX_XDP_NEW_CANDIDATES
+        );
     }
 }

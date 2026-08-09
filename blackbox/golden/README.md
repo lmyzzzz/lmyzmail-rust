@@ -1038,3 +1038,25 @@ the Linux x86_64 Rust release matched it in a separate candidate workspace.
 
 The post-recording Rust candidate driver now targets v15 so the candidate
 cannot pass an earlier definition tree.
+
+The disabled XDP control-plane extension retains two create-once generations:
+
+- `managed-xdp-disabled-v1/` binds definition tree
+  `8f90e58a5d4a4be8f2163a49f23f0638d9304f65ebaf46ca975de66dcc3215e9`.
+  It is retained unchanged after the parameter-error contract was strengthened
+  to freeze the disabled ban/unban readiness short-circuit before IP parsing.
+- `managed-xdp-disabled-v2/` binds
+  definition tree
+  `8c06ecd1ad5699ee8b0345d1da1d64b1394d6a7774e8d95fae6d0f4ad2d143e6`.
+  It is retained unchanged after XDP source provenance and management-failure
+  evidence changed the attested definition tree.
+- `managed-xdp-disabled-v3/` is the active disabled-control-plane set and binds
+  definition tree
+  `f98f3a30e6ef73706a280dde559e71f97b57cc545fc09870b414933fac6f70ab`.
+  It covers status, ban, unban, checks, synchronization, clear, unavailable
+  statistics, authentication, permission and binding errors through raw HTTP.
+  Recording and immediate verification used two fresh isolated Java
+  environments; a third fresh environment replayed it without record mode. It
+  is not evidence for native map ABI, program attach/detach, pin takeover,
+  traffic drops, PPS statistics, capabilities, restart, or rollback; those
+  require the privileged Linux fixture.

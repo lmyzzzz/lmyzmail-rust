@@ -1,0 +1,55 @@
+{
+  "source_repository": "D:/JavaProjects/botmail",
+  "source_branch": "codex/java-oracle-freeze",
+  "source_commit": "e6e454c1ae7013d84f63a3e3db1bface89149c91",
+  "source_freeze_commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+  "source_subdirectory": "lmyzmail-xdp",
+  "frozen_source_policy": "byte-for-byte copy; upstream files are read-only",
+  "line_endings": "Copied bytes match the frozen Java working tree. canonical_git_sha256 records the LF-normalized Git blob where CRLF differs.",
+  "source_files": {
+    "vmlinux.h": {
+      "source_path": "lmyzmail-xdp/bpf/vmlinux.h",
+      "last_touch_commit": "bf06dbf6b348e5f94cc13b0529301049c5e06487",
+      "copied_sha256": "4f6a6a70c6542e4692ecfaba15c981c41954fd776f9a21606c3c128234882fd4",
+      "canonical_git_sha256": "4f6a6a70c6542e4692ecfaba15c981c41954fd776f9a21606c3c128234882fd4"
+    },
+    "xdp_firewall.bpf.c": {
+      "source_path": "lmyzmail-xdp/bpf/xdp_firewall.bpf.c",
+      "last_touch_commit": "e6e454c1ae7013d84f63a3e3db1bface89149c91",
+      "copied_sha256": "7d0d684a65306b44b9b9b1280329e900b9fefd4dabd0018caf40326d34411af5",
+      "canonical_git_sha256": "9654ff483719de73af878770696b5c11010ac3c054fdab33e367a62c80e9235b"
+    },
+    "xdp_firewall.c": {
+      "source_path": "lmyzmail-xdp/src/xdp_firewall.c",
+      "last_touch_commit": "e6e454c1ae7013d84f63a3e3db1bface89149c91",
+      "copied_sha256": "d78c80a1116cab5e0836af7ddb5c51f8b041b19b39a4b0d02922a8d69567b609",
+      "canonical_git_sha256": "1a422b47ab0aff2fe5b0a25bee199a726835aa6df468f431d63466c3837ed7ad"
+    },
+    "xdp_firewall.h": {
+      "source_path": "lmyzmail-xdp/src/xdp_firewall.h",
+      "last_touch_commit": "e6e454c1ae7013d84f63a3e3db1bface89149c91",
+      "copied_sha256": "add5775287fe628e07e30485fac0f54f02a159aa5d2e02b11c0f0c80a5d9935d",
+      "canonical_git_sha256": "493804cfc61b28bb6585396c6c3102d291464dac07c6465c5ef9b8dbf5ae9ad3"
+    }
+  },
+  "local_files": {
+    "xdp_abi_probe.c": {
+      "purpose": "Compile-time x86_64 C ABI layout assertions for the Rust FFI declarations",
+      "sha256": "5d2764f5c58467e829c3995593095b522b1b39b82c8785049441863427a0484a"
+    },
+    "SOURCE.json": {
+      "purpose": "Local provenance and reproducible build metadata"
+    }
+  },
+  "generated_files": {
+    ".build/": "Ignored build output; never treated as frozen source"
+  },
+  "build_inputs": {
+    "target": "x86_64-unknown-linux-gnu",
+    "bpf_arch": "x86",
+    "clang_version": "18.1.3",
+    "clang_override": "LMYZMAIL_BPF_CLANG may select a binary, but the build rejects any version other than 18.1.3",
+    "source_hash_gate": "crates/lmyzmail/build.rs verifies every frozen source and the local ABI probe before compiling",
+    "link_libraries": ["libbpf", "libelf", "libz", "libcap"]
+  }
+}
