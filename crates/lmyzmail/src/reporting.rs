@@ -3,7 +3,7 @@ use std::{
     fmt,
     future::Future,
     io::{self, Write},
-    net::SocketAddr,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
     sync::{
         Arc, LazyLock,
         atomic::{AtomicBool, Ordering},
@@ -15,6 +15,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use chrono::{Days, NaiveDate, Utc};
 use deadpool_postgres::{Object, Pool};
 use flate2::{Compression, write::GzEncoder};
+use futures_util::future::BoxFuture;
 use getrandom::fill as fill_random;
 use hickory_resolver::{
     TokioResolver,
@@ -23,10 +24,16 @@ use hickory_resolver::{
     proto::rr::RData,
 };
 use regex::Regex;
+use rustls::{ClientConfig, RootCertStore, pki_types::ServerName};
 use serde::Serialize;
-use tokio::sync::Semaphore;
-use tokio::time::{Instant, timeout, timeout_at};
+use tokio::{
+    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
+    net::TcpStream,
+    sync::Semaphore,
+    time::{Instant, timeout, timeout_at},
+};
 use tokio_postgres::{CancelToken, NoTls};
+use tokio_rustls::TlsConnector;
 use tokio_util::sync::CancellationToken;
 use url::Url;
 
@@ -53,6 +60,15 @@ const REPORT_RENDER_DEADLINE: Duration = Duration::from_secs(10);
 const REPORT_RENDER_DRAIN_TIMEOUT: Duration = Duration::from_secs(2);
 const REPORT_RENDER_WORKERS: usize = 2;
 const REPORT_RENDER_QUEUE: usize = 8;
+const TLS_REPORT_HTTP_MAX_ACTIVE_REQUESTS: usize = 16;
+const TLS_REPORT_HTTP_MAX_ADDRESS_ATTEMPTS: usize = 16;
+const TLS_REPORT_HTTP_MAX_RESPONSE_HEADER_BYTES: usize = 64 * 1024;
+const TLS_REPORT_HTTP_MAX_RESPONSE_HEADER_LINES: usize = 200;
+const TLS_REPORT_HTTP_MAX_RESPONSE_LINE_BYTES: usize = 8 * 1024;
+const TLS_REPORT_HTTP_MAX_INTERIM_RESPONSES: usize = 5;
+const TLS_REPORT_HTTP_READ_CHUNK_BYTES: usize = 4 * 1024;
+const TLS_REPORT_HTTP_CONTENT_TYPE: &str = "application/tlsrpt+gzip";
+const TLS_REPORT_HTTP_USER_AGENT: &str = "lmyzmail-TLSRPT/1.0";
 
 static RUA_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)rua=([^;]+)").expect("RUA regex is valid"));
@@ -161,6 +177,76 @@ struct GeneratedReport {
     record_count: usize,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum TlsReportHttpError {
+    Cancelled,
+    Timeout,
+    Message(String),
+}
+
+impl fmt::Display for TlsReportHttpError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Cancelled => formatter.write_str("reporting operation cancelled"),
+            Self::Timeout => formatter.write_str("HTTP request deadline exceeded"),
+            Self::Message(message) => formatter.write_str(message),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ParsedTlsReportEndpoint {
+    host: String,
+    host_header: String,
+    request_target: String,
+}
+
+#[derive(Clone, Copy)]
+struct TlsReportHttpRequest<'a> {
+    endpoint: &'a ParsedTlsReportEndpoint,
+    addresses: &'a [IpAddr],
+    body: &'a [u8],
+    content_type: &'static str,
+    user_agent: &'static str,
+}
+
+trait TlsReportHttpResolver: Send + Sync {
+    fn resolve<'a>(
+        &'a self,
+        host: &'a str,
+        deadline: Instant,
+        cancellation: &'a CancellationToken,
+    ) -> BoxFuture<'a, Result<Vec<IpAddr>, TlsReportHttpError>>;
+}
+
+trait TlsReportHttpBackend: Send + Sync {
+    fn post<'a>(
+        &'a self,
+        request: TlsReportHttpRequest<'a>,
+        deadline: Instant,
+        cancellation: &'a CancellationToken,
+    ) -> BoxFuture<'a, Result<u16, TlsReportHttpError>>;
+}
+
+#[derive(Clone)]
+struct HickoryTlsReportHttpResolver {
+    resolver: TokioResolver,
+    permits: Arc<Semaphore>,
+}
+
+#[derive(Clone)]
+struct PinnedTlsReportHttpBackend {
+    permits: Arc<Semaphore>,
+    tls_connector: TlsConnector,
+}
+
+#[derive(Clone)]
+struct TlsReportHttpDelivery {
+    resolver: Arc<dyn TlsReportHttpResolver>,
+    backend: Arc<dyn TlsReportHttpBackend>,
+    timeout: Duration,
+}
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ReportingError {
     Cancelled,
@@ -195,6 +281,7 @@ pub struct ReportingService {
     resolver: TokioResolver,
     dns_permits: Arc<Semaphore>,
     render_pool: Arc<BoundedBlockingPool>,
+    http_delivery: TlsReportHttpDelivery,
 }
 
 impl ReportingService {
@@ -208,12 +295,24 @@ impl ReportingService {
             REPORT_RENDER_QUEUE,
         )
         .map_err(|_| ReportingError::Render)?;
+        let dns_permits = Arc::new(Semaphore::new(DNS_MAX_ACTIVE_REQUESTS));
+        let http_delivery = TlsReportHttpDelivery {
+            resolver: Arc::new(HickoryTlsReportHttpResolver {
+                resolver: resolver.clone(),
+                permits: Arc::clone(&dns_permits),
+            }),
+            backend: Arc::new(PinnedTlsReportHttpBackend::new(Arc::new(Semaphore::new(
+                TLS_REPORT_HTTP_MAX_ACTIVE_REQUESTS,
+            )))),
+            timeout: Duration::from_secs(config.http_delivery_timeout_seconds),
+        };
         Ok(Self {
             pool,
             config,
             resolver,
-            dns_permits: Arc::new(Semaphore::new(DNS_MAX_ACTIVE_REQUESTS)),
+            dns_permits,
             render_pool: Arc::new(render_pool),
+            http_delivery,
         })
     }
 
@@ -679,12 +778,11 @@ impl ReportingService {
         }
         if self.config.http_delivery_enabled {
             for target in addresses.https {
-                results.push(ReportDeliveryResult {
-                    success: false,
-                    method: "https",
-                    target,
-                    error: Some(ReportingError::Outbound.to_string()),
-                });
+                results.push(
+                    self.http_delivery
+                        .deliver(&report, &target, cancellation)
+                        .await,
+                );
             }
         }
         Ok(ProtocolReportResult {
@@ -1024,6 +1122,526 @@ impl ReportingService {
         cancellation: &CancellationToken,
     ) -> Result<Object, ReportingError> {
         wait_database(self.pool.get(), deadline, cancellation).await
+    }
+}
+
+impl TlsReportHttpDelivery {
+    async fn deliver(
+        &self,
+        report: &GeneratedReport,
+        endpoint: &str,
+        cancellation: &CancellationToken,
+    ) -> ReportDeliveryResult {
+        let result = self.deliver_inner(report, endpoint, cancellation).await;
+        match result {
+            Ok(status) if (200..300).contains(&status) => ReportDeliveryResult {
+                success: true,
+                method: "https",
+                target: endpoint.to_owned(),
+                error: None,
+            },
+            Ok(status) => ReportDeliveryResult {
+                success: false,
+                method: "https",
+                target: endpoint.to_owned(),
+                error: Some(format!("HTTP {status}")),
+            },
+            Err(error) => ReportDeliveryResult {
+                success: false,
+                method: "https",
+                target: endpoint.to_owned(),
+                error: Some(error.to_string()),
+            },
+        }
+    }
+
+    async fn deliver_inner(
+        &self,
+        report: &GeneratedReport,
+        endpoint: &str,
+        cancellation: &CancellationToken,
+    ) -> Result<u16, TlsReportHttpError> {
+        let endpoint = parse_tls_report_endpoint(endpoint)?;
+        let deadline = Instant::now() + self.timeout;
+        let addresses = tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => return Err(TlsReportHttpError::Cancelled),
+            result = timeout_at(
+                deadline,
+                self.resolver.resolve(&endpoint.host, deadline, cancellation),
+            ) => match result {
+                Ok(result) => result?,
+                Err(_) => return Err(TlsReportHttpError::Timeout),
+            }
+        };
+        if addresses.is_empty() {
+            return Err(TlsReportHttpError::Message(format!(
+                "No addresses found for hostname: {}",
+                endpoint.host
+            )));
+        }
+        let blocked: Vec<String> = addresses
+            .iter()
+            .copied()
+            .filter(|address| !is_public_report_http_ip(*address))
+            .map(|address| address.to_string())
+            .collect();
+        if !blocked.is_empty() {
+            return Err(TlsReportHttpError::Message(format!(
+                "SSRF protection: Host '{}' resolves to non-public address(es): {}",
+                endpoint.host,
+                blocked.join(", ")
+            )));
+        }
+        let pinned_count = addresses.len().min(TLS_REPORT_HTTP_MAX_ADDRESS_ATTEMPTS);
+        let request = TlsReportHttpRequest {
+            endpoint: &endpoint,
+            addresses: &addresses[..pinned_count],
+            body: &report.compressed,
+            content_type: TLS_REPORT_HTTP_CONTENT_TYPE,
+            user_agent: TLS_REPORT_HTTP_USER_AGENT,
+        };
+        tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => Err(TlsReportHttpError::Cancelled),
+            result = timeout_at(
+                deadline,
+                self.backend.post(request, deadline, cancellation),
+            ) => match result {
+                Ok(result) => result,
+                Err(_) => Err(TlsReportHttpError::Timeout),
+            }
+        }
+    }
+}
+
+impl TlsReportHttpResolver for HickoryTlsReportHttpResolver {
+    fn resolve<'a>(
+        &'a self,
+        host: &'a str,
+        deadline: Instant,
+        cancellation: &'a CancellationToken,
+    ) -> BoxFuture<'a, Result<Vec<IpAddr>, TlsReportHttpError>> {
+        Box::pin(async move {
+            if let Ok(address) = host.parse::<IpAddr>() {
+                return Ok(vec![address]);
+            }
+            let _permit = tokio::select! {
+                biased;
+                _ = cancellation.cancelled() => return Err(TlsReportHttpError::Cancelled),
+                result = timeout_at(deadline, self.permits.clone().acquire_owned()) => match result {
+                    Ok(Ok(permit)) => permit,
+                    Ok(Err(_)) => return Err(TlsReportHttpError::Message(
+                        "HTTP DNS resolver is unavailable".into(),
+                    )),
+                    Err(_) => return Err(TlsReportHttpError::Timeout),
+                }
+            };
+            let lookup = tokio::select! {
+                biased;
+                _ = cancellation.cancelled() => return Err(TlsReportHttpError::Cancelled),
+                result = timeout_at(deadline, self.resolver.lookup_ip(host)) => match result {
+                    Ok(Ok(lookup)) => lookup,
+                    Ok(Err(_)) => return Err(TlsReportHttpError::Message(format!(
+                        "DNS resolution failed for {host}"
+                    ))),
+                    Err(_) => return Err(TlsReportHttpError::Timeout),
+                }
+            };
+            Ok(lookup.iter().collect())
+        })
+    }
+}
+
+impl PinnedTlsReportHttpBackend {
+    fn new(permits: Arc<Semaphore>) -> Self {
+        let native = rustls_native_certs::load_native_certs();
+        let mut roots = RootCertStore::empty();
+        let _ = roots.add_parsable_certificates(native.certs);
+        if roots.is_empty() {
+            roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+        }
+        let tls_config = ClientConfig::builder()
+            .with_root_certificates(roots)
+            .with_no_client_auth();
+        Self {
+            permits,
+            tls_connector: TlsConnector::from(Arc::new(tls_config)),
+        }
+    }
+}
+
+impl TlsReportHttpBackend for PinnedTlsReportHttpBackend {
+    fn post<'a>(
+        &'a self,
+        request: TlsReportHttpRequest<'a>,
+        deadline: Instant,
+        cancellation: &'a CancellationToken,
+    ) -> BoxFuture<'a, Result<u16, TlsReportHttpError>> {
+        Box::pin(async move {
+            let _permit = tokio::select! {
+                biased;
+                _ = cancellation.cancelled() => return Err(TlsReportHttpError::Cancelled),
+                result = timeout_at(deadline, self.permits.clone().acquire_owned()) => match result {
+                    Ok(Ok(permit)) => permit,
+                    Ok(Err(_)) => return Err(TlsReportHttpError::Message(
+                        "HTTP delivery admission is unavailable".into(),
+                    )),
+                    Err(_) => return Err(TlsReportHttpError::Timeout),
+                }
+            };
+            let server_name =
+                ServerName::try_from(request.endpoint.host.clone()).map_err(|_| {
+                    TlsReportHttpError::Message(
+                        "TLS report endpoint must contain a hostname".into(),
+                    )
+                })?;
+            let mut tls_stream = None;
+            for address in request.addresses {
+                let socket_address = SocketAddr::new(*address, 443);
+                let stream = tokio::select! {
+                    biased;
+                    _ = cancellation.cancelled() => return Err(TlsReportHttpError::Cancelled),
+                    result = timeout_at(deadline, TcpStream::connect(socket_address)) => match result {
+                        Ok(Ok(stream)) => stream,
+                        Ok(Err(_)) => continue,
+                        Err(_) => return Err(TlsReportHttpError::Timeout),
+                    }
+                };
+                let negotiated = tokio::select! {
+                    biased;
+                    _ = cancellation.cancelled() => return Err(TlsReportHttpError::Cancelled),
+                    result = timeout_at(
+                        deadline,
+                        self.tls_connector.connect(server_name.clone(), stream),
+                    ) => match result {
+                        Ok(Ok(stream)) => stream,
+                        Ok(Err(_)) => continue,
+                        Err(_) => return Err(TlsReportHttpError::Timeout),
+                    }
+                };
+                tls_stream = Some(negotiated);
+                break;
+            }
+            let Some(mut stream) = tls_stream else {
+                return Err(TlsReportHttpError::Message(
+                    "Unable to connect to validated HTTP target".into(),
+                ));
+            };
+            write_tls_report_http_request(&mut stream, request, deadline, cancellation).await?;
+            read_final_http_status(&mut stream, deadline, cancellation).await
+        })
+    }
+}
+
+async fn write_tls_report_http_request<W>(
+    writer: &mut W,
+    request: TlsReportHttpRequest<'_>,
+    deadline: Instant,
+    cancellation: &CancellationToken,
+) -> Result<(), TlsReportHttpError>
+where
+    W: AsyncWrite + Unpin,
+{
+    let head = format!(
+        "POST {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\nContent-Length: {}\r\nContent-Type: {}\r\nUser-Agent: {}\r\n\r\n",
+        request.endpoint.request_target,
+        request.endpoint.host_header,
+        request.body.len(),
+        request.content_type,
+        request.user_agent,
+    );
+    write_http_bytes(writer, head.as_bytes(), deadline, cancellation).await?;
+    write_http_bytes(writer, request.body, deadline, cancellation).await?;
+    flush_http_writer(writer, deadline, cancellation).await
+}
+
+async fn write_http_bytes<W>(
+    writer: &mut W,
+    bytes: &[u8],
+    deadline: Instant,
+    cancellation: &CancellationToken,
+) -> Result<(), TlsReportHttpError>
+where
+    W: AsyncWrite + Unpin,
+{
+    tokio::select! {
+        biased;
+        _ = cancellation.cancelled() => Err(TlsReportHttpError::Cancelled),
+        result = timeout_at(deadline, writer.write_all(bytes)) => match result {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(error)) => Err(TlsReportHttpError::Message(error.to_string())),
+            Err(_) => Err(TlsReportHttpError::Timeout),
+        }
+    }
+}
+
+async fn flush_http_writer<W>(
+    writer: &mut W,
+    deadline: Instant,
+    cancellation: &CancellationToken,
+) -> Result<(), TlsReportHttpError>
+where
+    W: AsyncWrite + Unpin,
+{
+    tokio::select! {
+        biased;
+        _ = cancellation.cancelled() => Err(TlsReportHttpError::Cancelled),
+        result = timeout_at(deadline, writer.flush()) => match result {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(error)) => Err(TlsReportHttpError::Message(error.to_string())),
+            Err(_) => Err(TlsReportHttpError::Timeout),
+        }
+    }
+}
+
+async fn read_final_http_status<R>(
+    reader: &mut R,
+    deadline: Instant,
+    cancellation: &CancellationToken,
+) -> Result<u16, TlsReportHttpError>
+where
+    R: AsyncRead + Unpin,
+{
+    let mut buffered = Vec::with_capacity(TLS_REPORT_HTTP_READ_CHUNK_BYTES);
+    for interim in 0..=TLS_REPORT_HTTP_MAX_INTERIM_RESPONSES {
+        let header =
+            read_http_response_header(reader, &mut buffered, deadline, cancellation).await?;
+        let status = parse_http_response_status(&header)?;
+        if !(100..200).contains(&status) {
+            return Ok(status);
+        }
+        if interim == TLS_REPORT_HTTP_MAX_INTERIM_RESPONSES {
+            return Err(TlsReportHttpError::Message(
+                "Too many interim HTTP responses".into(),
+            ));
+        }
+    }
+    unreachable!("bounded interim response loop always returns")
+}
+
+async fn read_http_response_header<R>(
+    reader: &mut R,
+    buffered: &mut Vec<u8>,
+    deadline: Instant,
+    cancellation: &CancellationToken,
+) -> Result<Vec<u8>, TlsReportHttpError>
+where
+    R: AsyncRead + Unpin,
+{
+    loop {
+        if let Some(end) = find_http_header_end(buffered) {
+            let header = buffered[..end].to_vec();
+            buffered.drain(..end + 4);
+            return Ok(header);
+        }
+        if buffered.len() >= TLS_REPORT_HTTP_MAX_RESPONSE_HEADER_BYTES {
+            return Err(TlsReportHttpError::Message(
+                "HTTP response headers too large".into(),
+            ));
+        }
+        let remaining = TLS_REPORT_HTTP_MAX_RESPONSE_HEADER_BYTES - buffered.len();
+        let mut chunk = [0_u8; TLS_REPORT_HTTP_READ_CHUNK_BYTES];
+        let limit = remaining.min(chunk.len());
+        let read = tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => return Err(TlsReportHttpError::Cancelled),
+            result = timeout_at(deadline, reader.read(&mut chunk[..limit])) => match result {
+                Ok(Ok(read)) => read,
+                Ok(Err(error)) => return Err(TlsReportHttpError::Message(error.to_string())),
+                Err(_) => return Err(TlsReportHttpError::Timeout),
+            }
+        };
+        if read == 0 {
+            return Err(TlsReportHttpError::Message(
+                "Unexpected EOF in HTTP headers".into(),
+            ));
+        }
+        buffered.extend_from_slice(&chunk[..read]);
+    }
+}
+
+fn find_http_header_end(bytes: &[u8]) -> Option<usize> {
+    bytes.windows(4).position(|window| window == b"\r\n\r\n")
+}
+
+fn parse_http_response_status(header: &[u8]) -> Result<u16, TlsReportHttpError> {
+    let lines: Vec<&[u8]> = header.split(|byte| *byte == b'\n').collect();
+    if lines.len().saturating_add(1) > TLS_REPORT_HTTP_MAX_RESPONSE_HEADER_LINES {
+        return Err(TlsReportHttpError::Message(
+            "Too many HTTP response header lines".into(),
+        ));
+    }
+    for line in &lines {
+        let line = line.strip_suffix(b"\r").unwrap_or(line);
+        if line.len() > TLS_REPORT_HTTP_MAX_RESPONSE_LINE_BYTES {
+            return Err(TlsReportHttpError::Message(
+                "HTTP response line too long".into(),
+            ));
+        }
+    }
+    let status_line = lines.first().copied().unwrap_or_default();
+    let status_line = status_line.strip_suffix(b"\r").unwrap_or(status_line);
+    if !status_line.starts_with(b"HTTP/1.") {
+        return Err(TlsReportHttpError::Message(
+            "Invalid HTTP response status line".into(),
+        ));
+    }
+    let status_text = std::str::from_utf8(status_line)
+        .map_err(|_| TlsReportHttpError::Message("Invalid HTTP response status line".into()))?;
+    let status = status_text
+        .split(' ')
+        .nth(1)
+        .ok_or_else(|| TlsReportHttpError::Message("Invalid HTTP response status line".into()))?
+        .parse::<u16>()
+        .map_err(|_| TlsReportHttpError::Message("Invalid HTTP response status code".into()))?;
+    for raw_line in lines.iter().skip(1) {
+        let line = raw_line.strip_suffix(b"\r").unwrap_or(raw_line);
+        if line.first().is_some_and(u8::is_ascii_whitespace) {
+            return Err(TlsReportHttpError::Message(
+                "Obsolete folded HTTP header rejected".into(),
+            ));
+        }
+        if !line
+            .iter()
+            .enumerate()
+            .any(|(index, byte)| index > 0 && *byte == b':')
+        {
+            return Err(TlsReportHttpError::Message(
+                "Malformed HTTP response header".into(),
+            ));
+        }
+    }
+    Ok(status)
+}
+
+fn parse_tls_report_endpoint(
+    endpoint: &str,
+) -> Result<ParsedTlsReportEndpoint, TlsReportHttpError> {
+    if endpoint.len() > DNS_MAX_TXT_BYTES
+        || endpoint
+            .bytes()
+            .any(|byte| byte.is_ascii_control() || byte == b' ' || byte == b'\\')
+    {
+        return Err(TlsReportHttpError::Message(
+            "Invalid TLS report endpoint".into(),
+        ));
+    }
+    let authority_start = endpoint.find("://").map(|index| index + 3).ok_or_else(|| {
+        TlsReportHttpError::Message("TLS report endpoint must contain a hostname".into())
+    })?;
+    let raw_target_start = endpoint[authority_start..]
+        .find(['/', '?'])
+        .map(|index| authority_start + index);
+    let authority_end = raw_target_start.unwrap_or(endpoint.len());
+    if authority_end == authority_start {
+        return Err(TlsReportHttpError::Message(
+            "TLS report endpoint must contain a hostname".into(),
+        ));
+    }
+    let raw_authority = &endpoint[authority_start..authority_end];
+    let url = Url::parse(endpoint)
+        .map_err(|_| TlsReportHttpError::Message("Invalid TLS report endpoint".into()))?;
+    if !url.scheme().eq_ignore_ascii_case("https") {
+        return Err(TlsReportHttpError::Message(
+            "TLS report endpoint must use HTTPS".into(),
+        ));
+    }
+    let Some(raw_host) = url.host_str().filter(|host| !host.is_empty()) else {
+        return Err(TlsReportHttpError::Message(
+            "TLS report endpoint must contain a hostname".into(),
+        ));
+    };
+    if raw_authority.contains('@')
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.fragment().is_some()
+    {
+        return Err(TlsReportHttpError::Message(
+            "TLS report endpoint contains forbidden URI components".into(),
+        ));
+    }
+    if url.port().is_some_and(|port| port != 443) {
+        return Err(TlsReportHttpError::Message(
+            "TLS report endpoint must use port 443".into(),
+        ));
+    }
+    let request_target = match raw_target_start.map(|index| &endpoint[index..]) {
+        None | Some("") => "/".to_owned(),
+        Some(target) if target.starts_with('?') => format!("/{target}"),
+        Some(target) => target.to_owned(),
+    };
+    let host = raw_host
+        .strip_prefix('[')
+        .and_then(|host| host.strip_suffix(']'))
+        .unwrap_or(raw_host)
+        .to_ascii_lowercase();
+    let host_header = if host.contains(':') {
+        format!("[{host}]")
+    } else {
+        host.clone()
+    };
+    Ok(ParsedTlsReportEndpoint {
+        host,
+        host_header,
+        request_target,
+    })
+}
+
+fn is_public_report_http_ip(value: IpAddr) -> bool {
+    match value {
+        IpAddr::V4(value) => {
+            let [first, second, third, _] = value.octets();
+            !(value.is_unspecified()
+                || value.is_loopback()
+                || value.is_private()
+                || value.is_link_local()
+                || value.is_multicast()
+                || value.is_broadcast()
+                || value.is_documentation()
+                || first == 0
+                || (first == 100 && (64..=127).contains(&second))
+                || (first == 192 && second == 0 && third == 0)
+                || (first == 192 && second == 88 && third == 99)
+                || (first == 198 && matches!(second, 18 | 19))
+                || first >= 240)
+        }
+        IpAddr::V6(value) => {
+            let octets = value.octets();
+            let segments = value.segments();
+            if value.is_unspecified()
+                || value.is_loopback()
+                || value.is_multicast()
+                || segments[0] & 0xffc0 == 0xfe80
+                || segments[0] & 0xffc0 == 0xfec0
+                || octets[0] & 0xfe == 0xfc
+                || (segments[0] == 0x2001 && segments[1] == 0x0db8)
+                || (segments[0] == 0x2001 && segments[1] == 0)
+            {
+                return false;
+            }
+            let nat64_well_known = octets[..4] == [0x00, 0x64, 0xff, 0x9b]
+                && octets[4..12].iter().all(|byte| *byte == 0);
+            let nat64_local_use =
+                octets[..4] == [0x00, 0x64, 0xff, 0x9b] && octets[4] == 0 && octets[5] == 1;
+            if nat64_well_known || nat64_local_use {
+                return false;
+            }
+            if segments[0] == 0x2002 {
+                let embedded = Ipv4Addr::new(octets[2], octets[3], octets[4], octets[5]);
+                return is_public_report_http_ip(IpAddr::V4(embedded));
+            }
+            let mapped =
+                octets[..10].iter().all(|byte| *byte == 0) && octets[10..12] == [0xff, 0xff];
+            let compatible = octets[..12].iter().all(|byte| *byte == 0)
+                && octets[12..] != [0, 0, 0, 0]
+                && octets[12..] != [0, 0, 0, 1];
+            if mapped || compatible {
+                let embedded = Ipv4Addr::new(octets[12], octets[13], octets[14], octets[15]);
+                return is_public_report_http_ip(IpAddr::V4(embedded));
+            }
+            true
+        }
     }
 }
 
@@ -1946,9 +2564,16 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::io::Read as _;
+    use std::{
+        io::Read as _,
+        sync::{
+            Mutex,
+            atomic::{AtomicUsize, Ordering as AtomicOrdering},
+        },
+    };
 
     use flate2::read::GzDecoder;
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
     use super::*;
 
@@ -1983,6 +2608,131 @@ mod tests {
             "generated report ID must appear exactly once"
         );
         text.replace(report_id, "<report-id>")
+    }
+
+    fn tls_http_report(body: &[u8]) -> GeneratedReport {
+        GeneratedReport {
+            report_id: "report-id".into(),
+            filename: "report.json.gz".into(),
+            compressed: body.to_vec(),
+            content_type: TLS_REPORT_HTTP_CONTENT_TYPE,
+            success_count: 1,
+            failure_count: 0,
+            record_count: 1,
+        }
+    }
+
+    struct TestHttpResolver {
+        addresses: Vec<IpAddr>,
+        calls: AtomicUsize,
+        pending: bool,
+    }
+
+    impl TestHttpResolver {
+        fn ready(addresses: Vec<IpAddr>) -> Self {
+            Self {
+                addresses,
+                calls: AtomicUsize::new(0),
+                pending: false,
+            }
+        }
+
+        fn pending() -> Self {
+            Self {
+                addresses: Vec::new(),
+                calls: AtomicUsize::new(0),
+                pending: true,
+            }
+        }
+    }
+
+    impl TlsReportHttpResolver for TestHttpResolver {
+        fn resolve<'a>(
+            &'a self,
+            _host: &'a str,
+            _deadline: Instant,
+            _cancellation: &'a CancellationToken,
+        ) -> BoxFuture<'a, Result<Vec<IpAddr>, TlsReportHttpError>> {
+            Box::pin(async move {
+                self.calls.fetch_add(1, AtomicOrdering::Relaxed);
+                if self.pending {
+                    std::future::pending::<()>().await;
+                }
+                Ok(self.addresses.clone())
+            })
+        }
+    }
+
+    #[derive(Clone, Debug, Eq, PartialEq)]
+    struct CapturedHttpRequest {
+        host: String,
+        host_header: String,
+        request_target: String,
+        addresses: Vec<IpAddr>,
+        body: Vec<u8>,
+        content_type: String,
+        user_agent: String,
+    }
+
+    struct TestHttpBackend {
+        status: u16,
+        requests: Mutex<Vec<CapturedHttpRequest>>,
+        pending: bool,
+    }
+
+    impl TestHttpBackend {
+        fn ready(status: u16) -> Self {
+            Self {
+                status,
+                requests: Mutex::new(Vec::new()),
+                pending: false,
+            }
+        }
+
+        fn pending() -> Self {
+            Self {
+                status: 0,
+                requests: Mutex::new(Vec::new()),
+                pending: true,
+            }
+        }
+    }
+
+    impl TlsReportHttpBackend for TestHttpBackend {
+        fn post<'a>(
+            &'a self,
+            request: TlsReportHttpRequest<'a>,
+            _deadline: Instant,
+            _cancellation: &'a CancellationToken,
+        ) -> BoxFuture<'a, Result<u16, TlsReportHttpError>> {
+            Box::pin(async move {
+                self.requests.lock().unwrap().push(CapturedHttpRequest {
+                    host: request.endpoint.host.clone(),
+                    host_header: request.endpoint.host_header.clone(),
+                    request_target: request.endpoint.request_target.clone(),
+                    addresses: request.addresses.to_vec(),
+                    body: request.body.to_vec(),
+                    content_type: request.content_type.into(),
+                    user_agent: request.user_agent.into(),
+                });
+                if self.pending {
+                    std::future::pending::<()>().await;
+                }
+                Ok(self.status)
+            })
+        }
+    }
+
+    fn test_http_delivery(
+        resolver: Arc<dyn TlsReportHttpResolver>,
+        backend: Arc<dyn TlsReportHttpBackend>,
+        timeout: Duration,
+    ) -> TlsReportHttpDelivery {
+        TlsReportHttpDelivery {
+            resolver,
+            backend,
+            timeout,
+        }
     }
 
     #[test]
@@ -2144,5 +2894,414 @@ mod tests {
         let mut bounded = BoundedVec { bytes: Vec::new() };
         assert!(bounded.write_all(&payload).is_ok());
         assert!(bounded.write_all(b"x").is_err());
+    }
+
+    #[test]
+    fn tls_report_endpoint_validation_matches_the_frozen_oracle() {
+        let parsed =
+            parse_tls_report_endpoint("HTTPS://Reports.Example:443/a/../raw.json?token=%2Fvalue")
+                .expect("valid HTTPS endpoint");
+        assert_eq!(parsed.host, "reports.example");
+        assert_eq!(parsed.host_header, "reports.example");
+        assert_eq!(parsed.request_target, "/a/../raw.json?token=%2Fvalue");
+        let ipv6 = parse_tls_report_endpoint("https://[2001:4860:4860::8888]/tls")
+            .expect("valid IPv6 HTTPS endpoint");
+        assert_eq!(ipv6.host, "2001:4860:4860::8888");
+        assert_eq!(ipv6.host_header, "[2001:4860:4860::8888]");
+
+        let cases = [
+            (
+                "http://reports.example/report",
+                "TLS report endpoint must use HTTPS",
+            ),
+            (
+                "https:///report",
+                "TLS report endpoint must contain a hostname",
+            ),
+            (
+                "https://user@reports.example/report",
+                "TLS report endpoint contains forbidden URI components",
+            ),
+            (
+                "https://@reports.example/report",
+                "TLS report endpoint contains forbidden URI components",
+            ),
+            (
+                "https://reports.example/report#fragment",
+                "TLS report endpoint contains forbidden URI components",
+            ),
+            (
+                "https://reports.example:8443/report",
+                "TLS report endpoint must use port 443",
+            ),
+        ];
+        for (endpoint, expected) in cases {
+            assert_eq!(
+                parse_tls_report_endpoint(endpoint).unwrap_err().to_string(),
+                expected,
+                "unexpected validation result for {endpoint}"
+            );
+        }
+    }
+
+    #[test]
+    fn report_http_public_address_policy_matches_the_frozen_java_validator() {
+        for address in [
+            "8.8.8.8",
+            "1.1.1.1",
+            "2001:4860:4860::8888",
+            "2001:4860:4860::8844",
+        ] {
+            assert!(
+                is_public_report_http_ip(address.parse().unwrap()),
+                "rejected public address {address}"
+            );
+        }
+        for address in [
+            "0.1.2.3",
+            "10.0.0.1",
+            "100.64.0.1",
+            "127.0.0.1",
+            "169.254.1.1",
+            "192.0.0.1",
+            "192.0.2.1",
+            "192.88.99.1",
+            "198.18.0.1",
+            "198.51.100.1",
+            "203.0.113.1",
+            "240.0.0.1",
+            "::1",
+            "fe80::1",
+            "fec0::1",
+            "fc00::1",
+            "2001:db8::1",
+            "2001::1",
+            "64:ff9b::7f00:1",
+            "64:ff9b:1::7f00:1",
+            "2002:7f00:1::",
+            "::ffff:127.0.0.1",
+            "::127.0.0.1",
+        ] {
+            assert!(
+                !is_public_report_http_ip(address.parse().unwrap()),
+                "accepted non-public address {address}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn tls_report_https_delivery_pins_one_lookup_and_preserves_request_bytes() {
+        let resolver = Arc::new(TestHttpResolver::ready(vec!["8.8.8.8".parse().unwrap()]));
+        let backend = Arc::new(TestHttpBackend::ready(204));
+        let delivery =
+            test_http_delivery(resolver.clone(), backend.clone(), Duration::from_secs(1));
+        let body = [0x1f, 0x8b, 0x08, 0x00, 0x42];
+        let result = delivery
+            .deliver(
+                &tls_http_report(&body),
+                "https://Reports.Example/a/../tls?token=%2Fvalue",
+                &CancellationToken::new(),
+            )
+            .await;
+
+        assert!(result.success);
+        assert_eq!(result.method, "https");
+        assert_eq!(result.error, None);
+        assert_eq!(resolver.calls.load(AtomicOrdering::Relaxed), 1);
+        assert_eq!(
+            *backend.requests.lock().unwrap(),
+            vec![CapturedHttpRequest {
+                host: "reports.example".into(),
+                host_header: "reports.example".into(),
+                request_target: "/a/../tls?token=%2Fvalue".into(),
+                addresses: vec!["8.8.8.8".parse().unwrap()],
+                body: body.to_vec(),
+                content_type: TLS_REPORT_HTTP_CONTENT_TYPE.into(),
+                user_agent: TLS_REPORT_HTTP_USER_AGENT.into(),
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn tls_report_https_rejects_every_mixed_dns_answer_before_connecting() {
+        let resolver = Arc::new(TestHttpResolver::ready(vec![
+            "8.8.8.8".parse().unwrap(),
+            "127.0.0.1".parse().unwrap(),
+        ]));
+        let backend = Arc::new(TestHttpBackend::ready(200));
+        let delivery = test_http_delivery(resolver, backend.clone(), Duration::from_secs(1));
+        let result = delivery
+            .deliver(
+                &tls_http_report(b"gzip"),
+                "https://reports.example/tls",
+                &CancellationToken::new(),
+            )
+            .await;
+
+        assert!(!result.success);
+        assert_eq!(
+            result.error.as_deref(),
+            Some(
+                "SSRF protection: Host 'reports.example' resolves to non-public address(es): 127.0.0.1"
+            )
+        );
+        assert!(backend.requests.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn tls_report_https_validates_all_addresses_but_pins_at_most_sixteen() {
+        let public: Vec<IpAddr> = (1..=20)
+            .map(|last| IpAddr::V4(Ipv4Addr::new(8, 8, 4, last)))
+            .collect();
+        let resolver = Arc::new(TestHttpResolver::ready(public.clone()));
+        let backend = Arc::new(TestHttpBackend::ready(200));
+        let delivery = test_http_delivery(resolver, backend.clone(), Duration::from_secs(1));
+        let result = delivery
+            .deliver(
+                &tls_http_report(b"gzip"),
+                "https://reports.example/tls",
+                &CancellationToken::new(),
+            )
+            .await;
+        assert!(result.success);
+        assert_eq!(
+            backend.requests.lock().unwrap()[0].addresses,
+            public[..TLS_REPORT_HTTP_MAX_ADDRESS_ATTEMPTS]
+        );
+
+        let mut mixed_after_limit = public;
+        mixed_after_limit.push("127.0.0.1".parse().unwrap());
+        let resolver = Arc::new(TestHttpResolver::ready(mixed_after_limit));
+        let second_backend = Arc::new(TestHttpBackend::ready(200));
+        let delivery = test_http_delivery(resolver, second_backend.clone(), Duration::from_secs(1));
+        let result = delivery
+            .deliver(
+                &tls_http_report(b"gzip"),
+                "https://reports.example/tls",
+                &CancellationToken::new(),
+            )
+            .await;
+        assert!(!result.success);
+        assert!(second_backend.requests.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn tls_report_https_never_follows_redirects_and_formats_http_failures() {
+        let resolver = Arc::new(TestHttpResolver::ready(vec!["8.8.8.8".parse().unwrap()]));
+        let backend = Arc::new(TestHttpBackend::ready(302));
+        let delivery = test_http_delivery(resolver, backend.clone(), Duration::from_secs(1));
+        let result = delivery
+            .deliver(
+                &tls_http_report(b"gzip"),
+                "https://reports.example/tls",
+                &CancellationToken::new(),
+            )
+            .await;
+        assert!(!result.success);
+        assert_eq!(result.error.as_deref(), Some("HTTP 302"));
+        assert_eq!(backend.requests.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn tls_report_https_deadline_and_cancellation_cover_dns_and_http() {
+        let resolver = Arc::new(TestHttpResolver::pending());
+        let backend = Arc::new(TestHttpBackend::ready(200));
+        let delivery = test_http_delivery(resolver, backend, Duration::from_millis(25));
+        let result = delivery
+            .deliver(
+                &tls_http_report(b"gzip"),
+                "https://reports.example/tls",
+                &CancellationToken::new(),
+            )
+            .await;
+        assert_eq!(
+            result.error.as_deref(),
+            Some("HTTP request deadline exceeded")
+        );
+
+        let resolver = Arc::new(TestHttpResolver::ready(vec!["8.8.8.8".parse().unwrap()]));
+        let backend = Arc::new(TestHttpBackend::pending());
+        let delivery = test_http_delivery(resolver, backend, Duration::from_millis(25));
+        let result = delivery
+            .deliver(
+                &tls_http_report(b"gzip"),
+                "https://reports.example/tls",
+                &CancellationToken::new(),
+            )
+            .await;
+        assert_eq!(
+            result.error.as_deref(),
+            Some("HTTP request deadline exceeded")
+        );
+
+        let cancellation = CancellationToken::new();
+        cancellation.cancel();
+        let delivery = test_http_delivery(
+            Arc::new(TestHttpResolver::pending()),
+            Arc::new(TestHttpBackend::pending()),
+            Duration::from_secs(1),
+        );
+        let result = delivery
+            .deliver(
+                &tls_http_report(b"gzip"),
+                "https://reports.example/tls",
+                &cancellation,
+            )
+            .await;
+        assert_eq!(
+            result.error.as_deref(),
+            Some("reporting operation cancelled")
+        );
+    }
+
+    #[tokio::test]
+    async fn pinned_http_backend_has_bounded_admission() {
+        let permits = Arc::new(Semaphore::new(1));
+        let held = permits.clone().acquire_owned().await.unwrap();
+        let backend = PinnedTlsReportHttpBackend::new(permits);
+        let endpoint = parse_tls_report_endpoint("https://reports.example/tls").unwrap();
+        let addresses = ["8.8.8.8".parse().unwrap()];
+        let request = TlsReportHttpRequest {
+            endpoint: &endpoint,
+            addresses: &addresses,
+            body: b"gzip",
+            content_type: TLS_REPORT_HTTP_CONTENT_TYPE,
+            user_agent: TLS_REPORT_HTTP_USER_AGENT,
+        };
+        let result = backend
+            .post(
+                request,
+                Instant::now() + Duration::from_millis(25),
+                &CancellationToken::new(),
+            )
+            .await;
+        drop(held);
+        assert_eq!(result, Err(TlsReportHttpError::Timeout));
+    }
+
+    #[tokio::test]
+    async fn tls_report_http_writer_emits_exact_headers_and_body() {
+        let endpoint =
+            parse_tls_report_endpoint("https://reports.example/a/../tls.json?token=%2Fvalue")
+                .unwrap();
+        let addresses = ["8.8.8.8".parse().unwrap()];
+        let body = [0x1f, 0x8b, 0x08, 0x42];
+        let request = TlsReportHttpRequest {
+            endpoint: &endpoint,
+            addresses: &addresses,
+            body: &body,
+            content_type: TLS_REPORT_HTTP_CONTENT_TYPE,
+            user_agent: TLS_REPORT_HTTP_USER_AGENT,
+        };
+        let mut expected = concat!(
+            "POST /a/../tls.json?token=%2Fvalue HTTP/1.1\r\n",
+            "Host: reports.example\r\n",
+            "Connection: close\r\n",
+            "Content-Length: 4\r\n",
+            "Content-Type: application/tlsrpt+gzip\r\n",
+            "User-Agent: lmyzmail-TLSRPT/1.0\r\n",
+            "\r\n"
+        )
+        .as_bytes()
+        .to_vec();
+        expected.extend_from_slice(&body);
+        let (mut writer, mut reader) = tokio::io::duplex(expected.len());
+        let deadline = Instant::now() + Duration::from_secs(1);
+        let cancellation = CancellationToken::new();
+        let mut actual = vec![0_u8; expected.len()];
+        let (write_result, read_result) = tokio::join!(
+            write_tls_report_http_request(&mut writer, request, deadline, &cancellation),
+            reader.read_exact(&mut actual),
+        );
+        write_result.unwrap();
+        read_result.unwrap();
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn http_response_reader_bounds_headers_and_interim_responses() {
+        let response = concat!(
+            "HTTP/1.1 100 Continue\r\nX-First: yes\r\n\r\n",
+            "HTTP/1.1 103 Early Hints\r\nLink: </asset>\r\n\r\n",
+            "HTTP/1.1 204 No Content\r\nContent-Length: 999999\r\n\r\n",
+            "ignored response body"
+        );
+        let (mut writer, mut reader) = tokio::io::duplex(response.len());
+        let deadline = Instant::now() + Duration::from_secs(1);
+        let cancellation = CancellationToken::new();
+        let (write_result, read_result) = tokio::join!(
+            async {
+                writer.write_all(response.as_bytes()).await?;
+                writer.shutdown().await
+            },
+            read_final_http_status(&mut reader, deadline, &cancellation),
+        );
+        write_result.unwrap();
+        assert_eq!(read_result.unwrap(), 204);
+
+        let overlong = format!(
+            "HTTP/1.1 200 OK\r\nX-Long: {}",
+            "x".repeat(TLS_REPORT_HTTP_MAX_RESPONSE_LINE_BYTES)
+        );
+        assert_eq!(
+            parse_http_response_status(overlong.as_bytes())
+                .unwrap_err()
+                .to_string(),
+            "HTTP response line too long"
+        );
+
+        let too_many_lines = format!(
+            "HTTP/1.1 200 OK\r\n{}",
+            (0..199)
+                .map(|index| format!("X-{index}: value"))
+                .collect::<Vec<_>>()
+                .join("\r\n")
+        );
+        assert_eq!(
+            parse_http_response_status(too_many_lines.as_bytes())
+                .unwrap_err()
+                .to_string(),
+            "Too many HTTP response header lines"
+        );
+
+        let interim = "HTTP/1.1 100 Continue\r\nX: yes\r\n\r\n".repeat(6);
+        let (mut writer, mut reader) = tokio::io::duplex(interim.len());
+        let cancellation = CancellationToken::new();
+        let (write_result, read_result) = tokio::join!(
+            async {
+                writer.write_all(interim.as_bytes()).await?;
+                writer.shutdown().await
+            },
+            read_final_http_status(
+                &mut reader,
+                Instant::now() + Duration::from_secs(1),
+                &cancellation,
+            ),
+        );
+        write_result.unwrap();
+        assert_eq!(
+            read_result.unwrap_err().to_string(),
+            "Too many interim HTTP responses"
+        );
+
+        let oversized = vec![b'x'; TLS_REPORT_HTTP_MAX_RESPONSE_HEADER_BYTES];
+        let (mut writer, mut reader) = tokio::io::duplex(oversized.len());
+        let cancellation = CancellationToken::new();
+        let (write_result, read_result) = tokio::join!(
+            async {
+                writer.write_all(&oversized).await?;
+                writer.shutdown().await
+            },
+            read_final_http_status(
+                &mut reader,
+                Instant::now() + Duration::from_secs(1),
+                &cancellation,
+            ),
+        );
+        write_result.unwrap();
+        assert_eq!(
+            read_result.unwrap_err().to_string(),
+            "HTTP response headers too large"
+        );
     }
 }

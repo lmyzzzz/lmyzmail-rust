@@ -12,6 +12,11 @@ Configuration resolution is deterministic:
 3. If both are absent, apply the frozen oracle default.
 4. Never merge scalar values or silently accept conflicting structured values.
 
+Generated product identifiers use the new `lmyzmail` brand. The intentional
+wire-level exception is the TLSRPT HTTPS User-Agent, which is
+`lmyzmail-TLSRPT/1.0`; all delivery status, request framing, TLS, DNS, and
+error semantics remain subject to the frozen oracle contract.
+
 Only genuine nondeterminism such as wall-clock time, random identifiers, and
 ephemeral ports may be normalized. Each normalizer is field-scoped and tested;
 there is no whole-response masking or assertion weakening.
@@ -75,6 +80,14 @@ wire, state, storage, or recovery assertions.
   dedicated two-worker/eight-waiter pool applies one ten-second deadline with
   cancellation and bounded drain. In-budget DMARC XML and TLSRPT JSON remain
   byte-exact with the frozen Java golden.
+- TLSRPT HTTPS delivery accepts only HTTPS endpoints with a hostname and no
+  userinfo, fragment, or non-443 port. The complete DNS answer set must pass
+  the frozen Java public-address policy before the candidate pins at most 16
+  addresses for TCP/TLS. Hostname verification and SNI use the original
+  hostname, redirects and proxies are disabled, the request body is the
+  already-bounded TLSRPT gzip stream, and only the final HTTP status is read.
+  DNS, connection, TLS, write, response-header, and admission work share the
+  configured absolute deadline and cancellation token.
 - A live legacy MTA-STS NONE value is reusable only for its remaining Redis TTL,
   capped at five minutes. This repairs the oracle's restart-only negative-cache
   expiry bug without changing bytes, keys, or post-expiry discovery.

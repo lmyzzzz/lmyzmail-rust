@@ -73,9 +73,13 @@ byte-exact gzip attachments on a bounded blocking pool, and publishes email
 deliveries through the durable PostgreSQL/Redis/Sent-Maildir outbound queue.
 The seeded v12 differential covers DNS order, HTTP bodies, MIME, decompressed
 XML/JSON, queue fields and TTLs, Maildir shards, and unchanged source rows.
-Pinned HTTPS RUA delivery is not yet admitted: an enabled HTTPS destination
-currently produces a failed delivery result rather than the frozen Java POST,
-so this runtime milestone is not the complete reporting replacement.
+TLSRPT HTTPS RUA delivery now performs the frozen POST through one validated,
+pinned DNS answer set with public-address enforcement, hostname-verified TLS,
+no proxy or redirects, exact request framing, bounded response headers, no
+response-body consumption, and one absolute deadline/cancellation path. The
+User-Agent uses the authorized `lmyzmail` product identifier. Scheduled
+multi-domain generation and retention remain outside this reporting milestone,
+so it is not yet the complete reporting replacement.
 
 HTCPCP runs as a bounded Tokio listener only when enabled. It preserves the
 frozen eight-pot configuration, BREW/POST/GET/HEAD/OPTIONS/PROPFIND/WHEN wire
