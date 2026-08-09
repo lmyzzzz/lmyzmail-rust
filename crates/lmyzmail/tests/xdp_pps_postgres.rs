@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -30,6 +30,8 @@ const XDP_RECONCILIATION_MARKER: &[u8] = b"lmyzmail_xdp_traffic_commit_reconcili
 const SET_CONFIG_MARKER: &[u8] = b"set_config('statement_timeout'";
 const COMMIT_MARKER: &[u8] = b"COMMIT\0";
 const TIMESTAMP_ORDER_ADVISORY_KEY: i64 = 7_814_235;
+
+static POSTGRES_START_LOCK: Mutex<()> = Mutex::new(());
 
 const CRINGE_DDL: &str = r#"
 CREATE TABLE skibidi_cringe_ip (
@@ -261,6 +263,9 @@ struct PostgresProcess {
 
 impl PostgresProcess {
     fn start() -> Self {
+        let _start_guard = POSTGRES_START_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
         let port = listener.local_addr().unwrap().port();
         drop(listener);
