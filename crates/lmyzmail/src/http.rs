@@ -8,7 +8,6 @@ use std::{
 
 use chrono::{DateTime, NaiveDate, Utc};
 use deadpool_postgres::Pool;
-use deadpool_redis::Pool as RedisPool;
 use percent_encoding::percent_decode_str;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -178,7 +177,8 @@ impl ServerLimits {
 pub async fn serve_http(
     config: Arc<RuntimeConfig>,
     database_pool: Pool,
-    redis_pool: RedisPool,
+    reporting: Arc<ReportingService>,
+    outbound: Arc<OutboundService>,
     cancellation: CancellationToken,
 ) -> io::Result<()> {
     let listener = TcpListener::bind((config.listen.host.as_str(), config.listen.http)).await?;
@@ -188,14 +188,6 @@ pub async fn serve_http(
     let mailbox = Arc::new(MailboxService::from_config(&config, database_pool.clone()));
     let userdata = Arc::new(UserDataService::new(database_pool.clone()));
     let cringe_pool = database_pool.clone();
-    let reporting = Arc::new(
-        ReportingService::new(database_pool.clone(), config.reporting.clone())
-            .map_err(io::Error::other)?,
-    );
-    let outbound = Arc::new(
-        OutboundService::from_config(&config, database_pool, redis_pool)
-            .map_err(io::Error::other)?,
-    );
     let cringe = Arc::new(CringeService::new(cringe_pool));
     let reconciliation_outbound = Arc::clone(&outbound);
     let reconciliation_cancellation = cancellation.clone();

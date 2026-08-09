@@ -12,7 +12,7 @@ use std::{
 };
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
-use chrono::{Days, NaiveDate, Utc};
+use chrono::{DateTime, Days, NaiveDate, TimeDelta, Utc};
 use deadpool_postgres::{Object, Pool};
 use flate2::{Compression, write::GzEncoder};
 use futures_util::future::BoxFuture;
@@ -30,7 +30,7 @@ use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     net::TcpStream,
     sync::Semaphore,
-    time::{Instant, timeout, timeout_at},
+    time::{Instant, sleep, timeout, timeout_at},
 };
 use tokio_postgres::{CancelToken, NoTls};
 use tokio_rustls::TlsConnector;
@@ -62,6 +62,7 @@ const REPORT_RENDER_DEADLINE: Duration = Duration::from_secs(10);
 const REPORT_RENDER_DRAIN_TIMEOUT: Duration = Duration::from_secs(2);
 const REPORT_RENDER_WORKERS: usize = 2;
 const REPORT_RENDER_QUEUE: usize = 8;
+const REPORT_SCHEDULER_CLOCK_POLL: Duration = Duration::from_secs(60);
 const TLS_REPORT_HTTP_MAX_ACTIVE_REQUESTS: usize = 16;
 const TLS_REPORT_HTTP_MAX_ADDRESS_ATTEMPTS: usize = 16;
 const TLS_REPORT_HTTP_MAX_RESPONSE_HEADER_BYTES: usize = 64 * 1024;
@@ -1209,6 +1210,74 @@ impl ReportingService {
         cancellation: &CancellationToken,
     ) -> Result<Object, ReportingError> {
         wait_database(self.pool.get(), deadline, cancellation).await
+    }
+}
+
+pub async fn run_scheduler(
+    reporting: Arc<ReportingService>,
+    outbound: Arc<OutboundService>,
+    our_domain: String,
+    cancellation: CancellationToken,
+) {
+    loop {
+        let scheduled = next_utc_report_run(Utc::now());
+        if !wait_for_scheduled_time(scheduled, &cancellation).await {
+            return;
+        }
+        let Some(report_date) = scheduled.date_naive().checked_sub_days(Days::new(1)) else {
+            continue;
+        };
+        match reporting
+            .generate_all(report_date, &our_domain, &outbound, &cancellation)
+            .await
+        {
+            Ok(summary) => {
+                if let Some(error) = summary.error {
+                    eprintln!("lmyzmail report scheduler completed with error: {error}");
+                }
+            }
+            Err(ReportingError::Cancelled) if cancellation.is_cancelled() => return,
+            Err(error) => eprintln!("lmyzmail report scheduler failed: {error}"),
+        }
+    }
+}
+
+fn next_utc_report_run(now: DateTime<Utc>) -> DateTime<Utc> {
+    let today = now
+        .date_naive()
+        .and_hms_opt(1, 0, 0)
+        .expect("01:00 UTC is a valid wall-clock time")
+        .and_utc();
+    if now < today {
+        today
+    } else {
+        now.date_naive()
+            .checked_add_days(Days::new(1))
+            .expect("system clock is within chrono's supported range")
+            .and_hms_opt(1, 0, 0)
+            .expect("01:00 UTC is a valid wall-clock time")
+            .and_utc()
+    }
+}
+
+async fn wait_for_scheduled_time(
+    scheduled: DateTime<Utc>,
+    cancellation: &CancellationToken,
+) -> bool {
+    loop {
+        let remaining = scheduled.signed_duration_since(Utc::now());
+        if remaining <= TimeDelta::zero() {
+            return true;
+        }
+        let delay = remaining
+            .to_std()
+            .unwrap_or(Duration::ZERO)
+            .min(REPORT_SCHEDULER_CLOCK_POLL);
+        tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => return false,
+            _ = sleep(delay) => {}
+        }
     }
 }
 
@@ -2712,6 +2781,51 @@ mod tests {
 
     fn report_date() -> NaiveDate {
         NaiveDate::from_ymd_opt(2024, 1, 1).expect("fixture date is valid")
+    }
+
+    fn utc_datetime(year: i32, month: u32, day: u32, hour: u32) -> DateTime<Utc> {
+        NaiveDate::from_ymd_opt(year, month, day)
+            .expect("fixture date is valid")
+            .and_hms_opt(hour, 0, 0)
+            .expect("fixture time is valid")
+            .and_utc()
+    }
+
+    #[test]
+    fn report_scheduler_targets_the_next_strict_utc_boundary() {
+        assert_eq!(
+            next_utc_report_run(utc_datetime(2024, 1, 1, 0)),
+            utc_datetime(2024, 1, 1, 1)
+        );
+        assert_eq!(
+            next_utc_report_run(utc_datetime(2024, 1, 1, 1)),
+            utc_datetime(2024, 1, 2, 1)
+        );
+        assert_eq!(
+            next_utc_report_run(utc_datetime(2024, 12, 31, 23)),
+            utc_datetime(2025, 1, 1, 1)
+        );
+    }
+
+    #[tokio::test]
+    async fn report_scheduler_wait_observes_preexisting_cancellation() {
+        let cancellation = CancellationToken::new();
+        cancellation.cancel();
+        assert!(!wait_for_scheduled_time(Utc::now() + TimeDelta::hours(1), &cancellation).await);
+    }
+
+    proptest! {
+        #[test]
+        fn report_scheduler_next_run_is_strict_and_within_one_day(
+            timestamp in 0_i64..4_102_444_800_i64,
+        ) {
+            let now = DateTime::<Utc>::from_timestamp(timestamp, 0)
+                .expect("generated timestamp is supported");
+            let next = next_utc_report_run(now);
+            prop_assert!(next > now);
+            prop_assert!(next.signed_duration_since(now) <= TimeDelta::days(1));
+            prop_assert_eq!(next.time(), chrono::NaiveTime::from_hms_opt(1, 0, 0).unwrap());
+        }
     }
 
     #[test]

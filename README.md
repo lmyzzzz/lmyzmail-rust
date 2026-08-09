@@ -78,9 +78,11 @@ TLSRPT HTTPS RUA delivery now performs the frozen POST through one validated,
 pinned DNS answer set with public-address enforcement, hostname-verified TLS,
 no proxy or redirects, exact request framing, bounded response headers, no
 response-body consumption, and one absolute deadline/cancellation path. The
-User-Agent uses the authorized `lmyzmail` product identifier. Automatic 01:00
-UTC scheduling and retention remain outside this reporting milestone, so it is
-not yet the complete reporting replacement.
+User-Agent uses the authorized `lmyzmail` product identifier. When reporting
+and automatic sending are enabled, a cancellation-aware root task runs the same
+bounded generation path at 01:00 UTC. The frozen Java retention queries are not
+invoked by its scheduler, so the candidate likewise performs no implicit
+report-row deletion.
 
 HTCPCP runs as a bounded Tokio listener only when enabled. It preserves the
 frozen eight-pot configuration, BREW/POST/GET/HEAD/OPTIONS/PROPFIND/WHEN wire

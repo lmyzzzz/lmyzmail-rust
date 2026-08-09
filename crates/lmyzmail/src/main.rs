@@ -3,8 +3,11 @@ use std::{env, io, path::PathBuf, sync::Arc, time::Duration};
 use lmyzmail::{
     config::{Properties, RuntimeConfig},
     database, honeypot, htcpcp, http, lifecycle, minecraft,
+    outbound::OutboundService,
     outbound_worker::OutboundWorker,
-    redis, smtp,
+    redis,
+    reporting::{self, ReportingService},
+    smtp,
 };
 use tokio::{task::JoinSet, time::timeout};
 use tokio_util::sync::CancellationToken;
@@ -34,6 +37,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let redis_pool = redis::create_pool(&config)?;
     let outbound_worker =
         OutboundWorker::from_config(&config, database_pool.clone(), redis_pool.clone())?;
+    let reporting_service = Arc::new(ReportingService::new(
+        database_pool.clone(),
+        config.reporting.clone(),
+    )?);
+    let outbound_service = Arc::new(OutboundService::from_config(
+        &config,
+        database_pool.clone(),
+        redis_pool.clone(),
+    )?);
     let cancellation = CancellationToken::new();
     let signal_cancellation = cancellation.clone();
     let signal_task = tokio::spawn(lifecycle::wait_for_shutdown(signal_cancellation));
@@ -45,13 +57,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let http_config = Arc::clone(&config);
     let http_cancellation = cancellation.clone();
     let http_pool = database_pool.clone();
-    let http_redis_pool = redis_pool.clone();
+    let http_reporting = Arc::clone(&reporting_service);
+    let http_outbound = Arc::clone(&outbound_service);
     services.spawn(async move {
         (
             "HTTP",
-            http::serve_http(http_config, http_pool, http_redis_pool, http_cancellation).await,
+            http::serve_http(
+                http_config,
+                http_pool,
+                http_reporting,
+                http_outbound,
+                http_cancellation,
+            )
+            .await,
         )
     });
+    if config.reporting.enabled && config.reporting.auto_send_enabled {
+        let scheduler_reporting = Arc::clone(&reporting_service);
+        let scheduler_outbound = Arc::clone(&outbound_service);
+        let scheduler_domain = config.domain.clone();
+        let scheduler_cancellation = cancellation.clone();
+        services.spawn(async move {
+            reporting::run_scheduler(
+                scheduler_reporting,
+                scheduler_outbound,
+                scheduler_domain,
+                scheduler_cancellation,
+            )
+            .await;
+            ("report scheduler", Ok::<(), io::Error>(()))
+        });
+    }
     if !config.listen.honeypots.is_empty() {
         let honeypot_config = Arc::clone(&config);
         let honeypot_cancellation = cancellation.clone();
