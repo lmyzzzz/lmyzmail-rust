@@ -25,7 +25,7 @@ from lmyzmail_blackbox.persistent_runtime import PersistentJavaOracleRuntime
 from lmyzmail_blackbox.ports import PortSet
 from lmyzmail_blackbox.runtime import CandidateRuntime
 
-_GOLDEN = "managed-minecraft-online-v1"
+_GOLDEN = "managed-minecraft-online-v2"
 _USERNAME = "OnlineUser"
 _RSA_FIELD = 512
 
@@ -191,7 +191,7 @@ def test_frozen_java_minecraft_online_boundaries(tmp_path: Path) -> None:
     repository = Path(__file__).resolve().parents[2]
     golden = repository / "blackbox/golden/java" / _GOLDEN
     record = os.environ.get("LMYZMAIL_RECORD_JAVA_GOLDEN") == "1"
-    runner = DifferentialRunner(repository, golden, "managed-minecraft-online", record_java=record)
+    runner = DifferentialRunner(repository, golden, _GOLDEN, record_java=record)
     with _OnlineJavaOracleRuntime(tmp_path / "java-minecraft-online") as oracle:
         target = _OracleTarget(oracle)
         if record:
@@ -218,5 +218,5 @@ def test_rust_candidate_minecraft_online_boundaries() -> None:
         DifferentialRunner(
             repository,
             repository / "blackbox/golden/java" / _GOLDEN,
-            "managed-minecraft-online",
+            _GOLDEN,
         ).verify_candidate(SCENARIOS, candidate)
