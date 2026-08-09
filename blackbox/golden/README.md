@@ -1041,15 +1041,20 @@ cannot pass an earlier definition tree.
 
 The active Cringe API sets are:
 
-- `managed-cringe-api-v4/`
-- `managed-cringe-api-oracle-boundaries-v4/`
+- `managed-cringe-api-v5/`
+- `managed-cringe-api-oracle-boundaries-v5/`
+- `managed-cringe-decay-v1/`
 
 They bind definition tree
-`0206c6915b1474058bfeb55fb21bda88d329c4922ed578e1e5f6d18a9166da43`
-after the XDP PPS monitor evidence and storage-contract assertions were added.
-Both generations were recorded from the frozen Java oracle. Their observation
-objects are structurally identical to the retained v3 generations; no v3 file
-was rewritten. The candidate driver targets v4.
+`9e1b0ad56f1c734e3d44cc094af9eda1e11f587d87c008ee9cab8f416a21404a`
+after the decay HTTP and PostgreSQL state scenario was added. The API and
+boundary v5 observations are structurally identical to retained v4; no older
+generation was rewritten. Decay v1 freezes the exact default configuration
+wire bytes, estimate arithmetic, permissions, missing-IP response, eligible
+row mutation, future/zero-score preservation, and immediate idempotent retry.
+An independent fresh Java replay and the existing Rust API/boundary candidate
+checks passed against this generation. The candidate driver targets API and
+boundary v5; decay v1 remains the implementation acceptance golden.
 
 The disabled XDP control-plane extension retains two create-once generations:
 

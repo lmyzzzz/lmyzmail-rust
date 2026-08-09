@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+  "controller": {
+    "path": "src/main/java/net/lmyz/lmyzmail/cringe/api/SkibidiCringeIPController.java",
+    "working_tree_sha256": "59fa65284de9f2820956aed0bc5fe19b69114d21951962986b867822302ad621"
+  },
+  "service": {
+    "path": "src/main/java/net/lmyz/lmyzmail/cringe/service/SkibidiCringeIPService.java",
+    "working_tree_sha256": "392c021dcc834005d6e08188d1aed03ca68399ceb665755c4f445ddd19644675"
+  },
+  "transactional_helper": {
+    "path": "src/main/java/net/lmyz/lmyzmail/cringe/service/SkibidiCringeIPTransactionalHelper.java",
+    "working_tree_sha256": "4eb48d930e923840d5fde506d4e7ab53b28ae4fd57b5a5fe45d9273526a941ef"
+  },
+  "scheduler": {
+    "path": "src/main/java/net/lmyz/lmyzmail/cringe/service/SkibidiCringeDecayScheduler.java",
+    "working_tree_sha256": "4217c55ba7a7d15f4923c3ab6ea00955a26dff4afdca7942b1da922947dc90fa"
+  },
+  "properties": {
+    "path": "src/main/java/net/lmyz/lmyzmail/cringe/config/CringeDecayProperties.java",
+    "working_tree_sha256": "e631e143e4325ed2aea0ec6cf774983bf9083fc91acd9b6f2575103c0102458e"
+  },
+  "repository": {
+    "path": "src/main/java/net/lmyz/lmyzmail/cringe/repo/SkibidiCringeIPRepository.java",
+    "working_tree_sha256": "0922f48caf76cff11474d7882952e21df10351881a4cbf5f446fe26af7210e01"
+  },
+  "frozen_behavior": {
+    "default_interval": "PT24H",
+    "default_amount": 10,
+    "default_effective_check_interval": "PT1H",
+    "default_activity_retention_days": 360,
+    "eligibility": "current_score > 0 and last_decay_at is null or strictly before now minus interval",
+    "mutation": "current_score = greatest(0,current_score-amount), last_decay_at = one transaction time",
+    "manual_response": "HTTP 200 with affectedIPs and Decay completed",
+    "scheduler": "one fixed-delay virtual-thread task after one effective check interval"
+  }
+}

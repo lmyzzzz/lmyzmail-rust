@@ -15,14 +15,23 @@ from lmyzmail_blackbox.differential import DifferentialRunner, RuntimeTarget, Sc
 from lmyzmail_blackbox.persistent_runtime import PersistentJavaOracleRuntime
 from lmyzmail_blackbox.ports import PortSet
 from lmyzmail_blackbox.protocols import http_exchange
-from lmyzmail_blackbox.runtime import API_KEY, WRITE_ONLY_API_KEY, CandidateRuntime
+from lmyzmail_blackbox.runtime import (
+    API_KEY,
+    READ_ONLY_API_KEY,
+    WRITE_ONLY_API_KEY,
+    CandidateRuntime,
+)
 from lmyzmail_blackbox.snapshots import http_bytes_snapshot, http_json_snapshot
 
 _PROFILE = "managed-cringe-api"
-_GOLDEN = "blackbox/golden/java/managed-cringe-api-v4"
+_GOLDEN = "blackbox/golden/java/managed-cringe-api-v5"
 _BOUNDARY_PROFILE = "managed-cringe-api-oracle-boundaries"
-_BOUNDARY_GOLDEN = "blackbox/golden/java/managed-cringe-api-oracle-boundaries-v4"
+_BOUNDARY_GOLDEN = "blackbox/golden/java/managed-cringe-api-oracle-boundaries-v5"
+_DECAY_PROFILE = "managed-cringe-decay"
+_DECAY_GOLDEN = "blackbox/golden/java/managed-cringe-decay-v1"
 _ADMIN_HEADERS = (("X-API-Key", API_KEY),)
+_READ_ONLY_HEADERS = (("X-API-Key", READ_ONLY_API_KEY),)
+_WRITE_ONLY_HEADERS = (("X-API-Key", WRITE_ONLY_API_KEY),)
 
 
 @dataclass(frozen=True, slots=True)
@@ -307,6 +316,230 @@ cast(Any, _capture_invalid_paging).__lmyzmail_contract__ = {
 }
 
 
+def _seed_decay_fixture(target: RuntimeTarget) -> None:
+    ports = target.ports
+    assert ports is not None
+    with psycopg.connect(
+        host="127.0.0.1",
+        port=ports.postgres,
+        user="lmyzmail_test",
+        dbname="lmyzmail",
+        connect_timeout=5,
+    ) as connection:
+        connection.execute("DELETE FROM skibidi_cringe_ip_activity")
+        connection.execute("DELETE FROM skibidi_cringe_ip")
+        with connection.cursor() as cursor:
+            cursor.executemany(
+                """
+                INSERT INTO skibidi_cringe_ip (
+                    ip_address, total_score, current_score, activity_count,
+                    first_seen_at, last_seen_at, last_decay_at,
+                    self_spoofing_count, open_relay_count, auth_probe_count,
+                    illegal_domain_count, spamhaus_count, http_on_smtp_count,
+                    ssh_on_smtp_count, http_port_scanning_count, honeypot_hit_count,
+                    ssh_bruteforce_count, pps_overlimit_count, syn_flood_count, other_count
+                ) VALUES (
+                    %s, %s, %s, 1, %s, %s, %s,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                )
+                """,
+                (
+                    (
+                        "203.0.113.10",
+                        100,
+                        47,
+                        _timestamp("2024-01-01T00:00:00"),
+                        _timestamp("2024-01-02T00:00:00"),
+                        _timestamp("2024-01-02T00:00:00"),
+                    ),
+                    (
+                        "203.0.113.11",
+                        6,
+                        6,
+                        _timestamp("2024-01-01T00:00:00"),
+                        _timestamp("2024-01-02T00:00:00"),
+                        _timestamp("2024-01-02T00:00:00"),
+                    ),
+                    (
+                        "198.51.100.12",
+                        31,
+                        31,
+                        _timestamp("2024-01-01T00:00:00"),
+                        _timestamp("2024-01-02T00:00:00"),
+                        None,
+                    ),
+                    (
+                        "198.51.100.13",
+                        50,
+                        0,
+                        _timestamp("2024-01-01T00:00:00"),
+                        _timestamp("2024-01-02T00:00:00"),
+                        _timestamp("2024-01-02T00:00:00"),
+                    ),
+                    (
+                        "198.51.100.14",
+                        52,
+                        52,
+                        _timestamp("2024-01-01T00:00:00"),
+                        _timestamp("2024-01-02T00:00:00"),
+                        _timestamp("2099-01-01T00:00:00"),
+                    ),
+                ),
+            )
+
+
+def _decay_database_state(
+    target: RuntimeTarget,
+    request_started: datetime,
+    request_finished: datetime,
+) -> list[dict[str, Any]]:
+    ports = target.ports
+    assert ports is not None
+    expected_updated = {"198.51.100.12", "203.0.113.10", "203.0.113.11"}
+    with psycopg.connect(
+        host="127.0.0.1",
+        port=ports.postgres,
+        user="lmyzmail_test",
+        dbname="lmyzmail",
+        connect_timeout=5,
+    ) as connection:
+        rows = connection.execute(
+            """
+            SELECT ip_address,total_score,current_score,last_decay_at
+            FROM skibidi_cringe_ip
+            ORDER BY ip_address
+            """
+        ).fetchall()
+
+    state: list[dict[str, Any]] = []
+    observed_updated: set[str] = set()
+    for ip_address, total_score, current_score, last_decay_at in rows:
+        assert isinstance(ip_address, str)
+        assert isinstance(last_decay_at, datetime)
+        if request_started <= last_decay_at <= request_finished:
+            observed_updated.add(ip_address)
+            normalized_last_decay: str = "<decay-transaction-time>"
+        else:
+            normalized_last_decay = last_decay_at.isoformat().replace("+00:00", "Z")
+        state.append(
+            {
+                "ipAddress": ip_address,
+                "totalScore": total_score,
+                "currentScore": current_score,
+                "lastDecayAt": normalized_last_decay,
+            }
+        )
+    assert observed_updated == expected_updated
+    return state
+
+
+def _capture_cringe_decay(target: RuntimeTarget) -> dict[str, Any]:
+    ports = target.ports
+    assert ports is not None
+    _seed_decay_fixture(target)
+
+    def json_request(
+        method: str,
+        path: str,
+        headers: tuple[tuple[str, str], ...] = _ADMIN_HEADERS,
+        *,
+        canonicalize_object_order: bool = False,
+    ) -> Any:
+        return http_json_snapshot(
+            http_exchange(
+                "127.0.0.1",
+                ports.http,
+                method,
+                path,
+                headers=headers,
+                timeout=10.0,
+            ),
+            canonicalize_object_order=canonicalize_object_order,
+        )
+
+    before = {
+        "config": http_bytes_snapshot(
+            http_exchange(
+                "127.0.0.1",
+                ports.http,
+                "GET",
+                "/api/cringe-ips/decay-config",
+                headers=_ADMIN_HEADERS,
+                timeout=10.0,
+            )
+        ),
+        "high_estimate": json_request(
+            "GET",
+            "/api/cringe-ips/203.0.113.10/decay-estimate",
+            canonicalize_object_order=True,
+        ),
+        "below_threshold_estimate": json_request(
+            "GET",
+            "/api/cringe-ips/203.0.113.11/decay-estimate",
+            canonicalize_object_order=True,
+        ),
+        "missing_estimate": http_bytes_snapshot(
+            http_exchange(
+                "127.0.0.1",
+                ports.http,
+                "GET",
+                "/api/cringe-ips/192.0.2.250/decay-estimate",
+                headers=_ADMIN_HEADERS,
+                timeout=10.0,
+            )
+        ),
+        "read_only_decay": json_request(
+            "POST",
+            "/api/cringe-ips/decay",
+            _READ_ONLY_HEADERS,
+            canonicalize_object_order=True,
+        ),
+        "write_only_config": json_request(
+            "GET",
+            "/api/cringe-ips/decay-config",
+            _WRITE_ONLY_HEADERS,
+            canonicalize_object_order=True,
+        ),
+    }
+    request_started = datetime.now(UTC)
+    decay = json_request("POST", "/api/cringe-ips/decay")
+    request_finished = datetime.now(UTC)
+    database_state = _decay_database_state(target, request_started, request_finished)
+    after_estimate = json_request(
+        "GET",
+        "/api/cringe-ips/203.0.113.10/decay-estimate",
+        canonicalize_object_order=True,
+    )
+    second_decay = json_request("POST", "/api/cringe-ips/decay")
+
+    return {
+        "before": before,
+        "first_decay": decay,
+        "database_after_first_decay": database_state,
+        "high_estimate_after_decay": after_estimate,
+        "second_decay": second_decay,
+    }
+
+
+cast(Any, _capture_cringe_decay).__lmyzmail_contract__ = {
+    "protocol": "http/raw-socket+postgresql",
+    "sequence": [
+        "replace isolated PostgreSQL cringe rows with due, future, zero, and NULL decay states",
+        "read the default decay configuration and estimates around the unban threshold",
+        "probe missing-IP, read-only mutation, and write-only read boundaries",
+        "trigger one manual decay and inspect the atomic PostgreSQL state transition",
+        "re-estimate the changed score and prove an immediate second decay is idempotent",
+    ],
+    "state": "isolated PostgreSQL schema with deterministic pre-decay timestamps",
+    "normalization": (
+        "HTTP Date, proven Java Map.of member order, and the one transaction timestamp bounded "
+        "by the triggering request; scores, affected rows, unchanged timestamps, and all "
+        "duration strings are exact"
+    ),
+    "oracle_evidence": "evidence/freeze/java-oracle/cringe-decay.json",
+}
+
+
 CRINGE_SCENARIOS = (
     Scenario(
         "http/cringe/data-plane",
@@ -316,6 +549,16 @@ CRINGE_SCENARIOS = (
 )
 CRINGE_BOUNDARY_SCENARIOS = (
     Scenario("http/cringe/invalid-paging", _capture_invalid_paging),
+)
+CRINGE_DECAY_SCENARIOS = (
+    Scenario(
+        "http/cringe/decay",
+        _capture_cringe_decay,
+        normalizers=(
+            "json-object-order:jdk-map-of:cringe-decay",
+            "database-time:bounded-decay-transaction",
+        ),
+    ),
 )
 
 
@@ -374,6 +617,7 @@ def test_frozen_java_cringe_api_goldens(
         for root, profile, scenarios in (
             (_GOLDEN, _PROFILE, CRINGE_SCENARIOS),
             (_BOUNDARY_GOLDEN, _BOUNDARY_PROFILE, CRINGE_BOUNDARY_SCENARIOS),
+            (_DECAY_GOLDEN, _DECAY_PROFILE, CRINGE_DECAY_SCENARIOS),
         ):
             runner = DifferentialRunner(
                 repository,
