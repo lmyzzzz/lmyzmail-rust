@@ -48,7 +48,7 @@ from lmyzmail_blackbox.differential import DifferentialRunner, RuntimeTarget, Sc
 from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 
-_GOLDEN = "managed-minecraft-mail-view-v2"
+_GOLDEN = "managed-minecraft-mail-view-v4"
 _FILE_NAME = "minecraft-mail-view-v2.eml"
 _FIXTURE_RELATIVE_PATH = Path("blackbox/fixtures/minecraft/mail-view-v2.eml")
 _FIXTURE_SOURCE_SHA256 = "e4f436c626cefe7c9a5a317ed646c99b9e37c3817bac3e8b0b3fa0ff2f875ba0"
@@ -72,6 +72,7 @@ _MAX_SKIPPED_PACKETS = 128
 _MAX_CAPTURE_WIRE_BYTES = 8 * 1024 * 1024
 _MAX_CAPTURE_EXPANDED_BYTES = 16 * 1024 * 1024
 _PHASE_TIMEOUT_SECONDS = 90.0
+_LOGIN_READ_TIMEOUT_SECONDS = 60.0
 _PACKET_READ_TIMEOUT_SECONDS = 5.0
 _MAPS_X = 2
 _MAPS_Y = 2
@@ -899,8 +900,9 @@ def _capture_minecraft_mail_view(target: RuntimeTarget) -> dict[str, Any]:
     _verify_render_inputs(repository, target)
     _seed_mail_view_fixture(target)
     with _begin_login(target.ports.minecraft, _USERNAME) as connection:
-        connection.settimeout(_PACKET_READ_TIMEOUT_SECONDS)
+        connection.settimeout(_LOGIN_READ_TIMEOUT_SECONDS)
         _read_login_prefix(connection)
+        connection.settimeout(_PACKET_READ_TIMEOUT_SECONDS)
         _read_expected_packets(connection, _INITIAL_PLAY_IDS, "initial PLAY")
         world_packet_count, world_expanded_bytes = _drain_to_player_position(connection)
         _read_expected_packets(connection, _STATIC_PLAY_IDS, "static PLAY")
@@ -1090,6 +1092,7 @@ cast(Any, _capture_minecraft_mail_view).__lmyzmail_contract__ = {
         "simd_mode": "SCALAR",
     },
     "budgets": {
+        "login_read_timeout_seconds": _LOGIN_READ_TIMEOUT_SECONDS,
         "phase_timeout_seconds": _PHASE_TIMEOUT_SECONDS,
         "packets": _MAX_CAPTURE_PACKETS,
         "scheduled_packets": _MAX_SKIPPED_PACKETS,
@@ -1348,7 +1351,7 @@ def test_frozen_java_minecraft_mail_view_golden(tmp_path: Path) -> None:
     runner = DifferentialRunner(
         repository,
         golden,
-        "managed-minecraft-mail-view-v2",
+        _GOLDEN,
         record_java=record,
     )
     with _renderer_capture_lock():
@@ -1385,5 +1388,5 @@ def test_rust_candidate_minecraft_mail_view_matches_golden() -> None:
             DifferentialRunner(
                 repository,
                 repository / "blackbox/golden/java" / _GOLDEN,
-                "managed-minecraft-mail-view-v2",
+                _GOLDEN,
             ).verify_candidate(SCENARIOS, candidate)
