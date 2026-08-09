@@ -27,7 +27,7 @@ from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-authenticated-commands-v1"
+_GOLDEN = "managed-minecraft-authenticated-commands-v2"
 _COMMANDS = (
     ("help", "  /HeLp  ", (0x02,) * 8),
     ("stuck", "/stuck", (0x08, 0x02)),
@@ -113,7 +113,7 @@ def test_frozen_java_minecraft_authenticated_commands_golden(tmp_path: Path) -> 
     runner = DifferentialRunner(
         repository,
         golden,
-        "managed-minecraft-authenticated-commands",
+        _GOLDEN,
         record_java=record,
     )
     with _LoginJavaOracleRuntime(tmp_path / "java-minecraft-authenticated-commands") as oracle:
@@ -149,5 +149,5 @@ def test_rust_candidate_minecraft_authenticated_commands_matches_golden() -> Non
         DifferentialRunner(
             repository,
             repository / "blackbox/golden/java" / _GOLDEN,
-            "managed-minecraft-authenticated-commands",
+            _GOLDEN,
         ).verify_candidate(SCENARIOS, candidate)
