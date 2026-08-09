@@ -10,6 +10,10 @@ description = "lmyzmail modular monolith runtime"
 name = "lmyzmail"
 path = "src/main.rs"
 
+[features]
+default = []
+xdp-test-hooks = []
+
 [dependencies]
 base64 = "0.22.1"
 ammonia = "4.1.4"

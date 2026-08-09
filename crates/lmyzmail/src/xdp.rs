@@ -6,7 +6,7 @@ use std::{
     io::{Seek, SeekFrom, Write},
     mem::{MaybeUninit, size_of},
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
-    os::fd::AsRawFd,
+    os::{fd::AsRawFd, unix::fs::MetadataExt},
     path::Path,
     sync::{
         Arc, Mutex,
@@ -16,7 +16,9 @@ use std::{
 };
 
 use ipnet::IpNet;
-use rustix::fs::{MemfdFlags, SealFlags, fcntl_add_seals, memfd_create};
+use rustix::fs::{
+    FlockOperation, MemfdFlags, Mode, OFlags, SealFlags, fcntl_add_seals, flock, memfd_create, open,
+};
 use serde::Serialize;
 use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
@@ -34,6 +36,7 @@ const XDP_INITIALIZATION_DEADLINE: Duration = Duration::from_secs(30);
 const MAX_BANNED_IPS_PER_FAMILY: usize = 100_000;
 const MAX_BANNED_IPS: usize = MAX_BANNED_IPS_PER_FAMILY * 2;
 const MAX_PER_IP_STATS: usize = 100_000;
+const XDP_LOCK_DIRECTORY: &str = "/run/lmyzmail";
 const EMBEDDED_BPF_OBJECT: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/xdp_firewall.bpf.o"));
 
 static NATIVE_OWNER: AtomicBool = AtomicBool::new(false);
@@ -431,19 +434,32 @@ impl XdpService {
         .await
     }
 
-    pub async fn shutdown(&self) {
+    pub async fn shutdown(&self) -> Result<(), XdpError> {
         self.shared.ready.store(false, Ordering::Release);
         let shared = Arc::clone(&self.shared);
-        let Ok(receiver) = self.pool.submit(move || {
-            shared
-                .native
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .close();
-        }) else {
-            return;
+        let receiver = self
+            .pool
+            .submit(move || {
+                shared
+                    .native
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .close()
+            })
+            .map_err(submit_error)?;
+        let result = match timeout(XDP_OPERATION_DEADLINE, receiver).await {
+            Ok(Ok(result)) => result,
+            Ok(Err(_)) => Err(XdpError::Closed),
+            Err(_) => Err(XdpError::Timeout),
         };
-        let _ = timeout(XDP_OPERATION_DEADLINE, receiver).await;
+        if let Err(error) = &result {
+            *self
+                .shared
+                .last_error
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(error.to_string());
+        }
+        result
     }
 
     async fn dispatch<T, F>(
@@ -498,8 +514,10 @@ impl XdpService {
                     .unwrap_or_else(std::sync::PoisonError::into_inner);
                 let result = state.initialize(&config);
                 if worker_cancellation.is_cancelled() {
-                    state.close();
-                    Err(XdpError::Cancelled)
+                    match state.close() {
+                        Ok(()) => Err(XdpError::Cancelled),
+                        Err(cleanup) => Err(cleanup_failure(XdpError::Cancelled, cleanup)),
+                    }
                 } else {
                     result
                 }
@@ -509,16 +527,39 @@ impl XdpService {
             biased;
             _ = cancellation.cancelled() => {
                 job_cancellation.cancel();
-                Err(XdpError::Cancelled)
+                self.cleanup_interrupted_initialization(XdpError::Cancelled).await
             }
             result = timeout(XDP_INITIALIZATION_DEADLINE, receiver) => match result {
                 Ok(Ok(result)) => result,
                 Ok(Err(_)) => Err(XdpError::Closed),
                 Err(_) => {
                     job_cancellation.cancel();
-                    Err(XdpError::Timeout)
+                    self.cleanup_interrupted_initialization(XdpError::Timeout).await
                 }
             }
+        }
+    }
+
+    async fn cleanup_interrupted_initialization(&self, terminal: XdpError) -> Result<(), XdpError> {
+        let shared = Arc::clone(&self.shared);
+        let receiver = self
+            .pool
+            .submit(move || {
+                shared
+                    .native
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .close()
+            })
+            .map_err(submit_error)?;
+        let cleanup = match timeout(XDP_INITIALIZATION_DEADLINE, receiver).await {
+            Ok(Ok(result)) => result,
+            Ok(Err(_)) => Err(XdpError::Closed),
+            Err(_) => Err(XdpError::Timeout),
+        };
+        match cleanup {
+            Ok(()) => Err(terminal),
+            Err(error) => Err(cleanup_failure(terminal, error)),
         }
     }
 }
@@ -555,8 +596,10 @@ impl NativeState {
     fn initialize(&mut self, config: &XdpConfig) -> Result<(), XdpError> {
         self.native.initialize(config)?;
         if let Err(error) = self.refresh_banned() {
-            self.close();
-            return Err(error);
+            return match self.close() {
+                Ok(()) => Err(error),
+                Err(cleanup) => Err(cleanup_failure(error, cleanup)),
+            };
         }
         Ok(())
     }
@@ -660,9 +703,10 @@ impl NativeState {
         Ok(counts)
     }
 
-    fn close(&mut self) {
-        self.native.close();
+    fn close(&mut self) -> Result<(), XdpError> {
+        self.native.close()?;
         self.banned.clear();
+        Ok(())
     }
 }
 
@@ -670,6 +714,15 @@ impl NativeState {
 struct NativeFirewall {
     initialized: bool,
     embedded_bpf: Option<File>,
+    interface_lock: Option<File>,
+    attachment: Option<XdpAttachment>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct XdpAttachment {
+    program_id: u32,
+    interface_index: u32,
+    flags: u32,
 }
 
 impl NativeFirewall {
@@ -681,6 +734,45 @@ impl NativeFirewall {
             });
         }
         let owner_guard = NativeOwnerGuard::acquire(&NATIVE_OWNER)?;
+        let interface = CString::new(config.interface_name.as_str())
+            .map_err(|_| XdpError::InvalidInput("XDP interface contains NUL".into()))?;
+        let interface_index = ffi::interface_index(&interface);
+        if interface_index == 0 {
+            return Err(XdpError::Native {
+                code: ffi::ERR_NODEV,
+                message: format!("Interface '{}' not found", config.interface_name),
+            });
+        }
+        let interface_lock = acquire_interface_lock(interface_index)?;
+        let pin_path = path_to_cstring(&config.pin_path)?;
+        let existing = ffi::attached_programs(interface_index)?;
+        let recovery = match existing.as_slice() {
+            [] => {
+                ffi::validate_pinned_maps(&pin_path, false)?;
+                None
+            }
+            [attachment] => {
+                if let Err(error) = ffi::validate_program(&pin_path, attachment.program_id) {
+                    return Err(XdpError::Native {
+                        code: ffi::ERR_ALREADY,
+                        message: format!(
+                            "refusing to replace foreign XDP program on '{}': {attachment:?}: {error}",
+                            config.interface_name
+                        ),
+                    });
+                }
+                Some(*attachment)
+            }
+            _ => {
+                return Err(XdpError::Native {
+                    code: ffi::ERR_ALREADY,
+                    message: format!(
+                        "refusing multiple existing XDP programs on '{}': {existing:?}",
+                        config.interface_name
+                    ),
+                });
+            }
+        };
 
         let (bpf_path, embedded_bpf) = match config.bpf_object_path.as_deref() {
             Some(path) => (path_to_cstring(path)?, None),
@@ -691,9 +783,6 @@ impl NativeFirewall {
                 (path, Some(file))
             }
         };
-        let interface = CString::new(config.interface_name.as_str())
-            .map_err(|_| XdpError::InvalidInput("XDP interface contains NUL".into()))?;
-        let pin_path = path_to_cstring(&config.pin_path)?;
         let options = ffi::XdpFwOpts {
             ifname: interface.as_ptr(),
             bpf_obj_path: bpf_path.as_ptr(),
@@ -702,14 +791,89 @@ impl NativeFirewall {
             verbose: i32::from(config.verbose),
             force_generic_mode: i32::from(config.force_generic_mode),
         };
-        let code = ffi::init(&options);
-        if code != ffi::OK {
-            return Err(native_error(code));
+        ffi::prepare_attach(interface_index, recovery)?;
+        let recovery_program_id = recovery.map(|attachment| attachment.program_id);
+        if let Some(program_id) = recovery_program_id
+            && let Err(error) = ffi::stage_recovery_maps(&pin_path, program_id)
+        {
+            ffi::reset_attach_guard();
+            return Err(error);
         }
+        let code = ffi::init(&options);
+        let recovery_cleanup = match recovery_program_id {
+            Some(program_id) => ffi::unstage_recovery_maps(&pin_path, program_id),
+            None => Ok(()),
+        };
+        if code != ffi::OK {
+            ffi::reset_attach_guard();
+            let error = native_error(code);
+            return match recovery_cleanup {
+                Ok(()) => Err(error),
+                Err(cleanup) => Err(cleanup_failure(error, cleanup)),
+            };
+        }
+        let owned_program_id = ffi::owned_program_id();
+        let owned_interface_index = ffi::owned_program_ifindex();
+        let owned_flags = ffi::owned_program_flags();
+        if owned_program_id == 0 || owned_interface_index == 0 || owned_flags == 0 {
+            ffi::close_without_detach();
+            ffi::reset_attach_guard();
+            return Err(XdpError::Native {
+                code: ffi::ERR_ATTACH,
+                message: "XDP attach guard did not record a complete owned attachment".into(),
+            });
+        }
+        let attachment = XdpAttachment {
+            program_id: owned_program_id,
+            interface_index: owned_interface_index,
+            flags: owned_flags,
+        };
         self.embedded_bpf = embedded_bpf;
+        self.interface_lock = Some(interface_lock);
+        self.attachment = Some(attachment);
         self.initialized = true;
         owner_guard.commit();
+
+        if let Err(error) = recovery_cleanup {
+            return self.rollback(error);
+        }
+
+        if attachment.interface_index != interface_index {
+            return self.rollback(XdpError::Native {
+                code: ffi::ERR_ATTACH,
+                message: format!(
+                    "XDP attach guard used interface index {}, expected {interface_index}",
+                    attachment.interface_index
+                ),
+            });
+        }
+        let attached = match ffi::attached_programs(interface_index) {
+            Ok(attached) => attached,
+            Err(error) => return self.rollback(error),
+        };
+        if attached.as_slice() != [attachment] {
+            return self.rollback(XdpError::Native {
+                code: ffi::ERR_ATTACH,
+                message: format!(
+                    "XDP initialization produced an invalid attachment set on '{}': {attached:?}",
+                    config.interface_name
+                ),
+            });
+        }
+        if let Err(error) = ffi::validate_pinned_maps(&pin_path, true) {
+            return self.rollback(error);
+        }
+        if let Err(error) = ffi::validate_program(&pin_path, attachment.program_id) {
+            return self.rollback(error);
+        }
         Ok(())
+    }
+
+    fn rollback<T>(&mut self, operation: XdpError) -> Result<T, XdpError> {
+        match self.close() {
+            Ok(()) => Err(operation),
+            Err(cleanup) => Err(cleanup_failure(operation, cleanup)),
+        }
     }
 
     fn ban(&mut self, ip: IpAddr, reason: u32) -> Result<(), XdpError> {
@@ -842,20 +1006,48 @@ impl NativeFirewall {
         ffi::reset_pps_baseline();
     }
 
-    fn close(&mut self) {
+    fn close(&mut self) -> Result<(), XdpError> {
         if !self.initialized {
-            return;
+            return Ok(());
         }
-        ffi::close();
+        let expected = self
+            .attachment
+            .map_or(0, |attachment| attachment.program_id);
+        let detach_code = ffi::detach_owned(expected);
+        let still_owned = ffi::owned_program_id() != 0;
+        if detach_code != ffi::OK && still_owned {
+            return Err(XdpError::Native {
+                code: detach_code,
+                message: "conditional XDP detach failed; ownership and interface lock retained"
+                    .into(),
+            });
+        }
+        ffi::close_without_detach();
+        ffi::reset_attach_guard();
         self.initialized = false;
         self.embedded_bpf = None;
+        self.attachment = None;
+        self.interface_lock = None;
         NATIVE_OWNER.store(false, Ordering::Release);
+        if detach_code == ffi::OK {
+            Ok(())
+        } else {
+            Err(XdpError::Native {
+                code: detach_code,
+                message: "owned XDP program was already absent or replaced; no foreign program was detached"
+                    .into(),
+            })
+        }
     }
 }
 
 impl Drop for NativeFirewall {
     fn drop(&mut self) {
-        self.close();
+        if self.close().is_err()
+            && let Some(interface_lock) = self.interface_lock.take()
+        {
+            std::mem::forget(interface_lock);
+        }
     }
 }
 
@@ -873,6 +1065,13 @@ fn native_error(code: i32) -> XdpError {
         message: ffi::last_error()
             .filter(|message| !message.is_empty())
             .unwrap_or_else(|| ffi::error_name(code)),
+    }
+}
+
+fn cleanup_failure(operation: XdpError, cleanup: XdpError) -> XdpError {
+    XdpError::Native {
+        code: ffi::ERR_ATTACH,
+        message: format!("{operation}; XDP cleanup failed: {cleanup}"),
     }
 }
 
@@ -899,12 +1098,63 @@ fn embedded_bpf_file() -> Result<File, XdpError> {
     Ok(file)
 }
 
+fn acquire_interface_lock(interface_index: u32) -> Result<File, XdpError> {
+    std::fs::create_dir_all(XDP_LOCK_DIRECTORY)?;
+    let directory = std::fs::symlink_metadata(XDP_LOCK_DIRECTORY)?;
+    if !directory.is_dir()
+        || directory.file_type().is_symlink()
+        || directory.uid() != 0
+        || directory.mode() & 0o022 != 0
+    {
+        return Err(XdpError::InvalidInput(format!(
+            "XDP lock directory must be a root-owned non-writable real directory: {XDP_LOCK_DIRECTORY}"
+        )));
+    }
+    let network_namespace = std::fs::metadata("/proc/thread-self/ns/net")?.ino();
+    let path = Path::new(XDP_LOCK_DIRECTORY).join(format!(
+        "xdp-netns-{network_namespace}-ifindex-{interface_index}.lock"
+    ));
+    let fd = open(
+        &path,
+        OFlags::RDWR | OFlags::CREATE | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+        Mode::RUSR | Mode::WUSR | Mode::RGRP,
+    )?;
+    let mut file = File::from(fd);
+    flock(&file, FlockOperation::NonBlockingLockExclusive).map_err(|error| {
+        if error == rustix::io::Errno::WOULDBLOCK {
+            XdpError::Native {
+                code: ffi::ERR_ALREADY,
+                message: format!(
+                    "another lmyzmail process owns XDP interface index {interface_index}"
+                ),
+            }
+        } else {
+            XdpError::Io(error.into())
+        }
+    })?;
+    file.set_len(0)?;
+    writeln!(
+        file,
+        "pid={} netns={} ifindex={interface_index}",
+        std::process::id(),
+        network_namespace
+    )?;
+    file.flush()?;
+    Ok(file)
+}
+
 mod ffi {
-    use super::{CStr, IpAddr, IpNet, MaybeUninit, size_of};
+    use super::{CStr, CString, IpAddr, IpNet, MaybeUninit, XdpAttachment, XdpError, size_of};
     use std::ffi::{c_char, c_int};
 
     pub(super) const OK: i32 = 0;
+    pub(super) const ERR_NODEV: i32 = -2;
+    pub(super) const ERR_ATTACH: i32 = -4;
     pub(super) const ERR_ALREADY: i32 = -7;
+    const XDP_FLAGS_SKB_MODE: u32 = 1 << 1;
+    const XDP_FLAGS_DRV_MODE: u32 = 1 << 2;
+    const XDP_FLAGS_HW_MODE: u32 = 1 << 3;
+    const ERR_OPERATION_NOT_SUPPORTED: i32 = -95;
 
     #[repr(C)]
     pub(super) struct XdpFwOpts {
@@ -971,6 +1221,23 @@ mod ffi {
     }
 
     unsafe extern "C" {
+        fn if_nametoindex(ifname: *const c_char) -> u32;
+        fn bpf_xdp_query_id(ifindex: c_int, flags: u32, program_id: *mut u32) -> c_int;
+        fn lmyzmail_xdp_prepare_attach(
+            ifindex: u32,
+            recover_program_id: u32,
+            recover_flags: u32,
+        ) -> c_int;
+        fn lmyzmail_xdp_reset_attach_guard();
+        fn lmyzmail_xdp_set_expected_detach_program_id(program_id: u32);
+        fn lmyzmail_xdp_owned_program_id() -> u32;
+        fn lmyzmail_xdp_owned_program_ifindex() -> u32;
+        fn lmyzmail_xdp_owned_program_flags() -> u32;
+        fn lmyzmail_xdp_detach_owned(expected_program_id: u32) -> c_int;
+        fn lmyzmail_xdp_validate_pinned_maps(pin_path: *const c_char, require_all: c_int) -> c_int;
+        fn lmyzmail_xdp_validate_program(pin_path: *const c_char, program_id: u32) -> c_int;
+        fn lmyzmail_xdp_stage_recovery_maps(pin_path: *const c_char, program_id: u32) -> c_int;
+        fn lmyzmail_xdp_unstage_recovery_maps(pin_path: *const c_char, program_id: u32) -> c_int;
         fn xdp_fw_init(opts: *const XdpFwOpts) -> c_int;
         fn xdp_fw_close();
         fn xdp_fw_destroy();
@@ -1024,6 +1291,164 @@ mod ffi {
     pub(super) fn init(options: &XdpFwOpts) -> i32 {
         // SAFETY: all option pointers are valid NUL-terminated strings for this call.
         unsafe { xdp_fw_init(options) }
+    }
+
+    pub(super) fn interface_index(interface: &CString) -> u32 {
+        // SAFETY: interface is a valid NUL-terminated interface name.
+        unsafe { if_nametoindex(interface.as_ptr()) }
+    }
+
+    pub(super) fn attached_programs(interface_index: u32) -> Result<Vec<XdpAttachment>, XdpError> {
+        let interface_index_c = i32::try_from(interface_index)
+            .map_err(|_| XdpError::InvalidInput("XDP interface index exceeds the C ABI".into()))?;
+        let mut attached = Vec::with_capacity(1);
+        for flags in [XDP_FLAGS_DRV_MODE, XDP_FLAGS_SKB_MODE, XDP_FLAGS_HW_MODE] {
+            let mut program_id = 0_u32;
+            // SAFETY: program_id points to writable u32 storage and the flags
+            // select exactly one kernel XDP attachment mode.
+            let code = unsafe { bpf_xdp_query_id(interface_index_c, flags, &mut program_id) };
+            if code == 0 {
+                if program_id != 0 {
+                    attached.push(XdpAttachment {
+                        program_id,
+                        interface_index,
+                        flags,
+                    });
+                }
+            } else if code != ERR_OPERATION_NOT_SUPPORTED {
+                return Err(XdpError::Native {
+                    code,
+                    message: format!(
+                        "failed to query XDP attachment mode {flags:#x} on interface index {interface_index}"
+                    ),
+                });
+            }
+        }
+        Ok(attached)
+    }
+
+    pub(super) fn prepare_attach(
+        interface_index: u32,
+        recovery: Option<XdpAttachment>,
+    ) -> Result<(), XdpError> {
+        let (program_id, flags) = recovery.map_or((0, 0), |attachment| {
+            (attachment.program_id, attachment.flags)
+        });
+        // SAFETY: the native guard stores scalar lifecycle expectations. The
+        // Rust singleton and interface flock serialize this transition.
+        let code = unsafe { lmyzmail_xdp_prepare_attach(interface_index, program_id, flags) };
+        if code == OK {
+            Ok(())
+        } else {
+            Err(XdpError::Native {
+                code,
+                message: "failed to prepare guarded XDP attach".into(),
+            })
+        }
+    }
+
+    pub(super) fn reset_attach_guard() {
+        // SAFETY: reset is ignored by the guard while an owned program exists.
+        unsafe { lmyzmail_xdp_reset_attach_guard() }
+    }
+
+    pub(super) fn set_expected_detach_program_id(program_id: u32) {
+        // SAFETY: the native guard stores a scalar used only by the serialized
+        // XDP close call.
+        unsafe { lmyzmail_xdp_set_expected_detach_program_id(program_id) }
+    }
+
+    pub(super) fn owned_program_id() -> u32 {
+        // SAFETY: the native guard returns one atomic scalar and performs no
+        // memory access through Rust-owned pointers.
+        unsafe { lmyzmail_xdp_owned_program_id() }
+    }
+
+    pub(super) fn owned_program_ifindex() -> u32 {
+        // SAFETY: atomic scalar accessor.
+        unsafe { lmyzmail_xdp_owned_program_ifindex() }
+    }
+
+    pub(super) fn owned_program_flags() -> u32 {
+        // SAFETY: atomic scalar accessor.
+        unsafe { lmyzmail_xdp_owned_program_flags() }
+    }
+
+    pub(super) fn detach_owned(program_id: u32) -> i32 {
+        // SAFETY: the guard conditionally detaches only its recorded program.
+        unsafe { lmyzmail_xdp_detach_owned(program_id) }
+    }
+
+    pub(super) fn validate_pinned_maps(
+        pin_path: &CString,
+        require_all: bool,
+    ) -> Result<(), XdpError> {
+        // SAFETY: pin_path is NUL-terminated and the native validator only
+        // opens map pins and reads fixed kernel metadata.
+        let code =
+            unsafe { lmyzmail_xdp_validate_pinned_maps(pin_path.as_ptr(), i32::from(require_all)) };
+        if code == 0 {
+            Ok(())
+        } else {
+            Err(XdpError::Native {
+                code,
+                message: format!(
+                    "XDP pinned map ABI validation failed for {} maps",
+                    if require_all { "required" } else { "existing" }
+                ),
+            })
+        }
+    }
+
+    pub(super) fn validate_program(pin_path: &CString, program_id: u32) -> Result<(), XdpError> {
+        // SAFETY: the validator opens the program and maps by kernel ID and
+        // reads fixed metadata; pin_path is NUL-terminated.
+        let code = unsafe { lmyzmail_xdp_validate_program(pin_path.as_ptr(), program_id) };
+        if code == OK {
+            Ok(())
+        } else {
+            Err(XdpError::Native {
+                code,
+                message: "attached XDP program/map identity validation failed".into(),
+            })
+        }
+    }
+
+    pub(super) fn stage_recovery_maps(pin_path: &CString, program_id: u32) -> Result<(), XdpError> {
+        // SAFETY: the validated recovery program remains attached while the
+        // interface flock is held. The helper pins only its two non-persistent
+        // maps at fixed names below pin_path.
+        let code = unsafe { lmyzmail_xdp_stage_recovery_maps(pin_path.as_ptr(), program_id) };
+        if code == OK {
+            Ok(())
+        } else {
+            Err(XdpError::Native {
+                code,
+                message: "failed to stage recovery-only XDP map pins".into(),
+            })
+        }
+    }
+
+    pub(super) fn unstage_recovery_maps(
+        pin_path: &CString,
+        program_id: u32,
+    ) -> Result<(), XdpError> {
+        // SAFETY: the helper verifies every temporary pin against the
+        // recovery program's map ID before unlinking it.
+        let code = unsafe { lmyzmail_xdp_unstage_recovery_maps(pin_path.as_ptr(), program_id) };
+        if code == OK {
+            Ok(())
+        } else {
+            Err(XdpError::Native {
+                code,
+                message: "failed to remove recovery-only XDP map pins".into(),
+            })
+        }
+    }
+
+    pub(super) fn close_without_detach() {
+        set_expected_detach_program_id(0);
+        close();
     }
 
     pub(super) fn close() {

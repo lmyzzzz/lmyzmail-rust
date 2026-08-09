@@ -3,10 +3,10 @@ native/lmyzmail-skibidi/upstream/LICENSE binary
 native/lmyzmail-skibidi/upstream/skibidi_avx.c binary
 native/lmyzmail-skibidi/upstream/skibidi_avx.h binary
 native/lmyzmail-skibidi/upstream/tests/test_skibidi.c binary
-native/lmyzmail-xdp/vmlinux.h binary -whitespace
-native/lmyzmail-xdp/xdp_firewall.bpf.c binary -whitespace
-native/lmyzmail-xdp/xdp_firewall.c binary -whitespace
-native/lmyzmail-xdp/xdp_firewall.h binary -whitespace
+native/lmyzmail-xdp/vmlinux.h binary -eol -whitespace
+native/lmyzmail-xdp/xdp_firewall.bpf.c binary -eol -whitespace
+native/lmyzmail-xdp/xdp_firewall.c binary -eol -whitespace
+native/lmyzmail-xdp/xdp_firewall.h binary -eol -whitespace
 vendor/litehtml/** -whitespace
 *.ico binary
 *.eml binary

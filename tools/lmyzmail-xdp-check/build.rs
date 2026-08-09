@@ -5,5 +5,7 @@ fn main() {
         .warnings(true)
         .compile("lmyzmail_xdp_check_map_query");
     println!("cargo:rustc-link-lib=dylib=bpf");
+    println!("cargo:rustc-link-arg=-Wl,--wrap=bpf_xdp_attach");
+    println!("cargo:rustc-link-arg=-Wl,--wrap=bpf_xdp_detach");
     println!("cargo:rerun-if-changed=native/map_query.c");
 }

@@ -229,7 +229,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let _ = task.await;
     }
     xdp_sync.shutdown().await;
-    xdp_service.shutdown().await;
+    if let Err(error) = xdp_service.shutdown().await
+        && failure.is_none()
+    {
+        failure = Some(io::Error::other(error));
+    }
     match failure {
         Some(error) => Err(error.into()),
         None => Ok(()),

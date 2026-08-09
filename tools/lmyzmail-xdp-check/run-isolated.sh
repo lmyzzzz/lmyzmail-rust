@@ -35,6 +35,8 @@ fi
 mount --make-rprivate /
 mkdir -p /run/netns
 mount -t tmpfs -o mode=0755,size=1m tmpfs /run/netns
+mkdir -p /run/lmyzmail
+mount -t tmpfs -o mode=0750,size=1m tmpfs /run/lmyzmail
 if mountpoint -q /sys/fs/bpf; then
     umount /sys/fs/bpf
 fi

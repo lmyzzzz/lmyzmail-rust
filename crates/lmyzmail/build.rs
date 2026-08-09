@@ -127,7 +127,7 @@ fn main() {
     let ffmpeg_source = manifest_dir.join("../../vendor/ffmpeg-n7.1");
     let out_dir = PathBuf::from(env::var_os("OUT_DIR").expect("Cargo did not set OUT_DIR"));
     let (ffmpeg_include, ffmpeg_lib) = build_ffmpeg(&ffmpeg_source, &out_dir);
-    build_xdp(&xdp_source, &out_dir);
+    build_xdp(&xdp_source, &native_dir, &out_dir);
     let litehtml_dir = manifest_dir.join("../../vendor/litehtml");
     let litehtml_src = litehtml_dir.join("src");
     let litehtml_include = litehtml_dir.join("include");
@@ -206,6 +206,8 @@ fn main() {
     println!("cargo:rustc-link-lib=static=lmyzmail_mail_html");
     println!("cargo:rustc-link-lib=static=lmyzmail_gumbo");
     println!("cargo:rustc-link-lib=static=lmyzmail_xdp");
+    println!("cargo:rustc-link-arg=-Wl,--wrap=bpf_xdp_attach");
+    println!("cargo:rustc-link-arg=-Wl,--wrap=bpf_xdp_detach");
     println!("cargo:rustc-link-lib=dylib=stdc++");
     for library in &cairo.libs {
         println!("cargo:rustc-link-lib=dylib={library}");
@@ -223,7 +225,7 @@ fn main() {
     }
 }
 
-fn build_xdp(source: &Path, out_dir: &Path) {
+fn build_xdp(source: &Path, native_dir: &Path, out_dir: &Path) {
     verify_xdp_sources(source);
     let bpf_object = out_dir.join("xdp_firewall.bpf.o");
     let clang = env::var_os("LMYZMAIL_BPF_CLANG").unwrap_or_else(|| "clang".into());
@@ -252,10 +254,14 @@ fn build_xdp(source: &Path, out_dir: &Path) {
         .cargo_metadata(false)
         .include(source)
         .file(source.join("xdp_firewall.c"))
+        .file(native_dir.join("xdp_attach_guard.c"))
         .flag_if_supported("-std=c11")
         .flag_if_supported("-fPIC")
-        .warnings(true)
-        .compile("lmyzmail_xdp");
+        .warnings(true);
+    if env::var_os("CARGO_FEATURE_XDP_TEST_HOOKS").is_some() {
+        native.define("LMYZMAIL_XDP_TEST_HOOKS", "1");
+    }
+    native.compile("lmyzmail_xdp");
 
     cc::Build::new()
         .cargo_metadata(false)
