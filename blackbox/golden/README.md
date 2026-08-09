@@ -889,3 +889,31 @@ UTF-16 truncation at the NBT boundary, same-window previous/next refresh, and
 return-to-menu window allocation. Only periodic `0x03` and `0x18` PLAY ticks
 are excluded while a bounded database load completes; all folder, navigation,
 slot, and hotbar frames remain byte exact.
+
+The first report-management API recording adds the retained historical set:
+
+- `managed-reports-v48/`
+
+It binds five raw-socket scenarios to definition tree
+`fddabe9ab83120f7ad395ec3c4a4777bf2416d3fc1f939a7b6b9a8ff2c0f5416`:
+reporting status, inclusive minimum-volume domain selection from both legacy
+report tables, all three invalid-date surfaces, a no-data global trigger, and
+a no-data single-domain trigger. Java `Map.of` response objects are compared
+after recursive key canonicalization; arrays, values, status, headers, and
+compact body lengths remain exact. The recording also proves temporary volume
+changes are restored and no-data generation leaves report row counts and core
+fields unchanged. A second independently initialized Java workspace replayed
+the create-once generation immediately after recording. The set was superseded
+when the new profile's generation reference was corrected to the conventional
+`v1` name; the attestation correctly rejected reuse after that source change,
+so the immutable `v48` envelope remains provenance rather than being rewritten.
+
+The active report-management API set is:
+
+- `managed-reports-v1/`
+
+It preserves the same five strict scenarios under the final conventional
+generation reference and binds definition tree
+`2ac6c9877c5e3de758e293633e4130ed8eae36c7f4f4730b2dfa828bed614974`.
+Recording and immediate verification used two separately initialized Java,
+PostgreSQL, Redis, and Maildir workspaces.

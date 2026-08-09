@@ -8,6 +8,9 @@ The current repository milestone contains the immutable source baselines and
 the implementation-independent black-box compatibility harness. Product code
 is admitted only after the harness can recreate isolated PostgreSQL, Redis,
 Maildir, certificate, and port state and can produce a repeatable Java golden.
+The report API harness records a separate `managed-reports` golden from raw
+HTTP sockets and an attested legacy PostgreSQL fixture, then replays it against
+a second independently initialized Java oracle before admitting that golden.
 
 ## Compatibility rules
 
