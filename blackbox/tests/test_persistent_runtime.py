@@ -101,7 +101,18 @@ def _assert_maildir(repository: Path, workspace: Path) -> None:
         assert hashlib.sha256(value).hexdigest() == entry.sha256
 
 
-def _assert_redis(repository: Path, runtime: PersistentJavaOracleRuntime) -> None:
+def _redis_expiry_ms(client: redis.Redis, key: str) -> int:
+    seconds, microseconds = cast(tuple[int, int], client.time())
+    ttl_ms = cast(int, client.pttl(key))
+    assert ttl_ms > 0
+    return seconds * 1000 + microseconds // 1000 + ttl_ms
+
+
+def _assert_redis(
+    repository: Path,
+    runtime: PersistentJavaOracleRuntime,
+    expected_expiry_ms: dict[str, int] | None = None,
+) -> dict[str, int]:
     assert runtime.ports is not None
     fixture = load_redis_seed(repository)
     client = redis.Redis(
@@ -112,12 +123,27 @@ def _assert_redis(repository: Path, runtime: PersistentJavaOracleRuntime) -> Non
         socket_timeout=5.0,
     )
     try:
+        ttl_drift_ms = 180_000
+        if expected_expiry_ms is not None:
+            ttl_drift_ms = max(
+                (entry.ttl_seconds or 0) * 1000 for entry in fixture.keys
+            )
         observations = snapshot_redis_seed(
             client,
             fixture,
-            ttl_drift_ms=180_000,
+            ttl_drift_ms=ttl_drift_ms,
         )
         assert len(observations) == len(fixture.keys)
+        actual_expiry_ms = {
+            entry.key: _redis_expiry_ms(client, entry.key)
+            for entry in fixture.keys
+            if entry.ttl_seconds is not None
+        }
+        if expected_expiry_ms is not None:
+            assert actual_expiry_ms.keys() == expected_expiry_ms.keys()
+            for key, expected in expected_expiry_ms.items():
+                assert abs(actual_expiry_ms[key] - expected) <= 2_000
+        return actual_expiry_ms
     finally:
         client.close()
 
@@ -154,7 +180,11 @@ def _assert_http_takeover(repository: Path, runtime: PersistentJavaOracleRuntime
             assert raw.content == expected_path.read_bytes()
 
 
-def _assert_runtime_state(repository: Path, runtime: PersistentJavaOracleRuntime) -> None:
+def _assert_runtime_state(
+    repository: Path,
+    runtime: PersistentJavaOracleRuntime,
+    expected_redis_expiry_ms: dict[str, int] | None = None,
+) -> dict[str, int]:
     assert runtime.workspace is not None
     assert stat.S_IMODE(runtime.workspace.stat().st_mode) == 0o700
     assert (runtime.workspace / "lmyzmail-runtime-attestation.json").is_file()
@@ -165,9 +195,10 @@ def _assert_runtime_state(repository: Path, runtime: PersistentJavaOracleRuntime
     else:
         assert not append_manifest.exists()
     _assert_postgres(runtime)
-    _assert_redis(repository, runtime)
+    actual_expiry_ms = _assert_redis(repository, runtime, expected_redis_expiry_ms)
     _assert_maildir(repository, runtime.workspace)
     _assert_http_takeover(repository, runtime)
+    return actual_expiry_ms
 
 
 def _assert_state(
@@ -190,11 +221,11 @@ def test_persistent_oracle_bootstrap_and_restarts_preserve_legacy_state(
     try:
         runtime.start()
         _assert_state(runtime, PersistentRuntimeState.RUNNING)
-        _assert_runtime_state(repository, runtime)
+        expected_redis_expiry_ms = _assert_runtime_state(repository, runtime)
 
         runtime.restart_application()
         _assert_state(runtime, PersistentRuntimeState.RUNNING)
-        _assert_runtime_state(repository, runtime)
+        _assert_runtime_state(repository, runtime, expected_redis_expiry_ms)
 
         runtime.shutdown()
         _assert_state(runtime, PersistentRuntimeState.STOPPED)
@@ -202,7 +233,7 @@ def test_persistent_oracle_bootstrap_and_restarts_preserve_legacy_state(
 
         runtime.recover()
         _assert_state(runtime, PersistentRuntimeState.RUNNING)
-        _assert_runtime_state(repository, runtime)
+        _assert_runtime_state(repository, runtime, expected_redis_expiry_ms)
     finally:
         runtime.close()
 
@@ -214,16 +245,9 @@ def test_persistent_oracle_bootstrap_and_restarts_preserve_legacy_state(
     try:
         reopened.recover()
         assert reopened.generation == 4
-        _assert_runtime_state(repository, reopened)
+        _assert_runtime_state(repository, reopened, expected_redis_expiry_ms)
     finally:
         reopened.close()
-
-
-def _redis_expiry_ms(client: redis.Redis, key: str) -> int:
-    seconds, microseconds = cast(tuple[int, int], client.time())
-    ttl_ms = cast(int, client.pttl(key))
-    assert ttl_ms > 0
-    return seconds * 1000 + microseconds // 1000 + ttl_ms
 
 
 @pytest.mark.integration

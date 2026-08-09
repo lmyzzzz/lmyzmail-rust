@@ -705,7 +705,7 @@ definition tree
 - `managed-smtp-data-v30/`
 - `managed-smtp-data-oracle-evidence-v30/`
 - `managed-smtp-mime-v30/`
-- `managed-outbound-http-v16/`
+- `managed-outbound-http-v18/`
 - `managed-outbound-queue-v31.json`
 - `managed-userdata-v14/`
 - `managed-userdata-oracle-evidence-v13/`
