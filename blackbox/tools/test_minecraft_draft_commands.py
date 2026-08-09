@@ -21,7 +21,7 @@ from lmyzmail_blackbox.differential import DifferentialRunner, RuntimeTarget, Sc
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-draft-commands-v1"
+_GOLDEN = "managed-minecraft-draft-commands-v2"
 _COMMANDS = (
     ("empty-draft", "/draft", (0x02,) * 6),
     ("clear", "/clear", (0x02,) + (0x33,) * 4 + (0x2F,)),
@@ -95,7 +95,7 @@ def test_frozen_java_minecraft_draft_commands_golden(tmp_path: Path) -> None:
     runner = DifferentialRunner(
         repository,
         golden,
-        "managed-minecraft-draft-commands",
+        _GOLDEN,
         record_java=record,
     )
     with _LoginJavaOracleRuntime(tmp_path / "java-minecraft-draft-commands") as oracle:
@@ -131,5 +131,5 @@ def test_rust_candidate_minecraft_draft_commands_matches_golden() -> None:
         DifferentialRunner(
             repository,
             repository / "blackbox/golden/java" / _GOLDEN,
-            "managed-minecraft-draft-commands",
+            _GOLDEN,
         ).verify_candidate(SCENARIOS, candidate)
