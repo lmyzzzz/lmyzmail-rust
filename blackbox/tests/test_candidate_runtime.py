@@ -7,7 +7,7 @@ import pytest
 
 from lmyzmail_blackbox.errors import HarnessError
 from lmyzmail_blackbox.ports import PortSet
-from lmyzmail_blackbox.runtime import CandidateRuntime
+from lmyzmail_blackbox.runtime import CandidateRuntime, CandidateTlsRuntime
 
 
 def test_candidate_command_is_shell_free_and_receives_semantic_config(tmp_path: Path) -> None:
@@ -54,3 +54,37 @@ def test_candidate_command_environment_requires_json_string_array(
     runtime.ports = PortSet(1, 2, 3, 4, 5, 6, tuple(range(10, 18)))
     with pytest.raises(HarnessError, match="unknown candidate command template field"):
         runtime._application_arguments()
+
+
+def test_candidate_tls_runtime_uses_ephemeral_keystore_and_environment(
+    tmp_path: Path,
+) -> None:
+    runtime = CandidateTlsRuntime(command_template=("/bin/echo", "--config", "{config}"))
+    runtime.workspace = tmp_path
+    runtime.ports = PortSet(
+        15432,
+        16379,
+        18080,
+        1025,
+        18888,
+        25575,
+        tuple(range(20000, 20008)),
+    )
+
+    command = runtime._application_arguments()
+
+    assert command == ["/bin/echo", "--config", str(tmp_path / "candidate-runtime.json")]
+    config = json.loads((tmp_path / "candidate-runtime.json").read_text(encoding="utf-8"))
+    assert config["tls"] == {
+        "enabled": True,
+        "keystore_path": str(runtime.tls_keystore_path),
+        "keystore_password": "",
+    }
+    environment = runtime._application_environment()
+    assert len(environment["LMYZMAIL_SSL_KEYSTORE_PASSWORD"]) >= 32
+    assert runtime.tls_keystore_path.is_file()
+    assert runtime.tls_certificate_pem.startswith(b"-----BEGIN CERTIFICATE-----\n")
+
+    runtime.stop()
+    with pytest.raises(HarnessError, match="not started"):
+        _ = runtime.tls_certificate_pem

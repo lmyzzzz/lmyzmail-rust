@@ -698,8 +698,8 @@ definition tree
 - `managed-mailbox-api-v10/`
 - `managed-starttls-v34/`
 - `managed-starttls-oracle-evidence-v34/`
-- `managed-smtp-auth-v33/`
-- `managed-smtp-auth-starttls-v33/`
+- `managed-smtp-auth-v34/`
+- `managed-smtp-auth-starttls-v34/`
 - `managed-smtp-command-v31/`
 - `managed-smtp-command-oracle-evidence-v31/`
 - `managed-smtp-data-v30/`

@@ -1013,3 +1013,51 @@ class CandidateRuntime(JavaOracleRuntime):
             return [value.format_map(fields) for value in self.command_template]
         except KeyError as error:
             raise HarnessError(f"unknown candidate command template field: {error}") from error
+
+
+@dataclass(slots=True)
+class CandidateTlsRuntime(CandidateRuntime):
+    _tls_material: EphemeralTlsMaterial | None = field(default=None, init=False, repr=False)
+
+    @property
+    def tls_certificate_pem(self) -> bytes:
+        if self._tls_material is None:
+            raise HarnessError("managed Rust STARTTLS runtime is not started")
+        return self._tls_material.certificate_pem
+
+    @property
+    def tls_keystore_path(self) -> Path:
+        if self._tls_material is None:
+            raise HarnessError("managed Rust STARTTLS runtime is not started")
+        return self._tls_material.keystore_path
+
+    def _candidate_configuration(self) -> Path:
+        workspace, _ = self._require_state()
+        if self._tls_material is None:
+            self._tls_material = provision_ephemeral_tls_material(workspace)
+
+        path = CandidateRuntime._candidate_configuration(self)
+        value = json.loads(path.read_text(encoding="utf-8"))
+        value["tls"] = {
+            "enabled": True,
+            "keystore_path": str(self._tls_material.keystore_path),
+            "keystore_password": "",
+        }
+        path.write_text(
+            json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return path
+
+    def _application_environment(self) -> dict[str, str]:
+        environment = CandidateRuntime._application_environment(self)
+        if self._tls_material is None:
+            raise HarnessError("managed Rust STARTTLS material is not provisioned")
+        environment["LMYZMAIL_SSL_KEYSTORE_PASSWORD"] = self._tls_material.keystore_password
+        return environment
+
+    def stop(self) -> None:
+        try:
+            CandidateRuntime.stop(self)
+        finally:
+            self._tls_material = None

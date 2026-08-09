@@ -175,3 +175,11 @@ error; after STARTTLS a fresh EHLO is required before the same probe-sink behavi
 returns. The isolated managed profile also freezes the default 20-probe SMTP error
 budget, the subsequent `MAIL FROM` `550` block, and the loopback exclusion that
 keeps `AUTH_PROBE` rows out of the temporary PostgreSQL fixture.
+
+The Rust candidate matches the v34 plaintext and STARTTLS profiles, including
+the exact wire replies, command-state transitions, failure threshold, partial
+disconnect recovery, post-TLS EHLO reset, certificate hostname verification,
+and the bounded PostgreSQL no-side-effect observation window. The managed TLS
+candidate receives its ephemeral PKCS#12 password only through
+`LMYZMAIL_SSL_KEYSTORE_PASSWORD`; neither runtime configuration nor goldens
+contain the password or private key.
