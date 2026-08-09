@@ -17,8 +17,8 @@ from lmyzmail_blackbox.persistent_runtime import PersistentJavaOracleRuntime
 from lmyzmail_blackbox.ports import PortSet
 from lmyzmail_blackbox.runtime import CandidateRuntime
 
-_GOLDEN = "managed-minecraft-status-v6"
-_CUSTOM_GOLDEN = "managed-minecraft-status-config-v3"
+_GOLDEN = "managed-minecraft-status-v7"
+_CUSTOM_GOLDEN = "managed-minecraft-status-config-v4"
 _MAX_FRAME = 2 * 1024 * 1024
 _PING_PAYLOAD = 0x0123456789ABCDEF
 _CUSTOM_MOTD = "Custom status"
@@ -241,7 +241,7 @@ def test_frozen_java_minecraft_status_golden(tmp_path: Path) -> None:
     runner = DifferentialRunner(
         repository,
         golden,
-        "managed-minecraft-status",
+        _GOLDEN,
         record_java=record,
     )
     with PersistentJavaOracleRuntime(tmp_path / "java-minecraft-status") as oracle:
@@ -261,7 +261,7 @@ def test_frozen_java_minecraft_configured_status_golden(tmp_path: Path) -> None:
     runner = DifferentialRunner(
         repository,
         repository / "blackbox/golden/java" / _CUSTOM_GOLDEN,
-        "managed-minecraft-status-config",
+        _CUSTOM_GOLDEN,
         record_java=record,
     )
     with _ConfiguredJavaOracleRuntime(tmp_path / "java-minecraft-status-config") as oracle:
@@ -289,7 +289,7 @@ def test_rust_candidate_minecraft_status_matches_golden() -> None:
         DifferentialRunner(
             repository,
             repository / "blackbox/golden/java" / _GOLDEN,
-            "managed-minecraft-status",
+            _GOLDEN,
         ).verify_candidate(SCENARIOS, candidate)
 
 
@@ -313,5 +313,5 @@ def test_rust_candidate_minecraft_configured_status_matches_golden() -> None:
         DifferentialRunner(
             repository,
             repository / "blackbox/golden/java" / _CUSTOM_GOLDEN,
-            "managed-minecraft-status-config",
+            _CUSTOM_GOLDEN,
         ).verify_candidate(CUSTOM_SCENARIOS, candidate)
