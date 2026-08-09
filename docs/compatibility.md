@@ -41,6 +41,14 @@ wire, state, storage, or recovery assertions.
 - Maildir publication must use a flushed same-filesystem temporary file,
   atomic rename, and directory fsync instead of exposing a partially written
   final file.
+- Malformed SMTP command bytes must receive a fixed non-reflective syntax
+  response. The frozen oracle can reflect tabs, NUL, bare CR/LF, and replaced
+  invalid UTF-8 into its reply; its isolated evidence golden is not a candidate
+  expectation.
+- One fragmented overlong SMTP command must produce and charge exactly one
+  error regardless of packetization. The frozen oracle can reply twice and
+  consume two error-budget entries when CRLF arrives after the length error;
+  its isolated evidence golden is not a candidate expectation.
 - STARTTLS must close without executing plaintext command bytes buffered after
   the STARTTLS line. The frozen Java oracle executes such a command across the
   TLS boundary; its isolated evidence golden is not a candidate expectation.
@@ -162,6 +170,17 @@ Java HashMap/HashSet teardown ordering, duplicate completion scoreboard refresh,
 and final messages. The only allowlisted behavior difference is permit lifetime:
 the Java map player returns its permit before submitting decode work, while the
 candidate holds the permit for the complete admitted lifecycle.
+
+## SMTP command contract
+
+The Rust candidate matches the v32 command profile byte for byte across utility
+commands, HELO/EHLO and transaction resets, MAIL/RCPT syntax and state, the
+15,728,640-byte declared-size boundary, CRLF and 1,000-byte command limits,
+partial-disconnect recovery, and the ten-error per-connection budget. The v32
+Java observations are unchanged from v31; the new generation re-attests them to
+definition tree `5f708ae5d17d99b39938c1726f0e4a3068debe0e1975cf36d771d4d3b4adc761`
+and adds candidate verification. The companion evidence profile remains
+Java-only for the two approved malformed-input fixes above.
 
 ## SMTP AUTH oracle behavior
 

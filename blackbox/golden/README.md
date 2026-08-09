@@ -700,8 +700,8 @@ definition tree
 - `managed-starttls-oracle-evidence-v34/`
 - `managed-smtp-auth-v34/`
 - `managed-smtp-auth-starttls-v34/`
-- `managed-smtp-command-v31/`
-- `managed-smtp-command-oracle-evidence-v31/`
+- `managed-smtp-command-v32/`
+- `managed-smtp-command-oracle-evidence-v32/`
 - `managed-smtp-data-v30/`
 - `managed-smtp-data-oracle-evidence-v30/`
 - `managed-smtp-mime-v30/`
