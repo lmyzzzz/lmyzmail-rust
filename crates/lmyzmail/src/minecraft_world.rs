@@ -1025,7 +1025,7 @@ fn java_table_size_for(capacity: usize) -> usize {
         .min(JAVA_MAXIMUM_CAPACITY)
 }
 
-fn java_hash_map_order<T>(entries: Vec<T>, key: impl Fn(&T) -> i64) -> Vec<T> {
+pub(crate) fn java_hash_map_order<T>(entries: Vec<T>, key: impl Fn(&T) -> i64) -> Vec<T> {
     let mut map = JavaHashOrderMap::default();
     for (insertion, entry) in entries.iter().enumerate() {
         map.insert(key(entry), insertion);

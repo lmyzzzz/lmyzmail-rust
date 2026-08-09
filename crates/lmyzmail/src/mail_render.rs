@@ -987,6 +987,26 @@ pub(crate) fn rgb24_to_map_colors(
     cancellation: &CancellationToken,
     deadline: Instant,
 ) -> Result<Vec<u8>, RenderError> {
+    rgb24_to_map_colors_with_dither(
+        rgb,
+        width,
+        height,
+        max_output_bytes,
+        1,
+        cancellation,
+        deadline,
+    )
+}
+
+pub(crate) fn rgb24_to_map_colors_with_dither(
+    rgb: &[u8],
+    width: usize,
+    height: usize,
+    max_output_bytes: usize,
+    dither: u8,
+    cancellation: &CancellationToken,
+    deadline: Instant,
+) -> Result<Vec<u8>, RenderError> {
     if width == 0 || height == 0 {
         return Err(RenderError::InvalidRequest("RGB24 frame dimensions"));
     }
@@ -1009,7 +1029,97 @@ pub(crate) fn rgb24_to_map_colors(
         return Err(RenderError::LimitExceeded("RGB24 output bytes"));
     }
     checkpoint_at(cancellation, deadline)?;
-    floyd_steinberg(rgb, width, height, cancellation, deadline)
+    match dither {
+        0 => nearest_map_colors(rgb, width, height, cancellation, deadline),
+        2 => ordered_map_colors(rgb, width, height, cancellation, deadline),
+        _ => floyd_steinberg(rgb, width, height, cancellation, deadline),
+    }
+}
+
+pub(crate) struct Rgb24ResizeSpec {
+    pub(crate) source_width: usize,
+    pub(crate) source_height: usize,
+    pub(crate) output_width: usize,
+    pub(crate) output_height: usize,
+    pub(crate) max_output_bytes: usize,
+}
+
+/// Resizes one bounded RGB24 frame with the frozen Java/C integer box filter.
+pub(crate) fn resize_rgb24_box(
+    rgb: &[u8],
+    spec: Rgb24ResizeSpec,
+    cancellation: &CancellationToken,
+    deadline: Instant,
+) -> Result<Vec<u8>, RenderError> {
+    let Rgb24ResizeSpec {
+        source_width,
+        source_height,
+        output_width,
+        output_height,
+        max_output_bytes,
+    } = spec;
+    if source_width == 0 || source_height == 0 || output_width == 0 || output_height == 0 {
+        return Err(RenderError::InvalidRequest("RGB24 resize dimensions"));
+    }
+    let source_pixels = source_width
+        .checked_mul(source_height)
+        .ok_or(RenderError::LimitExceeded("RGB24 resize source pixels"))?;
+    let expected_bytes = source_pixels
+        .checked_mul(3)
+        .ok_or(RenderError::LimitExceeded("RGB24 resize input bytes"))?;
+    if rgb.len() != expected_bytes {
+        return Err(RenderError::InvalidRequest("RGB24 resize input length"));
+    }
+    let output_pixels = output_width
+        .checked_mul(output_height)
+        .ok_or(RenderError::LimitExceeded("RGB24 resize output pixels"))?;
+    let output_bytes = output_pixels
+        .checked_mul(3)
+        .ok_or(RenderError::LimitExceeded("RGB24 resize output bytes"))?;
+    if max_output_bytes == 0 || max_output_bytes > ABSOLUTE_MAX_OUTPUT_BYTES {
+        return Err(RenderError::InvalidRequest("RGB24 resize output budget"));
+    }
+    if output_bytes > max_output_bytes {
+        return Err(RenderError::LimitExceeded("RGB24 resize output bytes"));
+    }
+    checkpoint_at(cancellation, deadline)?;
+    let mut output = vec![0_u8; output_bytes];
+    for output_y in 0..output_height {
+        checkpoint_at(cancellation, deadline)?;
+        let source_y0 = output_y * source_height / output_height;
+        let source_y1 = ((output_y + 1) * source_height / output_height)
+            .max(source_y0 + 1)
+            .min(source_height);
+        for output_x in 0..output_width {
+            if output_x % CHECKPOINT_PIXEL_INTERVAL == 0 {
+                checkpoint_at(cancellation, deadline)?;
+            }
+            let source_x0 = output_x * source_width / output_width;
+            let source_x1 = ((output_x + 1) * source_width / output_width)
+                .max(source_x0 + 1)
+                .min(source_width);
+            let mut sums = [0_u64; 3];
+            let mut count = 0_u64;
+            for source_y in source_y0..source_y1 {
+                let row = &rgb[source_y * source_width * 3..(source_y + 1) * source_width * 3];
+                for pixel in row[source_x0 * 3..source_x1 * 3].chunks_exact(3) {
+                    sums[0] += u64::from(pixel[0]);
+                    sums[1] += u64::from(pixel[1]);
+                    sums[2] += u64::from(pixel[2]);
+                    count += 1;
+                }
+            }
+            let destination = &mut output[(output_y * output_width + output_x) * 3..][..3];
+            if count == 0 {
+                destination.fill(0);
+            } else {
+                destination[0] = (sums[0] / count) as u8;
+                destination[1] = (sums[1] / count) as u8;
+                destination[2] = (sums[2] / count) as u8;
+            }
+        }
+    }
+    Ok(output)
 }
 
 fn render_plain_text(request: &RenderRequest<'_>) -> Result<RenderResult, RenderError> {
@@ -1916,6 +2026,60 @@ fn floyd_steinberg(
     Ok(output)
 }
 
+fn nearest_map_colors(
+    rgb: &[u8],
+    width: usize,
+    height: usize,
+    cancellation: &CancellationToken,
+    deadline: Instant,
+) -> Result<Vec<u8>, RenderError> {
+    let palette = minecraft_palette();
+    let mut output = vec![0_u8; width * height];
+    for (index, pixel) in rgb.chunks_exact(3).enumerate() {
+        if index % CHECKPOINT_PIXEL_INTERVAL == 0 {
+            checkpoint_at(cancellation, deadline)?;
+        }
+        output[index] =
+            nearest_palette(rgb_to_lab([pixel[0], pixel[1], pixel[2]]), palette).protocol_index;
+    }
+    Ok(output)
+}
+
+fn ordered_map_colors(
+    rgb: &[u8],
+    width: usize,
+    height: usize,
+    cancellation: &CancellationToken,
+    deadline: Instant,
+) -> Result<Vec<u8>, RenderError> {
+    const BAYER: [[f32; 4]; 4] = [
+        [-0.46875, 0.03125, -0.34375, 0.15625],
+        [0.28125, -0.21875, 0.40625, -0.09375],
+        [-0.28125, 0.21875, -0.40625, 0.09375],
+        [0.46875, -0.03125, 0.34375, -0.15625],
+    ];
+    const SPREAD: f32 = 48.0;
+    let palette = minecraft_palette();
+    let mut output = vec![0_u8; width * height];
+    for y in 0..height {
+        checkpoint_at(cancellation, deadline)?;
+        for x in 0..width {
+            if x % CHECKPOINT_PIXEL_INTERVAL == 0 {
+                checkpoint_at(cancellation, deadline)?;
+            }
+            let pixel = &rgb[(y * width + x) * 3..][..3];
+            let offset = BAYER[y & 3][x & 3] * SPREAD;
+            let adjusted = [
+                (f32::from(pixel[0]) + offset + 0.5).clamp(0.0, 255.0) as u8,
+                (f32::from(pixel[1]) + offset + 0.5).clamp(0.0, 255.0) as u8,
+                (f32::from(pixel[2]) + offset + 0.5).clamp(0.0, 255.0) as u8,
+            ];
+            output[y * width + x] = nearest_palette(rgb_to_lab(adjusted), palette).protocol_index;
+        }
+    }
+    Ok(output)
+}
+
 fn load_rgb_row(output: &mut [[f32; 3]], rgb: &[u8], width: usize, y: usize) {
     let row = &rgb[y * width * 3..(y + 1) * width * 3];
     for (destination, pixel) in output.iter_mut().zip(row.chunks_exact(3)) {
@@ -1949,7 +2113,7 @@ fn nearest_palette(lab: [f32; 3], palette: &[PaletteEntry; 140]) -> PaletteEntry
     best
 }
 
-fn rgb_to_lab(rgb: [u8; 3]) -> [f32; 3] {
+pub(crate) fn rgb_to_lab(rgb: [u8; 3]) -> [f32; 3] {
     let red = srgb_linearize(f32::from(rgb[0]) / 255.0);
     let green = srgb_linearize(f32::from(rgb[1]) / 255.0);
     let blue = srgb_linearize(f32::from(rgb[2]) / 255.0);
@@ -2575,6 +2739,29 @@ mod tests {
             rgb24_to_map_colors(&[255; 3], 1, 1, 1, &active, Instant::now()),
             Err(RenderError::DeadlineExceeded)
         ));
+    }
+
+    #[test]
+    fn rgb24_box_resize_matches_integer_source_rectangles() {
+        let cancellation = CancellationToken::new();
+        let input = [
+            0, 0, 0, 10, 10, 10, 20, 20, 20, 30, 30, 30, 40, 40, 40, 50, 50, 50, 60, 60, 60, 70,
+            70, 70,
+        ];
+        let output = resize_rgb24_box(
+            &input,
+            Rgb24ResizeSpec {
+                source_width: 4,
+                source_height: 2,
+                output_width: 2,
+                output_height: 1,
+                max_output_bytes: 6,
+            },
+            &cancellation,
+            Instant::now() + Duration::from_secs(30),
+        )
+        .unwrap();
+        assert_eq!(output, vec![25, 25, 25, 45, 45, 45]);
     }
 
     #[test]

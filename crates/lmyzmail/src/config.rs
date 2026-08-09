@@ -2496,11 +2496,7 @@ fn parse_minecraft_config(properties: &Properties) -> Result<MinecraftConfig, Co
         view_distance: u32::try_from(view_distance).map_err(|_| {
             ConfigError::Invalid("minecraft view-distance exceeds the supported range".into())
         })?,
-        max_concurrent_videos: u32::try_from(max_concurrent_videos).map_err(|_| {
-            ConfigError::Invalid(
-                "minecraft max-concurrent-videos exceeds the supported range".into(),
-            )
-        })?,
+        max_concurrent_videos,
         spawn,
         video,
         whitelist_enabled,

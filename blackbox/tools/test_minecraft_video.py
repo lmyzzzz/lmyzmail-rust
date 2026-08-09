@@ -29,7 +29,7 @@ from test_minecraft_mail_view import (
     _MapUpdate,
     _PhaseCapture,
     _plain_chat_texts,
-    _read_until_chat,
+    _read_until_chat as _read_until_chat_raw,
     _snapshot_capture,
     _unit_chat_packet,
     _wall_topology,
@@ -48,7 +48,7 @@ from lmyzmail_blackbox.differential import DifferentialRunner, RuntimeTarget, Sc
 from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 
-_GOLDEN = "managed-minecraft-video-v1"
+_GOLDEN = "managed-minecraft-video-v2"
 _VIDEO_MEMBER = "BOOT-INF/classes/skibidi_toilet_episode_1.mp4"
 _VIDEO_SIZE = 15_048_248
 _VIDEO_SHA256 = "0e76229bb77ebcf471aec692fa34709cfbbe3dc192127a852a518e34bdd0ecc7"
@@ -132,6 +132,12 @@ def _phase(packets: list[Any], skipped: int = 0) -> _PhaseCapture:
         sum(len(packet.wire) for packet in packets),
         sum(len(packet.payload) for packet in packets),
     )
+
+
+def _read_until_chat(connection: Any, marker: str, *, label: str) -> _PhaseCapture:
+    """Keep scheduled PLAY ticks out of phase accounting as well as packet lists."""
+    raw = _read_until_chat_raw(connection, marker, label=label)
+    return _phase(list(raw.packets))
 
 
 def _video_map_data(packet: Any) -> _MapUpdate:
@@ -309,7 +315,7 @@ def _read_until_packet_batch(connection: Any, packet_id: int, *, label: str) -> 
             raise ProtocolError(f"{label} exceeded its byte budget")
     if not saw_target:
         raise _CaptureFailure("phase-timeout", label, f"packet 0x{packet_id:02x} was not reached")
-    return _PhaseCapture(tuple(packets), skipped, wire_bytes, expanded_bytes)
+    return _PhaseCapture(tuple(packets), 0, wire_bytes, expanded_bytes)
 
 
 def _tile_state(capture: _PhaseCapture, map_ids: tuple[int, ...]) -> dict[int, bytearray]:
@@ -590,7 +596,7 @@ cast(Any, _capture_minecraft_video).__lmyzmail_contract__ = {
         "block clear, first chunk-section frame, delta, pause silence, and chunk restore",
     ],
     "normalization": [
-        "exclude bounded scheduled 0x03 and 0x18 packets",
+        "exclude bounded scheduled 0x03 and 0x18 packets and their phase accounting",
         "relative map and entity IDs",
         "sort only HashMap-backed map-wall teardown block restoration",
     ],
@@ -673,7 +679,7 @@ def test_frozen_java_minecraft_video_golden(tmp_path: Path) -> None:
     runner = DifferentialRunner(
         repository,
         golden,
-        "managed-minecraft-video-v1",
+        "managed-minecraft-video-v2",
         record_java=record,
     )
     with _VideoJavaOracleRuntime(tmp_path / "java-minecraft-video-v1") as oracle:
@@ -718,5 +724,5 @@ def test_rust_candidate_minecraft_video_matches_golden() -> None:
         DifferentialRunner(
             repository,
             repository / "blackbox/golden/java" / _GOLDEN,
-            "managed-minecraft-video-v1",
+            "managed-minecraft-video-v2",
         ).verify_candidate(SCENARIOS, candidate)

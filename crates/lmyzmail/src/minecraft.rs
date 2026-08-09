@@ -1,12 +1,14 @@
 use std::{
     collections::{HashMap, HashSet, VecDeque},
+    fs::File,
     future::Future,
-    io::{self, Write as _},
+    io::{self, Read as _, Write as _},
     net::{IpAddr, SocketAddr},
+    path::PathBuf,
     pin::Pin,
     sync::{
         Arc, Mutex, OnceLock,
-        atomic::{AtomicI32, AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering},
     },
     time::{Duration, Instant as StdInstant},
 };
@@ -25,11 +27,12 @@ use openssl::{
 use regex::Regex;
 use reqwest::{Client, StatusCode, redirect::Policy};
 use sha1::Sha1;
+use sha2::Sha256;
 use subtle::ConstantTimeEq;
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     net::{TcpListener, TcpStream},
-    sync::{OwnedSemaphorePermit, Semaphore},
+    sync::{OwnedSemaphorePermit, Semaphore, oneshot},
     task::JoinSet,
     time::{Instant, sleep_until, timeout, timeout_at},
 };
@@ -40,6 +43,7 @@ use crate::{
     auth::{AuthError, AuthService, LoginOutcome},
     bounded_blocking::{BoundedBlockingPool, SubmitError},
     config::{MinecraftConfig, RuntimeConfig},
+    ffmpeg_video::VideoDecoder,
     mail_render,
     mailbox::{EmailListItem, EmailListPage, MailboxService},
     minecraft_world::{self, NbtValue, WorldTemplate},
@@ -89,6 +93,21 @@ const MAP_TILE_PIXELS: usize = 128 * 128;
 const MAP_BLANK_COLOR: u8 = 34;
 const MAP_SUPPORT_BLOCK_STATE: i32 = 155 << 4;
 const HOTBAR_CLICK_COOLDOWN: Duration = Duration::from_millis(400);
+const VIDEO_ASSET_NAME: &str = "skibidi_toilet_episode_1.mp4";
+const VIDEO_ASSET_BYTES: u64 = 15_048_248;
+const VIDEO_ASSET_SHA256: &str = "0e76229bb77ebcf471aec692fa34709cfbbe3dc192127a852a518e34bdd0ecc7";
+const VIDEO_SOURCE_WIDTH: usize = 1920;
+const VIDEO_SOURCE_HEIGHT: usize = 1080;
+const VIDEO_SOURCE_FPS: f64 = 30.0;
+const VIDEO_DURATION_SECONDS: u64 = 66;
+const VIDEO_SETTLE_SECONDS: u8 = 2;
+const VIDEO_PAUSE_POLL: Duration = Duration::from_millis(100);
+const VIDEO_CONVERSION_WORKERS: usize = 2;
+const VIDEO_CONVERSION_QUEUE: usize = 2;
+const VIDEO_MAX_FRAME_BYTES: usize = 16 * 128 * 16 * 128 * 3;
+const BLOCK_VIDEO_SETTLE_SECONDS: u8 = 3;
+const BLOCK_VIDEO_MAX_CHUNKS: usize = 64;
+const BLOCK_VIDEO_MAX_REGION_BLOCKS: usize = 2_000_000;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ConnectionState {
@@ -129,6 +148,7 @@ struct MinecraftDraft {
     body_pages: Vec<String>,
 }
 
+#[derive(Clone, Copy, Debug)]
 struct WindowClick {
     window_id: u8,
     slot: i16,
@@ -172,6 +192,7 @@ enum MainMenuEffect {
     Close,
     SwitchAccount,
     OpenRenderSettings,
+    OpenVideoMenu(u8),
     OpenLogoutConfirm(u8),
     OpenFolder(&'static str),
 }
@@ -258,6 +279,282 @@ struct ActiveMailView {
     wall: MapWall,
     result: mail_render::RenderResult,
     current_page: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct MapVideoParams {
+    maps_x: usize,
+    fps: u32,
+    dither: u8,
+    contrast: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct BlockVideoParams {
+    width: usize,
+    height: usize,
+    fps: u32,
+    contrast: f32,
+}
+
+#[derive(Clone, Debug)]
+struct VideoControl {
+    stopped: Arc<AtomicBool>,
+    paused: Arc<AtomicBool>,
+}
+
+impl VideoControl {
+    fn new() -> Self {
+        Self {
+            stopped: Arc::new(AtomicBool::new(false)),
+            paused: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    fn stop(&self) {
+        self.stopped.store(true, Ordering::Release);
+    }
+
+    fn is_stopped(&self) -> bool {
+        self.stopped.load(Ordering::Acquire)
+    }
+
+    fn toggle_pause(&self) -> bool {
+        let previous = self.paused.fetch_xor(true, Ordering::AcqRel);
+        !previous
+    }
+
+    fn is_paused(&self) -> bool {
+        self.paused.load(Ordering::Acquire)
+    }
+}
+
+enum VideoEvent {
+    Packets(Vec<Vec<u8>>),
+    Finished(Vec<Vec<u8>>),
+}
+
+struct PendingMapVideo {
+    control: VideoControl,
+    cancellation: CancellationToken,
+    permit: Option<OwnedSemaphorePermit>,
+    decoder: Option<VideoDecoder>,
+    pending_open: Option<PendingVideoOpen>,
+    pending_decode: Option<PendingVideoDecode>,
+    wall: Option<MapWall>,
+    maps_x: usize,
+    maps_y: usize,
+    fps: u32,
+    contrast: f32,
+    dither: u8,
+    decoded_frames: u64,
+    emitted_frames: u64,
+    previous_frame: Option<Vec<u8>>,
+    pending_conversion: Option<PendingVideoConversion>,
+    setup_packets: Option<Vec<Vec<u8>>>,
+    countdown: Option<u8>,
+    next_countdown: Instant,
+    next_frame: Instant,
+    finished: bool,
+}
+
+struct BlockVideoChunk {
+    original: minecraft_world::ChunkData,
+    cleared: minecraft_world::ChunkData,
+    touched: bool,
+}
+
+struct BlockVideoWall {
+    width: usize,
+    height: usize,
+    min_x: i32,
+    max_y: i32,
+    wall_z: i32,
+    min_cx: i32,
+    max_cx: i32,
+    min_sy: usize,
+    max_sy: usize,
+    saved_block_positions: Vec<i64>,
+    chunks: Vec<BlockVideoChunk>,
+}
+
+struct PendingBlockVideo {
+    control: VideoControl,
+    cancellation: CancellationToken,
+    permit: Option<OwnedSemaphorePermit>,
+    decoder: Option<VideoDecoder>,
+    pending_open: Option<PendingVideoOpen>,
+    pending_decode: Option<PendingVideoDecode>,
+    wall: Option<BlockVideoWall>,
+    decoded_frames: u64,
+    emitted_frames: u64,
+    pending_conversion: Option<PendingBlockConversion>,
+    previous_frame: Option<Vec<u16>>,
+    setup_packets: Option<Vec<Vec<u8>>>,
+    countdown: Option<u8>,
+    next_countdown: Instant,
+    next_frame: Instant,
+    fps: u32,
+    contrast: f32,
+    finished: bool,
+}
+
+struct PendingBlockConversion {
+    cancellation: CancellationToken,
+    receiver: oneshot::Receiver<Result<Vec<u16>, String>>,
+}
+
+struct PendingVideoConversion {
+    cancellation: CancellationToken,
+    receiver: oneshot::Receiver<Result<Vec<u8>, String>>,
+}
+
+struct PendingVideoOpen {
+    cancellation: CancellationToken,
+    receiver: oneshot::Receiver<Result<VideoDecoder, String>>,
+}
+
+struct PendingVideoDecode {
+    cancellation: CancellationToken,
+    receiver: oneshot::Receiver<Result<DecodedVideoFrame, String>>,
+}
+
+struct DecodedVideoFrame {
+    decoder: VideoDecoder,
+    frame: Option<Vec<u8>>,
+    decoded_frames: u64,
+    emitted_frames: u64,
+}
+
+impl Drop for PendingMapVideo {
+    fn drop(&mut self) {
+        self.cancellation.cancel();
+        if let Some(pending) = self.pending_open.take() {
+            pending.cancellation.cancel();
+        }
+        if let Some(pending) = self.pending_decode.take() {
+            pending.cancellation.cancel();
+        }
+        self.decoder.take();
+        let _ = self.permit.take();
+    }
+}
+
+impl Drop for PendingBlockVideo {
+    fn drop(&mut self) {
+        self.cancellation.cancel();
+        if let Some(pending) = self.pending_open.take() {
+            pending.cancellation.cancel();
+        }
+        if let Some(pending) = self.pending_decode.take() {
+            pending.cancellation.cancel();
+        }
+        self.decoder.take();
+        let _ = self.permit.take();
+    }
+}
+
+fn submit_video_open(
+    service: &StatusService,
+    path: &std::path::Path,
+    parent_cancellation: &CancellationToken,
+) -> Result<PendingVideoOpen, String> {
+    let cancellation = parent_cancellation.child_token();
+    let worker_cancellation = cancellation.clone();
+    let path = path.to_owned();
+    let receiver = service
+        .video_conversion_pool
+        .submit(move || {
+            if worker_cancellation.is_cancelled() {
+                return Err("video decoder open was cancelled".to_owned());
+            }
+            VideoDecoder::open(&path).map_err(|error| error.to_string())
+        })
+        .map_err(|error| format!("video decoder queue is {error}"))?;
+    Ok(PendingVideoOpen {
+        cancellation,
+        receiver,
+    })
+}
+
+fn submit_video_decode(
+    service: &StatusService,
+    decoder: VideoDecoder,
+    decoded_frames: u64,
+    emitted_frames: u64,
+    fps: u32,
+    parent_cancellation: &CancellationToken,
+) -> Result<PendingVideoDecode, String> {
+    let cancellation = parent_cancellation.child_token();
+    let worker_cancellation = cancellation.clone();
+    let receiver = service
+        .video_conversion_pool
+        .submit(move || {
+            decode_selected_video_frame(
+                decoder,
+                decoded_frames,
+                emitted_frames,
+                fps,
+                &worker_cancellation,
+            )
+        })
+        .map_err(|error| format!("video decoder queue is {error}"))?;
+    Ok(PendingVideoDecode {
+        cancellation,
+        receiver,
+    })
+}
+
+fn decode_selected_video_frame(
+    mut decoder: VideoDecoder,
+    mut decoded_frames: u64,
+    mut emitted_frames: u64,
+    fps: u32,
+    cancellation: &CancellationToken,
+) -> Result<DecodedVideoFrame, String> {
+    let (width, height) = decoder.dimensions();
+    if width != VIDEO_SOURCE_WIDTH || height != VIDEO_SOURCE_HEIGHT {
+        return Err(format!(
+            "video dimensions are {width}x{height}; expected {VIDEO_SOURCE_WIDTH}x{VIDEO_SOURCE_HEIGHT}"
+        ));
+    }
+    let frame_bytes = width
+        .checked_mul(height)
+        .and_then(|pixels| pixels.checked_mul(3))
+        .ok_or_else(|| "video frame size overflow".to_owned())?;
+    if frame_bytes > VIDEO_MAX_FRAME_BYTES {
+        return Err("video frame exceeds the configured memory budget".to_owned());
+    }
+    let mut frame = vec![0_u8; frame_bytes];
+    loop {
+        if cancellation.is_cancelled() {
+            return Err("video decode was cancelled".to_owned());
+        }
+        if !decoder
+            .next_frame(&mut frame)
+            .map_err(|error| format!("video decode failed: {error}"))?
+        {
+            return Ok(DecodedVideoFrame {
+                decoder,
+                frame: None,
+                decoded_frames,
+                emitted_frames,
+            });
+        }
+        decoded_frames = decoded_frames.saturating_add(1);
+        let threshold =
+            (emitted_frames.saturating_add(1) as f64) * VIDEO_SOURCE_FPS / f64::from(fps);
+        if f64::from(fps) < VIDEO_SOURCE_FPS && (decoded_frames as f64) < threshold {
+            continue;
+        }
+        emitted_frames = emitted_frames.saturating_add(1);
+        return Ok(DecodedVideoFrame {
+            decoder,
+            frame: Some(frame),
+            decoded_frames,
+            emitted_frames,
+        });
+    }
 }
 
 impl MinecraftDraft {
@@ -777,6 +1074,9 @@ struct StatusService {
     blacklist_players: Arc<[String]>,
     compression_pool: BoundedBlockingPool,
     mail_render_pool: BoundedBlockingPool,
+    video_conversion_pool: BoundedBlockingPool,
+    video_semaphore: Arc<Semaphore>,
+    video_asset: PathBuf,
     image_http: Option<PinnedImageClient>,
     online_mode: Option<OnlineModeService>,
     next_entity_id: AtomicI32,
@@ -791,6 +1091,51 @@ struct StatusService {
     auth: Option<Arc<AuthService>>,
     mailbox: Option<Arc<MailboxService>>,
     auth_limiter: Arc<MinecraftAuthLimiter>,
+}
+
+fn locate_video_asset() -> io::Result<PathBuf> {
+    let mut candidates = vec![
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("assets")
+            .join(VIDEO_ASSET_NAME),
+        PathBuf::from("/usr/share/lmyzmail/assets").join(VIDEO_ASSET_NAME),
+        PathBuf::from("/opt/lmyzmail/assets").join(VIDEO_ASSET_NAME),
+    ];
+    if let Ok(executable) = std::env::current_exe()
+        && let Some(parent) = executable.parent()
+    {
+        candidates.push(parent.join("assets").join(VIDEO_ASSET_NAME));
+    }
+    for path in candidates {
+        let Ok(metadata) = std::fs::metadata(&path) else {
+            continue;
+        };
+        if metadata.len() != VIDEO_ASSET_BYTES {
+            continue;
+        }
+        let mut file = File::open(&path)?;
+        let mut hasher = Sha256::new();
+        let mut buffer = [0_u8; 64 * 1024];
+        loop {
+            let read = file.read(&mut buffer)?;
+            if read == 0 {
+                break;
+            }
+            hasher.update(&buffer[..read]);
+        }
+        let digest = hasher
+            .finalize()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        if digest == VIDEO_ASSET_SHA256 {
+            return Ok(path);
+        }
+    }
+    Err(io::Error::new(
+        io::ErrorKind::NotFound,
+        format!("frozen video asset {VIDEO_ASSET_NAME} is unavailable or has the wrong hash"),
+    ))
 }
 
 impl StatusService {
@@ -819,6 +1164,15 @@ impl StatusService {
                 MAIL_RENDER_WORKERS,
                 MAIL_RENDER_QUEUE,
             )?,
+            video_conversion_pool: BoundedBlockingPool::new(
+                "lmyzmail-minecraft-video-convert",
+                VIDEO_CONVERSION_WORKERS,
+                VIDEO_CONVERSION_QUEUE,
+            )?,
+            video_semaphore: Arc::new(Semaphore::new(
+                config.max_concurrent_videos.clamp(1, 64) as usize
+            )),
+            video_asset: locate_video_asset()?,
             image_http: PinnedImageClient::new().ok(),
             online_mode: config
                 .online_mode
@@ -922,6 +1276,900 @@ impl StatusService {
             connection_id,
         }
     }
+}
+
+impl PendingMapVideo {
+    fn start(
+        service: &StatusService,
+        params: MapVideoParams,
+        permit: OwnedSemaphorePermit,
+        cancellation: CancellationToken,
+    ) -> Result<Self, String> {
+        let maps_y = ((params.maps_x * VIDEO_SOURCE_HEIGHT).saturating_add(VIDEO_SOURCE_WIDTH - 1)
+            / VIDEO_SOURCE_WIDTH)
+            .clamp(1, service.config.video.map_max_maps_y as usize);
+        let wall = MapWall::new(service, params.maps_x, maps_y)
+            .map_err(|error| format!("map wall setup failed: {error}"))?;
+        let mut wall = wall;
+        let mut setup_packets = wall
+            .setup_packets(&service.world)
+            .map_err(|error| format!("map wall setup failed: {error}"))?;
+        setup_packets.push(
+            chat_packet(
+                &format!(
+                    "\u{00a7}7Map wall: \u{00a7}f{}\u{00d7}{} \u{00a7}7maps (\u{00a7}f{}\u{00d7}{}\u{00a7}7 px), \u{00a7}f{}\u{00a7}7 fps",
+                    params.maps_x,
+                    maps_y,
+                    params.maps_x * 128,
+                    maps_y * 128,
+                    params.fps
+                ),
+                Some("gray"),
+            )
+            .map_err(|error| format!("map wall announcement failed: {error}"))?,
+        );
+        let now = Instant::now();
+        Ok(Self {
+            control: VideoControl::new(),
+            cancellation,
+            permit: Some(permit),
+            decoder: None,
+            pending_open: None,
+            pending_decode: None,
+            wall: Some(wall),
+            maps_x: params.maps_x,
+            maps_y,
+            fps: params.fps,
+            contrast: params.contrast,
+            dither: params.dither,
+            decoded_frames: 0,
+            emitted_frames: 0,
+            previous_frame: None,
+            pending_conversion: None,
+            setup_packets: Some(setup_packets),
+            countdown: Some(VIDEO_SETTLE_SECONDS),
+            next_countdown: now,
+            next_frame: now,
+            finished: false,
+        })
+    }
+
+    async fn next_event(
+        &mut self,
+        service: &StatusService,
+        deadline: Instant,
+    ) -> Result<VideoEvent, String> {
+        if self.finished {
+            return Ok(VideoEvent::Finished(Vec::new()));
+        }
+        if let Some(packets) = self.setup_packets.take() {
+            return Ok(VideoEvent::Packets(packets));
+        }
+        if self.control.is_stopped() || self.cancellation.is_cancelled() {
+            return Ok(VideoEvent::Finished(self.finish_packets()?));
+        }
+        if let Some(remaining) = self.countdown {
+            if Instant::now() < self.next_countdown {
+                tokio::select! {
+                    _ = self.cancellation.cancelled() => return Ok(VideoEvent::Finished(self.finish_packets()?)),
+                    _ = tokio::time::sleep_until(self.next_countdown) => {}
+                }
+            }
+            if self.control.is_stopped() || self.cancellation.is_cancelled() {
+                return Ok(VideoEvent::Finished(self.finish_packets()?));
+            }
+            let mut packets = vec![
+                chat_packet(
+                    &format!("\u{00a7}7Starting in {remaining}..."),
+                    Some("gray"),
+                )
+                .map_err(|error| error.to_string())?,
+            ];
+            if remaining == 1 {
+                self.countdown = None;
+                packets.push(
+                    chat_packet("\u{00a7}a\u{25b6} Playing!", Some("green"))
+                        .map_err(|error| error.to_string())?,
+                );
+            } else {
+                self.countdown = Some(remaining - 1);
+                self.next_countdown = Instant::now() + Duration::from_secs(1);
+            }
+            return Ok(VideoEvent::Packets(packets));
+        }
+        while self.control.is_paused() {
+            tokio::select! {
+                _ = self.cancellation.cancelled() => return Ok(VideoEvent::Finished(self.finish_packets()?)),
+                _ = tokio::time::sleep(VIDEO_PAUSE_POLL) => {}
+            }
+            if self.control.is_stopped() {
+                return Ok(VideoEvent::Finished(self.finish_packets()?));
+            }
+        }
+        if Instant::now() < self.next_frame {
+            tokio::select! {
+                _ = self.cancellation.cancelled() => return Ok(VideoEvent::Finished(self.finish_packets()?)),
+                _ = tokio::time::sleep_until(self.next_frame) => {}
+            }
+        }
+        if self.control.is_stopped() || self.cancellation.is_cancelled() {
+            return Ok(VideoEvent::Finished(self.finish_packets()?));
+        }
+        if self.decoder.is_none() {
+            if self.pending_open.is_none() {
+                self.pending_open = Some(submit_video_open(
+                    service,
+                    &service.video_asset,
+                    &self.cancellation,
+                )?);
+            }
+            let pending = self
+                .pending_open
+                .as_mut()
+                .ok_or_else(|| "video decoder open state was lost".to_owned())?;
+            let decoder = tokio::select! {
+                _ = self.cancellation.cancelled() => return Ok(VideoEvent::Finished(self.finish_packets()?)),
+                result = timeout_at(deadline, &mut pending.receiver) => result
+                    .map_err(|_| "video decoder open deadline exceeded".to_owned())?
+                    .map_err(|_| "video decoder open task was cancelled".to_owned())?,
+            }?;
+            let pending = self
+                .pending_open
+                .take()
+                .ok_or_else(|| "video decoder open state was lost".to_owned())?;
+            pending.cancellation.cancel();
+            self.decoder = Some(decoder);
+        }
+        if self.pending_decode.is_none() {
+            let decoder = self
+                .decoder
+                .take()
+                .ok_or_else(|| "video decoder state was lost".to_owned())?;
+            self.pending_decode = Some(submit_video_decode(
+                service,
+                decoder,
+                self.decoded_frames,
+                self.emitted_frames,
+                self.fps,
+                &self.cancellation,
+            )?);
+        }
+        let pending = self
+            .pending_decode
+            .as_mut()
+            .ok_or_else(|| "video decoder state was lost".to_owned())?;
+        let decoded = tokio::select! {
+            _ = self.cancellation.cancelled() => return Ok(VideoEvent::Finished(self.finish_packets()?)),
+            result = timeout_at(deadline, &mut pending.receiver) => result
+                .map_err(|_| "video decode deadline exceeded".to_owned())?
+                .map_err(|_| "video decode task was cancelled".to_owned())?,
+        }?;
+        let pending = self
+            .pending_decode
+            .take()
+            .ok_or_else(|| "video decoder state was lost".to_owned())?;
+        pending.cancellation.cancel();
+        self.decoder = Some(decoded.decoder);
+        self.decoded_frames = decoded.decoded_frames;
+        self.emitted_frames = decoded.emitted_frames;
+        let Some(rgb) = decoded.frame else {
+            return Ok(VideoEvent::Finished(self.finish_packets()?));
+        };
+        let width = self.maps_x * 128;
+        let height = self.maps_y * 128;
+        if self.pending_conversion.is_none() {
+            let contrast = self.contrast;
+            let dither = self.dither;
+            let conversion_cancellation = self.cancellation.child_token();
+            let conversion_cancel_for_worker = conversion_cancellation.clone();
+            let conversion_deadline = deadline.into_std();
+            let receiver = service
+                .video_conversion_pool
+                .submit(move || {
+                    let mut rgb = mail_render::resize_rgb24_box(
+                        &rgb,
+                        mail_render::Rgb24ResizeSpec {
+                            source_width: VIDEO_SOURCE_WIDTH,
+                            source_height: VIDEO_SOURCE_HEIGHT,
+                            output_width: width,
+                            output_height: height,
+                            max_output_bytes: width.saturating_mul(height).saturating_mul(3),
+                        },
+                        &conversion_cancel_for_worker,
+                        conversion_deadline,
+                    )
+                    .map_err(|error| error.to_string())?;
+                    if (contrast - 1.0).abs() > f32::EPSILON {
+                        for pixel in rgb.chunks_exact_mut(3) {
+                            for channel in pixel {
+                                let adjusted = (f32::from(*channel) - 128.0) * contrast + 128.0;
+                                *channel = (adjusted.clamp(0.0, 255.0) + 0.5).floor() as u8;
+                            }
+                        }
+                    }
+                    let representative_rgb =
+                        crate::minecraft_block_palette::convert_rgb24_to_palette_rgb(
+                            &rgb,
+                            width.saturating_mul(height),
+                            &conversion_cancel_for_worker,
+                            conversion_deadline,
+                        )?;
+                    mail_render::rgb24_to_map_colors_with_dither(
+                        &representative_rgb,
+                        width,
+                        height,
+                        width.saturating_mul(height),
+                        dither,
+                        &conversion_cancel_for_worker,
+                        conversion_deadline,
+                    )
+                    .map_err(|error| error.to_string())
+                })
+                .map_err(|error| format!("video conversion queue is {error}"))?;
+            self.pending_conversion = Some(PendingVideoConversion {
+                cancellation: conversion_cancellation,
+                receiver,
+            });
+        }
+        let conversion = self
+            .pending_conversion
+            .as_mut()
+            .ok_or_else(|| "video conversion state was lost".to_owned())?;
+        let map_colors = tokio::select! {
+            _ = self.cancellation.cancelled() => return Ok(VideoEvent::Finished(self.finish_packets()?)),
+            result = timeout_at(deadline, &mut conversion.receiver) => result
+                .map_err(|_| "video conversion deadline exceeded".to_owned())?
+                .map_err(|_| "video conversion task was cancelled".to_owned())?,
+        }
+        .map_err(|error| format!("video conversion failed: {error}"))?;
+        let conversion = self
+            .pending_conversion
+            .take()
+            .ok_or_else(|| "video conversion state was lost".to_owned())?;
+        conversion.cancellation.cancel();
+        let wall = self
+            .wall
+            .as_ref()
+            .ok_or_else(|| "video wall was already torn down".to_owned())?;
+        let mut packets = video_frame_packets(wall, &map_colors, &mut self.previous_frame)
+            .map_err(|error| format!("video frame packetization failed: {error}"))?;
+        if self.emitted_frames % 20 == 1 {
+            let elapsed_seconds =
+                ((self.emitted_frames as f64) / f64::from(self.fps)).round() as u64;
+            packets.push(
+                positioned_chat_packet(
+                    &format!(
+                        "\u{00a7}7\u{25b6} \u{00a7}f{} \u{00a7}7frames \u{00a7}8| \u{00a7}f{}s\u{00a7}7/\u{00a7}f{}s",
+                        self.emitted_frames,
+                        elapsed_seconds,
+                        VIDEO_DURATION_SECONDS,
+                    ),
+                    2,
+                )
+                .map_err(|error| format!("video actionbar packet failed: {error}"))?,
+            );
+        }
+        self.next_frame = Instant::now() + Duration::from_secs_f64(1.0 / f64::from(self.fps));
+        Ok(VideoEvent::Packets(packets))
+    }
+
+    fn finish_packets(&mut self) -> Result<Vec<Vec<u8>>, String> {
+        if self.finished {
+            return Ok(Vec::new());
+        }
+        self.finished = true;
+        if let Some(pending) = self.pending_open.take() {
+            pending.cancellation.cancel();
+        }
+        if let Some(pending) = self.pending_decode.take() {
+            pending.cancellation.cancel();
+        }
+        if let Some(pending) = self.pending_conversion.take() {
+            pending.cancellation.cancel();
+        }
+        self.decoder.take();
+        let wall = self.wall.take();
+        self.permit.take();
+        wall.map_or_else(|| Ok(Vec::new()), |wall| Ok(wall.teardown_packets()))
+    }
+}
+
+impl BlockVideoWall {
+    fn new(service: &StatusService, params: BlockVideoParams) -> Result<Self, String> {
+        let config = &service.config.video;
+        let min_x = config.center_x - (params.width as i32 / 2);
+        let max_y = config.center_y + (params.height as i32 / 2);
+        let min_y = max_y - params.height as i32 + 1;
+        let wall_z = config.wall_z;
+        let viewer_x = service.config.spawn.x as i32;
+        let viewer_y = service.config.spawn.y as i32;
+        let viewer_z = service.config.spawn.z as i32;
+        let margin = config.clear_margin as i32;
+        let clear_min_x = min_x.saturating_sub(margin);
+        let clear_max_x = (min_x + params.width as i32 - 1).saturating_add(margin);
+        let clear_min_y = min_y.saturating_sub(margin);
+        let clear_max_y = max_y.saturating_add(margin);
+        let clear_min_z = wall_z.saturating_sub(1);
+        let clear_max_z = viewer_z;
+        let clear_width = i64::from(clear_max_x) - i64::from(clear_min_x) + 1;
+        let clear_height = i64::from(clear_max_y) - i64::from(clear_min_y) + 1;
+        let clear_depth = i64::from(clear_max_z) - i64::from(clear_min_z) + 1;
+        let region_blocks = clear_width
+            .checked_mul(clear_height)
+            .and_then(|value| value.checked_mul(clear_depth))
+            .ok_or_else(|| "block video clear region size overflow".to_owned())?;
+        if region_blocks <= 0 || region_blocks as usize > BLOCK_VIDEO_MAX_REGION_BLOCKS {
+            return Err("block video clear region exceeds its memory budget".to_owned());
+        }
+        let min_cx = clear_min_x >> 4;
+        let max_cx = clear_max_x >> 4;
+        let min_cz = clear_min_z >> 4;
+        let max_cz = clear_max_z >> 4;
+        let chunk_count = i64::from(max_cx) - i64::from(min_cx) + 1;
+        let chunk_depth = i64::from(max_cz) - i64::from(min_cz) + 1;
+        let chunk_count = chunk_count
+            .checked_mul(chunk_depth)
+            .ok_or_else(|| "block video chunk count overflow".to_owned())?;
+        if chunk_count <= 0 || chunk_count as usize > BLOCK_VIDEO_MAX_CHUNKS {
+            return Err("block video clear area exceeds its chunk budget".to_owned());
+        }
+
+        let protect_radius = config.spawn_protect_radius as i64;
+        let protect_radius_sq = protect_radius.saturating_mul(protect_radius);
+        let mut saved_block_positions = Vec::new();
+        let mut chunks = Vec::with_capacity(chunk_count as usize);
+        for chunk_x in min_cx..=max_cx {
+            for chunk_z in min_cz..=max_cz {
+                let original = service
+                    .world
+                    .chunks()
+                    .iter()
+                    .find(|chunk| chunk.chunk_x == chunk_x && chunk.chunk_z == chunk_z)
+                    .cloned()
+                    .unwrap_or_else(|| minecraft_world::ChunkData {
+                        chunk_x,
+                        chunk_z,
+                        sections: vec![None; 16],
+                        biomes: vec![0; 256],
+                        tile_entities: Vec::new(),
+                    });
+                let mut cleared = original.clone();
+                let mut touched = false;
+                for section_y in 0..16_usize {
+                    let Some(section) =
+                        cleared.sections.get_mut(section_y).and_then(Option::as_mut)
+                    else {
+                        continue;
+                    };
+                    if section.blocks.len() < 4096 {
+                        return Err(
+                            "Minecraft chunk section has an invalid block buffer".to_owned()
+                        );
+                    }
+                    let section_bottom = (section_y as i32) << 4;
+                    for local_y in 0..16_i32 {
+                        let world_y = section_bottom + local_y;
+                        if world_y < clear_min_y || world_y > clear_max_y {
+                            continue;
+                        }
+                        for local_x in 0..16_i32 {
+                            let world_x = (chunk_x << 4) + local_x;
+                            if world_x < clear_min_x || world_x > clear_max_x {
+                                continue;
+                            }
+                            for local_z in 0..16_i32 {
+                                let world_z = (chunk_z << 4) + local_z;
+                                if world_z < clear_min_z || world_z > clear_max_z {
+                                    continue;
+                                }
+                                let dx = i64::from(world_x - viewer_x);
+                                let dy = i64::from(world_y - viewer_y);
+                                let dz = i64::from(world_z - viewer_z);
+                                if dx * dx + dy * dy + dz * dz <= protect_radius_sq {
+                                    continue;
+                                }
+                                let index = ((local_y as usize) << 8)
+                                    | ((local_z as usize) << 4)
+                                    | local_x as usize;
+                                if section.blocks[index] != 0 {
+                                    saved_block_positions
+                                        .push(pack_block_position(world_x, world_y, world_z));
+                                    section.blocks[index] = 0;
+                                    touched = true;
+                                }
+                            }
+                        }
+                    }
+                }
+                chunks.push(BlockVideoChunk {
+                    original,
+                    cleared,
+                    touched,
+                });
+            }
+        }
+
+        let min_sy = (min_y >> 4).clamp(0, 15) as usize;
+        let max_sy = (max_y >> 4).clamp(0, 15) as usize;
+        Ok(Self {
+            width: params.width,
+            height: params.height,
+            min_x,
+            max_y,
+            wall_z,
+            min_cx: min_x >> 4,
+            max_cx: (min_x + params.width as i32 - 1) >> 4,
+            min_sy,
+            max_sy,
+            saved_block_positions,
+            chunks,
+        })
+    }
+
+    fn setup_packets(&self) -> io::Result<Vec<Vec<u8>>> {
+        self.chunks
+            .iter()
+            .filter(|chunk| chunk.touched)
+            .map(|chunk| chunk_data_packet(&chunk.cleared, true))
+            .collect()
+    }
+
+    fn frame_packets(
+        &self,
+        states: &[u16],
+        previous: &mut Option<Vec<u16>>,
+    ) -> io::Result<Vec<Vec<u8>>> {
+        let expected = self.width.checked_mul(self.height).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "block video dimensions overflow",
+            )
+        })?;
+        if states.len() != expected {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "block video palette frame length is invalid",
+            ));
+        }
+        let first = previous.is_none();
+        let previous_slice = previous.as_deref();
+        let wall_chunk_z = self.wall_z >> 4;
+        let local_z = (self.wall_z & 15) as usize;
+        let mut packets = Vec::new();
+        for chunk_x in self.min_cx..=self.max_cx {
+            let Some(chunk) = self.chunks.iter().find(|chunk| {
+                chunk.cleared.chunk_x == chunk_x && chunk.cleared.chunk_z == wall_chunk_z
+            }) else {
+                continue;
+            };
+            let mut sections = vec![None; 16];
+            let mut any_dirty = false;
+            for section_y in self.min_sy..=self.max_sy {
+                let section_bottom = (section_y as i32) << 4;
+                let mut dirty = first;
+                if !dirty {
+                    'pixels: for row in 0..self.height {
+                        let world_y = self.max_y - row as i32;
+                        if world_y < section_bottom || world_y >= section_bottom + 16 {
+                            continue;
+                        }
+                        for column in 0..self.width {
+                            let world_x = self.min_x + column as i32;
+                            if (world_x >> 4) != chunk_x {
+                                continue;
+                            }
+                            let index = row * self.width + column;
+                            if previous_slice
+                                .is_none_or(|previous| previous[index] != states[index])
+                            {
+                                dirty = true;
+                                break 'pixels;
+                            }
+                        }
+                    }
+                }
+                if !dirty {
+                    continue;
+                }
+                let mut section = chunk
+                    .cleared
+                    .sections
+                    .get(section_y)
+                    .and_then(Option::as_ref)
+                    .cloned()
+                    .unwrap_or_else(|| minecraft_world::SectionData {
+                        blocks: vec![0; 4096],
+                        block_light: vec![0; 2048],
+                        sky_light: Some(vec![0xff; 2048]),
+                    });
+                if section.blocks.len() < 4096 {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Minecraft chunk section has an invalid block buffer",
+                    ));
+                }
+                for row in 0..self.height {
+                    let world_y = self.max_y - row as i32;
+                    if world_y < section_bottom || world_y >= section_bottom + 16 {
+                        continue;
+                    }
+                    let local_y = (world_y - section_bottom) as usize;
+                    for column in 0..self.width {
+                        let world_x = self.min_x + column as i32;
+                        if (world_x >> 4) != chunk_x {
+                            continue;
+                        }
+                        let local_x = (world_x & 15) as usize;
+                        section.blocks[(local_y << 8) | (local_z << 4) | local_x] =
+                            states[row * self.width + column];
+                    }
+                }
+                *sections
+                    .get_mut(section_y)
+                    .expect("block video section index is bounded") = Some(section);
+                any_dirty = true;
+            }
+            if any_dirty {
+                packets.push(chunk_data_packet(
+                    &minecraft_world::ChunkData {
+                        chunk_x,
+                        chunk_z: wall_chunk_z,
+                        sections,
+                        biomes: Vec::new(),
+                        tile_entities: Vec::new(),
+                    },
+                    false,
+                )?);
+            }
+        }
+        *previous = Some(states.to_vec());
+        Ok(packets)
+    }
+
+    fn teardown_packets(self) -> io::Result<Vec<Vec<u8>>> {
+        let mut packets = Vec::new();
+        // Java restores chunks by iterating a HashSet populated from the
+        // HashMap keySet of cleared block positions. Reproduce both map
+        // iterations so teardown bytes stay oracle-compatible.
+        let saved_positions =
+            minecraft_world::java_hash_map_order(self.saved_block_positions, |position| *position);
+        let mut chunk_keys = Vec::new();
+        for position in saved_positions {
+            let chunk_x = unpack_block_position_x(position) >> 4;
+            let chunk_z = unpack_block_position_z(position) >> 4;
+            let key = pack_chunk_key(chunk_x, chunk_z);
+            if !chunk_keys.contains(&key) {
+                chunk_keys.push(key);
+            }
+        }
+        let chunk_keys = minecraft_world::java_hash_map_order(chunk_keys, |key| *key);
+        for key in chunk_keys {
+            let Some(chunk) = self.chunks.iter().find(|chunk| {
+                pack_chunk_key(chunk.original.chunk_x, chunk.original.chunk_z) == key
+            }) else {
+                continue;
+            };
+            packets.push(chunk_data_packet(&chunk.original, true)?);
+            for tile_entity in &chunk.original.tile_entities {
+                if let Some(action) = tile_entity_action(&tile_entity.id) {
+                    packets.push(tile_entity_packet(tile_entity, action)?);
+                }
+            }
+        }
+        packets.push(chat_packet("\u{00a7}aBlocks restored.", Some("green"))?);
+        Ok(packets)
+    }
+}
+
+fn pack_chunk_key(chunk_x: i32, chunk_z: i32) -> i64 {
+    (i64::from(chunk_x) << 32) | i64::from(u32::from_ne_bytes(chunk_z.to_ne_bytes()))
+}
+
+fn pack_block_position(x: i32, y: i32, z: i32) -> i64 {
+    ((i64::from(x) & 0x3ff_ffff) << 38)
+        | ((i64::from(y) & 0xfff) << 26)
+        | (i64::from(z) & 0x3ff_ffff)
+}
+
+fn unpack_block_position_x(value: i64) -> i32 {
+    (((value >> 38) & 0x3ff_ffff) as i32) << 6 >> 6
+}
+
+fn unpack_block_position_z(value: i64) -> i32 {
+    ((value & 0x3ff_ffff) as i32) << 6 >> 6
+}
+
+impl PendingBlockVideo {
+    fn start(
+        service: &StatusService,
+        params: BlockVideoParams,
+        permit: OwnedSemaphorePermit,
+        cancellation: CancellationToken,
+    ) -> Result<Self, String> {
+        let wall = BlockVideoWall::new(service, params)?;
+        let mut setup_packets = vec![
+            chat_packet("\u{00a7}7Preparing screen...", Some("gray"))
+                .map_err(|error| error.to_string())?,
+        ];
+        setup_packets.extend(wall.setup_packets().map_err(|error| error.to_string())?);
+        let now = Instant::now();
+        Ok(Self {
+            control: VideoControl::new(),
+            cancellation,
+            permit: Some(permit),
+            decoder: None,
+            pending_open: None,
+            pending_decode: None,
+            wall: Some(wall),
+            decoded_frames: 0,
+            emitted_frames: 0,
+            pending_conversion: None,
+            previous_frame: None,
+            setup_packets: Some(setup_packets),
+            countdown: Some(BLOCK_VIDEO_SETTLE_SECONDS),
+            next_countdown: now,
+            next_frame: now,
+            fps: params.fps,
+            contrast: params.contrast,
+            finished: false,
+        })
+    }
+
+    async fn next_event(
+        &mut self,
+        service: &StatusService,
+        deadline: Instant,
+    ) -> Result<VideoEvent, String> {
+        if self.finished {
+            return Ok(VideoEvent::Finished(Vec::new()));
+        }
+        if let Some(packets) = self.setup_packets.take() {
+            return Ok(VideoEvent::Packets(packets));
+        }
+        if self.control.is_stopped() || self.cancellation.is_cancelled() {
+            return Ok(VideoEvent::Finished(self.finish_packets()?));
+        }
+        if let Some(remaining) = self.countdown {
+            if Instant::now() < self.next_countdown {
+                tokio::select! {
+                    _ = self.cancellation.cancelled() => return Ok(VideoEvent::Finished(self.finish_packets()?)),
+                    _ = sleep_until(self.next_countdown) => {}
+                }
+            }
+            if self.control.is_stopped() || self.cancellation.is_cancelled() {
+                return Ok(VideoEvent::Finished(self.finish_packets()?));
+            }
+            let mut packets = vec![
+                chat_packet(
+                    &format!("\u{00a7}7Starting in {remaining}..."),
+                    Some("gray"),
+                )
+                .map_err(|error| error.to_string())?,
+            ];
+            if remaining == 1 {
+                self.countdown = None;
+                packets.push(
+                    chat_packet("\u{00a7}a\u{25b6} Playing!", Some("green"))
+                        .map_err(|error| error.to_string())?,
+                );
+            } else {
+                self.countdown = Some(remaining - 1);
+                self.next_countdown = Instant::now() + Duration::from_secs(1);
+            }
+            return Ok(VideoEvent::Packets(packets));
+        }
+        while self.control.is_paused() {
+            tokio::select! {
+                _ = self.cancellation.cancelled() => return Ok(VideoEvent::Finished(self.finish_packets()?)),
+                _ = tokio::time::sleep(VIDEO_PAUSE_POLL) => {}
+            }
+            if self.control.is_stopped() {
+                return Ok(VideoEvent::Finished(self.finish_packets()?));
+            }
+        }
+        if Instant::now() < self.next_frame {
+            tokio::select! {
+                _ = self.cancellation.cancelled() => return Ok(VideoEvent::Finished(self.finish_packets()?)),
+                _ = sleep_until(self.next_frame) => {}
+            }
+        }
+        if self.control.is_stopped() || self.cancellation.is_cancelled() {
+            return Ok(VideoEvent::Finished(self.finish_packets()?));
+        }
+        if self.decoder.is_none() {
+            if self.pending_open.is_none() {
+                self.pending_open = Some(submit_video_open(
+                    service,
+                    &service.video_asset,
+                    &self.cancellation,
+                )?);
+            }
+            let pending = self
+                .pending_open
+                .as_mut()
+                .ok_or_else(|| "video decoder open state was lost".to_owned())?;
+            let decoder = tokio::select! {
+                _ = self.cancellation.cancelled() => return Ok(VideoEvent::Finished(self.finish_packets()?)),
+                result = timeout_at(deadline, &mut pending.receiver) => result
+                    .map_err(|_| "block video decoder open deadline exceeded".to_owned())?
+                    .map_err(|_| "block video decoder open task was cancelled".to_owned())?,
+            }?;
+            let pending = self
+                .pending_open
+                .take()
+                .ok_or_else(|| "video decoder open state was lost".to_owned())?;
+            pending.cancellation.cancel();
+            self.decoder = Some(decoder);
+        }
+        if self.pending_decode.is_none() {
+            let decoder = self
+                .decoder
+                .take()
+                .ok_or_else(|| "video decoder state was lost".to_owned())?;
+            self.pending_decode = Some(submit_video_decode(
+                service,
+                decoder,
+                self.decoded_frames,
+                self.emitted_frames,
+                self.fps,
+                &self.cancellation,
+            )?);
+        }
+        let pending = self
+            .pending_decode
+            .as_mut()
+            .ok_or_else(|| "video decoder state was lost".to_owned())?;
+        let decoded = tokio::select! {
+            _ = self.cancellation.cancelled() => return Ok(VideoEvent::Finished(self.finish_packets()?)),
+            result = timeout_at(deadline, &mut pending.receiver) => result
+                .map_err(|_| "block video decode deadline exceeded".to_owned())?
+                .map_err(|_| "block video decode task was cancelled".to_owned())?,
+        }?;
+        let pending = self
+            .pending_decode
+            .take()
+            .ok_or_else(|| "video decoder state was lost".to_owned())?;
+        pending.cancellation.cancel();
+        self.decoder = Some(decoded.decoder);
+        self.decoded_frames = decoded.decoded_frames;
+        self.emitted_frames = decoded.emitted_frames;
+        let Some(rgb) = decoded.frame else {
+            return Ok(VideoEvent::Finished(self.finish_packets()?));
+        };
+        if self.pending_conversion.is_none() {
+            let wall = self
+                .wall
+                .as_ref()
+                .ok_or_else(|| "block video wall was already torn down".to_owned())?;
+            let width = wall.width;
+            let height = wall.height;
+            let contrast = self.contrast;
+            let conversion_cancellation = self.cancellation.child_token();
+            let conversion_cancel_for_worker = conversion_cancellation.clone();
+            let conversion_deadline = deadline.into_std();
+            let receiver = service
+                .video_conversion_pool
+                .submit(move || {
+                    let mut resized = mail_render::resize_rgb24_box(
+                        &rgb,
+                        mail_render::Rgb24ResizeSpec {
+                            source_width: VIDEO_SOURCE_WIDTH,
+                            source_height: VIDEO_SOURCE_HEIGHT,
+                            output_width: width,
+                            output_height: height,
+                            max_output_bytes: width.saturating_mul(height).saturating_mul(3),
+                        },
+                        &conversion_cancel_for_worker,
+                        conversion_deadline,
+                    )
+                    .map_err(|error| error.to_string())?;
+                    for channel in &mut resized {
+                        let adjusted = (f32::from(*channel) - 128.0) * contrast + 128.0;
+                        *channel = (adjusted.clamp(0.0, 255.0) + 0.5).floor() as u8;
+                    }
+                    crate::minecraft_block_palette::convert_rgb24_to_states(
+                        &resized,
+                        width.saturating_mul(height),
+                        &conversion_cancel_for_worker,
+                        conversion_deadline,
+                    )
+                })
+                .map_err(|error| format!("block video conversion queue is {error}"))?;
+            self.pending_conversion = Some(PendingBlockConversion {
+                cancellation: conversion_cancellation,
+                receiver,
+            });
+        }
+        let conversion = self
+            .pending_conversion
+            .as_mut()
+            .ok_or_else(|| "block video conversion state was lost".to_owned())?;
+        let states = tokio::select! {
+            _ = self.cancellation.cancelled() => return Ok(VideoEvent::Finished(self.finish_packets()?)),
+            result = timeout_at(deadline, &mut conversion.receiver) => result
+                .map_err(|_| "block video conversion deadline exceeded".to_owned())?
+                .map_err(|_| "block video conversion task was cancelled".to_owned())?,
+        }
+        .map_err(|error| format!("block video conversion failed: {error}"))?;
+        let conversion = self
+            .pending_conversion
+            .take()
+            .ok_or_else(|| "block video conversion state was lost".to_owned())?;
+        conversion.cancellation.cancel();
+        let wall = self
+            .wall
+            .as_mut()
+            .ok_or_else(|| "block video wall was already torn down".to_owned())?;
+        let mut packets = wall
+            .frame_packets(&states, &mut self.previous_frame)
+            .map_err(|error| format!("block video chunk packetization failed: {error}"))?;
+        if self.emitted_frames % 50 == 1 {
+            packets.push(
+                positioned_chat_packet(
+                    &format!(
+                        "\u{00a7}7\u{25b6} \u{00a7}f{} \u{00a7}7frames",
+                        self.emitted_frames
+                    ),
+                    2,
+                )
+                .map_err(|error| format!("block video actionbar packet failed: {error}"))?,
+            );
+        }
+        self.next_frame = Instant::now() + Duration::from_secs_f64(1.0 / f64::from(self.fps));
+        Ok(VideoEvent::Packets(packets))
+    }
+
+    fn finish_packets(&mut self) -> Result<Vec<Vec<u8>>, String> {
+        if self.finished {
+            return Ok(Vec::new());
+        }
+        self.finished = true;
+        if let Some(pending) = self.pending_open.take() {
+            pending.cancellation.cancel();
+        }
+        if let Some(pending) = self.pending_decode.take() {
+            pending.cancellation.cancel();
+        }
+        if let Some(pending) = self.pending_conversion.take() {
+            pending.cancellation.cancel();
+        }
+        self.decoder.take();
+        self.permit.take();
+        self.wall.take().map_or_else(
+            || Ok(Vec::new()),
+            |wall| wall.teardown_packets().map_err(|e| e.to_string()),
+        )
+    }
+}
+
+fn chunk_data_packet(chunk: &minecraft_world::ChunkData, ground_up: bool) -> io::Result<Vec<u8>> {
+    let (mask, data) = minecraft_world::serialize_chunk(chunk, true, ground_up);
+    let mut packet = vec![0x21];
+    packet.extend_from_slice(&chunk.chunk_x.to_be_bytes());
+    packet.extend_from_slice(&chunk.chunk_z.to_be_bytes());
+    packet.push(u8::from(ground_up));
+    packet.extend_from_slice(&mask.to_be_bytes());
+    write_byte_array(&mut packet, &data)?;
+    Ok(packet)
+}
+
+fn tile_entity_action(id: &str) -> Option<u8> {
+    match id {
+        "Sign" => Some(9),
+        "Banner" => Some(6),
+        _ => None,
+    }
+}
+
+fn tile_entity_packet(
+    tile_entity: &minecraft_world::TileEntity,
+    action: u8,
+) -> io::Result<Vec<u8>> {
+    let mut packet = vec![0x35];
+    write_block_position(&mut packet, tile_entity.x, tile_entity.y, tile_entity.z);
+    packet.push(action);
+    minecraft_world::write_nbt(Some(&tile_entity.nbt), &mut packet)?;
+    Ok(packet)
 }
 
 struct OnlineCountGuard {
@@ -1064,10 +2312,13 @@ async fn handle_connection(
     let mut player_username = String::new();
     let mut draft = MinecraftDraft::default();
     let mut open_menu_window_id = None;
+    let mut open_video_menu_window_id = None;
     let mut logout_confirm_window_id = None;
     let mut open_folder_gui: Option<FolderGui> = None;
     let mut pending_folder_load: Option<PendingFolderLoad> = None;
     let mut pending_mail_render: Option<PendingMailRender> = None;
+    let mut pending_map_video: Option<PendingMapVideo> = None;
+    let mut pending_block_video: Option<PendingBlockVideo> = None;
     let mut active_mail_view: Option<ActiveMailView> = None;
     let mut render_settings = RenderSettings::default();
     let mut render_settings_pending = false;
@@ -1218,6 +2469,142 @@ async fn handle_connection(
                     .await
                     {
                         return finish_write_error(error);
+                    }
+                    continue;
+                }
+                video_result = async {
+                    pending_map_video
+                        .as_mut()
+                        .expect("guarded map video was missing")
+                        .next_event(&service, deadline)
+                        .await
+                }, if pending_map_video.is_some() => {
+                    let (result, failure) = match video_result {
+                        Ok(result) => (result, None),
+                        Err(error) => {
+                            let Some(video) = pending_map_video.as_mut() else {
+                                continue;
+                            };
+                            (
+                                VideoEvent::Finished(video.finish_packets().unwrap_or_default()),
+                                Some(error),
+                            )
+                        }
+                    };
+                    let finished = matches!(result, VideoEvent::Finished(_));
+                    let mut responses = match result {
+                        VideoEvent::Packets(packets) | VideoEvent::Finished(packets) => packets,
+                    };
+                    if let Some(error) = failure.as_ref() {
+                        responses.push(chat_packet(
+                            &format!("\u{00a7}cMap video error: {error}"),
+                            Some("red"),
+                        )?);
+                    }
+                    if finished {
+                        pending_map_video.take();
+                        responses.extend(restore_default_hotbar_packets()?);
+                        if let Some((email, _)) = authenticated.as_ref() {
+                            responses.extend(authenticated_scoreboard_packets(
+                                &player_username,
+                                email,
+                                render_settings,
+                            )?);
+                            // Java's worker completion and session callback each
+                            // refresh the authenticated scoreboard.
+                            responses.extend(authenticated_scoreboard_packets(
+                                &player_username,
+                                email,
+                                render_settings,
+                            )?);
+                        }
+                        if failure.is_none() {
+                            responses.push(chat_packet(
+                                "\u{00a7}aMap video playback finished!",
+                                Some("green"),
+                            )?);
+                        }
+                    }
+                    if let Err(write_error) = write_packet_list(
+                        &mut writer,
+                        &service,
+                        responses,
+                        compression,
+                        cipher.as_mut(),
+                        deadline,
+                        &cancellation,
+                    )
+                    .await
+                    {
+                        return finish_write_error(write_error);
+                    }
+                    continue;
+                }
+                block_video_result = async {
+                    pending_block_video
+                        .as_mut()
+                        .expect("guarded block video was missing")
+                        .next_event(&service, deadline)
+                        .await
+                }, if pending_block_video.is_some() => {
+                    let (result, failure) = match block_video_result {
+                        Ok(result) => (result, None),
+                        Err(error) => {
+                            let Some(video) = pending_block_video.as_mut() else {
+                                continue;
+                            };
+                            (
+                                VideoEvent::Finished(video.finish_packets().unwrap_or_default()),
+                                Some(error),
+                            )
+                        }
+                    };
+                    let finished = matches!(result, VideoEvent::Finished(_));
+                    let mut responses = match result {
+                        VideoEvent::Packets(packets) | VideoEvent::Finished(packets) => packets,
+                    };
+                    if let Some(error) = failure.as_ref() {
+                        responses.push(chat_packet(
+                            &format!("\u{00a7}cBlock video error: {error}"),
+                            Some("red"),
+                        )?);
+                    }
+                    if finished {
+                        pending_block_video.take();
+                        responses.extend(restore_default_hotbar_packets()?);
+                        if let Some((email, _)) = authenticated.as_ref() {
+                            responses.extend(authenticated_scoreboard_packets(
+                                &player_username,
+                                email,
+                                render_settings,
+                            )?);
+                            // Java's worker completion and session callback each
+                            // refresh the authenticated scoreboard.
+                            responses.extend(authenticated_scoreboard_packets(
+                                &player_username,
+                                email,
+                                render_settings,
+                            )?);
+                        }
+                        if failure.is_none() {
+                            responses.push(chat_packet(
+                                "\u{00a7}aBlock video playback finished!",
+                                Some("green"),
+                            )?);
+                        }
+                    }
+                    if let Err(write_error) = write_packet_list(
+                        &mut writer,
+                        &service,
+                        responses,
+                        compression,
+                        cipher.as_mut(),
+                        deadline,
+                        &cancellation,
+                    )
+                    .await
+                    {
+                        return finish_write_error(write_error);
                     }
                     continue;
                 }
@@ -1551,6 +2938,64 @@ async fn handle_connection(
                         }
                         true
                     };
+                    if primary_interaction && matches!(held_slot, 3 | 4) {
+                        let responses = if let Some(video) = pending_map_video.as_ref() {
+                            if held_slot == 3 {
+                                let paused = video.control.toggle_pause();
+                                vec![chat_packet(
+                                    if paused {
+                                        "\u{00a7}7\u{23f8} Paused"
+                                    } else {
+                                        "\u{00a7}7\u{25b6} Resumed"
+                                    },
+                                    None,
+                                )?]
+                            } else {
+                                video.control.stop();
+                                vec![chat_packet(
+                                    "\u{00a7}aStopping video playback...",
+                                    Some("green"),
+                                )?]
+                            }
+                        } else if let Some(video) = pending_block_video.as_ref() {
+                            if held_slot == 3 {
+                                let paused = video.control.toggle_pause();
+                                vec![chat_packet(
+                                    if paused {
+                                        "\u{00a7}7\u{23f8} Paused"
+                                    } else {
+                                        "\u{00a7}7\u{25b6} Resumed"
+                                    },
+                                    None,
+                                )?]
+                            } else {
+                                video.control.stop();
+                                vec![chat_packet(
+                                    "\u{00a7}aStopping video playback...",
+                                    Some("green"),
+                                )?]
+                            }
+                        } else {
+                            Vec::new()
+                        };
+                        if responses.is_empty() {
+                            continue;
+                        }
+                        if let Err(error) = write_packet_list(
+                            &mut writer,
+                            &service,
+                            responses,
+                            compression,
+                            cipher.as_mut(),
+                            deadline,
+                            &cancellation,
+                        )
+                        .await
+                        {
+                            return finish_write_error(error);
+                        }
+                        continue;
+                    }
                     let action = hotbar_action(
                         active_mail_view.is_some(),
                         authenticated.is_some(),
@@ -1587,6 +3032,7 @@ async fn handle_connection(
                             let window_id = service.next_window_id();
                             let replaced_gui = open_menu_window_id.take().is_some()
                                 | logout_confirm_window_id.take().is_some()
+                                | open_video_menu_window_id.take().is_some()
                                 | open_folder_gui.take().is_some();
                             pending_folder_load = None;
                             if replaced_gui {
@@ -1854,6 +3300,98 @@ async fn handle_connection(
                             }
                             continue;
                         }
+                        if command
+                            .split(java_regex_space)
+                            .next()
+                            .is_some_and(|name| name.eq_ignore_ascii_case("/video"))
+                        {
+                            let video_command = parse_video_command(command, &service.config);
+                            let responses = match video_command {
+                                ParsedVideoCommand::Usage => video_usage_packets()?,
+                                ParsedVideoCommand::Error(error) => {
+                                    vec![chat_packet(&format!("\u{00a7}c{error}"), Some("red"))?]
+                                }
+                                ParsedVideoCommand::StartMap(params) => start_map_video_packets(
+                                    &service,
+                                    &mut pending_map_video,
+                                    &pending_block_video,
+                                    params,
+                                    &cancellation,
+                                )?,
+                                ParsedVideoCommand::StartBlock(params) => {
+                                    start_block_video_packets(
+                                        &service,
+                                        &mut pending_map_video,
+                                        &mut pending_block_video,
+                                        params,
+                                        &cancellation,
+                                    )?
+                                }
+                                ParsedVideoCommand::Stop => {
+                                    if let Some(video) = pending_map_video.as_ref() {
+                                        video.control.stop();
+                                        vec![chat_packet(
+                                            "\u{00a7}aStopping video playback...",
+                                            Some("green"),
+                                        )?]
+                                    } else if let Some(video) = pending_block_video.as_ref() {
+                                        video.control.stop();
+                                        vec![chat_packet(
+                                            "\u{00a7}aStopping video playback...",
+                                            Some("green"),
+                                        )?]
+                                    } else {
+                                        vec![chat_packet(
+                                            "\u{00a7}cNo video is currently playing.",
+                                            Some("red"),
+                                        )?]
+                                    }
+                                }
+                                ParsedVideoCommand::Pause => {
+                                    if let Some(video) = pending_map_video.as_ref() {
+                                        let paused = video.control.toggle_pause();
+                                        vec![chat_packet(
+                                            if paused {
+                                                "\u{00a7}7\u{23f8} Paused"
+                                            } else {
+                                                "\u{00a7}7\u{25b6} Resumed"
+                                            },
+                                            None,
+                                        )?]
+                                    } else if let Some(video) = pending_block_video.as_ref() {
+                                        let paused = video.control.toggle_pause();
+                                        vec![chat_packet(
+                                            if paused {
+                                                "\u{00a7}7\u{23f8} Paused"
+                                            } else {
+                                                "\u{00a7}7\u{25b6} Resumed"
+                                            },
+                                            None,
+                                        )?]
+                                    } else {
+                                        vec![chat_packet(
+                                            "\u{00a7}cNo video is currently playing.",
+                                            Some("red"),
+                                        )?]
+                                    }
+                                }
+                            };
+                            message.zeroize();
+                            if let Err(error) = write_packet_list(
+                                &mut writer,
+                                &service,
+                                responses,
+                                compression,
+                                cipher.as_mut(),
+                                deadline,
+                                &cancellation,
+                            )
+                            .await
+                            {
+                                return finish_write_error(error);
+                            }
+                            continue;
+                        }
                         let command_end = command.find(java_regex_space).unwrap_or(command.len());
                         let menu_window_id = command[..command_end]
                             .eq_ignore_ascii_case("/menu")
@@ -1862,6 +3400,7 @@ async fn handle_connection(
                         if menu_window_id.is_some() {
                             let replaced_gui = open_menu_window_id.take().is_some()
                                 | logout_confirm_window_id.take().is_some()
+                                | open_video_menu_window_id.take().is_some()
                                 | open_folder_gui.take().is_some();
                             pending_folder_load = None;
                             if replaced_gui {
@@ -1915,6 +3454,7 @@ async fn handle_connection(
                     }
                     let closed_gui = open_menu_window_id.take().is_some()
                         | logout_confirm_window_id.take().is_some()
+                        | open_video_menu_window_id.take().is_some()
                         | open_folder_gui.take().is_some();
                     if closed_gui {
                         pending_folder_load = None;
@@ -1941,9 +3481,12 @@ async fn handle_connection(
                     if open_menu_window_id == Some(click.window_id) {
                         let logout_window_id =
                             (click.mode == 0 && click.slot == 34).then(|| service.next_window_id());
-                        let (responses, effect) = main_menu_click_packets(
+                        let video_window_id =
+                            (click.mode == 0 && click.slot == 28).then(|| service.next_window_id());
+                        let (responses, effect) = main_menu_click_packets_with_video(
                             click,
                             logout_window_id,
+                            video_window_id.map(|window_id| (window_id, &service.config)),
                             render_settings,
                             active_mail_view.is_some(),
                         )?;
@@ -1952,25 +3495,35 @@ async fn handle_connection(
                             MainMenuEffect::Close => {
                                 open_menu_window_id = None;
                                 logout_confirm_window_id = None;
+                                open_video_menu_window_id = None;
                             }
                             MainMenuEffect::SwitchAccount => {
                                 open_menu_window_id = None;
                                 logout_confirm_window_id = None;
+                                open_video_menu_window_id = None;
                                 pending_email = None;
                                 authenticated = None;
                             }
                             MainMenuEffect::OpenRenderSettings => {
                                 open_menu_window_id = None;
                                 logout_confirm_window_id = None;
+                                open_video_menu_window_id = None;
                                 render_settings_pending = true;
+                            }
+                            MainMenuEffect::OpenVideoMenu(window_id) => {
+                                open_menu_window_id = None;
+                                logout_confirm_window_id = None;
+                                open_video_menu_window_id = Some(window_id);
                             }
                             MainMenuEffect::OpenLogoutConfirm(window_id) => {
                                 open_menu_window_id = None;
                                 logout_confirm_window_id = Some(window_id);
+                                open_video_menu_window_id = None;
                             }
                             MainMenuEffect::OpenFolder(folder) => {
                                 open_menu_window_id = None;
                                 logout_confirm_window_id = None;
+                                open_video_menu_window_id = None;
                                 open_folder_gui = None;
                                 let Some((email, _)) = authenticated.as_ref() else {
                                     return Ok(());
@@ -2014,10 +3567,12 @@ async fn handle_connection(
                             LogoutConfirmEffect::OpenMainMenu(window_id) => {
                                 logout_confirm_window_id = None;
                                 open_menu_window_id = Some(window_id);
+                                open_video_menu_window_id = None;
                             }
                             LogoutConfirmEffect::Disconnect => {
                                 logout_confirm_window_id = None;
                                 open_menu_window_id = None;
+                                open_video_menu_window_id = None;
                                 pending_email = None;
                                 authenticated = None;
                             }
@@ -2038,6 +3593,72 @@ async fn handle_connection(
                         if effect == LogoutConfirmEffect::Disconnect {
                             shutdown_stream(&mut writer, deadline, &cancellation).await?;
                             return Ok(());
+                        }
+                    } else if open_video_menu_window_id == Some(click.window_id) {
+                        let main_window_id =
+                            (click.mode == 0 && click.slot == 22).then(|| service.next_window_id());
+                        let clicked_window_id = click.window_id;
+                        let (responses, effect) = video_menu_click_packets(
+                            click,
+                            main_window_id,
+                            render_settings,
+                            &service.config,
+                        )?;
+                        let mut responses = responses;
+                        open_video_menu_window_id = None;
+                        match effect {
+                            VideoMenuEffect::None => {
+                                open_video_menu_window_id = Some(clicked_window_id);
+                            }
+                            VideoMenuEffect::Back(window_id) => {
+                                open_menu_window_id = Some(window_id);
+                            }
+                            VideoMenuEffect::StartMap => {
+                                let params = MapVideoParams {
+                                    maps_x: service.config.video.map_default_maps_x as usize,
+                                    fps: service.config.video.map_default_fps,
+                                    dither: 1,
+                                    contrast: service.config.video.map_default_contrast,
+                                };
+                                responses.extend(start_map_video_packets(
+                                    &service,
+                                    &mut pending_map_video,
+                                    &pending_block_video,
+                                    params,
+                                    &cancellation,
+                                )?);
+                            }
+                            VideoMenuEffect::StartBlock => {
+                                let params = BlockVideoParams {
+                                    width: service.config.video.default_width as usize,
+                                    height: ((service.config.video.default_width as usize)
+                                        .saturating_mul(VIDEO_SOURCE_HEIGHT)
+                                        + VIDEO_SOURCE_WIDTH / 2)
+                                        / VIDEO_SOURCE_WIDTH,
+                                    fps: service.config.video.default_fps,
+                                    contrast: service.config.video.default_contrast,
+                                };
+                                responses.extend(start_block_video_packets(
+                                    &service,
+                                    &mut pending_map_video,
+                                    &mut pending_block_video,
+                                    params,
+                                    &cancellation,
+                                )?);
+                            }
+                        }
+                        if let Err(error) = write_packet_list(
+                            &mut writer,
+                            &service,
+                            responses,
+                            compression,
+                            cipher.as_mut(),
+                            deadline,
+                            &cancellation,
+                        )
+                        .await
+                        {
+                            return finish_write_error(error);
                         }
                     } else if open_folder_gui
                         .as_ref()
@@ -2999,6 +4620,328 @@ fn email_instruction_packets() -> io::Result<Vec<Vec<u8>>> {
     .collect()
 }
 
+enum ParsedVideoCommand {
+    Usage,
+    StartMap(MapVideoParams),
+    StartBlock(BlockVideoParams),
+    Stop,
+    Pause,
+    Error(String),
+}
+
+fn parse_video_command(message: &str, config: &MinecraftConfig) -> ParsedVideoCommand {
+    let parts = java_trim(message)
+        .split(java_regex_space)
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>();
+    if parts
+        .first()
+        .is_none_or(|command| !command.eq_ignore_ascii_case("/video"))
+    {
+        return ParsedVideoCommand::Usage;
+    }
+    let Some(action) = parts.get(1) else {
+        return ParsedVideoCommand::Usage;
+    };
+    if action.eq_ignore_ascii_case("stop") {
+        return ParsedVideoCommand::Stop;
+    }
+    if action.eq_ignore_ascii_case("pause") {
+        return ParsedVideoCommand::Pause;
+    }
+    if !action.eq_ignore_ascii_case("play") {
+        return ParsedVideoCommand::Error("Usage: /video play|stop|pause [options]".to_owned());
+    }
+    if parts
+        .get(2)
+        .is_some_and(|mode| mode.eq_ignore_ascii_case("map"))
+    {
+        return parse_map_video_params(&parts[3..], config);
+    }
+    match parse_block_video_params(&parts[2..], config) {
+        Ok(params) => ParsedVideoCommand::StartBlock(params),
+        Err(error) => ParsedVideoCommand::Error(error),
+    }
+}
+
+fn parse_map_video_params(parts: &[&str], config: &MinecraftConfig) -> ParsedVideoCommand {
+    let mut maps_x = config.video.map_default_maps_x as i32;
+    let mut fps = config.video.map_default_fps as i32;
+    let mut dither = 1_i32;
+    let mut contrast = config.video.map_default_contrast;
+    let mut positional = 0;
+    for argument in parts {
+        if let Some((key, value)) = argument.split_once('=') {
+            match key.to_ascii_lowercase().as_str() {
+                "width" | "w" | "mapsx" => match value.parse::<i32>() {
+                    Ok(value) => maps_x = value,
+                    Err(_) => {
+                        return ParsedVideoCommand::Error(format!("Invalid width: {value}"));
+                    }
+                },
+                "fps" | "f" => match value.parse::<i32>() {
+                    Ok(value) => fps = value,
+                    Err(_) => return ParsedVideoCommand::Error(format!("Invalid fps: {value}")),
+                },
+                "dither" | "d" => match value.parse::<i32>() {
+                    Ok(value) => dither = value,
+                    Err(_) => {
+                        return ParsedVideoCommand::Error(format!("Invalid dither: {value}"));
+                    }
+                },
+                "contrast" | "c" => match value.parse::<f32>() {
+                    Ok(value) if value.is_finite() => contrast = value,
+                    _ => {
+                        return ParsedVideoCommand::Error(format!("Invalid contrast: {value}"));
+                    }
+                },
+                _ => return ParsedVideoCommand::Error(format!("Unknown option: {key}")),
+            }
+        } else {
+            match positional {
+                0 => match argument.parse::<i32>() {
+                    Ok(value) => maps_x = value,
+                    Err(_) => {
+                        return ParsedVideoCommand::Error(format!("Invalid width: {argument}"));
+                    }
+                },
+                1 => match argument.parse::<i32>() {
+                    Ok(value) => fps = value,
+                    Err(_) => {
+                        return ParsedVideoCommand::Error(format!("Invalid fps: {argument}"));
+                    }
+                },
+                _ => {
+                    return ParsedVideoCommand::Error("Too many positional args".to_owned());
+                }
+            }
+            positional += 1;
+        }
+    }
+    maps_x = maps_x.max(2);
+    if maps_x > config.video.map_max_maps_x as i32 {
+        return ParsedVideoCommand::Error(format!(
+            "Width too large (max {} maps)",
+            config.video.map_max_maps_x
+        ));
+    }
+    fps = fps.max(1);
+    if fps > config.video.map_max_fps as i32 {
+        return ParsedVideoCommand::Error(format!(
+            "FPS too high (max {})",
+            config.video.map_max_fps
+        ));
+    }
+    if !(0..=2).contains(&dither) {
+        dither = 1;
+    }
+    contrast = contrast.clamp(0.1, 3.0);
+    ParsedVideoCommand::StartMap(MapVideoParams {
+        maps_x: maps_x as usize,
+        fps: fps as u32,
+        dither: dither as u8,
+        contrast,
+    })
+}
+
+fn parse_block_video_params(
+    parts: &[&str],
+    config: &MinecraftConfig,
+) -> Result<BlockVideoParams, String> {
+    let mut width = config.video.default_width as i32;
+    let mut fps = config.video.default_fps as i32;
+    let mut contrast = config.video.default_contrast;
+    let mut positional = 0;
+    for argument in parts {
+        if let Some((key, value)) = argument.split_once('=') {
+            match key.to_ascii_lowercase().as_str() {
+                "width" | "w" => {
+                    width = value
+                        .parse()
+                        .map_err(|_| format!("Invalid width: {value}"))?
+                }
+                "fps" | "f" => fps = value.parse().map_err(|_| format!("Invalid fps: {value}"))?,
+                "contrast" | "c" => {
+                    contrast = value
+                        .parse()
+                        .map_err(|_| format!("Invalid contrast: {value}"))?;
+                    if !contrast.is_finite() {
+                        return Err(format!("Invalid contrast: {value}"));
+                    }
+                }
+                _ => return Err(format!("Unknown option: {key}")),
+            }
+        } else {
+            match positional {
+                0 => {
+                    width = argument
+                        .parse()
+                        .map_err(|_| format!("Invalid width: {argument}"))?
+                }
+                1 => {
+                    fps = argument
+                        .parse()
+                        .map_err(|_| format!("Invalid fps: {argument}"))?
+                }
+                2 => {
+                    contrast = argument
+                        .parse()
+                        .map_err(|_| format!("Invalid contrast: {argument}"))?;
+                    if !contrast.is_finite() {
+                        return Err(format!("Invalid contrast: {argument}"));
+                    }
+                }
+                _ => return Err("Too many arguments".to_owned()),
+            }
+            positional += 1;
+        }
+    }
+    width = width.max(4);
+    if width > config.video.max_width as i32 {
+        return Err(format!("Width too large (max {})", config.video.max_width));
+    }
+    fps = fps.max(1);
+    if fps > config.video.max_fps as i32 {
+        return Err(format!("FPS too high (max {})", config.video.max_fps));
+    }
+    contrast = contrast.clamp(0.1, 3.0);
+    let width = width as usize;
+    let height = ((width.saturating_mul(VIDEO_SOURCE_HEIGHT) + VIDEO_SOURCE_WIDTH / 2)
+        / VIDEO_SOURCE_WIDTH)
+        .max(1);
+    Ok(BlockVideoParams {
+        width,
+        height,
+        fps: fps as u32,
+        contrast,
+    })
+}
+
+fn video_usage_packets() -> io::Result<Vec<Vec<u8>>> {
+    Ok(vec![
+        chat_packet(
+            "\u{00a7}cUsage: /video play map [width=5] [fps=10] [dither=1]",
+            Some("red"),
+        )?,
+        chat_packet(
+            "\u{00a7}c       /video play [width=48] [fps=6]",
+            Some("red"),
+        )?,
+        chat_packet("\u{00a7}c       /video stop | /video pause", Some("red"))?,
+    ])
+}
+
+fn start_map_video_packets(
+    service: &Arc<StatusService>,
+    pending: &mut Option<PendingMapVideo>,
+    pending_block: &Option<PendingBlockVideo>,
+    params: MapVideoParams,
+    cancellation: &CancellationToken,
+) -> io::Result<Vec<Vec<u8>>> {
+    if pending.is_some() || pending_block.is_some() {
+        return Ok(vec![chat_packet(
+            "\u{00a7}cVideo is already playing! Use /video stop first.",
+            Some("red"),
+        )?]);
+    }
+    let permit = match service.video_semaphore.clone().try_acquire_owned() {
+        Ok(permit) => permit,
+        Err(_) => {
+            let max = service.config.max_concurrent_videos;
+            return Ok(vec![chat_packet(
+                &format!(
+                    "\u{00a7}cToo many players watching video ({max}/{max}). Try again later."
+                ),
+                Some("red"),
+            )?]);
+        }
+    };
+    let video = match PendingMapVideo::start(service, params, permit, cancellation.child_token()) {
+        Ok(video) => video,
+        Err(error) => {
+            return Ok(vec![chat_packet(
+                &format!("\u{00a7}cMap video error: {error}"),
+                Some("red"),
+            )?]);
+        }
+    };
+    let mut packets = video_hotbar_packets()?;
+    packets.extend(video_scoreboard_packets("Map", params.fps)?);
+    packets.push(chat_packet(
+        "\u{00a7}a\u{00a7}lStarting map video playback...",
+        Some("green"),
+    )?);
+    packets.push(chat_packet(
+        &format!(
+            "\u{00a7}7Maps: \u{00a7}f{} \u{00a7}7| FPS: \u{00a7}f{} \u{00a7}7| Dither: \u{00a7}f{} \u{00a7}7| Contrast: \u{00a7}f{:.1}",
+            params.maps_x, params.fps, params.dither, params.contrast
+        ),
+        None,
+    )?);
+    packets.push(chat_packet(
+        "\u{00a7}7Use \u{00a7}fbarrier item \u{00a7}7or \u{00a7}f/video stop \u{00a7}7to stop",
+        None,
+    )?);
+    *pending = Some(video);
+    Ok(packets)
+}
+
+fn start_block_video_packets(
+    service: &Arc<StatusService>,
+    pending_map: &mut Option<PendingMapVideo>,
+    pending_block: &mut Option<PendingBlockVideo>,
+    params: BlockVideoParams,
+    cancellation: &CancellationToken,
+) -> io::Result<Vec<Vec<u8>>> {
+    if pending_map.is_some() || pending_block.is_some() {
+        return Ok(vec![chat_packet(
+            "\u{00a7}cVideo is already playing! Use /video stop first.",
+            Some("red"),
+        )?]);
+    }
+    let permit = match service.video_semaphore.clone().try_acquire_owned() {
+        Ok(permit) => permit,
+        Err(_) => {
+            let max = service.config.max_concurrent_videos;
+            return Ok(vec![chat_packet(
+                &format!(
+                    "\u{00a7}cToo many players watching video ({max}/{max}). Try again later."
+                ),
+                Some("red"),
+            )?]);
+        }
+    };
+    let video = match PendingBlockVideo::start(service, params, permit, cancellation.child_token())
+    {
+        Ok(video) => video,
+        Err(error) => {
+            return Ok(vec![chat_packet(
+                &format!("\u{00a7}cBlock video error: {error}"),
+                Some("red"),
+            )?]);
+        }
+    };
+    let mut packets = video_hotbar_packets()?;
+    packets.extend(video_scoreboard_packets("Block", params.fps)?);
+    packets.push(chat_packet(
+        "\u{00a7}a\u{00a7}lStarting block video playback...",
+        Some("green"),
+    )?);
+    packets.push(chat_packet(
+        &format!(
+            "\u{00a7}7Width: \u{00a7}f{} \u{00a7}7| FPS: \u{00a7}f{} \u{00a7}7| Contrast: \u{00a7}f{:.1}",
+            params.width, params.fps, params.contrast
+        ),
+        None,
+    )?);
+    packets.push(chat_packet(
+        "\u{00a7}7Use \u{00a7}fbarrier item \u{00a7}7or \u{00a7}f/video stop \u{00a7}7to stop",
+        None,
+    )?);
+    *pending_block = Some(video);
+    Ok(packets)
+}
+
 fn authenticated_command_packets(
     message: &str,
     config: &MinecraftConfig,
@@ -3296,9 +5239,152 @@ fn main_menu_contents_packet(
     Ok(contents)
 }
 
+fn video_menu_packets(window_id: u8, config: &MinecraftConfig) -> io::Result<Vec<Vec<u8>>> {
+    let mut open = vec![0x2d, window_id];
+    write_string(&mut open, "minecraft:chest")?;
+    write_string(&mut open, &chat_json("\u{00a7}8Video Player", None))?;
+    open.push(27);
+    Ok(vec![open, video_menu_contents_packet(window_id, config)?])
+}
+
+fn video_menu_contents_packet(window_id: u8, config: &MinecraftConfig) -> io::Result<Vec<u8>> {
+    let filler = gui_slot(160, 15, " ", &[], false);
+    let mut slots = vec![filler; 27];
+    slots.extend((0..36).map(|_| MinecraftSlot::empty()));
+    slots[4] = gui_slot(
+        399,
+        0,
+        "\u{00a7}c\u{00a7}lSkibidi Toilet \u{00a7}7EP.1",
+        &["\u{00a7}7Choose playback mode"],
+        true,
+    );
+    slots[11] = gui_slot(
+        49,
+        0,
+        "\u{00a7}e\u{00a7}lBlock Art Mode",
+        &[
+            "\u{00a7}7Renders video as Minecraft blocks",
+            "\u{00a7}7on the world wall.",
+            "",
+            &format!(
+                "\u{00a7}fWidth: \u{00a7}7{} blocks",
+                config.video.default_width
+            ),
+            &format!("\u{00a7}fFPS: \u{00a7}7{}", config.video.default_fps),
+            "",
+            "\u{00a7}eClick to start",
+        ],
+        false,
+    );
+    slots[15] = gui_slot(
+        395,
+        0,
+        "\u{00a7}b\u{00a7}lMap Video Mode",
+        &[
+            "\u{00a7}7Renders video on item-frame maps.",
+            "\u{00a7}7Higher resolution, smoother FPS.",
+            "",
+            &format!(
+                "\u{00a7}fMaps: \u{00a7}7{} wide",
+                config.video.map_default_maps_x
+            ),
+            &format!("\u{00a7}fFPS: \u{00a7}7{}", config.video.map_default_fps),
+            "",
+            "\u{00a7}eClick to start",
+        ],
+        false,
+    );
+    slots[22] = gui_slot(
+        262,
+        0,
+        "\u{00a7}c\u{2190} Back",
+        &["\u{00a7}7Return to main menu"],
+        false,
+    );
+    slots[54] = MinecraftSlot::item(386, 0, book_item_nbt());
+    slots[62] = MinecraftSlot::item(399, 0, menu_star_nbt());
+    let mut contents = vec![0x30, window_id];
+    contents.extend_from_slice(&(slots.len() as i16).to_be_bytes());
+    for slot in &slots {
+        write_slot(&mut contents, slot)?;
+    }
+    Ok(contents)
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum VideoMenuEffect {
+    None,
+    Back(u8),
+    StartMap,
+    StartBlock,
+}
+
+fn video_menu_click_packets(
+    click: WindowClick,
+    main_window_id: Option<u8>,
+    render_settings: RenderSettings,
+    config: &MinecraftConfig,
+) -> io::Result<(Vec<Vec<u8>>, VideoMenuEffect)> {
+    let mut confirmation = vec![0x32, click.window_id];
+    confirmation.extend_from_slice(&click.action_number.to_be_bytes());
+    confirmation.push(0);
+    let mut clear_cursor = vec![0x2f, u8::MAX];
+    clear_cursor.extend_from_slice(&(-1_i16).to_be_bytes());
+    clear_cursor.extend_from_slice(&(-1_i16).to_be_bytes());
+    let mut packets = vec![
+        confirmation,
+        clear_cursor,
+        video_menu_contents_packet(click.window_id, config)?,
+    ];
+    let effect = if click.mode != 0 || !(0..27).contains(&click.slot) {
+        VideoMenuEffect::None
+    } else {
+        match click.slot {
+            11 => {
+                packets.push(vec![0x2e, click.window_id]);
+                VideoMenuEffect::StartBlock
+            }
+            15 => {
+                packets.push(vec![0x2e, click.window_id]);
+                VideoMenuEffect::StartMap
+            }
+            22 => {
+                let Some(window_id) = main_window_id else {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "Minecraft video menu return window ID is missing",
+                    ));
+                };
+                packets.push(vec![0x2e, click.window_id]);
+                packets.extend(main_menu_packets(window_id, render_settings)?);
+                VideoMenuEffect::Back(window_id)
+            }
+            _ => VideoMenuEffect::None,
+        }
+    };
+    Ok((packets, effect))
+}
+
+#[cfg(test)]
 fn main_menu_click_packets(
     click: WindowClick,
     logout_window_id: Option<u8>,
+    render_settings: RenderSettings,
+    mail_view_active: bool,
+) -> io::Result<(Vec<Vec<u8>>, MainMenuEffect)> {
+    main_menu_click_packets_with_video(
+        click,
+        logout_window_id,
+        None,
+        render_settings,
+        mail_view_active,
+    )
+}
+
+fn main_menu_click_packets_with_video(
+    click: WindowClick,
+    logout_window_id: Option<u8>,
+    video_menu: Option<(u8, &MinecraftConfig)>,
     render_settings: RenderSettings,
     mail_view_active: bool,
 ) -> io::Result<(Vec<Vec<u8>>, MainMenuEffect)> {
@@ -3338,6 +5424,17 @@ fn main_menu_click_packets(
                 packets.extend(close_menu_packets(click.window_id, mail_view_active)?);
                 packets.extend(render_settings_editor_packets(render_settings)?);
                 MainMenuEffect::OpenRenderSettings
+            }
+            28 => {
+                let Some((window_id, config)) = video_menu else {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "Minecraft video menu window ID is missing",
+                    ));
+                };
+                packets.extend(restore_gui_hotbar_packets(mail_view_active)?);
+                packets.extend(video_menu_packets(window_id, config)?);
+                MainMenuEffect::OpenVideoMenu(window_id)
             }
             30 => {
                 packets.extend(close_menu_packets(click.window_id, mail_view_active)?);
@@ -3826,6 +5923,111 @@ fn map_data_packet(map_id: i32, pixels: &[u8]) -> io::Result<Vec<u8>> {
     Ok(packet)
 }
 
+fn map_data_rect_packet(
+    map_id: i32,
+    x_offset: usize,
+    z_offset: usize,
+    columns: usize,
+    rows: usize,
+    pixels: &[u8],
+) -> io::Result<Vec<u8>> {
+    if columns == 0
+        || rows == 0
+        || x_offset >= 128
+        || z_offset >= 128
+        || x_offset + columns > 128
+        || z_offset + rows > 128
+        || pixels.len() != columns * rows
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Minecraft map delta is outside the tile",
+        ));
+    }
+    let mut packet = Vec::with_capacity(pixels.len() + 16);
+    packet.push(0x34);
+    write_varint(&mut packet, map_id as u32);
+    packet.push(0);
+    write_varint(&mut packet, 0);
+    packet.extend_from_slice(&[
+        u8::try_from(columns).expect("bounded map columns"),
+        u8::try_from(rows).expect("bounded map rows"),
+        u8::try_from(x_offset).expect("bounded map x offset"),
+        u8::try_from(z_offset).expect("bounded map z offset"),
+    ]);
+    write_varint(
+        &mut packet,
+        u32::try_from(pixels.len()).expect("bounded map delta bytes"),
+    );
+    packet.extend_from_slice(pixels);
+    Ok(packet)
+}
+
+fn video_frame_packets(
+    wall: &MapWall,
+    map_colors: &[u8],
+    previous_frame: &mut Option<Vec<u8>>,
+) -> io::Result<Vec<Vec<u8>>> {
+    let width = wall
+        .maps_x
+        .checked_mul(128)
+        .ok_or_else(|| io::Error::other("video frame width overflow"))?;
+    let height = wall
+        .maps_y
+        .checked_mul(128)
+        .ok_or_else(|| io::Error::other("video frame height overflow"))?;
+    if map_colors.len() != width * height {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "video frame dimensions do not match the map wall",
+        ));
+    }
+    let old = previous_frame.as_deref();
+    let mut packets = Vec::with_capacity(wall.maps_x * wall.maps_y);
+    for row in 0..wall.maps_y {
+        for col in 0..wall.maps_x {
+            let mut x_min = 128;
+            let mut z_min = 128;
+            let mut x_max = 0_usize;
+            let mut z_max = 0_usize;
+            let mut changed = old.is_none();
+            for z in 0..128 {
+                let source_row = (row * 128 + z) * width + col * 128;
+                for x in 0..128 {
+                    let index = source_row + x;
+                    if old.is_none_or(|previous| previous[index] != map_colors[index]) {
+                        changed = true;
+                        x_min = x_min.min(x);
+                        x_max = x_max.max(x);
+                        z_min = z_min.min(z);
+                        z_max = z_max.max(z);
+                    }
+                }
+            }
+            if !changed {
+                continue;
+            }
+            let columns = x_max - x_min + 1;
+            let rows = z_max - z_min + 1;
+            let mut pixels = Vec::with_capacity(columns * rows);
+            for z in z_min..=z_max {
+                let start = (row * 128 + z) * width + col * 128 + x_min;
+                pixels.extend_from_slice(&map_colors[start..start + columns]);
+            }
+            packets.push(map_data_rect_packet(
+                wall.map_id(col, row)?,
+                x_min,
+                z_min,
+                columns,
+                rows,
+                &pixels,
+            )?);
+        }
+    }
+    *previous_frame = Some(map_colors.to_vec());
+    Ok(packets)
+}
+
 fn destroy_entities_packet(entity_ids: &[i32]) -> Vec<u8> {
     let mut packet = Vec::with_capacity(entity_ids.len() * 5 + 6);
     packet.push(0x13);
@@ -3983,6 +6185,35 @@ fn restore_default_hotbar_packets() -> io::Result<Vec<Vec<u8>>> {
     Ok(packets)
 }
 
+fn video_hotbar_packets() -> io::Result<Vec<Vec<u8>>> {
+    Ok(vec![
+        set_slot_packet(
+            39,
+            &MinecraftSlot::item(
+                397,
+                3,
+                hotbar_skull_nbt(
+                    TEXTURE_PLAY_BUTTON,
+                    "\u{00a7}e\u{23ef} Pause / Resume",
+                    "\u{00a7}7Right-click to toggle",
+                ),
+            ),
+        )?,
+        set_slot_packet(
+            40,
+            &MinecraftSlot::item(
+                166,
+                0,
+                hotbar_display_nbt(
+                    "\u{00a7}c\u{23f9} Stop Video",
+                    "\u{00a7}7Right-click to stop",
+                ),
+            ),
+        )?,
+        vec![0x09, 4],
+    ])
+}
+
 fn scoreboard_packets(lines: &[String]) -> io::Result<Vec<Vec<u8>>> {
     let mut packets = Vec::with_capacity(lines.len() + 3);
     let mut remove = vec![0x3b];
@@ -4026,6 +6257,20 @@ fn email_view_scoreboard_packets(page: usize, total_pages: usize) -> io::Result<
         String::new(),
         "\u{00a7}f\u{25c0} \u{00a7}7Prev  \u{00a7}f\u{2716} \u{00a7}7Close  \u{00a7}f\u{25b6} \u{00a7}7Next"
             .to_owned(),
+        divider,
+        "\u{00a7}email.lmyz.net".to_owned(),
+    ])
+}
+
+fn video_scoreboard_packets(mode: &str, fps: u32) -> io::Result<Vec<Vec<u8>>> {
+    let divider = format!("\u{00a7}7{}", "\u{2501}".repeat(13));
+    scoreboard_packets(&[
+        divider.clone(),
+        "\u{00a7}cVideo Playing".to_owned(),
+        format!("\u{00a7}fMode: \u{00a7}a{mode}"),
+        format!("\u{00a7}fFPS: \u{00a7}a{fps}"),
+        String::new(),
+        "\u{00a7}f\u{23ef} \u{00a7}7Pause  \u{00a7}f\u{23f9} \u{00a7}7Stop".to_owned(),
         divider,
         "\u{00a7}email.lmyz.net".to_owned(),
     ])
@@ -4239,6 +6484,7 @@ fn folder_email_slot(item: &EmailListItem) -> MinecraftSlot {
 
 const TEXTURE_ARROW_LEFT: &str = "http://textures.minecraft.net/texture/de1dfc11a837111d22b001a14461f9a7fc093522f88c58faefd6adeffcd4e9ab";
 const TEXTURE_ARROW_RIGHT: &str = "http://textures.minecraft.net/texture/7c69d41076a8dea4f06d3f1a9ac47cc996988b74a0913ab2ac1a74caf7081918";
+const TEXTURE_PLAY_BUTTON: &str = "http://textures.minecraft.net/texture/384e46a4e1ae05b932a8c6601a7d36fa3d5fb7919d82f7d170ff745317c2abe2";
 
 fn skull_gui_slot(texture_url: &str, name: &str, lore: &[&str]) -> MinecraftSlot {
     let display = vec![
@@ -8028,6 +10274,142 @@ mod tests {
         let mut expected = vec![0x05];
         expected.extend_from_slice(&expected_packed.to_be_bytes());
         assert_eq!(packets[2], expected);
+    }
+
+    #[test]
+    fn map_video_parser_clamps_the_frozen_command_and_rejects_unknown_options() {
+        let configured = config(Duration::from_secs(3));
+        let ParsedVideoCommand::StartMap(params) = parse_video_command(
+            "/video play map width=1 fps=0 dither=99 contrast=9",
+            &configured,
+        ) else {
+            panic!("expected map video parameters");
+        };
+        assert_eq!(params.maps_x, 2);
+        assert_eq!(params.fps, 1);
+        assert_eq!(params.dither, 1);
+        assert_eq!(params.contrast, 3.0);
+
+        assert!(matches!(
+            parse_video_command("/video play map nope=1", &configured),
+            ParsedVideoCommand::Error(error) if error == "Unknown option: nope"
+        ));
+    }
+
+    #[test]
+    fn block_video_parser_preserves_auto_height_and_frozen_clamps() {
+        let configured = config(Duration::from_secs(3));
+        let ParsedVideoCommand::StartBlock(params) =
+            parse_video_command("/video play width=1 fps=0 contrast=9", &configured)
+        else {
+            panic!("expected block video parameters");
+        };
+        assert_eq!(params.width, 4);
+        assert_eq!(params.height, 2);
+        assert_eq!(params.fps, 1);
+        assert_eq!(params.contrast, 3.0);
+
+        assert!(matches!(
+            parse_video_command("/video play nope=1", &configured),
+            ParsedVideoCommand::Error(error) if error == "Unknown option: nope"
+        ));
+    }
+
+    #[test]
+    fn block_video_wall_resends_dirty_sections_and_restores_touched_chunks() {
+        let mut configured = config(Duration::from_secs(3));
+        configured.spawn.x = 0.5;
+        configured.spawn.y = 160.0;
+        configured.spawn.z = 0.5;
+        configured.video.center_x = 0;
+        configured.video.center_y = 161;
+        configured.video.wall_z = -3;
+        configured.video.clear_margin = 2;
+        configured.video.spawn_protect_radius = 1;
+        let service = StatusService::new(&configured).unwrap();
+        let wall = BlockVideoWall::new(
+            &service,
+            BlockVideoParams {
+                width: 4,
+                height: 2,
+                fps: 1,
+                contrast: 1.2,
+            },
+        )
+        .unwrap();
+        let setup = wall.setup_packets().unwrap();
+        assert!(!setup.is_empty());
+        assert!(setup.iter().all(|packet| packet[0] == 0x21));
+
+        let mut previous = None;
+        let mut frame = vec![16_u16; 8];
+        let first = wall.frame_packets(&frame, &mut previous).unwrap();
+        assert_eq!(first.len(), 2);
+        assert!(first.iter().all(|packet| packet[0] == 0x21));
+        assert!(
+            wall.frame_packets(&frame, &mut previous)
+                .unwrap()
+                .is_empty()
+        );
+        frame[0] = 2768;
+        assert_eq!(wall.frame_packets(&frame, &mut previous).unwrap().len(), 1);
+
+        let restored = wall.teardown_packets().unwrap();
+        assert!(restored.iter().any(|packet| packet[0] == 0x21));
+        assert_eq!(restored.last().unwrap()[0], 0x02);
+    }
+
+    #[test]
+    fn video_menu_back_preserves_current_render_settings() {
+        let configured = config(Duration::from_secs(3));
+        let settings = RenderSettings {
+            maps_x: 17,
+            maps_y: 9,
+            font_size: 31,
+        };
+        let (packets, effect) = video_menu_click_packets(
+            WindowClick {
+                window_id: 7,
+                slot: 22,
+                action_number: 3,
+                mode: 0,
+            },
+            Some(8),
+            settings,
+            &configured,
+        )
+        .unwrap();
+        assert_eq!(effect, VideoMenuEffect::Back(8));
+        assert_eq!(packets[3], vec![0x2e, 7]);
+        assert_eq!(packets[4..], main_menu_packets(8, settings).unwrap());
+    }
+
+    #[test]
+    fn map_video_delta_packets_skip_identical_tiles_and_bound_the_rectangle() {
+        let wall = MapWall {
+            maps_x: 1,
+            maps_y: 1,
+            facing: MapWallFacing::South,
+            center_x: 0,
+            center_y: 0,
+            center_z: 0,
+            map_ids: vec![10].into_boxed_slice(),
+            entity_ids: vec![20].into_boxed_slice(),
+            saved_blocks: Vec::new(),
+        };
+        let mut previous = None;
+        let mut frame = vec![34_u8; MAP_TILE_PIXELS];
+        let first = video_frame_packets(&wall, &frame, &mut previous).unwrap();
+        assert_eq!(first.len(), 1);
+        assert!(
+            video_frame_packets(&wall, &frame, &mut previous)
+                .unwrap()
+                .is_empty()
+        );
+
+        frame[65 * 128 + 17] = 42;
+        let changed = video_frame_packets(&wall, &frame, &mut previous).unwrap();
+        assert_eq!(changed, vec![vec![0x34, 10, 0, 0, 1, 1, 17, 65, 1, 42]]);
     }
 
     proptest! {
