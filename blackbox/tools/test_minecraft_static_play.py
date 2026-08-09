@@ -22,7 +22,7 @@ from lmyzmail_blackbox.ports import PortSet
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-static-play-v1"
+_GOLDEN = "managed-minecraft-static-play-v2"
 _USERNAME_TEXT = "StaticPlayProbe"
 _USERNAME = _USERNAME_TEXT.encode()
 _INITIAL_PLAY_IDS = (0x01, 0x41, 0x05, 0x39, 0x03, 0x06, 0x09)
@@ -131,7 +131,7 @@ def test_frozen_java_minecraft_static_play_golden(tmp_path: Path) -> None:
     runner = DifferentialRunner(
         repository,
         golden,
-        "managed-minecraft-static-play",
+        _GOLDEN,
         record_java=record,
     )
     with _LoginJavaOracleRuntime(tmp_path / "java-minecraft-static-play") as oracle:
@@ -167,5 +167,5 @@ def test_rust_candidate_minecraft_static_play_matches_golden() -> None:
         DifferentialRunner(
             repository,
             repository / "blackbox/golden/java" / _GOLDEN,
-            "managed-minecraft-static-play",
+            _GOLDEN,
         ).verify_candidate(SCENARIOS, candidate)
