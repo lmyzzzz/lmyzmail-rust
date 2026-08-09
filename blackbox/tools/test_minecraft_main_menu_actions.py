@@ -27,7 +27,7 @@ from lmyzmail_blackbox.differential import DifferentialRunner, RuntimeTarget, Sc
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-main-menu-actions-v1"
+_GOLDEN = "managed-minecraft-main-menu-actions-v2"
 _HELP_IDS = (0x32, 0x2F, 0x30, 0x2E, 0x2F, 0x2F) + (0x02,) * 6
 _CLOSE_IDS = (0x32, 0x2F, 0x30, 0x2E, 0x2F, 0x2F)
 _SWITCH_IDS = _CLOSE_IDS + (0x02,)
@@ -156,7 +156,7 @@ def test_frozen_java_minecraft_main_menu_actions_golden(tmp_path: Path) -> None:
     runner = DifferentialRunner(
         repository,
         golden,
-        "managed-minecraft-main-menu-actions",
+        _GOLDEN,
         record_java=record,
     )
     with _LoginJavaOracleRuntime(tmp_path / "java-minecraft-main-menu-actions") as oracle:
@@ -192,5 +192,5 @@ def test_rust_candidate_minecraft_main_menu_actions_matches_golden() -> None:
         DifferentialRunner(
             repository,
             repository / "blackbox/golden/java" / _GOLDEN,
-            "managed-minecraft-main-menu-actions",
+            _GOLDEN,
         ).verify_candidate(SCENARIOS, candidate)
