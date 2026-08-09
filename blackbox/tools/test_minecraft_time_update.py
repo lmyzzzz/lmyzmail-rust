@@ -25,7 +25,7 @@ from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-time-update-v1"
+_GOLDEN = "managed-minecraft-time-update-v2"
 _USERNAME = b"TimeUpdateProbe"
 _TICKS = 7
 _HOLOGRAM_TICK_IDS = (0x18,) * 7
@@ -89,7 +89,7 @@ def test_frozen_java_minecraft_time_update_golden(tmp_path: Path) -> None:
     runner = DifferentialRunner(
         repository,
         golden,
-        "managed-minecraft-time-update",
+        _GOLDEN,
         record_java=record,
     )
     with _LoginJavaOracleRuntime(tmp_path / "java-minecraft-time-update") as oracle:
@@ -125,5 +125,5 @@ def test_rust_candidate_minecraft_time_update_matches_golden() -> None:
         DifferentialRunner(
             repository,
             repository / "blackbox/golden/java" / _GOLDEN,
-            "managed-minecraft-time-update",
+            _GOLDEN,
         ).verify_candidate(SCENARIOS, candidate)
