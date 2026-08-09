@@ -27,7 +27,7 @@ from test_minecraft_static_play import (
 from lmyzmail_blackbox.differential import DifferentialRunner, RuntimeTarget, Scenario
 from lmyzmail_blackbox.runtime import CandidateRuntime
 
-_GOLDEN = "managed-minecraft-render-size-commands-v1"
+_GOLDEN = "managed-minecraft-render-size-commands-v2"
 _DIRECT_UPDATE_IDS = (0x3B, 0x3B, 0x3D) + (0x3C,) * 10 + (0x02,)
 _ERROR_IDS = (0x02,)
 _EDITOR_IDS = (0x35, 0x36) + (0x02,) * 4
@@ -167,7 +167,7 @@ def test_frozen_java_minecraft_render_size_commands_golden(tmp_path: Path) -> No
     runner = DifferentialRunner(
         repository,
         golden,
-        "managed-minecraft-render-size-commands",
+        _GOLDEN,
         record_java=record,
     )
     with _LoginJavaOracleRuntime(tmp_path / "java-minecraft-render-size-commands") as oracle:
@@ -203,5 +203,5 @@ def test_rust_candidate_minecraft_render_size_commands_matches_golden() -> None:
         DifferentialRunner(
             repository,
             repository / "blackbox/golden/java" / _GOLDEN,
-            "managed-minecraft-render-size-commands",
+            _GOLDEN,
         ).verify_candidate(SCENARIOS, candidate)
