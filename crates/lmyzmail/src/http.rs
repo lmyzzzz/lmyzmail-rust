@@ -3452,7 +3452,10 @@ async fn write_cringe_error(stream: TcpStream, error: CringeError) -> io::Result
             io::ErrorKind::Interrupted,
             "cringe request cancelled",
         )),
-        CringeError::Timeout | CringeError::CapacityExceeded | CringeError::Database(_) => {
+        CringeError::Timeout
+        | CringeError::OutcomeUnknown
+        | CringeError::CapacityExceeded
+        | CringeError::Database(_) => {
             write_json_error(stream, Status::InternalServerError, "internal_error").await
         }
     }

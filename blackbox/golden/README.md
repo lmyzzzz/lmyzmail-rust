@@ -1039,6 +1039,18 @@ the Linux x86_64 Rust release matched it in a separate candidate workspace.
 The post-recording Rust candidate driver now targets v15 so the candidate
 cannot pass an earlier definition tree.
 
+The active Cringe API sets are:
+
+- `managed-cringe-api-v4/`
+- `managed-cringe-api-oracle-boundaries-v4/`
+
+They bind definition tree
+`0206c6915b1474058bfeb55fb21bda88d329c4922ed578e1e5f6d18a9166da43`
+after the XDP PPS monitor evidence and storage-contract assertions were added.
+Both generations were recorded from the frozen Java oracle. Their observation
+objects are structurally identical to the retained v3 generations; no v3 file
+was rewritten. The candidate driver targets v4.
+
 The disabled XDP control-plane extension retains two create-once generations:
 
 - `managed-xdp-disabled-v1/` binds definition tree

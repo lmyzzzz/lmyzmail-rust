@@ -87,6 +87,21 @@ wire, state, storage, or recovery assertions.
   read-only repeatable-read snapshot. Capacity or snapshot failure aborts
   before native reconciliation, and a ban added after the initial enumeration
   is retained rather than inferred stale.
+- XDP PPS monitoring retains at most the configured `max-ips-per-poll` IP
+  states and `ring-buffer-size` global samples. Snapshot, consecutive-count,
+  and per-event cooldown state are evicted together. Global, IPv4, and IPv6
+  read failures are isolated, and one failed automatic ban does not discard
+  later detected events. Thresholds, fixed configured-interval rates,
+  PPS-before-SYN ordering, strict two-second cooldown, metadata bytes, scores,
+  healthy database mutations, and ban decisions remain compatible with the
+  frozen monitor.
+- PPS database writes use one deadline-bounded atomic activity/aggregate
+  transaction and reconcile a lost COMMIT response by preallocated activity
+  identity. Reviewed exceptions repair nullable legacy PPS/SYN counters,
+  preserve monotonic `last_seen_at` under concurrent writes, and saturate
+  consecutive counters instead of reproducing Java signed overflow. The exact
+  scopes and PostgreSQL evidence are recorded in
+  `blackbox/manifests/behavior-differences.json`.
 - XDP clear/status native failures are fail-closed. The frozen Java controller
   reports clear success with count zero after native exceptions; the candidate
   returns a fixed 5xx and records the reviewed difference in

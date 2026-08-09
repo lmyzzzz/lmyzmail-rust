@@ -10,6 +10,7 @@ use lmyzmail::{
     reporting::{self, ReportingService},
     smtp,
     xdp::XdpService,
+    xdp_pps,
     xdp_sync::XdpSyncService,
 };
 use tokio::{task::JoinSet, time::timeout};
@@ -57,9 +58,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     let xdp_service = Arc::new(XdpService::from_config(&config.xdp)?);
+    let cringe_service = CringeService::new(database_pool.clone());
     let xdp_sync = Arc::new(XdpSyncService::new(
         Arc::clone(&xdp_service),
-        CringeService::new(database_pool.clone()),
+        cringe_service.clone(),
     ));
     xdp_service.initialize(&cancellation).await;
     let xdp_startup_task = if config.xdp.sync_on_startup && xdp_service.ready() {
@@ -74,6 +76,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None
     };
     let mut services = JoinSet::new();
+    if config.xdp.enabled && config.xdp.pps_monitor.enabled {
+        let monitor_xdp = Arc::clone(&xdp_service);
+        let monitor_cringe = cringe_service;
+        let monitor_cancellation = cancellation.clone();
+        services.spawn(async move {
+            xdp_pps::run_pps_monitor(monitor_xdp, monitor_cringe, monitor_cancellation).await;
+            ("XDP PPS monitor", Ok::<(), io::Error>(()))
+        });
+    }
     let http_config = Arc::clone(&config);
     let http_cancellation = cancellation.clone();
     let http_pool = database_pool.clone();

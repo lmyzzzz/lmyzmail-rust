@@ -330,6 +330,8 @@ struct JsonXdpConfig {
     sync_on_startup: bool,
     whitelist: Vec<String>,
     reason_code_default: i32,
+    reason_code_pps_overlimit: i32,
+    reason_code_syn_flood: i32,
     pps_monitor: JsonXdpPpsMonitorConfig,
 }
 
@@ -346,6 +348,8 @@ impl Default for JsonXdpConfig {
             sync_on_startup: true,
             whitelist: vec!["127.0.0.1".into(), "::1".into()],
             reason_code_default: 0,
+            reason_code_pps_overlimit: 5,
+            reason_code_syn_flood: 6,
             pps_monitor: JsonXdpPpsMonitorConfig::default(),
         }
     }
@@ -1378,6 +1382,14 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         "lmyzmail.xdp.reason-code-default".to_owned(),
         value.xdp.reason_code_default.to_string(),
     )?;
+    properties.insert(
+        "lmyzmail.xdp.reason-code-pps-overlimit".to_owned(),
+        value.xdp.reason_code_pps_overlimit.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.xdp.reason-code-syn-flood".to_owned(),
+        value.xdp.reason_code_syn_flood.to_string(),
+    )?;
     let pps = value.xdp.pps_monitor;
     properties.insert(
         "lmyzmail.xdp.pps-monitor.enabled".to_owned(),
@@ -1797,6 +1809,8 @@ pub struct XdpConfig {
     pub sync_on_startup: bool,
     pub whitelist: Vec<IpNet>,
     pub reason_code_default: i32,
+    pub reason_code_pps_overlimit: i32,
+    pub reason_code_syn_flood: i32,
     pub pps_monitor: XdpPpsMonitorConfig,
 }
 
@@ -3918,6 +3932,18 @@ fn parse_xdp_config(properties: &Properties) -> Result<XdpConfig, ConfigError> {
             "botmail.xdp.reason-code-default",
             0,
         )?,
+        reason_code_pps_overlimit: preferred_xdp_i32(
+            properties,
+            "lmyzmail.xdp.reason-code-pps-overlimit",
+            "botmail.xdp.reason-code-pps-overlimit",
+            5,
+        )?,
+        reason_code_syn_flood: preferred_xdp_i32(
+            properties,
+            "lmyzmail.xdp.reason-code-syn-flood",
+            "botmail.xdp.reason-code-syn-flood",
+            6,
+        )?,
         pps_monitor,
     })
 }
@@ -4391,9 +4417,12 @@ botmail.xdp.pin-path=/sys/fs/bpf/botmail\n\
 botmail.xdp.ban-threshold=80\n\
 botmail.xdp.unban-threshold=-1\n\
 botmail.xdp.whitelist=192.0.2.0/24\n\
+botmail.xdp.reason-code-pps-overlimit=15\n\
+botmail.xdp.reason-code-syn-flood=16\n\
 lmyzmail.xdp.interface-name=new0\n\
 lmyzmail.xdp.ban-threshold=100\n\
 lmyzmail.xdp.whitelist=198.51.100.0/24,2001:db8::/32\n\
+lmyzmail.xdp.reason-code-pps-overlimit=5\n\
 lmyzmail.xdp.pps-monitor.poll-interval-ms=250\n",
             )
             .unwrap(),
@@ -4405,6 +4434,8 @@ lmyzmail.xdp.pps-monitor.poll-interval-ms=250\n",
         assert_eq!(config.xdp.pin_path, PathBuf::from("/sys/fs/bpf/botmail"));
         assert_eq!(config.xdp.ban_threshold, 100);
         assert_eq!(config.xdp.unban_threshold, 50);
+        assert_eq!(config.xdp.reason_code_pps_overlimit, 5);
+        assert_eq!(config.xdp.reason_code_syn_flood, 16);
         assert_eq!(config.xdp.pps_monitor.poll_interval_ms, 250);
         assert_eq!(config.xdp.whitelist.len(), 2);
         assert!(config.xdp.whitelist[0].contains(&"198.51.100.44".parse::<IpAddr>().unwrap()));
@@ -4645,6 +4676,8 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
                 "sync_on_startup": false,
                 "whitelist": ["198.51.100.0/24", "2001:db8::/32"],
                 "reason_code_default": 6,
+                "reason_code_pps_overlimit": 15,
+                "reason_code_syn_flood": 16,
                 "pps_monitor": {
                     "poll_interval_ms": 250,
                     "record_to_cringe": false,
@@ -4716,6 +4749,8 @@ lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n",
         assert!(!config.xdp.sync_on_startup);
         assert_eq!(config.xdp.whitelist.len(), 2);
         assert_eq!(config.xdp.reason_code_default, 6);
+        assert_eq!(config.xdp.reason_code_pps_overlimit, 15);
+        assert_eq!(config.xdp.reason_code_syn_flood, 16);
         assert_eq!(config.xdp.pps_monitor.poll_interval_ms, 250);
         assert!(!config.xdp.pps_monitor.record_to_cringe);
         assert_eq!(config.xdp.pps_monitor.max_ips_per_poll, 128);

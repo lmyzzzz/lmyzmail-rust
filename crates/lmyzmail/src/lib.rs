@@ -29,4 +29,5 @@ pub mod reporting;
 pub mod smtp;
 pub mod userdata;
 pub mod xdp;
+pub mod xdp_pps;
 pub mod xdp_sync;

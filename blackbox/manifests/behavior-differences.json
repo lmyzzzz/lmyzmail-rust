@@ -527,6 +527,76 @@
       "oracle_behavior": "The frozen Java clear service converts every native exception into the integer zero, and the controller always returns HTTP 200 with All XDP bans cleared. Stats failures are likewise converted to an undifferentiated null/not-found result.",
       "reason": "Acknowledging a failed security-state mutation as successful can leave hostile addresses unblocked while operators and automation believe enforcement was cleared. False healthy status is an explicit security-control integrity failure and is excluded from bug-for-bug replication.",
       "scope": "Only native failure, timeout, cancellation, and worker-admission failure responses for XDP clear and status. Successful clear counts and JSON, disabled/not-ready oracle behavior, authentication, permissions, ban semantics, map contents, and statistics values remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Retain at most the configured max-ips-per-poll IP monitor states and ring-buffer-size global samples. Evict one IP's snapshot, PPS/SYN consecutive counters, and PPS/SYN cooldown timestamps as one unit using deterministic least-recently-observed ordering, and never allocate state for more native entries than the configured per-poll ceiling.",
+      "evidence": {
+        "attestation": "evidence/freeze/java-oracle/xdp-pps-monitor.json",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "source": "src/main/java/net/lmyz/lmyzmail/util/native_/XdpPpsMonitorService.java",
+        "source_sha256": "9f6f6855c4163a38000543951554dde69b7f6febce2f696f34aa040c2e0fd23e"
+      },
+      "id": "xdp-pps-monitor-bounded-state",
+      "oracle_behavior": "The frozen Java monitor keeps snapshots and consecutive counters in ConcurrentHashMaps, prunes snapshot/counter entries only after five minutes, never prunes its per-IP event cooldown map during polling, and never consumes the configured ringBufferSize. Repeated critical events from rotating source addresses therefore grow process state without a hard ceiling.",
+      "reason": "Kernel per-IP statistics and source addresses are attacker-influenced. Unbounded snapshots, counters, cooldown entries, or unused configured history limits violate the rewrite's mandatory hard bounds and permit sustained memory growth.",
+      "scope": "Only IP state and global-history entries beyond the configured ceilings and their deterministic eviction. Every global and per-IP threshold and consecutive-count transition before the Java signed-counter overflow boundary, configured-interval rate calculation, PPS-before-SYN event order, strict greater-than 2000 ms cooldown, five-minute inactivity expiry, record-to-cringe behavior, metadata bytes, score, PostgreSQL mutation, and XDP ban decision remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Use saturating unsigned consecutive counters so a sustained over-limit source never wraps into negative values and silently disables critical alerts or per-IP activity generation.",
+      "evidence": {
+        "attestation": "evidence/freeze/java-oracle/xdp-pps-monitor.json",
+        "candidate_test": "crates/lmyzmail/src/xdp_pps.rs::tests::counters_saturate_without_disabling_long_running_monitoring",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "source": "src/main/java/net/lmyz/lmyzmail/util/native_/XdpPpsMonitorService.java",
+        "source_sha256": "9f6f6855c4163a38000543951554dde69b7f6febce2f696f34aa040c2e0fd23e"
+      },
+      "id": "xdp-pps-consecutive-counter-saturation",
+      "oracle_behavior": "The frozen Java monitor stores consecutive counts in AtomicInteger and updates them with Integer::sum. After 2147483647 sustained qualifying samples the signed value wraps negative, making the critical comparison false until it traverses the integer range again.",
+      "reason": "A remotely influenced long-running counter must not overflow into a state that disables a security alert. Reproducing the signed overflow would be an avoidable availability and enforcement defect.",
+      "scope": "Only behavior at and after Java's signed 32-bit consecutive-counter overflow boundary. All thresholds, reset points, alert timing, event order, cooldowns, and representable pre-overflow transitions remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "When an existing legacy aggregate row has NULL PPS or SYN counters, treat each NULL as zero for the matching counter increment while leaving the other nullable legacy counters unchanged.",
+      "evidence": {
+        "attestation": "evidence/freeze/java-oracle/xdp-pps-monitor.json",
+        "candidate_test": "crates/lmyzmail/tests/xdp_pps_postgres.rs::legacy_null_xdp_counters_are_incremented_independently",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "schema": "blackbox/fixtures/legacy/postgres-schema.sql",
+        "source": "src/main/java/net/lmyz/lmyzmail/cringe/repo/SkibidiCringeIPRepository.java",
+        "source_sha256": "0922f48caf76cff11474d7882952e21df10351881a4cbf5f446fe26af7210e01"
+      },
+      "id": "xdp-pps-legacy-null-counter-repair",
+      "oracle_behavior": "The frozen Java UPSERT adds one directly to nullable legacy PPS and SYN columns. PostgreSQL NULL arithmetic remains NULL, so activity rows and scores commit while the matching aggregate counter is never repaired or incremented.",
+      "reason": "Silently losing a security-event counter while committing the corresponding score and audit activity corrupts existing production data semantics. The rewrite must safely take over nullable rows created under the legacy schema.",
+      "scope": "Only legacy aggregate rows whose pps_overlimit_count or syn_flood_count is NULL. Non-NULL counter increments, score, activity count, timestamps, activity rows, metadata, and transaction boundaries remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Update aggregate last_seen_at with the maximum of its stored value and the event timestamp so concurrent transactions for one IP cannot move the security record backward in time.",
+      "evidence": {
+        "attestation": "evidence/freeze/java-oracle/xdp-pps-monitor.json",
+        "candidate_test": "crates/lmyzmail/tests/xdp_pps_postgres.rs::older_xdp_event_commit_cannot_regress_last_seen_at",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "source": "src/main/java/net/lmyz/lmyzmail/cringe/repo/SkibidiCringeIPRepository.java",
+        "source_sha256": "0922f48caf76cff11474d7882952e21df10351881a4cbf5f446fe26af7210e01"
+      },
+      "id": "xdp-pps-monotonic-last-seen",
+      "oracle_behavior": "Concurrent frozen Java transactions assign last_seen_at to their independently captured event time. An older event that waits on the row lock and commits after a newer event can overwrite the newer timestamp with the older value.",
+      "reason": "A backward last-seen timestamp changes decay and XDP reconciliation decisions and is an explicit race condition excluded from bug-for-bug replication.",
+      "scope": "Only the ordering of last_seen_at under overlapping writes for the same IP. Sequential timestamps, first_seen_at, last_decay_at, score, counters, activity rows, and transaction atomicity remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Bound every PostgreSQL mutation and unknown-COMMIT reconciliation step by an absolute deadline, issue CancelRequest before commit, discard uncertain connections, and verify a preallocated activity identity on a fresh connection after commit-response loss.",
+      "evidence": {
+        "attestation": "evidence/freeze/java-oracle/xdp-pps-monitor.json",
+        "candidate_test": "crates/lmyzmail/tests/xdp_pps_postgres.rs::half_open_reconciliation_set_config_returns_unknown_and_joins",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "source": "src/main/java/net/lmyz/lmyzmail/cringe/service/SkibidiCringeIPTransactionalHelper.java",
+        "source_sha256": "4eb48d930e923840d5fde506d4e7ab53b28ae4fd57b5a5fe45d9273526a941ef"
+      },
+      "id": "xdp-pps-database-deadline-and-commit-reconciliation",
+      "oracle_behavior": "The frozen Java monitor calls the transactional Cringe writer synchronously without a monitor-owned absolute database deadline or cancellation path and has no explicit reconciliation for a lost COMMIT response.",
+      "reason": "A half-open database or ambiguous commit must not retain the only PPS monitor task indefinitely, and blind retry after an unknown commit could duplicate a security score. Both violate the rewrite's mandatory deadline, cancellation, and bounded-lifecycle constraints.",
+      "scope": "Only PostgreSQL timeout, cancellation, half-open transport, pool failure, and lost COMMIT-response behavior. Healthy activity and aggregate SQL effects, score, metadata, identity allocation, and atomic transaction semantics remain compatibility requirements."
     }
   ],
   "schema_version": 1

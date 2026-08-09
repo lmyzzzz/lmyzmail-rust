@@ -4,16 +4,20 @@ use std::{
     error::Error,
     ffi::{CStr, CString, c_char, c_int},
     fmt, fs,
-    net::IpAddr,
+    net::{IpAddr, TcpListener},
     os::unix::{ffi::OsStrExt, fs::MetadataExt},
     path::{Path, PathBuf},
     process::Output,
+    sync::Arc,
     time::Duration,
 };
 
 use lmyzmail::{
-    config::{XdpConfig, XdpPpsMonitorConfig},
+    config::{Properties, RuntimeConfig, XdpConfig, XdpPpsMonitorConfig},
+    cringe::CringeService,
+    database,
     xdp::{XdpService, XdpStats},
+    xdp_pps,
 };
 use serde_json::{Value, json};
 use tokio::{process::Command, time::timeout};
@@ -303,7 +307,10 @@ async fn run() -> CheckResult<()> {
     verify_pins_exist(&pin_path)?;
     drop(first);
 
-    let second = XdpService::from_config(&xdp_config(&interface, pin_path.clone()))?;
+    let second = Arc::new(XdpService::from_config(&xdp_config(
+        &interface,
+        pin_path.clone(),
+    ))?);
     let restart_guard_before = attach_guard_counts();
     second.initialize(&cancellation).await;
     require_ready(&second, "restart initialization")?;
@@ -338,6 +345,8 @@ async fn run() -> CheckResult<()> {
         second.clear_all(&cancellation).await? == 0,
         "clear_all found unexpected bans after explicit unban",
     )?;
+    let record_disabled_progress =
+        verify_record_disabled_monitor(Arc::clone(&second), &peer_namespace).await?;
     second.shutdown().await?;
     verify_attach_guard_owned(second_program_id, restart_guard_before, true)?;
     require(
@@ -366,6 +375,11 @@ async fn run() -> CheckResult<()> {
             "attachGuardVerified": true,
             "detachFailureRetried": true,
             "initializationCancellationCleaned": true,
+            "recordToCringeDisabled": !second.config().pps_monitor.record_to_cringe,
+            "recordDisabledNoDatabaseConnection": true,
+            "recordDisabledNoAutomaticBan": true,
+            "recordDisabledCompletedPolls": record_disabled_progress.completed_polls,
+            "recordDisabledObservedEvents": record_disabled_progress.observed_events,
             "runtimeMaps": runtime_maps,
             "packetsPassed": passed.packets_passed,
             "packetsDropped": dropped.packets_dropped,
@@ -374,6 +388,100 @@ async fn run() -> CheckResult<()> {
         }))?
     );
     Ok(())
+}
+
+async fn verify_record_disabled_monitor(
+    xdp: Arc<XdpService>,
+    peer_namespace: &str,
+) -> CheckResult<xdp_pps::PpsMonitorProgress> {
+    require(
+        xdp.config().pps_monitor.enabled && !xdp.config().pps_monitor.record_to_cringe,
+        "record-disabled monitor check received the wrong configuration",
+    )?;
+    let database_trap = TcpListener::bind(("127.0.0.1", 0))?;
+    database_trap.set_nonblocking(true)?;
+    let database_port = database_trap.local_addr()?.port();
+    let mut properties = Properties::default();
+    for (key, value) in [
+        ("lmyzmail.postgres.host", "127.0.0.1".to_owned()),
+        ("lmyzmail.postgres.port", database_port.to_string()),
+        ("lmyzmail.postgres.database", "postgres".to_owned()),
+        (
+            "lmyzmail.postgres.username",
+            "lmyzmail_xdp_check".to_owned(),
+        ),
+        ("lmyzmail.postgres.password", String::new()),
+        ("lmyzmail.postgres.pool.max-size", "1".to_owned()),
+        ("lmyzmail.domains.main.domain", "example.test".to_owned()),
+        ("lmyzmail.domains.main.receive-enabled", "true".to_owned()),
+    ] {
+        properties.insert(key.to_owned(), value)?;
+    }
+    let runtime = RuntimeConfig::from_properties(properties)?;
+    let monitor_cancellation = CancellationToken::new();
+    let (progress_sender, mut progress_receiver) =
+        tokio::sync::watch::channel(xdp_pps::PpsMonitorProgress::default());
+    let monitor = tokio::spawn(xdp_pps::run_pps_monitor_observed(
+        Arc::clone(&xdp),
+        CringeService::new(database::create_pool(&runtime)?),
+        monitor_cancellation.clone(),
+        progress_sender,
+    ));
+    wait_for_monitor_progress(&mut progress_receiver, "baseline poll", |progress| {
+        progress.completed_polls >= 1
+    })
+    .await?;
+    verify_ping(peer_namespace, false, true).await?;
+    let progress = wait_for_monitor_progress(
+        &mut progress_receiver,
+        "record-disabled event observation",
+        |progress| progress.observed_events > 0,
+    )
+    .await?;
+    monitor_cancellation.cancel();
+    timeout(Duration::from_secs(1), monitor)
+        .await
+        .map_err(|_| failure("record-disabled PPS monitor did not join cancellation"))?
+        .map_err(|error| failure(format!("record-disabled PPS monitor panicked: {error}")))?;
+    match database_trap.accept() {
+        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
+        Ok(_) => {
+            return Err(failure(
+                "record-disabled PPS monitor connected to PostgreSQL",
+            ));
+        }
+        Err(error) => return Err(error.into()),
+    }
+    require(
+        xdp.all_banned(&CancellationToken::new()).await?.is_empty(),
+        "record-disabled PPS monitor automatically banned an address",
+    )?;
+    Ok(progress)
+}
+
+async fn wait_for_monitor_progress<P>(
+    receiver: &mut tokio::sync::watch::Receiver<xdp_pps::PpsMonitorProgress>,
+    description: &str,
+    predicate: P,
+) -> CheckResult<xdp_pps::PpsMonitorProgress>
+where
+    P: Fn(xdp_pps::PpsMonitorProgress) -> bool,
+{
+    timeout(Duration::from_secs(2), async {
+        loop {
+            let progress = *receiver.borrow_and_update();
+            if predicate(progress) {
+                return Ok(progress);
+            }
+            receiver.changed().await.map_err(|_| {
+                failure(format!(
+                    "record-disabled PPS monitor stopped before {description}"
+                ))
+            })?;
+        }
+    })
+    .await
+    .map_err(|_| failure(format!("timed out waiting for {description}")))?
 }
 
 fn attach_guard_counts() -> (u64, u64) {
@@ -1000,21 +1108,23 @@ fn xdp_config(interface: &str, pin_path: PathBuf) -> XdpConfig {
         sync_on_startup: false,
         whitelist: Vec::new(),
         reason_code_default: 0,
+        reason_code_pps_overlimit: 5,
+        reason_code_syn_flood: 6,
         pps_monitor: XdpPpsMonitorConfig {
-            enabled: false,
-            poll_interval_ms: 1_000,
-            pps_warn_threshold: 50_000,
-            pps_critical_threshold: 100_000,
-            syn_pps_warn_threshold: 10_000,
-            syn_pps_critical_threshold: 50_000,
-            per_ip_pps_warn_threshold: 5_000,
-            per_ip_pps_critical_threshold: 10_000,
-            per_ip_syn_pps_warn_threshold: 1_000,
-            per_ip_syn_pps_critical_threshold: 5_000,
-            consecutive_exceed_count: 3,
+            enabled: true,
+            poll_interval_ms: 10,
+            pps_warn_threshold: 0,
+            pps_critical_threshold: 0,
+            syn_pps_warn_threshold: 0,
+            syn_pps_critical_threshold: 0,
+            per_ip_pps_warn_threshold: 0,
+            per_ip_pps_critical_threshold: 0,
+            per_ip_syn_pps_warn_threshold: 0,
+            per_ip_syn_pps_critical_threshold: 0,
+            consecutive_exceed_count: 1,
             record_to_cringe: false,
-            max_ips_per_poll: 10_000,
-            ring_buffer_size: 60,
+            max_ips_per_poll: 32,
+            ring_buffer_size: 8,
         },
     }
 }

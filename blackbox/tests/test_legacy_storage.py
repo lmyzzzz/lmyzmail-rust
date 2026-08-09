@@ -102,6 +102,12 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "minecraft-strict-compression-envelope",
         "minecraft-logout-flush-before-close",
         "minecraft-map-video-permit-lifetime",
+        "xdp-management-failure-reporting",
+        "xdp-pps-consecutive-counter-saturation",
+        "xdp-pps-database-deadline-and-commit-reconciliation",
+        "xdp-pps-legacy-null-counter-repair",
+        "xdp-pps-monotonic-last-seen",
+        "xdp-pps-monitor-bounded-state",
     }
     starttls = next(
         entry
@@ -174,6 +180,43 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
     assert by_id["cringe-postgres-cancellation-and-pool-health"]["evidence"][
         "service_source_sha256"
     ] == "392c021dcc834005d6e08188d1aed03ca68399ceb665755c4f445ddd19644675"
+    pps_monitor = by_id["xdp-pps-monitor-bounded-state"]
+    assert pps_monitor["evidence"]["source_sha256"] == (
+        "9f6f6855c4163a38000543951554dde69b7f6febce2f696f34aa040c2e0fd23e"
+    )
+    pps_attestation = json.loads(
+        (repository / pps_monitor["evidence"]["attestation"]).read_text(encoding="utf-8")
+    )
+    assert pps_attestation["source"]["working_tree_sha256"] == pps_monitor["evidence"][
+        "source_sha256"
+    ]
+    assert pps_attestation["frozen_behavior"]["cooldown_comparison"] == (
+        "strictly greater than"
+    )
+    assert pps_attestation["frozen_behavior"]["poll_schedule"] == (
+        "Spring fixedRate; delayed non-overlapping executions catch up without skipping"
+    )
+    for difference_id in (
+        "xdp-pps-legacy-null-counter-repair",
+        "xdp-pps-monotonic-last-seen",
+    ):
+        evidence = by_id[difference_id]["evidence"]
+        assert evidence["source"] == (
+            "src/main/java/net/lmyz/lmyzmail/cringe/repo/SkibidiCringeIPRepository.java"
+        )
+        assert evidence["source_sha256"] == (
+            "0922f48caf76cff11474d7882952e21df10351881a4cbf5f446fe26af7210e01"
+        )
+    deadline_evidence = by_id[
+        "xdp-pps-database-deadline-and-commit-reconciliation"
+    ]["evidence"]
+    assert deadline_evidence["source"] == (
+        "src/main/java/net/lmyz/lmyzmail/cringe/service/"
+        "SkibidiCringeIPTransactionalHelper.java"
+    )
+    assert deadline_evidence["source_sha256"] == (
+        "4eb48d930e923840d5fde506d4e7ab53b28ae4fd57b5a5fe45d9273526a941ef"
+    )
     assert (
         by_id["minecraft-absolute-connection-deadline"]["evidence"]["source_sha256"]
         == "fed5b8de13b875d549a6cf706cb9def4422b7fd3b09eabfa7b7d6017e4c52a52"

@@ -19,9 +19,9 @@ from lmyzmail_blackbox.runtime import API_KEY, WRITE_ONLY_API_KEY, CandidateRunt
 from lmyzmail_blackbox.snapshots import http_bytes_snapshot, http_json_snapshot
 
 _PROFILE = "managed-cringe-api"
-_GOLDEN = "blackbox/golden/java/managed-cringe-api-v3"
+_GOLDEN = "blackbox/golden/java/managed-cringe-api-v4"
 _BOUNDARY_PROFILE = "managed-cringe-api-oracle-boundaries"
-_BOUNDARY_GOLDEN = "blackbox/golden/java/managed-cringe-api-oracle-boundaries-v3"
+_BOUNDARY_GOLDEN = "blackbox/golden/java/managed-cringe-api-oracle-boundaries-v4"
 _ADMIN_HEADERS = (("X-API-Key", API_KEY),)
 
 
@@ -197,7 +197,8 @@ def _seed_cringe_fixture(target: RuntimeTarget) -> None:
 
 
 def _capture_cringe_api(target: RuntimeTarget) -> dict[str, Any]:
-    assert target.ports is not None
+    ports = target.ports
+    assert ports is not None
     _seed_cringe_fixture(target)
 
     def json_request(
@@ -209,7 +210,7 @@ def _capture_cringe_api(target: RuntimeTarget) -> dict[str, Any]:
         return http_json_snapshot(
             http_exchange(
                 "127.0.0.1",
-                target.ports.http,
+                ports.http,
                 "GET",
                 path,
                 headers=headers,
@@ -220,7 +221,7 @@ def _capture_cringe_api(target: RuntimeTarget) -> dict[str, Any]:
 
     export = http_exchange(
         "127.0.0.1",
-        target.ports.http,
+        ports.http,
         "GET",
         "/api/cringe-ips/export?minScore=0&scoreType=TOTAL",
         headers=_ADMIN_HEADERS,
@@ -274,13 +275,14 @@ cast(Any, _capture_cringe_api).__lmyzmail_contract__ = {
 
 
 def _capture_invalid_paging(target: RuntimeTarget) -> dict[str, Any]:
-    assert target.ports is not None
+    ports = target.ports
+    assert ports is not None
 
     def request(path: str) -> Any:
         return http_bytes_snapshot(
             http_exchange(
                 "127.0.0.1",
-                target.ports.http,
+                ports.http,
                 "GET",
                 path,
                 headers=_ADMIN_HEADERS,

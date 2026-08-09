@@ -150,6 +150,12 @@ pub struct XdpIpStatsEntry {
     pub stats: XdpPerIpStats,
 }
 
+pub(crate) struct XdpIpStatsRead {
+    pub entries: Vec<XdpIpStatsEntry>,
+    pub v4_error: Option<XdpError>,
+    pub v6_error: Option<XdpError>,
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct XdpStatus {
@@ -365,12 +371,33 @@ impl XdpService {
         max_count: usize,
         cancellation: &CancellationToken,
     ) -> Result<Vec<XdpIpStatsEntry>, XdpError> {
+        let read = self
+            .all_ip_stats_best_effort(max_count, cancellation)
+            .await?;
+        if let Some(error) = read.v4_error {
+            return Err(error);
+        }
+        if let Some(error) = read.v6_error {
+            return Err(error);
+        }
+        Ok(read.entries)
+    }
+
+    pub(crate) async fn all_ip_stats_best_effort(
+        &self,
+        max_count: usize,
+        cancellation: &CancellationToken,
+    ) -> Result<XdpIpStatsRead, XdpError> {
         if !self.ready() {
-            return Ok(Vec::new());
+            return Ok(XdpIpStatsRead {
+                entries: Vec::new(),
+                v4_error: None,
+                v6_error: None,
+            });
         }
         let max_count = max_count.clamp(1, MAX_PER_IP_STATS);
         self.dispatch(XDP_OPERATION_DEADLINE, cancellation, move |state| {
-            state.native.all_ip_stats(max_count)
+            Ok(state.native.all_ip_stats_best_effort(max_count))
         })
         .await
     }
@@ -988,44 +1015,8 @@ impl NativeFirewall {
         })
     }
 
-    fn all_ip_stats(&mut self, max_count: usize) -> Result<Vec<XdpIpStatsEntry>, XdpError> {
-        let mut v4 = vec![ffi::XdpFwIpStatsEntry::default(); max_count];
-        let v4_count = ffi::all_ip_stats_v4(&mut v4);
-        if v4_count < 0 {
-            return Err(native_error(v4_count));
-        }
-        let mut result = Vec::with_capacity(v4_count as usize);
-        result.extend(
-            v4.into_iter()
-                .take(v4_count as usize)
-                .map(|entry| XdpIpStatsEntry {
-                    ip: IpAddr::V4(Ipv4Addr::from(entry.ip)),
-                    stats: XdpPerIpStats {
-                        packets: entry.stats.packets,
-                        syn_packets: entry.stats.syn_packets,
-                    },
-                }),
-        );
-        let remaining = max_count.saturating_sub(result.len());
-        if remaining > 0 {
-            let mut v6 = vec![ffi::XdpFwIp6StatsEntry::default(); remaining];
-            let v6_count = ffi::all_ip_stats_v6(&mut v6);
-            if v6_count < 0 {
-                return Err(native_error(v6_count));
-            }
-            result.extend(
-                v6.into_iter()
-                    .take(v6_count as usize)
-                    .map(|entry| XdpIpStatsEntry {
-                        ip: IpAddr::V6(Ipv6Addr::from(entry.ip)),
-                        stats: XdpPerIpStats {
-                            packets: entry.stats.packets,
-                            syn_packets: entry.stats.syn_packets,
-                        },
-                    }),
-            );
-        }
-        Ok(result)
+    fn all_ip_stats_best_effort(&mut self, max_count: usize) -> XdpIpStatsRead {
+        collect_ip_stats(max_count, ffi::all_ip_stats_v4, ffi::all_ip_stats_v6)
     }
 
     fn reset_pps_baseline(&mut self) {
@@ -1064,6 +1055,58 @@ impl NativeFirewall {
                     .into(),
             })
         }
+    }
+}
+
+fn collect_ip_stats<V4, V6>(max_count: usize, mut read_v4: V4, mut read_v6: V6) -> XdpIpStatsRead
+where
+    V4: FnMut(&mut [ffi::XdpFwIpStatsEntry]) -> i32,
+    V6: FnMut(&mut [ffi::XdpFwIp6StatsEntry]) -> i32,
+{
+    let mut v4 = vec![ffi::XdpFwIpStatsEntry::default(); max_count];
+    let v4_count = read_v4(&mut v4);
+    let mut result = Vec::with_capacity(max_count);
+    let v4_error = if v4_count < 0 {
+        Some(native_error(v4_count))
+    } else {
+        result.extend(
+            v4.into_iter()
+                .take(v4_count as usize)
+                .map(|entry| XdpIpStatsEntry {
+                    ip: IpAddr::V4(Ipv4Addr::from(entry.ip)),
+                    stats: XdpPerIpStats {
+                        packets: entry.stats.packets,
+                        syn_packets: entry.stats.syn_packets,
+                    },
+                }),
+        );
+        None
+    };
+    let remaining = max_count.saturating_sub(result.len());
+    let mut v6_error = None;
+    if remaining > 0 {
+        let mut v6 = vec![ffi::XdpFwIp6StatsEntry::default(); remaining];
+        let v6_count = read_v6(&mut v6);
+        if v6_count < 0 {
+            v6_error = Some(native_error(v6_count));
+        } else {
+            result.extend(
+                v6.into_iter()
+                    .take(v6_count as usize)
+                    .map(|entry| XdpIpStatsEntry {
+                        ip: IpAddr::V6(Ipv6Addr::from(entry.ip)),
+                        stats: XdpPerIpStats {
+                            packets: entry.stats.packets,
+                            syn_packets: entry.stats.syn_packets,
+                        },
+                    }),
+            );
+        }
+    }
+    XdpIpStatsRead {
+        entries: result,
+        v4_error,
+        v6_error,
     }
 }
 
@@ -1867,5 +1910,67 @@ mod tests {
     fn ban_cache_budget_matches_both_frozen_native_maps() {
         assert_eq!(MAX_BANNED_IPS_PER_FAMILY, 100_000);
         assert_eq!(MAX_BANNED_IPS, 200_000);
+    }
+
+    #[test]
+    fn ipv4_statistics_failure_preserves_ipv6_results() {
+        let expected: Ipv6Addr = "2001:db8::44".parse().unwrap();
+        let read = collect_ip_stats(
+            4,
+            |_| -5,
+            |entries| {
+                entries[0] = ffi::XdpFwIp6StatsEntry {
+                    ip: expected.octets(),
+                    stats: ffi::XdpFwPerIpStats {
+                        packets: 11,
+                        syn_packets: 3,
+                    },
+                };
+                1
+            },
+        );
+        assert!(read.v4_error.is_some());
+        assert!(read.v6_error.is_none());
+        assert_eq!(
+            read.entries,
+            vec![XdpIpStatsEntry {
+                ip: IpAddr::V6(expected),
+                stats: XdpPerIpStats {
+                    packets: 11,
+                    syn_packets: 3,
+                },
+            }]
+        );
+    }
+
+    #[test]
+    fn ipv6_statistics_failure_preserves_ipv4_results() {
+        let expected: Ipv4Addr = "198.51.100.44".parse().unwrap();
+        let read = collect_ip_stats(
+            4,
+            |entries| {
+                entries[0] = ffi::XdpFwIpStatsEntry {
+                    ip: u32::from(expected),
+                    stats: ffi::XdpFwPerIpStats {
+                        packets: 12,
+                        syn_packets: 4,
+                    },
+                };
+                1
+            },
+            |_| -5,
+        );
+        assert!(read.v4_error.is_none());
+        assert!(read.v6_error.is_some());
+        assert_eq!(
+            read.entries,
+            vec![XdpIpStatsEntry {
+                ip: IpAddr::V4(expected),
+                stats: XdpPerIpStats {
+                    packets: 12,
+                    syn_packets: 4,
+                },
+            }]
+        );
     }
 }

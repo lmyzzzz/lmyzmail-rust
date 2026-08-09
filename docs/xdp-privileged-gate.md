@@ -41,6 +41,11 @@ The gate checks:
   while a second shutdown retries successfully and releases all three;
 - generic XDP attach and detach on shutdown;
 - real IPv4 and IPv6 traffic across the veth boundary;
+- an enabled PPS monitor with `record-to-cringe=false` makes no PostgreSQL
+  connection and creates no automatic ban even when threshold events fire;
+  the checker waits for a completed baseline poll and a real event rather than
+  relying on elapsed wall time, and reports positive `recordDisabledCompletedPolls`
+  and `recordDisabledObservedEvents` counters;
 - pass, ban, kernel drop, unban, and pass behavior;
 - global, per-IP, ban-count, and PPS kernel statistics;
 - exact type, key size, value size, and capacity for all eight runtime maps;

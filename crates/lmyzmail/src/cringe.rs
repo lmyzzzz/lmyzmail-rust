@@ -1,4 +1,11 @@
-use std::{collections::HashMap, fmt, future::Future, net::IpAddr, time::Duration};
+use std::{
+    collections::HashMap,
+    fmt,
+    future::Future,
+    net::{IpAddr, Ipv4Addr, Ipv6Addr},
+    sync::atomic::{AtomicBool, Ordering},
+    time::Duration,
+};
 
 use chrono::{DateTime, Utc};
 use deadpool_postgres::{Object, Pool};
@@ -15,6 +22,7 @@ const XDP_SYNC_PAGE_SIZE: i64 = 500;
 const MAX_XDP_EXISTING_BANS: usize = 200_000;
 const MAX_XDP_NEW_CANDIDATES: usize = 200_000;
 const MAX_XDP_RECONCILE_CANDIDATES: usize = MAX_XDP_EXISTING_BANS + MAX_XDP_NEW_CANDIDATES;
+const XDP_TRAFFIC_SCORE: i32 = 50;
 
 const IP_COLUMNS: &str = "ip_address, total_score, current_score, activity_count, \
     self_spoofing_count, open_relay_count, auth_probe_count, illegal_domain_count, \
@@ -65,6 +73,214 @@ impl CringeService {
         })
         .await;
         connection.finish(outcome)
+    }
+
+    pub async fn record_xdp_traffic(
+        &self,
+        ip: IpAddr,
+        activity: XdpTrafficActivity,
+        metadata: &str,
+        cancellation: &CancellationToken,
+    ) -> Result<Option<i32>, CringeError> {
+        if is_exact_localhost(ip) {
+            return Ok(None);
+        }
+        if metadata.len() > 1_024 {
+            return Err(CringeError::InvalidInput);
+        }
+        let deadline = Instant::now() + DATABASE_DEADLINE;
+        let activity_id = self.allocate_activity_id(deadline, cancellation).await?;
+        let now = DateTime::from_timestamp_micros(Utc::now().timestamp_micros())
+            .ok_or_else(|| CringeError::Database("current timestamp is out of range".into()))?;
+        let ip_address = ip.to_string();
+        let activity_type = activity.name();
+        let (pps_increment, syn_increment) = activity.counter_increments();
+        let client = self.client(deadline, cancellation).await?;
+        let mut connection = DatabaseConnection::new(client);
+        let cancel_token = connection.cancel_token();
+        let commit_started = AtomicBool::new(false);
+        let database_cancellation = cancellation.child_token();
+        let outcome = database_write(
+            deadline,
+            &database_cancellation,
+            &cancel_token,
+            &commit_started,
+            async {
+                let transaction = connection
+                    .client_mut()
+                    .transaction()
+                    .await
+                    .map_err(database_error)?;
+                configure_transaction_deadline(&transaction, deadline).await?;
+                ensure_active(&database_cancellation)?;
+                transaction
+                    .query_one("SELECT pg_advisory_xact_lock($1)", &[&activity_id])
+                    .await
+                    .map_err(database_error)?;
+                ensure_active(&database_cancellation)?;
+                transaction
+                    .execute(
+                        "INSERT INTO skibidi_cringe_ip_activity (\
+                             id,ip_address,activity_type,score,timestamp,metadata\
+                         ) VALUES ($1,$2,$3,$4,$5,$6)",
+                        &[
+                            &activity_id,
+                            &ip_address,
+                            &activity_type,
+                            &XDP_TRAFFIC_SCORE,
+                            &now,
+                            &metadata,
+                        ],
+                    )
+                    .await
+                    .map_err(database_error)?;
+                ensure_active(&database_cancellation)?;
+                let row = transaction
+                    .query_one(
+                        "INSERT INTO skibidi_cringe_ip (\
+                             ip_address,total_score,current_score,activity_count,\
+                             first_seen_at,last_seen_at,last_decay_at,\
+                             self_spoofing_count,open_relay_count,auth_probe_count,\
+                             illegal_domain_count,spamhaus_count,http_on_smtp_count,\
+                             ssh_on_smtp_count,http_port_scanning_count,honeypot_hit_count,\
+                             ssh_bruteforce_count,pps_overlimit_count,syn_flood_count,other_count\
+                         ) VALUES (\
+                             $1,$2,$2,1,$3,$3,$3,0,0,0,0,0,0,0,0,0,0,$4,$5,0\
+                         ) ON CONFLICT (ip_address) DO UPDATE SET \
+                             total_score=skibidi_cringe_ip.total_score+$2,\
+                             current_score=skibidi_cringe_ip.current_score+$2,\
+                             activity_count=skibidi_cringe_ip.activity_count+1,\
+                             last_seen_at=GREATEST(skibidi_cringe_ip.last_seen_at,$3),\
+                             self_spoofing_count=skibidi_cringe_ip.self_spoofing_count+0,\
+                             open_relay_count=skibidi_cringe_ip.open_relay_count+0,\
+                             auth_probe_count=skibidi_cringe_ip.auth_probe_count+0,\
+                             illegal_domain_count=skibidi_cringe_ip.illegal_domain_count+0,\
+                             spamhaus_count=skibidi_cringe_ip.spamhaus_count+0,\
+                             http_on_smtp_count=skibidi_cringe_ip.http_on_smtp_count+0,\
+                             ssh_on_smtp_count=skibidi_cringe_ip.ssh_on_smtp_count+0,\
+                             http_port_scanning_count=skibidi_cringe_ip.http_port_scanning_count+0,\
+                             honeypot_hit_count=skibidi_cringe_ip.honeypot_hit_count+0,\
+                             ssh_bruteforce_count=skibidi_cringe_ip.ssh_bruteforce_count+0,\
+                             pps_overlimit_count=CASE WHEN $4<>0 \
+                                 THEN COALESCE(skibidi_cringe_ip.pps_overlimit_count,0)+$4 \
+                                 ELSE skibidi_cringe_ip.pps_overlimit_count END,\
+                             syn_flood_count=CASE WHEN $5<>0 \
+                                 THEN COALESCE(skibidi_cringe_ip.syn_flood_count,0)+$5 \
+                                 ELSE skibidi_cringe_ip.syn_flood_count END,\
+                             other_count=skibidi_cringe_ip.other_count+0 \
+                         RETURNING current_score",
+                        &[
+                            &ip_address,
+                            &XDP_TRAFFIC_SCORE,
+                            &now,
+                            &pps_increment,
+                            &syn_increment,
+                        ],
+                    )
+                    .await
+                    .map_err(database_error)?;
+                let current_score = row.get::<_, i32>(0);
+                start_commit(deadline, &database_cancellation, &commit_started)?;
+                transaction.commit().await.map_err(commit_error)?;
+                Ok(current_score)
+            },
+        )
+        .await;
+        match connection.finish(outcome) {
+            Ok(score) => Ok(Some(score)),
+            // Once COMMIT starts, cancellation cannot tell whether PostgreSQL applied it.
+            // Reconcile independently, but never beyond its own absolute database deadline.
+            Err(CringeError::OutcomeUnknown) => self
+                .reconcile_xdp_traffic(activity_id, &ip_address, activity_type, metadata, now)
+                .await
+                .map(Some),
+            Err(error) => Err(error),
+        }
+    }
+
+    async fn allocate_activity_id(
+        &self,
+        deadline: Instant,
+        cancellation: &CancellationToken,
+    ) -> Result<i64, CringeError> {
+        let client = self.client(deadline, cancellation).await?;
+        let connection = DatabaseConnection::new(client);
+        let cancel_token = connection.cancel_token();
+        let outcome = database_read(deadline, cancellation, &cancel_token, async {
+            connection
+                .client()
+                .query_one("SELECT nextval('skibidi_cringe_ip_activity_id_seq')", &[])
+                .await
+                .map(|row| row.get::<_, i64>(0))
+                .map_err(database_error)
+        })
+        .await;
+        connection.finish(outcome)
+    }
+
+    async fn reconcile_xdp_traffic(
+        &self,
+        activity_id: i64,
+        ip_address: &str,
+        activity_type: &str,
+        metadata: &str,
+        timestamp: DateTime<Utc>,
+    ) -> Result<i32, CringeError> {
+        let deadline = Instant::now() + DATABASE_DEADLINE;
+        let client = timeout_at(deadline, self.pool.get())
+            .await
+            .map_err(|error| reconciliation_error("pool deadline", error))?
+            .map_err(|error| reconciliation_error("pool acquisition", error))?;
+        let mut connection = DatabaseConnection::new(client);
+        let transaction = timeout_at(deadline, connection.client_mut().transaction())
+            .await
+            .map_err(|error| reconciliation_error("transaction deadline", error))?
+            .map_err(|error| reconciliation_error("transaction start", error))?;
+        configure_transaction_deadline(&transaction, deadline)
+            .await
+            .map_err(|error| reconciliation_error("statement deadline", error))?;
+        timeout_at(
+            deadline,
+            transaction.query_one("SELECT pg_advisory_xact_lock($1)", &[&activity_id]),
+        )
+        .await
+        .map_err(|error| reconciliation_error("advisory lock deadline", error))?
+        .map_err(|error| reconciliation_error("advisory lock", error))?;
+        let row = timeout_at(
+            deadline,
+            transaction.query_opt(
+                "/* lmyzmail_xdp_traffic_commit_reconciliation */ \
+                 SELECT a.ip_address,a.activity_type,a.score,a.timestamp,a.metadata,i.current_score \
+                 FROM skibidi_cringe_ip_activity a \
+                 JOIN skibidi_cringe_ip i ON i.ip_address=a.ip_address \
+                 WHERE a.id=$1",
+                &[&activity_id],
+            ),
+        )
+        .await
+        .map_err(|error| reconciliation_error("verification deadline", error))?
+        .map_err(|error| reconciliation_error("verification query", error))?;
+        let discard_connection =
+            !matches!(timeout_at(deadline, transaction.commit()).await, Ok(Ok(())));
+        let row = connection.finish(DatabaseOutcome {
+            result: Ok(row),
+            discard_connection,
+        })?;
+        match row {
+            Some(row)
+                if row.get::<_, &str>(0) == ip_address
+                    && row.get::<_, &str>(1) == activity_type
+                    && row.get::<_, i32>(2) == XDP_TRAFFIC_SCORE
+                    && row.get::<_, DateTime<Utc>>(3) == timestamp
+                    && row.get::<_, Option<&str>>(4) == Some(metadata) =>
+            {
+                Ok(row.get::<_, i32>(5))
+            }
+            Some(_) => Err(CringeError::OutcomeUnknown),
+            None => Err(CringeError::Database(
+                "XDP traffic activity did not commit".into(),
+            )),
+        }
     }
 
     pub(crate) async fn xdp_reconcile_candidates(
@@ -240,6 +456,28 @@ impl CringeService {
         cancellation: &CancellationToken,
     ) -> Result<Object, CringeError> {
         wait_database(self.pool.get(), deadline, cancellation).await
+    }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum XdpTrafficActivity {
+    PpsOverlimit,
+    SynFlood,
+}
+
+impl XdpTrafficActivity {
+    const fn name(self) -> &'static str {
+        match self {
+            Self::PpsOverlimit => "PPS_OVERLIMIT",
+            Self::SynFlood => "SYN_FLOOD",
+        }
+    }
+
+    const fn counter_increments(self) -> (i32, i32) {
+        match self {
+            Self::PpsOverlimit => (1, 0),
+            Self::SynFlood => (0, 1),
+        }
     }
 }
 
@@ -460,6 +698,7 @@ pub struct CringeActivity {
 pub enum CringeError {
     Cancelled,
     Timeout,
+    OutcomeUnknown,
     InvalidInput,
     CapacityExceeded,
     Database(String),
@@ -470,6 +709,9 @@ impl fmt::Display for CringeError {
         match self {
             Self::Cancelled => formatter.write_str("cringe request cancelled"),
             Self::Timeout => formatter.write_str("cringe database deadline exceeded"),
+            Self::OutcomeUnknown => {
+                formatter.write_str("cringe database commit outcome is unknown")
+            }
             Self::InvalidInput => formatter.write_str("invalid cringe request"),
             Self::CapacityExceeded => {
                 formatter.write_str("XDP reconcile candidate capacity exceeded")
@@ -600,7 +842,7 @@ where
 }
 
 fn database_error(error: tokio_postgres::Error) -> CringeError {
-    CringeError::Database(error.to_string())
+    CringeError::Database(format!("{error} ({error:?})"))
 }
 
 struct DatabaseOutcome<T> {
@@ -685,6 +927,110 @@ where
         result: Err(interruption),
         discard_connection,
     }
+}
+
+async fn database_write<T, F>(
+    deadline: Instant,
+    cancellation: &CancellationToken,
+    cancel_token: &CancelToken,
+    commit_started: &AtomicBool,
+    future: F,
+) -> DatabaseOutcome<T>
+where
+    F: Future<Output = Result<T, CringeError>>,
+{
+    tokio::pin!(future);
+    let interruption = tokio::select! {
+        biased;
+        _ = cancellation.cancelled() => CringeError::Cancelled,
+        result = timeout_at(deadline, future.as_mut()) => match result {
+            Ok(result) => return completed_database_outcome(result),
+            Err(_) => CringeError::Timeout,
+        },
+    };
+
+    let recovery_deadline = Instant::now() + DATABASE_CANCEL_DRAIN_TIMEOUT;
+    if commit_started.load(Ordering::Acquire) {
+        return match timeout_at(recovery_deadline, future.as_mut()).await {
+            Ok(result) => completed_database_outcome(result),
+            Err(_) => DatabaseOutcome {
+                result: Err(CringeError::OutcomeUnknown),
+                discard_connection: true,
+            },
+        };
+    }
+
+    cancellation.cancel();
+    let recovery = timeout_at(recovery_deadline, async {
+        tokio::join!(cancel_token.cancel_query(NoTls), future.as_mut())
+    })
+    .await;
+    DatabaseOutcome {
+        result: Err(interruption),
+        discard_connection: !matches!(recovery, Ok((Ok(()), _))),
+    }
+}
+
+fn completed_database_outcome<T>(result: Result<T, CringeError>) -> DatabaseOutcome<T> {
+    DatabaseOutcome {
+        discard_connection: matches!(result, Err(CringeError::OutcomeUnknown)),
+        result,
+    }
+}
+
+fn start_commit(
+    deadline: Instant,
+    cancellation: &CancellationToken,
+    commit_started: &AtomicBool,
+) -> Result<(), CringeError> {
+    ensure_active(cancellation)?;
+    if Instant::now() >= deadline {
+        return Err(CringeError::Timeout);
+    }
+    commit_started.store(true, Ordering::Release);
+    Ok(())
+}
+
+async fn configure_transaction_deadline(
+    transaction: &deadpool_postgres::Transaction<'_>,
+    deadline: Instant,
+) -> Result<(), CringeError> {
+    let remaining = deadline.saturating_duration_since(Instant::now());
+    let server_millis = (remaining.as_millis() / 2).clamp(1, i32::MAX as u128);
+    let value = format!("{server_millis}ms");
+    timeout_at(
+        deadline,
+        transaction.query_one("SELECT set_config('statement_timeout',$1,true)", &[&value]),
+    )
+    .await
+    .map_err(|_| CringeError::Timeout)?
+    .map_err(database_error)?;
+    Ok(())
+}
+
+fn ensure_active(cancellation: &CancellationToken) -> Result<(), CringeError> {
+    if cancellation.is_cancelled() {
+        Err(CringeError::Cancelled)
+    } else {
+        Ok(())
+    }
+}
+
+fn commit_error(error: tokio_postgres::Error) -> CringeError {
+    if error.as_db_error().is_some() {
+        database_error(error)
+    } else {
+        CringeError::OutcomeUnknown
+    }
+}
+
+fn reconciliation_error(stage: &str, error: impl fmt::Display + fmt::Debug) -> CringeError {
+    eprintln!("lmyzmail XDP traffic commit reconciliation failed at {stage}: {error} ({error:?})");
+    CringeError::OutcomeUnknown
+}
+
+fn is_exact_localhost(ip: IpAddr) -> bool {
+    ip == IpAddr::V4(Ipv4Addr::LOCALHOST) || ip == IpAddr::V6(Ipv6Addr::LOCALHOST)
 }
 
 #[cfg(test)]
