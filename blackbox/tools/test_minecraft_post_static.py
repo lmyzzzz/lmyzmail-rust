@@ -24,7 +24,7 @@ from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-post-static-v1"
+_GOLDEN = "managed-minecraft-post-static-v2"
 _USERNAME = b"PostStaticProbe"
 _POST_STATIC_IDS = (
     0x33,
@@ -114,7 +114,7 @@ def test_frozen_java_minecraft_post_static_golden(tmp_path: Path) -> None:
     runner = DifferentialRunner(
         repository,
         golden,
-        "managed-minecraft-post-static",
+        _GOLDEN,
         record_java=record,
     )
     with _LoginJavaOracleRuntime(tmp_path / "java-minecraft-post-static") as oracle:
@@ -150,5 +150,5 @@ def test_rust_candidate_minecraft_post_static_matches_golden() -> None:
         DifferentialRunner(
             repository,
             repository / "blackbox/golden/java" / _GOLDEN,
-            "managed-minecraft-post-static",
+            _GOLDEN,
         ).verify_candidate(SCENARIOS, candidate)
