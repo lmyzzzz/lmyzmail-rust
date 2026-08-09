@@ -25,7 +25,7 @@ from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-scheduled-play-v1"
+_GOLDEN = "managed-minecraft-scheduled-play-v2"
 _USERNAME = b"ScheduledProbe"
 _HOLOGRAM_IDS = (0x18,) * 7
 
@@ -85,7 +85,7 @@ def test_frozen_java_minecraft_scheduled_play_golden(tmp_path: Path) -> None:
     runner = DifferentialRunner(
         repository,
         golden,
-        "managed-minecraft-scheduled-play",
+        _GOLDEN,
         record_java=record,
     )
     with _LoginJavaOracleRuntime(tmp_path / "java-minecraft-scheduled-play") as oracle:
@@ -121,5 +121,5 @@ def test_rust_candidate_minecraft_scheduled_play_matches_golden() -> None:
         DifferentialRunner(
             repository,
             repository / "blackbox/golden/java" / _GOLDEN,
-            "managed-minecraft-scheduled-play",
+            _GOLDEN,
         ).verify_candidate(SCENARIOS, candidate)
