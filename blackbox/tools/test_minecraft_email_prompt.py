@@ -26,7 +26,7 @@ from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-email-prompt-v1"
+_GOLDEN = "managed-minecraft-email-prompt-v2"
 _USERNAME = b"EmailPromptProbe"
 _INVALID_EMAIL = "not-an-email"
 _VALID_EMAIL_INPUT = "  qa@example.test  "
@@ -112,7 +112,7 @@ def test_frozen_java_minecraft_email_prompt_golden(tmp_path: Path) -> None:
     runner = DifferentialRunner(
         repository,
         golden,
-        "managed-minecraft-email-prompt",
+        _GOLDEN,
         record_java=record,
     )
     with _LoginJavaOracleRuntime(tmp_path / "java-minecraft-email-prompt") as oracle:
@@ -148,5 +148,5 @@ def test_rust_candidate_minecraft_email_prompt_matches_golden() -> None:
         DifferentialRunner(
             repository,
             repository / "blackbox/golden/java" / _GOLDEN,
-            "managed-minecraft-email-prompt",
+            _GOLDEN,
         ).verify_candidate(SCENARIOS, candidate)
