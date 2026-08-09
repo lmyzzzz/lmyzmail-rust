@@ -8,6 +8,7 @@ import psycopg
 from .differential import RuntimeTarget, Scenario
 from .protocols import RawHttpResponse, http_exchange
 from .runtime import API_KEY
+from .scripted_dns import DnsAnswer, DnsQuery, ScriptedDnsServer, TxtAnswer
 from .snapshots import http_json_snapshot
 
 _HOST = "127.0.0.1"
@@ -18,11 +19,82 @@ _NO_DATA_DATE = "2024-01-02"
 _DMARC_DOMAIN = "sender.example"
 _TLS_DOMAIN = "recipient.example"
 _NO_DATA_DOMAIN = "no-data.example"
+_ADDRESS_DOMAIN = "MiXeD.Example"
+_AMBIGUOUS_DOMAIN = "ambiguous.example"
+_LOOKALIKE_DOMAIN = "lookalike.example"
+_LIMIT_DOMAIN = "limit.example"
 _API_HEADERS = (("X-API-Key", API_KEY),)
 _NORMALIZERS = (
     "header:date:http-date",
     "json-object-order:reports-contract",
 )
+
+_TXT = 16
+
+
+def _txt_answer(value: str) -> TxtAnswer:
+    value.encode("ascii")
+    return TxtAnswer(tuple(value[offset : offset + 200] for offset in range(0, len(value), 200)))
+
+
+_REPORT_DNS_ANSWERS = {
+    ("_dmarc.mixed.example", _TXT): DnsAnswer(
+        txt=(
+            TxtAnswer(
+                (
+                    "v=DMARC1; p=none; rua=mailto:local@mixed.example!10m, "
+                    "mailto:external@reports.example,mailto:external@reports.example, "
+                    "https://mixed.example/dmarc,https://collector.ext.example/dmarc",
+                )
+            ),
+        )
+    ),
+    ("mixed.example._report._dmarc.reports.example", _TXT): DnsAnswer(
+        txt=(TxtAnswer(("v=DMARC1",)),)
+    ),
+    ("mixed.example._report._dmarc.collector.ext.example", _TXT): DnsAnswer(
+        txt=(TxtAnswer(("v=DMARC1",)),)
+    ),
+    ("_smtp._tls.mixed.example", _TXT): DnsAnswer(
+        txt=(
+            TxtAnswer(("v=TLSRPTv1; rua=mailto:tls@mixed.example,https://mixed.example/tls",)),
+        )
+    ),
+    ("_dmarc.ambiguous.example", _TXT): DnsAnswer(
+        txt=(
+            TxtAnswer(("v=DMARC1; rua=mailto:first@ambiguous.example",)),
+            TxtAnswer(("v=DMARC1; rua=mailto:second@ambiguous.example",)),
+        )
+    ),
+    ("_smtp._tls.ambiguous.example", _TXT): DnsAnswer(
+        txt=(
+            TxtAnswer(("v=TLSRPTv1; rua=mailto:first@ambiguous.example",)),
+            TxtAnswer(("v=TLSRPTv1; rua=mailto:second@ambiguous.example",)),
+        )
+    ),
+    ("_dmarc.lookalike.example", _TXT): DnsAnswer(
+        txt=(TxtAnswer(("v=DMARC10; rua=mailto:nope@lookalike.example",)),)
+    ),
+    ("_smtp._tls.lookalike.example", _TXT): DnsAnswer(
+        txt=(TxtAnswer(("v=TLSRPTv10; rua=mailto=nope@lookalike.example",)),)
+    ),
+    ("_dmarc.limit.example", _TXT): DnsAnswer(
+        txt=(
+            _txt_answer(
+                "v=DMARC1; rua="
+                + ",".join(f"mailto:limit-{index}@limit.example" for index in range(12))
+                + ",https://limit.example/too-late"
+            ),
+        )
+    ),
+    ("_smtp._tls.limit.example", _TXT): DnsAnswer(
+        txt=(TxtAnswer(("v=TLSRPTv1; rua=mailto:tls@limit.example",)),)
+    ),
+}
+
+
+def report_dns_server() -> ScriptedDnsServer:
+    return ScriptedDnsServer(_REPORT_DNS_ANSWERS)
 
 
 def _ports(target: RuntimeTarget) -> tuple[str, int]:
@@ -408,6 +480,127 @@ cast(Any, capture_no_data_domain_report).__lmyzmail_contract__ = {
 }
 
 
+def _drain_report_dns_queries(target: RuntimeTarget) -> tuple[DnsQuery, ...]:
+    drain = getattr(target, "drain_report_dns_queries", None)
+    if not callable(drain):
+        raise AssertionError("reports target does not expose the scripted DNS query trace")
+    value = drain()
+    if not isinstance(value, tuple) or not all(isinstance(item, DnsQuery) for item in value):
+        raise AssertionError("reports target returned an invalid DNS query trace")
+    return cast(tuple[DnsQuery, ...], value)
+
+
+def _address_body(
+    domain: str,
+    *,
+    dmarc_mailto: list[str] | None = None,
+    dmarc_https: list[str] | None = None,
+    tls_mailto: list[str] | None = None,
+    tls_https: list[str] | None = None,
+) -> dict[str, Any]:
+    return {
+        "domain": domain,
+        "dmarc": {
+            "mailto": dmarc_mailto or [],
+            "https": dmarc_https or [],
+        },
+        "tlsrpt": {
+            "mailto": tls_mailto or [],
+            "https": tls_https or [],
+        },
+    }
+
+
+def capture_report_addresses(target: RuntimeTarget) -> dict[str, Any]:
+    if _drain_report_dns_queries(target):
+        raise AssertionError("scripted report DNS trace was not empty before address discovery")
+    cases = (
+        (
+            _ADDRESS_DOMAIN,
+            _address_body(
+                _ADDRESS_DOMAIN,
+                dmarc_mailto=["local@mixed.example", "external@reports.example"],
+                dmarc_https=[
+                    "https://mixed.example/dmarc",
+                    "https://collector.ext.example/dmarc",
+                ],
+                tls_mailto=["tls@mixed.example"],
+                tls_https=["https://mixed.example/tls"],
+            ),
+        ),
+        (_AMBIGUOUS_DOMAIN, _address_body(_AMBIGUOUS_DOMAIN)),
+        (_LOOKALIKE_DOMAIN, _address_body(_LOOKALIKE_DOMAIN)),
+        ("missing.example", _address_body("missing.example")),
+        (
+            _LIMIT_DOMAIN,
+            _address_body(
+                _LIMIT_DOMAIN,
+                dmarc_mailto=[f"limit-{index}@limit.example" for index in range(10)],
+                tls_mailto=["tls@limit.example"],
+            ),
+        ),
+    )
+    observations: list[dict[str, Any]] = []
+    for domain, expected in cases:
+        observations.append(
+            {
+                "domain": domain,
+                "response": _expect_json(
+                    _request(target, "GET", f"/api/reports/addresses/{domain}"),
+                    status=200,
+                    body=expected,
+                ),
+            }
+        )
+
+    queries = _drain_report_dns_queries(target)
+    expected_queries = (
+        "_dmarc.mixed.example",
+        "mixed.example._report._dmarc.reports.example",
+        "mixed.example._report._dmarc.collector.ext.example",
+        "_smtp._tls.mixed.example",
+        "_dmarc.ambiguous.example",
+        "_smtp._tls.ambiguous.example",
+        "_dmarc.lookalike.example",
+        "_smtp._tls.lookalike.example",
+        "_dmarc.missing.example",
+        "_dmarc.missing.example",
+        "_smtp._tls.missing.example",
+        "_smtp._tls.missing.example",
+        "_dmarc.limit.example",
+        "_smtp._tls.limit.example",
+    )
+    if tuple(query.qname for query in queries) != expected_queries:
+        raise AssertionError(f"report address DNS query order changed: {queries!r}")
+    if any(query.qtype != _TXT or query.qclass != 1 for query in queries):
+        raise AssertionError(f"report address discovery issued a non-TXT/IN query: {queries!r}")
+    return {
+        "cases": observations,
+        "dnsQueries": [
+            {"qname": query.qname, "qtype": query.qtype, "qclass": query.qclass}
+            for query in queries
+        ],
+    }
+
+
+cast(Any, capture_report_addresses).__lmyzmail_contract__ = {
+    "protocol": "http/raw-socket+scripted-udp-dns",
+    "method": "GET",
+    "target": "/api/reports/addresses/{domain}",
+    "authentication": "admin API key",
+    "dns": "isolated TXT fixture with exact query trace",
+    "coverage": [
+        "mixed mailto and HTTPS RUA with same-domain and external DMARC authorization",
+        "deduplication and one authorization query per external destination domain",
+        "multiple valid policy records rejected",
+        "lookalike non-first version tags rejected",
+        "NXDOMAIN downgraded to empty address lists",
+        "mailto-first combined RUA limit of 10",
+    ],
+    "json_object_order": "canonicalized recursively by key",
+}
+
+
 REPORT_SCENARIOS = (
     Scenario(
         "http/reports/status",
@@ -432,6 +625,11 @@ REPORT_SCENARIOS = (
     Scenario(
         "http/reports/no-data-domain",
         capture_no_data_domain_report,
+        normalizers=_NORMALIZERS,
+    ),
+    Scenario(
+        "http/reports/addresses",
+        capture_report_addresses,
         normalizers=_NORMALIZERS,
     ),
 )

@@ -908,7 +908,7 @@ when the new profile's generation reference was corrected to the conventional
 `v1` name; the attestation correctly rejected reuse after that source change,
 so the immutable `v48` envelope remains provenance rather than being rewritten.
 
-The active report-management API set is:
+The first conventional report-management API set is retained as:
 
 - `managed-reports-v1/`
 
@@ -918,12 +918,33 @@ generation reference and binds definition tree
 Recording and immediate verification used two separately initialized Java,
 PostgreSQL, Redis, and Maildir workspaces.
 
-The post-recording Rust candidate driver is intentionally kept outside
-`blackbox/tests` so adding it does not invalidate this create-once generation.
-Run the exact candidate replay from WSL with:
+The deterministic DNS extension retained three subsequent create-once
+generations without rewriting them:
 
-```sh
-PYTHONPATH=blackbox/src:blackbox/tests:blackbox/tools \
-  .blackbox-venv-wsl/bin/python -m pytest \
-  blackbox/tools/test_candidate_reports.py -m candidate -vv
-```
+- `managed-reports-v2/` contains the suite and the original five observations,
+  but the first scripted DNS fixture rejected dnsjava's EDNS additional record
+  before the address observation could be written.
+- `managed-reports-v3/` also stops before the address observation; it captured
+  the oracle's deterministic second NXDOMAIN attempt and was not weakened or
+  overwritten.
+- `managed-reports-v4/` is complete, but adding the independent scripted DNS
+  unit tests changed the attested definition tree, so it remains immutable
+  historical provenance.
+
+The active report-management API set is:
+
+- `managed-reports-v5/`
+
+It binds definition tree
+`3e27020a525dac35658bf96da956de1ea83371b1aac2f2800379a25acff9f867`
+and adds `GET /api/reports/addresses/{domain}` under an isolated UDP DNS
+fixture. The observation freezes TXT chunk joining, exact first version tags,
+multiple-policy rejection, mailto/HTTPS deduplication, external DMARC
+authorization, one authorization query per destination domain, the combined
+10-address limit, and dnsjava's two NXDOMAIN attempts. Recording and immediate
+verification used two separate Java, PostgreSQL, Redis, Maildir, and DNS
+workspaces; a third fresh workspace replayed the generation independently.
+
+The post-recording Rust candidate driver remains in `blackbox/tools` so it does
+not invalidate create-once generations. Advance it to the active generation
+only after the matching Rust behavior exists.

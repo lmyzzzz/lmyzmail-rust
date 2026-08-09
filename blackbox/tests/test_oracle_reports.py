@@ -8,12 +8,28 @@ import pytest
 from lmyzmail_blackbox.differential import DifferentialRunner
 from lmyzmail_blackbox.persistent_runtime import PersistentJavaOracleRuntime
 from lmyzmail_blackbox.ports import PortSet
-from lmyzmail_blackbox.report_contract import REPORT_SCENARIOS
+from lmyzmail_blackbox.report_contract import REPORT_SCENARIOS, report_dns_server
+from lmyzmail_blackbox.scripted_dns import DnsQuery, ScriptedDnsServer
+
+
+class _ReportsJavaOracleRuntime(PersistentJavaOracleRuntime):
+    def __init__(self, workspace: Path, dns: ScriptedDnsServer) -> None:
+        super().__init__(workspace)
+        self.report_dns = dns
+
+    def _application_arguments(self) -> list[str]:
+        arguments = super()._application_arguments()
+        jar_index = arguments.index("-jar")
+        arguments.insert(
+            jar_index,
+            f"-Ddns.server={self.report_dns.host}:{self.report_dns.port}",
+        )
+        return arguments
 
 
 @dataclass(frozen=True, slots=True)
 class _OracleTarget:
-    runtime: PersistentJavaOracleRuntime
+    runtime: _ReportsJavaOracleRuntime
 
     @property
     def target_kind(self) -> str:
@@ -27,6 +43,9 @@ class _OracleTarget:
     def ports(self) -> PortSet | None:
         return self.runtime.ports
 
+    def drain_report_dns_queries(self) -> tuple[DnsQuery, ...]:
+        return self.runtime.report_dns.drain_queries()
+
 
 def _verify_fresh_java(
     runner: DifferentialRunner,
@@ -34,12 +53,13 @@ def _verify_fresh_java(
     *,
     record: bool,
 ) -> None:
-    with PersistentJavaOracleRuntime(workspace) as oracle:
-        target = _OracleTarget(oracle)
-        if record:
-            runner.record_from_java(REPORT_SCENARIOS, target)
-        else:
-            runner.verify_java(REPORT_SCENARIOS, target)
+    with report_dns_server() as dns:
+        with _ReportsJavaOracleRuntime(workspace, dns) as oracle:
+            target = _OracleTarget(oracle)
+            if record:
+                runner.record_from_java(REPORT_SCENARIOS, target)
+            else:
+                runner.verify_java(REPORT_SCENARIOS, target)
 
 
 @pytest.mark.integration
@@ -52,7 +72,7 @@ def test_frozen_java_reports_golden(
     repository = Path(__file__).resolve().parents[2]
     runner = DifferentialRunner(
         repository,
-        repository / "blackbox/golden/java/managed-reports-v1",
+        repository / "blackbox/golden/java/managed-reports-v5",
         "managed-reports",
         record_java=record_java_golden,
     )

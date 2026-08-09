@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from lmyzmail_blackbox.differential import DifferentialRunner
+from lmyzmail_blackbox.errors import HarnessError
 from lmyzmail_blackbox.report_contract import REPORT_SCENARIOS
 from lmyzmail_blackbox.runtime import CandidateRuntime
 
@@ -39,7 +40,8 @@ class _LegacyReportsCandidateRuntime(CandidateRuntime):
 def _candidate(repository: Path) -> _LegacyReportsCandidateRuntime:
     if os.environ.get("LMYZMAIL_CANDIDATE_COMMAND_JSON") is not None:
         candidate = _LegacyReportsCandidateRuntime.from_environment()
-        assert isinstance(candidate, _LegacyReportsCandidateRuntime)
+        if not isinstance(candidate, _LegacyReportsCandidateRuntime):
+            raise HarnessError("reports candidate runtime type was not preserved")
         candidate.command_template = (
             *candidate.command_template,
             "--lmyzmail.reporting.enabled=true",
