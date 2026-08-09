@@ -35,7 +35,7 @@ from lmyzmail_blackbox.differential import DifferentialRunner, RuntimeTarget, Sc
 from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 
-_GOLDEN = "managed-minecraft-render-settings-v1"
+_GOLDEN = "managed-minecraft-render-settings-v2"
 _MENU_IDS = (0x2D, 0x30)
 _OPEN_EDITOR_IDS = (
     0x32,
@@ -272,7 +272,7 @@ def test_frozen_java_minecraft_render_settings_golden(tmp_path: Path) -> None:
     runner = DifferentialRunner(
         repository,
         golden,
-        "managed-minecraft-render-settings",
+        _GOLDEN,
         record_java=record,
     )
     with _LoginJavaOracleRuntime(tmp_path / "java-minecraft-render-settings") as oracle:
@@ -308,5 +308,5 @@ def test_rust_candidate_minecraft_render_settings_matches_golden() -> None:
         DifferentialRunner(
             repository,
             repository / "blackbox/golden/java" / _GOLDEN,
-            "managed-minecraft-render-settings",
+            _GOLDEN,
         ).verify_candidate(SCENARIOS, candidate)
