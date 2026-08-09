@@ -29,10 +29,12 @@ from test_minecraft_mail_view import (
     _MapUpdate,
     _PhaseCapture,
     _plain_chat_texts,
-    _read_until_chat as _read_until_chat_raw,
     _snapshot_capture,
     _unit_chat_packet,
     _wall_topology,
+)
+from test_minecraft_mail_view import (
+    _read_until_chat as _read_until_chat_raw,
 )
 from test_minecraft_main_menu_actions import _click_frame, _snapshot_packets
 from test_minecraft_password_auth import _EMAIL, _GOOD_PASSWORD, _SUCCESS_IDS, _USERNAME
@@ -48,7 +50,7 @@ from lmyzmail_blackbox.differential import DifferentialRunner, RuntimeTarget, Sc
 from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 
-_GOLDEN = "managed-minecraft-video-v2"
+_GOLDEN = "managed-minecraft-video-v3"
 _VIDEO_MEMBER = "BOOT-INF/classes/skibidi_toilet_episode_1.mp4"
 _VIDEO_SIZE = 15_048_248
 _VIDEO_SHA256 = "0e76229bb77ebcf471aec692fa34709cfbbe3dc192127a852a518e34bdd0ecc7"
@@ -679,7 +681,7 @@ def test_frozen_java_minecraft_video_golden(tmp_path: Path) -> None:
     runner = DifferentialRunner(
         repository,
         golden,
-        "managed-minecraft-video-v2",
+        _GOLDEN,
         record_java=record,
     )
     with _VideoJavaOracleRuntime(tmp_path / "java-minecraft-video-v1") as oracle:
@@ -724,5 +726,5 @@ def test_rust_candidate_minecraft_video_matches_golden() -> None:
         DifferentialRunner(
             repository,
             repository / "blackbox/golden/java" / _GOLDEN,
-            "managed-minecraft-video-v2",
+            _GOLDEN,
         ).verify_candidate(SCENARIOS, candidate)
