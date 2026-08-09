@@ -23,7 +23,7 @@ from lmyzmail_blackbox.persistent_runtime import PersistentJavaOracleRuntime
 from lmyzmail_blackbox.ports import PortSet
 from lmyzmail_blackbox.runtime import CandidateRuntime
 
-_GOLDEN = "managed-minecraft-world-v1"
+_GOLDEN = "managed-minecraft-world-v2"
 _USERNAME = b"WorldProbe"
 _INITIAL_PLAY_IDS = (0x01, 0x41, 0x05, 0x39, 0x03, 0x06, 0x09)
 _MAX_BOOTSTRAP_PACKETS = 4_096
@@ -206,7 +206,7 @@ def test_frozen_java_minecraft_world_golden(tmp_path: Path) -> None:
     runner = DifferentialRunner(
         repository,
         golden,
-        "managed-minecraft-world",
+        _GOLDEN,
         record_java=record,
     )
     with _LoginJavaOracleRuntime(tmp_path / "java-minecraft-world") as oracle:
@@ -242,5 +242,5 @@ def test_rust_candidate_minecraft_world_matches_golden() -> None:
         DifferentialRunner(
             repository,
             repository / "blackbox/golden/java" / _GOLDEN,
-            "managed-minecraft-world",
+            _GOLDEN,
         ).verify_candidate(SCENARIOS, candidate)
