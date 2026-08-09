@@ -134,13 +134,16 @@ def _certificate_snapshot(der: bytes) -> dict[str, Any]:
         (certificate.not_valid_after_utc - certificate.not_valid_before_utc).total_seconds()
         / 86_400
     )
+    signature_hash = certificate.signature_hash_algorithm
+    if signature_hash is None:
+        raise ProtocolError("honeypot certificate signature has no hash algorithm")
     return {
         "serial": certificate.serial_number,
         "subject": certificate.subject.rfc4514_string(),
         "issuer": certificate.issuer.rfc4514_string(),
         "dns_sans": sorted(sans.value.get_values_for_type(x509.DNSName)),
         "curve": public_key.curve.name,
-        "signature_hash": certificate.signature_hash_algorithm.name,
+        "signature_hash": signature_hash.name,
         "is_ca": basic.value.ca,
         "basic_constraints_critical": basic.critical,
         "validity_days": validity_days,

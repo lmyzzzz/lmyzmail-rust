@@ -4,6 +4,7 @@ import json
 import socket
 import time
 import xml.etree.ElementTree as ET
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, cast
 
@@ -25,10 +26,10 @@ _TIMESTAMP = "<rfc3339-timestamp>"
 _GENERATION = 0
 
 
-def _contract(value: dict[str, Any]):
-    def decorate(capture: Any) -> Any:
-        capture.__lmyzmail_contract__ = value
-        return capture
+def _contract(value: dict[str, Any]) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    def decorate(function: Callable[..., Any]) -> Callable[..., Any]:
+        cast(Any, function).__lmyzmail_contract__ = value
+        return function
 
     return decorate
 
