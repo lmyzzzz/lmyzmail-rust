@@ -917,3 +917,13 @@ generation reference and binds definition tree
 `2ac6c9877c5e3de758e293633e4130ed8eae36c7f4f4730b2dfa828bed614974`.
 Recording and immediate verification used two separately initialized Java,
 PostgreSQL, Redis, and Maildir workspaces.
+
+The post-recording Rust candidate driver is intentionally kept outside
+`blackbox/tests` so adding it does not invalidate this create-once generation.
+Run the exact candidate replay from WSL with:
+
+```sh
+PYTHONPATH=blackbox/src:blackbox/tests:blackbox/tools \
+  .blackbox-venv-wsl/bin/python -m pytest \
+  blackbox/tools/test_candidate_reports.py -m candidate -vv
+```

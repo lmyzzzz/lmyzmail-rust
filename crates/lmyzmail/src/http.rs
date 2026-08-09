@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use deadpool_postgres::Pool;
 use deadpool_redis::Pool as RedisPool;
 use percent_encoding::percent_decode_str;
@@ -32,6 +32,7 @@ use crate::{
         MailboxService,
     },
     outbound::{OutboundError, OutboundService, SendRequest},
+    reporting::ReportingService,
     userdata::{ContactRecord, UserDataError, UserDataService},
 };
 
@@ -111,6 +112,7 @@ struct ConnectionContext<'a> {
     userdata: &'a UserDataService,
     outbound: &'a OutboundService,
     cringe: &'a CringeService,
+    reporting: &'a ReportingService,
     cancellation: &'a CancellationToken,
 }
 
@@ -186,6 +188,10 @@ pub async fn serve_http(
     let mailbox = Arc::new(MailboxService::from_config(&config, database_pool.clone()));
     let userdata = Arc::new(UserDataService::new(database_pool.clone()));
     let cringe_pool = database_pool.clone();
+    let reporting = Arc::new(ReportingService::new(
+        database_pool.clone(),
+        config.reporting.clone(),
+    ));
     let outbound = Arc::new(
         OutboundService::from_config(&config, database_pool, redis_pool)
             .map_err(io::Error::other)?,
@@ -262,6 +268,7 @@ pub async fn serve_http(
         let userdata = Arc::clone(&userdata);
         let outbound = Arc::clone(&outbound);
         let cringe = Arc::clone(&cringe);
+        let reporting = Arc::clone(&reporting);
         let request_cancellation = cancellation.child_token();
         tasks.spawn(async move {
             let _permit = permit;
@@ -277,6 +284,7 @@ pub async fn serve_http(
                         userdata: &userdata,
                         outbound: &outbound,
                         cringe: &cringe,
+                        reporting: &reporting,
                         cancellation: &request_cancellation,
                     },
                 ),
@@ -468,6 +476,7 @@ async fn handle_connection(
         userdata,
         outbound,
         cringe,
+        reporting,
         cancellation,
     } = *context;
     let request = read_request(&mut stream, max_request_bytes).await?;
@@ -905,6 +914,138 @@ async fn handle_connection(
         },
         ParsedRequest::ApiQuotaMissing => {
             write_json_error(stream, Status::BadRequest, "address_required").await
+        }
+        ParsedRequest::ReportStatus => {
+            let reporting = reporting.config();
+            write_json_response(
+                stream,
+                Status::Ok,
+                &ReportingStatusResponse {
+                    enabled: reporting.enabled,
+                    auto_send_enabled: reporting.auto_send_enabled,
+                    min_volume_for_report: reporting.min_volume_for_report,
+                    dmarc_report_sender_address: reporting
+                        .dmarc_report_sender_address
+                        .as_deref()
+                        .unwrap_or("not configured"),
+                    tls_report_sender_address: reporting
+                        .tls_report_sender_address
+                        .as_deref()
+                        .unwrap_or("not configured"),
+                    organization_name: reporting
+                        .organization_name
+                        .as_deref()
+                        .unwrap_or("not configured"),
+                    http_delivery_enabled: reporting.http_delivery_enabled,
+                },
+            )
+            .await
+        }
+        ParsedRequest::ReportDomains(date) => {
+            let Some(date) = report_date(date.as_deref()) else {
+                return write_json_error(stream, Status::BadRequest, "Invalid date format").await;
+            };
+            match reporting.domains(date, cancellation).await {
+                Ok(domains) => {
+                    let date_text = date.to_string();
+                    write_json_response(
+                        stream,
+                        Status::Ok,
+                        &ReportDomainsResponse {
+                            date: &date_text,
+                            min_volume: reporting.config().min_volume_for_report,
+                            dmarc_domains: &domains.dmarc,
+                            tls_domains: &domains.tls,
+                        },
+                    )
+                    .await
+                }
+                Err(_) => {
+                    write_json_error(stream, Status::InternalServerError, "internal_error").await
+                }
+            }
+        }
+        ParsedRequest::ReportTrigger(date) => {
+            if !reporting.config().enabled {
+                return write_response(
+                    stream,
+                    Status::BadRequest,
+                    br#"{"error":"Report generation is disabled","message":"Set lmyzmail.reporting.enabled=true to enable"}"#,
+                    "application/json; charset=UTF-8",
+                )
+                .await;
+            }
+            let Some(date) = report_date(date.as_deref()) else {
+                return write_response(
+                    stream,
+                    Status::BadRequest,
+                    br#"{"error":"Invalid date format","message":"Use ISO format: YYYY-MM-DD"}"#,
+                    "application/json; charset=UTF-8",
+                )
+                .await;
+            };
+            match reporting.domains(date, cancellation).await {
+                Ok(domains) if domains.dmarc.is_empty() && domains.tls.is_empty() => {
+                    let date_text = date.to_string();
+                    write_json_response(
+                        stream,
+                        Status::Ok,
+                        &ReportExecutionSummary {
+                            date: &date_text,
+                            dmarc_sent: 0,
+                            dmarc_failed: 0,
+                            tls_sent: 0,
+                            tls_failed: 0,
+                            error: "none",
+                        },
+                    )
+                    .await
+                }
+                Ok(_) | Err(_) => {
+                    write_json_error(stream, Status::InternalServerError, "internal_error").await
+                }
+            }
+        }
+        ParsedRequest::ReportDomain { domain, date } => {
+            if !reporting.config().enabled {
+                return write_json_error(
+                    stream,
+                    Status::BadRequest,
+                    "Report generation is disabled",
+                )
+                .await;
+            }
+            let Some(date) = report_date(date.as_deref()) else {
+                return write_json_error(stream, Status::BadRequest, "Invalid date format").await;
+            };
+            match reporting
+                .domain_data_presence(&domain, date, cancellation)
+                .await
+            {
+                Ok(presence) if !presence.dmarc && !presence.tls => {
+                    let date_text = date.to_string();
+                    write_json_response(
+                        stream,
+                        Status::Ok,
+                        &SingleDomainReportResponse {
+                            domain: &domain,
+                            date: &date_text,
+                            dmarc: EmptyDomainReportResult {
+                                results: &[],
+                                error: "No DMARC data for this domain/date",
+                            },
+                            tls: EmptyDomainReportResult {
+                                results: &[],
+                                error: "No TLS data for this domain/date",
+                            },
+                        },
+                    )
+                    .await
+                }
+                Ok(_) | Err(_) => {
+                    write_json_error(stream, Status::InternalServerError, "internal_error").await
+                }
+            }
         }
         ParsedRequest::CringeAbove { min_score, current } => {
             match cringe.above_score(min_score, current, cancellation).await {
@@ -1876,6 +2017,28 @@ fn parse_cringe_insults(path: &str) -> ParsedRequest {
     ParsedRequest::CringeInsults(PageQuery { page, size, search })
 }
 
+fn query_value(path: &str, key: &str) -> Option<String> {
+    let query = path.split_once('?').map(|(_, query)| query)?;
+    url::form_urlencoded::parse(query.as_bytes())
+        .find(|(candidate, _)| candidate == key)
+        .map(|(_, value)| value.into_owned())
+}
+
+fn report_domain_path(path: &str) -> Option<&str> {
+    let domain = path.strip_prefix("/api/reports/domain/")?;
+    (!domain.is_empty() && !domain.contains('/')).then_some(domain)
+}
+
+fn report_date(value: Option<&str>) -> Option<NaiveDate> {
+    match value {
+        None => Utc::now().date_naive().pred_opt(),
+        Some(value) if value.trim().is_empty() => Utc::now().date_naive().pred_opt(),
+        Some(value) => NaiveDate::parse_from_str(value, "%Y-%m-%d")
+            .ok()
+            .filter(|date| date.format("%Y-%m-%d").to_string() == value),
+    }
+}
+
 fn parse_cringe_above_score(path: &str) -> ParsedRequest {
     let (route, query) = path.split_once('?').map_or((path, ""), |parts| parts);
     let Some(value) = route.strip_prefix("/api/cringe-ips/above-score/") else {
@@ -2097,6 +2260,13 @@ enum ParsedRequest {
     ApiStatusByMessage(String),
     ApiQuota(String),
     ApiQuotaMissing,
+    ReportStatus,
+    ReportDomains(Option<String>),
+    ReportTrigger(Option<String>),
+    ReportDomain {
+        domain: String,
+        date: Option<String>,
+    },
     CringeAbove {
         min_score: i32,
         current: bool,
@@ -2299,6 +2469,37 @@ fn parse_request(
                     .map_or(ParsedRequest::ApiQuotaMissing, ParsedRequest::ApiQuota)
             }
         },
+        ("GET", "/api/reports/status") => match api_permission(config, api_key, false) {
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
+            ApiPermission::Granted => ParsedRequest::ReportStatus,
+        },
+        ("GET", "/api/reports/domains") => match api_permission(config, api_key, false) {
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
+            ApiPermission::Granted => ParsedRequest::ReportDomains(query_value(path, "date")),
+        },
+        ("POST", "/api/reports/trigger") => match api_permission(config, api_key, true) {
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenWrite,
+            ApiPermission::Granted => ParsedRequest::ReportTrigger(query_value(path, "date")),
+        },
+        ("POST", routing) if report_domain_path(routing).is_some() => {
+            match api_permission(config, api_key, true) {
+                ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+                ApiPermission::Forbidden => ParsedRequest::ForbiddenWrite,
+                ApiPermission::Granted => {
+                    let encoded = report_domain_path(routing).unwrap_or_default();
+                    percent_decode_str(encoded)
+                        .decode_utf8()
+                        .map(|domain| ParsedRequest::ReportDomain {
+                            domain: domain.into_owned(),
+                            date: query_value(path, "date"),
+                        })
+                        .unwrap_or(ParsedRequest::BadRequest)
+                }
+            }
+        }
         ("GET", "/api/cringe-ips/insults") => match api_permission(config, api_key, false) {
             ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
             ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
@@ -2525,6 +2726,52 @@ struct ApiStatusResponse<'a> {
     timestamp: String,
     version: &'static str,
     domains: ApiDomains<'a>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReportingStatusResponse<'a> {
+    enabled: bool,
+    auto_send_enabled: bool,
+    min_volume_for_report: i32,
+    dmarc_report_sender_address: &'a str,
+    tls_report_sender_address: &'a str,
+    organization_name: &'a str,
+    http_delivery_enabled: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReportDomainsResponse<'a> {
+    date: &'a str,
+    min_volume: i32,
+    dmarc_domains: &'a [String],
+    tls_domains: &'a [String],
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReportExecutionSummary<'a> {
+    date: &'a str,
+    dmarc_sent: i32,
+    dmarc_failed: i32,
+    tls_sent: i32,
+    tls_failed: i32,
+    error: &'a str,
+}
+
+#[derive(Serialize)]
+struct EmptyDomainReportResult<'a> {
+    results: &'a [Value],
+    error: &'a str,
+}
+
+#[derive(Serialize)]
+struct SingleDomainReportResponse<'a> {
+    domain: &'a str,
+    date: &'a str,
+    dmarc: EmptyDomainReportResult<'a>,
+    tls: EmptyDomainReportResult<'a>,
 }
 
 #[derive(Serialize)]
@@ -3855,6 +4102,76 @@ lmyzmail.public-registration-enabled=true\n",
                 size: 25,
             }
         );
+    }
+
+    #[test]
+    fn report_routes_preserve_method_permissions_path_and_first_date_value() {
+        let config = config_with_api_keys();
+        assert_eq!(
+            parse_request(
+                b"GET /api/reports/status HTTP/1.1\r\nX-API-Key: read-key\r\n\r\n",
+                1024,
+                &config,
+            ),
+            ParsedRequest::ReportStatus
+        );
+        assert_eq!(
+            parse_request(
+                b"GET /api/reports/status HTTP/1.1\r\nX-API-Key: write-key\r\n\r\n",
+                1024,
+                &config,
+            ),
+            ParsedRequest::ForbiddenRead
+        );
+        assert_eq!(
+            parse_request(
+                b"GET /api/reports/domains?date=2024-01-01&date=2024-02-02 HTTP/1.1\r\nX-API-Key: read-key\r\n\r\n",
+                1024,
+                &config,
+            ),
+            ParsedRequest::ReportDomains(Some("2024-01-01".to_owned()))
+        );
+        assert_eq!(
+            parse_request(
+                b"POST /api/reports/trigger?date=2024-01-01 HTTP/1.1\r\nX-API-Key: write-key\r\nContent-Length: 0\r\n\r\n",
+                1024,
+                &config,
+            ),
+            ParsedRequest::ReportTrigger(Some("2024-01-01".to_owned()))
+        );
+        assert_eq!(
+            parse_request(
+                b"POST /api/reports/trigger HTTP/1.1\r\nX-API-Key: read-key\r\nContent-Length: 0\r\n\r\n",
+                1024,
+                &config,
+            ),
+            ParsedRequest::ForbiddenWrite
+        );
+        assert_eq!(
+            parse_request(
+                b"POST /api/reports/domain/no-data%2Eexample?date=2024-01-02 HTTP/1.1\r\nX-API-Key: write-key\r\nContent-Length: 0\r\n\r\n",
+                1024,
+                &config,
+            ),
+            ParsedRequest::ReportDomain {
+                domain: "no-data.example".to_owned(),
+                date: Some("2024-01-02".to_owned()),
+            }
+        );
+    }
+
+    #[test]
+    fn report_dates_are_strict_iso_with_blank_mean_yesterday() {
+        assert_eq!(
+            report_date(Some("2024-02-29")),
+            NaiveDate::from_ymd_opt(2024, 2, 29)
+        );
+        for invalid in ["2024-02-30", "2024-1-01", " 2024-01-01", "not-a-date"] {
+            assert_eq!(report_date(Some(invalid)), None, "accepted {invalid:?}");
+        }
+        let yesterday = Utc::now().date_naive().pred_opt();
+        assert_eq!(report_date(None), yesterday);
+        assert_eq!(report_date(Some(" \t")), yesterday);
     }
 
     #[test]

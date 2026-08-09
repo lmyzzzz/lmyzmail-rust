@@ -220,6 +220,8 @@ struct JsonRuntimeConfig {
     #[serde(default)]
     features: JsonFeatureConfig,
     #[serde(default)]
+    reporting: JsonReportingConfig,
+    #[serde(default)]
     htcpcp: JsonHtcpcpConfig,
     #[serde(default)]
     minecraft: JsonMinecraftConfig,
@@ -306,10 +308,50 @@ struct JsonFeatureConfig {
     xdp: bool,
     #[serde(default)]
     fail2ban: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     report_delivery: bool,
     #[serde(default)]
     show_internet_nl_badge: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct JsonReportingConfig {
+    enabled: bool,
+    auto_send_enabled: bool,
+    batch_size: u32,
+    flush_interval_ms: u64,
+    retention_days: u32,
+    min_volume_for_report: i32,
+    dmarc_report_sender_address: Option<String>,
+    dmarc_report_sender_password: String,
+    tls_report_sender_address: Option<String>,
+    tls_report_sender_password: String,
+    organization_name: Option<String>,
+    organization_email: Option<String>,
+    http_delivery_enabled: Option<bool>,
+    http_delivery_timeout_seconds: u64,
+}
+
+impl Default for JsonReportingConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            auto_send_enabled: false,
+            batch_size: 500,
+            flush_interval_ms: 2_000,
+            retention_days: 90,
+            min_volume_for_report: 10,
+            dmarc_report_sender_address: None,
+            dmarc_report_sender_password: String::new(),
+            tls_report_sender_address: None,
+            tls_report_sender_password: String::new(),
+            organization_name: None,
+            organization_email: None,
+            http_delivery_enabled: None,
+            http_delivery_timeout_seconds: 30,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -548,7 +590,7 @@ impl Default for JsonFeatureConfig {
             mta_sts: true,
             xdp: false,
             fail2ban: false,
-            report_delivery: false,
+            report_delivery: true,
             show_internet_nl_badge: false,
         }
     }
@@ -1222,7 +1264,71 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
     )?;
     properties.insert(
         "lmyzmail.reporting.http-delivery-enabled".to_owned(),
-        value.features.report_delivery.to_string(),
+        value
+            .reporting
+            .http_delivery_enabled
+            .unwrap_or(value.features.report_delivery)
+            .to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.reporting.enabled".to_owned(),
+        value.reporting.enabled.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.reporting.auto-send-enabled".to_owned(),
+        value.reporting.auto_send_enabled.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.reporting.batch-size".to_owned(),
+        value.reporting.batch_size.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.reporting.flush-interval-ms".to_owned(),
+        value.reporting.flush_interval_ms.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.reporting.retention-days".to_owned(),
+        value.reporting.retention_days.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.reporting.min-volume-for-report".to_owned(),
+        value.reporting.min_volume_for_report.to_string(),
+    )?;
+    insert_optional_property(
+        &mut properties,
+        "lmyzmail.reporting.dmarc-report-sender-address",
+        value.reporting.dmarc_report_sender_address,
+    )?;
+    if !value.reporting.dmarc_report_sender_password.is_empty() {
+        properties.insert(
+            "lmyzmail.reporting.dmarc-report-sender-password".to_owned(),
+            value.reporting.dmarc_report_sender_password,
+        )?;
+    }
+    insert_optional_property(
+        &mut properties,
+        "lmyzmail.reporting.tls-report-sender-address",
+        value.reporting.tls_report_sender_address,
+    )?;
+    if !value.reporting.tls_report_sender_password.is_empty() {
+        properties.insert(
+            "lmyzmail.reporting.tls-report-sender-password".to_owned(),
+            value.reporting.tls_report_sender_password,
+        )?;
+    }
+    insert_optional_property(
+        &mut properties,
+        "lmyzmail.reporting.organization-name",
+        value.reporting.organization_name,
+    )?;
+    insert_optional_property(
+        &mut properties,
+        "lmyzmail.reporting.organization-email",
+        value.reporting.organization_email,
+    )?;
+    properties.insert(
+        "lmyzmail.reporting.http-delivery-timeout-seconds".to_owned(),
+        value.reporting.http_delivery_timeout_seconds.to_string(),
     )?;
     properties.insert(
         "lmyzmail.show-internet-nl-badge".to_owned(),
@@ -1418,6 +1524,7 @@ pub struct RuntimeConfig {
     pub api_keys: Vec<ApiKeyConfig>,
     pub outbound_route: OutboundRouteConfig,
     pub features: FeatureConfig,
+    pub reporting: ReportingConfig,
     pub htcpcp: HtcpcpConfig,
     pub minecraft: MinecraftConfig,
     pub mail_render: MailRenderConfig,
@@ -1492,6 +1599,24 @@ pub struct FeatureConfig {
     pub fail2ban: bool,
     pub report_delivery: bool,
     pub show_internet_nl_badge: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReportingConfig {
+    pub enabled: bool,
+    pub auto_send_enabled: bool,
+    pub batch_size: u32,
+    pub flush_interval_ms: u64,
+    pub retention_days: u32,
+    pub min_volume_for_report: i32,
+    pub dmarc_report_sender_address: Option<String>,
+    pub dmarc_report_sender_password: String,
+    pub tls_report_sender_address: Option<String>,
+    pub tls_report_sender_password: String,
+    pub organization_name: Option<String>,
+    pub organization_email: Option<String>,
+    pub http_delivery_enabled: bool,
+    pub http_delivery_timeout_seconds: u64,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1865,7 +1990,7 @@ impl RuntimeConfig {
                 &properties,
                 &["lmyzmail.reporting.http-delivery-enabled"],
                 &["botmail.reporting.http-delivery-enabled"],
-                false,
+                true,
             )?,
             show_internet_nl_badge: preferred_bool(
                 &properties,
@@ -1874,6 +1999,96 @@ impl RuntimeConfig {
                 false,
             )?,
         };
+
+        let reporting = ReportingConfig {
+            enabled: preferred_bool(
+                &properties,
+                &["lmyzmail.reporting.enabled"],
+                &["botmail.reporting.enabled"],
+                false,
+            )?,
+            auto_send_enabled: preferred_bool(
+                &properties,
+                &["lmyzmail.reporting.auto-send-enabled"],
+                &["botmail.reporting.auto-send-enabled"],
+                false,
+            )?,
+            batch_size: parse_number(
+                &properties,
+                &["lmyzmail.reporting.batch-size"],
+                &["botmail.reporting.batch-size"],
+                500_u32,
+                "reporting batch size",
+            )?,
+            flush_interval_ms: parse_number(
+                &properties,
+                &["lmyzmail.reporting.flush-interval-ms"],
+                &["botmail.reporting.flush-interval-ms"],
+                2_000_u64,
+                "reporting flush interval",
+            )?,
+            retention_days: parse_number(
+                &properties,
+                &["lmyzmail.reporting.retention-days"],
+                &["botmail.reporting.retention-days"],
+                90_u32,
+                "reporting retention",
+            )?,
+            min_volume_for_report: parse_number(
+                &properties,
+                &["lmyzmail.reporting.min-volume-for-report"],
+                &["botmail.reporting.min-volume-for-report"],
+                10_i32,
+                "reporting minimum volume",
+            )?,
+            dmarc_report_sender_address: preferred(
+                &properties,
+                &["lmyzmail.reporting.dmarc-report-sender-address"],
+                &["botmail.reporting.dmarc-report-sender-address"],
+            )
+            .map(str::to_owned),
+            dmarc_report_sender_password: preferred(
+                &properties,
+                &["lmyzmail.reporting.dmarc-report-sender-password"],
+                &["botmail.reporting.dmarc-report-sender-password"],
+            )
+            .unwrap_or_default()
+            .to_owned(),
+            tls_report_sender_address: preferred(
+                &properties,
+                &["lmyzmail.reporting.tls-report-sender-address"],
+                &["botmail.reporting.tls-report-sender-address"],
+            )
+            .map(str::to_owned),
+            tls_report_sender_password: preferred(
+                &properties,
+                &["lmyzmail.reporting.tls-report-sender-password"],
+                &["botmail.reporting.tls-report-sender-password"],
+            )
+            .unwrap_or_default()
+            .to_owned(),
+            organization_name: preferred(
+                &properties,
+                &["lmyzmail.reporting.organization-name"],
+                &["botmail.reporting.organization-name"],
+            )
+            .map(str::to_owned),
+            organization_email: preferred(
+                &properties,
+                &["lmyzmail.reporting.organization-email"],
+                &["botmail.reporting.organization-email"],
+            )
+            .map(str::to_owned),
+            http_delivery_enabled: features.report_delivery,
+            http_delivery_timeout_seconds: parse_number(
+                &properties,
+                &["lmyzmail.reporting.http-delivery-timeout-seconds"],
+                &["botmail.reporting.http-delivery-timeout-seconds"],
+                30_u64,
+                "reporting HTTP delivery timeout",
+            )?,
+        };
+        validate_reporting(&reporting)?;
 
         let tls_enabled = preferred_bool(
             &properties,
@@ -2018,6 +2233,7 @@ impl RuntimeConfig {
             api_keys,
             outbound_route,
             features,
+            reporting,
             htcpcp: htcpcp_config,
             minecraft: minecraft_config,
             mail_render,
@@ -2029,6 +2245,17 @@ impl RuntimeConfig {
     pub fn preferred_value(&self, new_key: &str, legacy_key: &str) -> Option<&str> {
         preferred(&self.properties, &[new_key], &[legacy_key])
     }
+}
+
+fn insert_optional_property(
+    properties: &mut Properties,
+    key: &str,
+    value: Option<String>,
+) -> Result<(), ConfigError> {
+    if let Some(value) = value {
+        properties.insert(key.to_owned(), value)?;
+    }
+    Ok(())
 }
 
 fn preferred<'a>(
@@ -3332,6 +3559,63 @@ fn validate_outbound_route(value: &OutboundRouteConfig) -> Result<(), ConfigErro
     Ok(())
 }
 
+fn validate_reporting(value: &ReportingConfig) -> Result<(), ConfigError> {
+    if value.batch_size == 0 || value.batch_size > 100_000 {
+        return Err(ConfigError::Invalid(
+            "reporting batch size must be between 1 and 100000".into(),
+        ));
+    }
+    if value.flush_interval_ms == 0 || value.flush_interval_ms > 60 * 60 * 1_000 {
+        return Err(ConfigError::Invalid(
+            "reporting flush interval must be between 1 and 3600000 ms".into(),
+        ));
+    }
+    if value.retention_days > 36_500 {
+        return Err(ConfigError::Invalid(
+            "reporting retention must not exceed 36500 days".into(),
+        ));
+    }
+    if value.http_delivery_timeout_seconds == 0 || value.http_delivery_timeout_seconds > 300 {
+        return Err(ConfigError::Invalid(
+            "reporting HTTP delivery timeout must be between 1 and 300 seconds".into(),
+        ));
+    }
+    for (label, candidate, max) in [
+        (
+            "DMARC report sender address",
+            value.dmarc_report_sender_address.as_deref(),
+            320,
+        ),
+        (
+            "TLS report sender address",
+            value.tls_report_sender_address.as_deref(),
+            320,
+        ),
+        (
+            "reporting organization name",
+            value.organization_name.as_deref(),
+            512,
+        ),
+        (
+            "reporting organization email",
+            value.organization_email.as_deref(),
+            320,
+        ),
+    ] {
+        if candidate.is_some_and(|candidate| {
+            candidate.len() > max
+                || candidate
+                    .chars()
+                    .any(|character| matches!(character, '\0' | '\r' | '\n'))
+        }) {
+            return Err(ConfigError::Invalid(format!(
+                "{label} exceeds {max} bytes or contains a control separator"
+            )));
+        }
+    }
+    Ok(())
+}
+
 fn validate_limits(value: &LimitConfig) -> Result<(), ConfigError> {
     if value.redis_pool == 0 || value.redis_pool > MAX_POOL_SIZE {
         return Err(ConfigError::Invalid(format!(
@@ -3626,6 +3910,73 @@ lmyzmail.smtp.mta-sts-fetch-timeout-ms=6000\n",
             assert!(
                 RuntimeConfig::from_properties(Properties::parse(input).unwrap()).is_err(),
                 "accepted unsafe outbound route configuration: {}",
+                String::from_utf8_lossy(input)
+            );
+        }
+    }
+
+    #[test]
+    fn reporting_accepts_legacy_keys_with_new_precedence_and_safe_bounds() {
+        let config = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.reporting.enabled=false\n\
+botmail.reporting.auto-send-enabled=true\n\
+botmail.reporting.batch-size=750\n\
+botmail.reporting.flush-interval-ms=2500\n\
+botmail.reporting.retention-days=120\n\
+botmail.reporting.min-volume-for-report=-2\n\
+botmail.reporting.dmarc-report-sender-address=legacy-dmarc@example.test\n\
+botmail.reporting.tls-report-sender-address=legacy-tls@example.test\n\
+botmail.reporting.organization-name=Legacy Org\n\
+botmail.reporting.organization-email=legacy@example.test\n\
+botmail.reporting.http-delivery-enabled=true\n\
+botmail.reporting.http-delivery-timeout-seconds=45\n\
+lmyzmail.reporting.enabled=true\n\
+lmyzmail.reporting.dmarc-report-sender-address=\n\
+lmyzmail.reporting.min-volume-for-report=10\n\
+lmyzmail.reporting.http-delivery-enabled=false\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert!(config.reporting.enabled);
+        assert!(config.reporting.auto_send_enabled);
+        assert_eq!(config.reporting.batch_size, 750);
+        assert_eq!(config.reporting.flush_interval_ms, 2_500);
+        assert_eq!(config.reporting.retention_days, 120);
+        assert_eq!(config.reporting.min_volume_for_report, 10);
+        assert_eq!(
+            config.reporting.dmarc_report_sender_address.as_deref(),
+            Some("")
+        );
+        assert_eq!(
+            config.reporting.tls_report_sender_address.as_deref(),
+            Some("legacy-tls@example.test")
+        );
+        assert_eq!(
+            config.reporting.organization_name.as_deref(),
+            Some("Legacy Org")
+        );
+        assert_eq!(
+            config.reporting.organization_email.as_deref(),
+            Some("legacy@example.test")
+        );
+        assert!(!config.reporting.http_delivery_enabled);
+        assert_eq!(config.reporting.http_delivery_timeout_seconds, 45);
+
+        for input in [
+            b"lmyzmail.reporting.batch-size=0\n".as_slice(),
+            b"lmyzmail.reporting.batch-size=100001\n".as_slice(),
+            b"lmyzmail.reporting.flush-interval-ms=0\n".as_slice(),
+            b"lmyzmail.reporting.flush-interval-ms=3600001\n".as_slice(),
+            b"lmyzmail.reporting.retention-days=36501\n".as_slice(),
+            b"lmyzmail.reporting.http-delivery-timeout-seconds=0\n".as_slice(),
+            b"lmyzmail.reporting.http-delivery-timeout-seconds=301\n".as_slice(),
+        ] {
+            assert!(
+                RuntimeConfig::from_properties(Properties::parse(input).unwrap()).is_err(),
+                "accepted unsafe reporting configuration: {}",
                 String::from_utf8_lossy(input)
             );
         }

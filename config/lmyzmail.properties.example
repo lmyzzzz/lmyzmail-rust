@@ -104,7 +104,20 @@ lmyzmail.smtp.mta-sts-enabled=true
 lmyzmail.smtp.skibidi-generator-mode=AUTO_SAFE
 lmyzmail.xdp.enabled=false
 lmyzmail.fail2ban.enabled=false
+lmyzmail.reporting.enabled=false
+lmyzmail.reporting.auto-send-enabled=false
+lmyzmail.reporting.batch-size=500
+lmyzmail.reporting.flush-interval-ms=2000
+lmyzmail.reporting.retention-days=90
+lmyzmail.reporting.min-volume-for-report=10
+lmyzmail.reporting.dmarc-report-sender-address=
+lmyzmail.reporting.dmarc-report-sender-password=
+lmyzmail.reporting.tls-report-sender-address=
+lmyzmail.reporting.tls-report-sender-password=
+lmyzmail.reporting.organization-name=
+lmyzmail.reporting.organization-email=
 lmyzmail.reporting.http-delivery-enabled=false
+lmyzmail.reporting.http-delivery-timeout-seconds=30
 lmyzmail.show-internet-nl-badge=false
 
 # API keys are intentionally absent from this example. Inject them through a

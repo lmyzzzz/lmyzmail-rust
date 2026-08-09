@@ -25,5 +25,6 @@ pub mod outbound_smtp;
 pub mod outbound_takeover;
 pub mod outbound_worker;
 pub mod redis;
+pub mod reporting;
 pub mod smtp;
 pub mod userdata;
