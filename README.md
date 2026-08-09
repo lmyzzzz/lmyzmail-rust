@@ -134,10 +134,17 @@ Rendering runs on a two-worker, two-slot blocking pool with a 60-second deadline
 hard input/output/image budgets, cancellation, SSRF-resistant image fetching,
 and joined shutdown. The map wall preserves configurable orientation and IDs,
 restores covered blocks and hotbar state, and overwrites absent rows with the
-frozen blank palette color on short final pages. The complete v2 raw-socket
+frozen blank palette color on short final pages. The complete v4 raw-socket
 candidate trace and all seven rendered page hashes match the frozen Java golden.
-Minecraft block/map video playback remains outside this milestone and is not
-claimed as implemented.
+Map and block video playback now use the source-pinned FFmpeg 7.1 decoder behind
+a narrow C/Rust boundary, stream one bounded frame at a time, and run palette or
+block conversion on a two-worker, two-entry CPU pool. The frozen MP4 hash, video
+menu and command validation, map IDs and item frames, full and dirty-rectangle
+pixels, block chunks, pause/resume/stop flow, teardown, hotbar, scoreboard, and
+completion messages match the v3 Java golden. A shared fixed-capacity permit
+remains held through every admitted map or block playback lifecycle; this
+intentionally fixes the oracle's premature map-video permit release without
+changing admitted-session protocol behavior.
 
 Outbound HTTP currently covers durable PostgreSQL admission, sender-scoped and
 API status lookup, and quota reporting. A `202` response is emitted only after a

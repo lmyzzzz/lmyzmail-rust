@@ -139,8 +139,29 @@ and base entity ID. Every page transition sends all wall map IDs; a short final
 page fills missing lower tiles with palette index 34 so pixels from the previous
 page cannot remain visible. Closing or replacing a GUI while a mail wall is
 active restores slots 36, 44, 39, 40, and 41 in that order and then selects held
-slot 4. The v2 fixture freezes seven Java pages, including the 128-pixel final
-page, full-wall padding, packet sequence, and rendered palette hashes.
+slot 4. The v4 fixture freezes seven Java pages, including the 128-pixel final
+page, full-wall padding, packet sequence, and rendered palette hashes. Login
+prefix reads have a separate bounded 60-second allowance so cold Java world
+bootstrap cannot consume the renderer's unchanged 90-second phase budget or
+5-second per-read budget.
+
+## Minecraft video contract
+
+The frozen 15,048,248-byte MP4 is accepted only at its attested SHA-256 and is
+decoded one frame at a time through the source-pinned FFmpeg 7.1 boundary. Map
+and block playback share a configurable admission semaphore capped at 64; the
+permit is owned until success, error, disconnect, cancellation, rejection, or
+shutdown reaches its terminal teardown path. Frame conversion uses a dedicated
+two-worker, two-entry pool, rejects oversized frames and block regions, and
+inherits the connection's absolute deadline and cancellation token.
+
+The v3 raw-socket golden freezes video menu NBT, command errors and limits,
+map-wall setup, row-major map IDs, the first full frame, resumed dirty
+rectangles, pause silence, stop restoration, block chunk-section updates,
+Java HashMap/HashSet teardown ordering, duplicate completion scoreboard refresh,
+and final messages. The only allowlisted behavior difference is permit lifetime:
+the Java map player returns its permit before submitting decode work, while the
+candidate holds the permit for the complete admitted lifecycle.
 
 ## SMTP AUTH oracle behavior
 
