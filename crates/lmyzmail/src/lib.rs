@@ -1,6 +1,7 @@
 pub mod auth;
 mod bounded_blocking;
 pub mod config;
+pub mod cringe;
 pub mod database;
 pub(crate) mod ffmpeg_video;
 pub mod honeypot;

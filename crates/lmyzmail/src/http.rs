@@ -26,6 +26,7 @@ use url::Url;
 use crate::{
     auth::{AuthError, AuthService, CredentialOutcome, LoginOutcome},
     config::RuntimeConfig,
+    cringe::{CringeError, CringeService, PageQuery},
     mailbox::{
         AttachmentData, AttachmentMeta, EmailDetail, MAX_API_RAW_BYTES, MailboxError,
         MailboxService,
@@ -109,6 +110,7 @@ struct ConnectionContext<'a> {
     mailbox: &'a MailboxService,
     userdata: &'a UserDataService,
     outbound: &'a OutboundService,
+    cringe: &'a CringeService,
     cancellation: &'a CancellationToken,
 }
 
@@ -183,10 +185,12 @@ pub async fn serve_http(
     );
     let mailbox = Arc::new(MailboxService::from_config(&config, database_pool.clone()));
     let userdata = Arc::new(UserDataService::new(database_pool.clone()));
+    let cringe_pool = database_pool.clone();
     let outbound = Arc::new(
         OutboundService::from_config(&config, database_pool, redis_pool)
             .map_err(io::Error::other)?,
     );
+    let cringe = Arc::new(CringeService::new(cringe_pool));
     let reconciliation_outbound = Arc::clone(&outbound);
     let reconciliation_cancellation = cancellation.clone();
     let mut reconciliation_task = tokio::spawn(async move {
@@ -257,6 +261,7 @@ pub async fn serve_http(
         let mailbox = Arc::clone(&mailbox);
         let userdata = Arc::clone(&userdata);
         let outbound = Arc::clone(&outbound);
+        let cringe = Arc::clone(&cringe);
         let request_cancellation = cancellation.child_token();
         tasks.spawn(async move {
             let _permit = permit;
@@ -271,6 +276,7 @@ pub async fn serve_http(
                         mailbox: &mailbox,
                         userdata: &userdata,
                         outbound: &outbound,
+                        cringe: &cringe,
                         cancellation: &request_cancellation,
                     },
                 ),
@@ -461,6 +467,7 @@ async fn handle_connection(
         mailbox,
         userdata,
         outbound,
+        cringe,
         cancellation,
     } = *context;
     let request = read_request(&mut stream, max_request_bytes).await?;
@@ -898,6 +905,65 @@ async fn handle_connection(
         },
         ParsedRequest::ApiQuotaMissing => {
             write_json_error(stream, Status::BadRequest, "address_required").await
+        }
+        ParsedRequest::CringeAbove { min_score, current } => {
+            match cringe.above_score(min_score, current, cancellation).await {
+                Ok(items) => write_json_response(stream, Status::Ok, &items).await,
+                Err(error) => write_cringe_error(stream, error).await,
+            }
+        }
+        ParsedRequest::CringeInsults(query) => {
+            match cringe.insults(query, cancellation).await {
+                Ok(page) => write_json_response(stream, Status::Ok, &page).await,
+                Err(error) => write_cringe_error(stream, error).await,
+            }
+        }
+        ParsedRequest::CringeActivities {
+            ip_address,
+            page,
+            size,
+        } => {
+            let cleaned = clean_ip_address(&ip_address);
+            match cringe
+                .activities(&cleaned, Some(&ip_address), page, size, cancellation)
+                .await
+            {
+                Ok(page) => write_json_response(stream, Status::Ok, &page).await,
+                Err(error) => write_cringe_error(stream, error).await,
+            }
+        }
+        ParsedRequest::CringeExport {
+            min_score,
+            score_type,
+        } => {
+            let current = score_type.eq_ignore_ascii_case("current");
+            match cringe.above_score(min_score, current, cancellation).await {
+                Ok(items) => {
+                    let mut body = format!(
+                        "# Skibidi Cringe IP Export\n# Score Type: {score_type}\n# Min Score: {min_score}\n# Total IPs: {}\n# Format: IP<tab>TotalScore<tab>CurrentScore<tab>ActivityCount\n#\n",
+                        items.len()
+                    );
+                    for item in items {
+                        use std::fmt::Write as _;
+                        let _ = writeln!(
+                            body,
+                            "{}\t{}\t{}\t{}",
+                            clean_ip_address(&item.ip_address),
+                            item.total_score,
+                            item.current_score,
+                            item.activity_count
+                        );
+                    }
+                    write_response(
+                        stream,
+                        Status::Ok,
+                        body.as_bytes(),
+                        "text/plain; charset=UTF-8",
+                    )
+                    .await
+                }
+                Err(error) => write_cringe_error(stream, error).await,
+            }
         }
         ParsedRequest::InvalidSession => write_invalid_session(stream).await,
         ParsedRequest::CorsPreflight(origin) => write_cors_preflight(stream, &origin).await,
@@ -1788,6 +1854,123 @@ fn list_query(query: &str) -> Result<(i32, i32, bool), ()> {
     Ok((page, size, starred_only))
 }
 
+fn parse_cringe_insults(path: &str) -> ParsedRequest {
+    let query = path.split_once('?').map_or("", |(_, query)| query);
+    let mut page = 0_i64;
+    let mut size = 50_i64;
+    let mut search = String::new();
+    for (key, value) in url::form_urlencoded::parse(query.as_bytes()) {
+        match key.as_ref() {
+            "page" => match value.parse() {
+                Ok(value) => page = value,
+                Err(_) => return ParsedRequest::BadRequest,
+            },
+            "size" => match value.parse() {
+                Ok(value) => size = value,
+                Err(_) => return ParsedRequest::BadRequest,
+            },
+            "search" => search = value.into_owned(),
+            _ => {}
+        }
+    }
+    ParsedRequest::CringeInsults(PageQuery { page, size, search })
+}
+
+fn parse_cringe_above_score(path: &str) -> ParsedRequest {
+    let (route, query) = path.split_once('?').map_or((path, ""), |parts| parts);
+    let Some(value) = route.strip_prefix("/api/cringe-ips/above-score/") else {
+        return ParsedRequest::NotFound;
+    };
+    let Some(min_score) = percent_decode_str(value)
+        .decode_utf8()
+        .ok()
+        .and_then(|v| v.parse().ok())
+    else {
+        return ParsedRequest::BadRequest;
+    };
+    let current = url::form_urlencoded::parse(query.as_bytes())
+        .find(|(key, _)| key == "scoreType")
+        .is_some_and(|(_, value)| value.eq_ignore_ascii_case("current"));
+    ParsedRequest::CringeAbove { min_score, current }
+}
+
+fn parse_cringe_export(path: &str) -> ParsedRequest {
+    let query = path.split_once('?').map_or("", |(_, query)| query);
+    let mut min_score = 50_i32;
+    let mut score_type = "current".to_owned();
+    for (key, value) in url::form_urlencoded::parse(query.as_bytes()) {
+        match key.as_ref() {
+            "minScore" => match value.parse() {
+                Ok(value) => min_score = value,
+                Err(_) => return ParsedRequest::BadRequest,
+            },
+            "scoreType" => score_type = value.into_owned(),
+            _ => {}
+        }
+    }
+    ParsedRequest::CringeExport {
+        min_score,
+        score_type,
+    }
+}
+
+fn parse_cringe_ip_route(path: &str) -> ParsedRequest {
+    let (route, _) = path.split_once('?').map_or((path, ""), |parts| parts);
+    let suffix = route.strip_prefix("/api/cringe-ips/").unwrap_or_default();
+    let parts = suffix.split('/').collect::<Vec<_>>();
+    if parts.len() == 2 && parts[1] == "activities" {
+        let Ok(ip_address) = percent_decode_str(parts[0]).decode_utf8() else {
+            return ParsedRequest::BadRequest;
+        };
+        let query = path.split_once('?').map_or("", |(_, query)| query);
+        let mut page = 0_i64;
+        let mut size = 100_i64;
+        for (key, value) in url::form_urlencoded::parse(query.as_bytes()) {
+            match key.as_ref() {
+                "page" => match value.parse() {
+                    Ok(value) => page = value,
+                    Err(_) => return ParsedRequest::BadRequest,
+                },
+                "size" => match value.parse() {
+                    Ok(value) => size = value,
+                    Err(_) => return ParsedRequest::BadRequest,
+                },
+                _ => {}
+            }
+        }
+        return ParsedRequest::CringeActivities {
+            ip_address: ip_address.into_owned(),
+            page,
+            size,
+        };
+    }
+    ParsedRequest::NotFound
+}
+
+fn clean_ip_address(value: &str) -> String {
+    let mut cleaned = String::with_capacity(value.len());
+    let mut chars = value.chars().peekable();
+    while let Some(character) = chars.next() {
+        if character <= '\u{1f}' || character == '\u{7f}' {
+            continue;
+        }
+        if character == '%' {
+            for _ in 0..2 {
+                if chars.peek().is_some_and(|next| next.is_ascii_hexdigit()) {
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+            continue;
+        }
+        cleaned.push(character);
+    }
+    cleaned
+        .trim_matches(|character| u32::from(character) <= 0x20)
+        .to_owned()
+}
+
 async fn read_request(stream: &mut TcpStream, max_request_bytes: usize) -> io::Result<Vec<u8>> {
     let mut request = Vec::with_capacity(1024.min(max_request_bytes));
     let mut chunk = [0_u8; 1024];
@@ -1914,6 +2097,20 @@ enum ParsedRequest {
     ApiStatusByMessage(String),
     ApiQuota(String),
     ApiQuotaMissing,
+    CringeAbove {
+        min_score: i32,
+        current: bool,
+    },
+    CringeInsults(PageQuery),
+    CringeActivities {
+        ip_address: String,
+        page: i64,
+        size: i64,
+    },
+    CringeExport {
+        min_score: i32,
+        score_type: String,
+    },
     ApiCreateMailbox,
     ApiMailboxExists(String),
     WebDomains,
@@ -2102,6 +2299,30 @@ fn parse_request(
                     .map_or(ParsedRequest::ApiQuotaMissing, ParsedRequest::ApiQuota)
             }
         },
+        ("GET", "/api/cringe-ips/insults") => match api_permission(config, api_key, false) {
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
+            ApiPermission::Granted => parse_cringe_insults(path),
+        },
+        ("GET", "/api/cringe-ips/export") => match api_permission(config, api_key, false) {
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
+            ApiPermission::Granted => parse_cringe_export(path),
+        },
+        ("GET", routing) if routing.starts_with("/api/cringe-ips/above-score/") => {
+            match api_permission(config, api_key, false) {
+                ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+                ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
+                ApiPermission::Granted => parse_cringe_above_score(path),
+            }
+        }
+        ("GET", routing) if routing.starts_with("/api/cringe-ips/") => {
+            match api_permission(config, api_key, false) {
+                ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+                ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
+                ApiPermission::Granted => parse_cringe_ip_route(path),
+            }
+        }
         _ if is_session_route(method, routing_path) => {
             if method == "POST" && routing_path == "/web/mail/send/multipart" {
                 ParsedRequest::MultipartSession
@@ -2720,6 +2941,21 @@ async fn write_json_error(
         error: &'static str,
     }
     write_json_response(stream, status, &ErrorResponse { error }).await
+}
+
+async fn write_cringe_error(stream: TcpStream, error: CringeError) -> io::Result<()> {
+    match error {
+        CringeError::InvalidInput => {
+            write_json_error(stream, Status::BadRequest, "invalid_request").await
+        }
+        CringeError::Cancelled => Err(io::Error::new(
+            io::ErrorKind::Interrupted,
+            "cringe request cancelled",
+        )),
+        CringeError::Timeout | CringeError::Database(_) => {
+            write_json_error(stream, Status::InternalServerError, "internal_error").await
+        }
+    }
 }
 
 async fn write_outbound_error(
@@ -3552,6 +3788,79 @@ lmyzmail.public-registration-enabled=true\n",
             parse(&vec![b'x'; 1025], 1024),
             ParsedRequest::PayloadTooLarge
         );
+    }
+
+    #[test]
+    fn cringe_api_routes_preserve_read_write_permissions_and_query_fields() {
+        let config = config_with_api_keys();
+        assert_eq!(
+            parse_request(
+                b"GET /api/cringe-ips/above-score/50?scoreType=current HTTP/1.1\r\nX-API-Key: read-key\r\n\r\n",
+                4096,
+                &config,
+            ),
+            ParsedRequest::CringeAbove {
+                min_score: 50,
+                current: true,
+            }
+        );
+        assert_eq!(
+            parse_request(
+                b"GET /api/cringe-ips/insults?page=2&size=20&search=spoof HTTP/1.1\r\nX-API-Key: read-key\r\n\r\n",
+                4096,
+                &config,
+            ),
+            ParsedRequest::CringeInsults(PageQuery {
+                page: 2,
+                size: 20,
+                search: "spoof".to_owned(),
+            })
+        );
+        assert_eq!(
+            parse_request(
+                b"GET /api/cringe-ips/export?minScore=12&scoreType=TOTAL HTTP/1.1\r\nX-API-Key: read-key\r\n\r\n",
+                4096,
+                &config,
+            ),
+            ParsedRequest::CringeExport {
+                min_score: 12,
+                score_type: "TOTAL".to_owned(),
+            }
+        );
+        assert_eq!(
+            parse_request(
+                b"POST /api/cringe-ips/decay HTTP/1.1\r\nX-API-Key: read-key\r\n\r\n",
+                4096,
+                &config,
+            ),
+            ParsedRequest::ForbiddenWrite
+        );
+        assert_eq!(
+            parse_request(
+                b"POST /api/cringe-ips/decay HTTP/1.1\r\nX-API-Key: write-key\r\n\r\n",
+                4096,
+                &config,
+            ),
+            ParsedRequest::NotFound
+        );
+        assert_eq!(
+            parse_request(
+                b"GET /api/cringe-ips/203.0.113.77/activities?page=1&size=25 HTTP/1.1\r\nX-API-Key: read-key\r\n\r\n",
+                4096,
+                &config,
+            ),
+            ParsedRequest::CringeActivities {
+                ip_address: "203.0.113.77".to_owned(),
+                page: 1,
+                size: 25,
+            }
+        );
+    }
+
+    #[test]
+    fn cringe_ip_cleaning_removes_control_and_encoded_garbage() {
+        assert_eq!(clean_ip_address(" 203.0.113.77%0d\n"), "203.0.113.77");
+        assert_eq!(clean_ip_address("203.0.113.77\u{85}"), "203.0.113.77\u{85}");
     }
 
     #[test]
