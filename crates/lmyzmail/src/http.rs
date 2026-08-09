@@ -1044,30 +1044,17 @@ async fn handle_connection(
                 return write_json_error(stream, Status::BadRequest, "Invalid date format").await;
             };
             match reporting
-                .domain_data_presence(&domain, date, cancellation)
+                .generate_for_domain(
+                    &domain,
+                    date,
+                    &config.domain,
+                    outbound,
+                    cancellation,
+                )
                 .await
             {
-                Ok(presence) if !presence.dmarc && !presence.tls => {
-                    let date_text = date.to_string();
-                    write_json_response(
-                        stream,
-                        Status::Ok,
-                        &SingleDomainReportResponse {
-                            domain: &domain,
-                            date: &date_text,
-                            dmarc: EmptyDomainReportResult {
-                                results: &[],
-                                error: "No DMARC data for this domain/date",
-                            },
-                            tls: EmptyDomainReportResult {
-                                results: &[],
-                                error: "No TLS data for this domain/date",
-                            },
-                        },
-                    )
-                    .await
-                }
-                Ok(_) | Err(_) => {
+                Ok(result) => write_json_response(stream, Status::Ok, &result).await,
+                Err(_) => {
                     write_json_error(stream, Status::InternalServerError, "internal_error").await
                 }
             }
@@ -2815,20 +2802,6 @@ struct ReportExecutionSummary<'a> {
     tls_sent: i32,
     tls_failed: i32,
     error: &'a str,
-}
-
-#[derive(Serialize)]
-struct EmptyDomainReportResult<'a> {
-    results: &'a [Value],
-    error: &'a str,
-}
-
-#[derive(Serialize)]
-struct SingleDomainReportResponse<'a> {
-    domain: &'a str,
-    date: &'a str,
-    dmarc: EmptyDomainReportResult<'a>,
-    tls: EmptyDomainReportResult<'a>,
 }
 
 #[derive(Serialize)]

@@ -32,6 +32,10 @@ class _LegacyReportsCandidateRuntime(CandidateRuntime):
         value["reporting"] = {
             "enabled": True,
             "dns_server": f"{self.report_dns.host}:{self.report_dns.port}",
+            "dmarc_report_sender_address": "qa@example.test",
+            "tls_report_sender_address": "qa@example.test",
+            "organization_name": "Blackbox Reports",
+            "organization_email": "reports@example.test",
         }
         path.write_text(
             json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
@@ -74,6 +78,8 @@ def _candidate(
             command_template=(
                 *configured.command_template,
                 "--lmyzmail.reporting.enabled=true",
+                "--lmyzmail.queue.poll-interval-ms=60000",
+                "--lmyzmail.maildir.max-files-per-directory=1",
             ),
         )
     return _LegacyReportsCandidateRuntime(
@@ -83,6 +89,8 @@ def _candidate(
             "--config",
             "{config}",
             "--lmyzmail.reporting.enabled=true",
+            "--lmyzmail.queue.poll-interval-ms=60000",
+            "--lmyzmail.maildir.max-files-per-directory=1",
         ),
     )
 
@@ -96,6 +104,6 @@ def test_rust_candidate_reports_match_frozen_java_golden() -> None:
         with _candidate(repository, dns) as candidate:
             DifferentialRunner(
                 repository,
-                repository / "blackbox/golden/java/managed-reports-v6",
+                repository / "blackbox/golden/java/managed-reports-v12",
                 "managed-reports",
             ).verify_candidate(REPORT_SCENARIOS, candidate)

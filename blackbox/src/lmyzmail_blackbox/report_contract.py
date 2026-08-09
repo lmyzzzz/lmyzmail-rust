@@ -1,9 +1,20 @@
 from __future__ import annotations
 
+import base64
+import gzip
+import io
 import json
+import re
+import time
+import xml.parsers.expat as expat
+from email import policy
+from email.message import Message
+from email.parser import BytesParser
+from pathlib import Path
 from typing import Any, cast
 
 import psycopg
+import redis
 
 from .differential import RuntimeTarget, Scenario
 from .protocols import RawHttpResponse, http_exchange
@@ -23,6 +34,7 @@ _ADDRESS_DOMAIN = "MiXeD.Example"
 _AMBIGUOUS_DOMAIN = "ambiguous.example"
 _LOOKALIKE_DOMAIN = "lookalike.example"
 _LIMIT_DOMAIN = "limit.example"
+_REPORT_SENDER = "qa@example.test"
 _API_HEADERS = (("X-API-Key", API_KEY),)
 _NORMALIZERS = (
     "header:date:http-date",
@@ -30,6 +42,16 @@ _NORMALIZERS = (
 )
 
 _TXT = 16
+_UUID_V4 = re.compile(
+    r"\b[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b",
+    re.IGNORECASE,
+)
+_REPORT_PERIOD = re.compile(r"(?m)^Report Period: \d{4}-\d{2}-\d{2}(?=\r?$)")
+_RFC3339_INSTANT = re.compile(
+    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z"
+)
+_REDIS_QUEUE_PREFIX = "botmail:mail:queue:"
+_MAX_DECOMPRESSED_REPORT_BYTES = 4 * 1024 * 1024
 
 
 def _txt_answer(value: str) -> TxtAnswer:
@@ -89,6 +111,15 @@ _REPORT_DNS_ANSWERS = {
     ),
     ("_smtp._tls.limit.example", _TXT): DnsAnswer(
         txt=(TxtAnswer(("v=TLSRPTv1; rua=mailto:tls@limit.example",)),)
+    ),
+    ("_dmarc.sender.example", _TXT): DnsAnswer(
+        txt=(TxtAnswer(("v=DMARC1; p=none; rua=mailto:qa@example.test",)),)
+    ),
+    ("sender.example._report._dmarc.example.test", _TXT): DnsAnswer(
+        txt=(TxtAnswer(("v=DMARC1",)),)
+    ),
+    ("_smtp._tls.recipient.example", _TXT): DnsAnswer(
+        txt=(TxtAnswer(("v=TLSRPTv1; rua=mailto:qa@example.test",)),)
     ),
 }
 
@@ -242,9 +273,9 @@ def capture_reporting_status(target: RuntimeTarget) -> dict[str, Any]:
             "enabled": True,
             "autoSendEnabled": False,
             "minVolumeForReport": 10,
-            "dmarcReportSenderAddress": "not configured",
-            "tlsReportSenderAddress": "not configured",
-            "organizationName": "not configured",
+            "dmarcReportSenderAddress": _REPORT_SENDER,
+            "tlsReportSenderAddress": _REPORT_SENDER,
+            "organizationName": "Blackbox Reports",
             "httpDeliveryEnabled": False,
         },
     )
@@ -601,6 +632,351 @@ cast(Any, capture_report_addresses).__lmyzmail_contract__ = {
 }
 
 
+def _workspace(target: RuntimeTarget) -> Path:
+    if target.workspace is None:
+        raise AssertionError("reports target workspace is unavailable")
+    return target.workspace
+
+
+def _sent_files(target: RuntimeTarget) -> dict[str, Path]:
+    root = _workspace(target) / "maildir" / _REPORT_SENDER / "sent"
+    if not root.exists():
+        return {}
+    if root.is_symlink() or not root.is_dir():
+        raise AssertionError("report sender Sent folder is not a real directory")
+    files: dict[str, Path] = {}
+    for path in root.rglob("*"):
+        if path.is_symlink():
+            raise AssertionError(f"report Sent folder contains a symlink: {path}")
+        if path.is_file():
+            files[path.relative_to(root).as_posix()] = path
+    return files
+
+
+def _decode_part(part: Message) -> bytes:
+    value = part.get_payload(decode=True)
+    if not isinstance(value, bytes):
+        raise AssertionError("report MIME part did not contain decoded bytes")
+    return value
+
+
+def _replace_report_id(value: str, *, location: str) -> str:
+    normalized, count = _UUID_V4.subn("<report-id>", value)
+    if count != 1:
+        raise AssertionError(f"{location} contained {count} UUIDv4 report ids")
+    return normalized
+
+
+def _report_attachment(filename: str, payload: bytes) -> dict[str, Any]:
+    try:
+        with gzip.GzipFile(fileobj=io.BytesIO(payload)) as stream:
+            decompressed = stream.read(_MAX_DECOMPRESSED_REPORT_BYTES + 1)
+        if len(decompressed) > _MAX_DECOMPRESSED_REPORT_BYTES:
+            raise AssertionError("report attachment exceeded the decompressed byte ceiling")
+        text = decompressed.decode("utf-8")
+    except (EOFError, OSError, UnicodeDecodeError) as error:
+        raise AssertionError("report attachment was not UTF-8 gzip content") from error
+    normalized = _replace_report_id(text, location=f"attachment {filename}")
+    if filename.endswith(".xml.gz"):
+        upper = text.upper()
+        if "<!DOCTYPE" in upper or "<!ENTITY" in upper:
+            raise AssertionError("DMARC report attachment contained forbidden XML declarations")
+        try:
+            expat.ParserCreate(namespace_separator=" ").Parse(text, True)
+        except expat.ExpatError as error:
+            raise AssertionError("DMARC report attachment was not well-formed XML") from error
+        report_format = "dmarc-xml"
+    elif filename.endswith(".json.gz"):
+        try:
+            value = json.loads(text)
+        except json.JSONDecodeError as error:
+            raise AssertionError("TLS report attachment was not strict JSON") from error
+        if not isinstance(value, dict) or not isinstance(value.get("report-id"), str):
+            raise AssertionError("TLS report attachment omitted its report-id")
+        report_format = "tlsrpt-json"
+    else:
+        raise AssertionError(f"unexpected report attachment filename: {filename!r}")
+    return {
+        "format": report_format,
+        "decompressedText": normalized,
+        "compressedBytesPositive": len(payload) > 0,
+    }
+
+
+def _report_message_snapshot(raw: bytes) -> dict[str, Any]:
+    message = BytesParser(policy=policy.default).parsebytes(raw)
+    plain_parts: list[Message] = []
+    attachments: list[Message] = []
+    for part in message.walk():
+        if part.is_multipart():
+            continue
+        if part.get_content_disposition() == "attachment":
+            attachments.append(part)
+        elif part.get_content_type() == "text/plain":
+            plain_parts.append(part)
+    if len(plain_parts) != 1 or len(attachments) != 1:
+        raise AssertionError(
+            f"report message MIME shape changed: plain={len(plain_parts)}, "
+            f"attachments={len(attachments)}"
+        )
+    body_part = plain_parts[0]
+    body_charset = body_part.get_content_charset() or "utf-8"
+    try:
+        body = _decode_part(body_part).decode(body_charset)
+    except (LookupError, UnicodeDecodeError) as error:
+        raise AssertionError("report body was not decodable text") from error
+    body, period_count = _REPORT_PERIOD.subn("Report Period: <report-period>", body)
+    if period_count != 1:
+        raise AssertionError(f"report body contained {period_count} wall-clock periods")
+    body = _replace_report_id(body, location="report body")
+
+    attachment = attachments[0]
+    filename = attachment.get_filename()
+    if not isinstance(filename, str) or not filename:
+        raise AssertionError("report attachment omitted its filename")
+    subject = str(message.get("Subject", ""))
+    return {
+        "from": str(message.get("From", "")),
+        "to": str(message.get("To", "")),
+        "subject": _replace_report_id(subject, location="report subject"),
+        "body": body,
+        "attachment": {
+            "filename": filename,
+            "contentType": attachment.get_content_type(),
+            **_report_attachment(filename, _decode_part(attachment)),
+        },
+    }
+
+
+def _redis_pending(client: redis.Redis) -> list[int]:
+    raw = cast(list[bytes], client.lrange(_REDIS_QUEUE_PREFIX + "pending", 0, -1))
+    try:
+        return [int(value.decode("ascii")) for value in raw]
+    except (UnicodeDecodeError, ValueError) as error:
+        raise AssertionError("report queue pending list contained a non-numeric task id") from error
+
+
+def _wait_for_report_side_effects(
+    target: RuntimeTarget,
+    client: redis.Redis,
+    before_pending: list[int],
+    before_files: dict[str, Path],
+) -> tuple[list[int], dict[str, Path]]:
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        pending = _redis_pending(client)
+        files = _sent_files(target)
+        if len(pending) == len(before_pending) + 2 and len(files) == len(before_files) + 2:
+            if pending[: len(before_pending)] != before_pending:
+                raise AssertionError("report queue mutated the pre-existing pending prefix")
+            return pending[len(before_pending) :], {
+                key: path for key, path in files.items() if key not in before_files
+            }
+        time.sleep(0.05)
+    raise AssertionError("timed out waiting for two report queue and Maildir publications")
+
+
+def _task_snapshot(client: redis.Redis, task_id: int) -> tuple[str, dict[str, Any]]:
+    key = f"{_REDIS_QUEUE_PREFIX}task:{task_id}"
+    raw = cast(bytes | None, client.get(key))
+    if raw is None:
+        raise AssertionError(f"report queue task disappeared before observation: {task_id}")
+    try:
+        detail = json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise AssertionError("report queue task was not strict UTF-8 JSON") from error
+    if not isinstance(detail, dict):
+        raise AssertionError("report queue task was not a JSON object")
+    encoded = detail.get("signedContentBase64")
+    if not isinstance(encoded, str) or not encoded:
+        raise AssertionError("seeded report message did not use frozen in-memory queue mode")
+    try:
+        message = base64.b64decode(encoded, validate=True)
+    except ValueError as error:
+        raise AssertionError("report queue content was not canonical Base64") from error
+    snapshot = _report_message_snapshot(message)
+    report_format = cast(str, cast(dict[str, Any], snapshot["attachment"])["format"])
+    label = {"dmarc-xml": "dmarc", "tlsrpt-json": "tls"}.get(report_format)
+    if label is None:
+        raise AssertionError(f"unknown report queue format: {report_format!r}")
+    recipients_raw = detail.get("recipientsJson")
+    if not isinstance(recipients_raw, str):
+        raise AssertionError("report queue task omitted recipientsJson")
+    recipients = json.loads(recipients_raw)
+    domains_raw = cast(
+        dict[bytes, bytes],
+        client.hgetall(f"{_REDIS_QUEUE_PREFIX}domains:{task_id}"),
+    )
+    if not domains_raw:
+        raise AssertionError("report queue task omitted domain status state")
+    domains: dict[str, Any] = {}
+    for raw_domain, raw_status in domains_raw.items():
+        try:
+            domain = raw_domain.decode("utf-8")
+            status = raw_status.decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise AssertionError("report queue domain state was not strict UTF-8") from error
+        try:
+            domain_detail = json.loads(status)
+        except json.JSONDecodeError as error:
+            raise AssertionError("report queue domain state was not strict JSON") from error
+        if not isinstance(domain_detail, dict) or domain_detail.get("domain") != domain:
+            raise AssertionError("report queue domain state key and payload disagreed")
+        updated_at = domain_detail.get("updatedAt")
+        if not isinstance(updated_at, str) or _RFC3339_INSTANT.fullmatch(updated_at) is None:
+            raise AssertionError("report queue domain state omitted its RFC3339 updatedAt")
+        domain_detail["updatedAt"] = "<updated-at>"
+        domains[domain] = domain_detail
+    ttl = cast(int, client.ttl(key))
+    if ttl <= 0:
+        raise AssertionError("report queue task did not retain a positive TTL")
+    return label, {
+        "senderAddress": detail.get("senderAddress"),
+        "recipients": recipients,
+        "status": detail.get("status"),
+        "retryCount": detail.get("retryCount"),
+        "maxRetries": detail.get("maxRetries"),
+        "messageIdPresent": isinstance(detail.get("messageId"), str),
+        "sentFilePresent": isinstance(detail.get("sentFileName"), str),
+        "sentSubdirectory": detail.get("sentSubdirectory"),
+        "inMemory": True,
+        "taskTtlPositive": True,
+        "domains": domains,
+        "message": snapshot,
+    }
+
+
+def capture_seeded_report_delivery(target: RuntimeTarget) -> dict[str, Any]:
+    if _drain_report_dns_queries(target):
+        raise AssertionError("scripted report DNS trace was not empty before delivery")
+    before_database = _report_database_state(target)
+    before_files = _sent_files(target)
+    if target.ports is None:
+        raise AssertionError("reports target is not started")
+    client: redis.Redis = redis.Redis(
+        host=_HOST,
+        port=target.ports.redis,
+        decode_responses=False,
+    )
+    try:
+        before_pending = _redis_pending(client)
+        dmarc_response = _expect_json(
+            _request(
+                target,
+                "POST",
+                f"/api/reports/domain/{_DMARC_DOMAIN}?date={_REPORT_DATE}",
+            ),
+            status=200,
+            body={
+                "domain": _DMARC_DOMAIN,
+                "date": _REPORT_DATE,
+                "dmarc": {
+                    "results": [{"success": True, "method": "email", "target": _REPORT_SENDER}],
+                    "error": "none",
+                },
+                "tls": {"results": [], "error": "No TLS data for this domain/date"},
+            },
+        )
+        tls_response = _expect_json(
+            _request(
+                target,
+                "POST",
+                f"/api/reports/domain/{_TLS_DOMAIN}?date={_REPORT_DATE}",
+            ),
+            status=200,
+            body={
+                "domain": _TLS_DOMAIN,
+                "date": _REPORT_DATE,
+                "dmarc": {"results": [], "error": "No DMARC data for this domain/date"},
+                "tls": {
+                    "results": [{"success": True, "method": "email", "target": _REPORT_SENDER}],
+                    "error": "none",
+                },
+            },
+        )
+        new_ids, added_files = _wait_for_report_side_effects(
+            target,
+            client,
+            before_pending,
+            before_files,
+        )
+        tasks: dict[str, dict[str, Any]] = {}
+        pending_order: list[str] = []
+        for task_id in new_ids:
+            label, snapshot = _task_snapshot(client, task_id)
+            if label in tasks:
+                raise AssertionError(f"duplicate generated report task: {label}")
+            tasks[label] = snapshot
+            pending_order.append(label)
+
+        maildir_messages: dict[str, dict[str, Any]] = {}
+        for path in added_files.values():
+            snapshot = _report_message_snapshot(path.read_bytes())
+            report_format = cast(str, cast(dict[str, Any], snapshot["attachment"])["format"])
+            maildir_label = {"dmarc-xml": "dmarc", "tlsrpt-json": "tls"}.get(report_format)
+            if maildir_label is None or maildir_label in maildir_messages:
+                raise AssertionError("report Maildir publication had an unexpected format")
+            maildir_messages[maildir_label] = snapshot
+        if set(tasks) != {"dmarc", "tls"} or maildir_messages != {
+            label: snapshot["message"] for label, snapshot in tasks.items()
+        }:
+            raise AssertionError("report Redis and Maildir publications were not byte-equivalent")
+    finally:
+        client.close()
+
+    after_database = _report_database_state(target)
+    if after_database != before_database:
+        raise AssertionError("report delivery mutated the source DMARC/TLS log rows")
+    queries = _drain_report_dns_queries(target)
+    expected_queries = (
+        "_dmarc.sender.example",
+        "sender.example._report._dmarc.example.test",
+        "_smtp._tls.recipient.example",
+    )
+    if tuple(query.qname for query in queries) != expected_queries:
+        raise AssertionError(f"seeded report delivery DNS query order changed: {queries!r}")
+    return {
+        "responses": {"dmarc": dmarc_response, "tls": tls_response},
+        "dnsQueries": [query.qname for query in queries],
+        "queue": {
+            "pendingOrder": pending_order,
+            "tasks": tasks,
+        },
+        "maildir": {
+            "addedCount": len(added_files),
+            "messages": maildir_messages,
+            "noTemporaryFiles": not any(".tmp" in key for key in added_files),
+        },
+        "sourceDatabaseUnchanged": True,
+    }
+
+
+cast(Any, capture_seeded_report_delivery).__lmyzmail_contract__ = {
+    "protocol": "http/raw-socket+scripted-udp-dns+redis+maildir+mime",
+    "method": "POST",
+    "targets": [
+        f"/api/reports/domain/{_DMARC_DOMAIN}?date={_REPORT_DATE}",
+        f"/api/reports/domain/{_TLS_DOMAIN}?date={_REPORT_DATE}",
+    ],
+    "authentication": "admin API key",
+    "coverage": [
+        "DMARC aggregate XML gzip generation and email queue publication",
+        "TLSRPT aggregate JSON gzip generation and email queue publication",
+        "external DMARC destination authorization",
+        "Redis task/domain state and Maildir byte equivalence",
+        "source report rows remain unchanged",
+    ],
+    "normalized_fields": [
+        "UUIDv4 report id",
+        "message Date and Message-ID headers excluded after MIME parsing",
+        "wall-clock report body period",
+        "Redis domain status updatedAt",
+        "MIME boundary and generated Maildir filename excluded after MIME parsing",
+    ],
+    "json_object_order": "canonicalized recursively by key",
+}
+
+
 REPORT_SCENARIOS = (
     Scenario(
         "http/reports/status",
@@ -631,5 +1007,17 @@ REPORT_SCENARIOS = (
         "http/reports/addresses",
         capture_report_addresses,
         normalizers=_NORMALIZERS,
+    ),
+    Scenario(
+        "http/reports/seeded-delivery",
+        capture_seeded_report_delivery,
+        normalizers=(
+            *_NORMALIZERS,
+            "report-id:uuid-v4",
+            "rfc5322:parsed-message",
+            "report-body:wall-clock-period",
+            "redis-domain-status:updated-at",
+            "maildir:generated-filename",
+        ),
     ),
 )

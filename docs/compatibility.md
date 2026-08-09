@@ -69,6 +69,12 @@ wire, state, storage, or recovery assertions.
   normalization. The frozen RUA limit of 10 and every in-budget query, TXT,
   authorization, ordering, and HTTP behavior remain exact compatibility
   requirements.
+- Aggregate report rendering accepts at most 10,000 database groups, 4 MiB of
+  aggregate input, 4 KiB per text field, and 4 MiB each of compressed and
+  uncompressed output. Counts must fit the signed 32-bit wire fields, and a
+  dedicated two-worker/eight-waiter pool applies one ten-second deadline with
+  cancellation and bounded drain. In-budget DMARC XML and TLSRPT JSON remain
+  byte-exact with the frozen Java golden.
 - A live legacy MTA-STS NONE value is reusable only for its remaining Redis TTL,
   capped at five minutes. This repairs the oracle's restart-only negative-cache
   expiry bug without changing bytes, keys, or post-expiry discovery.

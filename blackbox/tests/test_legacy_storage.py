@@ -76,6 +76,7 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "outbound-null-mx-rejection",
         "outbound-route-dns-answer-budgets",
         "reporting-dns-input-and-answer-budgets",
+        "reporting-aggregate-render-budgets",
         "mta-sts-negative-cache-restart",
         "outbound-http-redis-outage-deadline",
         "userdata-malformed-write-rejection",

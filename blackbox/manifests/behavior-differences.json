@@ -169,6 +169,26 @@
       "scope": "Only malformed domain names, over-budget TXT answers, report-DNS overload, and discoveries exceeding the absolute deadline. Every in-budget query name and order, TXT-fragment concatenation, exact first version tag, RUA parsing and deduplication, same-domain and external authorization, NXDOMAIN downgrade, address ordering, and HTTP body remain differential requirements."
     },
     {
+      "candidate_requirement": "Render one DMARC or TLS aggregate from at most 10000 database groups and 4194304 aggregate input bytes, with each text field limited to 4096 bytes and every count required to fit signed 32-bit report fields. Limit both compressed and uncompressed report output to 4194304 bytes. Execute rendering on a dedicated pool of two workers and eight queued jobs under one ten-second deadline with cancellation and bounded drain; reject overload or any exceeded budget without publishing a queue task or Maildir file.",
+      "evidence": {
+        "candidate_golden_tests": [
+          "crates/lmyzmail/src/reporting.rs::tests::seeded_dmarc_render_matches_the_frozen_java_golden",
+          "crates/lmyzmail/src/reporting.rs::tests::seeded_tls_render_matches_the_frozen_java_golden",
+          "crates/lmyzmail/src/reporting.rs::tests::report_writer_enforces_compressed_and_uncompressed_four_mib_limits"
+        ],
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "dmarc_source": "src/main/java/net/lmyz/lmyzmail/report/service/DmarcReportGenerator.java",
+        "dmarc_source_sha256": "8dc8bcf8093d24016fe08090167f543f98cb679700ce957f9d300329c8ca936c",
+        "oracle_golden": "blackbox/golden/java/managed-reports-v11/observations/http/reports/seeded-delivery.json",
+        "tls_source": "src/main/java/net/lmyz/lmyzmail/report/service/TlsReportGenerator.java",
+        "tls_source_sha256": "86bf8523a747fbffc52491780851da4b48221038f0a6fedcef38e82ce92d7d8e"
+      },
+      "id": "reporting-aggregate-render-budgets",
+      "oracle_behavior": "The frozen Java generators materialize every aggregate row, convert the complete result into a second object graph, serialize the entire XML or JSON report into one String, and then gzip it into another in-memory byte array. They impose no aggregate-group, field-size, input-byte, output-byte, rendering-admission, or rendering-deadline ceiling; long TLS counts are narrowed to int fields.",
+      "reason": "Legacy report rows and policy fields are database-controlled inputs that can amplify into multiple full heap copies and monopolize request or scheduler execution. The rewrite requires hard bounds for every collection, output, CPU job, deadline, and queue, and must reject numeric truncation rather than reproduce it.",
+      "scope": "Only aggregate inputs, counts, outputs, rendering admission, or rendering time that exceed the stated ceilings. Every in-budget SQL grouping semantic, XML/JSON byte, gzip attachment type and filename, report count, MIME message, outbound queue publication, Redis state, Maildir write, and HTTP result remains an exact differential requirement."
+    },
+    {
       "candidate_requirement": "When an intact legacy `mta-sts:{domain}` NONE value has a positive Redis TTL, reuse it only for that remaining TTL, never longer than 300 seconds. Preserve the exact Java serialization, do not extend the TTL on read, and perform fresh DNS discovery after expiry.",
       "evidence": {
         "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",

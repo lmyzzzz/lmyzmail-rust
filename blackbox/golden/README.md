@@ -945,7 +945,7 @@ authorization, one authorization query per destination domain, the combined
 verification used two separate Java, PostgreSQL, Redis, Maildir, and DNS
 workspaces; a third fresh workspace replayed the generation independently.
 
-The active report-management API set is:
+The bounded-DNS report-management set is retained as:
 
 - `managed-reports-v6/`
 
@@ -961,3 +961,51 @@ candidate workspace.
 The post-recording Rust candidate driver remains in `blackbox/tools` so it does
 not invalidate create-once generations. Advance it to the active generation
 only after the matching Rust behavior exists.
+
+The seeded report-delivery extension retained four failed create-once
+generations without rewriting them:
+
+- `managed-reports-v7/` contains only the suite. Enabling the report senders
+  changed the status surface before its expected values had been advanced.
+- `managed-reports-v8/` contains the suite and the first six observations. The
+  Java oracle generated and queued both reports, but the new observer stopped
+  before writing the delivery observation while probing Redis domain state.
+- `managed-reports-v9/` preserves the same prefix and the explicit evidence
+  that `botmail:mail:queue:domains:{id}` is a Redis Hash, not a String.
+- `managed-reports-v10/` contains all seven observations, but its second fresh
+  Java replay exposed an unnormalized `DomainStatus.updatedAt`. Inspection also
+  found that the CRLF report-period line had not been normalized and a local
+  variable shadowed the task-detail object. The generation remains immutable.
+
+The first stable seeded report-management API set is retained as:
+
+- `managed-reports-v11/`
+
+It binds definition tree
+`d03bf665425c54414cde485527b856209c1f90dde78127b62b8fa097d892f44e`
+and adds seeded single-domain DMARC and TLS report delivery. The observation
+freezes the exact HTTP results and DNS query order; Redis pending order, task
+metadata, domain Hash state and positive TTL; Sent Maildir publication; MIME
+headers and bodies; gzip attachment names, types, decompressed DMARC XML and
+TLSRPT JSON; and unchanged source report rows. It rejects oversized gzip
+output and XML DTD/entity declarations. UUIDv4 report IDs, RFC 5322 Date and
+Message-ID, report-body wall-clock period, Redis domain `updatedAt`, MIME
+boundary, and generated Maildir filename are the only field-level
+normalizations. Recording and immediate verification used two fresh Java,
+PostgreSQL, Redis, Maildir, and DNS workspaces; a third fresh Java workspace
+replayed v11 without record mode.
+
+The active report-management API set is:
+
+- `managed-reports-v12/`
+
+It binds definition tree
+`f7bd118481c79eefe25d052ba1042d8d603316398c29972d312cb98992401959`
+and re-attests the same seven observations after adding the authoritative
+aggregate-group, field, input/output, count, render-pool, deadline, and
+cancellation security difference. No v11 file was rewritten. Recording and
+immediate verification used two fresh Java, PostgreSQL, Redis, Maildir, and DNS
+workspaces; a third fresh Java workspace replayed v12 without record mode.
+
+The post-recording Rust candidate driver now targets v12 so the candidate
+cannot pass an earlier definition tree.

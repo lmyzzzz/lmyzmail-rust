@@ -20,10 +20,14 @@ class _ReportsJavaOracleRuntime(PersistentJavaOracleRuntime):
     def _application_arguments(self) -> list[str]:
         arguments = super()._application_arguments()
         jar_index = arguments.index("-jar")
-        arguments.insert(
-            jar_index,
+        arguments[jar_index:jar_index] = [
             f"-Ddns.server={self.report_dns.host}:{self.report_dns.port}",
-        )
+            "-Dbotmail.reporting.dmarc-report-sender-address=qa@example.test",
+            "-Dbotmail.reporting.tls-report-sender-address=qa@example.test",
+            "-Dbotmail.reporting.organization-name=Blackbox Reports",
+            "-Dbotmail.reporting.organization-email=reports@example.test",
+            "-Dbotmail.queue.poll-interval-ms=60000",
+        ]
         return arguments
 
 
@@ -72,7 +76,7 @@ def test_frozen_java_reports_golden(
     repository = Path(__file__).resolve().parents[2]
     runner = DifferentialRunner(
         repository,
-        repository / "blackbox/golden/java/managed-reports-v6",
+        repository / "blackbox/golden/java/managed-reports-v12",
         "managed-reports",
         record_java=record_java_golden,
     )

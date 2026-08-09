@@ -67,6 +67,16 @@ downloads, inbound SMTP persistence, and the complete HTCPCP coffee/tea state
 machine. Each admitted surface is exercised by the external Java/Rust
 differential harness.
 
+The single-domain reporting slice now discovers Java-compatible DMARC and
+TLSRPT RUA destinations, reads the legacy PostgreSQL aggregates, renders
+byte-exact gzip attachments on a bounded blocking pool, and publishes email
+deliveries through the durable PostgreSQL/Redis/Sent-Maildir outbound queue.
+The seeded v12 differential covers DNS order, HTTP bodies, MIME, decompressed
+XML/JSON, queue fields and TTLs, Maildir shards, and unchanged source rows.
+Pinned HTTPS RUA delivery is not yet admitted: an enabled HTTPS destination
+currently produces a failed delivery result rather than the frozen Java POST,
+so this runtime milestone is not the complete reporting replacement.
+
 HTCPCP runs as a bounded Tokio listener only when enabled. It preserves the
 frozen eight-pot configuration, BREW/POST/GET/HEAD/OPTIONS/PROPFIND/WHEN wire
 behavior, coffee URI variants, additions and tea rules, chunked and

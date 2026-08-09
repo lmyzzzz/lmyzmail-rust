@@ -5,7 +5,7 @@ use std::{
 };
 
 use deadpool_redis::{Pool, redis};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, ser::SerializeStruct};
 use sha2::{Digest, Sha256};
 use tokio::time::timeout;
 
@@ -1571,7 +1571,7 @@ pub struct TaskDetail {
     pub status: String,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DomainStatus {
     pub domain: String,
@@ -1579,6 +1579,50 @@ pub struct DomainStatus {
     pub error: Option<String>,
     pub recipients: Vec<String>,
     pub updated_at: String,
+}
+
+impl Serialize for DomainStatus {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut state = serializer.serialize_struct("DomainStatus", 6)?;
+        state.serialize_field("domain", &self.domain)?;
+        state.serialize_field("status", &self.status)?;
+        state.serialize_field("error", &self.error)?;
+        state.serialize_field("recipients", &self.recipients)?;
+        state.serialize_field("updatedAt", &self.updated_at)?;
+        state.serialize_field(
+            "permanentFailure",
+            &self.error.as_deref().is_some_and(permanent_domain_error),
+        )?;
+        state.end()
+    }
+}
+
+fn permanent_domain_error(error: &str) -> bool {
+    let error = error.to_ascii_lowercase();
+    [
+        "does not support smtputf8",
+        "requires smtputf8",
+        "smtputf8 recipient",
+        "was not sent with smtputf8",
+        "session was not initialized",
+        "user unknown",
+        "mailbox not found",
+        "recipient rejected",
+        "no such user",
+        "address rejected",
+        "relay denied",
+        "relay not permitted",
+        "550 ",
+        "551 ",
+        "552 ",
+        "553 ",
+        "554 ",
+    ]
+    .iter()
+    .any(|needle| error.contains(needle))
 }
 
 impl TaskDetail {
@@ -3179,6 +3223,47 @@ mod tests {
         assert!(task.validate().is_ok());
         task.sent_file_name = None;
         assert!(task.validate().is_err());
+    }
+
+    #[test]
+    fn domain_status_json_matches_java_permanent_failure_contract() {
+        let mut status = DomainStatus {
+            domain: "example.test".into(),
+            status: "PENDING".into(),
+            error: None,
+            recipients: vec!["qa@example.test".into()],
+            updated_at: "2026-08-09T00:00:00Z".into(),
+        };
+
+        let json = serde_json::to_value(&status).unwrap();
+        assert_eq!(json["permanentFailure"], false);
+        assert_eq!(json.as_object().unwrap().len(), 6);
+
+        status.error = Some("550 5.1.1 User unknown".into());
+        let json = serde_json::to_value(&status).unwrap();
+        assert_eq!(json["permanentFailure"], true);
+    }
+
+    #[test]
+    fn domain_status_deserializes_with_or_without_java_computed_field() {
+        let expected = DomainStatus {
+            domain: "example.test".into(),
+            status: "PENDING".into(),
+            error: None,
+            recipients: vec!["qa@example.test".into()],
+            updated_at: "2026-08-09T00:00:00Z".into(),
+        };
+        let without = r#"{"domain":"example.test","status":"PENDING","error":null,"recipients":["qa@example.test"],"updatedAt":"2026-08-09T00:00:00Z"}"#;
+        let with = r#"{"domain":"example.test","status":"PENDING","error":null,"recipients":["qa@example.test"],"updatedAt":"2026-08-09T00:00:00Z","permanentFailure":false}"#;
+
+        assert_eq!(
+            serde_json::from_str::<DomainStatus>(without).unwrap(),
+            expected
+        );
+        assert_eq!(
+            serde_json::from_str::<DomainStatus>(with).unwrap(),
+            expected
+        );
     }
 
     #[test]
