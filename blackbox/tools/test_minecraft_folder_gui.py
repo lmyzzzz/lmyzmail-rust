@@ -30,7 +30,7 @@ from lmyzmail_blackbox.differential import DifferentialRunner, RuntimeTarget, Sc
 from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 
-_GOLDEN = "managed-minecraft-folder-gui-v1"
+_GOLDEN = "managed-minecraft-folder-gui-v2"
 _MENU_IDS = (0x2D, 0x30)
 _FOLDER_OPEN_IDS = (0x32, 0x2F, 0x30, 0x02, 0x2E, 0x2F, 0x2F, 0x2D, 0x30)
 _PAGE_IDS = (0x32, 0x2F, 0x30, 0x30)
@@ -276,7 +276,7 @@ def test_frozen_java_minecraft_folder_gui_golden(tmp_path: Path) -> None:
     runner = DifferentialRunner(
         repository,
         golden,
-        "managed-minecraft-folder-gui",
+        _GOLDEN,
         record_java=record,
     )
     with _LoginJavaOracleRuntime(tmp_path / "java-minecraft-folder-gui") as oracle:
@@ -312,5 +312,5 @@ def test_rust_candidate_minecraft_folder_gui_matches_golden() -> None:
         DifferentialRunner(
             repository,
             repository / "blackbox/golden/java" / _GOLDEN,
-            "managed-minecraft-folder-gui",
+            _GOLDEN,
         ).verify_candidate(SCENARIOS, candidate)
