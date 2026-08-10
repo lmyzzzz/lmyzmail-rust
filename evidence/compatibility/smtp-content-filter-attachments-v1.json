@@ -1,0 +1,269 @@
+{
+  "schema_version": 1,
+  "profile": "managed-smtp-content-filter-attachments",
+  "scope": [
+    "DANGEROUS_EXTENSION",
+    "DOUBLE_EXTENSION",
+    "MIME_TYPE_MISMATCH"
+  ],
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "harness": {
+    "frozen_definition_tree_sha256": "65f4e5becaadf0905ceef2f9070914a07c01bacf82b6c383bb0d46b43fc0e951",
+    "external_test": {
+      "path": "blackbox/tools/test_smtp_content_filter_attachments.py",
+      "sha256": "797f236be7bc6c561cf7218281c5c3737dd1efd9775e6d873236ae22d49a5519"
+    },
+    "placement": "The test remains outside blackbox/tests so this supplemental profile does not change the frozen definition tree."
+  },
+  "oracle_rule_sources": [
+    {
+      "rule": "DANGEROUS_EXTENSION",
+      "path": "src/main/java/net/lmyz/lmyzmail/contentfilter/rules/attachment/DangerousExtensionRule.java",
+      "sha256": "c283a01f032f3ea0d08223eb835564764e33e1297e65cada8865dd9d81fb76bd"
+    },
+    {
+      "rule": "DOUBLE_EXTENSION",
+      "path": "src/main/java/net/lmyz/lmyzmail/contentfilter/rules/attachment/DoubleExtensionRule.java",
+      "sha256": "dba6da2c9fa92e7f96c02ffef58dbe27a92936875c10b25d14b1ca3bd7f3c5bc"
+    },
+    {
+      "rule": "MIME_TYPE_MISMATCH",
+      "path": "src/main/java/net/lmyz/lmyzmail/contentfilter/rules/attachment/MimeTypeMismatchRule.java",
+      "sha256": "c2ba9cdb498d6c0e4e5c54348a5c391e73e6d49b8ae01a2f04dab03d8546f314"
+    }
+  ],
+  "create_once_generations": [
+    {
+      "generation": "managed-smtp-content-filter-attachments-v1",
+      "status": "rejected",
+      "reason": "The Java email_index parser reported has_attachments=false because the first MIME part was text, despite later attachment parts. The initial contract incorrectly expected true.",
+      "artifacts": {
+        "suite.json": "2f89e2997fcb0fd570d7a80837c62fe598294d532e0839ccc3dfc5bdab6cae48",
+        "observations": []
+      }
+    },
+    {
+      "generation": "managed-smtp-content-filter-attachments-v2",
+      "status": "accepted",
+      "record_result": "1 passed in 32.74s",
+      "independent_replay_result": "1 passed in 30.95s",
+      "artifacts": {
+        "suite.json": "0ad28b86735234a6230590804683558e5b5c9c2f7e366c77278eaa7ab9a96b65",
+        "observations": {
+          "smtp/content-filter/attachment-safe-pdf.json": "9b327765faebda4013dc6929d8bedaeb3c9d49ea20370810271100d1b2962516",
+          "smtp/content-filter/attachment-dangerous-extension.json": "177d3792a3d48a22f6fbde3cebf5f6d904fe2e6cf9b38b19e6ea398425d0f135",
+          "smtp/content-filter/attachment-double-mime-mismatch.json": "98b02af59bd882996fb3df7b931067038157bfc2b652e4f481caf65d4f5448c2",
+          "smtp/content-filter/attachment-rfc2231-filename.json": "c1b8be208ca9e4250f80c529883a41a7cc98c54d1fb0595d67c9a38daea29016",
+          "smtp/content-filter/attachment-multiple-dangerous.json": "549016056fdc8af198488c7988bef28d7050d5285520e750f5faafb9c76f981c"
+        }
+      }
+    },
+    {
+      "generation": "managed-smtp-content-filter-attachments-v3",
+      "status": "accepted",
+      "reason": "Expanded the accepted contract with Java-compatible UTF-16 extension length, RFC 2231 continuation non-merging, Content-Type name, and folded filename cases.",
+      "record_result": "1 passed in 35.01s",
+      "independent_replay_result": "1 passed in 35.48s",
+      "artifacts": {
+        "suite.json": "7b6a7fa9579d4f8f758359be061e00db016a19427db68d98cddf0d6c05a9b1b4",
+        "observations": {
+          "smtp/content-filter/attachment-safe-pdf.json": "9b327765faebda4013dc6929d8bedaeb3c9d49ea20370810271100d1b2962516",
+          "smtp/content-filter/attachment-dangerous-extension.json": "177d3792a3d48a22f6fbde3cebf5f6d904fe2e6cf9b38b19e6ea398425d0f135",
+          "smtp/content-filter/attachment-double-mime-mismatch.json": "98b02af59bd882996fb3df7b931067038157bfc2b652e4f481caf65d4f5448c2",
+          "smtp/content-filter/attachment-rfc2231-filename.json": "c1b8be208ca9e4250f80c529883a41a7cc98c54d1fb0595d67c9a38daea29016",
+          "smtp/content-filter/attachment-multiple-dangerous.json": "549016056fdc8af198488c7988bef28d7050d5285520e750f5faafb9c76f981c",
+          "smtp/content-filter/attachment-unicode-extension.json": "06820ba00cd4aeba9d12774e8d168a2e394a5d7edcff9292b29bf493bd2a67aa",
+          "smtp/content-filter/attachment-rfc2231-continuation.json": "69f8e821e22fd58eb1949eb3445fac3dbee2e088e3166772cfa859c7890b7a13",
+          "smtp/content-filter/attachment-content-type-name.json": "b680abf6af0dc5b02c7dad1d4ad30641668f25bbbc9c69fe1e5ff94ea1c0bf4b",
+          "smtp/content-filter/attachment-folded-filename.json": "8237f3ebff6303a64f9a47ccee56d4f113d13692d13ab097dc4e0c83dff02b2d"
+        }
+      }
+    },
+    {
+      "generation": "managed-smtp-content-filter-attachments-v4",
+      "status": "accepted",
+      "reason": "Expanded the accepted contract with a closed-boundary epilogue case so a completed multipart boundary cannot be reactivated by epilogue bytes.",
+      "record_result": "completed successfully; exact pytest timing unavailable because the migrated launcher retained a stale /mnt/d shebang and its output detached",
+      "independent_replay_result": "1 passed in 43.29s",
+      "artifacts": {
+        "suite.json": "c614149e004d7f5faca1ec9d9d85d20bce70e5031fdedbc81f1838702bba14dc",
+        "observations": {
+          "smtp/content-filter/attachment-safe-pdf.json": "9b327765faebda4013dc6929d8bedaeb3c9d49ea20370810271100d1b2962516",
+          "smtp/content-filter/attachment-dangerous-extension.json": "177d3792a3d48a22f6fbde3cebf5f6d904fe2e6cf9b38b19e6ea398425d0f135",
+          "smtp/content-filter/attachment-double-mime-mismatch.json": "98b02af59bd882996fb3df7b931067038157bfc2b652e4f481caf65d4f5448c2",
+          "smtp/content-filter/attachment-rfc2231-filename.json": "c1b8be208ca9e4250f80c529883a41a7cc98c54d1fb0595d67c9a38daea29016",
+          "smtp/content-filter/attachment-multiple-dangerous.json": "549016056fdc8af198488c7988bef28d7050d5285520e750f5faafb9c76f981c",
+          "smtp/content-filter/attachment-unicode-extension.json": "06820ba00cd4aeba9d12774e8d168a2e394a5d7edcff9292b29bf493bd2a67aa",
+          "smtp/content-filter/attachment-rfc2231-continuation.json": "69f8e821e22fd58eb1949eb3445fac3dbee2e088e3166772cfa859c7890b7a13",
+          "smtp/content-filter/attachment-content-type-name.json": "b680abf6af0dc5b02c7dad1d4ad30641668f25bbbc9c69fe1e5ff94ea1c0bf4b",
+          "smtp/content-filter/attachment-folded-filename.json": "8237f3ebff6303a64f9a47ccee56d4f113d13692d13ab097dc4e0c83dff02b2d",
+          "smtp/content-filter/attachment-closed-boundary-epilogue.json": "415e06239d39017f0fe5c5da7830e60eda4bc62842cc5a3b588ddb57fd58e24e"
+        }
+      }
+    },
+    {
+      "generation": "managed-smtp-content-filter-attachments-v5",
+      "status": "accepted",
+      "reason": "Expanded the accepted contract with a quoted boundary whose leading space is semantically significant.",
+      "record_result": "1 passed in 57.73s",
+      "independent_replay_result": "1 passed in 37.98s",
+      "artifacts": {
+        "suite.json": "8bd233effe0034d3a20a4149cfc05404784f8638a744d3722f8dfeeddde88eba",
+        "observation_added": {
+          "smtp/content-filter/attachment-quoted-space-boundary.json": "2224fd4efeff41a9cc2dedf16e5956982e112f1e4b969d01d5945a705983a87d"
+        }
+      }
+    },
+    {
+      "generation": "managed-smtp-content-filter-attachments-v6",
+      "status": "accepted",
+      "reason": "Expanded the accepted contract with a multipart attachment inside a message/rfc822 entity.",
+      "record_result": "1 passed in 36.77s",
+      "independent_replay_result": "1 passed in 35.50s",
+      "artifacts": {
+        "suite.json": "4541855fbafdf338a3fdee3e7803c40e975337109ed9e4856d701ffe64aeea94",
+        "observation_added": {
+          "smtp/content-filter/attachment-message-rfc822.json": "1d5adff853fae6d3099c1e8e1278f67db3d5ad7f54264b82559d0cacfee1db96"
+        }
+      }
+    },
+    {
+      "generation": "managed-smtp-content-filter-attachments-v7",
+      "status": "accepted",
+      "reason": "Expanded the accepted contract to prove that boundary parameters on non-multipart media types do not activate MIME delimiters.",
+      "record_result": "1 passed in 35.82s",
+      "independent_replay_result": "1 passed in 34.90s",
+      "final_replay_result": "1 passed in 36.23s",
+      "artifacts": {
+        "suite.json": "bdb1e1de1e3aacdddc3eeeb233969e4e83cce49282e4b50756e710ae6eea52d0",
+        "observations": {
+          "smtp/content-filter/attachment-safe-pdf.json": "9b327765faebda4013dc6929d8bedaeb3c9d49ea20370810271100d1b2962516",
+          "smtp/content-filter/attachment-dangerous-extension.json": "177d3792a3d48a22f6fbde3cebf5f6d904fe2e6cf9b38b19e6ea398425d0f135",
+          "smtp/content-filter/attachment-double-mime-mismatch.json": "98b02af59bd882996fb3df7b931067038157bfc2b652e4f481caf65d4f5448c2",
+          "smtp/content-filter/attachment-rfc2231-filename.json": "c1b8be208ca9e4250f80c529883a41a7cc98c54d1fb0595d67c9a38daea29016",
+          "smtp/content-filter/attachment-multiple-dangerous.json": "549016056fdc8af198488c7988bef28d7050d5285520e750f5faafb9c76f981c",
+          "smtp/content-filter/attachment-unicode-extension.json": "06820ba00cd4aeba9d12774e8d168a2e394a5d7edcff9292b29bf493bd2a67aa",
+          "smtp/content-filter/attachment-rfc2231-continuation.json": "69f8e821e22fd58eb1949eb3445fac3dbee2e088e3166772cfa859c7890b7a13",
+          "smtp/content-filter/attachment-content-type-name.json": "b680abf6af0dc5b02c7dad1d4ad30641668f25bbbc9c69fe1e5ff94ea1c0bf4b",
+          "smtp/content-filter/attachment-folded-filename.json": "8237f3ebff6303a64f9a47ccee56d4f113d13692d13ab097dc4e0c83dff02b2d",
+          "smtp/content-filter/attachment-closed-boundary-epilogue.json": "415e06239d39017f0fe5c5da7830e60eda4bc62842cc5a3b588ddb57fd58e24e",
+          "smtp/content-filter/attachment-quoted-space-boundary.json": "2224fd4efeff41a9cc2dedf16e5956982e112f1e4b969d01d5945a705983a87d",
+          "smtp/content-filter/attachment-message-rfc822.json": "1d5adff853fae6d3099c1e8e1278f67db3d5ad7f54264b82559d0cacfee1db96",
+          "smtp/content-filter/attachment-non-multipart-boundary.json": "10481dce86e36f3f4068f7f605a016d521467026fb2f5b6fb433abab034b33d5"
+        }
+      }
+    }
+  ],
+  "accepted_generation": "managed-smtp-content-filter-attachments-v7",
+  "candidate": {
+    "target": "x86_64-unknown-linux-gnu",
+    "release_sha256": "b03c80c71fb83fa0d9f9a0525051da4d3d6c41aafbae80b7a9ad5a2803e896f0",
+    "differential_result": "1 passed in 5.44s",
+    "workspace_test_result": "409 unit tests plus all integration and doc tests passed with zero failures",
+    "resource_bounds": {
+      "smtp_data_bytes": 15728640,
+      "mime_parts": 4096,
+      "mime_boundary_depth": 64,
+      "mime_boundary_bytes": 200,
+      "mime_header_bytes_per_part": 65536,
+      "mime_header_fields_per_part": 256,
+      "mime_field_bytes": 8192,
+      "filename_bytes": 1024,
+      "body_policy": "The attachment filter scans raw MIME boundaries and metadata incrementally, including bounded message/rfc822 header descent; it does not decode, retain, or copy MIME bodies.",
+      "tests": [
+        "smtp_content_filter::tests::attachment_parser_enforces_metadata_budgets",
+        "smtp_content_filter::tests::arbitrary_bounded_input_never_panics_and_scores_stay_finite"
+      ]
+    }
+  },
+  "accepted_differences": [
+    {
+      "id": "smtp-mime-boundary-byte-budget",
+      "oracle_behavior": "The frozen Java Mime4j configuration accepts a 201-byte multipart boundary and reports a payload.exe attachment as DANGEROUS_EXTENSION=5.0.",
+      "candidate_requirement": "Reject an active multipart boundary longer than 200 bytes with AttachmentScanError::BoundaryTooLarge before storage, rather than silently skipping attachment inspection.",
+      "reason": "The rewrite requires a hard limit for every parser-controlled allocation and state key; accepting an unbounded boundary is excluded, while fail-open omission would be a filter bypass.",
+      "scope": "Only active multipart boundary values longer than 200 bytes. Every boundary at or below the limit, including significant quoted whitespace, remains an exact differential requirement.",
+      "candidate_test": "smtp_content_filter::tests::attachment_parser_enforces_metadata_budgets"
+    }
+  ],
+  "accepted_contract": {
+    "maildir_header_lines": {
+      "attachment-safe-pdf": [
+        "X-Spam-Status: No",
+        "X-Spam-Score: 0.0"
+      ],
+      "attachment-dangerous-extension": [
+        "X-Spam-Status: Yes",
+        "X-Spam-Score: 5.0",
+        "X-Spam-Rules: DANGEROUS_EXTENSION=5.0"
+      ],
+      "attachment-double-mime-mismatch": [
+        "X-Spam-Status: Yes",
+        "X-Spam-Score: 13.5",
+        "X-Spam-Rules: DANGEROUS_EXTENSION=5.0, DOUBLE_EXTENSION=4.0, MIME_TYPE_MISMATCH=4.5"
+      ],
+      "attachment-rfc2231-filename": [
+        "X-Spam-Status: Yes",
+        "X-Spam-Score: 5.0",
+        "X-Spam-Rules: DANGEROUS_EXTENSION=5.0"
+      ],
+      "attachment-multiple-dangerous": [
+        "X-Spam-Status: Yes",
+        "X-Spam-Score: 5.5",
+        "X-Spam-Rules: DANGEROUS_EXTENSION=5.5"
+      ],
+      "attachment-unicode-extension": [
+        "X-Spam-Status: Yes",
+        "X-Spam-Score: 9.5",
+        "X-Spam-Rules: DANGEROUS_EXTENSION=5.0, MIME_TYPE_MISMATCH=4.5"
+      ],
+      "attachment-rfc2231-continuation": [
+        "X-Spam-Status: No",
+        "X-Spam-Score: 0.0"
+      ],
+      "attachment-content-type-name": [
+        "X-Spam-Status: Yes",
+        "X-Spam-Score: 5.0",
+        "X-Spam-Rules: DANGEROUS_EXTENSION=5.0"
+      ],
+      "attachment-folded-filename": [
+        "X-Spam-Status: Yes",
+        "X-Spam-Score: 5.0",
+        "X-Spam-Rules: DANGEROUS_EXTENSION=5.0"
+      ],
+      "attachment-closed-boundary-epilogue": [
+        "X-Spam-Status: No",
+        "X-Spam-Score: 0.0"
+      ],
+      "attachment-quoted-space-boundary": [
+        "X-Spam-Status: Yes",
+        "X-Spam-Score: 5.0",
+        "X-Spam-Rules: DANGEROUS_EXTENSION=5.0"
+      ],
+      "attachment-message-rfc822": [
+        "X-Spam-Status: Yes",
+        "X-Spam-Score: 5.0",
+        "X-Spam-Rules: DANGEROUS_EXTENSION=5.0"
+      ],
+      "attachment-non-multipart-boundary": [
+        "X-Spam-Status: No",
+        "X-Spam-Score: 0.0"
+      ]
+    },
+    "storage": {
+      "folder": "spam",
+      "has_attachments": false,
+      "has_attachments_compatibility": "The frozen Java indexer checks only the first MIME part.",
+      "maildir_new_regular_files": 1,
+      "maildir_orphan_files": 0,
+      "maildir_residual_temp_files": 0,
+      "postgres_matching_rows": 1,
+      "redis_delta": 1,
+      "redis_pttl": -1
+    },
+    "delivery_cardinality": "exactly-once"
+  }
+}
