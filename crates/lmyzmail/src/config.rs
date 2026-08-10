@@ -53,6 +53,8 @@ const MIN_SMTP_ASCII_ASPECT: f32 = 0.1;
 const MAX_SMTP_ASCII_ASPECT: f32 = 10.0;
 const MAX_CONTENT_FILTER_THRESHOLD: f64 = 1_000_000.0;
 const MAX_CONTENT_FILTER_RULE_WEIGHT: f64 = 100.0;
+const MAX_CONTENT_FILTER_EXTENSIONS: usize = 256;
+const MAX_CONTENT_FILTER_EXTENSION_BYTES: usize = 32;
 const MAX_MESSAGE_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_CRINGE_DECAY_DURATION: Duration = Duration::from_secs(100 * 366 * 24 * 60 * 60);
 
@@ -360,6 +362,7 @@ struct JsonContentFilterConfig {
     suspicious_threshold: f64,
     spam_threshold: f64,
     rules: JsonContentFilterRules,
+    attachment: JsonContentFilterAttachment,
 }
 
 impl Default for JsonContentFilterConfig {
@@ -369,6 +372,7 @@ impl Default for JsonContentFilterConfig {
             suspicious_threshold: 5.0,
             spam_threshold: 10.0,
             rules: JsonContentFilterRules::default(),
+            attachment: JsonContentFilterAttachment::default(),
         }
     }
 }
@@ -379,6 +383,31 @@ struct JsonContentFilterRules {
     missing_headers: JsonContentFilterRule,
     subject_encoding_trick: JsonContentFilterRule,
     excessive_recipients: JsonContentFilterRule,
+    dangerous_extension: JsonContentFilterRule,
+    double_extension: JsonContentFilterRule,
+    mime_type_mismatch: JsonContentFilterRule,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct JsonContentFilterAttachment {
+    enabled: bool,
+    dangerous_extensions: Vec<String>,
+    dangerous_extension_score: f64,
+    double_extension_score: f64,
+    mime_type_mismatch_score: f64,
+}
+
+impl Default for JsonContentFilterAttachment {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            dangerous_extensions: default_dangerous_attachment_extensions(),
+            dangerous_extension_score: 5.0,
+            double_extension_score: 4.0,
+            mime_type_mismatch_score: 3.0,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -1170,6 +1199,16 @@ fn default_max_total_attachments_size_bytes() -> u64 {
     15 * 1024 * 1024
 }
 
+fn default_dangerous_attachment_extensions() -> Vec<String> {
+    [
+        "exe", "scr", "bat", "cmd", "com", "pif", "vbs", "vbe", "js", "jse", "wsf", "wsh", "msi",
+        "msp", "hta", "cpl", "reg", "inf", "scf", "lnk", "ps1", "psm1", "jar",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect()
+}
+
 fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
     let value: JsonRuntimeConfig = serde_json::from_slice(bytes).map_err(|error| {
         ConfigError::Invalid(format!("semantic JSON configuration is invalid: {error}"))
@@ -1262,11 +1301,46 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
             "EXCESSIVE_RECIPIENTS",
             content_filter.rules.excessive_recipients,
         ),
+        (
+            "DANGEROUS_EXTENSION",
+            content_filter.rules.dangerous_extension,
+        ),
+        ("DOUBLE_EXTENSION", content_filter.rules.double_extension),
+        (
+            "MIME_TYPE_MISMATCH",
+            content_filter.rules.mime_type_mismatch,
+        ),
     ] {
         let prefix = format!("lmyzmail.contentfilter.rules.{name}");
         properties.insert(format!("{prefix}.enabled"), rule.enabled.to_string())?;
         properties.insert(format!("{prefix}.weight"), rule.weight.to_string())?;
     }
+    properties.insert(
+        "lmyzmail.contentfilter.attachment.enabled".to_owned(),
+        content_filter.attachment.enabled.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.contentfilter.attachment.dangerous-extensions".to_owned(),
+        content_filter.attachment.dangerous_extensions.join(","),
+    )?;
+    properties.insert(
+        "lmyzmail.contentfilter.attachment.dangerous-extension-score".to_owned(),
+        content_filter
+            .attachment
+            .dangerous_extension_score
+            .to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.contentfilter.attachment.double-extension-score".to_owned(),
+        content_filter.attachment.double_extension_score.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.contentfilter.attachment.mime-type-mismatch-score".to_owned(),
+        content_filter
+            .attachment
+            .mime_type_mismatch_score
+            .to_string(),
+    )?;
     properties.insert(
         "lmyzmail.htcpcp.port".to_owned(),
         value.listen.htcpcp.to_string(),
@@ -2072,6 +2146,10 @@ pub struct ContentFilterConfig {
     pub missing_headers: ContentFilterRuleConfig,
     pub subject_encoding_trick: ContentFilterRuleConfig,
     pub excessive_recipients: ContentFilterRuleConfig,
+    pub dangerous_extension: ContentFilterRuleConfig,
+    pub double_extension: ContentFilterRuleConfig,
+    pub mime_type_mismatch: ContentFilterRuleConfig,
+    pub attachment: ContentFilterAttachmentConfig,
 }
 
 impl Default for ContentFilterConfig {
@@ -2083,6 +2161,31 @@ impl Default for ContentFilterConfig {
             missing_headers: ContentFilterRuleConfig::default(),
             subject_encoding_trick: ContentFilterRuleConfig::default(),
             excessive_recipients: ContentFilterRuleConfig::default(),
+            dangerous_extension: ContentFilterRuleConfig::default(),
+            double_extension: ContentFilterRuleConfig::default(),
+            mime_type_mismatch: ContentFilterRuleConfig::default(),
+            attachment: ContentFilterAttachmentConfig::default(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ContentFilterAttachmentConfig {
+    pub enabled: bool,
+    pub dangerous_extensions: Vec<String>,
+    pub dangerous_extension_score: f64,
+    pub double_extension_score: f64,
+    pub mime_type_mismatch_score: f64,
+}
+
+impl Default for ContentFilterAttachmentConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            dangerous_extensions: default_dangerous_attachment_extensions(),
+            dangerous_extension_score: 5.0,
+            double_extension_score: 4.0,
+            mime_type_mismatch_score: 3.0,
         }
     }
 }
@@ -3421,6 +3524,7 @@ fn parse_content_filter_config(
             "contentfilter spam-threshold must not be below suspicious-threshold".into(),
         ));
     }
+    let attachment = parse_content_filter_attachment(properties)?;
     Ok(ContentFilterConfig {
         enabled: preferred_bool(
             properties,
@@ -3433,6 +3537,92 @@ fn parse_content_filter_config(
         missing_headers: parse_content_filter_rule(properties, "MISSING_HEADERS")?,
         subject_encoding_trick: parse_content_filter_rule(properties, "SUBJECT_ENCODING_TRICK")?,
         excessive_recipients: parse_content_filter_rule(properties, "EXCESSIVE_RECIPIENTS")?,
+        dangerous_extension: parse_content_filter_rule(properties, "DANGEROUS_EXTENSION")?,
+        double_extension: parse_content_filter_rule(properties, "DOUBLE_EXTENSION")?,
+        mime_type_mismatch: parse_content_filter_rule(properties, "MIME_TYPE_MISMATCH")?,
+        attachment,
+    })
+}
+
+fn parse_content_filter_attachment(
+    properties: &Properties,
+) -> Result<ContentFilterAttachmentConfig, ConfigError> {
+    let defaults = ContentFilterAttachmentConfig::default();
+    let dangerous_extensions = preferred(
+        properties,
+        &["lmyzmail.contentfilter.attachment.dangerous-extensions"],
+        &["botmail.contentfilter.attachment.dangerous-extensions"],
+    )
+    .map(|value| {
+        value
+            .split(',')
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(|value| value.to_ascii_lowercase())
+            .collect::<Vec<_>>()
+    })
+    .unwrap_or(defaults.dangerous_extensions);
+    if dangerous_extensions.is_empty()
+        || dangerous_extensions.len() > MAX_CONTENT_FILTER_EXTENSIONS
+        || dangerous_extensions.iter().any(|extension| {
+            extension.len() > MAX_CONTENT_FILTER_EXTENSION_BYTES
+                || !extension.bytes().all(|byte| byte.is_ascii_alphanumeric())
+        })
+    {
+        return Err(ConfigError::Invalid(
+            "contentfilter dangerous extensions must be a non-empty bounded ASCII list".into(),
+        ));
+    }
+
+    let dangerous_extension_score = preferred_f64(
+        properties,
+        &["lmyzmail.contentfilter.attachment.dangerous-extension-score"],
+        &["botmail.contentfilter.attachment.dangerous-extension-score"],
+        defaults.dangerous_extension_score,
+        "contentfilter dangerous-extension-score",
+    )?;
+    let double_extension_score = preferred_f64(
+        properties,
+        &["lmyzmail.contentfilter.attachment.double-extension-score"],
+        &["botmail.contentfilter.attachment.double-extension-score"],
+        defaults.double_extension_score,
+        "contentfilter double-extension-score",
+    )?;
+    let mime_type_mismatch_score = preferred_f64(
+        properties,
+        &["lmyzmail.contentfilter.attachment.mime-type-mismatch-score"],
+        &["botmail.contentfilter.attachment.mime-type-mismatch-score"],
+        defaults.mime_type_mismatch_score,
+        "contentfilter mime-type-mismatch-score",
+    )?;
+    for (value, label) in [
+        (
+            dangerous_extension_score,
+            "contentfilter dangerous-extension-score",
+        ),
+        (
+            double_extension_score,
+            "contentfilter double-extension-score",
+        ),
+        (
+            mime_type_mismatch_score,
+            "contentfilter mime-type-mismatch-score",
+        ),
+    ] {
+        validate_content_filter_number(value, MAX_CONTENT_FILTER_THRESHOLD, label)?;
+    }
+
+    Ok(ContentFilterAttachmentConfig {
+        enabled: preferred_bool(
+            properties,
+            &["lmyzmail.contentfilter.attachment.enabled"],
+            &["botmail.contentfilter.attachment.enabled"],
+            true,
+        )?,
+        dangerous_extensions,
+        dangerous_extension_score,
+        double_extension_score,
+        mime_type_mismatch_score,
     })
 }
 
@@ -5233,10 +5423,17 @@ lmyzmail.smtp.asciiart.char-aspect=2.5\n",
             &config.content_filter.missing_headers,
             &config.content_filter.subject_encoding_trick,
             &config.content_filter.excessive_recipients,
+            &config.content_filter.dangerous_extension,
+            &config.content_filter.double_extension,
+            &config.content_filter.mime_type_mismatch,
         ] {
             assert!(rule.enabled);
             assert_eq!(rule.weight, 1.0);
         }
+        assert_eq!(
+            config.content_filter.attachment,
+            ContentFilterAttachmentConfig::default()
+        );
     }
 
     #[test]
@@ -5249,10 +5446,21 @@ botmail.contentfilter.spam-threshold=9\n\
 botmail.contentfilter.rules.MISSING_HEADERS.enabled=false\n\
 botmail.contentfilter.rules.MISSING_HEADERS.weight=2.5\n\
 botmail.contentfilter.rules.SUBJECT_ENCODING_TRICK.weight=3.0\n\
+botmail.contentfilter.rules.DANGEROUS_EXTENSION.enabled=false\n\
+botmail.contentfilter.rules.DANGEROUS_EXTENSION.weight=2.5\n\
+botmail.contentfilter.attachment.enabled=false\n\
+botmail.contentfilter.attachment.dangerous-extensions=exe,ps1\n\
+botmail.contentfilter.attachment.dangerous-extension-score=7\n\
+botmail.contentfilter.attachment.double-extension-score=8\n\
+botmail.contentfilter.attachment.mime-type-mismatch-score=9\n\
 lmyzmail.contentfilter.enabled=true\n\
 lmyzmail.contentfilter.spam-threshold=8\n\
 lmyzmail.contentfilter.rules.MISSING_HEADERS.weight=1.25\n\
-lmyzmail.contentfilter.rules.EXCESSIVE_RECIPIENTS.enabled=false\n",
+lmyzmail.contentfilter.rules.EXCESSIVE_RECIPIENTS.enabled=false\n\
+lmyzmail.contentfilter.rules.DANGEROUS_EXTENSION.weight=1.5\n\
+lmyzmail.contentfilter.attachment.enabled=true\n\
+lmyzmail.contentfilter.attachment.dangerous-extensions=cmd,js\n\
+lmyzmail.contentfilter.attachment.dangerous-extension-score=6\n",
             )
             .unwrap(),
         )
@@ -5264,6 +5472,22 @@ lmyzmail.contentfilter.rules.EXCESSIVE_RECIPIENTS.enabled=false\n",
         assert_eq!(config.content_filter.missing_headers.weight, 1.25);
         assert_eq!(config.content_filter.subject_encoding_trick.weight, 3.0);
         assert!(!config.content_filter.excessive_recipients.enabled);
+        assert!(!config.content_filter.dangerous_extension.enabled);
+        assert_eq!(config.content_filter.dangerous_extension.weight, 1.5);
+        assert!(config.content_filter.attachment.enabled);
+        assert_eq!(
+            config.content_filter.attachment.dangerous_extensions,
+            ["cmd", "js"]
+        );
+        assert_eq!(
+            config.content_filter.attachment.dangerous_extension_score,
+            6.0
+        );
+        assert_eq!(config.content_filter.attachment.double_extension_score, 8.0);
+        assert_eq!(
+            config.content_filter.attachment.mime_type_mismatch_score,
+            9.0
+        );
     }
 
     #[test]
@@ -5282,7 +5506,17 @@ lmyzmail.contentfilter.rules.EXCESSIVE_RECIPIENTS.enabled=false\n",
             "rules": {
                 "missing_headers": {"enabled": false, "weight": 2.0},
                 "subject_encoding_trick": {"enabled": true, "weight": 1.5},
-                "excessive_recipients": {"enabled": true, "weight": 0.5}
+                "excessive_recipients": {"enabled": true, "weight": 0.5},
+                "dangerous_extension": {"enabled": true, "weight": 2.5},
+                "double_extension": {"enabled": false, "weight": 3.0},
+                "mime_type_mismatch": {"enabled": true, "weight": 3.5}
+            },
+            "attachment": {
+                "enabled": true,
+                "dangerous_extensions": ["cmd", "js"],
+                "dangerous_extension_score": 6.0,
+                "double_extension_score": 7.0,
+                "mime_type_mismatch_score": 8.0
             }
         });
         let properties = parse_semantic_json(&serde_json::to_vec(&value).unwrap()).unwrap();
@@ -5294,6 +5528,22 @@ lmyzmail.contentfilter.rules.EXCESSIVE_RECIPIENTS.enabled=false\n",
         assert_eq!(config.content_filter.missing_headers.weight, 2.0);
         assert_eq!(config.content_filter.subject_encoding_trick.weight, 1.5);
         assert_eq!(config.content_filter.excessive_recipients.weight, 0.5);
+        assert_eq!(config.content_filter.dangerous_extension.weight, 2.5);
+        assert!(!config.content_filter.double_extension.enabled);
+        assert_eq!(config.content_filter.mime_type_mismatch.weight, 3.5);
+        assert_eq!(
+            config.content_filter.attachment.dangerous_extensions,
+            ["cmd", "js"]
+        );
+        assert_eq!(
+            config.content_filter.attachment.dangerous_extension_score,
+            6.0
+        );
+        assert_eq!(config.content_filter.attachment.double_extension_score, 7.0);
+        assert_eq!(
+            config.content_filter.attachment.mime_type_mismatch_score,
+            8.0
+        );
     }
 
     #[test]
@@ -5306,6 +5556,12 @@ lmyzmail.contentfilter.rules.EXCESSIVE_RECIPIENTS.enabled=false\n",
             b"lmyzmail.contentfilter.rules.MISSING_HEADERS.weight=-0.1\n".as_slice(),
             b"lmyzmail.contentfilter.rules.SUBJECT_ENCODING_TRICK.weight=NaN\n".as_slice(),
             b"lmyzmail.contentfilter.rules.EXCESSIVE_RECIPIENTS.weight=101\n".as_slice(),
+            b"lmyzmail.contentfilter.rules.DANGEROUS_EXTENSION.weight=Infinity\n".as_slice(),
+            b"lmyzmail.contentfilter.attachment.dangerous-extensions=\n".as_slice(),
+            b"lmyzmail.contentfilter.attachment.dangerous-extensions=exe,ps-1\n".as_slice(),
+            b"lmyzmail.contentfilter.attachment.dangerous-extension-score=-0.1\n".as_slice(),
+            b"lmyzmail.contentfilter.attachment.double-extension-score=NaN\n".as_slice(),
+            b"lmyzmail.contentfilter.attachment.mime-type-mismatch-score=1000001\n".as_slice(),
         ] {
             assert!(
                 RuntimeConfig::from_properties(Properties::parse(input).unwrap()).is_err(),
@@ -5313,6 +5569,18 @@ lmyzmail.contentfilter.rules.EXCESSIVE_RECIPIENTS.enabled=false\n",
                 String::from_utf8_lossy(input)
             );
         }
+
+        let too_many = format!(
+            "lmyzmail.contentfilter.attachment.dangerous-extensions={}\n",
+            (0..=MAX_CONTENT_FILTER_EXTENSIONS)
+                .map(|index| format!("x{index}"))
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+        assert!(
+            RuntimeConfig::from_properties(Properties::parse(too_many.as_bytes()).unwrap())
+                .is_err()
+        );
     }
 
     #[test]

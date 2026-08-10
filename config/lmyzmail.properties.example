@@ -119,6 +119,17 @@ lmyzmail.contentfilter.rules.SUBJECT_ENCODING_TRICK.enabled=true
 lmyzmail.contentfilter.rules.SUBJECT_ENCODING_TRICK.weight=1.0
 lmyzmail.contentfilter.rules.EXCESSIVE_RECIPIENTS.enabled=true
 lmyzmail.contentfilter.rules.EXCESSIVE_RECIPIENTS.weight=1.0
+lmyzmail.contentfilter.rules.DANGEROUS_EXTENSION.enabled=true
+lmyzmail.contentfilter.rules.DANGEROUS_EXTENSION.weight=1.0
+lmyzmail.contentfilter.rules.DOUBLE_EXTENSION.enabled=true
+lmyzmail.contentfilter.rules.DOUBLE_EXTENSION.weight=1.0
+lmyzmail.contentfilter.rules.MIME_TYPE_MISMATCH.enabled=true
+lmyzmail.contentfilter.rules.MIME_TYPE_MISMATCH.weight=1.0
+lmyzmail.contentfilter.attachment.enabled=true
+lmyzmail.contentfilter.attachment.dangerous-extensions=exe,scr,bat,cmd,com,pif,vbs,vbe,js,jse,wsf,wsh,msi,msp,hta,cpl,reg,inf,scf,lnk,ps1,psm1,jar
+lmyzmail.contentfilter.attachment.dangerous-extension-score=5.0
+lmyzmail.contentfilter.attachment.double-extension-score=4.0
+lmyzmail.contentfilter.attachment.mime-type-mismatch-score=3.0
 lmyzmail.xdp.enabled=false
 lmyzmail.xdp.interface-name=eth0
 # Leave empty to use the BPF object embedded in the lmyzmail binary.

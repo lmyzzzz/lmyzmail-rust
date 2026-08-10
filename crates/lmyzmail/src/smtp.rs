@@ -36,7 +36,7 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     config::{ContentFilterConfig, MailRenderSimdMode, RuntimeConfig},
     smtp_ascii::AsciiSimdMode,
-    smtp_content_filter::{ContentScan, ParsedHeaders},
+    smtp_content_filter::{ContentScan, ParsedHeaders, scan_attachments},
     smtp_skibidi_quiz::{AnswerOutcome, QuizLevel, QuizState, ensure_question_bank_loaded},
     smtp_skibidi_video::{VideoDefaults, VideoService, VideoStartError, frame_wire_bytes},
     video_asset::locate_frozen_video_asset,
@@ -273,7 +273,11 @@ impl SmtpService {
             .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
         // The frozen Java verification path does not forward envelope RCPTs
         // into ScanContext, so header rules observe an envelope count of zero.
-        let content_scan = headers.scan(0, &self.config.content_filter);
+        let mut content_scan = headers.scan(0, &self.config.content_filter);
+        content_scan.append(
+            scan_attachments(&envelope.data, &self.config.content_filter)
+                .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?,
+        );
         let mailbox = envelope
             .recipients
             .first()
@@ -1344,6 +1348,14 @@ fn has_first_mime_attachment(data: &[u8]) -> bool {
     let Some(content_type) = header_value(data, "content-type") else {
         return false;
     };
+    let media_type = content_type.split(';').next().map(str::trim).unwrap_or("");
+    if !media_type
+        .as_bytes()
+        .get(..b"multipart/".len())
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case(b"multipart/"))
+    {
+        return false;
+    }
     let Some(boundary) = content_type
         .split(';')
         .map(str::trim)
@@ -1777,5 +1789,8 @@ Subject: binary\r\nMessage-ID: <binary@example.test>\r\n\r\n\x00\xff\x80";
 --bb\r\nContent-Disposition: attachment; filename=x\r\n\r\ndata\r\n--bb--\r\n";
         assert!(has_first_mime_attachment(attachment_first));
         assert!(!has_first_mime_attachment(body_first));
+        assert!(!has_first_mime_attachment(
+            b"Content-Type: text/plain; boundary=bb\r\n\r\n--bb\r\nContent-Disposition: attachment; filename=x\r\n\r\ndata\r\n--bb--\r\n"
+        ));
     }
 }
