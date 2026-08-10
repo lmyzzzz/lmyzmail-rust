@@ -37,6 +37,9 @@ _RULE_OVERRIDES = (
     "--botmail.contentfilter.rules.MIME_TYPE_MISMATCH.enabled=true",
     "--botmail.contentfilter.attachment.enabled=true",
 )
+_CANDIDATE_RULE_OVERRIDES = tuple(
+    value.replace("--botmail.", "--lmyzmail.", 1) for value in _RULE_OVERRIDES
+)
 _NORMALIZERS = (
     "smtp:greeting-skibidi-grammar",
     "smtp:server-hostname",
@@ -81,7 +84,7 @@ def _candidate(repository: Path) -> CandidateRuntime:
             "--config",
             "{config}",
             "--botmail.maildir.max-files-per-directory=1",
-            *_RULE_OVERRIDES,
+            *_CANDIDATE_RULE_OVERRIDES,
         )
     )
 
@@ -95,7 +98,7 @@ def _attachment_part(
 ) -> str:
     content_type = mime_type
     if content_type_name is not None:
-        content_type += f"; name=\"{content_type_name}\""
+        content_type += f'; name="{content_type_name}"'
     return (
         f"--{boundary}\r\n"
         f"Content-Type: {content_type}\r\n"
@@ -120,7 +123,7 @@ def _message(
         f"Subject: {subject}\r\n"
         f"Message-ID: {message_id}\r\n"
         "MIME-Version: 1.0\r\n"
-        f"Content-Type: multipart/mixed; boundary=\"{boundary}\"\r\n"
+        f'Content-Type: multipart/mixed; boundary="{boundary}"\r\n'
         "\r\n"
     )
     text_part = (
@@ -130,9 +133,7 @@ def _message(
         "Attachment filter body.\r\n"
     )
     closing = f"--{boundary}--\r\n"
-    return (headers + text_part + "".join(attachment_parts) + closing + epilogue).encode(
-        "ascii"
-    )
+    return (headers + text_part + "".join(attachment_parts) + closing + epilogue).encode("ascii")
 
 
 _SAFE_ID = "<bb-attachment-safe-001@example.test>"

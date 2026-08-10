@@ -32,6 +32,9 @@ _RULE_OVERRIDES = (
     "--botmail.contentfilter.rules.DOUBLE_EXTENSION.enabled=false",
     "--botmail.contentfilter.rules.MIME_TYPE_MISMATCH.enabled=false",
 )
+_CANDIDATE_RULE_OVERRIDES = tuple(
+    value.replace("--botmail.", "--lmyzmail.", 1) for value in _RULE_OVERRIDES
+)
 _NORMALIZERS = (
     "smtp:greeting-skibidi-grammar",
     "smtp:server-hostname",
@@ -75,7 +78,7 @@ def _candidate(repository: Path) -> CandidateRuntime:
             "--config",
             "{config}",
             "--botmail.maildir.max-files-per-directory=1",
-            *_RULE_OVERRIDES,
+            *_CANDIDATE_RULE_OVERRIDES,
         )
     )
 
