@@ -1,0 +1,192 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "c6d8e28c316700429cf176f7af6458074e74312d55a6179553f0b3ce98ea6598",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "header:date:http-date",
+      "json-object-order:reports-contract",
+      "report-id:uuid-v4",
+      "rfc5322:parsed-message",
+      "report-body:wall-clock-period",
+      "redis-domain-status:updated-at",
+      "maildir:generated-filename"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-reports"
+  },
+  "observation": {
+    "dnsQueries": [],
+    "maildir": {
+      "addedCount": 2,
+      "messages": {
+        "dmarc": {
+          "attachment": {
+            "compressedBytesPositive": true,
+            "contentType": "application/gzip",
+            "decompressedText": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<feedback xmlns=\"urn:ietf:params:xml:ns:dmarc-xml-report-1.0\">\n  <report_metadata>\n    <org_name>Blackbox Reports</org_name>\n    <email>reports@example.test</email>\n    <report_id><report-id></report_id>\n    <date_range>\n      <begin>1704067200</begin>\n      <end>1704153599</end>\n    </date_range>\n  </report_metadata>\n  <policy_published>\n    <domain>sender.example</domain>\n    <adkim>r</adkim>\n    <aspf>r</aspf>\n    <p>reject</p>\n    <sp>reject</sp>\n    <pct>100</pct>\n  </policy_published>\n  <record>\n    <row>\n      <source_ip>192.0.2.10</source_ip>\n      <count>10</count>\n      <policy_evaluated>\n        <disposition>none</disposition>\n        <dkim>fail</dkim>\n        <spf>pass</spf>\n      </policy_evaluated>\n    </row>\n    <identifiers>\n      <header_from>sender.example</header_from>\n      <envelope_from>sender.example</envelope_from>\n    </identifiers>\n    <auth_results>\n      <dkim>\n        <domain>sender.example</domain>\n        <selector>legacy</selector>\n        <result>none</result>\n      </dkim>\n      <spf>\n        <domain>sender.example</domain>\n        <result>pass</result>\n      </spf>\n    </auth_results>\n  </record>\n</feedback>\n",
+            "filename": "example.test!sender.example!1704067200!1704153599.xml.gz",
+            "format": "dmarc-xml"
+          },
+          "body": "This is an aggregate DMARC report for domain: sender.example\r\n\r\nReport Period: <report-period>\r\nReport ID: <report-id>\r\nSubmitter: example.test\r\nRecords: 1\r\n\r\nThe report is attached as a gzip-compressed XML file.\r\n",
+          "from": "qa@example.test",
+          "subject": "Report Domain: sender.example Submitter: example.test Report-ID: <report-id>",
+          "to": "qa@example.test"
+        },
+        "tls": {
+          "attachment": {
+            "compressedBytesPositive": true,
+            "contentType": "application/tlsrpt+gzip",
+            "decompressedText": "{\n  \"organization-name\" : \"Blackbox Reports\",\n  \"date-range\" : {\n    \"start-datetime\" : \"2024-01-01T00:00:00Z\",\n    \"end-datetime\" : \"2024-01-01T23:59:59Z\"\n  },\n  \"contact-info\" : \"reports@example.test\",\n  \"report-id\" : \"<report-id>\",\n  \"policies\" : [ {\n    \"policy\" : {\n      \"policy-type\" : \"sts\",\n      \"policy-string\" : [ \"version: STSv1\", \"mode: enforce\", \"mx: mx.recipient.example\", \"max_age: 604800\" ],\n      \"policy-domain\" : \"recipient.example\",\n      \"mx-host\" : [ \"mx.recipient.example\" ]\n    },\n    \"summary\" : {\n      \"total-successful-session-count\" : 10,\n      \"total-failure-session-count\" : 0\n    }\n  } ]\n}",
+            "filename": "example.test!recipient.example!20240101!20240101.json.gz",
+            "format": "tlsrpt-json"
+          },
+          "body": "This is a SMTP TLS Reporting report for domain: recipient.example\r\n\r\nReport Period: <report-period>\r\nReport ID: <report-id>\r\nSubmitter: example.test\r\nSuccessful Sessions: 10\r\nFailed Sessions: 0\r\n\r\nThe report is attached as a gzip-compressed JSON file.\r\n",
+          "from": "qa@example.test",
+          "subject": "Report Domain: recipient.example Submitter: example.test Report-ID: <report-id>",
+          "to": "qa@example.test"
+        }
+      },
+      "noTemporaryFiles": true
+    },
+    "queue": {
+      "pendingOrder": [
+        "dmarc",
+        "tls"
+      ],
+      "tasks": {
+        "dmarc": {
+          "domains": {
+            "example.test": {
+              "domain": "example.test",
+              "error": null,
+              "permanentFailure": false,
+              "recipients": [
+                "qa@example.test"
+              ],
+              "status": "PENDING",
+              "updatedAt": "<updated-at>"
+            }
+          },
+          "inMemory": true,
+          "maxRetries": 5,
+          "message": {
+            "attachment": {
+              "compressedBytesPositive": true,
+              "contentType": "application/gzip",
+              "decompressedText": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<feedback xmlns=\"urn:ietf:params:xml:ns:dmarc-xml-report-1.0\">\n  <report_metadata>\n    <org_name>Blackbox Reports</org_name>\n    <email>reports@example.test</email>\n    <report_id><report-id></report_id>\n    <date_range>\n      <begin>1704067200</begin>\n      <end>1704153599</end>\n    </date_range>\n  </report_metadata>\n  <policy_published>\n    <domain>sender.example</domain>\n    <adkim>r</adkim>\n    <aspf>r</aspf>\n    <p>reject</p>\n    <sp>reject</sp>\n    <pct>100</pct>\n  </policy_published>\n  <record>\n    <row>\n      <source_ip>192.0.2.10</source_ip>\n      <count>10</count>\n      <policy_evaluated>\n        <disposition>none</disposition>\n        <dkim>fail</dkim>\n        <spf>pass</spf>\n      </policy_evaluated>\n    </row>\n    <identifiers>\n      <header_from>sender.example</header_from>\n      <envelope_from>sender.example</envelope_from>\n    </identifiers>\n    <auth_results>\n      <dkim>\n        <domain>sender.example</domain>\n        <selector>legacy</selector>\n        <result>none</result>\n      </dkim>\n      <spf>\n        <domain>sender.example</domain>\n        <result>pass</result>\n      </spf>\n    </auth_results>\n  </record>\n</feedback>\n",
+              "filename": "example.test!sender.example!1704067200!1704153599.xml.gz",
+              "format": "dmarc-xml"
+            },
+            "body": "This is an aggregate DMARC report for domain: sender.example\r\n\r\nReport Period: <report-period>\r\nReport ID: <report-id>\r\nSubmitter: example.test\r\nRecords: 1\r\n\r\nThe report is attached as a gzip-compressed XML file.\r\n",
+            "from": "qa@example.test",
+            "subject": "Report Domain: sender.example Submitter: example.test Report-ID: <report-id>",
+            "to": "qa@example.test"
+          },
+          "messageIdPresent": true,
+          "recipients": {
+            "bcc": [],
+            "cc": [],
+            "to": [
+              "qa@example.test"
+            ]
+          },
+          "retryCount": 0,
+          "senderAddress": "qa@example.test",
+          "sentFilePresent": true,
+          "sentSubdirectory": 3,
+          "status": "PENDING",
+          "taskTtlPositive": true
+        },
+        "tls": {
+          "domains": {
+            "example.test": {
+              "domain": "example.test",
+              "error": null,
+              "permanentFailure": false,
+              "recipients": [
+                "qa@example.test"
+              ],
+              "status": "PENDING",
+              "updatedAt": "<updated-at>"
+            }
+          },
+          "inMemory": true,
+          "maxRetries": 5,
+          "message": {
+            "attachment": {
+              "compressedBytesPositive": true,
+              "contentType": "application/tlsrpt+gzip",
+              "decompressedText": "{\n  \"organization-name\" : \"Blackbox Reports\",\n  \"date-range\" : {\n    \"start-datetime\" : \"2024-01-01T00:00:00Z\",\n    \"end-datetime\" : \"2024-01-01T23:59:59Z\"\n  },\n  \"contact-info\" : \"reports@example.test\",\n  \"report-id\" : \"<report-id>\",\n  \"policies\" : [ {\n    \"policy\" : {\n      \"policy-type\" : \"sts\",\n      \"policy-string\" : [ \"version: STSv1\", \"mode: enforce\", \"mx: mx.recipient.example\", \"max_age: 604800\" ],\n      \"policy-domain\" : \"recipient.example\",\n      \"mx-host\" : [ \"mx.recipient.example\" ]\n    },\n    \"summary\" : {\n      \"total-successful-session-count\" : 10,\n      \"total-failure-session-count\" : 0\n    }\n  } ]\n}",
+              "filename": "example.test!recipient.example!20240101!20240101.json.gz",
+              "format": "tlsrpt-json"
+            },
+            "body": "This is a SMTP TLS Reporting report for domain: recipient.example\r\n\r\nReport Period: <report-period>\r\nReport ID: <report-id>\r\nSubmitter: example.test\r\nSuccessful Sessions: 10\r\nFailed Sessions: 0\r\n\r\nThe report is attached as a gzip-compressed JSON file.\r\n",
+            "from": "qa@example.test",
+            "subject": "Report Domain: recipient.example Submitter: example.test Report-ID: <report-id>",
+            "to": "qa@example.test"
+          },
+          "messageIdPresent": true,
+          "recipients": {
+            "bcc": [],
+            "cc": [],
+            "to": [
+              "qa@example.test"
+            ]
+          },
+          "retryCount": 0,
+          "senderAddress": "qa@example.test",
+          "sentFilePresent": true,
+          "sentSubdirectory": 4,
+          "status": "PENDING",
+          "taskTtlPositive": true
+        }
+      }
+    },
+    "response": {
+      "body_json": {
+        "date": "2024-01-01",
+        "dmarcFailed": 0,
+        "dmarcSent": 1,
+        "error": "none",
+        "tlsFailed": 0,
+        "tlsSent": 1
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "92"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJkYXRlIjoiMjAyNC0wMS0wMSIsImRtYXJjRmFpbGVkIjowLCJkbWFyY1NlbnQiOjEsImVycm9yIjoibm9uZSIsInRsc0ZhaWxlZCI6MCwidGxzU2VudCI6MX0=",
+        "length": 92,
+        "sha256": "45e51b51b1fee44627bf058d56cc653a6d390e16d9bf58786efe2578eed8fd7c"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sourceDatabaseUnchanged": true,
+    "thresholdCountsRestored": true
+  },
+  "schema_version": 2
+}
