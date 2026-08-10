@@ -1,0 +1,118 @@
+{
+  "abi_contract": {
+    "context_alignment": 64,
+    "context_size": 192,
+    "rng_size": 128,
+    "version": "1.8.0-skibidi-ultra"
+  },
+  "build": {
+    "avx2_flags": [
+      "-march=x86-64",
+      "-mtune=generic",
+      "-mavx2",
+      "-mno-fma",
+      "-mno-avx512f"
+    ],
+    "avx512_flags": [
+      "-march=x86-64",
+      "-mtune=generic",
+      "-mavx2",
+      "-mno-fma",
+      "-mavx512f"
+    ],
+    "cargo_lock_sha256": "b2d3b0f7c10eda2ad071955a4a842966e7fe9cb90b91e79d9ea06081fb556c16",
+    "cc": "cc (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0",
+    "rust_toolchain": "1.94.0 (4a4ef493e3a1488c6e321570238084b38948f6db)",
+    "rust_toolchain_sha256": "3df9436af858690ea7b0be00e5c0d649d3edc002c609cd7d756986e9d9f57bc6",
+    "external_isa_overrides": "rejected",
+    "rust_target_feature_inheritance": false,
+    "scalar_flags": [
+      "-march=x86-64",
+      "-mtune=generic",
+      "-mno-avx",
+      "-mno-avx2",
+      "-mno-fma",
+      "-mno-avx512f"
+    ],
+    "target": "x86_64-unknown-linux-gnu"
+  },
+  "configuration": {
+    "all_modes_call_frozen_c": true,
+    "automatic_modes": [
+      "AUTO",
+      "AUTO_SAFE",
+      "NATIVE"
+    ],
+    "avx512_requires": [
+      "avx2",
+      "avx512f"
+    ],
+    "legacy_java_mode": "scalar-c",
+    "no_java_fast_path": true
+  },
+  "probability_authority": {
+    "canonical_expression": "Skibidi dop dop dop yes yes!",
+    "canonical_probability": 0.4000000000606502,
+    "source": "native/lmyzmail-skibidi/upstream/skibidi_avx.c"
+  },
+  "profile": "native-skibidi-v1",
+  "release": {
+    "dynamic_skibidi_dependency": false,
+    "elf_sha256": "c71e4f96dedbaf8bd7ef004a48e596b6b3b8db09de90a28af00f0c1950dd0d53",
+    "java_or_jvm_dynamic_dependency": false,
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail"
+  },
+  "schema_version": 1,
+  "source": {
+    "commit": "4bc484c15b780d578ee8e53cab968f2819958215",
+    "files": {
+      "blackbox/golden/native/skibidi-1.8.0-v1/contract.json": "c8e68405f604da7dc0d6a1b3bfb89ba1429906f285a4d9c3046f5686fb59b37e",
+      "native/lmyzmail-skibidi/tests/abi_probe.c": "baba495672f90550ae7db2c16507177750371c7b88159d4db20c7ae6c3feae6f",
+      "native/lmyzmail-skibidi/upstream/skibidi_avx.c": "7e8e7f3ee5bea0ac8d0857bd5bc8d806b44e5142c17ec8b5b6583db7c62fc613",
+      "native/lmyzmail-skibidi/upstream/skibidi_avx.h": "bde8e9d19d6668c644aba1cdd81fb9f56c2236ff827ddd16fb366369bc68bbea",
+      "native/lmyzmail-skibidi/upstream/tests/test_skibidi.c": "d32a5fa97283ff8098bc5a2678254aa6c7b9a4f72e0bd3f36d7b7cc4f25bd590"
+    },
+    "version": "1.8.0"
+  },
+  "verification": [
+    {
+      "command": "cargo fmt --all -- --check && cargo clippy --workspace --all-targets --locked -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "cargo test --workspace --locked",
+      "result": "413 unit tests plus all integration and doc tests passed"
+    },
+    {
+      "command": "cargo test -p lmyzmail skibidi --locked",
+      "result": "26 passed"
+    },
+    {
+      "command": "python -m pytest -q blackbox/tests/test_skibidi_native_abi.py",
+      "coverage": "scalar and AVX2 execution, OS-gated AVX-512, ABI, deterministic seeds, batch, allocation, destroy, scalar and AVX2 ASan/UBSan, two 1000000-sample distributions",
+      "result": "5 passed"
+    },
+    {
+      "command": "python -m pytest -q blackbox/tests/test_smtp_greeting_distribution.py",
+      "coverage": "256 Java wire-grammar sessions and 2048 Rust/C grammar and distribution sessions, each with exact QUIT response",
+      "result": "2 passed"
+    },
+    {
+      "command": "CFLAGS=-march=native cargo check -p lmyzmail --locked",
+      "expected_result": "build rejected before compiling a Skibidi backend",
+      "result": "CFLAGS contains an external ISA override"
+    },
+    {
+      "command": "objdump -d -M intel on the three release Skibidi static archives",
+      "result": "scalar contains no VEX/AVX mnemonic, AVX2 contains no ZMM/opmask operand, AVX-512 contains ZMM instructions"
+    }
+  ],
+  "verification_limits": [
+    {
+      "backend": "AVX-512",
+      "compiled": true,
+      "executed": false,
+      "reason": "The current WSL host exposes AVX2 but not AVX-512F. Runtime dispatch and non-execution are covered here; actual AVX-512 execution remains required before the overall goal can complete."
+    }
+  ]
+}

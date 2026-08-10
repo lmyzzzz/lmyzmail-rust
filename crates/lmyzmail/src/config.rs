@@ -322,6 +322,10 @@ struct JsonFeatureConfig {
     #[serde(default = "default_skibidi_mode")]
     smtp_skibidi_mode: String,
     #[serde(default = "default_true")]
+    smtp_skibidi_enable_avx512: bool,
+    #[serde(default = "default_true")]
+    smtp_skibidi_enable_simd_rng: bool,
+    #[serde(default = "default_true")]
     spamhaus: bool,
     #[serde(default = "default_true")]
     tarpit: bool,
@@ -836,6 +840,8 @@ impl Default for JsonFeatureConfig {
         Self {
             public_registration: false,
             smtp_skibidi_mode: default_skibidi_mode(),
+            smtp_skibidi_enable_avx512: true,
+            smtp_skibidi_enable_simd_rng: true,
             spamhaus: true,
             tarpit: true,
             mta_sts: true,
@@ -1631,6 +1637,14 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         value.features.smtp_skibidi_mode,
     )?;
     properties.insert(
+        "lmyzmail.smtp.skibidi-generator-enable-avx512".to_owned(),
+        value.features.smtp_skibidi_enable_avx512.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.smtp.skibidi-generator-enable-simd-rng".to_owned(),
+        value.features.smtp_skibidi_enable_simd_rng.to_string(),
+    )?;
+    properties.insert(
         "lmyzmail.smtp-security.spamhaus-enabled".to_owned(),
         value.features.spamhaus.to_string(),
     )?;
@@ -2112,6 +2126,8 @@ pub struct OutboundRouteConfig {
 pub struct FeatureConfig {
     pub public_registration: bool,
     pub smtp_skibidi_mode: String,
+    pub smtp_skibidi_enable_avx512: bool,
+    pub smtp_skibidi_enable_simd_rng: bool,
     pub spamhaus: bool,
     pub tarpit: bool,
     pub mta_sts: bool,
@@ -2609,6 +2625,18 @@ impl RuntimeConfig {
             )
             .unwrap_or("AUTO_SAFE")
             .to_owned(),
+            smtp_skibidi_enable_avx512: preferred_bool(
+                &properties,
+                &["lmyzmail.smtp.skibidi-generator-enable-avx512"],
+                &["botmail.smtp.skibidi-generator-enable-avx512"],
+                true,
+            )?,
+            smtp_skibidi_enable_simd_rng: preferred_bool(
+                &properties,
+                &["lmyzmail.smtp.skibidi-generator-enable-simd-rng"],
+                &["botmail.smtp.skibidi-generator-enable-simd-rng"],
+                true,
+            )?,
             spamhaus: preferred_bool(
                 &properties,
                 &["lmyzmail.smtp-security.spamhaus-enabled"],
@@ -5275,6 +5303,9 @@ lmyzmail.htcpcp.pots[{index}].supported-additions=\n"
     #[test]
     fn smtp_skibidi_ascii_defaults_match_java() {
         let config = RuntimeConfig::from_properties(Properties::default()).unwrap();
+        assert_eq!(config.features.smtp_skibidi_mode, "AUTO_SAFE");
+        assert!(config.features.smtp_skibidi_enable_avx512);
+        assert!(config.features.smtp_skibidi_enable_simd_rng);
         assert!(config.smtp_skibidi.enabled);
         assert_eq!(
             config.smtp_skibidi.ascii.simd_mode,
@@ -5293,6 +5324,9 @@ lmyzmail.htcpcp.pots[{index}].supported-additions=\n"
         let legacy = RuntimeConfig::from_properties(
             Properties::parse(
                 b"botmail.smtp.skibidi-toilet-quiz-enabled=false\n\
+botmail.smtp.skibidi-generator-mode=JAVA\n\
+botmail.smtp.skibidi-generator-enable-avx512=false\n\
+botmail.smtp.skibidi-generator-enable-simd-rng=false\n\
 botmail.smtp.asciiart.simd-mode=AVX512\n\
 botmail.smtp.asciiart.max-width=980\n\
 botmail.smtp.asciiart.max-fps=30\n\
@@ -5304,6 +5338,9 @@ botmail.smtp.asciiart.char-aspect=1.5\n",
             .unwrap(),
         )
         .unwrap();
+        assert_eq!(legacy.features.smtp_skibidi_mode, "JAVA");
+        assert!(!legacy.features.smtp_skibidi_enable_avx512);
+        assert!(!legacy.features.smtp_skibidi_enable_simd_rng);
         assert!(!legacy.smtp_skibidi.enabled);
         assert_eq!(
             legacy.smtp_skibidi.ascii.simd_mode,
@@ -5319,6 +5356,9 @@ botmail.smtp.asciiart.char-aspect=1.5\n",
         let both = RuntimeConfig::from_properties(
             Properties::parse(
                 b"botmail.smtp.skibidi-toilet-quiz-enabled=false\n\
+botmail.smtp.skibidi-generator-mode=JAVA\n\
+botmail.smtp.skibidi-generator-enable-avx512=false\n\
+botmail.smtp.skibidi-generator-enable-simd-rng=false\n\
 botmail.smtp.asciiart.max-width=980\n\
 botmail.smtp.asciiart.max-fps=30\n\
 botmail.smtp.asciiart.default-width=150\n\
@@ -5326,6 +5366,9 @@ botmail.smtp.asciiart.default-fps=12\n\
 botmail.smtp.asciiart.default-contrast=1.4\n\
 botmail.smtp.asciiart.char-aspect=1.5\n\
 lmyzmail.smtp.skibidi-toilet-quiz-enabled=true\n\
+lmyzmail.smtp.skibidi-generator-mode=AUTO_SAFE\n\
+lmyzmail.smtp.skibidi-generator-enable-avx512=true\n\
+lmyzmail.smtp.skibidi-generator-enable-simd-rng=true\n\
 lmyzmail.smtp.asciiart.simd-mode=SCALAR\n\
 lmyzmail.smtp.asciiart.max-width=320\n\
 lmyzmail.smtp.asciiart.max-fps=18\n\
@@ -5337,6 +5380,9 @@ lmyzmail.smtp.asciiart.char-aspect=2.5\n",
             .unwrap(),
         )
         .unwrap();
+        assert_eq!(both.features.smtp_skibidi_mode, "AUTO_SAFE");
+        assert!(both.features.smtp_skibidi_enable_avx512);
+        assert!(both.features.smtp_skibidi_enable_simd_rng);
         assert!(both.smtp_skibidi.enabled);
         assert_eq!(
             both.smtp_skibidi.ascii.simd_mode,
@@ -5371,8 +5417,12 @@ lmyzmail.smtp.asciiart.char-aspect=2.5\n",
                 "char_aspect": 1.5
             }
         });
+        value["features"]["smtp_skibidi_enable_avx512"] = serde_json::json!(false);
+        value["features"]["smtp_skibidi_enable_simd_rng"] = serde_json::json!(false);
         let properties = parse_semantic_json(&serde_json::to_vec(&value).unwrap()).unwrap();
         let config = RuntimeConfig::from_properties(properties).unwrap();
+        assert!(!config.features.smtp_skibidi_enable_avx512);
+        assert!(!config.features.smtp_skibidi_enable_simd_rng);
         assert!(!config.smtp_skibidi.enabled);
         assert_eq!(
             config.smtp_skibidi.ascii.simd_mode,

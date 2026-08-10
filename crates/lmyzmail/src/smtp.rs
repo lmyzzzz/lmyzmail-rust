@@ -35,6 +35,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     config::{ContentFilterConfig, MailRenderSimdMode, RuntimeConfig},
+    skibidi::SkibidiGenerator,
     smtp_ascii::AsciiSimdMode,
     smtp_content_filter::{ContentScan, ParsedHeaders, scan_attachments},
     smtp_skibidi_quiz::{AnswerOutcome, QuizLevel, QuizState, ensure_question_bank_loaded},
@@ -83,6 +84,7 @@ pub struct SmtpService {
     maildir_max_files_per_directory: Option<usize>,
     maildir_shard_locks: Arc<[Mutex<()>; MAILDIR_SHARD_LOCKS]>,
     tls_acceptor: Option<TlsAcceptor>,
+    skibidi_generator: SkibidiGenerator,
     skibidi_video: Option<Arc<VideoService>>,
 }
 
@@ -190,6 +192,27 @@ impl SmtpService {
         } else {
             None
         };
+        let skibidi_generator = SkibidiGenerator::new(
+            &config.features.smtp_skibidi_mode,
+            config.features.smtp_skibidi_enable_avx512,
+            config.features.smtp_skibidi_enable_simd_rng,
+        )
+        .map_err(|error| {
+            SmtpError::InvalidConfig(format!("SMTP Skibidi generator cannot start: {error}"))
+        })?;
+        let skibidi_info = skibidi_generator.runtime_info().map_err(|error| {
+            SmtpError::InvalidConfig(format!("SMTP Skibidi generator ABI is invalid: {error}"))
+        })?;
+        eprintln!(
+            "lmyzmail SMTP Skibidi generator: backend={}, version={}, capabilities=0x{:x}, hardware_avx2={}, hardware_avx512={}, avx512_enabled={}, simd_rng={}",
+            skibidi_info.backend.name(),
+            skibidi_info.version,
+            skibidi_info.capabilities,
+            skibidi_info.has_avx2,
+            skibidi_info.has_avx512,
+            skibidi_info.avx512_enabled,
+            skibidi_info.simd_rng_enabled,
+        );
         let skibidi_video = if config.smtp_skibidi.enabled {
             ensure_question_bank_loaded().map_err(|error| {
                 SmtpError::InvalidConfig(format!("SMTP quiz question bank is invalid: {error}"))
@@ -235,6 +258,7 @@ impl SmtpService {
             maildir_max_files_per_directory,
             maildir_shard_locks: Arc::new(std::array::from_fn(|_| Mutex::new(()))),
             tls_acceptor,
+            skibidi_generator,
             skibidi_video,
         })
     }
@@ -974,10 +998,14 @@ async fn handle_connection(
     let connection_cancellation = CancellationToken::new();
     let _cancel_on_drop = CancelOnDrop(connection_cancellation.clone());
     let mut io = BufferedConnection::new(stream);
-    io.write_all(
-        b"220 lmyzmail ESMTP lmyzmail SMTP Server 2.8.0 - Skibidi dop dop dop yes yes!\r\n",
-    )
-    .await?;
+    let greeting = service
+        .skibidi_generator
+        .generate()
+        .map_err(io::Error::other)?;
+    io.write_all(b"220 lmyzmail ESMTP lmyzmail SMTP Server 2.8.0 - ")
+        .await?;
+    io.write_all(greeting.as_bytes()).await?;
+    io.write_all(b"\r\n").await?;
     let mut state = SessionState::Connected;
     let mut envelope = Envelope::default();
     let mut helo = "localhost".to_owned();

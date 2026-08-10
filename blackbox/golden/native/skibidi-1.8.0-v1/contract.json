@@ -1,0 +1,91 @@
+{
+  "abi": {
+    "context_alignment": 64,
+    "context_size": 192,
+    "rng_size": 128,
+    "version": "1.8.0-skibidi-ultra"
+  },
+  "allocation": {
+    "array_aligned": true,
+    "single_aligned": true
+  },
+  "batch_scalar_seed_42": {
+    "call_count": 8,
+    "expressions": [
+      "Skibidi dOp dop dop dop yes yes!",
+      "Skibidi Dop DOP dop dop Yes yes!",
+      "Skibidi dop dop dop yes yes!",
+      "Skibidi dop dom yes yes!",
+      "Skibidi dop dop no no!",
+      "Skibidi doP dop yes yes!",
+      "Skibidi dop DoP dop no no!",
+      "Skibidi dop DOp yes yes!"
+    ],
+    "generated": 8,
+    "lengths": [32, 32, 28, 24, 22, 24, 26, 24]
+  },
+  "batch_vector_seed_42": {
+    "call_count": 8,
+    "expressions": [
+      "Skibidi dOp dop dop dop yes yes!",
+      "Skibidi dop dop dop yes yes!",
+      "Skibidi dop dop dop yes yes!",
+      "Skibidi dom dop yes YEs!",
+      "Skibidi Dop DOP dop dop yes Yes!",
+      "Skibidi dop dop dop yes yes!",
+      "Skibidi dop dop dop yes yes!",
+      "Skibidi dom dop yes yes!"
+    ],
+    "generated": 8,
+    "lengths": [32, 28, 28, 24, 32, 28, 28, 24]
+  },
+  "configuration": {
+    "configure_result": 0,
+    "enable_avx512_by_backend": {
+      "AVX-512": 1,
+      "AVX2": 0,
+      "Scalar": 0
+    },
+    "enable_simd_rng": 1,
+    "get_result": 0
+  },
+  "destroy_zeroed": true,
+  "errors": {
+    "batch_null_context": 0,
+    "batch_small_buffer": 0,
+    "generate_null_buffer": -1,
+    "generate_null_context": -1,
+    "generate_small_buffer": -2,
+    "init_null": -1
+  },
+  "single_seed_0": [
+    "Skibidi dop dop yeS yes!",
+    "Skibidi doP dop yes yES!",
+    "Skibidi dop dop yes yes!",
+    "Skibidi dop dop dop yes yes!",
+    "Skibidi dop dop yes YeS!",
+    "Skibidi dop dop yes yes!",
+    "Skibidi DOp dop YES yes!",
+    "Skibidi dop dom Yes yes!"
+  ],
+  "single_seed_123456789abcdef0": [
+    "Skibidi dom doP yes yes!",
+    "Skibidi dop dop dop yes yes!",
+    "Skibidi DoP DOp yes yes!",
+    "Brrrrr Skibidi Dop Dop yes yes!",
+    "Skibidi dop DOp doP dop DOp YEs yes!",
+    "Skibidi dop dop dop yes yes!",
+    "Skibidi dop dop yes yes!",
+    "Brrrrr Skibidi dop dop yes yes!"
+  ],
+  "variant_seed_fedcba9876543210": [
+    "Skibidi dom dop dOP dop dop no no!",
+    "Skibidi DOp dop yes yES!",
+    "Skibidi dop dop yes yes!",
+    "Skibidi dop DOp dop dom Dop Yes yes!",
+    "Skibidi dom dop yes yes!",
+    "Skibidi dop dop dop dop yes yes!",
+    "Skibidi dop doP dom YeS Yes!",
+    "Skibidi DOp dop yes yes!"
+  ]
+}

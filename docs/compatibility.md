@@ -1,8 +1,9 @@
 # Compatibility contract
 
 The frozen Java oracle is the behavioral authority except for the new product
-name and configuration aliases. The differential harness compares bytes,
-status, headers, bodies, state transitions, persistence, and recovery behavior.
+name, configuration aliases, and the native Skibidi banner generator described
+below. The differential harness compares bytes, status, headers, bodies, state
+transitions, persistence, and recovery behavior.
 
 Configuration resolution is deterministic:
 
@@ -20,6 +21,31 @@ error semantics remain subject to the frozen oracle contract.
 Only genuine nondeterminism such as wall-clock time, random identifiers, and
 ephemeral ports may be normalized. Each normalizer is field-scoped and tested;
 there is no whole-response masking or assertion weakening.
+
+## Native Skibidi banner
+
+SMTP banner generation always calls the frozen Skibidi 1.8.0 C library. Its
+grammar, probability thresholds, seed behavior, batch behavior, ABI, and memory
+ownership are authoritative; lmyzmail does not reproduce the Java 26.85% outer
+fast path or maintain a second probability implementation.
+
+The frozen source commit is `4bc484c15b780d578ee8e53cab968f2819958215`.
+`skibidi_avx.c` has SHA-256
+`7e8e7f3ee5bea0ac8d0857bd5bc8d806b44e5142c17ec8b5b6583db7c62fc613`
+and `skibidi_avx.h` has SHA-256
+`bde8e9d19d6668c644aba1cdd81fb9f56c2236ff827ddd16fb366369bc68bbea`.
+The build rejects either source if its digest changes.
+
+Legacy `JAVA` mode is retained only as a configuration alias for the scalar C
+backend; it never starts a JVM. `SCALAR` is the explicit spelling. `AVX2` and
+`AVX512` require OS-aware runtime support, while `AUTO`, `AUTO_SAFE`, and
+`NATIVE` choose the best permitted C backend. The AVX-512 object is called only
+when both AVX2 and AVX-512F extended state are available to the process.
+
+The managed Java oracle runs in `JAVA` mode in WSL because its historical
+bundled native library can execute an unsupported instruction. It therefore
+remains the banner wire-grammar oracle, while frozen C tests and external Rust
+candidate sampling are the probability authorities.
 
 ## Java parity edge cases
 
