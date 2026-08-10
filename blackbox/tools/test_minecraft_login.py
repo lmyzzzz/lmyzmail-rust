@@ -4,6 +4,7 @@ import hashlib
 import os
 import socket
 import struct
+import sys
 import uuid
 import zlib
 from dataclasses import dataclass
@@ -22,6 +23,8 @@ from lmyzmail_blackbox.snapshots import bytes_snapshot
 _GOLDEN = "managed-minecraft-login-v7"
 _MAX_FRAME = 2 * 1024 * 1024
 _MAX_REJECTION_DRAIN = 32 * 1024 * 1024
+_LOGIN_READ_TIMEOUT_SECONDS = 60.0
+_PACKET_READ_TIMEOUT_SECONDS = 5.0
 _USERNAME = "BlackboxLogin"
 _REPLACEMENT_USERNAME_BYTES = b"\xed\xa0\x80"
 
@@ -270,8 +273,8 @@ def _parse_spawn_position(packet: _Packet) -> dict[str, int]:
 
 
 def _connect(port: int) -> socket.socket:
-    connection = socket.create_connection(("127.0.0.1", port), timeout=5.0)
-    connection.settimeout(5.0)
+    connection = socket.create_connection(("127.0.0.1", port), timeout=_PACKET_READ_TIMEOUT_SECONDS)
+    connection.settimeout(_PACKET_READ_TIMEOUT_SECONDS)
     return connection
 
 
@@ -287,15 +290,62 @@ def _begin_login(port: int, username: bytes) -> socket.socket:
 
 
 def _read_login_prefix(connection: socket.socket) -> tuple[_Packet, _Packet]:
-    set_compression = _read_packet(connection, compression=False)
-    packet_id, cursor = _packet_id(set_compression)
-    threshold, cursor = _decode_varint_bytes(set_compression.payload, cursor)
-    if packet_id != 0x03 or threshold != 256 or cursor != len(set_compression.payload):
-        raise ProtocolError("unexpected Set Compression packet")
-    login_success = _read_packet(connection, compression=True)
-    if login_success.data_length != 0:
-        raise ProtocolError("Login Success was not sent in the compression envelope")
-    return set_compression, login_success
+    previous_timeout = connection.gettimeout()
+    connection.settimeout(_LOGIN_READ_TIMEOUT_SECONDS)
+    try:
+        set_compression = _read_packet(connection, compression=False)
+        packet_id, cursor = _packet_id(set_compression)
+        threshold, cursor = _decode_varint_bytes(set_compression.payload, cursor)
+        if packet_id != 0x03 or threshold != 256 or cursor != len(set_compression.payload):
+            raise ProtocolError("unexpected Set Compression packet")
+        login_success = _read_packet(connection, compression=True)
+        if login_success.data_length != 0:
+            raise ProtocolError("Login Success was not sent in the compression envelope")
+        return set_compression, login_success
+    finally:
+        connection.settimeout(previous_timeout)
+
+
+def test_login_prefix_restores_packet_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _TimeoutProbe:
+        def __init__(self) -> None:
+            self.timeout: float | None = _PACKET_READ_TIMEOUT_SECONDS
+            self.history: list[float | None] = []
+
+        def gettimeout(self) -> float | None:
+            return self.timeout
+
+        def settimeout(self, value: float | None) -> None:
+            self.timeout = value
+            self.history.append(value)
+
+    set_compression = _Packet(
+        wire=b"\x03\x03\x80\x02",
+        payload=b"\x03\x80\x02",
+        data_length=None,
+    )
+    login_success = _Packet(wire=b"\x01\x00", payload=b"\x02", data_length=0)
+    packets = iter((set_compression, login_success))
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "_read_packet",
+        lambda _connection, *, compression: next(packets),
+    )
+    probe = _TimeoutProbe()
+
+    if _read_login_prefix(cast(socket.socket, probe)) != (set_compression, login_success):
+        pytest.fail("login prefix helper returned different packets")
+    if probe.history != [_LOGIN_READ_TIMEOUT_SECONDS, _PACKET_READ_TIMEOUT_SECONDS]:
+        pytest.fail(f"login prefix timeout history was not restored: {probe.history!r}")
+
+    def fail_read(_connection: socket.socket, *, compression: bool) -> _Packet:
+        raise TimeoutError("synthetic login timeout")
+
+    monkeypatch.setattr(sys.modules[__name__], "_read_packet", fail_read)
+    with pytest.raises(TimeoutError, match="synthetic login timeout"):
+        _read_login_prefix(cast(socket.socket, probe))
+    if probe.history[-2:] != [_LOGIN_READ_TIMEOUT_SECONDS, _PACKET_READ_TIMEOUT_SECONDS]:
+        pytest.fail(f"failed login prefix timeout was not restored: {probe.history!r}")
 
 
 def _capture_offline_bootstrap(target: RuntimeTarget) -> dict[str, Any]:

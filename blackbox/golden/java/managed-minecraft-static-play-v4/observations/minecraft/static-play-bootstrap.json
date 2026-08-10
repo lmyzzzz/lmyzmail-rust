@@ -1,0 +1,122 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "2c52c81d562b8a590d06cb21cadd99481ed91f20e3077ca9c09322c6eca37c7c",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-minecraft-static-play-v4"
+  },
+  "observation": {
+    "offline_uuid": "8ba6e590-3a01-3523-be71-0f29eb709735",
+    "packets": [
+      {
+        "frame": {
+          "base64": "KAA4AAGLpuWQOgE1I75xDynrcJc1D1N0YXRpY1BsYXlQcm9iZQACAAA=",
+          "length": 41,
+          "sha256": "e119cfc4ad0944ce10b15285b901ab335f67f51b9b9416bc12854150516e41a6"
+        },
+        "packet_id": 56
+      },
+      {
+        "frame": {
+          "base64": "ewBHKHsidGV4dCI6IsKnNsKnbExNWVpNQUlMIiwiY29sb3IiOiJnb2xkIn1PeyJ0ZXh0Ijoiwqc3U2VuZCBlbWFpbHMgaW4gTWluZWNyYWZ0ISBTa2liaWRpIGRvcCBkb3AgeWVzIHllcyEiLCJjb2xvciI6ImdyYXkifQ==",
+          "length": 124,
+          "sha256": "6ba79e013ccb2e7ab1e799c6ad9060f97ddedb006f30107e9f090f526f30227f"
+        },
+        "packet_id": 71
+      },
+      {
+        "frame": {
+          "base64": "DwBFAgAAAAoAAAA8AAAAFA==",
+          "length": 16,
+          "sha256": "3a9e1e38e2d207b0959bb2a57108f573f36e4d2387ac9baff5242a3b711467be"
+        },
+        "packet_id": 69
+      },
+      {
+        "frame": {
+          "base64": "GgBFABZ7InRleHQiOiLCpzZMTVlaTUFJTCJ9",
+          "length": 27,
+          "sha256": "03e1834ff48ca16200514971787c7acc8fbd2c17d8316c9ac019f531b93af9b5"
+        },
+        "packet_id": 69
+      },
+      {
+        "frame": {
+          "base64": "PwBFATt7InRleHQiOiLCpzdUeXBlIHlvdXIgZW1haWwgdG8gZ2V0IHN0YXJ0ZWQiLCJjb2xvciI6ImdyYXkifQ==",
+          "length": 64,
+          "sha256": "2fa6e957931095dbc9bc402d44fc64822b0d06fbff794cee3941dfad5c67f975"
+        },
+        "packet_id": 69
+      },
+      {
+        "frame": {
+          "base64": "UgACTnsidGV4dCI6IsKnZcKnbD09PSBXZWxjb21lIHRvIExNWVpNQUlMIE1pbmVjcmFmdCBTZXJ2ZXIgPT09IiwiY29sb3IiOiJ5ZWxsb3cifQA=",
+          "length": 83,
+          "sha256": "6fe2ea63d91d2af73e9290634475b84b747bc20b922d6704d1fb773caf251d32"
+        },
+        "packet_id": 2
+      },
+      {
+        "frame": {
+          "base64": "RQACQXsidGV4dCI6IsKnN1NlbmQgZW1haWxzIGRpcmVjdGx5IGZyb20gTWluZWNyYWZ0ISIsImNvbG9yIjoiZ3JheSJ9AA==",
+          "length": 70,
+          "sha256": "64d2a5c8e506bd083a7a05ccdb88da61ba95850b7c3b119f8d7ca77f11ced720"
+        },
+        "packet_id": 2
+      },
+      {
+        "frame": {
+          "base64": "DwACC3sidGV4dCI6IiJ9AA==",
+          "length": 16,
+          "sha256": "e8a3eddd1902eff949ab00d198f00bf2f29150e3732e5db6a43a01ba68d8809c"
+        },
+        "packet_id": 2
+      },
+      {
+        "frame": {
+          "base64": "QgACPnsidGV4dCI6IsKnYVBsZWFzZSBlbnRlciB5b3VyIGVtYWlsIGFkZHJlc3M6IiwiY29sb3IiOiJncmVlbiJ9AA==",
+          "length": 67,
+          "sha256": "d55ed384a79674b4e1da67429db0c1033affd8af410218c9e9fc31b484d79642"
+        },
+        "packet_id": 2
+      },
+      {
+        "frame": {
+          "base64": "HQAvAAAkAYIBAAAKAAAJAAVwYWdlcwgAAAABAAAA",
+          "length": 30,
+          "sha256": "53d3bf98930333abe2c0f3c44d32d05f4ed37da256707dcf8f2dc4d600950442"
+        },
+        "packet_id": 47
+      },
+      {
+        "frame": {
+          "base64": "jAEALwAALAGPAQAACgAACgAHZGlzcGxheQgABE5hbWUAG8KnNsKnbE1lbnUgwqc3KFJpZ2h0IENsaWNrKQkABExvcmUIAAAAAQAVwqc3T3BlbiB0aGUgbWFpbiBtZW51AAkABGVuY2gKAAAAAQIAAmlkAAACAANsdmwAAQADAAlIaWRlRmxhZ3MAAAA/AA==",
+          "length": 142,
+          "sha256": "190ae2184077eb88a43e15382f6786d89f0bb8c35c6579d9b646b77eaef0265e"
+        },
+        "packet_id": 47
+      }
+    ],
+    "username": "StaticPlayProbe",
+    "world_expanded_bytes_through_position": 356583182,
+    "world_packet_count_through_position": 3215
+  },
+  "schema_version": 2
+}

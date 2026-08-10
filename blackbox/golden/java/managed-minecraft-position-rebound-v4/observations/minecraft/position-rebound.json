@@ -1,0 +1,113 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "2c52c81d562b8a590d06cb21cadd99481ed91f20e3077ca9c09322c6eca37c7c",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-minecraft-position-rebound-v4"
+  },
+  "observation": {
+    "input": {
+      "packet_id": 4,
+      "position": [
+        500.0,
+        500.0,
+        500.0
+      ]
+    },
+    "packets": [
+      {
+        "frame": {
+          "base64": "IwAIwCmAAAAAAABAUbmZmZmZmkBBQAAAAAAAQjQAAMFwAAAA",
+          "length": 36,
+          "sha256": "9330625a77a49817a63366885321c085f0a35a132807f9273d19d2ae63a19b11"
+        },
+        "packet_id": 8
+      },
+      {
+        "frame": {
+          "base64": "QgACPnsidGV4dCI6IsKnY1lvdSB3ZXJlIHRlbGVwb3J0ZWQgYmFjayB0byBzcGF3biEiLCJjb2xvciI6InJlZCJ9AA==",
+          "length": 67,
+          "sha256": "18792c2bd5c6f5187b71e3ccf4dc06822b5c731351dc1750c2b417d19b430a5e"
+        },
+        "packet_id": 2
+      },
+      {
+        "frame": {
+          "base64": "FAAYoPc2AAAAEAAAFGAAAAAQAAAA",
+          "length": 21,
+          "sha256": "663c18a4a88df26d427e672faccd6e9916c62dff9b69ac114b8e57eaf50a1c36"
+        },
+        "packet_id": 24
+      },
+      {
+        "frame": {
+          "base64": "FAAYofc2AAAAEAAAFE4AAAAQAAAA",
+          "length": 21,
+          "sha256": "c2ed6cc9b274646ea7678457f3df744de41fcf5b30a288ccb7ec2e8994b43fdc"
+        },
+        "packet_id": 24
+      },
+      {
+        "frame": {
+          "base64": "FAAYovc2AAAAEAAAFDwAAAAQAAAA",
+          "length": 21,
+          "sha256": "32a8cffffea3ccecd4e7b1dc347f1c369442397ef0f995f553e0fc4d9951d1d7"
+        },
+        "packet_id": 24
+      },
+      {
+        "frame": {
+          "base64": "FAAYo/c2AAAAEAAAFCsAAAAQAAAA",
+          "length": 21,
+          "sha256": "d801716543ab99c5dbc31d1668648ab3ccbd4e2a8c423ec5fafe6c0190315e25"
+        },
+        "packet_id": 24
+      },
+      {
+        "frame": {
+          "base64": "FAAYpPc2AAAAEAAAFBkAAAAQAAAA",
+          "length": 21,
+          "sha256": "25e5fc41b2725a511822ccbb5b220732505aed0f6f7261e2434b3655cd783be3"
+        },
+        "packet_id": 24
+      },
+      {
+        "frame": {
+          "base64": "FAAYpfc2AAAAEAAAFAgAAAAQAAAA",
+          "length": 21,
+          "sha256": "9cc3898a1ca4e9c3328032cf1ed7b7f6d23db52574ee31a4d7d9f17d3be69999"
+        },
+        "packet_id": 24
+      },
+      {
+        "frame": {
+          "base64": "FAAYpvc2AAAAEAAAE/YAAAAQAAAA",
+          "length": 21,
+          "sha256": "a28fef0855351f781b49236f3969f0c819ea3fc783f56ac2b26038d1a58edf23"
+        },
+        "packet_id": 24
+      }
+    ],
+    "username": "PositionProbe",
+    "world_expanded_bytes_through_position": 356583182,
+    "world_packet_count_through_position": 3215
+  },
+  "schema_version": 2
+}
