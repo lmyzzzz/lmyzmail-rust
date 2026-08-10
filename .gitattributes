@@ -14,3 +14,4 @@ vendor/litehtml/** -whitespace
 *.mp4 binary
 *.png binary
 *.safetensors binary
+crates/lmyzmail/assets/brainrot_quiz.json binary -eol

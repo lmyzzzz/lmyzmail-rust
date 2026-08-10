@@ -1093,3 +1093,20 @@ The disabled XDP control-plane extension retains two create-once generations:
   is not evidence for native map ABI, program attach/detach, pin takeover,
   traffic drops, PPS statistics, capabilities, restart, or rollback; those
   require the privileged Linux fixture.
+
+The first SMTP SKIBIDITOILET set is:
+
+- `managed-smtp-skibidi-v1/`
+
+It binds definition tree
+`65f4e5becaadf0905ceef2f9070914a07c01bacf82b6c383bb0d46b43fc0e951`
+and the exact 474-question resource SHA-256
+`7bcbeacd0d36a58931efa49234143946cb981b4c978c74432313fcad843ba8d1`.
+The raw-socket observer freezes HELP and parameter bytes, session state across
+HELO/RSET/forfeit/completion, complete 15/30/60-question runs, scoring and
+feedback, the one-viewer admission rule, disconnect release, and the first
+three-row ASCII video frame. Random question order and selection are the only
+normalization; every emitted question is matched against the full frozen
+question, difficulty, answer, and option tuple, with no duplicate ID inside a
+quiz and the configured difficulty tolerance enforced. One fresh isolated Java
+runtime created v1 and a second fresh runtime replayed it without record mode.

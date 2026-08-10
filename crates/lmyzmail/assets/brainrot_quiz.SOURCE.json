@@ -1,0 +1,11 @@
+{
+  "asset": "brainrot_quiz.json",
+  "source": {
+    "kind": "frozen_java_oracle_resource",
+    "path": "src/main/resources/brainrot_quiz.json",
+    "oracle_commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8"
+  },
+  "bytes": 415944,
+  "questions": 474,
+  "sha256": "7bcbeacd0d36a58931efa49234143946cb981b4c978c74432313fcad843ba8d1"
+}

@@ -274,6 +274,29 @@ and final messages. The only allowlisted behavior difference is permit lifetime:
 the Java map player returns its permit before submitting decode work, while the
 candidate holds the permit for the complete admitted lifecycle.
 
+## SMTP SKIBIDITOILET contract
+
+The frozen extension is available before HELO and advertises from EHLO when
+enabled. HELP, invalid subcommands, all three quiz levels, answer validation,
+forfeit, completion, feedback, scoring, and connection-local state are exact
+wire contracts. HELO and RSET preserve an active quiz. The copied 474-question
+bank is bound to SHA-256
+`7bcbeacd0d36a58931efa49234143946cb981b4c978c74432313fcad843ba8d1`;
+random selection is normalized only after every selected question is proven to
+match the full frozen record, remain unique in that quiz, and satisfy the
+level's difficulty budget.
+
+`WATCHSKIBIDITOILET` uses the frozen 15,048,248-byte MP4 through the pinned
+FFmpeg 7.1 decoder, streams SMTP `250-` continuation lines, and permits one
+viewer process-wide. Width, FPS, contrast, brightness, gamma, aspect and invert
+retain the frozen parsing and defaults. Frame conversion is a Rust-owned,
+bounded RGB24 box-resize and ASCII pipeline; the old self-authored
+`libasciiart` is not a runtime dependency. Disconnect, cancellation, error, EOF
+and shutdown must all release admission and join or boundedly drain decode
+work. The v1 oracle golden freezes the exact width-10, three-row first-frame
+prefix at SHA-256
+`97cb629ab6ffd992439c2dc82664b4d61f11d4b99ea554db11b589421f877df1`.
+
 ## SMTP STARTTLS contract
 
 The Rust candidate matches the v35 STARTTLS profile for TLS 1.2 and TLS 1.3
