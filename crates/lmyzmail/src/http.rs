@@ -26,6 +26,7 @@ use crate::{
     auth::{AuthError, AuthService, CredentialOutcome, LoginOutcome},
     config::RuntimeConfig,
     cringe::{CringeError, CringeService, PageQuery},
+    cringe_decay::{self, DecayEstimateError},
     mailbox::{
         AttachmentData, AttachmentMeta, EmailDetail, MAX_API_RAW_BYTES, MailboxError,
         MailboxService,
@@ -1122,6 +1123,52 @@ async fn handle_connection(
                     )
                     .await
                 }
+                Err(error) => write_cringe_error(stream, error).await,
+            }
+        }
+        ParsedRequest::CringeDecay => {
+            match cringe_decay::perform_decay(
+                cringe,
+                xdp_sync,
+                &config.cringe_decay,
+                cancellation,
+            )
+            .await
+            {
+                Ok(result) => write_json_response(stream, Status::Ok, &result).await,
+                Err(error) => write_cringe_error(stream, error).await,
+            }
+        }
+        ParsedRequest::CringeDecayConfig => {
+            write_json_response(
+                stream,
+                Status::Ok,
+                &cringe_decay::config_info(&config.cringe_decay),
+            )
+            .await
+        }
+        ParsedRequest::CringeDecayEstimate(ip_address) => {
+            let cleaned = clean_ip_address(&ip_address);
+            match cringe.current_score(&cleaned, cancellation).await {
+                Ok(Some(current_score)) => {
+                    match cringe_decay::estimate(
+                        cleaned,
+                        current_score,
+                        &config.cringe_decay,
+                    ) {
+                        Ok(estimate) => {
+                            write_json_response(stream, Status::Ok, &estimate).await
+                        }
+                        Err(DecayEstimateError::Disabled) => {
+                            write_json_error(stream, Status::BadRequest, "decay_disabled").await
+                        }
+                        Err(DecayEstimateError::Overflow) => {
+                            write_json_error(stream, Status::InternalServerError, "internal_error")
+                                .await
+                        }
+                    }
+                }
+                Ok(None) => write_not_found(stream).await,
                 Err(error) => write_cringe_error(stream, error).await,
             }
         }
@@ -2256,6 +2303,12 @@ fn parse_cringe_ip_route(path: &str) -> ParsedRequest {
             size,
         };
     }
+    if parts.len() == 2 && parts[1] == "decay-estimate" {
+        return percent_decode_str(parts[0])
+            .decode_utf8()
+            .map(|ip_address| ParsedRequest::CringeDecayEstimate(ip_address.into_owned()))
+            .unwrap_or(ParsedRequest::BadRequest);
+    }
     ParsedRequest::NotFound
 }
 
@@ -2431,6 +2484,9 @@ enum ParsedRequest {
         min_score: i32,
         score_type: String,
     },
+    CringeDecay,
+    CringeDecayConfig,
+    CringeDecayEstimate(String),
     XdpStatus,
     XdpBan {
         ip: Option<String>,
@@ -2729,6 +2785,16 @@ fn parse_request(
             ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
             ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
             ApiPermission::Granted => parse_cringe_export(path),
+        },
+        ("POST", "/api/cringe-ips/decay") => match api_permission(config, api_key, true) {
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenWrite,
+            ApiPermission::Granted => ParsedRequest::CringeDecay,
+        },
+        ("GET", "/api/cringe-ips/decay-config") => match api_permission(config, api_key, false) {
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
+            ApiPermission::Granted => ParsedRequest::CringeDecayConfig,
         },
         ("GET", routing) if routing.starts_with("/api/cringe-ips/above-score/") => {
             match api_permission(config, api_key, false) {
@@ -3730,6 +3796,9 @@ lmyzmail.api-keys[0].read=true\n\
 lmyzmail.api-keys[1].key=write-key\n\
 lmyzmail.api-keys[1].read=false\n\
 lmyzmail.api-keys[1].write=true\n\
+lmyzmail.api-keys[2].key=admin-key\n\
+lmyzmail.api-keys[2].read=true\n\
+lmyzmail.api-keys[2].write=true\n\
 lmyzmail.allowed-origins[0]=http://127.0.0.1:18080\n\
 lmyzmail.http.trusted-proxies=127.0.0.1,10.0.0.0/8\n\
 lmyzmail.public-registration-enabled=true\n",
@@ -4344,7 +4413,31 @@ lmyzmail.public-registration-enabled=true\n",
                 4096,
                 &config,
             ),
-            ParsedRequest::NotFound
+            ParsedRequest::CringeDecay
+        );
+        assert_eq!(
+            parse_request(
+                b"POST /api/cringe-ips/decay HTTP/1.1\r\nX-API-Key: admin-key\r\n\r\n",
+                4096,
+                &config,
+            ),
+            ParsedRequest::CringeDecay
+        );
+        assert_eq!(
+            parse_request(
+                b"GET /api/cringe-ips/decay-config HTTP/1.1\r\nX-API-Key: read-key\r\n\r\n",
+                4096,
+                &config,
+            ),
+            ParsedRequest::CringeDecayConfig
+        );
+        assert_eq!(
+            parse_request(
+                b"GET /api/cringe-ips/203.0.113.77/decay-estimate HTTP/1.1\r\nX-API-Key: read-key\r\n\r\n",
+                4096,
+                &config,
+            ),
+            ParsedRequest::CringeDecayEstimate("203.0.113.77".to_owned())
         );
         assert_eq!(
             parse_request(

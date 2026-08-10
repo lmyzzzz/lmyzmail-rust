@@ -131,6 +131,14 @@ lmyzmail.xdp.pps-monitor.consecutive-exceed-count=3
 lmyzmail.xdp.pps-monitor.record-to-cringe=true
 lmyzmail.xdp.pps-monitor.max-ips-per-poll=10000
 lmyzmail.xdp.pps-monitor.ring-buffer-size=1024
+
+# Current threat scores decay by 10 points after each 24-hour interval. When
+# check-interval is omitted, lmyzmail derives interval/4 clamped to 1m..1h.
+lmyzmail.cringe.decay.interval=24h
+lmyzmail.cringe.decay.amount=10
+# lmyzmail.cringe.decay.check-interval=1h
+lmyzmail.cringe.decay.activity-retention-days=360
+
 lmyzmail.fail2ban.enabled=false
 lmyzmail.reporting.enabled=false
 lmyzmail.reporting.auto-send-enabled=false

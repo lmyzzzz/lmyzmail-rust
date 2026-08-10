@@ -3,7 +3,7 @@ use std::{env, io, path::PathBuf, sync::Arc, time::Duration};
 use lmyzmail::{
     config::{Properties, RuntimeConfig},
     cringe::CringeService,
-    database, honeypot, htcpcp, http, lifecycle, minecraft,
+    cringe_decay, database, honeypot, htcpcp, http, lifecycle, minecraft,
     outbound::OutboundService,
     outbound_worker::OutboundWorker,
     redis,
@@ -78,13 +78,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut services = JoinSet::new();
     if config.xdp.enabled && config.xdp.pps_monitor.enabled {
         let monitor_xdp = Arc::clone(&xdp_service);
-        let monitor_cringe = cringe_service;
+        let monitor_cringe = cringe_service.clone();
         let monitor_cancellation = cancellation.clone();
         services.spawn(async move {
             xdp_pps::run_pps_monitor(monitor_xdp, monitor_cringe, monitor_cancellation).await;
             ("XDP PPS monitor", Ok::<(), io::Error>(()))
         });
     }
+    let decay_cringe = cringe_service.clone();
+    let decay_xdp_sync = Arc::clone(&xdp_sync);
+    let decay_config = config.cringe_decay.clone();
+    let decay_cancellation = cancellation.clone();
+    services.spawn(async move {
+        cringe_decay::run_scheduler(
+            decay_cringe,
+            decay_xdp_sync,
+            decay_config,
+            decay_cancellation,
+        )
+        .await;
+        ("cringe decay scheduler", Ok::<(), io::Error>(()))
+    });
     let http_config = Arc::clone(&config);
     let http_cancellation = cancellation.clone();
     let http_pool = database_pool.clone();

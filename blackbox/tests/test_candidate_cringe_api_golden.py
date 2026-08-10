@@ -24,11 +24,11 @@ from lmyzmail_blackbox.runtime import (
 from lmyzmail_blackbox.snapshots import http_bytes_snapshot, http_json_snapshot
 
 _PROFILE = "managed-cringe-api"
-_GOLDEN = "blackbox/golden/java/managed-cringe-api-v5"
+_GOLDEN = "blackbox/golden/java/managed-cringe-api-v6"
 _BOUNDARY_PROFILE = "managed-cringe-api-oracle-boundaries"
-_BOUNDARY_GOLDEN = "blackbox/golden/java/managed-cringe-api-oracle-boundaries-v5"
+_BOUNDARY_GOLDEN = "blackbox/golden/java/managed-cringe-api-oracle-boundaries-v6"
 _DECAY_PROFILE = "managed-cringe-decay"
-_DECAY_GOLDEN = "blackbox/golden/java/managed-cringe-decay-v1"
+_DECAY_GOLDEN = "blackbox/golden/java/managed-cringe-decay-v2"
 _ADMIN_HEADERS = (("X-API-Key", API_KEY),)
 _READ_ONLY_HEADERS = (("X-API-Key", READ_ONLY_API_KEY),)
 _WRITE_ONLY_HEADERS = (("X-API-Key", WRITE_ONLY_API_KEY),)
@@ -511,6 +511,19 @@ def _capture_cringe_decay(target: RuntimeTarget) -> dict[str, Any]:
         canonicalize_object_order=True,
     )
     second_decay = json_request("POST", "/api/cringe-ips/decay")
+    _seed_decay_fixture(target)
+    write_only_started = datetime.now(UTC)
+    write_only_decay = json_request(
+        "POST",
+        "/api/cringe-ips/decay",
+        _WRITE_ONLY_HEADERS,
+    )
+    write_only_finished = datetime.now(UTC)
+    write_only_database_state = _decay_database_state(
+        target,
+        write_only_started,
+        write_only_finished,
+    )
 
     return {
         "before": before,
@@ -518,6 +531,8 @@ def _capture_cringe_decay(target: RuntimeTarget) -> dict[str, Any]:
         "database_after_first_decay": database_state,
         "high_estimate_after_decay": after_estimate,
         "second_decay": second_decay,
+        "write_only_decay": write_only_decay,
+        "database_after_write_only_decay": write_only_database_state,
     }
 
 
@@ -529,11 +544,12 @@ cast(Any, _capture_cringe_decay).__lmyzmail_contract__ = {
         "probe missing-IP, read-only mutation, and write-only read boundaries",
         "trigger one manual decay and inspect the atomic PostgreSQL state transition",
         "re-estimate the changed score and prove an immediate second decay is idempotent",
+        "re-seed the fixture and prove a write-only key can run the same atomic decay",
     ],
     "state": "isolated PostgreSQL schema with deterministic pre-decay timestamps",
     "normalization": (
-        "HTTP Date, proven Java Map.of member order, and the one transaction timestamp bounded "
-        "by the triggering request; scores, affected rows, unchanged timestamps, and all "
+        "HTTP Date, proven Java Map.of member order, and each transaction timestamp bounded "
+        "by its triggering request; scores, affected rows, unchanged timestamps, and all "
         "duration strings are exact"
     ),
     "oracle_evidence": "evidence/freeze/java-oracle/cringe-decay.json",
@@ -642,6 +658,19 @@ def test_rust_candidate_cringe_api_matches_frozen_java_golden() -> None:
             repository / _GOLDEN,
             _PROFILE,
         ).verify_candidate(CRINGE_SCENARIOS, candidate)
+
+
+@pytest.mark.integration
+@pytest.mark.candidate
+@pytest.mark.timeout(180)
+def test_rust_candidate_cringe_decay_matches_frozen_java_golden() -> None:
+    repository = Path(__file__).resolve().parents[2]
+    with _candidate(repository) as candidate:
+        DifferentialRunner(
+            repository,
+            repository / _DECAY_GOLDEN,
+            _DECAY_PROFILE,
+        ).verify_candidate(CRINGE_DECAY_SCENARIOS, candidate)
 
 
 @pytest.mark.integration

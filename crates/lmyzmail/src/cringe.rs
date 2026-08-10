@@ -3,7 +3,10 @@ use std::{
     fmt,
     future::Future,
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        OnceLock,
+        atomic::{AtomicBool, AtomicU64, Ordering},
+    },
     time::Duration,
 };
 
@@ -23,6 +26,7 @@ const MAX_XDP_EXISTING_BANS: usize = 200_000;
 const MAX_XDP_NEW_CANDIDATES: usize = 200_000;
 const MAX_XDP_RECONCILE_CANDIDATES: usize = MAX_XDP_EXISTING_BANS + MAX_XDP_NEW_CANDIDATES;
 const XDP_TRAFFIC_SCORE: i32 = 50;
+const DECAY_ADVISORY_LOCK_ID: i64 = 0x4c4d_595a_4445_4341;
 
 const IP_COLUMNS: &str = "ip_address, total_score, current_score, activity_count, \
     self_spoofing_count, open_relay_count, auth_probe_count, illegal_domain_count, \
@@ -380,6 +384,265 @@ impl CringeService {
             transaction.commit().await.map_err(database_error)?;
             Ok(candidates.into_iter().collect())
         })
+        .await;
+        connection.finish(outcome)
+    }
+
+    pub(crate) async fn xdp_decay_unban_candidates(
+        &self,
+        existing_bans: &[IpAddr],
+        unban_threshold: i32,
+        cancellation: &CancellationToken,
+    ) -> Result<Vec<IpAddr>, CringeError> {
+        if existing_bans.len() > MAX_XDP_EXISTING_BANS {
+            return Err(CringeError::CapacityExceeded);
+        }
+        let deadline = Instant::now() + DATABASE_DEADLINE;
+        let client = self.client(deadline, cancellation).await?;
+        let mut connection = DatabaseConnection::new(client);
+        let cancel_token = connection.cancel_token();
+        let outcome = database_read(deadline, cancellation, &cancel_token, async {
+            let transaction = connection
+                .client_mut()
+                .build_transaction()
+                .isolation_level(IsolationLevel::RepeatableRead)
+                .read_only(true)
+                .start()
+                .await
+                .map_err(database_error)?;
+            let mut candidates = Vec::new();
+            for chunk in existing_bans.chunks(XDP_SYNC_PAGE_SIZE as usize) {
+                let addresses = chunk.iter().map(ToString::to_string).collect::<Vec<_>>();
+                let rows = transaction
+                    .query(
+                        "SELECT ip_address FROM skibidi_cringe_ip \
+                         WHERE ip_address = ANY($1::text[]) AND current_score < $2",
+                        &[&addresses, &unban_threshold],
+                    )
+                    .await
+                    .map_err(database_error)?;
+                for row in rows {
+                    candidates.push(row.get::<_, String>("ip_address").parse().map_err(|_| {
+                        CringeError::Database("stored cringe IP address is invalid".into())
+                    })?);
+                }
+            }
+            transaction.commit().await.map_err(database_error)?;
+            Ok(candidates)
+        })
+        .await;
+        connection.finish(outcome)
+    }
+
+    pub async fn current_score(
+        &self,
+        ip_address: &str,
+        cancellation: &CancellationToken,
+    ) -> Result<Option<i32>, CringeError> {
+        let deadline = Instant::now() + DATABASE_DEADLINE;
+        let client = self.client(deadline, cancellation).await?;
+        let connection = DatabaseConnection::new(client);
+        let cancel_token = connection.cancel_token();
+        let outcome = database_read(deadline, cancellation, &cancel_token, async {
+            connection
+                .client()
+                .query_opt(
+                    "SELECT current_score FROM skibidi_cringe_ip WHERE ip_address = $1",
+                    &[&ip_address],
+                )
+                .await
+                .map(|row| row.map(|row| row.get::<_, i32>(0)))
+                .map_err(database_error)
+        })
+        .await;
+        connection.finish(outcome)
+    }
+
+    pub async fn perform_score_decay(
+        &self,
+        interval: Duration,
+        amount: i32,
+        cancellation: &CancellationToken,
+    ) -> Result<u64, CringeError> {
+        if amount < 0 || interval.is_zero() {
+            return Err(CringeError::InvalidInput);
+        }
+        if amount == 0 {
+            return Ok(0);
+        }
+        let chrono_interval =
+            chrono::Duration::from_std(interval).map_err(|_| CringeError::InvalidInput)?;
+        let now = DateTime::from_timestamp_micros(Utc::now().timestamp_micros())
+            .ok_or_else(|| CringeError::Database("current timestamp is out of range".into()))?;
+        let cutoff = now
+            .checked_sub_signed(chrono_interval)
+            .ok_or(CringeError::InvalidInput)?;
+        let deadline = Instant::now() + DATABASE_DEADLINE;
+        let client = self.client(deadline, cancellation).await?;
+        let mut connection = DatabaseConnection::new(client);
+        let cancel_token = connection.cancel_token();
+        let commit_started = AtomicBool::new(false);
+        let affected_before_commit = AtomicU64::new(0);
+        let transaction_id = OnceLock::new();
+        let database_cancellation = cancellation.child_token();
+        let outcome = database_write(
+            deadline,
+            &database_cancellation,
+            &cancel_token,
+            &commit_started,
+            async {
+                let transaction = connection
+                    .client_mut()
+                    .transaction()
+                    .await
+                    .map_err(database_error)?;
+                configure_transaction_deadline(&transaction, deadline).await?;
+                ensure_active(&database_cancellation)?;
+                transaction
+                    .query_one(
+                        "SELECT pg_advisory_xact_lock($1)",
+                        &[&DECAY_ADVISORY_LOCK_ID],
+                    )
+                    .await
+                    .map_err(database_error)?;
+                ensure_active(&database_cancellation)?;
+                let decay_transaction_id = transaction
+                    .query_one("SELECT pg_current_xact_id()::xid::text", &[])
+                    .await
+                    .map_err(database_error)?
+                    .get::<_, String>(0);
+                transaction_id
+                    .set(decay_transaction_id)
+                    .map_err(|_| CringeError::Database("decay transaction ID reused".into()))?;
+                ensure_active(&database_cancellation)?;
+                let affected = transaction
+                    .execute(
+                        "UPDATE skibidi_cringe_ip \
+                         SET current_score = GREATEST(0, current_score - $1), \
+                             last_decay_at = $2 \
+                         WHERE current_score > 0 \
+                           AND (last_decay_at IS NULL OR last_decay_at < $3)",
+                        &[&amount, &now, &cutoff],
+                    )
+                    .await
+                    .map_err(database_error)?;
+                affected_before_commit.store(affected, Ordering::Release);
+                start_commit(deadline, &database_cancellation, &commit_started)?;
+                transaction.commit().await.map_err(commit_error)?;
+                Ok(affected)
+            },
+        )
+        .await;
+        match connection.finish(outcome) {
+            Ok(affected) => Ok(affected),
+            Err(CringeError::OutcomeUnknown) => {
+                let expected = affected_before_commit.load(Ordering::Acquire);
+                if expected == 0 {
+                    Ok(0)
+                } else {
+                    let transaction_id = transaction_id.get().ok_or(CringeError::OutcomeUnknown)?;
+                    self.reconcile_score_decay(now, transaction_id, expected, cancellation)
+                        .await
+                }
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    async fn reconcile_score_decay(
+        &self,
+        marker: DateTime<Utc>,
+        transaction_id: &str,
+        expected: u64,
+        cancellation: &CancellationToken,
+    ) -> Result<u64, CringeError> {
+        let deadline = Instant::now() + DATABASE_DEADLINE;
+        let client = self
+            .client(deadline, cancellation)
+            .await
+            .map_err(|error| reconciliation_error("decay pool acquisition", error))?;
+        let mut connection = DatabaseConnection::new(client);
+        let cancel_token = connection.cancel_token();
+        let outcome = database_read(deadline, cancellation, &cancel_token, async {
+            let transaction = connection
+                .client_mut()
+                .transaction()
+                .await
+                .map_err(database_error)?;
+            configure_transaction_deadline(&transaction, deadline).await?;
+            transaction
+                .query_one(
+                    "SELECT pg_advisory_xact_lock($1) \
+                     /* lmyzmail_cringe_decay_commit_reconciliation */",
+                    &[&DECAY_ADVISORY_LOCK_ID],
+                )
+                .await
+                .map_err(database_error)?;
+            let count = transaction
+                .query_one(
+                    "SELECT COUNT(*) FROM skibidi_cringe_ip \
+                     WHERE last_decay_at = $1 AND xmin::text = $2",
+                    &[&marker, &transaction_id],
+                )
+                .await
+                .map_err(database_error)?
+                .get::<_, i64>(0);
+            transaction.commit().await.map_err(database_error)?;
+            Ok(count)
+        })
+        .await;
+        let count = connection
+            .finish(outcome)
+            .map_err(|error| reconciliation_error("decay verification", error))?;
+        let count = u64::try_from(count).map_err(|_| CringeError::OutcomeUnknown)?;
+        if count == expected {
+            Ok(expected)
+        } else {
+            Err(CringeError::OutcomeUnknown)
+        }
+    }
+
+    pub async fn cleanup_old_activities(
+        &self,
+        retention_days: u32,
+        cancellation: &CancellationToken,
+    ) -> Result<u64, CringeError> {
+        let retention = chrono::Duration::try_days(i64::from(retention_days))
+            .ok_or(CringeError::InvalidInput)?;
+        let cutoff = Utc::now()
+            .checked_sub_signed(retention)
+            .ok_or(CringeError::InvalidInput)?;
+        let deadline = Instant::now() + DATABASE_DEADLINE;
+        let client = self.client(deadline, cancellation).await?;
+        let mut connection = DatabaseConnection::new(client);
+        let cancel_token = connection.cancel_token();
+        let commit_started = AtomicBool::new(false);
+        let database_cancellation = cancellation.child_token();
+        let outcome = database_write(
+            deadline,
+            &database_cancellation,
+            &cancel_token,
+            &commit_started,
+            async {
+                let transaction = connection
+                    .client_mut()
+                    .transaction()
+                    .await
+                    .map_err(database_error)?;
+                configure_transaction_deadline(&transaction, deadline).await?;
+                ensure_active(&database_cancellation)?;
+                let affected = transaction
+                    .execute(
+                        "DELETE FROM skibidi_cringe_ip_activity WHERE timestamp < $1",
+                        &[&cutoff],
+                    )
+                    .await
+                    .map_err(database_error)?;
+                start_commit(deadline, &database_cancellation, &commit_started)?;
+                transaction.commit().await.map_err(commit_error)?;
+                Ok(affected)
+            },
+        )
         .await;
         connection.finish(outcome)
     }
@@ -1025,7 +1288,7 @@ fn commit_error(error: tokio_postgres::Error) -> CringeError {
 }
 
 fn reconciliation_error(stage: &str, error: impl fmt::Display + fmt::Debug) -> CringeError {
-    eprintln!("lmyzmail XDP traffic commit reconciliation failed at {stage}: {error} ({error:?})");
+    eprintln!("lmyzmail cringe commit reconciliation failed at {stage}: {error} ({error:?})");
     CringeError::OutcomeUnknown
 }
 

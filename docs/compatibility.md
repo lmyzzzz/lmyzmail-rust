@@ -180,6 +180,59 @@ wire, state, storage, or recovery assertions.
   strings retain Java UTF-16 substring semantics, including CESU-8 for an
   isolated surrogate produced by a split supplementary character.
 
+## Cringe decay contract
+
+The candidate accepts `lmyzmail.cringe.decay.*` and the frozen
+`botmail.cringe.decay.*` keys, with the new namespace taking precedence per
+field. Spring simple durations and non-negative ISO-8601 durations are accepted;
+the effective check interval retains the oracle's interval/4 calculation and
+1-minute to 1-hour clamp. The config endpoint preserves Jackson's numeric
+seconds with nine fractional digits.
+
+Decay updates positive scores whose nullable `last_decay_at` is older than the
+configured interval, clamps at zero, and changes `last_decay_at` in the same
+PostgreSQL transaction. Calls are serialized with a transaction advisory lock.
+Pool acquisition, every query, the lock, update, and COMMIT share one absolute
+eight-second transaction deadline. Cancellation before COMMIT sends a
+PostgreSQL CancelRequest and drains for at most two additional seconds. A lost
+COMMIT response is not retried: an independent reconciliation phase has its own
+eight-second deadline plus the same bounded cancellation drain, waits on the
+same lock, and accepts the outcome only when the exact timestamp marker count
+whose PostgreSQL `xmin` matches the decay transaction equals the pre-COMMIT
+affected count. A concurrent writer using the same microsecond marker cannot
+confirm the wrong transaction. Reconciliation observes caller cancellation and
+returns an unknown outcome rather than guessing whether the commit applied.
+
+The manual decay route follows the frozen method annotation and therefore
+requires write permission; a write-only API key is valid. Every decay check also
+retries XDP cleanup so an earlier native failure cannot strand a zero-score ban.
+XDP work is bounded to the at-most 200,000 already-banned addresses now below
+the unban threshold and cannot add a ban. One dedicated native operation uses
+an eight-second budget, checks cancellation between entries in 500-address
+chunks, avoids repeated full-map scans, and continues after individual native
+unban failures while emitting one aggregate diagnostic. Lock waiting, database
+selection, and native work are additionally covered by one 20-second whole-sync
+budget. Timeout cancels the operation and permits at most two seconds for its
+bounded drain. Shared full-sync and decay-sync workers own their cancellation
+tokens, so one disconnected HTTP caller stops only its own wait; service
+shutdown is the only external cancellation of shared work. Every native
+dispatch has the same two-second cancellation drain. A native call that does
+not return by then marks XDP unavailable, and bounded pool shutdown detaches an
+unfinished native thread handle rather than blocking process teardown.
+
+The scheduler uses the oracle's initial delay and fixed-delay cadence, is joined
+during process shutdown, and independently deletes expired activity rows at
+03:00 local time. Decay and cleanup use separate cancellation-aware loops so a
+cleanup run cannot postpone a due decay check. Nonexistent local times advance
+to the next date whose 03:00 exists; ambiguous times expose both occurrences in
+absolute-time order, matching the frozen Spring cron expression.
+`amount=0` is an intentional safety difference: decay is a
+no-op and an above-threshold estimate returns the controlled
+`{"error":"decay_disabled"}` response instead of reproducing the oracle's
+integer division by zero. This difference is limited to the invalid/disabled
+configuration boundary; positive amounts remain governed by
+`managed-cringe-decay-v2`.
+
 ## Minecraft mail-view contract
 
 Opening a folder item resolves the same indexed Maildir message as the frozen

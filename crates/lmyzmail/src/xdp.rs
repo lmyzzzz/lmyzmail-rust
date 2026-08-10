@@ -12,7 +12,7 @@ use std::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use ipnet::IpNet;
@@ -32,9 +32,12 @@ const XDP_VERSION: &str = "1.1.0";
 const XDP_WORKERS: usize = 1;
 const XDP_QUEUE_CAPACITY: usize = 64;
 const XDP_OPERATION_DEADLINE: Duration = Duration::from_secs(8);
+const XDP_OPERATION_DRAIN_DEADLINE: Duration = Duration::from_secs(2);
 const XDP_INITIALIZATION_DEADLINE: Duration = Duration::from_secs(30);
 const MAX_BANNED_IPS_PER_FAMILY: usize = 100_000;
 const MAX_BANNED_IPS: usize = MAX_BANNED_IPS_PER_FAMILY * 2;
+const MAX_XDP_UNBAN_CANDIDATES: usize = MAX_BANNED_IPS;
+const XDP_UNBAN_CHUNK_SIZE: usize = 500;
 const MAX_PER_IP_STATS: usize = 100_000;
 const XDP_LOCK_DIRECTORY: &str = "/run/lmyzmail";
 const DEFAULT_XDP_PIN_PATH: &str = "/sys/fs/bpf/lmyzmail";
@@ -178,6 +181,13 @@ pub(crate) struct XdpReconcileCounts {
     pub unchanged_mid: usize,
 }
 
+#[derive(Debug, Default, Eq, PartialEq)]
+pub(crate) struct XdpUnbanResult {
+    pub unbanned: usize,
+    pub failed: usize,
+    pub first_error: Option<String>,
+}
+
 struct SharedState {
     native: Mutex<NativeState>,
     ready: AtomicBool,
@@ -217,6 +227,15 @@ impl XdpService {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone()
+    }
+
+    fn mark_unavailable(&self, error: &XdpError) {
+        self.shared.ready.store(false, Ordering::Release);
+        *self
+            .shared
+            .last_error
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(error.to_string());
     }
 
     pub async fn initialize(&self, cancellation: &CancellationToken) {
@@ -308,6 +327,55 @@ impl XdpService {
             state.unban(ip)
         })
         .await
+    }
+
+    pub(crate) async fn unban_many_bounded(
+        &self,
+        ips: Vec<IpAddr>,
+        cancellation: &CancellationToken,
+    ) -> Result<XdpUnbanResult, XdpError> {
+        if ips.len() > MAX_XDP_UNBAN_CANDIDATES {
+            return Err(XdpError::InvalidInput(format!(
+                "XDP decay unban exceeds {MAX_XDP_UNBAN_CANDIDATES} entries"
+            )));
+        }
+        if !self.ready() || ips.is_empty() {
+            return Ok(XdpUnbanResult::default());
+        }
+        let shared = Arc::clone(&self.shared);
+        let worker_cancellation = CancellationToken::new();
+        let worker_token = worker_cancellation.clone();
+        let worker_deadline = Instant::now() + XDP_OPERATION_DEADLINE;
+        let receiver = self
+            .pool
+            .submit(move || {
+                let mut state = shared
+                    .native
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                state.unban_many_bounded(&ips, &worker_token, worker_deadline)
+            })
+            .map_err(submit_error)?;
+        tokio::pin!(receiver);
+        let terminal = tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => XdpError::Cancelled,
+            () = tokio::time::sleep(XDP_OPERATION_DEADLINE) => XdpError::Timeout,
+            result = &mut receiver => return match result {
+                Ok(result) => result,
+                Err(_) => Err(XdpError::Closed),
+            },
+        };
+        worker_cancellation.cancel();
+        match timeout(XDP_OPERATION_DRAIN_DEADLINE, &mut receiver).await {
+            Ok(Ok(_)) => Err(terminal),
+            Ok(Err(_)) => Err(XdpError::Closed),
+            Err(_) => {
+                let error = cleanup_failure(terminal, XdpError::Timeout);
+                self.mark_unavailable(&error);
+                Err(error)
+            }
+        }
     }
 
     pub async fn is_banned(
@@ -466,27 +534,31 @@ impl XdpService {
     pub async fn shutdown(&self) -> Result<(), XdpError> {
         self.shared.ready.store(false, Ordering::Release);
         let shared = Arc::clone(&self.shared);
-        let receiver = self
-            .pool
-            .submit(move || {
-                shared
-                    .native
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .close()
+        let close_result = match self.pool.submit(move || {
+            shared
+                .native
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .close()
+        }) {
+            Ok(receiver) => match timeout(XDP_OPERATION_DEADLINE, receiver).await {
+                Ok(Ok(result)) => result,
+                Ok(Err(_)) => Err(XdpError::Closed),
+                Err(_) => Err(XdpError::Timeout),
+            },
+            Err(error) => Err(submit_error(error)),
+        };
+        let workers_drained = self.pool.shutdown(XDP_OPERATION_DRAIN_DEADLINE).await;
+        let result = if workers_drained {
+            close_result
+        } else {
+            Err(match close_result {
+                Ok(()) => XdpError::Timeout,
+                Err(error) => cleanup_failure(error, XdpError::Timeout),
             })
-            .map_err(submit_error)?;
-        let result = match timeout(XDP_OPERATION_DEADLINE, receiver).await {
-            Ok(Ok(result)) => result,
-            Ok(Err(_)) => Err(XdpError::Closed),
-            Err(_) => Err(XdpError::Timeout),
         };
         if let Err(error) = &result {
-            *self
-                .shared
-                .last_error
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(error.to_string());
+            self.mark_unavailable(error);
         }
         result
     }
@@ -502,23 +574,47 @@ impl XdpService {
         F: FnOnce(&mut NativeState) -> Result<T, XdpError> + Send + 'static,
     {
         let shared = Arc::clone(&self.shared);
+        let job_cancellation = CancellationToken::new();
+        let worker_cancellation = job_cancellation.clone();
         let receiver = self
             .pool
             .submit(move || {
+                if worker_cancellation.is_cancelled() || !shared.ready.load(Ordering::Acquire) {
+                    return Err(XdpError::Cancelled);
+                }
                 let mut state = shared
                     .native
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner);
-                operation(&mut state)
+                if worker_cancellation.is_cancelled() || !shared.ready.load(Ordering::Acquire) {
+                    return Err(XdpError::Cancelled);
+                }
+                let result = operation(&mut state);
+                if worker_cancellation.is_cancelled() {
+                    Err(XdpError::Cancelled)
+                } else {
+                    result
+                }
             })
             .map_err(submit_error)?;
-        tokio::select! {
+        tokio::pin!(receiver);
+        let terminal = tokio::select! {
             biased;
-            _ = cancellation.cancelled() => Err(XdpError::Cancelled),
-            result = timeout(deadline, receiver) => match result {
-                Ok(Ok(result)) => result,
-                Ok(Err(_)) => Err(XdpError::Closed),
-                Err(_) => Err(XdpError::Timeout),
+            _ = cancellation.cancelled() => XdpError::Cancelled,
+            () = tokio::time::sleep(deadline) => XdpError::Timeout,
+            result = &mut receiver => return match result {
+                Ok(result) => result,
+                Err(_) => Err(XdpError::Closed),
+            },
+        };
+        job_cancellation.cancel();
+        match timeout(XDP_OPERATION_DRAIN_DEADLINE, &mut receiver).await {
+            Ok(Ok(_)) => Err(terminal),
+            Ok(Err(_)) => Err(XdpError::Closed),
+            Err(_) => {
+                let error = cleanup_failure(terminal, XdpError::Timeout);
+                self.mark_unavailable(&error);
+                Err(error)
             }
         }
     }
@@ -665,6 +761,15 @@ impl NativeState {
         Ok(true)
     }
 
+    fn unban_many_bounded(
+        &mut self,
+        ips: &[IpAddr],
+        cancellation: &CancellationToken,
+        deadline: Instant,
+    ) -> Result<XdpUnbanResult, XdpError> {
+        apply_bounded_unbans(ips, cancellation, deadline, |ip| self.unban(ip))
+    }
+
     fn configured_whitelist_contains(&self, ip: IpAddr) -> bool {
         self.whitelist.iter().any(|network| network.contains(&ip))
     }
@@ -737,6 +842,39 @@ impl NativeState {
         self.banned.clear();
         Ok(())
     }
+}
+
+fn apply_bounded_unbans(
+    ips: &[IpAddr],
+    cancellation: &CancellationToken,
+    deadline: Instant,
+    mut unban: impl FnMut(IpAddr) -> Result<bool, XdpError>,
+) -> Result<XdpUnbanResult, XdpError> {
+    let mut result = XdpUnbanResult::default();
+    for chunk in ips.chunks(XDP_UNBAN_CHUNK_SIZE) {
+        if cancellation.is_cancelled() {
+            return Err(XdpError::Cancelled);
+        }
+        if Instant::now() >= deadline {
+            return Err(XdpError::Timeout);
+        }
+        for ip in chunk {
+            if cancellation.is_cancelled() {
+                return Err(XdpError::Cancelled);
+            }
+            match unban(*ip) {
+                Ok(true) => result.unbanned += 1,
+                Ok(false) => {}
+                Err(error) => {
+                    result.failed += 1;
+                    if result.first_error.is_none() {
+                        result.first_error = Some(error.to_string());
+                    }
+                }
+            }
+        }
+    }
+    Ok(result)
 }
 
 #[derive(Default)]
@@ -1862,7 +2000,43 @@ mod ffi {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
+
+    fn test_xdp_config() -> XdpConfig {
+        XdpConfig {
+            enabled: true,
+            interface_name: "lo".into(),
+            bpf_object_path: None,
+            pin_path: PathBuf::from("/sys/fs/bpf/lmyzmail-test"),
+            ban_threshold: 100,
+            unban_threshold: 50,
+            force_generic_mode: true,
+            verbose: false,
+            sync_on_startup: false,
+            whitelist: Vec::new(),
+            reason_code_default: 1,
+            reason_code_pps_overlimit: 2,
+            reason_code_syn_flood: 3,
+            pps_monitor: crate::config::XdpPpsMonitorConfig {
+                enabled: false,
+                poll_interval_ms: 1_000,
+                pps_warn_threshold: 1,
+                pps_critical_threshold: 2,
+                syn_pps_warn_threshold: 1,
+                syn_pps_critical_threshold: 2,
+                per_ip_pps_warn_threshold: 1,
+                per_ip_pps_critical_threshold: 2,
+                per_ip_syn_pps_warn_threshold: 1,
+                per_ip_syn_pps_critical_threshold: 2,
+                consecutive_exceed_count: 1,
+                record_to_cringe: false,
+                max_ips_per_poll: 1,
+                ring_buffer_size: 1,
+            },
+        }
+    }
 
     #[test]
     fn embedded_bpf_object_is_linux_elf_for_bpf() {
@@ -1910,6 +2084,117 @@ mod tests {
     fn ban_cache_budget_matches_both_frozen_native_maps() {
         assert_eq!(MAX_BANNED_IPS_PER_FAMILY, 100_000);
         assert_eq!(MAX_BANNED_IPS, 200_000);
+        assert_eq!(MAX_XDP_UNBAN_CANDIDATES, MAX_BANNED_IPS);
+        assert_eq!(XDP_UNBAN_CHUNK_SIZE, 500);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn stalled_dispatch_marks_xdp_unavailable_and_shutdown_detaches_worker() {
+        let service = Arc::new(XdpService::from_config(&test_xdp_config()).unwrap());
+        service.shared.ready.store(true, Ordering::Release);
+        let (started_sender, started_receiver) = std::sync::mpsc::channel();
+        let (release_sender, release_receiver) = std::sync::mpsc::channel();
+        let operation = tokio::spawn({
+            let service = Arc::clone(&service);
+            async move {
+                let cancellation = CancellationToken::new();
+                service
+                    .dispatch(Duration::from_secs(8), &cancellation, move |_| {
+                        started_sender.send(()).unwrap();
+                        release_receiver.recv().unwrap();
+                        Ok(())
+                    })
+                    .await
+            }
+        });
+        tokio::task::yield_now().await;
+        started_receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("blocking XDP worker must start");
+
+        tokio::time::advance(Duration::from_secs(8)).await;
+        tokio::task::yield_now().await;
+        assert!(!operation.is_finished());
+        tokio::time::advance(XDP_OPERATION_DRAIN_DEADLINE).await;
+        let error = operation.await.unwrap().unwrap_err();
+        assert!(matches!(error, XdpError::Native { .. }));
+        assert!(!service.ready());
+        assert!(
+            service
+                .last_error()
+                .as_deref()
+                .is_some_and(|message| message.contains("cleanup failed"))
+        );
+
+        let shutdown = tokio::spawn({
+            let service = Arc::clone(&service);
+            async move { service.shutdown().await }
+        });
+        tokio::task::yield_now().await;
+        tokio::time::advance(XDP_OPERATION_DEADLINE).await;
+        tokio::task::yield_now().await;
+        assert!(!shutdown.is_finished());
+        tokio::time::advance(XDP_OPERATION_DRAIN_DEADLINE).await;
+        assert!(shutdown.await.unwrap().is_err());
+
+        release_sender.send(()).unwrap();
+    }
+
+    #[test]
+    fn bounded_unban_continues_after_individual_native_failure() {
+        let ips = [
+            "192.0.2.1".parse().unwrap(),
+            "192.0.2.2".parse().unwrap(),
+            "192.0.2.3".parse().unwrap(),
+        ];
+        let cancellation = CancellationToken::new();
+        let mut calls = 0_usize;
+        let result = apply_bounded_unbans(
+            &ips,
+            &cancellation,
+            Instant::now() + Duration::from_secs(1),
+            |ip| {
+                calls += 1;
+                if ip == ips[1] {
+                    Err(XdpError::Native {
+                        code: -5,
+                        message: "injected unban failure".into(),
+                    })
+                } else {
+                    Ok(true)
+                }
+            },
+        )
+        .unwrap();
+        assert_eq!(calls, 3);
+        assert_eq!(result.unbanned, 2);
+        assert_eq!(result.failed, 1);
+        assert_eq!(
+            result.first_error.as_deref(),
+            Some("XDP native operation failed (-5): injected unban failure")
+        );
+    }
+
+    #[test]
+    fn bounded_unban_observes_cancellation_between_entries() {
+        let ips = vec!["192.0.2.1".parse().unwrap(); XDP_UNBAN_CHUNK_SIZE + 1];
+        let cancellation = CancellationToken::new();
+        let trigger = cancellation.clone();
+        let mut calls = 0_usize;
+        let result = apply_bounded_unbans(
+            &ips,
+            &cancellation,
+            Instant::now() + Duration::from_secs(1),
+            |_| {
+                calls += 1;
+                if calls == XDP_UNBAN_CHUNK_SIZE {
+                    trigger.cancel();
+                }
+                Ok(true)
+            },
+        );
+        assert!(matches!(result, Err(XdpError::Cancelled)));
+        assert_eq!(calls, XDP_UNBAN_CHUNK_SIZE);
     }
 
     #[test]

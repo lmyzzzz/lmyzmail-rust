@@ -6,6 +6,7 @@ use std::{
     net::{IpAddr, SocketAddr},
     path::{Path, PathBuf},
     str,
+    time::Duration,
 };
 
 use ipnet::IpNet;
@@ -43,6 +44,7 @@ const MAX_MINECRAFT_MAP_VIDEO_AXIS: u64 = 16;
 const MAX_MINECRAFT_WORLD_COORDINATE: i32 = 30_000_000;
 const MAX_MINECRAFT_WORLD_Y: i32 = 255;
 const MAX_MESSAGE_BYTES: u64 = 1024 * 1024 * 1024;
+const MAX_CRINGE_DECAY_DURATION: Duration = Duration::from_secs(100 * 366 * 24 * 60 * 60);
 
 #[derive(Debug)]
 pub enum ConfigError {
@@ -223,6 +225,8 @@ struct JsonRuntimeConfig {
     #[serde(default)]
     xdp: JsonXdpConfig,
     #[serde(default)]
+    cringe: JsonCringeConfig,
+    #[serde(default)]
     reporting: JsonReportingConfig,
     #[serde(default)]
     htcpcp: JsonHtcpcpConfig,
@@ -391,6 +395,32 @@ impl Default for JsonXdpPpsMonitorConfig {
             record_to_cringe: true,
             max_ips_per_poll: 10_000,
             ring_buffer_size: 1_024,
+        }
+    }
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct JsonCringeConfig {
+    decay: JsonCringeDecayConfig,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct JsonCringeDecayConfig {
+    interval: String,
+    amount: i32,
+    check_interval: Option<String>,
+    activity_retention_days: u32,
+}
+
+impl Default for JsonCringeDecayConfig {
+    fn default() -> Self {
+        Self {
+            interval: "24h".into(),
+            amount: 10,
+            check_interval: None,
+            activity_retention_days: 360,
         }
     }
 }
@@ -1448,6 +1478,23 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         pps.ring_buffer_size.to_string(),
     )?;
     properties.insert(
+        "lmyzmail.cringe.decay.interval".to_owned(),
+        value.cringe.decay.interval,
+    )?;
+    properties.insert(
+        "lmyzmail.cringe.decay.amount".to_owned(),
+        value.cringe.decay.amount.to_string(),
+    )?;
+    insert_optional_property(
+        &mut properties,
+        "lmyzmail.cringe.decay.check-interval",
+        value.cringe.decay.check_interval,
+    )?;
+    properties.insert(
+        "lmyzmail.cringe.decay.activity-retention-days".to_owned(),
+        value.cringe.decay.activity_retention_days.to_string(),
+    )?;
+    properties.insert(
         "lmyzmail.fail2ban.enabled".to_owned(),
         value.features.fail2ban.to_string(),
     )?;
@@ -1719,6 +1766,7 @@ pub struct RuntimeConfig {
     pub outbound_route: OutboundRouteConfig,
     pub features: FeatureConfig,
     pub xdp: XdpConfig,
+    pub cringe_decay: CringeDecayConfig,
     pub reporting: ReportingConfig,
     pub htcpcp: HtcpcpConfig,
     pub minecraft: MinecraftConfig,
@@ -1830,6 +1878,14 @@ pub struct XdpPpsMonitorConfig {
     pub record_to_cringe: bool,
     pub max_ips_per_poll: u32,
     pub ring_buffer_size: u32,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CringeDecayConfig {
+    pub interval: Duration,
+    pub amount: i32,
+    pub check_interval: Duration,
+    pub activity_retention_days: u32,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -2174,6 +2230,7 @@ impl RuntimeConfig {
         };
         validate_outbound_route(&outbound_route)?;
         let xdp = parse_xdp_config(&properties)?;
+        let cringe_decay = parse_cringe_decay_config(&properties)?;
 
         let features = FeatureConfig {
             public_registration: preferred_bool(
@@ -2476,6 +2533,7 @@ impl RuntimeConfig {
             outbound_route,
             features,
             xdp,
+            cringe_decay,
             reporting,
             htcpcp: htcpcp_config,
             minecraft: minecraft_config,
@@ -3738,6 +3796,161 @@ fn parse_honeypots(
         });
     }
     Ok(traps)
+}
+
+fn parse_cringe_decay_config(properties: &Properties) -> Result<CringeDecayConfig, ConfigError> {
+    let interval = preferred(
+        properties,
+        &["lmyzmail.cringe.decay.interval"],
+        &["botmail.cringe.decay.interval"],
+    )
+    .map_or_else(
+        || Ok(Duration::from_secs(24 * 60 * 60)),
+        |value| parse_spring_duration(value, "cringe decay interval"),
+    )?;
+    let amount = parse_number(
+        properties,
+        &["lmyzmail.cringe.decay.amount"],
+        &["botmail.cringe.decay.amount"],
+        10_i32,
+        "cringe decay amount",
+    )?;
+    if amount < 0 {
+        return Err(ConfigError::Invalid(
+            "cringe decay amount must not be negative".into(),
+        ));
+    }
+    let configured_check_interval = preferred(
+        properties,
+        &[
+            "lmyzmail.cringe.decay.check-interval",
+            "lmyzmail.cringe.decay.checkInterval",
+        ],
+        &[
+            "botmail.cringe.decay.check-interval",
+            "botmail.cringe.decay.checkInterval",
+        ],
+    )
+    .map(|value| parse_spring_duration(value, "cringe decay check interval"))
+    .transpose()?;
+    let check_interval = configured_check_interval.unwrap_or_else(|| {
+        let quarter_millis = interval.as_millis() / 4;
+        Duration::from_millis(quarter_millis.clamp(60_000, 3_600_000) as u64)
+    });
+    let activity_retention_days = parse_number(
+        properties,
+        &["lmyzmail.cringe.decay.activity-retention-days"],
+        &[
+            "botmail.cringe.decay.activity-retention-days",
+            "botmail.cringe.decay.activityRetentionDays",
+        ],
+        360_u32,
+        "cringe activity retention days",
+    )?;
+    if activity_retention_days > 36_500 {
+        return Err(ConfigError::Invalid(
+            "cringe activity retention days must not exceed 36500".into(),
+        ));
+    }
+    Ok(CringeDecayConfig {
+        interval,
+        amount,
+        check_interval,
+        activity_retention_days,
+    })
+}
+
+fn parse_spring_duration(value: &str, label: &str) -> Result<Duration, ConfigError> {
+    let value = value.trim();
+    let duration = if value
+        .as_bytes()
+        .first()
+        .is_some_and(|byte| byte.eq_ignore_ascii_case(&b'P'))
+    {
+        parse_iso_duration(value)
+    } else {
+        parse_simple_duration(value)
+    }
+    .ok_or_else(|| ConfigError::Invalid(format!("{label} is not a valid duration")))?;
+    if duration < Duration::from_millis(1) || duration > MAX_CRINGE_DECAY_DURATION {
+        return Err(ConfigError::Invalid(format!(
+            "{label} must be between 1ms and 36600d"
+        )));
+    }
+    Ok(duration)
+}
+
+fn parse_simple_duration(value: &str) -> Option<Duration> {
+    let value = value.strip_prefix('+').unwrap_or(value);
+    let digits = value.bytes().take_while(u8::is_ascii_digit).count();
+    if digits == 0 {
+        return None;
+    }
+    let amount = value[..digits].parse::<u64>().ok()?;
+    let multiplier = match value[digits..].to_ascii_lowercase().as_str() {
+        "ns" => return Some(Duration::from_nanos(amount)),
+        "us" => return Some(Duration::from_micros(amount)),
+        "ms" | "" => return Some(Duration::from_millis(amount)),
+        "s" => 1,
+        "m" => 60,
+        "h" => 60 * 60,
+        "d" => 24 * 60 * 60,
+        _ => return None,
+    };
+    amount.checked_mul(multiplier).map(Duration::from_secs)
+}
+
+fn parse_iso_duration(value: &str) -> Option<Duration> {
+    let uppercase = value.to_ascii_uppercase();
+    let body = uppercase.strip_prefix('P')?;
+    let (date, time) = body.split_once('T').map_or((body, ""), |parts| parts);
+    let days = if date.is_empty() {
+        0
+    } else {
+        date.strip_suffix('D')?.parse::<u64>().ok()?
+    };
+    let mut hours = 0_u64;
+    let mut minutes = 0_u64;
+    let mut seconds = 0_u64;
+    let mut nanos = 0_u32;
+    let mut remaining = time;
+    if let Some(index) = remaining.find('H') {
+        hours = remaining[..index].parse().ok()?;
+        remaining = &remaining[index + 1..];
+    }
+    if let Some(index) = remaining.find('M') {
+        minutes = remaining[..index].parse().ok()?;
+        remaining = &remaining[index + 1..];
+    }
+    if let Some(raw_seconds) = remaining.strip_suffix('S') {
+        let (whole, fraction) = raw_seconds
+            .split_once('.')
+            .map_or((raw_seconds, None), |(whole, fraction)| {
+                (whole, Some(fraction))
+            });
+        seconds = whole.parse().ok()?;
+        if let Some(fraction) = fraction {
+            if fraction.is_empty()
+                || fraction.len() > 9
+                || !fraction.bytes().all(|byte| byte.is_ascii_digit())
+            {
+                return None;
+            }
+            let mut padded = fraction.to_owned();
+            padded.extend(std::iter::repeat_n('0', 9 - fraction.len()));
+            nanos = padded.parse().ok()?;
+        }
+        remaining = "";
+    }
+    if !remaining.is_empty() || (date.is_empty() && time.is_empty()) {
+        return None;
+    }
+    let total_seconds = days
+        .checked_mul(24 * 60 * 60)?
+        .checked_add(hours.checked_mul(60 * 60)?)?
+        .checked_add(minutes.checked_mul(60)?)?
+        .checked_add(seconds)?;
+    Some(Duration::new(total_seconds, nanos))
 }
 
 fn parse_xdp_config(properties: &Properties) -> Result<XdpConfig, ConfigError> {
@@ -5448,6 +5661,74 @@ botmail.show-internet-nl-badge=true\n",
                 .and_then(RuntimeConfig::from_properties)
                 .is_err()
         );
+    }
+
+    #[test]
+    fn cringe_decay_defaults_aliases_and_duration_styles_match_spring() {
+        let defaults = RuntimeConfig::from_properties(Properties::default()).unwrap();
+        assert_eq!(defaults.cringe_decay.interval, Duration::from_secs(86_400));
+        assert_eq!(defaults.cringe_decay.amount, 10);
+        assert_eq!(
+            defaults.cringe_decay.check_interval,
+            Duration::from_secs(3_600)
+        );
+        assert_eq!(defaults.cringe_decay.activity_retention_days, 360);
+
+        let config = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.cringe.decay.interval=PT3H\n\
+botmail.cringe.decay.amount=2\n\
+botmail.cringe.decay.check-interval=30m\n\
+botmail.cringe.decay.activity-retention-days=90\n\
+lmyzmail.cringe.decay.interval=PT90M\n\
+lmyzmail.cringe.decay.amount=4\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(config.cringe_decay.interval, Duration::from_secs(5_400));
+        assert_eq!(config.cringe_decay.amount, 4);
+        assert_eq!(
+            config.cringe_decay.check_interval,
+            Duration::from_secs(1_800)
+        );
+        assert_eq!(config.cringe_decay.activity_retention_days, 90);
+    }
+
+    #[test]
+    fn cringe_decay_semantic_json_and_invalid_bounds_are_checked() {
+        let json = br#"{
+            "schema_version": 1,
+            "profile": "test",
+            "listen": {"host":"127.0.0.1","http":18080,"smtp":1025,"htcpcp":18888,"minecraft":25575},
+            "postgres": {"host":"localhost","port":15432,"database":"lmyzmail","username":"qa","password":""},
+            "redis": {"host":"localhost","port":16379,"database":0},
+            "maildir": "/tmp/lmyzmail-mail",
+            "domain": "example.test",
+            "cringe": {"decay":{"interval":"PT6H","amount":3,"check_interval":"45m","activity_retention_days":30}}
+        }"#;
+        let config = RuntimeConfig::from_properties(parse_semantic_json(json).unwrap()).unwrap();
+        assert_eq!(config.cringe_decay.interval, Duration::from_secs(21_600));
+        assert_eq!(config.cringe_decay.amount, 3);
+        assert_eq!(
+            config.cringe_decay.check_interval,
+            Duration::from_secs(2_700)
+        );
+        assert_eq!(config.cringe_decay.activity_retention_days, 30);
+
+        for input in [
+            b"lmyzmail.cringe.decay.interval=0ms\n".as_slice(),
+            b"lmyzmail.cringe.decay.interval=P1M\n".as_slice(),
+            b"lmyzmail.cringe.decay.amount=-1\n".as_slice(),
+            b"lmyzmail.cringe.decay.check-interval=0s\n".as_slice(),
+            b"lmyzmail.cringe.decay.activity-retention-days=36501\n".as_slice(),
+        ] {
+            assert!(
+                RuntimeConfig::from_properties(Properties::parse(input).unwrap()).is_err(),
+                "accepted invalid cringe decay config: {}",
+                String::from_utf8_lossy(input),
+            );
+        }
     }
 
     #[test]

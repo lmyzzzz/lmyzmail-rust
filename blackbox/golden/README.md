@@ -1039,7 +1039,7 @@ the Linux x86_64 Rust release matched it in a separate candidate workspace.
 The post-recording Rust candidate driver now targets v15 so the candidate
 cannot pass an earlier definition tree.
 
-The active Cringe API sets are:
+The preceding Cringe API sets remain immutable:
 
 - `managed-cringe-api-v5/`
 - `managed-cringe-api-oracle-boundaries-v5/`
@@ -1053,8 +1053,24 @@ generation was rewritten. Decay v1 freezes the exact default configuration
 wire bytes, estimate arithmetic, permissions, missing-IP response, eligible
 row mutation, future/zero-score preservation, and immediate idempotent retry.
 An independent fresh Java replay and the existing Rust API/boundary candidate
-checks passed against this generation. The candidate driver targets API and
-boundary v5; decay v1 remains the implementation acceptance golden.
+checks passed against this generation. No file in these generations was
+rewritten.
+
+The active Cringe API sets are:
+
+- `managed-cringe-api-v6/`
+- `managed-cringe-api-oracle-boundaries-v6/`
+- `managed-cringe-decay-v2/`
+
+They bind definition tree
+`f144b6a38c9d7a84c8a2f1d4b0fcad77fa060929eaeb677e5717013d7e09dbf9`.
+API and boundary observations are re-attested without changing their wire
+contract. Decay v2 retains the complete v1 state transition and additionally
+re-seeds the fixture, performs decay with a write-only API key, and verifies
+the same atomic PostgreSQL result. One fresh frozen Java runtime created the
+three sets, a second fresh Java runtime replayed them without record mode, and
+the current Linux x86_64 Rust release passed API v6, decay v2, the approved
+pagination difference, the 10,000-row ceiling, and stalled-query recovery.
 
 The disabled XDP control-plane extension retains two create-once generations:
 
