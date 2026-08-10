@@ -12,7 +12,10 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use futures_util::future::join_all;
 use hickory_resolver::{TokioResolver, proto::rr::RData};
-use mail_parser::MessageParser;
+use mail_parser::{
+    MessageParser,
+    decoders::{base64::base64_decode, quoted_printable::quoted_printable_decode},
+};
 use regex::Regex;
 use tokio::{
     sync::Semaphore,
@@ -25,11 +28,16 @@ pub(crate) const MAX_HEADER_BYTES: usize = 256 * 1024;
 const MAX_HEADER_FIELDS: usize = 4_096;
 const MAX_MIME_PARTS: usize = 4_096;
 const MAX_MIME_BOUNDARIES: usize = 64;
+const MAX_MIME_MESSAGE_DEPTH: usize = 64;
+const MAX_MIME_DECODED_WORK_BYTES: usize = 64 * 1024 * 1024;
 const MAX_MIME_BOUNDARY_BYTES: usize = 200;
 const MAX_MIME_HEADER_BYTES: usize = 64 * 1024;
 const MAX_MIME_HEADER_FIELDS: usize = 256;
 const MAX_MIME_FIELD_BYTES: usize = 8 * 1024;
 const MAX_MIME_FILENAME_BYTES: usize = 1_024;
+const KEYWORD_MAX_LINE_UTF16: usize = 8_192;
+const URL_MAX_LINE_UTF16: usize = 16_384;
+const MAX_TRACKED_URLS: usize = 500;
 const NEW_DOMAIN_QUERY_TIMEOUT: Duration = Duration::from_secs(5);
 const NEW_DOMAIN_MAX_ACTIVE_REQUESTS: usize = 32;
 const NEW_DOMAIN_CACHE_ENTRIES: u64 = 8_192;
@@ -604,11 +612,82 @@ impl fmt::Display for AttachmentScanError {
 
 impl std::error::Error for AttachmentScanError {}
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub(crate) enum BodyScanError {
+    TooManyParts,
+    TooManyBoundaries,
+    BoundaryTooLarge,
+    InvalidBoundary,
+    HeaderTooLarge,
+    TooManyHeaderFields,
+    HeaderFieldTooLarge,
+    TooManyEmbeddedMessages,
+    DecodedWorkTooLarge,
+}
+
+impl fmt::Display for BodyScanError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::TooManyParts => formatter.write_str("MIME body scan exceeded the part budget"),
+            Self::TooManyBoundaries => {
+                formatter.write_str("MIME body scan exceeded the boundary budget")
+            }
+            Self::BoundaryTooLarge => {
+                formatter.write_str("MIME body boundary exceeded the byte budget")
+            }
+            Self::InvalidBoundary => {
+                formatter.write_str("MIME body boundary contained invalid bytes")
+            }
+            Self::HeaderTooLarge => {
+                formatter.write_str("MIME body scan exceeded the header budget")
+            }
+            Self::TooManyHeaderFields => {
+                formatter.write_str("MIME body scan exceeded the header field budget")
+            }
+            Self::HeaderFieldTooLarge => {
+                formatter.write_str("MIME body scan exceeded the field budget")
+            }
+            Self::TooManyEmbeddedMessages => {
+                formatter.write_str("MIME body scan exceeded the embedded message depth budget")
+            }
+            Self::DecodedWorkTooLarge => {
+                formatter.write_str("MIME body scan exceeded the decoded work budget")
+            }
+        }
+    }
+}
+
+impl std::error::Error for BodyScanError {}
+
+impl From<AttachmentScanError> for BodyScanError {
+    fn from(value: AttachmentScanError) -> Self {
+        match value {
+            AttachmentScanError::TooManyParts => Self::TooManyParts,
+            AttachmentScanError::TooManyBoundaries => Self::TooManyBoundaries,
+            AttachmentScanError::BoundaryTooLarge => Self::BoundaryTooLarge,
+            AttachmentScanError::InvalidBoundary => Self::InvalidBoundary,
+            AttachmentScanError::HeaderTooLarge => Self::HeaderTooLarge,
+            AttachmentScanError::TooManyHeaderFields => Self::TooManyHeaderFields,
+            AttachmentScanError::HeaderFieldTooLarge => Self::HeaderFieldTooLarge,
+        }
+    }
+}
+
 #[derive(Default)]
 struct MimeHeaderMetadata {
     mime_type: Option<String>,
     filename: Option<String>,
     boundary: Option<String>,
+    transfer_encoding: MimeTransferEncoding,
+    attachment_disposition: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+enum MimeTransferEncoding {
+    #[default]
+    Identity,
+    Base64,
+    QuotedPrintable,
 }
 
 impl MimeHeaderMetadata {
@@ -620,6 +699,16 @@ impl MimeHeaderMetadata {
 
     fn is_embedded_message(&self) -> bool {
         self.mime_type.as_deref() == Some("message/rfc822")
+    }
+
+    fn is_multipart_digest(&self) -> bool {
+        self.mime_type.as_deref() == Some("multipart/digest")
+    }
+
+    fn is_text_body(&self) -> bool {
+        self.mime_type
+            .as_deref()
+            .is_none_or(|value| value.starts_with("text/") || value.contains("html"))
     }
 }
 
@@ -634,11 +723,16 @@ struct AttachmentCounts {
 #[derive(Default)]
 struct MimeBoundaryStack {
     values: Vec<Vec<u8>>,
+    digest_defaults: Vec<bool>,
     indices: HashMap<Vec<u8>, usize>,
 }
 
 impl MimeBoundaryStack {
-    fn push(&mut self, boundary: Option<&str>) -> Result<(), AttachmentScanError> {
+    fn push(
+        &mut self,
+        boundary: Option<&str>,
+        digest_default: bool,
+    ) -> Result<(), AttachmentScanError> {
         let Some(boundary) = boundary.filter(|value| !value.is_empty()) else {
             return Ok(());
         };
@@ -654,8 +748,16 @@ impl MimeBoundaryStack {
         let value = boundary.as_bytes().to_vec();
         let index = self.values.len();
         self.values.push(value.clone());
+        self.digest_defaults.push(digest_default);
         self.indices.insert(value, index);
         Ok(())
+    }
+
+    fn child_defaults_to_message(&self, boundary_index: usize) -> bool {
+        self.digest_defaults
+            .get(boundary_index)
+            .copied()
+            .unwrap_or(false)
     }
 
     fn matching(&self, line: &[u8]) -> Option<(usize, bool)> {
@@ -672,6 +774,7 @@ impl MimeBoundaryStack {
 
     fn truncate(&mut self, length: usize) {
         self.values.truncate(length);
+        self.digest_defaults.truncate(length);
         self.indices.clear();
         for (index, value) in self.values.iter().enumerate() {
             self.indices.insert(value.clone(), index);
@@ -681,8 +784,764 @@ impl MimeBoundaryStack {
 
 #[derive(Clone, Copy)]
 enum MimeHeaderKind {
-    ContentType,
-    ContentDisposition,
+    Type,
+    Disposition,
+    TransferEncoding,
+}
+
+pub(crate) fn scan_body(
+    message: &[u8],
+    config: &ContentFilterConfig,
+) -> Result<ContentScan, BodyScanError> {
+    if !config.enabled
+        || (!config.spam_keywords.enabled && !config.suspicious_url.enabled)
+        || (!config.keywords.enabled && !config.url.enabled)
+    {
+        return Ok(ContentScan::default());
+    }
+    let mut keywords = KeywordBodyScanner::new(config);
+    let mut urls = UrlBodyScanner::new(config);
+    let mut budget = BodyScanBudget::default();
+    scan_body_message(message, config, &mut keywords, &mut urls, &mut budget, 0)?;
+    let mut result = keywords.finish(config);
+    result.append(urls.finish(config));
+    Ok(result)
+}
+
+pub(crate) fn has_first_mime_attachment(message: &[u8]) -> Result<bool, BodyScanError> {
+    FirstAttachmentScan::default().scan(&message[..message.len().min(MAX_HEADER_BYTES)])
+}
+
+#[derive(Default)]
+struct FirstAttachmentScan {
+    budget: BodyScanBudget,
+    body_part_count: usize,
+}
+
+#[derive(Clone, Copy)]
+enum AttachmentSource {
+    Original,
+    Decoded(usize),
+}
+
+#[derive(Clone, Copy)]
+struct AttachmentFrame {
+    source: AttachmentSource,
+    start: usize,
+    end: usize,
+    message_depth: usize,
+    boundary_depth: usize,
+    digest_default: bool,
+    is_body_part: bool,
+}
+
+struct MultipartCursor {
+    source: AttachmentSource,
+    offset: usize,
+    part_start: Option<usize>,
+    end: usize,
+    boundary: Vec<u8>,
+    message_depth: usize,
+    boundary_depth: usize,
+    digest_default: bool,
+    finished: bool,
+}
+
+enum AttachmentTask {
+    Entity(AttachmentFrame),
+    Multipart(MultipartCursor),
+}
+
+impl FirstAttachmentScan {
+    fn scan(&mut self, message: &[u8]) -> Result<bool, BodyScanError> {
+        let mut decoded_messages = Vec::<Vec<u8>>::new();
+        let mut tasks = vec![AttachmentTask::Entity(AttachmentFrame {
+            source: AttachmentSource::Original,
+            start: 0,
+            end: message.len(),
+            message_depth: 0,
+            boundary_depth: 0,
+            digest_default: false,
+            is_body_part: false,
+        })];
+
+        while let Some(task) = tasks.pop() {
+            let frame = match task {
+                AttachmentTask::Entity(frame) => frame,
+                AttachmentTask::Multipart(mut cursor) => {
+                    let range = {
+                        let source = attachment_source(message, &decoded_messages, cursor.source);
+                        cursor.next_part(source)
+                    };
+                    let Some((part_start, part_end)) = range else {
+                        continue;
+                    };
+                    let child = AttachmentFrame {
+                        source: cursor.source,
+                        start: part_start,
+                        end: part_end,
+                        message_depth: cursor.message_depth,
+                        boundary_depth: cursor.boundary_depth,
+                        digest_default: cursor.digest_default,
+                        is_body_part: true,
+                    };
+                    if !cursor.finished {
+                        tasks.push(AttachmentTask::Multipart(cursor));
+                    }
+                    tasks.push(AttachmentTask::Entity(child));
+                    continue;
+                }
+            };
+
+            if frame.is_body_part {
+                self.body_part_count = self.body_part_count.saturating_add(1);
+                // HeaderOnlyExtractor keeps one global body-part count. Entering a
+                // nested multipart therefore marks its first child as an attachment.
+                if self.body_part_count > 1 {
+                    return Ok(true);
+                }
+            }
+            if frame.message_depth > MAX_MIME_MESSAGE_DEPTH {
+                return Err(BodyScanError::TooManyEmbeddedMessages);
+            }
+            let (body_offset, mut metadata) = {
+                let source = attachment_source(message, &decoded_messages, frame.source);
+                parse_mime_headers(&source[frame.start..frame.end], 0)?
+            };
+            if frame.digest_default && metadata.mime_type.is_none() {
+                metadata.mime_type = Some("message/rfc822".to_owned());
+            }
+            self.budget.parts = self.budget.parts.saturating_add(1);
+            if self.budget.parts > MAX_MIME_PARTS {
+                return Err(BodyScanError::TooManyParts);
+            }
+            if metadata.attachment_disposition {
+                return Ok(true);
+            }
+
+            let body_start = frame.start.saturating_add(body_offset).min(frame.end);
+            if metadata.is_multipart() {
+                let Some(boundary) = metadata.boundary.as_deref() else {
+                    continue;
+                };
+                if frame.boundary_depth >= MAX_MIME_BOUNDARIES {
+                    return Err(BodyScanError::TooManyBoundaries);
+                }
+                let Some(boundary) = validated_attachment_boundary(boundary)? else {
+                    continue;
+                };
+                tasks.push(AttachmentTask::Multipart(MultipartCursor {
+                    source: frame.source,
+                    offset: body_start,
+                    part_start: None,
+                    end: frame.end,
+                    boundary,
+                    message_depth: frame.message_depth,
+                    boundary_depth: frame.boundary_depth.saturating_add(1),
+                    digest_default: metadata.is_multipart_digest(),
+                    finished: false,
+                }));
+                continue;
+            }
+
+            if metadata.is_embedded_message() {
+                let next_depth = frame.message_depth.saturating_add(1);
+                match metadata.transfer_encoding {
+                    MimeTransferEncoding::Identity => {
+                        tasks.push(AttachmentTask::Entity(AttachmentFrame {
+                            start: body_start,
+                            message_depth: next_depth,
+                            digest_default: false,
+                            is_body_part: false,
+                            ..frame
+                        }));
+                    }
+                    MimeTransferEncoding::Base64 | MimeTransferEncoding::QuotedPrintable => {
+                        let decoded = {
+                            let source =
+                                attachment_source(message, &decoded_messages, frame.source);
+                            let encoded = &source[body_start..frame.end];
+                            match metadata.transfer_encoding {
+                                MimeTransferEncoding::Base64 => base64_decode(encoded),
+                                MimeTransferEncoding::QuotedPrintable => {
+                                    quoted_printable_decode(encoded)
+                                }
+                                MimeTransferEncoding::Identity => unreachable!(),
+                            }
+                        };
+                        let Some(decoded) = decoded else {
+                            continue;
+                        };
+                        self.account_decoded_work(decoded.len())?;
+                        let decoded_index = decoded_messages.len();
+                        let decoded_len = decoded.len();
+                        decoded_messages.push(decoded);
+                        tasks.push(AttachmentTask::Entity(AttachmentFrame {
+                            source: AttachmentSource::Decoded(decoded_index),
+                            start: 0,
+                            end: decoded_len,
+                            message_depth: next_depth,
+                            boundary_depth: frame.boundary_depth,
+                            digest_default: false,
+                            is_body_part: false,
+                        }));
+                    }
+                }
+                continue;
+            }
+
+            let mime_type = metadata.mime_type.as_deref().unwrap_or("text/plain");
+            return Ok(!mime_type.starts_with("text/plain")
+                && !mime_type.starts_with("text/html")
+                && !mime_type.starts_with("multipart/"));
+        }
+        Ok(false)
+    }
+
+    fn account_decoded_work(&mut self, decoded_bytes: usize) -> Result<(), BodyScanError> {
+        self.budget.decoded_work_bytes = self
+            .budget
+            .decoded_work_bytes
+            .checked_add(decoded_bytes)
+            .ok_or(BodyScanError::DecodedWorkTooLarge)?;
+        if self.budget.decoded_work_bytes > MAX_MIME_DECODED_WORK_BYTES {
+            return Err(BodyScanError::DecodedWorkTooLarge);
+        }
+        Ok(())
+    }
+}
+
+impl MultipartCursor {
+    fn next_part(&mut self, message: &[u8]) -> Option<(usize, usize)> {
+        if self.finished {
+            return None;
+        }
+        let end = self.end.min(message.len());
+        let mut offset = self.offset.min(end);
+        while let Some((line, next_offset)) = next_mime_line(&message[..end], offset) {
+            let line_offset = offset;
+            offset = next_offset;
+            let Some(closing) = matching_mime_boundary(line, &self.boundary) else {
+                continue;
+            };
+            let Some(start) = self.part_start else {
+                if closing {
+                    self.finished = true;
+                    return None;
+                }
+                self.part_start = Some(next_offset);
+                continue;
+            };
+            let part_end = trim_boundary_separator(message, start, line_offset);
+            self.offset = next_offset;
+            if closing {
+                self.part_start = None;
+                self.finished = true;
+            } else {
+                self.part_start = Some(next_offset);
+            }
+            return Some((start, part_end));
+        }
+        self.finished = true;
+        self.part_start.take().map(|start| (start, end))
+    }
+}
+
+fn validated_attachment_boundary(boundary: &str) -> Result<Option<Vec<u8>>, BodyScanError> {
+    if boundary.is_empty() {
+        return Ok(None);
+    }
+    if boundary.len() > MAX_MIME_BOUNDARY_BYTES {
+        return Err(BodyScanError::BoundaryTooLarge);
+    }
+    if boundary.bytes().any(|byte| byte.is_ascii_control()) {
+        return Err(BodyScanError::InvalidBoundary);
+    }
+    Ok(Some(boundary.as_bytes().to_vec()))
+}
+
+fn matching_mime_boundary(line: &[u8], boundary: &[u8]) -> Option<bool> {
+    if !line.starts_with(b"--") {
+        return None;
+    }
+    let candidate = trim_mime_lwsp(&line[2..]);
+    if candidate == boundary {
+        return Some(false);
+    }
+    candidate
+        .strip_suffix(b"--")
+        .is_some_and(|value| value == boundary)
+        .then_some(true)
+}
+
+fn attachment_source<'a>(
+    original: &'a [u8],
+    decoded_messages: &'a [Vec<u8>],
+    source: AttachmentSource,
+) -> &'a [u8] {
+    match source {
+        AttachmentSource::Original => original,
+        AttachmentSource::Decoded(index) => decoded_messages[index].as_slice(),
+    }
+}
+
+#[derive(Default)]
+struct BodyScanBudget {
+    parts: usize,
+    decoded_work_bytes: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+enum ActiveBody {
+    #[default]
+    None,
+    Text(usize),
+    EncodedMessage {
+        start: usize,
+        encoding: MimeTransferEncoding,
+    },
+}
+
+fn scan_body_message(
+    message: &[u8],
+    config: &ContentFilterConfig,
+    keywords: &mut KeywordBodyScanner,
+    urls: &mut UrlBodyScanner,
+    budget: &mut BodyScanBudget,
+    message_depth: usize,
+) -> Result<(), BodyScanError> {
+    if message_depth > MAX_MIME_MESSAGE_DEPTH {
+        return Err(BodyScanError::TooManyEmbeddedMessages);
+    }
+    let mut boundaries = MimeBoundaryStack::default();
+    let (body_offset, metadata) = parse_mime_headers(message, 0)?;
+    let mut active = ActiveBody::None;
+    let mut offset = enter_body_entity(
+        message,
+        body_offset,
+        metadata,
+        &mut boundaries,
+        budget,
+        &mut active,
+    )?;
+
+    while let Some((line, next_offset)) = next_mime_line(message, offset) {
+        let line_offset = offset;
+        offset = next_offset;
+        let Some((boundary_index, closing)) = boundaries.matching(line) else {
+            continue;
+        };
+        finish_active_body(
+            std::mem::take(&mut active),
+            message,
+            line_offset,
+            true,
+            config,
+            keywords,
+            urls,
+            budget,
+            message_depth,
+        )?;
+        if closing {
+            boundaries.truncate(boundary_index);
+            continue;
+        }
+        let child_defaults_to_message = boundaries.child_defaults_to_message(boundary_index);
+        boundaries.truncate(boundary_index.saturating_add(1));
+        let (body_offset, mut metadata) = parse_mime_headers(message, offset)?;
+        if child_defaults_to_message && metadata.mime_type.is_none() {
+            metadata.mime_type = Some("message/rfc822".to_owned());
+        }
+        offset = enter_body_entity(
+            message,
+            body_offset,
+            metadata,
+            &mut boundaries,
+            budget,
+            &mut active,
+        )?;
+    }
+    finish_active_body(
+        active,
+        message,
+        message.len(),
+        false,
+        config,
+        keywords,
+        urls,
+        budget,
+        message_depth,
+    )
+}
+
+fn enter_body_entity(
+    message: &[u8],
+    mut body_offset: usize,
+    mut metadata: MimeHeaderMetadata,
+    boundaries: &mut MimeBoundaryStack,
+    budget: &mut BodyScanBudget,
+    active: &mut ActiveBody,
+) -> Result<usize, BodyScanError> {
+    loop {
+        budget.parts = budget.parts.saturating_add(1);
+        if budget.parts > MAX_MIME_PARTS {
+            return Err(BodyScanError::TooManyParts);
+        }
+        if metadata.is_multipart() {
+            if metadata.boundary.is_some() {
+                boundaries.push(metadata.boundary.as_deref(), metadata.is_multipart_digest())?;
+            }
+            return Ok(body_offset);
+        }
+        if metadata.is_embedded_message() {
+            if metadata.transfer_encoding != MimeTransferEncoding::Identity {
+                *active = ActiveBody::EncodedMessage {
+                    start: body_offset,
+                    encoding: metadata.transfer_encoding,
+                };
+                return Ok(body_offset);
+            }
+            (body_offset, metadata) = parse_mime_headers(message, body_offset)?;
+            continue;
+        }
+        if metadata.is_text_body() {
+            *active = ActiveBody::Text(body_offset);
+        }
+        return Ok(body_offset);
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn finish_active_body(
+    active: ActiveBody,
+    message: &[u8],
+    end: usize,
+    before_boundary: bool,
+    config: &ContentFilterConfig,
+    keywords: &mut KeywordBodyScanner,
+    urls: &mut UrlBodyScanner,
+    budget: &mut BodyScanBudget,
+    message_depth: usize,
+) -> Result<(), BodyScanError> {
+    let start = match active {
+        ActiveBody::None => return Ok(()),
+        ActiveBody::Text(start) | ActiveBody::EncodedMessage { start, .. } => start,
+    };
+    let end = if before_boundary {
+        trim_boundary_separator(message, start, end)
+    } else {
+        end
+    };
+    match active {
+        ActiveBody::None => Ok(()),
+        ActiveBody::Text(start) => {
+            scan_body_text_part(message, start, end, config, keywords, urls);
+            Ok(())
+        }
+        ActiveBody::EncodedMessage { start, encoding } => {
+            let encoded = &message[start.min(end)..end];
+            let decoded = match encoding {
+                MimeTransferEncoding::Identity => return Ok(()),
+                MimeTransferEncoding::Base64 => base64_decode(encoded),
+                MimeTransferEncoding::QuotedPrintable => quoted_printable_decode(encoded),
+            };
+            let Some(decoded) = decoded else {
+                return Ok(());
+            };
+            budget.decoded_work_bytes = budget
+                .decoded_work_bytes
+                .checked_add(decoded.len())
+                .ok_or(BodyScanError::DecodedWorkTooLarge)?;
+            if budget.decoded_work_bytes > MAX_MIME_DECODED_WORK_BYTES {
+                return Err(BodyScanError::DecodedWorkTooLarge);
+            }
+            scan_body_message(
+                &decoded,
+                config,
+                keywords,
+                urls,
+                budget,
+                message_depth.saturating_add(1),
+            )
+        }
+    }
+}
+
+fn trim_boundary_separator(message: &[u8], start: usize, mut end: usize) -> usize {
+    if end >= start.saturating_add(2) && &message[end - 2..end] == b"\r\n" {
+        end -= 2;
+    } else if end > start && message[end - 1] == b'\n' {
+        end -= 1;
+    }
+    end
+}
+
+fn scan_body_text_part(
+    message: &[u8],
+    start: usize,
+    end: usize,
+    config: &ContentFilterConfig,
+    keywords: &mut KeywordBodyScanner,
+    urls: &mut UrlBodyScanner,
+) {
+    let mut offset = start.min(end);
+    while offset < end {
+        // Mime4j's token stream exposes body data through a 4096-byte parser
+        // buffer, then the configured observer buffer applies a second cap.
+        let parser_chunk = 4_096 - (offset % 4_096);
+        let length = parser_chunk
+            .min(config.stream_buffer_size)
+            .min(end - offset);
+        let text = String::from_utf8_lossy(&message[offset..offset + length]);
+        if config.spam_keywords.enabled && config.keywords.enabled {
+            keywords.scan_chunk(&text);
+        }
+        if config.suspicious_url.enabled && config.url.enabled {
+            urls.scan_chunk(&text);
+        }
+        offset += length;
+    }
+    if config.spam_keywords.enabled && config.keywords.enabled {
+        keywords.finish_part();
+    }
+    if config.suspicious_url.enabled && config.url.enabled {
+        urls.finish_part();
+    }
+}
+
+struct KeywordBodyScanner {
+    spam_keywords: HashSet<String>,
+    phishing_keywords: HashSet<String>,
+    line: Vec<u16>,
+    total_chars: u64,
+    spam_hits: u64,
+    phishing_hits: u64,
+}
+
+impl KeywordBodyScanner {
+    fn new(config: &ContentFilterConfig) -> Self {
+        Self {
+            spam_keywords: config
+                .keywords
+                .spam_keywords
+                .iter()
+                .map(|value| value.to_lowercase())
+                .collect(),
+            phishing_keywords: config
+                .keywords
+                .phishing_keywords
+                .iter()
+                .map(|value| value.to_lowercase())
+                .collect(),
+            line: Vec::with_capacity(KEYWORD_MAX_LINE_UTF16),
+            total_chars: 0,
+            spam_hits: 0,
+            phishing_hits: 0,
+        }
+    }
+
+    fn scan_chunk(&mut self, text: &str) {
+        for value in text.encode_utf16() {
+            self.total_chars = self.total_chars.saturating_add(1);
+            if value == u16::from(b'\r') || value == u16::from(b'\n') {
+                self.scan_line();
+            } else if self.line.len() < KEYWORD_MAX_LINE_UTF16 {
+                self.line.push(value);
+            }
+        }
+    }
+
+    fn finish_part(&mut self) {
+        self.scan_line();
+    }
+
+    fn scan_line(&mut self) {
+        if self.line.is_empty() {
+            return;
+        }
+        let line = String::from_utf16_lossy(&self.line).to_lowercase();
+        self.line.clear();
+        self.spam_hits = self.spam_hits.saturating_add(
+            self.spam_keywords
+                .iter()
+                .filter(|keyword| line.contains(keyword.as_str()))
+                .count() as u64,
+        );
+        self.phishing_hits = self.phishing_hits.saturating_add(
+            self.phishing_keywords
+                .iter()
+                .filter(|keyword| line.contains(keyword.as_str()))
+                .count() as u64,
+        );
+    }
+
+    fn finish(mut self, config: &ContentFilterConfig) -> ContentScan {
+        self.scan_line();
+        let total_hits = self.spam_hits.saturating_add(self.phishing_hits);
+        if total_hits == 0 {
+            return ContentScan::default();
+        }
+        let keyword = &config.keywords;
+        let density = if self.total_chars == 0 {
+            0.0
+        } else {
+            (total_hits as f64) / (self.total_chars as f64 / 100.0)
+        };
+        let mut score = ((self.spam_hits as f64) * 0.5).min(keyword.base_score);
+        score += (self.phishing_hits as f64).min(keyword.base_score * 1.5);
+        if density > keyword.density_threshold {
+            score += (density - keyword.density_threshold) * 10.0;
+        }
+        score = score.min(keyword.max_score);
+        if score < 0.5 {
+            return ContentScan::default();
+        }
+        score *= config.spam_keywords.weight;
+        ContentScan {
+            total_score: score,
+            hits: vec![RuleHit {
+                name: "SPAM_KEYWORDS",
+                score,
+            }],
+        }
+    }
+}
+
+struct UrlBodyScanner {
+    shorteners: HashSet<String>,
+    suspicious_tlds: HashSet<String>,
+    line: Vec<u16>,
+    found_urls: HashSet<String>,
+    shortener_count: usize,
+    suspicious_tld_count: usize,
+    ip_url_count: usize,
+}
+
+impl UrlBodyScanner {
+    fn new(config: &ContentFilterConfig) -> Self {
+        Self {
+            shorteners: config
+                .url
+                .shortener_domains
+                .iter()
+                .map(|value| value.to_lowercase())
+                .collect(),
+            suspicious_tlds: config
+                .url
+                .suspicious_tlds
+                .iter()
+                .map(|value| value.to_lowercase())
+                .collect(),
+            line: Vec::with_capacity(URL_MAX_LINE_UTF16),
+            found_urls: HashSet::with_capacity(MAX_TRACKED_URLS),
+            shortener_count: 0,
+            suspicious_tld_count: 0,
+            ip_url_count: 0,
+        }
+    }
+
+    fn scan_chunk(&mut self, text: &str) {
+        for value in text.encode_utf16() {
+            if value == u16::from(b'\r') || value == u16::from(b'\n') {
+                self.scan_line();
+            } else if self.line.len() < URL_MAX_LINE_UTF16 {
+                self.line.push(value);
+            }
+        }
+    }
+
+    fn finish_part(&mut self) {
+        self.scan_line();
+    }
+
+    fn scan_line(&mut self) {
+        if self.line.is_empty() || self.found_urls.len() >= MAX_TRACKED_URLS {
+            self.line.clear();
+            return;
+        }
+        let line = String::from_utf16_lossy(&self.line);
+        self.line.clear();
+        for matched in body_url_pattern().find_iter(&line) {
+            if self.found_urls.len() >= MAX_TRACKED_URLS {
+                break;
+            }
+            let url = matched.as_str();
+            if !self.found_urls.insert(url.to_owned()) {
+                continue;
+            }
+            if body_ip_url_pattern().is_match(url) {
+                self.ip_url_count = self.ip_url_count.saturating_add(1);
+                continue;
+            }
+            let Some(domain) = body_domain_pattern()
+                .captures(url)
+                .and_then(|captures| captures.get(1))
+                .map(|matched| matched.as_str().to_lowercase())
+            else {
+                continue;
+            };
+            if self.shorteners.iter().any(|shortener| {
+                domain == *shortener
+                    || domain
+                        .strip_suffix(shortener)
+                        .is_some_and(|prefix| prefix.ends_with('.'))
+            }) {
+                self.shortener_count = self.shortener_count.saturating_add(1);
+                continue;
+            }
+            if let Some((_, tld)) = domain.rsplit_once('.')
+                && !tld.is_empty()
+                && self.suspicious_tlds.contains(tld)
+            {
+                self.suspicious_tld_count = self.suspicious_tld_count.saturating_add(1);
+            }
+        }
+    }
+
+    fn finish(mut self, config: &ContentFilterConfig) -> ContentScan {
+        self.scan_line();
+        if self.shortener_count == 0 && self.suspicious_tld_count == 0 && self.ip_url_count == 0 {
+            return ContentScan::default();
+        }
+        let url = &config.url;
+        let category_cap = url.max_score / 2.0;
+        let mut score = ((self.shortener_count as f64) * url.shortener_score).min(category_cap);
+        score += ((self.suspicious_tld_count as f64) * url.suspicious_tld_score).min(category_cap);
+        score += ((self.ip_url_count as f64) * url.ip_url_score).min(category_cap);
+        score = score.min(url.max_score);
+        if score < 0.5 {
+            return ContentScan::default();
+        }
+        score *= config.suspicious_url.weight;
+        ContentScan {
+            total_score: score,
+            hits: vec![RuleHit {
+                name: "SUSPICIOUS_URL",
+                score,
+            }],
+        }
+    }
+}
+
+fn body_url_pattern() -> &'static Regex {
+    static PATTERN: OnceLock<Regex> = OnceLock::new();
+    PATTERN.get_or_init(|| {
+        Regex::new(r#"(?i)https?://[^ \t\n\x0b\x0c\r<>"'\)\]]+"#).expect("body URL regex is valid")
+    })
+}
+
+fn body_domain_pattern() -> &'static Regex {
+    static PATTERN: OnceLock<Regex> = OnceLock::new();
+    PATTERN
+        .get_or_init(|| Regex::new(r"(?i)https?://([^/:]+)").expect("body domain regex is valid"))
+}
+
+fn body_ip_url_pattern() -> &'static Regex {
+    static PATTERN: OnceLock<Regex> = OnceLock::new();
+    PATTERN.get_or_init(|| {
+        Regex::new(r"(?i)https?://\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")
+            .expect("body IP URL regex is valid")
+    })
 }
 
 pub(crate) fn scan_attachments(
@@ -717,13 +1576,17 @@ pub(crate) fn scan_attachments(
             boundaries.truncate(boundary_index);
             continue;
         }
+        let child_defaults_to_message = boundaries.child_defaults_to_message(boundary_index);
         boundaries.truncate(boundary_index.saturating_add(1));
 
         parts = parts.saturating_add(1);
         if parts > MAX_MIME_PARTS {
             return Err(AttachmentScanError::TooManyParts);
         }
-        let (body_offset, metadata) = parse_mime_headers(message, offset)?;
+        let (body_offset, mut metadata) = parse_mime_headers(message, offset)?;
+        if child_defaults_to_message && metadata.mime_type.is_none() {
+            metadata.mime_type = Some("message/rfc822".to_owned());
+        }
         offset = inspect_mime_entity(
             message,
             body_offset,
@@ -756,7 +1619,7 @@ fn inspect_mime_entity(
     loop {
         inspect_mime_part(&metadata, config, counts);
         if metadata.is_multipart() {
-            boundaries.push(metadata.boundary.as_deref())?;
+            boundaries.push(metadata.boundary.as_deref(), metadata.is_multipart_digest())?;
             return Ok(body_offset);
         }
         if !metadata.is_embedded_message() {
@@ -816,9 +1679,11 @@ fn parse_mime_headers(
             continue;
         };
         current_kind = if line[..colon].eq_ignore_ascii_case(b"content-type") {
-            Some(MimeHeaderKind::ContentType)
+            Some(MimeHeaderKind::Type)
         } else if line[..colon].eq_ignore_ascii_case(b"content-disposition") {
-            Some(MimeHeaderKind::ContentDisposition)
+            Some(MimeHeaderKind::Disposition)
+        } else if line[..colon].eq_ignore_ascii_case(b"content-transfer-encoding") {
+            Some(MimeHeaderKind::TransferEncoding)
         } else {
             None
         };
@@ -844,16 +1709,13 @@ fn finish_mime_header(
     };
     let value = String::from_utf8_lossy(value);
     match kind {
-        MimeHeaderKind::ContentType => {
+        MimeHeaderKind::Type => {
             let mime_type = value
                 .split(';')
                 .next()
                 .map(str::trim)
-                .filter(|value| !value.is_empty())
                 .map(str::to_ascii_lowercase);
-            if mime_type.is_some() {
-                metadata.mime_type = mime_type;
-            }
+            metadata.mime_type = mime_type;
             if metadata.filename.is_none()
                 && let Some(name) = extract_mime_parameter(&value, "name")
             {
@@ -863,10 +1725,20 @@ fn finish_mime_header(
                 metadata.boundary = Some(boundary.to_owned());
             }
         }
-        MimeHeaderKind::ContentDisposition => {
+        MimeHeaderKind::Disposition => {
+            let lower = value.to_ascii_lowercase();
+            metadata.attachment_disposition =
+                lower.contains("attachment") || lower.contains("inline");
             if let Some(filename) = extract_mime_parameter(&value, "filename") {
                 metadata.filename = decode_filename(filename);
             }
+        }
+        MimeHeaderKind::TransferEncoding => {
+            metadata.transfer_encoding = match value.trim().to_ascii_lowercase().as_str() {
+                "base64" => MimeTransferEncoding::Base64,
+                "quoted-printable" => MimeTransferEncoding::QuotedPrintable,
+                _ => MimeTransferEncoding::Identity,
+            };
         }
     }
 }
@@ -1495,6 +2367,23 @@ mod tests {
         message
     }
 
+    fn body_message(content_type: &str, body: &str) -> Vec<u8> {
+        format!(
+            concat!(
+                "From: sender@external.test\r\n",
+                "Date: Tue, 5 Aug 2025 12:00:00 GMT\r\n",
+                "Subject: body unit test\r\n",
+                "Message-ID: <body-unit@example.test>\r\n",
+                "MIME-Version: 1.0\r\n",
+                "Content-Type: {}\r\n",
+                "\r\n",
+                "{}"
+            ),
+            content_type, body
+        )
+        .into_bytes()
+    }
+
     #[test]
     fn rbl_ip_reversal_and_java_private_ranges_are_exact() {
         assert_eq!(reverse_ip("192.0.2.42".parse().unwrap()), "42.2.0.192");
@@ -1746,6 +2635,523 @@ mod tests {
                 ("EXCESSIVE_RECIPIENTS", 0.5)
             ]
         );
+    }
+
+    #[test]
+    fn content_filter_body_keyword_density_base_cap_and_weight_match_java() {
+        let mut settings = config();
+        settings.keywords.density_threshold = 1_000.0;
+        settings.spam_keywords.weight = 2.0;
+        let message = body_message(
+            "text/plain; charset=utf-8",
+            "viagra viagra\r\nviagra\r\nverify your account\r\n",
+        );
+        assert_eq!(
+            scan_body(&message, &settings)
+                .unwrap()
+                .hits()
+                .collect::<Vec<_>>(),
+            [("SPAM_KEYWORDS", 4.0)]
+        );
+
+        settings.keywords.density_threshold = 0.0;
+        let capped = body_message("text/plain; charset=utf-8", "viagra");
+        assert_eq!(
+            scan_body(&capped, &settings)
+                .unwrap()
+                .hits()
+                .collect::<Vec<_>>(),
+            [("SPAM_KEYWORDS", 16.0)]
+        );
+
+        settings.keywords.base_score = 0.0;
+        settings.keywords.density_threshold = 1_000.0;
+        assert_eq!(
+            scan_body(&capped, &settings).unwrap(),
+            ContentScan::default()
+        );
+    }
+
+    #[test]
+    fn content_filter_body_url_exact_dedup_categories_caps_and_weight_match_java() {
+        let mut settings = config();
+        settings.suspicious_url.weight = 1.5;
+        let message = body_message(
+            "text/plain; charset=us-ascii",
+            concat!(
+                "https://bit.ly/a https://bit.ly/a\r\n",
+                "https://sub.bit.ly/b\r\n",
+                "https://bad.xyz/a https://evil.top/b\r\n",
+                "http://203.0.113.10/a\r\n"
+            ),
+        );
+        assert_eq!(
+            scan_body(&message, &settings)
+                .unwrap()
+                .hits()
+                .collect::<Vec<_>>(),
+            [("SUSPICIOUS_URL", 12.0)]
+        );
+
+        settings.url.max_score = 20.0;
+        settings.suspicious_url.weight = 1.0;
+        let case_sensitive_dedup = body_message(
+            "text/plain; charset=us-ascii",
+            "https://bit.ly/a HTTPS://bit.ly/a\r\n",
+        );
+        assert_eq!(
+            scan_body(&case_sensitive_dedup, &settings)
+                .unwrap()
+                .hits()
+                .collect::<Vec<_>>(),
+            [("SUSPICIOUS_URL", 3.0)]
+        );
+    }
+
+    #[test]
+    fn content_filter_body_skips_non_text_mime_and_honors_rule_gates() {
+        let message = body_message(
+            "application/octet-stream",
+            "viagra https://bit.ly/offer\r\n",
+        );
+        assert_eq!(
+            scan_body(&message, &config()).unwrap(),
+            ContentScan::default()
+        );
+
+        let text = body_message(
+            "text/plain; charset=us-ascii",
+            "viagra https://bit.ly/offer\r\n",
+        );
+        let mut settings = config();
+        settings.keywords.enabled = false;
+        settings.url.enabled = false;
+        assert_eq!(scan_body(&text, &settings).unwrap(), ContentScan::default());
+
+        settings.keywords.enabled = true;
+        settings.spam_keywords.enabled = false;
+        settings.url.enabled = true;
+        settings.suspicious_url.enabled = true;
+        assert_eq!(
+            scan_body(&text, &settings)
+                .unwrap()
+                .hits()
+                .collect::<Vec<_>>(),
+            [("SUSPICIOUS_URL", 1.5)]
+        );
+    }
+
+    #[test]
+    fn content_filter_body_scans_nested_rfc822_parts_in_java_order() {
+        let nested = concat!(
+            "From: sender@external.test\r\n",
+            "MIME-Version: 1.0\r\n",
+            "Content-Type: multipart/mixed; boundary=outer\r\n",
+            "\r\n",
+            "--outer\r\n",
+            "Content-Type: message/rfc822\r\n",
+            "\r\n",
+            "From: nested@external.test\r\n",
+            "MIME-Version: 1.0\r\n",
+            "Content-Type: text/plain; charset=us-ascii\r\n",
+            "\r\n",
+            "viagra https://bad.xyz/path\r\n",
+            "--outer--\r\n"
+        );
+        assert_eq!(
+            scan_body(nested.as_bytes(), &config())
+                .unwrap()
+                .hits()
+                .collect::<Vec<_>>(),
+            [("SPAM_KEYWORDS", 8.0), ("SUSPICIOUS_URL", 2.0)]
+        );
+    }
+
+    #[test]
+    fn content_filter_body_scans_application_xhtml_like_java() {
+        let message = body_message(
+            "application/xhtml+xml; charset=utf-8",
+            "<p>viagra https://bad.xyz/path</p>\r\n",
+        );
+        assert_eq!(
+            scan_body(&message, &config())
+                .unwrap()
+                .hits()
+                .collect::<Vec<_>>(),
+            [("SPAM_KEYWORDS", 8.0), ("SUSPICIOUS_URL", 2.0)]
+        );
+    }
+
+    #[test]
+    fn content_filter_body_scans_raw_cte_and_utf8_bytes_like_java() {
+        for message in [
+            concat!(
+                "Content-Type: text/plain; charset=utf-8\r\n",
+                "Content-Transfer-Encoding: base64\r\n",
+                "\r\n",
+                "dmlhZ3Jh\r\n"
+            )
+            .as_bytes()
+            .to_vec(),
+            concat!(
+                "Content-Type: text/plain; charset=utf-8\r\n",
+                "Content-Transfer-Encoding: quoted-printable\r\n",
+                "\r\n",
+                "=76iagra\r\n"
+            )
+            .as_bytes()
+            .to_vec(),
+        ] {
+            assert_eq!(
+                scan_body(&message, &config()).unwrap(),
+                ContentScan::default()
+            );
+        }
+
+        let mut settings = config();
+        settings.keywords.spam_keywords = vec!["genérico".into()];
+        settings.keywords.phishing_keywords.clear();
+        settings.suspicious_url.enabled = false;
+        let mut latin1 = b"Content-Type: text/plain; charset=iso-8859-1\r\n\r\ngen".to_vec();
+        latin1.extend_from_slice(b"\xe9rico\r\n");
+        assert_eq!(
+            scan_body(&latin1, &settings).unwrap(),
+            ContentScan::default()
+        );
+    }
+
+    #[test]
+    fn content_filter_body_recurses_deep_rfc822_but_skips_message_global() {
+        let mut nested = Vec::new();
+        for _ in 0..5 {
+            nested.extend_from_slice(b"Content-Type: message/rfc822\r\n\r\n");
+        }
+        nested.extend_from_slice(b"Content-Type: text/plain\r\n\r\nviagra\r\n");
+        assert_eq!(
+            scan_body(&nested, &config())
+                .unwrap()
+                .hits()
+                .collect::<Vec<_>>(),
+            [("SPAM_KEYWORDS", 8.0)]
+        );
+
+        let mut encoded_nested = b"Content-Type: text/plain\r\n\r\nviagra\r\n".to_vec();
+        for _ in 0..5 {
+            encoded_nested = format!(
+                "Content-Type: message/rfc822\r\nContent-Transfer-Encoding: base64\r\n\r\n{}\r\n",
+                BASE64_STANDARD.encode(&encoded_nested)
+            )
+            .into_bytes();
+        }
+        assert_eq!(
+            scan_body(&encoded_nested, &config())
+                .unwrap()
+                .hits()
+                .collect::<Vec<_>>(),
+            [("SPAM_KEYWORDS", 8.0)]
+        );
+
+        let encoded_raw_leaf = format!(
+            "Content-Type: message/rfc822\r\nContent-Transfer-Encoding: base64\r\n\r\n{}\r\n",
+            BASE64_STANDARD.encode(
+                b"Content-Type: text/plain\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n=76iagra\r\n"
+            )
+        );
+        assert_eq!(
+            scan_body(encoded_raw_leaf.as_bytes(), &config()).unwrap(),
+            ContentScan::default()
+        );
+
+        let global = concat!(
+            "Content-Type: message/global\r\n",
+            "\r\n",
+            "Content-Type: text/plain\r\n",
+            "\r\n",
+            "viagra\r\n"
+        );
+        assert_eq!(
+            scan_body(global.as_bytes(), &config()).unwrap(),
+            ContentScan::default()
+        );
+
+        let digest = concat!(
+            "Content-Type: multipart/digest; boundary=digest\r\n",
+            "\r\n",
+            "--digest\r\n",
+            "\r\n",
+            "Content-Type: text/plain\r\n",
+            "\r\n",
+            "viagra\r\n",
+            "--digest--\r\n"
+        );
+        assert_eq!(
+            scan_body(digest.as_bytes(), &config())
+                .unwrap()
+                .hits()
+                .collect::<Vec<_>>(),
+            [("SPAM_KEYWORDS", 8.0)]
+        );
+    }
+
+    #[test]
+    fn content_filter_body_matches_java_headerless_and_malformed_multipart_shapes() {
+        assert_eq!(
+            scan_body(b"viagra\r\n", &config()).unwrap(),
+            ContentScan::default()
+        );
+        for message in [b"\r\nviagra\r\n".as_slice(), b"garbage\r\n\r\nviagra\r\n"] {
+            assert_eq!(
+                scan_body(message, &config())
+                    .unwrap()
+                    .hits()
+                    .collect::<Vec<_>>(),
+                [("SPAM_KEYWORDS", 8.0)]
+            );
+        }
+        for message in [
+            b"Content-Type: multipart/mixed\r\n\r\nviagra\r\n".as_slice(),
+            b"Content-Type: multipart/mixed; boundary=x\r\n\r\nviagra\r\n",
+            b"Content-Type:\r\n\r\nviagra\r\n",
+        ] {
+            assert_eq!(
+                scan_body(message, &config()).unwrap(),
+                ContentScan::default()
+            );
+        }
+    }
+
+    #[test]
+    fn content_filter_body_matches_mime4j_utf8_parser_chunk_boundaries() {
+        let mut settings = config();
+        settings.keywords.spam_keywords = vec!["é".into()];
+        settings.keywords.phishing_keywords.clear();
+        settings.keywords.density_threshold = 1_000.0;
+        settings.suspicious_url.enabled = false;
+
+        let prefix = body_message("text/plain; charset=utf-8", "");
+        let mut intact = prefix.clone();
+        intact.extend(std::iter::repeat_n(b'a', 4_094 - prefix.len()));
+        intact.extend_from_slice("é".as_bytes());
+        assert_eq!(
+            scan_body(&intact, &settings)
+                .unwrap()
+                .hits()
+                .collect::<Vec<_>>(),
+            [("SPAM_KEYWORDS", 0.5)]
+        );
+
+        let mut split = prefix.clone();
+        split.extend(std::iter::repeat_n(b'a', 4_095 - prefix.len()));
+        split.extend_from_slice("é".as_bytes());
+        assert_eq!(
+            scan_body(&split, &settings).unwrap(),
+            ContentScan::default()
+        );
+    }
+
+    #[test]
+    fn content_filter_body_line_limits_count_java_utf16_code_units() {
+        let settings = config();
+
+        let mut accepted_keyword = KeywordBodyScanner::new(&settings);
+        accepted_keyword.scan_chunk(&("\u{1f600}".repeat(4_093) + "viagra"));
+        assert_eq!(
+            accepted_keyword
+                .finish(&settings)
+                .hits()
+                .collect::<Vec<_>>(),
+            [("SPAM_KEYWORDS", 0.5)]
+        );
+        let mut truncated_keyword = KeywordBodyScanner::new(&settings);
+        truncated_keyword.scan_chunk(&("\u{1f600}".repeat(4_096) + "viagra"));
+        assert_eq!(truncated_keyword.finish(&settings), ContentScan::default());
+
+        let url = "https://bit.ly/x";
+        let mut accepted_url = UrlBodyScanner::new(&settings);
+        accepted_url.scan_chunk(&("\u{1f600}".repeat((URL_MAX_LINE_UTF16 - url.len()) / 2) + url));
+        assert_eq!(
+            accepted_url.finish(&settings).hits().collect::<Vec<_>>(),
+            [("SUSPICIOUS_URL", 1.5)]
+        );
+        let mut truncated_url = UrlBodyScanner::new(&settings);
+        truncated_url.scan_chunk(&("\u{1f600}".repeat(URL_MAX_LINE_UTF16 / 2) + url));
+        assert_eq!(truncated_url.finish(&settings), ContentScan::default());
+    }
+
+    #[test]
+    fn content_filter_body_url_tracker_stops_at_exactly_five_hundred_unique_urls() {
+        let settings = config();
+        let clean_urls = |count: usize| {
+            (0..count)
+                .map(|index| format!("https://clean-{index}.example/path\n"))
+                .collect::<String>()
+        };
+
+        let mut within_limit = UrlBodyScanner::new(&settings);
+        within_limit.scan_chunk(&(clean_urls(MAX_TRACKED_URLS - 1) + "https://bad.xyz/final"));
+        assert_eq!(
+            within_limit.finish(&settings).hits().collect::<Vec<_>>(),
+            [("SUSPICIOUS_URL", 2.0)]
+        );
+
+        let mut beyond_limit = UrlBodyScanner::new(&settings);
+        beyond_limit.scan_chunk(&(clean_urls(MAX_TRACKED_URLS) + "https://bad.xyz/ignored"));
+        assert_eq!(beyond_limit.finish(&settings), ContentScan::default());
+    }
+
+    #[test]
+    fn content_filter_body_part_budget_is_an_error_not_fail_open() {
+        let mut message = String::from(
+            "MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=parts\r\n\r\n",
+        );
+        for _ in 0..=MAX_MIME_PARTS {
+            message.push_str(
+                "--parts\r\nContent-Type: text/plain; charset=us-ascii\r\n\r\nviagra\r\n",
+            );
+        }
+        message.push_str("--parts--\r\n");
+        assert_eq!(
+            scan_body(message.as_bytes(), &config()),
+            Err(BodyScanError::TooManyParts)
+        );
+    }
+
+    #[test]
+    fn content_filter_body_parser_enforces_header_and_boundary_budgets() {
+        let oversized_boundary = format!(
+            "Content-Type: multipart/mixed; boundary={}\r\n\r\n",
+            "x".repeat(MAX_MIME_BOUNDARY_BYTES + 1)
+        );
+        assert_eq!(
+            scan_body(oversized_boundary.as_bytes(), &config()),
+            Err(BodyScanError::BoundaryTooLarge)
+        );
+
+        let oversized_field = format!(
+            "Content-Type: text/plain; x={}\r\n\r\n",
+            "x".repeat(MAX_MIME_FIELD_BYTES)
+        );
+        assert_eq!(
+            scan_body(oversized_field.as_bytes(), &config()),
+            Err(BodyScanError::HeaderFieldTooLarge)
+        );
+
+        let mut too_many_fields = String::new();
+        for index in 0..=MAX_MIME_HEADER_FIELDS {
+            too_many_fields.push_str(&format!("X-{index}: value\r\n"));
+        }
+        too_many_fields.push_str("\r\n");
+        assert_eq!(
+            scan_body(too_many_fields.as_bytes(), &config()),
+            Err(BodyScanError::TooManyHeaderFields)
+        );
+
+        let mut too_many_boundaries =
+            String::from("Content-Type: multipart/mixed; boundary=b0\r\n\r\n");
+        for index in 1..=MAX_MIME_BOUNDARIES {
+            too_many_boundaries.push_str(&format!(
+                "--b{}\r\nContent-Type: multipart/mixed; boundary=b{index}\r\n\r\n",
+                index - 1
+            ));
+        }
+        assert_eq!(
+            scan_body(too_many_boundaries.as_bytes(), &config()),
+            Err(BodyScanError::TooManyBoundaries)
+        );
+
+        let mut too_deep = b"Content-Type: text/plain\r\n\r\nviagra\r\n".to_vec();
+        for _ in 0..=MAX_MIME_MESSAGE_DEPTH {
+            let mut outer = b"Content-Type: message/rfc822\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n".to_vec();
+            outer.extend_from_slice(&too_deep);
+            too_deep = outer;
+        }
+        assert_eq!(
+            scan_body(&too_deep, &config()),
+            Err(BodyScanError::TooManyEmbeddedMessages)
+        );
+    }
+
+    #[test]
+    fn first_attachment_scan_decodes_embedded_messages_before_the_first_body() {
+        let text_message = b"Content-Type: text/plain\r\n\r\nbody\r\n";
+        let encoded_text = format!(
+            "Content-Type: message/rfc822\r\nContent-Transfer-Encoding: base64\r\n\r\n{}",
+            BASE64_STANDARD.encode(text_message)
+        );
+        assert!(!has_first_mime_attachment(encoded_text.as_bytes()).unwrap());
+
+        let binary_message = b"Content-Type: application/octet-stream\r\n\r\ndata\r\n";
+        let encoded_binary = format!(
+            "Content-Type: message/rfc822\r\nContent-Transfer-Encoding: base64\r\n\r\n{}",
+            BASE64_STANDARD.encode(binary_message)
+        );
+        assert!(has_first_mime_attachment(encoded_binary.as_bytes()).unwrap());
+
+        let quoted_printable = concat!(
+            "Content-Type: message/rfc822\r\n",
+            "Content-Transfer-Encoding: quoted-printable\r\n",
+            "\r\n",
+            "Content-Type: text/plain\r\n\r\nbody\r\n",
+        );
+        assert!(!has_first_mime_attachment(quoted_printable.as_bytes()).unwrap());
+    }
+
+    #[test]
+    fn first_attachment_scan_enforces_embedded_depth_and_decoded_work_budgets() {
+        let mut too_deep = b"Content-Type: text/plain\r\n\r\nbody\r\n".to_vec();
+        for _ in 0..=MAX_MIME_MESSAGE_DEPTH {
+            let mut outer = b"Content-Type: message/rfc822\r\n\r\n".to_vec();
+            outer.extend_from_slice(&too_deep);
+            too_deep = outer;
+        }
+        assert_eq!(
+            has_first_mime_attachment(&too_deep),
+            Err(BodyScanError::TooManyEmbeddedMessages)
+        );
+
+        let mut scan = FirstAttachmentScan::default();
+        assert_eq!(
+            scan.account_decoded_work(MAX_MIME_DECODED_WORK_BYTES),
+            Ok(())
+        );
+        assert_eq!(
+            scan.account_decoded_work(1),
+            Err(BodyScanError::DecodedWorkTooLarge)
+        );
+    }
+
+    #[test]
+    fn first_attachment_scan_matches_the_java_256_kib_index_window() {
+        let mut message = b"Content-Type: multipart/mixed; boundary=bb\r\n\r\n".to_vec();
+        message.resize(MAX_HEADER_BYTES, b'a');
+        message.extend_from_slice(
+            b"\r\n--bb\r\nContent-Type: application/octet-stream\r\n\r\ndata\r\n--bb--\r\n",
+        );
+        assert!(!has_first_mime_attachment(&message).unwrap());
+    }
+
+    #[test]
+    fn first_attachment_scan_resumes_siblings_after_an_empty_multipart() {
+        let empty_only = concat!(
+            "Content-Type: multipart/mixed; boundary=outer\r\n\r\n",
+            "--outer\r\n",
+            "Content-Type: multipart/mixed; boundary=inner\r\n\r\n",
+            "--inner--\r\n",
+            "--outer--\r\n",
+        );
+        assert!(!has_first_mime_attachment(empty_only.as_bytes()).unwrap());
+
+        let sibling_after_empty = concat!(
+            "Content-Type: multipart/mixed; boundary=outer\r\n\r\n",
+            "--outer\r\n",
+            "Content-Type: multipart/mixed; boundary=inner\r\n\r\n",
+            "--inner--\r\n",
+            "--outer\r\n",
+            "Content-Type: text/plain\r\n\r\n",
+            "body\r\n",
+            "--outer--\r\n",
+        );
+        assert!(has_first_mime_attachment(sibling_after_empty.as_bytes()).unwrap());
     }
 
     #[test]

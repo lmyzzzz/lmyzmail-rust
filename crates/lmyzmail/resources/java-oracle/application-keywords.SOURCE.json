@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "source": {
+    "repository": "D:/JavaProjects/botmail",
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "path": "application-keywords.properties",
+    "git_blob": "8e7fd971dce2bb43db5754f686baa39155b833c1"
+  },
+  "sha256": "cee5be2e215eaab7f1808850506164aa2aad4c7ba0dccbf0a9b0900657de8363",
+  "profile": "keywords",
+  "loader": {
+    "legacy_include": "spring.profiles.include=keywords",
+    "fallback": "embedded frozen resource when application-keywords.properties is absent",
+    "max_entries_per_list": 4096,
+    "max_profile_name_bytes": 64,
+    "max_included_config_bytes": 4194304
+  }
+}

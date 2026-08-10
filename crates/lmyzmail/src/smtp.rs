@@ -38,7 +38,8 @@ use crate::{
     skibidi::SkibidiGenerator,
     smtp_ascii::AsciiSimdMode,
     smtp_content_filter::{
-        ContentScan, NewDomainScanner, ParsedHeaders, RblScanner, scan_attachments,
+        ContentScan, NewDomainScanner, ParsedHeaders, RblScanner, has_first_mime_attachment,
+        scan_attachments, scan_body,
     },
     smtp_skibidi_quiz::{AnswerOutcome, QuizLevel, QuizState, ensure_question_bank_loaded},
     smtp_skibidi_video::{VideoDefaults, VideoService, VideoStartError, frame_wire_bytes},
@@ -328,6 +329,10 @@ impl SmtpService {
         // into ScanContext, so header rules observe an envelope count of zero.
         content_scan.append(headers.scan(0, &self.config.content_filter));
         content_scan.append(
+            scan_body(&envelope.data, &self.config.content_filter)
+                .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?,
+        );
+        content_scan.append(
             scan_attachments(&envelope.data, &self.config.content_filter)
                 .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?,
         );
@@ -352,7 +357,8 @@ impl SmtpService {
             .first_trimmed("to")
             .map(|value| address_list_json(&value))
             .unwrap_or_else(|| "[]".to_owned());
-        let has_attachments = has_first_mime_attachment(&envelope.data);
+        let has_attachments = has_first_mime_attachment(&envelope.data)
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
         let received_at = Utc::now();
         let received_id = random_hex_upper(7).map_err(io::Error::other)?;
         let accepted_id = random_hex(4).map_err(io::Error::other)?;
@@ -1367,6 +1373,7 @@ async fn read_data(io: &mut BufferedConnection) -> io::Result<Option<Vec<u8>>> {
     }
 }
 
+#[cfg(test)]
 fn header_value(data: &[u8], wanted: &str) -> Option<String> {
     let header_end = data
         .windows(4)
@@ -1399,65 +1406,6 @@ fn address_list_json(value: &str) -> String {
         })
         .collect::<Vec<_>>();
     serde_json::to_string(&addresses).unwrap_or_else(|_| "[]".to_owned())
-}
-
-fn has_first_mime_attachment(data: &[u8]) -> bool {
-    let Some(content_type) = header_value(data, "content-type") else {
-        return false;
-    };
-    let media_type = content_type.split(';').next().map(str::trim).unwrap_or("");
-    if !media_type
-        .as_bytes()
-        .get(..b"multipart/".len())
-        .is_some_and(|prefix| prefix.eq_ignore_ascii_case(b"multipart/"))
-    {
-        return false;
-    }
-    let Some(boundary) = content_type
-        .split(';')
-        .map(str::trim)
-        .find_map(|parameter| parameter.strip_prefix("boundary="))
-    else {
-        return false;
-    };
-    let boundary = boundary.trim_matches('"');
-    if boundary.is_empty() {
-        return false;
-    }
-    let marker = format!("--{boundary}").into_bytes();
-    let header_end = data
-        .windows(4)
-        .position(|window| window == b"\r\n\r\n")
-        .map_or(data.len(), |index| index + 4);
-    let body = &data[header_end..];
-    let Some(first_start) = body
-        .windows(marker.len())
-        .position(|window| window == marker.as_slice())
-    else {
-        return false;
-    };
-    let first = body[first_start + marker.len()..]
-        .strip_prefix(b"\r\n")
-        .unwrap_or(&body[first_start + marker.len()..]);
-    let Some(second_start) = first
-        .windows(marker.len())
-        .position(|window| window == marker.as_slice())
-    else {
-        return false;
-    };
-    let part = &first[..second_start];
-    std::str::from_utf8(part)
-        .map(|text| {
-            text.split("\r\n")
-                .take_while(|line| !line.is_empty())
-                .any(|line| {
-                    line.split_once(':').is_some_and(|(name, value)| {
-                        name.eq_ignore_ascii_case("content-disposition")
-                            && value.to_ascii_lowercase().contains("attachment")
-                    })
-                })
-        })
-        .unwrap_or(false)
 }
 
 struct MessageComposition<'a> {
@@ -1499,24 +1447,18 @@ fn compose_message(envelope: &Envelope, composition: MessageComposition<'_>) -> 
     } else {
         "No"
     };
-    // Java serializes an empty score as `0.0`; normalize Rust's possible `-0.0`.
-    let total_score = if content_scan.total_score() == 0.0 {
-        0.0
-    } else {
-        content_scan.total_score()
-    };
+    let total_score = java_one_decimal(content_scan.total_score());
     let reverse_dns = if peer.is_loopback() {
         "localhost"
     } else {
         "unverified"
     };
     let mut header = format!(
-        "Received: from {helo} ({reverse_dns} [{peer}])\r\n\tby {HOSTNAME} with {protocol} id {received_id}\r\n\tfor <{mailbox}>;\r\n\t{date}\r\nAuthentication-Results: {HOSTNAME};\r\n\t{auth_spf} smtp.client-ip={peer} smtp.mailfrom={sender_clause};\r\n\tdkim=none (No DKIM signature present);\r\n\tdmarc=none No DMARC record found\r\nX-Spam-Status: {status}\r\nX-Spam-Score: {:.1}\r\n",
-        total_score
+        "Received: from {helo} ({reverse_dns} [{peer}])\r\n\tby {HOSTNAME} with {protocol} id {received_id}\r\n\tfor <{mailbox}>;\r\n\t{date}\r\nAuthentication-Results: {HOSTNAME};\r\n\t{auth_spf} smtp.client-ip={peer} smtp.mailfrom={sender_clause};\r\n\tdkim=none (No DKIM signature present);\r\n\tdmarc=none No DMARC record found\r\nX-Spam-Status: {status}\r\nX-Spam-Score: {total_score}\r\n",
     );
     let rules = content_scan
         .hits()
-        .map(|(name, score)| format!("{name}={score:.1}"))
+        .map(|(name, score)| format!("{name}={}", java_one_decimal(score)))
         .collect::<Vec<_>>();
     if !rules.is_empty() {
         header.push_str("X-Spam-Rules: ");
@@ -1526,6 +1468,12 @@ fn compose_message(envelope: &Envelope, composition: MessageComposition<'_>) -> 
     let mut output = header.into_bytes();
     output.extend_from_slice(&envelope.data);
     output
+}
+
+fn java_one_decimal(value: f64) -> String {
+    debug_assert!(value.is_finite() && value >= 0.0);
+    let tenths = (value * 10.0).round() as u64;
+    format!("{}.{:01}", tenths / 10, tenths % 10)
 }
 
 fn java_rfc1123(value: DateTime<Utc>) -> String {
@@ -1817,6 +1765,15 @@ mod tests {
     }
 
     #[test]
+    fn content_filter_score_formatting_matches_java_half_up_ties() {
+        assert_eq!(java_one_decimal(0.0), "0.0");
+        assert_eq!(java_one_decimal(-0.0), "0.0");
+        assert_eq!(java_one_decimal(2.24), "2.2");
+        assert_eq!(java_one_decimal(2.25), "2.3");
+        assert_eq!(java_one_decimal(18.25), "18.3");
+    }
+
+    #[test]
     fn header_only_mime_parse_decodes_adjacent_encoded_words_like_java_indexing() {
         let message = b"Subject: =?UTF-8?Q?FREE?= =?ISO-8859-1?Q?MONEY?=\r\n\r\nbody";
         let subject = MessageParser::default()
@@ -1849,10 +1806,33 @@ Subject: binary\r\nMessage-ID: <binary@example.test>\r\n\r\n\x00\xff\x80";
         let body_first = b"Content-Type: multipart/mixed; boundary=bb\r\n\r\n\
 --bb\r\nContent-Type: text/plain\r\n\r\nbody\r\n\
 --bb\r\nContent-Disposition: attachment; filename=x\r\n\r\ndata\r\n--bb--\r\n";
-        assert!(has_first_mime_attachment(attachment_first));
-        assert!(!has_first_mime_attachment(body_first));
+        assert!(has_first_mime_attachment(attachment_first).unwrap());
+        assert!(!has_first_mime_attachment(body_first).unwrap());
+        assert!(
+            has_first_mime_attachment(b"Content-Type: application/octet-stream\r\n\r\ndata\r\n")
+                .unwrap()
+        );
+        assert!(
+            has_first_mime_attachment(
+                b"Content-Type: text/plain\r\nContent-Disposition: inline\r\n\r\ndata\r\n"
+            )
+            .unwrap()
+        );
+        assert!(has_first_mime_attachment(
+            b"Content-Type: multipart/mixed; boundary=bb\r\n\r\n--bb\r\nContent-Type: application/pdf\r\n\r\ndata\r\n--bb--\r\n"
+        )
+        .unwrap());
         assert!(!has_first_mime_attachment(
             b"Content-Type: text/plain; boundary=bb\r\n\r\n--bb\r\nContent-Disposition: attachment; filename=x\r\n\r\ndata\r\n--bb--\r\n"
-        ));
+        )
+        .unwrap());
+        assert!(!has_first_mime_attachment(
+            b"Content-Type: multipart/mixed; boundary=bb\r\n\r\n--bb\r\nContent-Type: message/rfc822\r\n\r\nContent-Type: text/plain\r\n\r\nbody\r\n--bb--\r\n"
+        )
+        .unwrap());
+        assert!(has_first_mime_attachment(
+            b"Content-Type: multipart/mixed; boundary=outer\r\n\r\n--outer\r\nContent-Type: multipart/alternative; boundary=inner\r\n\r\n--inner\r\nContent-Type: text/plain\r\n\r\nbody\r\n--inner--\r\n--outer--\r\n"
+        )
+        .unwrap());
     }
 }

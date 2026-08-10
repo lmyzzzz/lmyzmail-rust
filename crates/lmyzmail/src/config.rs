@@ -17,6 +17,9 @@ pub const MAX_CONFIG_BYTES: usize = 1_048_576;
 const MAX_PROPERTY_COUNT: usize = 16_384;
 const MAX_PROPERTY_KEY_BYTES: usize = 512;
 const MAX_PROPERTY_VALUE_BYTES: usize = 1_048_576;
+const MAX_INCLUDED_PROFILES: usize = 32;
+const MAX_INCLUDED_PROFILE_NAME_BYTES: usize = 64;
+const MAX_INCLUDED_CONFIG_BYTES: usize = 4 * 1_048_576;
 const MAX_HOST_BYTES: usize = 253;
 const MAX_PATH_BYTES: usize = 4_096;
 const MAX_API_KEY_BYTES: usize = 4_096;
@@ -58,6 +61,10 @@ const MAX_CONTENT_FILTER_EXTENSION_BYTES: usize = 32;
 const MAX_CONTENT_FILTER_RBL_SERVERS: usize = 32;
 const MAX_CONTENT_FILTER_RBL_SERVER_BYTES: usize = 189;
 const MAX_CONTENT_FILTER_RBL_TIMEOUT_MS: u64 = 60_000;
+const MAX_CONTENT_FILTER_LIST_ENTRIES: usize = 4_096;
+const MAX_CONTENT_FILTER_LIST_ENTRY_BYTES: usize = 512;
+const DEFAULT_CONTENT_FILTER_STREAM_BUFFER_SIZE: usize = 65_536;
+const MAX_CONTENT_FILTER_STREAM_BUFFER_SIZE: usize = 1_048_576;
 const MAX_MESSAGE_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_CRINGE_DECAY_DURATION: Duration = Duration::from_secs(100 * 366 * 24 * 60 * 60);
 
@@ -104,6 +111,17 @@ pub struct Properties {
 
 impl Properties {
     pub fn parse(bytes: &[u8]) -> Result<Self, ConfigError> {
+        Self::parse_with_continuation_comments(bytes, false)
+    }
+
+    fn parse_profile(bytes: &[u8]) -> Result<Self, ConfigError> {
+        Self::parse_with_continuation_comments(bytes, true)
+    }
+
+    fn parse_with_continuation_comments(
+        bytes: &[u8],
+        continuation_comments: bool,
+    ) -> Result<Self, ConfigError> {
         if bytes.len() > MAX_CONFIG_BYTES {
             return Err(ConfigError::Invalid(format!(
                 "configuration exceeds {MAX_CONFIG_BYTES} bytes"
@@ -114,6 +132,13 @@ impl Properties {
         let mut logical = String::new();
         for physical in text.split('\n') {
             let line = physical.strip_suffix('\r').unwrap_or(physical);
+            let trimmed = line.trim_start_matches([' ', '\t', '\u{000c}']);
+            if continuation_comments
+                && !logical.is_empty()
+                && (trimmed.starts_with('#') || trimmed.starts_with('!'))
+            {
+                continue;
+            }
             if logical.is_empty() {
                 logical.push_str(line);
             } else {
@@ -133,23 +158,7 @@ impl Properties {
     }
 
     pub fn from_path(path: &Path) -> Result<Self, ConfigError> {
-        let mut file = File::open(path)?;
-        let metadata = file.metadata()?;
-        if !metadata.is_file() {
-            return Err(ConfigError::Invalid(format!(
-                "configuration path is not a regular file: {}",
-                path.display()
-            )));
-        }
-        let mut bytes = Vec::new();
-        file.by_ref()
-            .take((MAX_CONFIG_BYTES as u64).saturating_add(1))
-            .read_to_end(&mut bytes)?;
-        if bytes.len() > MAX_CONFIG_BYTES {
-            return Err(ConfigError::Invalid(format!(
-                "configuration exceeds {MAX_CONFIG_BYTES} bytes"
-            )));
-        }
+        let bytes = read_config_file(path)?;
         // CandidateRuntime emits a semantic JSON document. Convert it to the
         // same internal property map so overlays and legacy aliases retain one
         // precedence and validation path.
@@ -161,7 +170,55 @@ impl Properties {
         {
             return parse_semantic_json(&bytes);
         }
-        Self::parse(&bytes)
+        let mut properties = Self::parse(&bytes)?;
+        let Some(included) = properties.get("spring.profiles.include").map(str::to_owned) else {
+            return Ok(properties);
+        };
+        let profiles = included
+            .split(',')
+            .map(str::trim)
+            .filter(|profile| !profile.is_empty())
+            .collect::<Vec<_>>();
+        if profiles.len() > MAX_INCLUDED_PROFILES {
+            return Err(ConfigError::Invalid(format!(
+                "spring.profiles.include exceeds {MAX_INCLUDED_PROFILES} entries"
+            )));
+        }
+        let directory = path.parent().unwrap_or_else(|| Path::new("."));
+        let mut loaded = HashSet::new();
+        let mut total_bytes = bytes.len();
+        for profile in profiles {
+            validate_included_profile(profile)?;
+            if !loaded.insert(profile.to_owned()) {
+                continue;
+            }
+            let profile_path = directory.join(format!("application-{profile}.properties"));
+            let profile_bytes = match read_config_file(&profile_path) {
+                Ok(bytes) => bytes,
+                Err(ConfigError::Io(error)) if error.kind() == io::ErrorKind::NotFound => {
+                    if profile == "keywords" {
+                        include_bytes!("../resources/java-oracle/application-keywords.properties")
+                            .to_vec()
+                    } else {
+                        continue;
+                    }
+                }
+                Err(error) => return Err(error),
+            };
+            total_bytes = total_bytes.saturating_add(profile_bytes.len());
+            if total_bytes > MAX_INCLUDED_CONFIG_BYTES {
+                return Err(ConfigError::Invalid(format!(
+                    "configuration and included profiles exceed {MAX_INCLUDED_CONFIG_BYTES} bytes"
+                )));
+            }
+            let profile_properties = Self::parse_profile(&profile_bytes)?;
+            properties.overlay(
+                profile_properties
+                    .iter()
+                    .map(|(key, value)| (key.to_owned(), value.to_owned())),
+            )?;
+        }
+        Ok(properties)
     }
 
     pub fn get(&self, key: &str) -> Option<&str> {
@@ -215,6 +272,41 @@ impl Properties {
         }
         self.insert(key, value)
     }
+}
+
+fn read_config_file(path: &Path) -> Result<Vec<u8>, ConfigError> {
+    let mut file = File::open(path)?;
+    let metadata = file.metadata()?;
+    if !metadata.is_file() {
+        return Err(ConfigError::Invalid(format!(
+            "configuration path is not a regular file: {}",
+            path.display()
+        )));
+    }
+    let mut bytes = Vec::new();
+    file.by_ref()
+        .take((MAX_CONFIG_BYTES as u64).saturating_add(1))
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > MAX_CONFIG_BYTES {
+        return Err(ConfigError::Invalid(format!(
+            "configuration exceeds {MAX_CONFIG_BYTES} bytes"
+        )));
+    }
+    Ok(bytes)
+}
+
+fn validate_included_profile(profile: &str) -> Result<(), ConfigError> {
+    if profile.len() > MAX_INCLUDED_PROFILE_NAME_BYTES
+        || profile.is_empty()
+        || !profile
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+    {
+        return Err(ConfigError::Invalid(format!(
+            "invalid spring.profiles.include entry: {profile}"
+        )));
+    }
+    Ok(())
 }
 
 #[derive(Debug, Deserialize)]
@@ -368,8 +460,11 @@ struct JsonContentFilterConfig {
     enabled: bool,
     suspicious_threshold: f64,
     spam_threshold: f64,
+    stream_buffer_size: usize,
     rules: JsonContentFilterRules,
     rbl: JsonContentFilterRbl,
+    keywords: JsonContentFilterKeywords,
+    url: JsonContentFilterUrl,
     attachment: JsonContentFilterAttachment,
 }
 
@@ -379,8 +474,11 @@ impl Default for JsonContentFilterConfig {
             enabled: true,
             suspicious_threshold: 5.0,
             spam_threshold: 10.0,
+            stream_buffer_size: DEFAULT_CONTENT_FILTER_STREAM_BUFFER_SIZE,
             rules: JsonContentFilterRules::default(),
             rbl: JsonContentFilterRbl::default(),
+            keywords: JsonContentFilterKeywords::default(),
+            url: JsonContentFilterUrl::default(),
             attachment: JsonContentFilterAttachment::default(),
         }
     }
@@ -394,9 +492,63 @@ struct JsonContentFilterRules {
     missing_headers: JsonContentFilterRule,
     subject_encoding_trick: JsonContentFilterRule,
     excessive_recipients: JsonContentFilterRule,
+    spam_keywords: JsonContentFilterRule,
+    suspicious_url: JsonContentFilterRule,
     dangerous_extension: JsonContentFilterRule,
     double_extension: JsonContentFilterRule,
     mime_type_mismatch: JsonContentFilterRule,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct JsonContentFilterKeywords {
+    enabled: bool,
+    spam_keywords: Vec<String>,
+    phishing_keywords: Vec<String>,
+    density_threshold: f64,
+    base_score: f64,
+    max_score: f64,
+}
+
+impl Default for JsonContentFilterKeywords {
+    fn default() -> Self {
+        let defaults = ContentFilterKeywordConfig::default();
+        Self {
+            enabled: defaults.enabled,
+            spam_keywords: defaults.spam_keywords,
+            phishing_keywords: defaults.phishing_keywords,
+            density_threshold: defaults.density_threshold,
+            base_score: defaults.base_score,
+            max_score: defaults.max_score,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct JsonContentFilterUrl {
+    enabled: bool,
+    shortener_domains: Vec<String>,
+    suspicious_tlds: Vec<String>,
+    shortener_score: f64,
+    suspicious_tld_score: f64,
+    ip_url_score: f64,
+    max_score: f64,
+}
+
+impl Default for JsonContentFilterUrl {
+    fn default() -> Self {
+        let defaults = ContentFilterUrlConfig::default();
+        Self {
+            enabled: defaults.enabled,
+            shortener_domains: defaults.shortener_domains,
+            suspicious_tlds: defaults.suspicious_tlds,
+            shortener_score: defaults.shortener_score,
+            suspicious_tld_score: defaults.suspicious_tld_score,
+            ip_url_score: defaults.ip_url_score,
+            max_score: defaults.max_score,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -1327,6 +1479,10 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         "lmyzmail.contentfilter.spam-threshold".to_owned(),
         content_filter.spam_threshold.to_string(),
     )?;
+    properties.insert(
+        "lmyzmail.contentfilter.stream-buffer-size".to_owned(),
+        content_filter.stream_buffer_size.to_string(),
+    )?;
     for (name, rule) in [
         ("RBL_CHECK", content_filter.rules.rbl_check),
         ("NEW_DOMAIN", content_filter.rules.new_domain),
@@ -1339,6 +1495,8 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
             "EXCESSIVE_RECIPIENTS",
             content_filter.rules.excessive_recipients,
         ),
+        ("SPAM_KEYWORDS", content_filter.rules.spam_keywords),
+        ("SUSPICIOUS_URL", content_filter.rules.suspicious_url),
         (
             "DANGEROUS_EXTENSION",
             content_filter.rules.dangerous_extension,
@@ -1372,6 +1530,58 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
     properties.insert(
         "lmyzmail.contentfilter.rbl.max-score".to_owned(),
         content_filter.rbl.max_score.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.contentfilter.keywords.enabled".to_owned(),
+        content_filter.keywords.enabled.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.contentfilter.keywords.spam-keywords".to_owned(),
+        content_filter.keywords.spam_keywords.join(","),
+    )?;
+    properties.insert(
+        "lmyzmail.contentfilter.keywords.phishing-keywords".to_owned(),
+        content_filter.keywords.phishing_keywords.join(","),
+    )?;
+    properties.insert(
+        "lmyzmail.contentfilter.keywords.density-threshold".to_owned(),
+        content_filter.keywords.density_threshold.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.contentfilter.keywords.base-score".to_owned(),
+        content_filter.keywords.base_score.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.contentfilter.keywords.max-score".to_owned(),
+        content_filter.keywords.max_score.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.contentfilter.url.enabled".to_owned(),
+        content_filter.url.enabled.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.contentfilter.url.shortener-domains".to_owned(),
+        content_filter.url.shortener_domains.join(","),
+    )?;
+    properties.insert(
+        "lmyzmail.contentfilter.url.suspicious-tlds".to_owned(),
+        content_filter.url.suspicious_tlds.join(","),
+    )?;
+    properties.insert(
+        "lmyzmail.contentfilter.url.shortener-score".to_owned(),
+        content_filter.url.shortener_score.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.contentfilter.url.suspicious-tld-score".to_owned(),
+        content_filter.url.suspicious_tld_score.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.contentfilter.url.ip-url-score".to_owned(),
+        content_filter.url.ip_url_score.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.contentfilter.url.max-score".to_owned(),
+        content_filter.url.max_score.to_string(),
     )?;
     properties.insert(
         "lmyzmail.contentfilter.attachment.enabled".to_owned(),
@@ -2211,15 +2421,20 @@ pub struct ContentFilterConfig {
     pub enabled: bool,
     pub suspicious_threshold: f64,
     pub spam_threshold: f64,
+    pub stream_buffer_size: usize,
     pub rbl_check: ContentFilterRuleConfig,
     pub rbl: ContentFilterRblConfig,
     pub new_domain: ContentFilterRuleConfig,
     pub missing_headers: ContentFilterRuleConfig,
     pub subject_encoding_trick: ContentFilterRuleConfig,
     pub excessive_recipients: ContentFilterRuleConfig,
+    pub spam_keywords: ContentFilterRuleConfig,
+    pub suspicious_url: ContentFilterRuleConfig,
     pub dangerous_extension: ContentFilterRuleConfig,
     pub double_extension: ContentFilterRuleConfig,
     pub mime_type_mismatch: ContentFilterRuleConfig,
+    pub keywords: ContentFilterKeywordConfig,
+    pub url: ContentFilterUrlConfig,
     pub attachment: ContentFilterAttachmentConfig,
 }
 
@@ -2229,16 +2444,119 @@ impl Default for ContentFilterConfig {
             enabled: true,
             suspicious_threshold: 5.0,
             spam_threshold: 10.0,
+            stream_buffer_size: DEFAULT_CONTENT_FILTER_STREAM_BUFFER_SIZE,
             rbl_check: ContentFilterRuleConfig::default(),
             rbl: ContentFilterRblConfig::default(),
             new_domain: ContentFilterRuleConfig::default(),
             missing_headers: ContentFilterRuleConfig::default(),
             subject_encoding_trick: ContentFilterRuleConfig::default(),
             excessive_recipients: ContentFilterRuleConfig::default(),
+            spam_keywords: ContentFilterRuleConfig::default(),
+            suspicious_url: ContentFilterRuleConfig::default(),
             dangerous_extension: ContentFilterRuleConfig::default(),
             double_extension: ContentFilterRuleConfig::default(),
             mime_type_mismatch: ContentFilterRuleConfig::default(),
+            keywords: ContentFilterKeywordConfig::default(),
+            url: ContentFilterUrlConfig::default(),
             attachment: ContentFilterAttachmentConfig::default(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ContentFilterKeywordConfig {
+    pub enabled: bool,
+    pub spam_keywords: Vec<String>,
+    pub phishing_keywords: Vec<String>,
+    pub density_threshold: f64,
+    pub base_score: f64,
+    pub max_score: f64,
+}
+
+impl Default for ContentFilterKeywordConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            spam_keywords: [
+                "viagra",
+                "cialis",
+                "lottery",
+                "winner",
+                "casino",
+                "bitcoin",
+                "crypto",
+                "investment",
+                "nigerian prince",
+                "urgent",
+                "act now",
+                "limited time",
+                "free money",
+                "click here",
+                "unsubscribe",
+                "opt-out",
+            ]
+            .into_iter()
+            .map(str::to_owned)
+            .collect(),
+            phishing_keywords: [
+                "verify your account",
+                "confirm your identity",
+                "suspended",
+                "unauthorized",
+                "security alert",
+                "update your information",
+                "password expired",
+            ]
+            .into_iter()
+            .map(str::to_owned)
+            .collect(),
+            density_threshold: 0.05,
+            base_score: 2.0,
+            max_score: 8.0,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ContentFilterUrlConfig {
+    pub enabled: bool,
+    pub shortener_domains: Vec<String>,
+    pub suspicious_tlds: Vec<String>,
+    pub shortener_score: f64,
+    pub suspicious_tld_score: f64,
+    pub ip_url_score: f64,
+    pub max_score: f64,
+}
+
+impl Default for ContentFilterUrlConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            shortener_domains: [
+                "bit.ly",
+                "tinyurl.com",
+                "t.co",
+                "goo.gl",
+                "ow.ly",
+                "is.gd",
+                "buff.ly",
+                "adf.ly",
+                "bit.do",
+                "mcaf.ee",
+            ]
+            .into_iter()
+            .map(str::to_owned)
+            .collect(),
+            suspicious_tlds: [
+                "xyz", "top", "win", "loan", "click", "link", "work", "gq", "ml", "cf", "ga", "tk",
+            ]
+            .into_iter()
+            .map(str::to_owned)
+            .collect(),
+            shortener_score: 1.5,
+            suspicious_tld_score: 2.0,
+            ip_url_score: 3.0,
+            max_score: 8.0,
         }
     }
 }
@@ -3631,6 +3949,17 @@ fn parse_content_filter_config(
             "contentfilter spam-threshold must not be below suspicious-threshold".into(),
         ));
     }
+    let stream_buffer_size = preferred_usize(
+        properties,
+        &["lmyzmail.contentfilter.stream-buffer-size"],
+        &["botmail.contentfilter.stream-buffer-size"],
+        DEFAULT_CONTENT_FILTER_STREAM_BUFFER_SIZE,
+    )?;
+    if !(1..=MAX_CONTENT_FILTER_STREAM_BUFFER_SIZE).contains(&stream_buffer_size) {
+        return Err(ConfigError::Invalid(format!(
+            "contentfilter stream-buffer-size must be between 1 and {MAX_CONTENT_FILTER_STREAM_BUFFER_SIZE}"
+        )));
+    }
     let attachment = parse_content_filter_attachment(properties)?;
     Ok(ContentFilterConfig {
         enabled: preferred_bool(
@@ -3641,17 +3970,185 @@ fn parse_content_filter_config(
         )?,
         suspicious_threshold,
         spam_threshold,
+        stream_buffer_size,
         rbl_check: parse_content_filter_rule(properties, "RBL_CHECK")?,
         rbl: parse_content_filter_rbl(properties)?,
         new_domain: parse_content_filter_rule(properties, "NEW_DOMAIN")?,
         missing_headers: parse_content_filter_rule(properties, "MISSING_HEADERS")?,
         subject_encoding_trick: parse_content_filter_rule(properties, "SUBJECT_ENCODING_TRICK")?,
         excessive_recipients: parse_content_filter_rule(properties, "EXCESSIVE_RECIPIENTS")?,
+        spam_keywords: parse_content_filter_rule(properties, "SPAM_KEYWORDS")?,
+        suspicious_url: parse_content_filter_rule(properties, "SUSPICIOUS_URL")?,
         dangerous_extension: parse_content_filter_rule(properties, "DANGEROUS_EXTENSION")?,
         double_extension: parse_content_filter_rule(properties, "DOUBLE_EXTENSION")?,
         mime_type_mismatch: parse_content_filter_rule(properties, "MIME_TYPE_MISMATCH")?,
+        keywords: parse_content_filter_keywords(properties)?,
+        url: parse_content_filter_url(properties)?,
         attachment,
     })
+}
+
+fn parse_content_filter_keywords(
+    properties: &Properties,
+) -> Result<ContentFilterKeywordConfig, ConfigError> {
+    let defaults = ContentFilterKeywordConfig::default();
+    let spam_keywords = parse_content_filter_list(
+        properties,
+        "lmyzmail.contentfilter.keywords.spam-keywords",
+        "botmail.contentfilter.keywords.spam-keywords",
+        defaults.spam_keywords,
+        "contentfilter spam keywords",
+    )?;
+    let phishing_keywords = parse_content_filter_list(
+        properties,
+        "lmyzmail.contentfilter.keywords.phishing-keywords",
+        "botmail.contentfilter.keywords.phishing-keywords",
+        defaults.phishing_keywords,
+        "contentfilter phishing keywords",
+    )?;
+    let density_threshold = preferred_f64(
+        properties,
+        &["lmyzmail.contentfilter.keywords.density-threshold"],
+        &["botmail.contentfilter.keywords.density-threshold"],
+        defaults.density_threshold,
+        "contentfilter keyword density-threshold",
+    )?;
+    let base_score = preferred_f64(
+        properties,
+        &["lmyzmail.contentfilter.keywords.base-score"],
+        &["botmail.contentfilter.keywords.base-score"],
+        defaults.base_score,
+        "contentfilter keyword base-score",
+    )?;
+    let max_score = preferred_f64(
+        properties,
+        &["lmyzmail.contentfilter.keywords.max-score"],
+        &["botmail.contentfilter.keywords.max-score"],
+        defaults.max_score,
+        "contentfilter keyword max-score",
+    )?;
+    for (value, label) in [
+        (density_threshold, "contentfilter keyword density-threshold"),
+        (base_score, "contentfilter keyword base-score"),
+        (max_score, "contentfilter keyword max-score"),
+    ] {
+        validate_content_filter_number(value, MAX_CONTENT_FILTER_THRESHOLD, label)?;
+    }
+    Ok(ContentFilterKeywordConfig {
+        enabled: preferred_bool(
+            properties,
+            &["lmyzmail.contentfilter.keywords.enabled"],
+            &["botmail.contentfilter.keywords.enabled"],
+            defaults.enabled,
+        )?,
+        spam_keywords,
+        phishing_keywords,
+        density_threshold,
+        base_score,
+        max_score,
+    })
+}
+
+fn parse_content_filter_url(
+    properties: &Properties,
+) -> Result<ContentFilterUrlConfig, ConfigError> {
+    let defaults = ContentFilterUrlConfig::default();
+    let shortener_domains = parse_content_filter_list(
+        properties,
+        "lmyzmail.contentfilter.url.shortener-domains",
+        "botmail.contentfilter.url.shortener-domains",
+        defaults.shortener_domains,
+        "contentfilter URL shortener domains",
+    )?;
+    let suspicious_tlds = parse_content_filter_list(
+        properties,
+        "lmyzmail.contentfilter.url.suspicious-tlds",
+        "botmail.contentfilter.url.suspicious-tlds",
+        defaults.suspicious_tlds,
+        "contentfilter suspicious URL TLDs",
+    )?;
+    let shortener_score = preferred_f64(
+        properties,
+        &["lmyzmail.contentfilter.url.shortener-score"],
+        &["botmail.contentfilter.url.shortener-score"],
+        defaults.shortener_score,
+        "contentfilter URL shortener-score",
+    )?;
+    let suspicious_tld_score = preferred_f64(
+        properties,
+        &["lmyzmail.contentfilter.url.suspicious-tld-score"],
+        &["botmail.contentfilter.url.suspicious-tld-score"],
+        defaults.suspicious_tld_score,
+        "contentfilter URL suspicious-tld-score",
+    )?;
+    let ip_url_score = preferred_f64(
+        properties,
+        &["lmyzmail.contentfilter.url.ip-url-score"],
+        &["botmail.contentfilter.url.ip-url-score"],
+        defaults.ip_url_score,
+        "contentfilter URL ip-url-score",
+    )?;
+    let max_score = preferred_f64(
+        properties,
+        &["lmyzmail.contentfilter.url.max-score"],
+        &["botmail.contentfilter.url.max-score"],
+        defaults.max_score,
+        "contentfilter URL max-score",
+    )?;
+    for (value, label) in [
+        (shortener_score, "contentfilter URL shortener-score"),
+        (
+            suspicious_tld_score,
+            "contentfilter URL suspicious-tld-score",
+        ),
+        (ip_url_score, "contentfilter URL ip-url-score"),
+        (max_score, "contentfilter URL max-score"),
+    ] {
+        validate_content_filter_number(value, MAX_CONTENT_FILTER_THRESHOLD, label)?;
+    }
+    Ok(ContentFilterUrlConfig {
+        enabled: preferred_bool(
+            properties,
+            &["lmyzmail.contentfilter.url.enabled"],
+            &["botmail.contentfilter.url.enabled"],
+            defaults.enabled,
+        )?,
+        shortener_domains,
+        suspicious_tlds,
+        shortener_score,
+        suspicious_tld_score,
+        ip_url_score,
+        max_score,
+    })
+}
+
+fn parse_content_filter_list(
+    properties: &Properties,
+    new_key: &str,
+    legacy_key: &str,
+    defaults: Vec<String>,
+    label: &str,
+) -> Result<Vec<String>, ConfigError> {
+    let values = preferred(properties, &[new_key], &[legacy_key])
+        .map(|value| {
+            value
+                .split(',')
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_lowercase)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or(defaults);
+    if values.len() > MAX_CONTENT_FILTER_LIST_ENTRIES
+        || values
+            .iter()
+            .any(|value| value.len() > MAX_CONTENT_FILTER_LIST_ENTRY_BYTES)
+    {
+        return Err(ConfigError::Invalid(format!(
+            "{label} exceed the configured count or byte limit"
+        )));
+    }
+    Ok(values)
 }
 
 fn parse_content_filter_rbl(
@@ -3767,7 +4264,9 @@ fn parse_content_filter_attachment(
         || dangerous_extensions.len() > MAX_CONTENT_FILTER_EXTENSIONS
         || dangerous_extensions.iter().any(|extension| {
             extension.len() > MAX_CONTENT_FILTER_EXTENSION_BYTES
-                || !extension.bytes().all(|byte| byte.is_ascii_alphanumeric())
+                || !extension
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
         })
     {
         return Err(ConfigError::Invalid(
@@ -5410,6 +5909,11 @@ pub fn resolve_u16(
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        fs,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
     use super::*;
 
     fn semantic_json_with_htcpcp(htcpcp: serde_json::Value) -> Vec<u8> {
@@ -5648,6 +6152,8 @@ lmyzmail.smtp.asciiart.char-aspect=2.5\n",
             &config.content_filter.missing_headers,
             &config.content_filter.subject_encoding_trick,
             &config.content_filter.excessive_recipients,
+            &config.content_filter.spam_keywords,
+            &config.content_filter.suspicious_url,
             &config.content_filter.dangerous_extension,
             &config.content_filter.double_extension,
             &config.content_filter.mime_type_mismatch,
@@ -5657,9 +6163,127 @@ lmyzmail.smtp.asciiart.char-aspect=2.5\n",
         }
         assert_eq!(config.content_filter.rbl, ContentFilterRblConfig::default());
         assert_eq!(
+            config.content_filter.keywords,
+            ContentFilterKeywordConfig::default()
+        );
+        assert_eq!(config.content_filter.url, ContentFilterUrlConfig::default());
+        assert_eq!(
             config.content_filter.attachment,
             ContentFilterAttachmentConfig::default()
         );
+    }
+
+    #[test]
+    fn legacy_spring_keywords_profile_loads_frozen_resource_with_hard_bounds() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory =
+            std::env::temp_dir().join(format!("lmyzmail-profile-{}-{nonce}", std::process::id()));
+        fs::create_dir_all(&directory).unwrap();
+        let base = directory.join("application.properties");
+        fs::write(
+            &base,
+            b"spring.profiles.include=keywords\n\
+lmyzmail.contentfilter.keywords.density-threshold=0.2\n",
+        )
+        .unwrap();
+
+        let properties = Properties::from_path(&base).unwrap();
+        let config = RuntimeConfig::from_properties(properties).unwrap();
+        assert_eq!(config.content_filter.keywords.spam_keywords.len(), 1_585);
+        assert_eq!(config.content_filter.keywords.phishing_keywords.len(), 758);
+        assert_eq!(config.content_filter.url.shortener_domains.len(), 69);
+        assert_eq!(config.content_filter.url.suspicious_tlds.len(), 124);
+        assert_eq!(config.content_filter.keywords.density_threshold, 0.2);
+        assert!(
+            config
+                .content_filter
+                .keywords
+                .spam_keywords
+                .iter()
+                .any(|value| value == "cialis")
+        );
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn lmyzmail_properties_example_uses_the_full_frozen_keyword_profile() {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../config/lmyzmail.properties.example");
+        let config = RuntimeConfig::from_properties(Properties::from_path(&path).unwrap()).unwrap();
+        assert_eq!(config.content_filter.keywords.spam_keywords.len(), 1_585);
+        assert_eq!(config.content_filter.keywords.phishing_keywords.len(), 758);
+        assert_eq!(config.content_filter.url.shortener_domains.len(), 69);
+        assert_eq!(config.content_filter.url.suspicious_tlds.len(), 124);
+        assert_eq!(config.content_filter.keywords.density_threshold, 0.04);
+        assert_eq!(config.content_filter.stream_buffer_size, 65_536);
+    }
+
+    #[test]
+    fn content_filter_body_accepts_legacy_aliases_and_prefers_new_keys_per_field() {
+        let config = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.contentfilter.rules.SPAM_KEYWORDS.enabled=false\n\
+botmail.contentfilter.rules.SPAM_KEYWORDS.weight=2.5\n\
+botmail.contentfilter.rules.SUSPICIOUS_URL.enabled=false\n\
+botmail.contentfilter.rules.SUSPICIOUS_URL.weight=3.5\n\
+botmail.contentfilter.stream-buffer-size=4096\n\
+botmail.contentfilter.keywords.enabled=false\n\
+botmail.contentfilter.keywords.spam-keywords=legacy spam\n\
+botmail.contentfilter.keywords.phishing-keywords=legacy phishing\n\
+botmail.contentfilter.keywords.density-threshold=0.2\n\
+botmail.contentfilter.keywords.base-score=3\n\
+botmail.contentfilter.keywords.max-score=7\n\
+botmail.contentfilter.url.enabled=false\n\
+botmail.contentfilter.url.shortener-domains=legacy-short.test\n\
+botmail.contentfilter.url.suspicious-tlds=legacy\n\
+botmail.contentfilter.url.shortener-score=2\n\
+botmail.contentfilter.url.suspicious-tld-score=3\n\
+botmail.contentfilter.url.ip-url-score=4\n\
+botmail.contentfilter.url.max-score=9\n\
+lmyzmail.contentfilter.rules.SPAM_KEYWORDS.weight=1.25\n\
+lmyzmail.contentfilter.rules.SUSPICIOUS_URL.enabled=true\n\
+lmyzmail.contentfilter.stream-buffer-size=2048\n\
+lmyzmail.contentfilter.keywords.enabled=true\n\
+lmyzmail.contentfilter.keywords.spam-keywords=preferred spam\n\
+lmyzmail.contentfilter.keywords.base-score=2.5\n\
+lmyzmail.contentfilter.url.enabled=true\n\
+lmyzmail.contentfilter.url.shortener-domains=preferred-short.test\n\
+lmyzmail.contentfilter.url.max-score=8\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert!(!config.content_filter.spam_keywords.enabled);
+        assert_eq!(config.content_filter.spam_keywords.weight, 1.25);
+        assert!(config.content_filter.suspicious_url.enabled);
+        assert_eq!(config.content_filter.suspicious_url.weight, 3.5);
+        assert_eq!(config.content_filter.stream_buffer_size, 2_048);
+        assert!(config.content_filter.keywords.enabled);
+        assert_eq!(
+            config.content_filter.keywords.spam_keywords,
+            ["preferred spam"]
+        );
+        assert_eq!(
+            config.content_filter.keywords.phishing_keywords,
+            ["legacy phishing"]
+        );
+        assert_eq!(config.content_filter.keywords.density_threshold, 0.2);
+        assert_eq!(config.content_filter.keywords.base_score, 2.5);
+        assert_eq!(config.content_filter.keywords.max_score, 7.0);
+        assert!(config.content_filter.url.enabled);
+        assert_eq!(
+            config.content_filter.url.shortener_domains,
+            ["preferred-short.test"]
+        );
+        assert_eq!(config.content_filter.url.suspicious_tlds, ["legacy"]);
+        assert_eq!(config.content_filter.url.shortener_score, 2.0);
+        assert_eq!(config.content_filter.url.suspicious_tld_score, 3.0);
+        assert_eq!(config.content_filter.url.ip_url_score, 4.0);
+        assert_eq!(config.content_filter.url.max_score, 8.0);
     }
 
     #[test]
@@ -5755,12 +6379,15 @@ lmyzmail.contentfilter.attachment.dangerous-extension-score=6\n",
             "enabled": false,
             "suspicious_threshold": 6.0,
             "spam_threshold": 12.0,
+            "stream_buffer_size": 32768,
             "rules": {
                 "rbl_check": {"enabled": true, "weight": 1.25},
                 "new_domain": {"enabled": false, "weight": 0.75},
                 "missing_headers": {"enabled": false, "weight": 2.0},
                 "subject_encoding_trick": {"enabled": true, "weight": 1.5},
                 "excessive_recipients": {"enabled": true, "weight": 0.5},
+                "spam_keywords": {"enabled": false, "weight": 1.75},
+                "suspicious_url": {"enabled": true, "weight": 2.25},
                 "dangerous_extension": {"enabled": true, "weight": 2.5},
                 "double_extension": {"enabled": false, "weight": 3.0},
                 "mime_type_mismatch": {"enabled": true, "weight": 3.5}
@@ -5771,6 +6398,23 @@ lmyzmail.contentfilter.attachment.dangerous-extension-score=6\n",
                 "timeout_ms": 750,
                 "score_per_hit": 2.5,
                 "max_score": 4.5
+            },
+            "keywords": {
+                "enabled": true,
+                "spam_keywords": ["semantic spam"],
+                "phishing_keywords": ["semantic phishing"],
+                "density_threshold": 0.25,
+                "base_score": 3.0,
+                "max_score": 7.0
+            },
+            "url": {
+                "enabled": false,
+                "shortener_domains": ["short.semantic.test"],
+                "suspicious_tlds": ["semantic"],
+                "shortener_score": 2.0,
+                "suspicious_tld_score": 3.0,
+                "ip_url_score": 4.0,
+                "max_score": 9.0
             },
             "attachment": {
                 "enabled": true,
@@ -5785,6 +6429,7 @@ lmyzmail.contentfilter.attachment.dangerous-extension-score=6\n",
         assert!(!config.content_filter.enabled);
         assert_eq!(config.content_filter.suspicious_threshold, 6.0);
         assert_eq!(config.content_filter.spam_threshold, 12.0);
+        assert_eq!(config.content_filter.stream_buffer_size, 32_768);
         assert_eq!(config.content_filter.rbl_check.weight, 1.25);
         assert_eq!(
             config.content_filter.rbl.servers,
@@ -5802,6 +6447,30 @@ lmyzmail.contentfilter.attachment.dangerous-extension-score=6\n",
         assert_eq!(config.content_filter.missing_headers.weight, 2.0);
         assert_eq!(config.content_filter.subject_encoding_trick.weight, 1.5);
         assert_eq!(config.content_filter.excessive_recipients.weight, 0.5);
+        assert!(!config.content_filter.spam_keywords.enabled);
+        assert_eq!(config.content_filter.spam_keywords.weight, 1.75);
+        assert_eq!(config.content_filter.suspicious_url.weight, 2.25);
+        assert_eq!(
+            config.content_filter.keywords.spam_keywords,
+            ["semantic spam"]
+        );
+        assert_eq!(
+            config.content_filter.keywords.phishing_keywords,
+            ["semantic phishing"]
+        );
+        assert_eq!(config.content_filter.keywords.density_threshold, 0.25);
+        assert_eq!(config.content_filter.keywords.base_score, 3.0);
+        assert_eq!(config.content_filter.keywords.max_score, 7.0);
+        assert!(!config.content_filter.url.enabled);
+        assert_eq!(
+            config.content_filter.url.shortener_domains,
+            ["short.semantic.test"]
+        );
+        assert_eq!(config.content_filter.url.suspicious_tlds, ["semantic"]);
+        assert_eq!(config.content_filter.url.shortener_score, 2.0);
+        assert_eq!(config.content_filter.url.suspicious_tld_score, 3.0);
+        assert_eq!(config.content_filter.url.ip_url_score, 4.0);
+        assert_eq!(config.content_filter.url.max_score, 9.0);
         assert_eq!(config.content_filter.dangerous_extension.weight, 2.5);
         assert!(!config.content_filter.double_extension.enabled);
         assert_eq!(config.content_filter.mime_type_mismatch.weight, 3.5);
@@ -5851,15 +6520,26 @@ lmyzmail.contentfilter.attachment.dangerous-extension-score=6\n",
         for input in [
             b"lmyzmail.contentfilter.suspicious-threshold=NaN\n".as_slice(),
             b"lmyzmail.contentfilter.spam-threshold=Infinity\n".as_slice(),
+            b"lmyzmail.contentfilter.stream-buffer-size=0\n".as_slice(),
+            b"lmyzmail.contentfilter.stream-buffer-size=1048577\n".as_slice(),
             b"lmyzmail.contentfilter.suspicious-threshold=-1\n".as_slice(),
             b"lmyzmail.contentfilter.suspicious-threshold=11\nlmyzmail.contentfilter.spam-threshold=10\n".as_slice(),
             b"lmyzmail.contentfilter.rules.NEW_DOMAIN.weight=Infinity\n".as_slice(),
             b"lmyzmail.contentfilter.rules.MISSING_HEADERS.weight=-0.1\n".as_slice(),
             b"lmyzmail.contentfilter.rules.SUBJECT_ENCODING_TRICK.weight=NaN\n".as_slice(),
             b"lmyzmail.contentfilter.rules.EXCESSIVE_RECIPIENTS.weight=101\n".as_slice(),
+            b"lmyzmail.contentfilter.rules.SPAM_KEYWORDS.weight=Infinity\n".as_slice(),
+            b"lmyzmail.contentfilter.rules.SUSPICIOUS_URL.weight=-0.1\n".as_slice(),
             b"lmyzmail.contentfilter.rules.DANGEROUS_EXTENSION.weight=Infinity\n".as_slice(),
+            b"lmyzmail.contentfilter.keywords.density-threshold=NaN\n".as_slice(),
+            b"lmyzmail.contentfilter.keywords.base-score=-0.1\n".as_slice(),
+            b"lmyzmail.contentfilter.keywords.max-score=Infinity\n".as_slice(),
+            b"lmyzmail.contentfilter.url.shortener-score=NaN\n".as_slice(),
+            b"lmyzmail.contentfilter.url.suspicious-tld-score=-0.1\n".as_slice(),
+            b"lmyzmail.contentfilter.url.ip-url-score=Infinity\n".as_slice(),
+            b"lmyzmail.contentfilter.url.max-score=1000001\n".as_slice(),
             b"lmyzmail.contentfilter.attachment.dangerous-extensions=\n".as_slice(),
-            b"lmyzmail.contentfilter.attachment.dangerous-extensions=exe,ps-1\n".as_slice(),
+            b"lmyzmail.contentfilter.attachment.dangerous-extensions=exe,ps/1\n".as_slice(),
             b"lmyzmail.contentfilter.attachment.dangerous-extension-score=-0.1\n".as_slice(),
             b"lmyzmail.contentfilter.attachment.double-extension-score=NaN\n".as_slice(),
             b"lmyzmail.contentfilter.attachment.mime-type-mismatch-score=1000001\n".as_slice(),
@@ -5880,6 +6560,28 @@ lmyzmail.contentfilter.attachment.dangerous-extension-score=6\n",
         );
         assert!(
             RuntimeConfig::from_properties(Properties::parse(too_many.as_bytes()).unwrap())
+                .is_err()
+        );
+
+        let too_many_body_entries = (0..=MAX_CONTENT_FILTER_LIST_ENTRIES)
+            .map(|index| format!("entry-{index}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let too_many_keywords =
+            format!("lmyzmail.contentfilter.keywords.spam-keywords={too_many_body_entries}\n");
+        assert!(
+            RuntimeConfig::from_properties(
+                Properties::parse(too_many_keywords.as_bytes()).unwrap()
+            )
+            .is_err()
+        );
+
+        let oversized_tld = format!(
+            "lmyzmail.contentfilter.url.suspicious-tlds={}\n",
+            "x".repeat(MAX_CONTENT_FILTER_LIST_ENTRY_BYTES + 1)
+        );
+        assert!(
+            RuntimeConfig::from_properties(Properties::parse(oversized_tld.as_bytes()).unwrap())
                 .is_err()
         );
     }

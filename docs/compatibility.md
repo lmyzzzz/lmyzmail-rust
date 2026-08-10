@@ -13,6 +13,19 @@ Configuration resolution is deterministic:
 3. If both are absent, apply the frozen oracle default.
 4. Never merge scalar values or silently accept conflicting structured values.
 
+Legacy Spring profiles are also supported when a file is loaded from disk. A
+`spring.profiles.include=keywords` entry loads
+`application-keywords.properties` beside the main file; when that sibling is
+absent, lmyzmail uses the byte-pinned copy at
+`crates/lmyzmail/resources/java-oracle/application-keywords.properties`. The
+copy is frozen from Java commit `5dac2ab2922c30c726c4a83d7626c95ad4e231c8`
+and has SHA-256
+`cee5be2e215eaab7f1808850506164aa2aad4c7ba0dccbf0a9b0900657de8363`.
+Profile names, included bytes, and every list are bounded; the frozen profile
+contains 1,585 spam phrases, 758 phishing phrases, 69 shortener domains, and
+124 suspicious TLDs. Explicit `lmyzmail.*` keys still win over profile and
+legacy `botmail.*` values per field.
+
 Generated product identifiers use the new `lmyzmail` brand. The intentional
 wire-level exception is the TLSRPT HTTPS User-Agent, which is
 `lmyzmail-TLSRPT/1.0`; all delivery status, request framing, TLS, DNS, and
@@ -60,6 +73,34 @@ These are required Java parity behaviors, not approved security differences.
   before its attachment is indexed with `has_attachments=false`.
 - A missing session token on `POST /web/mail/send/multipart` returns `401` with
   an empty body, `Content-Length: 0`, and `Connection: close`.
+
+## SMTP body content filter
+
+`SPAM_KEYWORDS` and `SUSPICIOUS_URL` run in BODY order 10 and 20. Text and
+HTML-like MIME parts are scanned with bounded UTF-16 line buffers; keywords are
+counted at most once per configured phrase per line, URLs are exactly
+deduplicated, and each URL category is capped before the rule weight is
+applied. Text leaves are scanned as raw transfer-encoded bytes, matching the
+frozen Mime4j configuration. Only encoded `message/rfc822` containers are
+decoded before recursively parsing their child message; `message/global` is
+not traversed, and `multipart/digest` children default to `message/rfc822`.
+
+The parser permits at most 4,096 MIME entities, 64 active boundaries, a
+200-byte boundary, 64 KiB and 256 fields per entity header, 8 KiB per relevant
+field, 64 embedded messages, and 64 MiB of aggregate decoded work. Keyword and
+URL lines are bounded to 8,192 and 16,384 UTF-16 code units respectively, and
+URL deduplication retains at most 500 unique values. Exceeding a structural or
+work budget is a controlled delivery error instead of the oracle's partial
+fail-open result. The post-freeze supplemental allowlist is recorded as
+`smtp-mime-bounded-work` in
+`evidence/compatibility/smtp-content-filter-body-v1.json`. Header-only
+attachment indexing preserves the oracle's 256 KiB input window and stops at
+the first actual body callback, including through encoded embedded messages.
+
+The four base golden observations are recorded under
+`managed-smtp-content-filter-body-v1`. Six additional raw-CTE, charset,
+malformed, deep embedded-message, and UTF-8 parser-chunk observations are
+recorded under `managed-smtp-content-filter-body-edge-v1`.
 
 ## Approved security differences
 

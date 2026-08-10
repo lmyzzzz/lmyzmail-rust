@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "profile": "smtp-content-filter-body-v1",
+  "oracle_commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+  "oracle_jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc",
+  "contract": {
+    "phase": "BODY",
+    "order": [
+      "SPAM_KEYWORDS",
+      "SUSPICIOUS_URL"
+    ],
+    "keyword_scoring": "min(min(spam_hits * 0.5, base_score) + min(phishing_hits, base_score * 1.5) + max(density - threshold, 0) * 10, max_score) * rule_weight",
+    "keyword_hits": "each configured phrase counts at most once per physical line",
+    "url_deduplication": "exact case-sensitive URL bytes after UTF-8 text decoding",
+    "url_scoring": "cap each shortener, suspicious-TLD, and IP category at max_score / 2; cap aggregate at max_score; then apply rule weight",
+    "non_text_mime": "skip ordinary binary parts and message/global; scan text and HTML-like leaves as raw transfer-encoded bytes; decode only encoded message/rfc822 containers",
+    "multipart_digest_default": "a child without Content-Type defaults to message/rfc822",
+    "attachment_index": "preserve the Java 256 KiB header-only window, global multipart part count, and stop at the first actual body callback",
+    "header_format": "Java-compatible one-decimal half-up formatting",
+    "approved_security_difference": "smtp-mime-bounded-work"
+  },
+  "bounds": {
+    "keyword_line_utf16_units": 8192,
+    "url_line_utf16_units": 16384,
+    "unique_urls": 500,
+    "mime_parts": 4096,
+    "active_mime_boundaries": 64,
+    "mime_boundary_bytes": 200,
+    "mime_header_bytes_per_entity": 65536,
+    "mime_header_fields_per_entity": 256,
+    "mime_relevant_field_bytes": 8192,
+    "embedded_message_depth": 64,
+    "decoded_work_bytes": 67108864,
+    "attachment_index_input_bytes": 262144,
+    "configured_entries_per_list": 4096,
+    "configured_entry_bytes": 512,
+    "overflow": "controlled delivery error, never a clean result"
+  },
+  "behavior_difference": {
+    "id": "smtp-mime-bounded-work",
+    "frozen_definition_tree_sha256": "2c52c81d562b8a590d06cb21cadd99481ed91f20e3077ca9c09322c6eca37c7c",
+    "candidate_requirement": "Parse MIME with at most 4096 entities, 64 active multipart boundaries, 200 bytes per boundary, 65536 bytes and 256 fields per entity header, 8192 bytes per relevant field, 64 nested message/rfc822 entities, and 67108864 aggregate decoded-work bytes. Reject an exceeded budget with a controlled delivery error. Preserve the frozen 262144-byte header-only indexing window.",
+    "oracle_behavior": "The frozen BODY dispatcher configures Mime4j with unlimited line length, header length, header count, and content length and catches parser failures as a clean partial result. Its separate header-only email indexer limits raw input to 262144 bytes and headers to 1000 fields but does not bound nested MIME entities or aggregate transfer-decoding work.",
+    "reason": "Adversarial multipart and recursively encoded message/rfc822 input can otherwise consume unbounded parser state, allocation, or CPU relative to the accepted message. Silent fail-open also lets a resource-exhaustion payload bypass enabled BODY rules.",
+    "scope": "Only MIME input that exceeds an explicit candidate parser or decoded-work budget. Raw transfer-encoded text leaves, encoded message/rfc822 traversal, message/global handling, multipart/digest defaults, boundary semantics, BODY rule order and scoring, first-body attachment indexing, and all in-budget storage effects remain differential requirements.",
+    "candidate_tests": [
+      "smtp_content_filter::tests::content_filter_body_parser_enforces_header_and_boundary_budgets",
+      "smtp_content_filter::tests::content_filter_body_part_budget_is_an_error_not_fail_open",
+      "smtp_content_filter::tests::first_attachment_scan_enforces_embedded_depth_and_decoded_work_budgets",
+      "smtp_content_filter::tests::first_attachment_scan_matches_the_java_256_kib_index_window",
+      "smtp_content_filter::tests::first_attachment_scan_resumes_siblings_after_an_empty_multipart"
+    ],
+    "oracle_sources": {
+      "src/main/java/net/lmyz/lmyzmail/contentfilter/pipeline/StreamingBodyDispatcher.java": "c439826259e76acdf417dca11321375601674df8c76d4a1843e5d0a9a5e09b6a",
+      "src/main/java/net/lmyz/lmyzmail/mailbox/service/EmailIndexService.java": "107672087faee80640e2f6145bdfb117b220d4a190139aab8c5107f02843bdf2"
+    }
+  },
+  "configuration": {
+    "new_keys_win_per_field": true,
+    "legacy_rule_prefixes": [
+      "botmail.contentfilter.rules.SPAM_KEYWORDS",
+      "botmail.contentfilter.rules.SUSPICIOUS_URL"
+    ],
+    "legacy_data_prefixes": [
+      "botmail.contentfilter.keywords",
+      "botmail.contentfilter.url"
+    ],
+    "new_rule_prefixes": [
+      "lmyzmail.contentfilter.rules.SPAM_KEYWORDS",
+      "lmyzmail.contentfilter.rules.SUSPICIOUS_URL"
+    ],
+    "new_data_prefixes": [
+      "lmyzmail.contentfilter.keywords",
+      "lmyzmail.contentfilter.url"
+    ],
+    "legacy_profile": {
+      "include": "spring.profiles.include=keywords",
+      "source_sha256": "cee5be2e215eaab7f1808850506164aa2aad4c7ba0dccbf0a9b0900657de8363",
+      "spam_keywords": 1585,
+      "phishing_keywords": 758,
+      "shortener_domains": 69,
+      "suspicious_tlds": 124
+    }
+  },
+  "frozen_golden": {
+    "base": {
+      "profile": "managed-smtp-content-filter-body-v1",
+      "suite_sha256": "d239b28343869f1cc353a80704b13590cb23712af9cf7a22cb3eee0ebec883f9",
+      "keyword_low_density_sha256": "82e51586fdb60ba8d7167d9ce52ca8d43a6cb0b602f6b0cd6987e4cee9f93f25",
+      "keyword_and_shortener_sha256": "1a9fb064158c23824c48361ec75b7499a5708dbbbac62b6609dbb2c8d4efc1b0",
+      "url_dedup_and_cap_sha256": "330100ef221f34ad783ff9bee840323a73d437746fa9a98e8face5ce5cda8a9b",
+      "non_text_skip_sha256": "b8875dd792dded1709e53aabeaec879fbea1d5d9a491330a57f5d4843427a7a5"
+    },
+    "edge": {
+      "profile": "managed-smtp-content-filter-body-edge-v1",
+      "suite_sha256": "d7f66489db374f866efd253509b9cabc71124015695e389b384c5e13a0321a26",
+      "headerless_malformed_sha256": "7cd3a4eee61daf2ef2bba37349986c3cf466a7b8366b8393e8a7d37be6a6bcd4",
+      "deep_message_rfc822_sha256": "2a7fc9987c57de0228fa599c185896233bf3b60f94a3e27be5e339a16313a8f9",
+      "base64_text_leaf_raw_sha256": "34482b5fcdf693f3bd1953be31331bed7c8da37d2ba2eaff51386adceff71644",
+      "quoted_printable_text_leaf_raw_sha256": "9d3810b2c4203c62351916bfadc113c17a4809bfaa8daa7275339af6eef12bee",
+      "charset_utf16le_raw_sha256": "87a5ed2ff2f0e74102fc9e7ae470ce548db893068661de67d17f197f79e69d6d",
+      "chunk_boundary_utf8_sha256": "04b979a4f4216279c27cdb43d232896609b065605bf125f55260521af9a9d870"
+    }
+  },
+  "source": {
+    "candidate": {
+      "config/lmyzmail.properties.example": "ad76dfa82e93e5d16f4f01f90efd74664db2bd69ee4cfc80df2bc3de2fca9491",
+      "crates/lmyzmail/src/config.rs": "fd8be883e38c3a4bcbeb1c541b2edcf2e053c8714632c032f018f290f2eabc3d",
+      "crates/lmyzmail/src/smtp.rs": "94ec5598175b85435363ff4fb7d0e82a2ca279258b82ed113bc6c06c3a7164f3",
+      "crates/lmyzmail/src/smtp_content_filter.rs": "d846143b2d40636f1072ba8786a3e280ddc77f33875c1d7e3982cf0df967f060",
+      "crates/lmyzmail/resources/java-oracle/application-keywords.properties": "cee5be2e215eaab7f1808850506164aa2aad4c7ba0dccbf0a9b0900657de8363"
+    },
+    "blackbox": {
+      "blackbox/manifests/behavior-differences.json": "a16142ce0ae8b7aa88d99a9d866308462078b96a2f9b9b5389e83064f33b7f77",
+      "blackbox/tools/test_smtp_content_filter_body.py": "e38596c10a5c826adebd15201897c03a0ea5a155f28cdb12fc0c584ff4c7f000"
+    },
+    "oracle": {
+      "SpamKeywordDensityRule.java": "c1c7f74f485b71c045617f1776c2ba9418ab3ee84badef35232435202a1de60c",
+      "SuspiciousUrlRule.java": "e241e12f00faa6f326c137c0b62b0743f29c82169cc781c8e82af2883aea63b0",
+      "StreamingBodyDispatcher.java": "107f2332644bd6bd3e3bdf7019d25e9cccc881408c4ad33942e61d2b75d89737",
+      "ContentFilterProperties.java": "dd1b2d9ba1230a24310f9d53bcf162b95d53e39cbd5aaf09c3a0533745aff241"
+    },
+    "cargo_lock_sha256": "b2d3b0f7c10eda2ad071955a4a842966e7fe9cb90b91e79d9ea06081fb556c16"
+  },
+  "release": {
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "9919aeb0e9f6f577b02306340fcd0d5a8f252ad81d09b416269e3aabd84983bf"
+  },
+  "verification": [
+    {
+      "command": "cargo test -p lmyzmail content_filter --lib --locked --quiet",
+      "result": "45 passed"
+    },
+    {
+      "command": "cargo test --workspace --all-targets --locked --quiet",
+      "result": "534 tests passed"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --locked --quiet -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "pytest -q blackbox/tools/test_smtp_content_filter_body.py -m oracle",
+      "result": "2 passed, 2 deselected"
+    },
+    {
+      "command": "pytest -q blackbox/tools/test_smtp_content_filter_body.py -m candidate",
+      "result": "2 passed, 2 deselected"
+    },
+    {
+      "command": "pytest -q blackbox/tools -m candidate --ignore=blackbox/tools/test_smtp_content_filter_rbl.py",
+      "result": "33 passed, 35 deselected"
+    },
+    {
+      "command": "pytest -q blackbox/tests -m 'not integration'",
+      "result": "133 passed, 89 deselected"
+    }
+  ]
+}
