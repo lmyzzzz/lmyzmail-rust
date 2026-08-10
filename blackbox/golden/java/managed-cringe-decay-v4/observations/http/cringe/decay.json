@@ -1,0 +1,343 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "2c52c81d562b8a590d06cb21cadd99481ed91f20e3077ca9c09322c6eca37c7c",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "json-object-order:jdk-map-of:cringe-decay",
+      "database-time:bounded-decay-transaction"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-cringe-decay"
+  },
+  "observation": {
+    "before": {
+      "below_threshold_estimate": {
+        "body_json": {
+          "currentScore": 6,
+          "decayConfig": {
+            "amount": 10,
+            "interval": "PT24H"
+          },
+          "estimatedCycles": 0,
+          "estimatedTimeToUnban": "PT0S",
+          "ipAddress": "203.0.113.11",
+          "scoreToDecay": 0,
+          "unbanThreshold": 30
+        },
+        "headers": [
+          [
+            "content-type",
+            "application/json; charset=UTF-8"
+          ],
+          [
+            "content-length",
+            "179"
+          ]
+        ],
+        "normalized_body_wire": {
+          "base64": "eyJjdXJyZW50U2NvcmUiOjYsImRlY2F5Q29uZmlnIjp7ImFtb3VudCI6MTAsImludGVydmFsIjoiUFQyNEgifSwiZXN0aW1hdGVkQ3ljbGVzIjowLCJlc3RpbWF0ZWRUaW1lVG9VbmJhbiI6IlBUMFMiLCJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuMTEiLCJzY29yZVRvRGVjYXkiOjAsInVuYmFuVGhyZXNob2xkIjozMH0=",
+          "length": 179,
+          "sha256": "03fa2391e27e91f24fa74961ff1a977a9f329b00ed9b253ae77da6a41cd4d03b"
+        },
+        "status_code": 200,
+        "status_line": "HTTP/1.1 200 OK"
+      },
+      "config": {
+        "body": {
+          "base64": "eyJpbnRlcnZhbCI6ODY0MDAuMDAwMDAwMDAwLCJhbW91bnQiOjEwLCJjaGVja0ludGVydmFsIjozNjAwLjAwMDAwMDAwMCwiaG91cmx5UmF0ZSI6MC40MTY2NjY2NjY2NjY2NjY3LCJyZXRlbnRpb25EYXlzIjozNjB9",
+          "length": 123,
+          "sha256": "e84e303c5e7b4c9ac61388aecab1c5ec503f1447ee65fd57308ead138b62f7a3"
+        },
+        "headers": [
+          [
+            "content-type",
+            "application/json; charset=UTF-8"
+          ],
+          [
+            "content-length",
+            "123"
+          ]
+        ],
+        "status_code": 200,
+        "status_line": "HTTP/1.1 200 OK"
+      },
+      "high_estimate": {
+        "body_json": {
+          "currentScore": 47,
+          "decayConfig": {
+            "amount": 10,
+            "interval": "PT24H"
+          },
+          "estimatedCycles": 2,
+          "estimatedTimeToUnban": "PT48H",
+          "ipAddress": "203.0.113.10",
+          "scoreToDecay": 17,
+          "unbanThreshold": 30
+        },
+        "headers": [
+          [
+            "content-type",
+            "application/json; charset=UTF-8"
+          ],
+          [
+            "content-length",
+            "182"
+          ]
+        ],
+        "normalized_body_wire": {
+          "base64": "eyJjdXJyZW50U2NvcmUiOjQ3LCJkZWNheUNvbmZpZyI6eyJhbW91bnQiOjEwLCJpbnRlcnZhbCI6IlBUMjRIIn0sImVzdGltYXRlZEN5Y2xlcyI6MiwiZXN0aW1hdGVkVGltZVRvVW5iYW4iOiJQVDQ4SCIsImlwQWRkcmVzcyI6IjIwMy4wLjExMy4xMCIsInNjb3JlVG9EZWNheSI6MTcsInVuYmFuVGhyZXNob2xkIjozMH0=",
+          "length": 182,
+          "sha256": "3d6779b92adc3d8a59bd68f81953a92092341359e5e386b7c4a1b510edc15612"
+        },
+        "status_code": 200,
+        "status_line": "HTTP/1.1 200 OK"
+      },
+      "missing_estimate": {
+        "body": {
+          "base64": "eyJlcnJvciI6Im5vdF9mb3VuZCJ9",
+          "length": 21,
+          "sha256": "d2dfdc9511fbeaa0701d1f8730f4989313b062ca1b61a2bd8bed8f4f5d654b5d"
+        },
+        "headers": [
+          [
+            "content-type",
+            "application/json; charset=UTF-8"
+          ],
+          [
+            "content-length",
+            "21"
+          ]
+        ],
+        "status_code": 404,
+        "status_line": "HTTP/1.1 404 Not Found"
+      },
+      "read_only_decay": {
+        "body_json": {
+          "error": "permission_denied",
+          "message": "This API key does not have write permission"
+        },
+        "headers": [
+          [
+            "content-type",
+            "application/json; charset=UTF-8"
+          ],
+          [
+            "content-length",
+            "85"
+          ]
+        ],
+        "normalized_body_wire": {
+          "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHdyaXRlIHBlcm1pc3Npb24ifQ==",
+          "length": 85,
+          "sha256": "32107ee217d8f6bf694dbf509a82534f15826fe78e97624819be0503c063980b"
+        },
+        "status_code": 403,
+        "status_line": "HTTP/1.1 403 Forbidden"
+      },
+      "write_only_config": {
+        "body_json": {
+          "error": "permission_denied",
+          "message": "This API key does not have read permission"
+        },
+        "headers": [
+          [
+            "content-type",
+            "application/json; charset=UTF-8"
+          ],
+          [
+            "content-length",
+            "84"
+          ]
+        ],
+        "normalized_body_wire": {
+          "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+          "length": 84,
+          "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+        },
+        "status_code": 403,
+        "status_line": "HTTP/1.1 403 Forbidden"
+      }
+    },
+    "database_after_first_decay": [
+      {
+        "currentScore": 21,
+        "ipAddress": "198.51.100.12",
+        "lastDecayAt": "<decay-transaction-time>",
+        "totalScore": 31
+      },
+      {
+        "currentScore": 0,
+        "ipAddress": "198.51.100.13",
+        "lastDecayAt": "2024-01-02T00:00:00Z",
+        "totalScore": 50
+      },
+      {
+        "currentScore": 52,
+        "ipAddress": "198.51.100.14",
+        "lastDecayAt": "2099-01-01T00:00:00Z",
+        "totalScore": 52
+      },
+      {
+        "currentScore": 37,
+        "ipAddress": "203.0.113.10",
+        "lastDecayAt": "<decay-transaction-time>",
+        "totalScore": 100
+      },
+      {
+        "currentScore": 0,
+        "ipAddress": "203.0.113.11",
+        "lastDecayAt": "<decay-transaction-time>",
+        "totalScore": 6
+      }
+    ],
+    "database_after_write_only_decay": [
+      {
+        "currentScore": 21,
+        "ipAddress": "198.51.100.12",
+        "lastDecayAt": "<decay-transaction-time>",
+        "totalScore": 31
+      },
+      {
+        "currentScore": 0,
+        "ipAddress": "198.51.100.13",
+        "lastDecayAt": "2024-01-02T00:00:00Z",
+        "totalScore": 50
+      },
+      {
+        "currentScore": 52,
+        "ipAddress": "198.51.100.14",
+        "lastDecayAt": "2099-01-01T00:00:00Z",
+        "totalScore": 52
+      },
+      {
+        "currentScore": 37,
+        "ipAddress": "203.0.113.10",
+        "lastDecayAt": "<decay-transaction-time>",
+        "totalScore": 100
+      },
+      {
+        "currentScore": 0,
+        "ipAddress": "203.0.113.11",
+        "lastDecayAt": "<decay-transaction-time>",
+        "totalScore": 6
+      }
+    ],
+    "first_decay": {
+      "body_json": {
+        "affectedIPs": 3,
+        "message": "Decay completed"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "45"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJhZmZlY3RlZElQcyI6MywibWVzc2FnZSI6IkRlY2F5IGNvbXBsZXRlZCJ9",
+        "length": 45,
+        "sha256": "6ac94167bd669bbe02f3b7010a9bdab1fe10bc48610510530bc0e3f6c62e3e73"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "high_estimate_after_decay": {
+      "body_json": {
+        "currentScore": 37,
+        "decayConfig": {
+          "amount": 10,
+          "interval": "PT24H"
+        },
+        "estimatedCycles": 1,
+        "estimatedTimeToUnban": "PT24H",
+        "ipAddress": "203.0.113.10",
+        "scoreToDecay": 7,
+        "unbanThreshold": 30
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "181"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjdXJyZW50U2NvcmUiOjM3LCJkZWNheUNvbmZpZyI6eyJhbW91bnQiOjEwLCJpbnRlcnZhbCI6IlBUMjRIIn0sImVzdGltYXRlZEN5Y2xlcyI6MSwiZXN0aW1hdGVkVGltZVRvVW5iYW4iOiJQVDI0SCIsImlwQWRkcmVzcyI6IjIwMy4wLjExMy4xMCIsInNjb3JlVG9EZWNheSI6NywidW5iYW5UaHJlc2hvbGQiOjMwfQ==",
+        "length": 181,
+        "sha256": "690137025d03e5195742c2ee332247ed589e8f8a7d7069d5d01d18ffab224d35"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "second_decay": {
+      "body_json": {
+        "affectedIPs": 0,
+        "message": "Decay completed"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "45"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJhZmZlY3RlZElQcyI6MCwibWVzc2FnZSI6IkRlY2F5IGNvbXBsZXRlZCJ9",
+        "length": 45,
+        "sha256": "ed72c6a2193eabaad63b71668e811b311c90aace04e4239fd304757829df4126"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "write_only_decay": {
+      "body_json": {
+        "affectedIPs": 3,
+        "message": "Decay completed"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "45"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJhZmZlY3RlZElQcyI6MywibWVzc2FnZSI6IkRlY2F5IGNvbXBsZXRlZCJ9",
+        "length": 45,
+        "sha256": "6ac94167bd669bbe02f3b7010a9bdab1fe10bc48610510530bc0e3f6c62e3e73"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    }
+  },
+  "schema_version": 2
+}

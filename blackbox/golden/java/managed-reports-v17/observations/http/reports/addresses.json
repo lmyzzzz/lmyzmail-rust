@@ -1,0 +1,293 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "2c52c81d562b8a590d06cb21cadd99481ed91f20e3077ca9c09322c6eca37c7c",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "header:date:http-date",
+      "json-object-order:reports-contract"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-reports"
+  },
+  "observation": {
+    "cases": [
+      {
+        "domain": "MiXeD.Example",
+        "response": {
+          "body_json": {
+            "dmarc": {
+              "https": [
+                "https://mixed.example/dmarc",
+                "https://collector.ext.example/dmarc"
+              ],
+              "mailto": [
+                "local@mixed.example",
+                "external@reports.example"
+              ]
+            },
+            "domain": "MiXeD.Example",
+            "tlsrpt": {
+              "https": [
+                "https://mixed.example/tls"
+              ],
+              "mailto": [
+                "tls@mixed.example"
+              ]
+            }
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "254"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJkbWFyYyI6eyJodHRwcyI6WyJodHRwczovL21peGVkLmV4YW1wbGUvZG1hcmMiLCJodHRwczovL2NvbGxlY3Rvci5leHQuZXhhbXBsZS9kbWFyYyJdLCJtYWlsdG8iOlsibG9jYWxAbWl4ZWQuZXhhbXBsZSIsImV4dGVybmFsQHJlcG9ydHMuZXhhbXBsZSJdfSwiZG9tYWluIjoiTWlYZUQuRXhhbXBsZSIsInRsc3JwdCI6eyJodHRwcyI6WyJodHRwczovL21peGVkLmV4YW1wbGUvdGxzIl0sIm1haWx0byI6WyJ0bHNAbWl4ZWQuZXhhbXBsZSJdfX0=",
+            "length": 254,
+            "sha256": "7187e907515507bca62347a7fbf8dbd1576bc3cc2661f94a2b3602a175f11b73"
+          },
+          "status_code": 200,
+          "status_line": "HTTP/1.1 200 OK"
+        }
+      },
+      {
+        "domain": "ambiguous.example",
+        "response": {
+          "body_json": {
+            "dmarc": {
+              "https": [],
+              "mailto": []
+            },
+            "domain": "ambiguous.example",
+            "tlsrpt": {
+              "https": [],
+              "mailto": []
+            }
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "97"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJkbWFyYyI6eyJodHRwcyI6W10sIm1haWx0byI6W119LCJkb21haW4iOiJhbWJpZ3VvdXMuZXhhbXBsZSIsInRsc3JwdCI6eyJodHRwcyI6W10sIm1haWx0byI6W119fQ==",
+            "length": 97,
+            "sha256": "9d055433df40e274149dc84041c51f6b20eecb60eba92480f084c4621e079bd6"
+          },
+          "status_code": 200,
+          "status_line": "HTTP/1.1 200 OK"
+        }
+      },
+      {
+        "domain": "lookalike.example",
+        "response": {
+          "body_json": {
+            "dmarc": {
+              "https": [],
+              "mailto": []
+            },
+            "domain": "lookalike.example",
+            "tlsrpt": {
+              "https": [],
+              "mailto": []
+            }
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "97"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJkbWFyYyI6eyJodHRwcyI6W10sIm1haWx0byI6W119LCJkb21haW4iOiJsb29rYWxpa2UuZXhhbXBsZSIsInRsc3JwdCI6eyJodHRwcyI6W10sIm1haWx0byI6W119fQ==",
+            "length": 97,
+            "sha256": "ed7293228446847281e942eb42fd5e91974349c54a06cf939c136c724787edad"
+          },
+          "status_code": 200,
+          "status_line": "HTTP/1.1 200 OK"
+        }
+      },
+      {
+        "domain": "missing.example",
+        "response": {
+          "body_json": {
+            "dmarc": {
+              "https": [],
+              "mailto": []
+            },
+            "domain": "missing.example",
+            "tlsrpt": {
+              "https": [],
+              "mailto": []
+            }
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "95"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJkbWFyYyI6eyJodHRwcyI6W10sIm1haWx0byI6W119LCJkb21haW4iOiJtaXNzaW5nLmV4YW1wbGUiLCJ0bHNycHQiOnsiaHR0cHMiOltdLCJtYWlsdG8iOltdfX0=",
+            "length": 95,
+            "sha256": "de3cbf325693211e11755ddb18fe4960a2f96a3d5026677aa016ab5c1d585297"
+          },
+          "status_code": 200,
+          "status_line": "HTTP/1.1 200 OK"
+        }
+      },
+      {
+        "domain": "limit.example",
+        "response": {
+          "body_json": {
+            "dmarc": {
+              "https": [],
+              "mailto": [
+                "limit-0@limit.example",
+                "limit-1@limit.example",
+                "limit-2@limit.example",
+                "limit-3@limit.example",
+                "limit-4@limit.example",
+                "limit-5@limit.example",
+                "limit-6@limit.example",
+                "limit-7@limit.example",
+                "limit-8@limit.example",
+                "limit-9@limit.example"
+              ]
+            },
+            "domain": "limit.example",
+            "tlsrpt": {
+              "https": [],
+              "mailto": [
+                "tls@limit.example"
+              ]
+            }
+          },
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "351"
+            ]
+          ],
+          "normalized_body_wire": {
+            "base64": "eyJkbWFyYyI6eyJodHRwcyI6W10sIm1haWx0byI6WyJsaW1pdC0wQGxpbWl0LmV4YW1wbGUiLCJsaW1pdC0xQGxpbWl0LmV4YW1wbGUiLCJsaW1pdC0yQGxpbWl0LmV4YW1wbGUiLCJsaW1pdC0zQGxpbWl0LmV4YW1wbGUiLCJsaW1pdC00QGxpbWl0LmV4YW1wbGUiLCJsaW1pdC01QGxpbWl0LmV4YW1wbGUiLCJsaW1pdC02QGxpbWl0LmV4YW1wbGUiLCJsaW1pdC03QGxpbWl0LmV4YW1wbGUiLCJsaW1pdC04QGxpbWl0LmV4YW1wbGUiLCJsaW1pdC05QGxpbWl0LmV4YW1wbGUiXX0sImRvbWFpbiI6ImxpbWl0LmV4YW1wbGUiLCJ0bHNycHQiOnsiaHR0cHMiOltdLCJtYWlsdG8iOlsidGxzQGxpbWl0LmV4YW1wbGUiXX19",
+            "length": 351,
+            "sha256": "7a3c5bcd276291963b9406e7dbacad25b6b8f944d86cb462a61ff7a99667b3e6"
+          },
+          "status_code": 200,
+          "status_line": "HTTP/1.1 200 OK"
+        }
+      }
+    ],
+    "dnsQueries": [
+      {
+        "qclass": 1,
+        "qname": "_dmarc.mixed.example",
+        "qtype": 16
+      },
+      {
+        "qclass": 1,
+        "qname": "mixed.example._report._dmarc.reports.example",
+        "qtype": 16
+      },
+      {
+        "qclass": 1,
+        "qname": "mixed.example._report._dmarc.collector.ext.example",
+        "qtype": 16
+      },
+      {
+        "qclass": 1,
+        "qname": "_smtp._tls.mixed.example",
+        "qtype": 16
+      },
+      {
+        "qclass": 1,
+        "qname": "_dmarc.ambiguous.example",
+        "qtype": 16
+      },
+      {
+        "qclass": 1,
+        "qname": "_smtp._tls.ambiguous.example",
+        "qtype": 16
+      },
+      {
+        "qclass": 1,
+        "qname": "_dmarc.lookalike.example",
+        "qtype": 16
+      },
+      {
+        "qclass": 1,
+        "qname": "_smtp._tls.lookalike.example",
+        "qtype": 16
+      },
+      {
+        "qclass": 1,
+        "qname": "_dmarc.missing.example",
+        "qtype": 16
+      },
+      {
+        "qclass": 1,
+        "qname": "_dmarc.missing.example",
+        "qtype": 16
+      },
+      {
+        "qclass": 1,
+        "qname": "_smtp._tls.missing.example",
+        "qtype": 16
+      },
+      {
+        "qclass": 1,
+        "qname": "_smtp._tls.missing.example",
+        "qtype": 16
+      },
+      {
+        "qclass": 1,
+        "qname": "_dmarc.limit.example",
+        "qtype": 16
+      },
+      {
+        "qclass": 1,
+        "qname": "_smtp._tls.limit.example",
+        "qtype": 16
+      }
+    ]
+  },
+  "schema_version": 2
+}
