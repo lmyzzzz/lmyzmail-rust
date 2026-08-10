@@ -29,7 +29,7 @@ def test_managed_java_smtp_mime_goldens(record_java_golden: bool) -> None:
     paths = JavaOracleRuntime().paths
     differential = DifferentialRunner(
         paths.repository,
-        paths.repository / "blackbox/golden/java/managed-smtp-mime-v32",
+        paths.repository / "blackbox/golden/java/managed-smtp-mime-v33",
         "managed-smtp-mime",
         record_java=record_java_golden,
     )
@@ -48,7 +48,7 @@ def test_rust_candidate_smtp_mime_matches_frozen_java_golden() -> None:
     repository = Path(__file__).resolve().parents[2]
     differential = DifferentialRunner(
         repository,
-        repository / "blackbox/golden/java/managed-smtp-mime-v32",
+        repository / "blackbox/golden/java/managed-smtp-mime-v33",
         "managed-smtp-mime",
     )
     with _candidate(repository) as candidate:

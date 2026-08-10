@@ -22,7 +22,7 @@ def test_frozen_java_foundation_http_golden(record_java_golden: bool) -> None:
     paths = JavaOracleRuntime().paths
     runner = DifferentialRunner(
         paths.repository,
-        paths.repository / "blackbox/golden/java/managed-candidate-public-config-v26",
+        paths.repository / "blackbox/golden/java/managed-candidate-public-config-v27",
         "managed-candidate-public-config",
         record_java=record_java_golden,
     )
@@ -52,6 +52,6 @@ def test_rust_candidate_foundation_http_matches_frozen_java_golden() -> None:
     with candidate:
         DifferentialRunner(
             repository,
-            repository / "blackbox/golden/java/managed-candidate-public-config-v26",
+            repository / "blackbox/golden/java/managed-candidate-public-config-v27",
             "managed-candidate-public-config",
         ).verify_candidate(FOUNDATION_HTTP_SCENARIOS, candidate)

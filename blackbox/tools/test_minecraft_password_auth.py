@@ -26,7 +26,7 @@ from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-password-auth-v3"
+_GOLDEN = "managed-minecraft-password-auth-v4"
 _USERNAME = b"PassAuthProbe"
 _EMAIL = "qa@example.test"
 _BAD_PASSWORD = "DefinitelyWrong123!"  # noqa: S105

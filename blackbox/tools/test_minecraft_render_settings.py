@@ -35,7 +35,7 @@ from lmyzmail_blackbox.differential import DifferentialRunner, RuntimeTarget, Sc
 from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 
-_GOLDEN = "managed-minecraft-render-settings-v3"
+_GOLDEN = "managed-minecraft-render-settings-v4"
 _MENU_IDS = (0x2D, 0x30)
 _OPEN_EDITOR_IDS = (
     0x32,

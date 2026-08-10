@@ -41,11 +41,14 @@ def test_managed_java_outbound_queue_golden(record_java_golden: bool) -> None:
             f"{result.returncode}:\nstdout={result.stdout}\nstderr={result.stderr}"
         )
     observed = json.loads(result.stdout)
-    path = repository / "blackbox/golden/java/managed-outbound-queue-v32.json"
+    path = repository / "blackbox/golden/java/managed-outbound-queue-v33.json"
     attestation = GoldenAttestation.from_repository(
         repository,
         profile="managed-outbound-queue",
-        normalizers=("outbound:generated-sent-filename",),
+        normalizers=(
+            "outbound:generated-sent-filename",
+            "outbound:redis-seven-day-ttl-observation-window",
+        ),
     )
     store = GoldenStore(path.parent, attestation, record=record_java_golden)
     relative_path = path.name

@@ -26,7 +26,7 @@ from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-email-prompt-v3"
+_GOLDEN = "managed-minecraft-email-prompt-v4"
 _USERNAME = b"EmailPromptProbe"
 _INVALID_EMAIL = "not-an-email"
 _VALID_EMAIL_INPUT = "  qa@example.test  "

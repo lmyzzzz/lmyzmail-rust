@@ -32,13 +32,13 @@ def test_managed_java_smtp_data_goldens(record_java_golden: bool) -> None:
     paths = JavaOracleRuntime().paths
     differential = DifferentialRunner(
         paths.repository,
-        paths.repository / "blackbox/golden/java/managed-smtp-data-v32",
+        paths.repository / "blackbox/golden/java/managed-smtp-data-v33",
         "managed-smtp-data",
         record_java=record_java_golden,
     )
     oracle_evidence = DifferentialRunner(
         paths.repository,
-        paths.repository / "blackbox/golden/java/managed-smtp-data-oracle-evidence-v32",
+        paths.repository / "blackbox/golden/java/managed-smtp-data-oracle-evidence-v33",
         "managed-smtp-data-oracle-evidence",
         record_java=record_java_golden,
     )
@@ -65,7 +65,7 @@ def test_rust_candidate_smtp_data_matches_frozen_java_golden() -> None:
     repository = Path(__file__).resolve().parents[2]
     differential = DifferentialRunner(
         repository,
-        repository / "blackbox/golden/java/managed-smtp-data-v32",
+        repository / "blackbox/golden/java/managed-smtp-data-v33",
         "managed-smtp-data",
     )
     with _candidate(repository) as candidate:

@@ -27,6 +27,8 @@ _SENTINEL = b"-999999999"
 _DNS_HOST = "outbound.fixture.test"
 _FAKE_IP = "93.184.216.34"
 _RECIPIENT = f"recipient@{_DNS_HOST}"
+_TASK_TTL_SECONDS = 7 * 24 * 60 * 60
+_TASK_TTL_OBSERVATION_WINDOW_SECONDS = 30
 _MESSAGE_ID_RE = re.compile(rb"(?im)^(Message-ID:\s*)<[^>\r\n]+>")
 _DATE_RE = re.compile(rb"(?im)^Date:\s*[^\r\n]+")
 _DKIM_RE = re.compile(rb"(?ims)^DKIM-Signature:.*?(?=^[^ \t\r\n][^\r\n]*:|\Z)")
@@ -79,6 +81,16 @@ def _logical_id(task_id: int, ids: dict[int, str]) -> str:
 def _redis_type(client: redis.Redis, key: str) -> str:
     value = cast(bytes, client.type(key))
     return value.decode("ascii") if isinstance(value, bytes) else str(value)
+
+
+def _normalize_task_ttl(ttl_seconds: int) -> int:
+    minimum = _TASK_TTL_SECONDS - _TASK_TTL_OBSERVATION_WINDOW_SECONDS
+    if not minimum <= ttl_seconds <= _TASK_TTL_SECONDS:
+        raise AssertionError(
+            "outbound task TTL is outside the seven-day observation window: "
+            f"{ttl_seconds} not in [{minimum}, {_TASK_TTL_SECONDS}]"
+        )
+    return _TASK_TTL_SECONDS
 
 
 def _redis_snapshot(client: redis.Redis, ids: dict[int, str]) -> dict[str, Any]:
@@ -148,7 +160,7 @@ def _redis_snapshot(client: redis.Redis, ids: dict[int, str]) -> dict[str, Any]:
             "file_bytes": (
                 Path(file_path).stat().st_size if file_path and Path(file_path).is_file() else None
             ),
-            "ttl_seconds": max(0, cast(int, client.ttl(task_key))),
+            "ttl_seconds": _normalize_task_ttl(cast(int, client.ttl(task_key))),
         }
     return {
         "pending": pending,

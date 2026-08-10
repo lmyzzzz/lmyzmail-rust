@@ -30,7 +30,7 @@ def test_frozen_java_xdp_disabled_golden(
     repository = Path(__file__).resolve().parents[2]
     runner = DifferentialRunner(
         repository,
-        repository / "blackbox/golden/java/managed-xdp-disabled-v4",
+        repository / "blackbox/golden/java/managed-xdp-disabled-v5",
         "managed-xdp-disabled",
         record_java=record_java_golden,
     )

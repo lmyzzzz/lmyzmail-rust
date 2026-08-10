@@ -23,7 +23,7 @@ from lmyzmail_blackbox.persistent_runtime import PersistentJavaOracleRuntime
 from lmyzmail_blackbox.ports import PortSet
 from lmyzmail_blackbox.runtime import CandidateRuntime
 
-_GOLDEN = "managed-minecraft-world-v3"
+_GOLDEN = "managed-minecraft-world-v4"
 _USERNAME = b"WorldProbe"
 _INITIAL_PLAY_IDS = (0x01, 0x41, 0x05, 0x39, 0x03, 0x06, 0x09)
 _MAX_BOOTSTRAP_PACKETS = 4_096
