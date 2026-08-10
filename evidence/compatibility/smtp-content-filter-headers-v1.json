@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "profile": "managed-smtp-content-filter-headers",
+  "scope": [
+    "MISSING_HEADERS",
+    "SUBJECT_ENCODING_TRICK",
+    "EXCESSIVE_RECIPIENTS"
+  ],
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "harness": {
+    "frozen_definition_tree_sha256": "65f4e5becaadf0905ceef2f9070914a07c01bacf82b6c383bb0d46b43fc0e951",
+    "external_test": {
+      "path": "blackbox/tools/test_smtp_content_filter_headers.py",
+      "sha256": "bf3ef357672f0f2cd643f99ed5b9bc7bd56fe396f67ad17f10deed7a7f59ff7c"
+    },
+    "placement": "The test remains outside blackbox/tests so this supplemental profile does not change the frozen definition tree."
+  },
+  "oracle_rule_sources": [
+    {
+      "rule": "MISSING_HEADERS",
+      "path": "src/main/java/net/lmyz/lmyzmail/contentfilter/rules/header/MissingRequiredHeaderRule.java",
+      "sha256": "0c4004366b0ed2eb8c4cfc2d67f2cadd25c57111a92dcfb9a6b9fea6e11c91c3"
+    },
+    {
+      "rule": "SUBJECT_ENCODING_TRICK",
+      "path": "src/main/java/net/lmyz/lmyzmail/contentfilter/rules/header/SubjectEncodingTrickRule.java",
+      "sha256": "d2aff9875bde2c86af9b824a14f77a6068ce7ac36c1c8d8fd1cd0f4f1161ccb7"
+    },
+    {
+      "rule": "EXCESSIVE_RECIPIENTS",
+      "path": "src/main/java/net/lmyz/lmyzmail/contentfilter/rules/header/ExcessiveRecipientRule.java",
+      "sha256": "31e6ce27565a1e65f013f4680c798d6a088f85e2d68fe2375a2fb660eb9f398f"
+    }
+  ],
+  "create_once_generations": [
+    {
+      "generation": "managed-smtp-content-filter-headers-v1",
+      "status": "rejected",
+      "reason": "The Java SMTP transaction returned 250, but the ephemeral runtime was removed before the missing asynchronous storage result could be diagnosed.",
+      "artifacts": {
+        "suite.json": "d90f6e961ff2b4d3def3b372057a1c09ea4d91c2adb72277b20d2039778b1079",
+        "observations": []
+      }
+    },
+    {
+      "generation": "managed-smtp-content-filter-headers-v2",
+      "status": "rejected",
+      "reason": "The persistent-runtime target wrapper did not expose java-oracle target_kind, so the provenance gate rejected capture before an observation was written.",
+      "artifacts": {
+        "suite.json": "d90f6e961ff2b4d3def3b372057a1c09ea4d91c2adb72277b20d2039778b1079",
+        "observations": []
+      },
+      "artifact_recovery": {
+        "status": "restored_after_handoff_gap",
+        "method": "The missing suite-only directory was restored byte-for-byte from v1 after confirming v1 and v3 carried the same 13071-byte suite and no observations.",
+        "restored_sha256": "d90f6e961ff2b4d3def3b372057a1c09ea4d91c2adb72277b20d2039778b1079"
+      }
+    },
+    {
+      "generation": "managed-smtp-content-filter-headers-v3",
+      "status": "rejected",
+      "reason": "The frozen security pipeline asynchronously rejected unauthenticated use of the local example.test RFC5322.From domain after SMTP acceptance.",
+      "oracle_log": "Async drop: email rejected after verification: 5.7.1 Message rejected: unauthenticated use of local RFC5322.From domain example.test.",
+      "artifacts": {
+        "suite.json": "d90f6e961ff2b4d3def3b372057a1c09ea4d91c2adb72277b20d2039778b1079",
+        "observations": []
+      }
+    },
+    {
+      "generation": "managed-smtp-content-filter-headers-v4",
+      "status": "rejected",
+      "reason": "The first three observations were recorded, then the harness waited for decoded Subject FREE MONEY while Java correctly indexed adjacent RFC 2047 encoded-words as FREEMONEY.",
+      "artifacts": {
+        "suite.json": "7490ef924af9e15ee9da2dc559ab0d661c5abdd2af668a99651b14a4737e7d6b",
+        "observations": {
+          "smtp/content-filter/header-clean.json": "3c0a79f6805663619be74c855bdfce73fa8b7a5bf25edaf52a1e8c4359823839",
+          "smtp/content-filter/header-missing-required.json": "a397d6e5ecfdf0e4f2bc70474b9a4dded74c2cee34e0b56d55dc03d90f9cf10e",
+          "smtp/content-filter/header-malformed-required.json": "043aab5869209d78479594c2d5884017f47f7280dd0d9a25f7337aac201081fe"
+        }
+      }
+    },
+    {
+      "generation": "managed-smtp-content-filter-headers-v5",
+      "status": "accepted",
+      "record_result": "1 passed in 49.36s",
+      "independent_replay_result": "1 passed in 45.32s",
+      "artifacts": {
+        "suite.json": "7490ef924af9e15ee9da2dc559ab0d661c5abdd2af668a99651b14a4737e7d6b",
+        "observations": {
+          "smtp/content-filter/header-clean.json": "3c0a79f6805663619be74c855bdfce73fa8b7a5bf25edaf52a1e8c4359823839",
+          "smtp/content-filter/header-missing-required.json": "a397d6e5ecfdf0e4f2bc70474b9a4dded74c2cee34e0b56d55dc03d90f9cf10e",
+          "smtp/content-filter/header-malformed-required.json": "043aab5869209d78479594c2d5884017f47f7280dd0d9a25f7337aac201081fe",
+          "smtp/content-filter/header-encoded-subject.json": "9df6086e04bd1d6fb10760e51971aaa381150d35108bf0c3cbdaafff5ff68fe8",
+          "smtp/content-filter/header-recipients-20.json": "eead59cf92caf7dc5c4c1d20dc2c80318b426f3e557f26557dfad92ab4cc1bad",
+          "smtp/content-filter/header-recipients-50.json": "16bd3fcd56a0c76bdb664b82f9080a73806cac296acd343d38ed08cce7d69d77"
+        }
+      }
+    }
+  ],
+  "accepted_contract": {
+    "maildir_header_lines": {
+      "header-clean": [
+        "X-Spam-Status: No",
+        "X-Spam-Score: 0.0"
+      ],
+      "header-missing-required": [
+        "X-Spam-Status: No",
+        "X-Spam-Score: 3.5",
+        "X-Spam-Rules: MISSING_HEADERS=3.5"
+      ],
+      "header-malformed-required": [
+        "X-Spam-Status: No",
+        "X-Spam-Score: 1.8",
+        "X-Spam-Rules: MISSING_HEADERS=1.8"
+      ],
+      "header-encoded-subject": [
+        "X-Spam-Status: No",
+        "X-Spam-Score: 2.5",
+        "X-Spam-Rules: SUBJECT_ENCODING_TRICK=2.5"
+      ],
+      "header-recipients-20": [
+        "X-Spam-Status: No",
+        "X-Spam-Score: 1.0",
+        "X-Spam-Rules: EXCESSIVE_RECIPIENTS=1.0"
+      ],
+      "header-recipients-50": [
+        "X-Spam-Status: No",
+        "X-Spam-Score: 2.0",
+        "X-Spam-Rules: EXCESSIVE_RECIPIENTS=2.0"
+      ]
+    },
+    "storage": {
+      "folder": "spam",
+      "maildir_new_regular_files": 1,
+      "maildir_orphan_files": 0,
+      "maildir_residual_temp_files": 0,
+      "postgres_matching_rows": 1,
+      "redis_delta": 1,
+      "redis_pttl": -1
+    },
+    "delivery_cardinality": "exactly-once"
+  }
+}
