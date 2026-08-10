@@ -30,7 +30,7 @@ from lmyzmail_blackbox.differential import DifferentialRunner, RuntimeTarget, Sc
 from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 
-_GOLDEN = "managed-minecraft-folder-gui-v2"
+_GOLDEN = "managed-minecraft-folder-gui-v3"
 _MENU_IDS = (0x2D, 0x30)
 _FOLDER_OPEN_IDS = (0x32, 0x2F, 0x30, 0x02, 0x2E, 0x2F, 0x2F, 0x2D, 0x30)
 _PAGE_IDS = (0x32, 0x2F, 0x30, 0x30)

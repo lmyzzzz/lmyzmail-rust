@@ -50,7 +50,7 @@ from lmyzmail_blackbox.differential import DifferentialRunner, RuntimeTarget, Sc
 from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 
-_GOLDEN = "managed-minecraft-video-v3"
+_GOLDEN = "managed-minecraft-video-v4"
 _VIDEO_MEMBER = "BOOT-INF/classes/skibidi_toilet_episode_1.mp4"
 _VIDEO_SIZE = 15_048_248
 _VIDEO_SHA256 = "0e76229bb77ebcf471aec692fa34709cfbbe3dc192127a852a518e34bdd0ecc7"

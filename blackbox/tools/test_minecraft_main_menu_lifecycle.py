@@ -30,7 +30,7 @@ from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-main-menu-lifecycle-v2"
+_GOLDEN = "managed-minecraft-main-menu-lifecycle-v3"
 _CLICK_RESPONSE_IDS = (0x32, 0x2F, 0x30)
 _CLOSE_RESPONSE_IDS = (0x2F, 0x2F)
 
