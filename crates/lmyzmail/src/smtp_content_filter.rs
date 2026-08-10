@@ -1,12 +1,21 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt,
-    sync::OnceLock,
+    future::Future,
+    pin::Pin,
+    sync::{Arc, OnceLock},
+    time::Duration,
 };
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+use chrono::{DateTime, Datelike, NaiveDate, Utc};
+use hickory_resolver::{TokioResolver, proto::rr::RData};
 use mail_parser::MessageParser;
 use regex::Regex;
+use tokio::{
+    sync::Semaphore,
+    time::{Instant, timeout_at},
+};
 
 use crate::config::ContentFilterConfig;
 
@@ -19,6 +28,192 @@ const MAX_MIME_HEADER_BYTES: usize = 64 * 1024;
 const MAX_MIME_HEADER_FIELDS: usize = 256;
 const MAX_MIME_FIELD_BYTES: usize = 8 * 1024;
 const MAX_MIME_FILENAME_BYTES: usize = 1_024;
+const NEW_DOMAIN_QUERY_TIMEOUT: Duration = Duration::from_secs(5);
+const NEW_DOMAIN_MAX_ACTIVE_REQUESTS: usize = 32;
+const NEW_DOMAIN_CACHE_ENTRIES: u64 = 8_192;
+
+type SoaLookupFuture<'a> = Pin<Box<dyn Future<Output = Result<Option<u32>, ()>> + Send + 'a>>;
+
+trait SoaLookup: Send + Sync {
+    fn lookup_soa<'a>(&'a self, domain: &'a str) -> SoaLookupFuture<'a>;
+}
+
+#[derive(Clone)]
+struct HickorySoaLookup {
+    resolver: TokioResolver,
+}
+
+impl HickorySoaLookup {
+    fn new() -> Result<Self, String> {
+        let mut builder = TokioResolver::builder_tokio()
+            .map_err(|error| format!("system DNS configuration is unavailable: {error}"))?;
+        builder.options_mut().timeout = NEW_DOMAIN_QUERY_TIMEOUT;
+        builder.options_mut().attempts = 1;
+        builder.options_mut().cache_size = NEW_DOMAIN_CACHE_ENTRIES;
+        builder.options_mut().max_active_requests = NEW_DOMAIN_MAX_ACTIVE_REQUESTS;
+        let resolver = builder
+            .build()
+            .map_err(|error| format!("system DNS resolver initialization failed: {error}"))?;
+        Ok(Self { resolver })
+    }
+}
+
+impl SoaLookup for HickorySoaLookup {
+    fn lookup_soa<'a>(&'a self, domain: &'a str) -> SoaLookupFuture<'a> {
+        Box::pin(async move {
+            match self.resolver.soa_lookup(domain).await {
+                Ok(lookup) => Ok(lookup
+                    .answers()
+                    .iter()
+                    .find_map(|record| match &record.data {
+                        RData::SOA(soa) => Some(soa.serial),
+                        _ => None,
+                    })),
+                Err(error) if error.is_no_records_found() => Ok(None),
+                Err(_) => Err(()),
+            }
+        })
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct NewDomainScanner {
+    backend: Arc<dyn SoaLookup>,
+    permits: Arc<Semaphore>,
+    query_timeout: Duration,
+}
+
+impl NewDomainScanner {
+    pub(crate) fn new() -> Result<Self, String> {
+        Ok(Self::with_backend(
+            Arc::new(HickorySoaLookup::new()?),
+            NEW_DOMAIN_MAX_ACTIVE_REQUESTS,
+            NEW_DOMAIN_QUERY_TIMEOUT,
+        ))
+    }
+
+    fn with_backend(
+        backend: Arc<dyn SoaLookup>,
+        max_active_requests: usize,
+        query_timeout: Duration,
+    ) -> Self {
+        assert!(max_active_requests > 0);
+        assert!(!query_timeout.is_zero());
+        Self {
+            backend,
+            permits: Arc::new(Semaphore::new(max_active_requests)),
+            query_timeout,
+        }
+    }
+
+    pub(crate) async fn scan(
+        &self,
+        mail_from: Option<&str>,
+        headers: &ParsedHeaders,
+        config: &ContentFilterConfig,
+    ) -> ContentScan {
+        if !config.enabled || !config.new_domain.enabled {
+            return ContentScan::default();
+        }
+        let Some(domain) = sender_domain(mail_from, headers) else {
+            return ContentScan::default();
+        };
+        let base_domain = base_domain(&domain);
+        let deadline = Instant::now() + self.query_timeout;
+        let _permit = match timeout_at(deadline, self.permits.acquire()).await {
+            Ok(Ok(permit)) => permit,
+            Ok(Err(_)) | Err(_) => return new_domain_hit(2.0, config),
+        };
+        let serial = match timeout_at(deadline, self.backend.lookup_soa(&base_domain)).await {
+            Ok(Ok(serial)) => serial,
+            Ok(Err(())) | Err(_) => None,
+        };
+        let score = match serial {
+            None => 2.0,
+            Some(serial) => match new_domain_score(serial, Utc::now()) {
+                Some(score) => score,
+                None => return ContentScan::default(),
+            },
+        };
+        new_domain_hit(score, config)
+    }
+}
+
+fn new_domain_hit(score: f64, config: &ContentFilterConfig) -> ContentScan {
+    let score = score * config.new_domain.weight;
+    ContentScan {
+        total_score: score,
+        hits: vec![RuleHit {
+            name: "NEW_DOMAIN",
+            score,
+        }],
+    }
+}
+
+fn sender_domain(mail_from: Option<&str>, headers: &ParsedHeaders) -> Option<String> {
+    mail_from
+        .and_then(extract_domain)
+        .or_else(|| headers.first_raw("from").and_then(extract_domain))
+        .filter(|domain| !domain.trim().is_empty())
+}
+
+fn extract_domain(mut address: &str) -> Option<String> {
+    if address.contains('<') && address.contains('>') {
+        let start = address.find('<')?.saturating_add(1);
+        let end = address.find('>')?;
+        if start < end {
+            address = &address[start..end];
+        }
+    }
+    let at = address.rfind('@')?;
+    if at + 1 >= address.len() {
+        return None;
+    }
+    Some(address[at + 1..].to_lowercase().trim().to_owned())
+}
+
+fn base_domain(domain: &str) -> String {
+    let mut normalized = domain.to_lowercase();
+    let trimmed = normalized.trim();
+    if trimmed.len() != normalized.len() {
+        normalized = trimmed.to_owned();
+    }
+    if normalized.ends_with('.') {
+        normalized.pop();
+    }
+    let mut labels = normalized.split('.').collect::<Vec<_>>();
+    while labels.last() == Some(&"") {
+        labels.pop();
+    }
+    if labels.len() >= 2 {
+        format!("{}.{}", labels[labels.len() - 2], labels[labels.len() - 1])
+    } else if let Some(label) = labels.first() {
+        (*label).to_owned()
+    } else {
+        normalized
+    }
+}
+
+fn new_domain_score(serial: u32, now: DateTime<Utc>) -> Option<f64> {
+    let value = serial.to_string();
+    if value.len() != 8 && value.len() != 10 {
+        return None;
+    }
+    let year = value[0..4].parse::<i32>().ok()?;
+    let month = value[4..6].parse::<u32>().ok()?;
+    let day = value[6..8].parse::<u32>().ok()?;
+    if year < 2000 || year > now.year().saturating_add(1) {
+        return None;
+    }
+    let date = NaiveDate::from_ymd_opt(year, month, day)?;
+    let days_old = now.date_naive().signed_duration_since(date).num_days();
+    match days_old {
+        i64::MIN..=-1 | 0..=1 => Some(3.0),
+        2..=7 => Some(2.5),
+        8..=30 => Some(1.5),
+        31..=i64::MAX => None,
+    }
+}
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub(crate) enum HeaderParseError {
@@ -1011,6 +1206,9 @@ fn count_addresses(value: &str) -> usize {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use chrono::TimeZone;
     use proptest::prelude::*;
 
     use super::*;
@@ -1022,6 +1220,47 @@ mod tests {
 
     fn parse(message: &[u8]) -> ParsedHeaders {
         ParsedHeaders::parse(message).unwrap()
+    }
+
+    #[derive(Clone)]
+    enum FakeSoaResponse {
+        Ready(Result<Option<u32>, ()>),
+        Pending,
+    }
+
+    struct FakeSoaLookup {
+        response: FakeSoaResponse,
+        calls: AtomicUsize,
+    }
+
+    impl FakeSoaLookup {
+        fn new(response: FakeSoaResponse) -> Arc<Self> {
+            Arc::new(Self {
+                response,
+                calls: AtomicUsize::new(0),
+            })
+        }
+    }
+
+    impl SoaLookup for FakeSoaLookup {
+        fn lookup_soa<'a>(&'a self, _domain: &'a str) -> SoaLookupFuture<'a> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            let response = self.response.clone();
+            Box::pin(async move {
+                match response {
+                    FakeSoaResponse::Ready(result) => result,
+                    FakeSoaResponse::Pending => std::future::pending().await,
+                }
+            })
+        }
+    }
+
+    fn scanner(backend: Arc<dyn SoaLookup>) -> NewDomainScanner {
+        NewDomainScanner::with_backend(backend, 1, Duration::from_millis(100))
+    }
+
+    fn fixed_now() -> DateTime<Utc> {
+        Utc.with_ymd_and_hms(2025, 8, 5, 12, 0, 0).unwrap()
     }
 
     fn attachment_message(parts: &[&str]) -> Vec<u8> {
@@ -1049,6 +1288,111 @@ mod tests {
         }
         message.extend_from_slice(b"--attachment-boundary--\r\n");
         message
+    }
+
+    #[test]
+    fn new_domain_extracts_java_sender_and_base_domain_shapes() {
+        let headers = parse(b"From: Display <fallback@Sub.Example.COM.>\r\n\r\n");
+        assert_eq!(
+            sender_domain(Some("primary@Deep.Sub.Example.NET."), &headers),
+            Some("deep.sub.example.net.".into())
+        );
+        assert_eq!(base_domain("deep.sub.example.net."), "example.net");
+        assert_eq!(base_domain("a.example.com.."), "example.com");
+        assert_eq!(
+            sender_domain(Some(""), &headers),
+            Some("sub.example.com.".into())
+        );
+        assert_eq!(base_domain("localhost"), "localhost");
+        assert_eq!(
+            sender_domain(Some("invalid"), &parse(b"Subject: x\r\n\r\n")),
+            None
+        );
+    }
+
+    #[test]
+    fn new_domain_serial_age_bands_match_java() {
+        let now = fixed_now();
+        for (serial, expected) in [
+            (2025080601, Some(3.0)),
+            (20250805, Some(3.0)),
+            (20250804, Some(3.0)),
+            (20250803, Some(2.5)),
+            (20250729, Some(2.5)),
+            (20250728, Some(1.5)),
+            (20250706, Some(1.5)),
+            (20250705, None),
+            (20251301, None),
+            (19991231, None),
+            (42, None),
+        ] {
+            assert_eq!(new_domain_score(serial, now), expected, "serial={serial}");
+        }
+    }
+
+    #[tokio::test]
+    async fn new_domain_absent_soa_and_weight_match_java() {
+        let backend = FakeSoaLookup::new(FakeSoaResponse::Ready(Ok(None)));
+        let scanner = scanner(backend.clone());
+        let headers = parse(b"From: fallback@other.test\r\n\r\n");
+        let mut settings = config();
+        settings.new_domain.weight = 1.75;
+        let scan = scanner
+            .scan(Some("sender@sub.external.test"), &headers, &settings)
+            .await;
+        assert_eq!(scan.hits().collect::<Vec<_>>(), [("NEW_DOMAIN", 3.5)]);
+        assert_eq!(backend.calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn new_domain_query_errors_match_java_no_soa_while_disabled_rules_do_not_hit() {
+        let backend = FakeSoaLookup::new(FakeSoaResponse::Ready(Err(())));
+        let scanner = scanner(backend.clone());
+        let headers = parse(b"Subject: no sender\r\n\r\n");
+        let failed = scanner
+            .scan(Some("sender@external.test"), &headers, &config())
+            .await;
+        assert_eq!(failed.hits().collect::<Vec<_>>(), [("NEW_DOMAIN", 2.0)]);
+        assert_eq!(backend.calls.load(Ordering::SeqCst), 1);
+
+        let mut settings = config();
+        settings.new_domain.enabled = false;
+        assert_eq!(
+            scanner
+                .scan(Some("sender@external.test"), &headers, &settings)
+                .await,
+            ContentScan::default()
+        );
+        assert_eq!(
+            scanner.scan(None, &headers, &config()).await,
+            ContentScan::default()
+        );
+        assert_eq!(backend.calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn new_domain_timeout_and_saturation_are_bounded_and_score_no_soa() {
+        let backend = FakeSoaLookup::new(FakeSoaResponse::Pending);
+        let scanner = scanner(backend.clone());
+        let headers = parse(b"From: sender@external.test\r\n\r\n");
+        let first_scanner = scanner.clone();
+        let first_headers = headers.clone();
+        let first = tokio::spawn(async move {
+            first_scanner
+                .scan(Some("first@external.test"), &first_headers, &config())
+                .await
+        });
+        while backend.calls.load(Ordering::SeqCst) == 0 {
+            tokio::task::yield_now().await;
+        }
+        let second = scanner
+            .scan(Some("second@external.test"), &headers, &config())
+            .await;
+        assert_eq!(second.hits().collect::<Vec<_>>(), [("NEW_DOMAIN", 2.0)]);
+        let first = first.await.unwrap();
+        assert_eq!(first.hits().collect::<Vec<_>>(), [("NEW_DOMAIN", 2.0)]);
+        assert!((1..=2).contains(&backend.calls.load(Ordering::SeqCst)));
+        assert_eq!(scanner.permits.available_permits(), 1);
     }
 
     #[test]

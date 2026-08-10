@@ -376,6 +376,22 @@ the frozen first-body-part indexing rule: when a multipart message puts a text
 body before its attachment, `email_index.has_attachments` remains `false` even
 though the stored message contains the attachment.
 
+The v33 profile additionally freezes the active `NEW_DOMAIN` envelope rule.
+MAIL FROM takes precedence over the first `From` header, one trailing dot is
+removed, and the final two labels are queried without PSL or IDNA rewriting.
+The shared Hickory resolver has an 8,192-entry cache and at most 32 active SOA
+queries. Admission and lookup share one five-second deadline; ordinary DNS
+failure is scored as the oracle's missing-SOA result instead of silently making
+the message clean. Eight- and ten-digit SOA serials retain the frozen UTC age
+bands and rule weight. `NEW_DOMAIN` is appended before header and attachment
+hits, preserving the exact `X-Spam-Rules` order.
+
+This is an incremental content-filter milestone, not a claim that the whole
+scanner is complete. The default-enabled `RBL_CHECK`, `SPAM_KEYWORDS`, and
+`SUSPICIOUS_URL` rules remain separate required migration slices. Evidence for
+the completed reputation rule is recorded in
+`evidence/compatibility/smtp-content-filter-new-domain-v1.json`.
+
 ## SMTP command contract
 
 The Rust candidate matches the v32 command profile byte for byte across utility

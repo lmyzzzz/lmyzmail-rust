@@ -384,6 +384,7 @@ impl Default for JsonContentFilterConfig {
 #[derive(Debug, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 struct JsonContentFilterRules {
+    new_domain: JsonContentFilterRule,
     missing_headers: JsonContentFilterRule,
     subject_encoding_trick: JsonContentFilterRule,
     excessive_recipients: JsonContentFilterRule,
@@ -1298,6 +1299,7 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         content_filter.spam_threshold.to_string(),
     )?;
     for (name, rule) in [
+        ("NEW_DOMAIN", content_filter.rules.new_domain),
         ("MISSING_HEADERS", content_filter.rules.missing_headers),
         (
             "SUBJECT_ENCODING_TRICK",
@@ -2159,6 +2161,7 @@ pub struct ContentFilterConfig {
     pub enabled: bool,
     pub suspicious_threshold: f64,
     pub spam_threshold: f64,
+    pub new_domain: ContentFilterRuleConfig,
     pub missing_headers: ContentFilterRuleConfig,
     pub subject_encoding_trick: ContentFilterRuleConfig,
     pub excessive_recipients: ContentFilterRuleConfig,
@@ -2174,6 +2177,7 @@ impl Default for ContentFilterConfig {
             enabled: true,
             suspicious_threshold: 5.0,
             spam_threshold: 10.0,
+            new_domain: ContentFilterRuleConfig::default(),
             missing_headers: ContentFilterRuleConfig::default(),
             subject_encoding_trick: ContentFilterRuleConfig::default(),
             excessive_recipients: ContentFilterRuleConfig::default(),
@@ -3562,6 +3566,7 @@ fn parse_content_filter_config(
         )?,
         suspicious_threshold,
         spam_threshold,
+        new_domain: parse_content_filter_rule(properties, "NEW_DOMAIN")?,
         missing_headers: parse_content_filter_rule(properties, "MISSING_HEADERS")?,
         subject_encoding_trick: parse_content_filter_rule(properties, "SUBJECT_ENCODING_TRICK")?,
         excessive_recipients: parse_content_filter_rule(properties, "EXCESSIVE_RECIPIENTS")?,
@@ -5470,6 +5475,7 @@ lmyzmail.smtp.asciiart.char-aspect=2.5\n",
         assert_eq!(config.content_filter.suspicious_threshold, 5.0);
         assert_eq!(config.content_filter.spam_threshold, 10.0);
         for rule in [
+            &config.content_filter.new_domain,
             &config.content_filter.missing_headers,
             &config.content_filter.subject_encoding_trick,
             &config.content_filter.excessive_recipients,
@@ -5493,6 +5499,8 @@ lmyzmail.smtp.asciiart.char-aspect=2.5\n",
                 b"botmail.contentfilter.enabled=false\n\
 botmail.contentfilter.suspicious-threshold=4\n\
 botmail.contentfilter.spam-threshold=9\n\
+botmail.contentfilter.rules.NEW_DOMAIN.enabled=false\n\
+botmail.contentfilter.rules.NEW_DOMAIN.weight=3.5\n\
 botmail.contentfilter.rules.MISSING_HEADERS.enabled=false\n\
 botmail.contentfilter.rules.MISSING_HEADERS.weight=2.5\n\
 botmail.contentfilter.rules.SUBJECT_ENCODING_TRICK.weight=3.0\n\
@@ -5505,6 +5513,7 @@ botmail.contentfilter.attachment.double-extension-score=8\n\
 botmail.contentfilter.attachment.mime-type-mismatch-score=9\n\
 lmyzmail.contentfilter.enabled=true\n\
 lmyzmail.contentfilter.spam-threshold=8\n\
+lmyzmail.contentfilter.rules.NEW_DOMAIN.weight=1.75\n\
 lmyzmail.contentfilter.rules.MISSING_HEADERS.weight=1.25\n\
 lmyzmail.contentfilter.rules.EXCESSIVE_RECIPIENTS.enabled=false\n\
 lmyzmail.contentfilter.rules.DANGEROUS_EXTENSION.weight=1.5\n\
@@ -5518,6 +5527,8 @@ lmyzmail.contentfilter.attachment.dangerous-extension-score=6\n",
         assert!(config.content_filter.enabled);
         assert_eq!(config.content_filter.suspicious_threshold, 4.0);
         assert_eq!(config.content_filter.spam_threshold, 8.0);
+        assert!(!config.content_filter.new_domain.enabled);
+        assert_eq!(config.content_filter.new_domain.weight, 1.75);
         assert!(!config.content_filter.missing_headers.enabled);
         assert_eq!(config.content_filter.missing_headers.weight, 1.25);
         assert_eq!(config.content_filter.subject_encoding_trick.weight, 3.0);
@@ -5554,6 +5565,7 @@ lmyzmail.contentfilter.attachment.dangerous-extension-score=6\n",
             "suspicious_threshold": 6.0,
             "spam_threshold": 12.0,
             "rules": {
+                "new_domain": {"enabled": false, "weight": 0.75},
                 "missing_headers": {"enabled": false, "weight": 2.0},
                 "subject_encoding_trick": {"enabled": true, "weight": 1.5},
                 "excessive_recipients": {"enabled": true, "weight": 0.5},
@@ -5574,6 +5586,8 @@ lmyzmail.contentfilter.attachment.dangerous-extension-score=6\n",
         assert!(!config.content_filter.enabled);
         assert_eq!(config.content_filter.suspicious_threshold, 6.0);
         assert_eq!(config.content_filter.spam_threshold, 12.0);
+        assert!(!config.content_filter.new_domain.enabled);
+        assert_eq!(config.content_filter.new_domain.weight, 0.75);
         assert!(!config.content_filter.missing_headers.enabled);
         assert_eq!(config.content_filter.missing_headers.weight, 2.0);
         assert_eq!(config.content_filter.subject_encoding_trick.weight, 1.5);
@@ -5603,6 +5617,7 @@ lmyzmail.contentfilter.attachment.dangerous-extension-score=6\n",
             b"lmyzmail.contentfilter.spam-threshold=Infinity\n".as_slice(),
             b"lmyzmail.contentfilter.suspicious-threshold=-1\n".as_slice(),
             b"lmyzmail.contentfilter.suspicious-threshold=11\nlmyzmail.contentfilter.spam-threshold=10\n".as_slice(),
+            b"lmyzmail.contentfilter.rules.NEW_DOMAIN.weight=Infinity\n".as_slice(),
             b"lmyzmail.contentfilter.rules.MISSING_HEADERS.weight=-0.1\n".as_slice(),
             b"lmyzmail.contentfilter.rules.SUBJECT_ENCODING_TRICK.weight=NaN\n".as_slice(),
             b"lmyzmail.contentfilter.rules.EXCESSIVE_RECIPIENTS.weight=101\n".as_slice(),

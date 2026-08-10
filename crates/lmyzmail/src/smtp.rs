@@ -37,7 +37,7 @@ use crate::{
     config::{ContentFilterConfig, MailRenderSimdMode, RuntimeConfig},
     skibidi::SkibidiGenerator,
     smtp_ascii::AsciiSimdMode,
-    smtp_content_filter::{ContentScan, ParsedHeaders, scan_attachments},
+    smtp_content_filter::{ContentScan, NewDomainScanner, ParsedHeaders, scan_attachments},
     smtp_skibidi_quiz::{AnswerOutcome, QuizLevel, QuizState, ensure_question_bank_loaded},
     smtp_skibidi_video::{VideoDefaults, VideoService, VideoStartError, frame_wire_bytes},
     video_asset::locate_frozen_video_asset,
@@ -84,6 +84,7 @@ pub struct SmtpService {
     maildir_max_files_per_directory: Option<usize>,
     maildir_shard_locks: Arc<[Mutex<()>; MAILDIR_SHARD_LOCKS]>,
     tls_acceptor: Option<TlsAcceptor>,
+    new_domain_scanner: NewDomainScanner,
     skibidi_generator: SkibidiGenerator,
     skibidi_video: Option<Arc<VideoService>>,
 }
@@ -213,6 +214,11 @@ impl SmtpService {
             skibidi_info.avx512_enabled,
             skibidi_info.simd_rng_enabled,
         );
+        let new_domain_scanner = NewDomainScanner::new().map_err(|error| {
+            SmtpError::InvalidConfig(format!(
+                "SMTP content-filter DNS resolver cannot start: {error}"
+            ))
+        })?;
         let skibidi_video = if config.smtp_skibidi.enabled {
             ensure_question_bank_loaded().map_err(|error| {
                 SmtpError::InvalidConfig(format!("SMTP quiz question bank is invalid: {error}"))
@@ -258,6 +264,7 @@ impl SmtpService {
             maildir_max_files_per_directory,
             maildir_shard_locks: Arc::new(std::array::from_fn(|_| Mutex::new(()))),
             tls_acceptor,
+            new_domain_scanner,
             skibidi_generator,
             skibidi_video,
         })
@@ -295,9 +302,17 @@ impl SmtpService {
     ) -> io::Result<String> {
         let headers = ParsedHeaders::parse(&envelope.data)
             .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+        let mut content_scan = self
+            .new_domain_scanner
+            .scan(
+                envelope.sender.as_deref(),
+                &headers,
+                &self.config.content_filter,
+            )
+            .await;
         // The frozen Java verification path does not forward envelope RCPTs
         // into ScanContext, so header rules observe an envelope count of zero.
-        let mut content_scan = headers.scan(0, &self.config.content_filter);
+        content_scan.append(headers.scan(0, &self.config.content_filter));
         content_scan.append(
             scan_attachments(&envelope.data, &self.config.content_filter)
                 .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?,

@@ -1,0 +1,80 @@
+{
+  "bounds": {
+    "dns_cache_entries": 8192,
+    "dns_max_active_requests": 32,
+    "dns_query_and_admission_deadline_seconds": 5,
+    "outer_smtp_delivery_deadline_seconds": 15
+  },
+  "configuration": {
+    "legacy_enabled": "botmail.contentfilter.rules.NEW_DOMAIN.enabled",
+    "legacy_weight": "botmail.contentfilter.rules.NEW_DOMAIN.weight",
+    "new_enabled": "lmyzmail.contentfilter.rules.NEW_DOMAIN.enabled",
+    "new_keys_win_per_field": true,
+    "new_weight": "lmyzmail.contentfilter.rules.NEW_DOMAIN.weight"
+  },
+  "contract": {
+    "base_domain": "remove one trailing dot, then use the final two Java split labels",
+    "dns_failure": "NEW_DOMAIN=2.0 before rule weight",
+    "no_soa": "NEW_DOMAIN=2.0 before rule weight",
+    "order": 20,
+    "phase": "ENVELOPE",
+    "sender_precedence": [
+      "MAIL FROM",
+      "first From header"
+    ],
+    "serial_age_scores": {
+      "days_0_or_1_or_future": 3.0,
+      "days_2_through_7": 2.5,
+      "days_8_through_30": 1.5,
+      "older_or_non_date": 0.0
+    },
+    "serial_formats": [
+      "YYYYMMDD",
+      "YYYYMMDDnn"
+    ]
+  },
+  "frozen_harness_definition_tree_sha256": "2c52c81d562b8a590d06cb21cadd99481ed91f20e3077ca9c09322c6eca37c7c",
+  "known_remaining_content_filter_rules": [
+    "RBL_CHECK",
+    "SPAM_KEYWORDS",
+    "SUSPICIOUS_URL"
+  ],
+  "oracle_commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+  "profile": "smtp-content-filter-new-domain-v1",
+  "release": {
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "f283de0cdce12509cc00edbef99ca67c5be4eab698daf60dcd8e057b4b4d4443"
+  },
+  "schema_version": 1,
+  "source": {
+    "candidate": {
+      "crates/lmyzmail/src/config.rs": "0de03efa217d083639c0fc5be0ff25ed51f98967d8e77b67305a3d70cf65fc81",
+      "crates/lmyzmail/src/smtp.rs": "1a2ce3ea1bce38fc70c8d5a7dcca85eee3ad9fa9352b85fdb3cef690c8227f35",
+      "crates/lmyzmail/src/smtp_content_filter.rs": "15b55f009fb9c6cbaa1a97af835220f1b576337a2350371f03e9fb219d97bb51"
+    },
+    "cargo_lock_sha256": "b2d3b0f7c10eda2ad071955a4a842966e7fe9cb90b91e79d9ea06081fb556c16",
+    "oracle": {
+      "BotmailApplication.java": "84919972f44eaeb053ba6d1ee37740a9a5efd03ba1a613e1c7be9e2f09621c49",
+      "NewDomainRule.java": "2fd049bc8b943fb7c9dacf3f427c7a9f8d2f81ee6330d05c108813ee94aa5c4c",
+      "ScanContext.java": "00af4236548d4f3d474877c73b053680aea0a6cee43ce36a6267c864edb88a6f"
+    }
+  },
+  "verification": [
+    {
+      "command": "cargo test -p lmyzmail content_filter --locked",
+      "result": "22 passed"
+    },
+    {
+      "command": "cargo test --workspace --locked",
+      "result": "418 unit tests plus all integration and doc tests passed"
+    },
+    {
+      "command": "python -m pytest -q blackbox/tests/test_oracle_smtp_mime.py::test_rust_candidate_smtp_mime_matches_frozen_java_golden",
+      "result": "1 passed"
+    },
+    {
+      "command": "python -m pytest -q -m candidate blackbox/tests",
+      "result": "46 passed, 176 deselected"
+    }
+  ]
+}
