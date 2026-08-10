@@ -1,0 +1,101 @@
+{
+  "bounds": {
+    "configured_server_count": 32,
+    "dns_cache_entries": 8192,
+    "dns_max_active_requests": 64,
+    "maximum_timeout_ms": 60000,
+    "outer_smtp_delivery_deadline_seconds": 15
+  },
+  "configuration": {
+    "legacy_prefixes": [
+      "botmail.contentfilter.rules.RBL_CHECK",
+      "botmail.contentfilter.rbl"
+    ],
+    "new_keys_win_per_field": true,
+    "new_prefixes": [
+      "lmyzmail.contentfilter.rules.RBL_CHECK",
+      "lmyzmail.contentfilter.rbl"
+    ]
+  },
+  "contract": {
+    "address_results": "any A or AAAA answer means listed",
+    "dns_failure": "not listed",
+    "ipv4_reversal": "reverse octets",
+    "ipv6_reversal": "reverse all 32 nibbles",
+    "listed_score": "min(listed_count * score_per_hit, max_score) * rule_weight",
+    "order": 10,
+    "phase": "ENVELOPE",
+    "private_skip": [
+      "loopback",
+      "IPv4 RFC 1918 site-local",
+      "link-local",
+      "unspecified",
+      "IPv6 fec0::/10 site-local",
+      "IPv4-mapped equivalents"
+    ]
+  },
+  "frozen_golden": {
+    "definition_tree_sha256": "2c52c81d562b8a590d06cb21cadd99481ed91f20e3077ca9c09322c6eca37c7c",
+    "private_skip_sha256": "b6dffaaca3c482becee88bce3c29419a95b10d36c7bbc57d80b932fd55434232",
+    "positive_cap_and_weight_sha256": "2a7d49578aa1c891dc5eccb83692cfabb07e9ef172f1d1d179fcb28f86300959",
+    "suite_sha256": "49889a0a2e0e31907843aaca27f59ca94c271afb83b6a8b5e9d6329bc1c0c684"
+  },
+  "known_remaining_content_filter_rules": [
+    "SPAM_KEYWORDS",
+    "SUSPICIOUS_URL"
+  ],
+  "oracle_commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+  "profile": "smtp-content-filter-rbl-v1",
+  "release": {
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "7b5ebee0347e0f087a89c394ac9d2592a0a45bcd080cc1b22570decdd0eb5b7e"
+  },
+  "schema_version": 1,
+  "source": {
+    "candidate": {
+      "crates/lmyzmail/src/config.rs": "5e44834dbcd9dc44964f18e41f4c942f4eb5e9034dcb822bc370179c160ede04",
+      "crates/lmyzmail/src/smtp.rs": "3096d4b087538a5d1052d7b27f01e88822575628ee2ff4ea28e12da2089f095f",
+      "crates/lmyzmail/src/smtp_content_filter.rs": "f0ad3265492e7f2bd7f0b0e5971d590e17c1bda6154ca2210d16e1b8b1a4cc15"
+    },
+    "cargo_lock_sha256": "b2d3b0f7c10eda2ad071955a4a842966e7fe9cb90b91e79d9ea06081fb556c16",
+    "oracle": {
+      "ContentFilterProperties.java": "b352c1e135548548bbb8c22c75c7566e947c75d0b8e19157cf674a68a17acb0f",
+      "RblCheckRule.java": "c8e3b8fc9e4fb265cbe062f31f984027befd62fcede94d55a189fe6c84459e5d",
+      "RulePipeline.java": "28fe96ee20c9c910627014c1a48c0b545e9a4d6a68e83a03933fdad3b1d150dd"
+    }
+  },
+  "verification": [
+    {
+      "command": "cargo test -p lmyzmail content_filter --quiet",
+      "result": "26 passed"
+    },
+    {
+      "command": "cargo test --workspace --all-targets --locked --quiet",
+      "result": "513 tests passed"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --locked --quiet -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "python blackbox/tools/run_smtp_rbl.py -m oracle",
+      "result": "1 passed, 1 deselected"
+    },
+    {
+      "command": "python blackbox/tools/run_smtp_rbl.py -m candidate",
+      "result": "1 passed, 1 deselected"
+    },
+    {
+      "command": "pytest -q blackbox/tools -m candidate --ignore=blackbox/tools/test_smtp_content_filter_rbl.py",
+      "result": "31 passed, 33 deselected"
+    },
+    {
+      "command": "pytest -q blackbox/tests -m 'not integration'",
+      "result": "133 passed, 89 deselected"
+    },
+    {
+      "command": "pytest -q blackbox/tests",
+      "result": "not counted: command timeout after 604 seconds; orphaned test runtime was terminated and verified absent"
+    }
+  ]
+}

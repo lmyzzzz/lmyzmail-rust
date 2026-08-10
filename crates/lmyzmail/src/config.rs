@@ -55,6 +55,9 @@ const MAX_CONTENT_FILTER_THRESHOLD: f64 = 1_000_000.0;
 const MAX_CONTENT_FILTER_RULE_WEIGHT: f64 = 100.0;
 const MAX_CONTENT_FILTER_EXTENSIONS: usize = 256;
 const MAX_CONTENT_FILTER_EXTENSION_BYTES: usize = 32;
+const MAX_CONTENT_FILTER_RBL_SERVERS: usize = 32;
+const MAX_CONTENT_FILTER_RBL_SERVER_BYTES: usize = 189;
+const MAX_CONTENT_FILTER_RBL_TIMEOUT_MS: u64 = 60_000;
 const MAX_MESSAGE_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_CRINGE_DECAY_DURATION: Duration = Duration::from_secs(100 * 366 * 24 * 60 * 60);
 
@@ -366,6 +369,7 @@ struct JsonContentFilterConfig {
     suspicious_threshold: f64,
     spam_threshold: f64,
     rules: JsonContentFilterRules,
+    rbl: JsonContentFilterRbl,
     attachment: JsonContentFilterAttachment,
 }
 
@@ -376,6 +380,7 @@ impl Default for JsonContentFilterConfig {
             suspicious_threshold: 5.0,
             spam_threshold: 10.0,
             rules: JsonContentFilterRules::default(),
+            rbl: JsonContentFilterRbl::default(),
             attachment: JsonContentFilterAttachment::default(),
         }
     }
@@ -384,6 +389,7 @@ impl Default for JsonContentFilterConfig {
 #[derive(Debug, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 struct JsonContentFilterRules {
+    rbl_check: JsonContentFilterRule,
     new_domain: JsonContentFilterRule,
     missing_headers: JsonContentFilterRule,
     subject_encoding_trick: JsonContentFilterRule,
@@ -391,6 +397,29 @@ struct JsonContentFilterRules {
     dangerous_extension: JsonContentFilterRule,
     double_extension: JsonContentFilterRule,
     mime_type_mismatch: JsonContentFilterRule,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct JsonContentFilterRbl {
+    enabled: bool,
+    servers: Vec<String>,
+    timeout_ms: u64,
+    score_per_hit: f64,
+    max_score: f64,
+}
+
+impl Default for JsonContentFilterRbl {
+    fn default() -> Self {
+        let defaults = ContentFilterRblConfig::default();
+        Self {
+            enabled: defaults.enabled,
+            servers: defaults.servers,
+            timeout_ms: defaults.timeout.as_millis() as u64,
+            score_per_hit: defaults.score_per_hit,
+            max_score: defaults.max_score,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -1299,6 +1328,7 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         content_filter.spam_threshold.to_string(),
     )?;
     for (name, rule) in [
+        ("RBL_CHECK", content_filter.rules.rbl_check),
         ("NEW_DOMAIN", content_filter.rules.new_domain),
         ("MISSING_HEADERS", content_filter.rules.missing_headers),
         (
@@ -1323,6 +1353,26 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         properties.insert(format!("{prefix}.enabled"), rule.enabled.to_string())?;
         properties.insert(format!("{prefix}.weight"), rule.weight.to_string())?;
     }
+    properties.insert(
+        "lmyzmail.contentfilter.rbl.enabled".to_owned(),
+        content_filter.rbl.enabled.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.contentfilter.rbl.servers".to_owned(),
+        content_filter.rbl.servers.join(","),
+    )?;
+    properties.insert(
+        "lmyzmail.contentfilter.rbl.timeout-ms".to_owned(),
+        content_filter.rbl.timeout_ms.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.contentfilter.rbl.score-per-hit".to_owned(),
+        content_filter.rbl.score_per_hit.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.contentfilter.rbl.max-score".to_owned(),
+        content_filter.rbl.max_score.to_string(),
+    )?;
     properties.insert(
         "lmyzmail.contentfilter.attachment.enabled".to_owned(),
         content_filter.attachment.enabled.to_string(),
@@ -2161,6 +2211,8 @@ pub struct ContentFilterConfig {
     pub enabled: bool,
     pub suspicious_threshold: f64,
     pub spam_threshold: f64,
+    pub rbl_check: ContentFilterRuleConfig,
+    pub rbl: ContentFilterRblConfig,
     pub new_domain: ContentFilterRuleConfig,
     pub missing_headers: ContentFilterRuleConfig,
     pub subject_encoding_trick: ContentFilterRuleConfig,
@@ -2177,6 +2229,8 @@ impl Default for ContentFilterConfig {
             enabled: true,
             suspicious_threshold: 5.0,
             spam_threshold: 10.0,
+            rbl_check: ContentFilterRuleConfig::default(),
+            rbl: ContentFilterRblConfig::default(),
             new_domain: ContentFilterRuleConfig::default(),
             missing_headers: ContentFilterRuleConfig::default(),
             subject_encoding_trick: ContentFilterRuleConfig::default(),
@@ -2185,6 +2239,27 @@ impl Default for ContentFilterConfig {
             double_extension: ContentFilterRuleConfig::default(),
             mime_type_mismatch: ContentFilterRuleConfig::default(),
             attachment: ContentFilterAttachmentConfig::default(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ContentFilterRblConfig {
+    pub enabled: bool,
+    pub servers: Vec<String>,
+    pub timeout: Duration,
+    pub score_per_hit: f64,
+    pub max_score: f64,
+}
+
+impl Default for ContentFilterRblConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            servers: vec!["zen.spamhaus.org".into(), "bl.spamcop.net".into()],
+            timeout: Duration::from_millis(3_000),
+            score_per_hit: 3.0,
+            max_score: 6.0,
         }
     }
 }
@@ -3566,6 +3641,8 @@ fn parse_content_filter_config(
         )?,
         suspicious_threshold,
         spam_threshold,
+        rbl_check: parse_content_filter_rule(properties, "RBL_CHECK")?,
+        rbl: parse_content_filter_rbl(properties)?,
         new_domain: parse_content_filter_rule(properties, "NEW_DOMAIN")?,
         missing_headers: parse_content_filter_rule(properties, "MISSING_HEADERS")?,
         subject_encoding_trick: parse_content_filter_rule(properties, "SUBJECT_ENCODING_TRICK")?,
@@ -3575,6 +3652,97 @@ fn parse_content_filter_config(
         mime_type_mismatch: parse_content_filter_rule(properties, "MIME_TYPE_MISMATCH")?,
         attachment,
     })
+}
+
+fn parse_content_filter_rbl(
+    properties: &Properties,
+) -> Result<ContentFilterRblConfig, ConfigError> {
+    let defaults = ContentFilterRblConfig::default();
+    let servers = preferred(
+        properties,
+        &["lmyzmail.contentfilter.rbl.servers"],
+        &["botmail.contentfilter.rbl.servers"],
+    )
+    .map(|value| {
+        value
+            .split(',')
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_ascii_lowercase)
+            .collect::<Vec<_>>()
+    })
+    .unwrap_or(defaults.servers);
+    if servers.len() > MAX_CONTENT_FILTER_RBL_SERVERS
+        || servers.iter().any(|server| !valid_rbl_server(server))
+    {
+        return Err(ConfigError::Invalid(format!(
+            "contentfilter RBL servers must contain at most {MAX_CONTENT_FILTER_RBL_SERVERS} bounded DNS names"
+        )));
+    }
+    let timeout_ms = preferred_u64(
+        properties,
+        &["lmyzmail.contentfilter.rbl.timeout-ms"],
+        &["botmail.contentfilter.rbl.timeout-ms"],
+        defaults.timeout.as_millis() as u64,
+    )?;
+    if !(1..=MAX_CONTENT_FILTER_RBL_TIMEOUT_MS).contains(&timeout_ms) {
+        return Err(ConfigError::Invalid(format!(
+            "contentfilter RBL timeout-ms must be between 1 and {MAX_CONTENT_FILTER_RBL_TIMEOUT_MS}"
+        )));
+    }
+    let score_per_hit = preferred_f64(
+        properties,
+        &["lmyzmail.contentfilter.rbl.score-per-hit"],
+        &["botmail.contentfilter.rbl.score-per-hit"],
+        defaults.score_per_hit,
+        "contentfilter RBL score-per-hit",
+    )?;
+    let max_score = preferred_f64(
+        properties,
+        &["lmyzmail.contentfilter.rbl.max-score"],
+        &["botmail.contentfilter.rbl.max-score"],
+        defaults.max_score,
+        "contentfilter RBL max-score",
+    )?;
+    validate_content_filter_number(
+        score_per_hit,
+        MAX_CONTENT_FILTER_THRESHOLD,
+        "contentfilter RBL score-per-hit",
+    )?;
+    validate_content_filter_number(
+        max_score,
+        MAX_CONTENT_FILTER_THRESHOLD,
+        "contentfilter RBL max-score",
+    )?;
+    Ok(ContentFilterRblConfig {
+        enabled: preferred_bool(
+            properties,
+            &["lmyzmail.contentfilter.rbl.enabled"],
+            &["botmail.contentfilter.rbl.enabled"],
+            defaults.enabled,
+        )?,
+        servers,
+        timeout: Duration::from_millis(timeout_ms),
+        score_per_hit,
+        max_score,
+    })
+}
+
+fn valid_rbl_server(server: &str) -> bool {
+    if server.is_empty() || server.len() > MAX_CONTENT_FILTER_RBL_SERVER_BYTES {
+        return false;
+    }
+    let name = server.strip_suffix('.').unwrap_or(server);
+    !name.is_empty()
+        && name.split('.').all(|label| {
+            !label.is_empty()
+                && label.len() <= 63
+                && !label.starts_with('-')
+                && !label.ends_with('-')
+                && label
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+        })
 }
 
 fn parse_content_filter_attachment(
@@ -5475,6 +5643,7 @@ lmyzmail.smtp.asciiart.char-aspect=2.5\n",
         assert_eq!(config.content_filter.suspicious_threshold, 5.0);
         assert_eq!(config.content_filter.spam_threshold, 10.0);
         for rule in [
+            &config.content_filter.rbl_check,
             &config.content_filter.new_domain,
             &config.content_filter.missing_headers,
             &config.content_filter.subject_encoding_trick,
@@ -5486,6 +5655,7 @@ lmyzmail.smtp.asciiart.char-aspect=2.5\n",
             assert!(rule.enabled);
             assert_eq!(rule.weight, 1.0);
         }
+        assert_eq!(config.content_filter.rbl, ContentFilterRblConfig::default());
         assert_eq!(
             config.content_filter.attachment,
             ContentFilterAttachmentConfig::default()
@@ -5499,6 +5669,8 @@ lmyzmail.smtp.asciiart.char-aspect=2.5\n",
                 b"botmail.contentfilter.enabled=false\n\
 botmail.contentfilter.suspicious-threshold=4\n\
 botmail.contentfilter.spam-threshold=9\n\
+botmail.contentfilter.rules.RBL_CHECK.enabled=false\n\
+botmail.contentfilter.rules.RBL_CHECK.weight=2.5\n\
 botmail.contentfilter.rules.NEW_DOMAIN.enabled=false\n\
 botmail.contentfilter.rules.NEW_DOMAIN.weight=3.5\n\
 botmail.contentfilter.rules.MISSING_HEADERS.enabled=false\n\
@@ -5506,6 +5678,11 @@ botmail.contentfilter.rules.MISSING_HEADERS.weight=2.5\n\
 botmail.contentfilter.rules.SUBJECT_ENCODING_TRICK.weight=3.0\n\
 botmail.contentfilter.rules.DANGEROUS_EXTENSION.enabled=false\n\
 botmail.contentfilter.rules.DANGEROUS_EXTENSION.weight=2.5\n\
+botmail.contentfilter.rbl.enabled=false\n\
+botmail.contentfilter.rbl.servers=legacy-one.test,legacy-two.test\n\
+botmail.contentfilter.rbl.timeout-ms=900\n\
+botmail.contentfilter.rbl.score-per-hit=4\n\
+botmail.contentfilter.rbl.max-score=7\n\
 botmail.contentfilter.attachment.enabled=false\n\
 botmail.contentfilter.attachment.dangerous-extensions=exe,ps1\n\
 botmail.contentfilter.attachment.dangerous-extension-score=7\n\
@@ -5513,10 +5690,14 @@ botmail.contentfilter.attachment.double-extension-score=8\n\
 botmail.contentfilter.attachment.mime-type-mismatch-score=9\n\
 lmyzmail.contentfilter.enabled=true\n\
 lmyzmail.contentfilter.spam-threshold=8\n\
+lmyzmail.contentfilter.rules.RBL_CHECK.weight=1.5\n\
 lmyzmail.contentfilter.rules.NEW_DOMAIN.weight=1.75\n\
 lmyzmail.contentfilter.rules.MISSING_HEADERS.weight=1.25\n\
 lmyzmail.contentfilter.rules.EXCESSIVE_RECIPIENTS.enabled=false\n\
 lmyzmail.contentfilter.rules.DANGEROUS_EXTENSION.weight=1.5\n\
+lmyzmail.contentfilter.rbl.enabled=true\n\
+lmyzmail.contentfilter.rbl.servers=preferred.test\n\
+lmyzmail.contentfilter.rbl.score-per-hit=3\n\
 lmyzmail.contentfilter.attachment.enabled=true\n\
 lmyzmail.contentfilter.attachment.dangerous-extensions=cmd,js\n\
 lmyzmail.contentfilter.attachment.dangerous-extension-score=6\n",
@@ -5527,6 +5708,16 @@ lmyzmail.contentfilter.attachment.dangerous-extension-score=6\n",
         assert!(config.content_filter.enabled);
         assert_eq!(config.content_filter.suspicious_threshold, 4.0);
         assert_eq!(config.content_filter.spam_threshold, 8.0);
+        assert!(!config.content_filter.rbl_check.enabled);
+        assert_eq!(config.content_filter.rbl_check.weight, 1.5);
+        assert!(config.content_filter.rbl.enabled);
+        assert_eq!(config.content_filter.rbl.servers, ["preferred.test"]);
+        assert_eq!(
+            config.content_filter.rbl.timeout,
+            Duration::from_millis(900)
+        );
+        assert_eq!(config.content_filter.rbl.score_per_hit, 3.0);
+        assert_eq!(config.content_filter.rbl.max_score, 7.0);
         assert!(!config.content_filter.new_domain.enabled);
         assert_eq!(config.content_filter.new_domain.weight, 1.75);
         assert!(!config.content_filter.missing_headers.enabled);
@@ -5565,6 +5756,7 @@ lmyzmail.contentfilter.attachment.dangerous-extension-score=6\n",
             "suspicious_threshold": 6.0,
             "spam_threshold": 12.0,
             "rules": {
+                "rbl_check": {"enabled": true, "weight": 1.25},
                 "new_domain": {"enabled": false, "weight": 0.75},
                 "missing_headers": {"enabled": false, "weight": 2.0},
                 "subject_encoding_trick": {"enabled": true, "weight": 1.5},
@@ -5572,6 +5764,13 @@ lmyzmail.contentfilter.attachment.dangerous-extension-score=6\n",
                 "dangerous_extension": {"enabled": true, "weight": 2.5},
                 "double_extension": {"enabled": false, "weight": 3.0},
                 "mime_type_mismatch": {"enabled": true, "weight": 3.5}
+            },
+            "rbl": {
+                "enabled": true,
+                "servers": ["listed-one.rbl.test", "listed-two.rbl.test"],
+                "timeout_ms": 750,
+                "score_per_hit": 2.5,
+                "max_score": 4.5
             },
             "attachment": {
                 "enabled": true,
@@ -5586,6 +5785,17 @@ lmyzmail.contentfilter.attachment.dangerous-extension-score=6\n",
         assert!(!config.content_filter.enabled);
         assert_eq!(config.content_filter.suspicious_threshold, 6.0);
         assert_eq!(config.content_filter.spam_threshold, 12.0);
+        assert_eq!(config.content_filter.rbl_check.weight, 1.25);
+        assert_eq!(
+            config.content_filter.rbl.servers,
+            ["listed-one.rbl.test", "listed-two.rbl.test"]
+        );
+        assert_eq!(
+            config.content_filter.rbl.timeout,
+            Duration::from_millis(750)
+        );
+        assert_eq!(config.content_filter.rbl.score_per_hit, 2.5);
+        assert_eq!(config.content_filter.rbl.max_score, 4.5);
         assert!(!config.content_filter.new_domain.enabled);
         assert_eq!(config.content_filter.new_domain.weight, 0.75);
         assert!(!config.content_filter.missing_headers.enabled);
@@ -5608,6 +5818,32 @@ lmyzmail.contentfilter.attachment.dangerous-extension-score=6\n",
             config.content_filter.attachment.mime_type_mismatch_score,
             8.0
         );
+    }
+
+    #[test]
+    fn content_filter_rbl_configuration_is_strictly_bounded() {
+        let too_many = (0..=MAX_CONTENT_FILTER_RBL_SERVERS)
+            .map(|index| format!("rbl-{index}.example"))
+            .collect::<Vec<_>>()
+            .join(",");
+        for input in [
+            "lmyzmail.contentfilter.rbl.timeout-ms=0\n".to_owned(),
+            format!(
+                "lmyzmail.contentfilter.rbl.timeout-ms={}\n",
+                MAX_CONTENT_FILTER_RBL_TIMEOUT_MS + 1
+            ),
+            "lmyzmail.contentfilter.rbl.servers=-invalid.example\n".to_owned(),
+            "lmyzmail.contentfilter.rbl.servers=two..dots.example\n".to_owned(),
+            format!("lmyzmail.contentfilter.rbl.servers={too_many}\n"),
+            "lmyzmail.contentfilter.rbl.score-per-hit=NaN\n".to_owned(),
+            "lmyzmail.contentfilter.rbl.max-score=-1\n".to_owned(),
+        ] {
+            assert!(
+                RuntimeConfig::from_properties(Properties::parse(input.as_bytes()).unwrap())
+                    .is_err(),
+                "accepted unsafe RBL configuration: {input}"
+            );
+        }
     }
 
     #[test]

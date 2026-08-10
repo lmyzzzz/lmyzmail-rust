@@ -2,6 +2,7 @@ use std::{
     collections::{HashMap, HashSet},
     fmt,
     future::Future,
+    net::{IpAddr, Ipv4Addr, Ipv6Addr},
     pin::Pin,
     sync::{Arc, OnceLock},
     time::Duration,
@@ -9,6 +10,7 @@ use std::{
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use chrono::{DateTime, Datelike, NaiveDate, Utc};
+use futures_util::future::join_all;
 use hickory_resolver::{TokioResolver, proto::rr::RData};
 use mail_parser::MessageParser;
 use regex::Regex;
@@ -31,6 +33,172 @@ const MAX_MIME_FILENAME_BYTES: usize = 1_024;
 const NEW_DOMAIN_QUERY_TIMEOUT: Duration = Duration::from_secs(5);
 const NEW_DOMAIN_MAX_ACTIVE_REQUESTS: usize = 32;
 const NEW_DOMAIN_CACHE_ENTRIES: u64 = 8_192;
+const RBL_MAX_ACTIVE_REQUESTS: usize = 64;
+const RBL_CACHE_ENTRIES: u64 = 8_192;
+
+type RblLookupFuture<'a> = Pin<Box<dyn Future<Output = bool> + Send + 'a>>;
+
+trait RblLookup: Send + Sync {
+    fn is_listed<'a>(&'a self, query: &'a str) -> RblLookupFuture<'a>;
+}
+
+#[derive(Clone)]
+struct HickoryRblLookup {
+    resolver: TokioResolver,
+}
+
+impl HickoryRblLookup {
+    fn new() -> Result<Self, String> {
+        let mut builder = TokioResolver::builder_tokio()
+            .map_err(|error| format!("system DNS configuration is unavailable: {error}"))?;
+        builder.options_mut().attempts = 1;
+        builder.options_mut().cache_size = RBL_CACHE_ENTRIES;
+        builder.options_mut().max_active_requests = RBL_MAX_ACTIVE_REQUESTS;
+        let resolver = builder
+            .build()
+            .map_err(|error| format!("system DNS resolver initialization failed: {error}"))?;
+        Ok(Self { resolver })
+    }
+}
+
+impl RblLookup for HickoryRblLookup {
+    fn is_listed<'a>(&'a self, query: &'a str) -> RblLookupFuture<'a> {
+        Box::pin(async move {
+            let ipv4 = self.resolver.ipv4_lookup(query);
+            let ipv6 = self.resolver.ipv6_lookup(query);
+            tokio::pin!(ipv4, ipv6);
+            tokio::select! {
+                result = &mut ipv4 => {
+                    if result.is_ok_and(|lookup| !lookup.answers().is_empty()) {
+                        true
+                    } else {
+                        ipv6.await.is_ok_and(|lookup| !lookup.answers().is_empty())
+                    }
+                }
+                result = &mut ipv6 => {
+                    if result.is_ok_and(|lookup| !lookup.answers().is_empty()) {
+                        true
+                    } else {
+                        ipv4.await.is_ok_and(|lookup| !lookup.answers().is_empty())
+                    }
+                }
+            }
+        })
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct RblScanner {
+    backend: Arc<dyn RblLookup>,
+    permits: Arc<Semaphore>,
+}
+
+impl RblScanner {
+    pub(crate) fn new() -> Result<Self, String> {
+        Ok(Self::with_backend(
+            Arc::new(HickoryRblLookup::new()?),
+            RBL_MAX_ACTIVE_REQUESTS,
+        ))
+    }
+
+    fn with_backend(backend: Arc<dyn RblLookup>, max_active_requests: usize) -> Self {
+        assert!(max_active_requests > 0);
+        Self {
+            backend,
+            permits: Arc::new(Semaphore::new(max_active_requests)),
+        }
+    }
+
+    pub(crate) async fn scan(&self, peer: IpAddr, config: &ContentFilterConfig) -> ContentScan {
+        if !config.enabled
+            || !config.rbl_check.enabled
+            || !config.rbl.enabled
+            || config.rbl.servers.is_empty()
+            || java_private_ip(peer)
+        {
+            return ContentScan::default();
+        }
+        let reversed = reverse_ip(peer);
+        let lookups = config.rbl.servers.iter().map(|server| {
+            let query = format!("{reversed}.{server}");
+            async move {
+                let deadline = Instant::now() + config.rbl.timeout;
+                let _permit = match timeout_at(deadline, self.permits.acquire()).await {
+                    Ok(Ok(permit)) => permit,
+                    Ok(Err(_)) | Err(_) => return false,
+                };
+                timeout_at(deadline, self.backend.is_listed(&query))
+                    .await
+                    .unwrap_or(false)
+            }
+        });
+        let listed = join_all(lookups)
+            .await
+            .into_iter()
+            .filter(|listed| *listed)
+            .count();
+        if listed == 0 {
+            return ContentScan::default();
+        }
+        let score = ((listed as f64) * config.rbl.score_per_hit).min(config.rbl.max_score)
+            * config.rbl_check.weight;
+        ContentScan {
+            total_score: score,
+            hits: vec![RuleHit {
+                name: "RBL_CHECK",
+                score,
+            }],
+        }
+    }
+}
+
+fn reverse_ip(peer: IpAddr) -> String {
+    match peer {
+        IpAddr::V4(address) => {
+            let [a, b, c, d] = address.octets();
+            format!("{d}.{c}.{b}.{a}")
+        }
+        IpAddr::V6(address) => {
+            let mut reversed = String::with_capacity(63);
+            for byte in address.octets().iter().rev() {
+                if !reversed.is_empty() {
+                    reversed.push('.');
+                }
+                reversed.push(char::from_digit(u32::from(byte & 0x0f), 16).unwrap());
+                reversed.push('.');
+                reversed.push(char::from_digit(u32::from(byte >> 4), 16).unwrap());
+            }
+            reversed
+        }
+    }
+}
+
+fn java_private_ip(peer: IpAddr) -> bool {
+    match peer {
+        IpAddr::V4(address) => java_private_ipv4(address),
+        IpAddr::V6(address) => address
+            .to_ipv4_mapped()
+            .map_or_else(|| java_private_ipv6(address), java_private_ipv4),
+    }
+}
+
+fn java_private_ipv4(address: Ipv4Addr) -> bool {
+    let [a, b, _, _] = address.octets();
+    address.is_loopback()
+        || address.is_unspecified()
+        || (a == 10)
+        || (a == 172 && (16..=31).contains(&b))
+        || (a == 192 && b == 168)
+        || (a == 169 && b == 254)
+}
+
+fn java_private_ipv6(address: Ipv6Addr) -> bool {
+    let first = address.segments()[0];
+    address.is_loopback()
+        || address.is_unspecified()
+        || first & 0xffc0 == 0xfe80
+        || first & 0xffc0 == 0xfec0
+}
 
 type SoaLookupFuture<'a> = Pin<Box<dyn Future<Output = Result<Option<u32>, ()>> + Send + 'a>>;
 
@@ -1206,7 +1374,10 @@ fn count_addresses(value: &str) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{
+        Mutex as StdMutex,
+        atomic::{AtomicUsize, Ordering},
+    };
 
     use chrono::TimeZone;
     use proptest::prelude::*;
@@ -1259,6 +1430,40 @@ mod tests {
         NewDomainScanner::with_backend(backend, 1, Duration::from_millis(100))
     }
 
+    #[derive(Clone)]
+    enum FakeRblResponse {
+        Listed(HashSet<String>),
+        Pending,
+    }
+
+    struct FakeRblLookup {
+        response: FakeRblResponse,
+        queries: StdMutex<Vec<String>>,
+    }
+
+    impl FakeRblLookup {
+        fn new(response: FakeRblResponse) -> Arc<Self> {
+            Arc::new(Self {
+                response,
+                queries: StdMutex::new(Vec::new()),
+            })
+        }
+    }
+
+    impl RblLookup for FakeRblLookup {
+        fn is_listed<'a>(&'a self, query: &'a str) -> RblLookupFuture<'a> {
+            self.queries.lock().unwrap().push(query.to_owned());
+            let response = self.response.clone();
+            let query = query.to_owned();
+            Box::pin(async move {
+                match response {
+                    FakeRblResponse::Listed(names) => names.contains(&query),
+                    FakeRblResponse::Pending => std::future::pending().await,
+                }
+            })
+        }
+    }
+
     fn fixed_now() -> DateTime<Utc> {
         Utc.with_ymd_and_hms(2025, 8, 5, 12, 0, 0).unwrap()
     }
@@ -1288,6 +1493,78 @@ mod tests {
         }
         message.extend_from_slice(b"--attachment-boundary--\r\n");
         message
+    }
+
+    #[test]
+    fn rbl_ip_reversal_and_java_private_ranges_are_exact() {
+        assert_eq!(reverse_ip("192.0.2.42".parse().unwrap()), "42.2.0.192");
+        assert_eq!(
+            reverse_ip("::1".parse().unwrap()),
+            format!("1.{}", vec!["0"; 31].join("."))
+        );
+        for address in [
+            "0.0.0.0",
+            "127.0.0.1",
+            "10.1.2.3",
+            "172.16.0.1",
+            "192.168.1.1",
+            "169.254.1.1",
+            "::",
+            "::1",
+            "::ffff:127.0.0.1",
+            "fe80::1",
+            "fec0::1",
+        ] {
+            assert!(java_private_ip(address.parse().unwrap()), "{address}");
+        }
+        for address in ["192.0.2.42", "172.32.0.1", "fc00::1", "2001:db8::1"] {
+            assert!(!java_private_ip(address.parse().unwrap()), "{address}");
+        }
+    }
+
+    #[tokio::test]
+    async fn rbl_parallel_hits_apply_cap_then_rule_weight() {
+        let peer: IpAddr = "203.0.113.9".parse().unwrap();
+        let servers = ["listed-one.test", "absent.test", "listed-two.test"];
+        let listed = [
+            "9.113.0.203.listed-one.test".to_owned(),
+            "9.113.0.203.listed-two.test".to_owned(),
+        ]
+        .into_iter()
+        .collect();
+        let backend = FakeRblLookup::new(FakeRblResponse::Listed(listed));
+        let scanner = RblScanner::with_backend(backend.clone(), 3);
+        let mut settings = config();
+        settings.rbl.servers = servers.into_iter().map(str::to_owned).collect();
+        settings.rbl.score_per_hit = 3.0;
+        settings.rbl.max_score = 5.0;
+        settings.rbl_check.weight = 1.5;
+        let scan = scanner.scan(peer, &settings).await;
+        assert_eq!(scan.hits().collect::<Vec<_>>(), [("RBL_CHECK", 7.5)]);
+        assert_eq!(backend.queries.lock().unwrap().len(), 3);
+        assert_eq!(scanner.permits.available_permits(), 3);
+    }
+
+    #[tokio::test]
+    async fn rbl_private_skip_and_timeout_fail_open_without_leaking_permits() {
+        let pending = FakeRblLookup::new(FakeRblResponse::Pending);
+        let scanner = RblScanner::with_backend(pending.clone(), 1);
+        let mut settings = config();
+        settings.rbl.servers = vec!["listed.test".into()];
+        settings.rbl.timeout = Duration::from_millis(10);
+        assert_eq!(
+            scanner.scan("127.0.0.1".parse().unwrap(), &settings).await,
+            ContentScan::default()
+        );
+        assert!(pending.queries.lock().unwrap().is_empty());
+        assert_eq!(
+            scanner
+                .scan("203.0.113.9".parse().unwrap(), &settings)
+                .await,
+            ContentScan::default()
+        );
+        assert_eq!(pending.queries.lock().unwrap().len(), 1);
+        assert_eq!(scanner.permits.available_permits(), 1);
     }
 
     #[test]

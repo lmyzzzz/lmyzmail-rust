@@ -386,11 +386,25 @@ the message clean. Eight- and ten-digit SOA serials retain the frozen UTC age
 bands and rule weight. `NEW_DOMAIN` is appended before header and attachment
 hits, preserving the exact `X-Spam-Rules` order.
 
+The v1 RBL profile freezes the preceding `RBL_CHECK` rule over a dynamically
+selected WSL global IPv6 peer. IPv4 octets and every IPv6 nibble are reversed
+exactly as in Java. Blank, loopback, RFC 1918 site-local, link-local,
+unspecified, IPv6 `fec0::/10`, and IPv4-mapped private peers do not query RBLs.
+Configured servers are queried concurrently through a shared Hickory resolver;
+each lookup and its bounded admission share the configured deadline, and either
+an A or AAAA answer is a listing. At most 32 servers are accepted, at most 64
+queries run concurrently, and the resolver cache is limited to 8,192 entries.
+The golden proves two listings, score-per-hit multiplication, max-score capping,
+rule weighting, loopback skip, and the exact Maildir/PostgreSQL/Redis effects.
+New `lmyzmail.contentfilter.rbl.*` and `rules.RBL_CHECK.*` keys take precedence
+per field over their `botmail.*` aliases.
+
 This is an incremental content-filter milestone, not a claim that the whole
-scanner is complete. The default-enabled `RBL_CHECK`, `SPAM_KEYWORDS`, and
-`SUSPICIOUS_URL` rules remain separate required migration slices. Evidence for
-the completed reputation rule is recorded in
-`evidence/compatibility/smtp-content-filter-new-domain-v1.json`.
+scanner is complete. The default-enabled `SPAM_KEYWORDS` and `SUSPICIOUS_URL`
+rules remain separate required migration slices. Evidence for the completed
+reputation rules is recorded in
+`evidence/compatibility/smtp-content-filter-new-domain-v1.json` and
+`evidence/compatibility/smtp-content-filter-rbl-v1.json`.
 
 ## SMTP command contract
 

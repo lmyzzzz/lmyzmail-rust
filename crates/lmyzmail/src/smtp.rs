@@ -37,7 +37,9 @@ use crate::{
     config::{ContentFilterConfig, MailRenderSimdMode, RuntimeConfig},
     skibidi::SkibidiGenerator,
     smtp_ascii::AsciiSimdMode,
-    smtp_content_filter::{ContentScan, NewDomainScanner, ParsedHeaders, scan_attachments},
+    smtp_content_filter::{
+        ContentScan, NewDomainScanner, ParsedHeaders, RblScanner, scan_attachments,
+    },
     smtp_skibidi_quiz::{AnswerOutcome, QuizLevel, QuizState, ensure_question_bank_loaded},
     smtp_skibidi_video::{VideoDefaults, VideoService, VideoStartError, frame_wire_bytes},
     video_asset::locate_frozen_video_asset,
@@ -84,6 +86,7 @@ pub struct SmtpService {
     maildir_max_files_per_directory: Option<usize>,
     maildir_shard_locks: Arc<[Mutex<()>; MAILDIR_SHARD_LOCKS]>,
     tls_acceptor: Option<TlsAcceptor>,
+    rbl_scanner: RblScanner,
     new_domain_scanner: NewDomainScanner,
     skibidi_generator: SkibidiGenerator,
     skibidi_video: Option<Arc<VideoService>>,
@@ -214,6 +217,11 @@ impl SmtpService {
             skibidi_info.avx512_enabled,
             skibidi_info.simd_rng_enabled,
         );
+        let rbl_scanner = RblScanner::new().map_err(|error| {
+            SmtpError::InvalidConfig(format!(
+                "SMTP content-filter RBL resolver cannot start: {error}"
+            ))
+        })?;
         let new_domain_scanner = NewDomainScanner::new().map_err(|error| {
             SmtpError::InvalidConfig(format!(
                 "SMTP content-filter DNS resolver cannot start: {error}"
@@ -264,6 +272,7 @@ impl SmtpService {
             maildir_max_files_per_directory,
             maildir_shard_locks: Arc::new(std::array::from_fn(|_| Mutex::new(()))),
             tls_acceptor,
+            rbl_scanner,
             new_domain_scanner,
             skibidi_generator,
             skibidi_video,
@@ -303,13 +312,18 @@ impl SmtpService {
         let headers = ParsedHeaders::parse(&envelope.data)
             .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
         let mut content_scan = self
-            .new_domain_scanner
-            .scan(
-                envelope.sender.as_deref(),
-                &headers,
-                &self.config.content_filter,
-            )
+            .rbl_scanner
+            .scan(peer, &self.config.content_filter)
             .await;
+        content_scan.append(
+            self.new_domain_scanner
+                .scan(
+                    envelope.sender.as_deref(),
+                    &headers,
+                    &self.config.content_filter,
+                )
+                .await,
+        );
         // The frozen Java verification path does not forward envelope RCPTs
         // into ScanContext, so header rules observe an envelope count of zero.
         content_scan.append(headers.scan(0, &self.config.content_filter));
@@ -536,7 +550,7 @@ pub async fn serve_smtp(
                 let service = Arc::clone(&service);
                 tasks.spawn(async move {
                     let _permit = permit;
-                    handle_connection(stream, peer.ip(), service).await
+                    handle_connection(stream, peer.ip().to_canonical(), service).await
                 });
             }
         }
@@ -1491,8 +1505,13 @@ fn compose_message(envelope: &Envelope, composition: MessageComposition<'_>) -> 
     } else {
         content_scan.total_score()
     };
+    let reverse_dns = if peer.is_loopback() {
+        "localhost"
+    } else {
+        "unverified"
+    };
     let mut header = format!(
-        "Received: from {helo} (localhost [{peer}])\r\n\tby {HOSTNAME} with {protocol} id {received_id}\r\n\tfor <{mailbox}>;\r\n\t{date}\r\nAuthentication-Results: {HOSTNAME};\r\n\t{auth_spf} smtp.client-ip={peer} smtp.mailfrom={sender_clause};\r\n\tdkim=none (No DKIM signature present);\r\n\tdmarc=none No DMARC record found\r\nX-Spam-Status: {status}\r\nX-Spam-Score: {:.1}\r\n",
+        "Received: from {helo} ({reverse_dns} [{peer}])\r\n\tby {HOSTNAME} with {protocol} id {received_id}\r\n\tfor <{mailbox}>;\r\n\t{date}\r\nAuthentication-Results: {HOSTNAME};\r\n\t{auth_spf} smtp.client-ip={peer} smtp.mailfrom={sender_clause};\r\n\tdkim=none (No DKIM signature present);\r\n\tdmarc=none No DMARC record found\r\nX-Spam-Status: {status}\r\nX-Spam-Score: {:.1}\r\n",
         total_score
     );
     let rules = content_scan
