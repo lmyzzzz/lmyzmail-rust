@@ -43,6 +43,14 @@ const MAX_MINECRAFT_VIDEO_SPAWN_PROTECT_RADIUS: u64 = 256;
 const MAX_MINECRAFT_MAP_VIDEO_AXIS: u64 = 16;
 const MAX_MINECRAFT_WORLD_COORDINATE: i32 = 30_000_000;
 const MAX_MINECRAFT_WORLD_Y: i32 = 255;
+const MAX_SMTP_ASCII_WIDTH: u64 = 2_048;
+const MAX_SMTP_ASCII_FPS: f32 = 60.0;
+const MIN_SMTP_ASCII_WIDTH: u64 = 10;
+const MIN_SMTP_ASCII_FPS: f32 = 1.0;
+const MIN_SMTP_ASCII_CONTRAST: f32 = 0.1;
+const MAX_SMTP_ASCII_CONTRAST: f32 = 3.0;
+const MIN_SMTP_ASCII_ASPECT: f32 = 0.1;
+const MAX_SMTP_ASCII_ASPECT: f32 = 10.0;
 const MAX_MESSAGE_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_CRINGE_DECAY_DURATION: Duration = Duration::from_secs(100 * 366 * 24 * 60 * 60);
 
@@ -223,6 +231,8 @@ struct JsonRuntimeConfig {
     #[serde(default)]
     features: JsonFeatureConfig,
     #[serde(default)]
+    smtp: JsonSmtpConfig,
+    #[serde(default)]
     xdp: JsonXdpConfig,
     #[serde(default)]
     cringe: JsonCringeConfig,
@@ -319,6 +329,57 @@ struct JsonFeatureConfig {
     report_delivery: bool,
     #[serde(default)]
     show_internet_nl_badge: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct JsonSmtpConfig {
+    #[serde(default = "default_true")]
+    skibidi_toilet_quiz_enabled: bool,
+    #[serde(default)]
+    asciiart: JsonSmtpAsciiConfig,
+}
+
+impl Default for JsonSmtpConfig {
+    fn default() -> Self {
+        Self {
+            skibidi_toilet_quiz_enabled: true,
+            asciiart: JsonSmtpAsciiConfig::default(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct JsonSmtpAsciiConfig {
+    #[serde(default = "default_smtp_ascii_simd_mode")]
+    simd_mode: String,
+    #[serde(default = "default_smtp_ascii_max_width")]
+    max_width: u32,
+    #[serde(default = "default_smtp_ascii_max_fps")]
+    max_fps: f32,
+    #[serde(default = "default_smtp_ascii_default_width")]
+    default_width: u32,
+    #[serde(default = "default_smtp_ascii_default_fps")]
+    default_fps: f32,
+    #[serde(default = "default_smtp_ascii_default_contrast")]
+    default_contrast: f32,
+    #[serde(default = "default_smtp_ascii_char_aspect")]
+    char_aspect: f32,
+}
+
+impl Default for JsonSmtpAsciiConfig {
+    fn default() -> Self {
+        Self {
+            simd_mode: default_smtp_ascii_simd_mode(),
+            max_width: default_smtp_ascii_max_width(),
+            max_fps: default_smtp_ascii_max_fps(),
+            default_width: default_smtp_ascii_default_width(),
+            default_fps: default_smtp_ascii_default_fps(),
+            default_contrast: default_smtp_ascii_default_contrast(),
+            char_aspect: default_smtp_ascii_char_aspect(),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -788,6 +849,34 @@ fn default_skibidi_mode() -> String {
     "AUTO_SAFE".to_owned()
 }
 
+fn default_smtp_ascii_simd_mode() -> String {
+    "AUTO".to_owned()
+}
+
+fn default_smtp_ascii_max_width() -> u32 {
+    450
+}
+
+fn default_smtp_ascii_max_fps() -> f32 {
+    20.0
+}
+
+fn default_smtp_ascii_default_width() -> u32 {
+    120
+}
+
+fn default_smtp_ascii_default_fps() -> f32 {
+    10.0
+}
+
+fn default_smtp_ascii_default_contrast() -> f32 {
+    1.2
+}
+
+fn default_smtp_ascii_char_aspect() -> f32 {
+    2.0
+}
+
 fn default_htcpcp_brew_seconds() -> u64 {
     30
 }
@@ -1048,6 +1137,10 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         default_brew_time_seconds: htcpcp_brew_seconds,
         pots,
     } = value.htcpcp;
+    let JsonSmtpConfig {
+        skibidi_toilet_quiz_enabled,
+        asciiart: smtp_ascii,
+    } = value.smtp;
     let htcpcp_pots = pots.unwrap_or_else(default_json_htcpcp_pots);
     if htcpcp_pots.is_empty() {
         return Err(ConfigError::Invalid(
@@ -1065,6 +1158,38 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
     properties.insert(
         "lmyzmail.smtp.port".to_owned(),
         value.listen.smtp.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.smtp.skibidi-toilet-quiz-enabled".to_owned(),
+        skibidi_toilet_quiz_enabled.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.smtp.asciiart.simd-mode".to_owned(),
+        smtp_ascii.simd_mode,
+    )?;
+    properties.insert(
+        "lmyzmail.smtp.asciiart.max-width".to_owned(),
+        smtp_ascii.max_width.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.smtp.asciiart.max-fps".to_owned(),
+        smtp_ascii.max_fps.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.smtp.asciiart.default-width".to_owned(),
+        smtp_ascii.default_width.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.smtp.asciiart.default-fps".to_owned(),
+        smtp_ascii.default_fps.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.smtp.asciiart.default-contrast".to_owned(),
+        smtp_ascii.default_contrast.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.smtp.asciiart.char-aspect".to_owned(),
+        smtp_ascii.char_aspect.to_string(),
     )?;
     properties.insert(
         "lmyzmail.htcpcp.port".to_owned(),
@@ -1765,6 +1890,7 @@ pub struct RuntimeConfig {
     pub api_keys: Vec<ApiKeyConfig>,
     pub outbound_route: OutboundRouteConfig,
     pub features: FeatureConfig,
+    pub smtp_skibidi: SmtpSkibidiConfig,
     pub xdp: XdpConfig,
     pub cringe_decay: CringeDecayConfig,
     pub reporting: ReportingConfig,
@@ -1842,6 +1968,23 @@ pub struct FeatureConfig {
     pub fail2ban: bool,
     pub report_delivery: bool,
     pub show_internet_nl_badge: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct SmtpSkibidiConfig {
+    pub enabled: bool,
+    pub ascii: SmtpAsciiConfig,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct SmtpAsciiConfig {
+    pub simd_mode: MailRenderSimdMode,
+    pub max_width: u32,
+    pub max_fps: f32,
+    pub default_width: u32,
+    pub default_fps: f32,
+    pub default_contrast: f32,
+    pub char_aspect: f32,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -2064,6 +2207,7 @@ impl RuntimeConfig {
                 &["botmail.mailrender.simd-mode"],
             )),
         };
+        let smtp_skibidi = parse_smtp_skibidi_config(&properties)?;
 
         let datasource_url = preferred(
             &properties,
@@ -2532,6 +2676,7 @@ impl RuntimeConfig {
             api_keys,
             outbound_route,
             features,
+            smtp_skibidi,
             xdp,
             cringe_decay,
             reporting,
@@ -3045,6 +3190,113 @@ fn parse_mail_render_simd_mode(value: Option<&str>) -> MailRenderSimdMode {
         Some("AVX512") => MailRenderSimdMode::Avx512,
         Some("AUTO") | Some(_) | None => MailRenderSimdMode::Auto,
     }
+}
+
+fn parse_smtp_skibidi_config(properties: &Properties) -> Result<SmtpSkibidiConfig, ConfigError> {
+    let enabled = preferred_bool(
+        properties,
+        &["lmyzmail.smtp.skibidi-toilet-quiz-enabled"],
+        &["botmail.smtp.skibidi-toilet-quiz-enabled"],
+        true,
+    )?;
+    let max_width = preferred_minecraft_u32(
+        properties,
+        &["lmyzmail.smtp.asciiart.max-width"],
+        &["botmail.smtp.asciiart.max-width"],
+        default_smtp_ascii_max_width(),
+        MIN_SMTP_ASCII_WIDTH,
+        MAX_SMTP_ASCII_WIDTH,
+        "smtp asciiart.max-width",
+    )?;
+    let max_fps = preferred_f32(
+        properties,
+        &["lmyzmail.smtp.asciiart.max-fps"],
+        &["botmail.smtp.asciiart.max-fps"],
+        default_smtp_ascii_max_fps(),
+        "smtp asciiart.max-fps",
+    )?;
+    validate_smtp_ascii_fps(max_fps, "smtp asciiart.max-fps")?;
+    let default_width = preferred_minecraft_u32(
+        properties,
+        &["lmyzmail.smtp.asciiart.default-width"],
+        &["botmail.smtp.asciiart.default-width"],
+        default_smtp_ascii_default_width(),
+        MIN_SMTP_ASCII_WIDTH,
+        u64::from(max_width),
+        "smtp asciiart.default-width",
+    )?;
+    let default_fps = preferred_f32(
+        properties,
+        &["lmyzmail.smtp.asciiart.default-fps"],
+        &["botmail.smtp.asciiart.default-fps"],
+        default_smtp_ascii_default_fps(),
+        "smtp asciiart.default-fps",
+    )?;
+    validate_smtp_ascii_fps(default_fps, "smtp asciiart.default-fps")?;
+    if default_fps > max_fps {
+        return Err(ConfigError::Invalid(
+            "smtp asciiart.default-fps must not exceed smtp asciiart.max-fps".into(),
+        ));
+    }
+    let default_contrast = preferred_f32(
+        properties,
+        &["lmyzmail.smtp.asciiart.default-contrast"],
+        &["botmail.smtp.asciiart.default-contrast"],
+        default_smtp_ascii_default_contrast(),
+        "smtp asciiart.default-contrast",
+    )?;
+    validate_smtp_ascii_contrast(default_contrast, "smtp asciiart.default-contrast")?;
+    let char_aspect = preferred_f32(
+        properties,
+        &["lmyzmail.smtp.asciiart.char-aspect"],
+        &["botmail.smtp.asciiart.char-aspect"],
+        default_smtp_ascii_char_aspect(),
+        "smtp asciiart.char-aspect",
+    )?;
+    validate_smtp_ascii_aspect(char_aspect, "smtp asciiart.char-aspect")?;
+    Ok(SmtpSkibidiConfig {
+        enabled,
+        ascii: SmtpAsciiConfig {
+            simd_mode: parse_mail_render_simd_mode(preferred(
+                properties,
+                &["lmyzmail.smtp.asciiart.simd-mode"],
+                &["botmail.smtp.asciiart.simd-mode"],
+            )),
+            max_width,
+            max_fps,
+            default_width,
+            default_fps,
+            default_contrast,
+            char_aspect,
+        },
+    })
+}
+
+fn validate_smtp_ascii_fps(value: f32, label: &str) -> Result<(), ConfigError> {
+    if !value.is_finite() || !(MIN_SMTP_ASCII_FPS..=MAX_SMTP_ASCII_FPS).contains(&value) {
+        return Err(ConfigError::Invalid(format!(
+            "{label} must be a finite value between {MIN_SMTP_ASCII_FPS} and {MAX_SMTP_ASCII_FPS}"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_smtp_ascii_contrast(value: f32, label: &str) -> Result<(), ConfigError> {
+    if !value.is_finite() || !(MIN_SMTP_ASCII_CONTRAST..=MAX_SMTP_ASCII_CONTRAST).contains(&value) {
+        return Err(ConfigError::Invalid(format!(
+            "{label} must be a finite value between {MIN_SMTP_ASCII_CONTRAST} and {MAX_SMTP_ASCII_CONTRAST}"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_smtp_ascii_aspect(value: f32, label: &str) -> Result<(), ConfigError> {
+    if !value.is_finite() || !(MIN_SMTP_ASCII_ASPECT..=MAX_SMTP_ASCII_ASPECT).contains(&value) {
+        return Err(ConfigError::Invalid(format!(
+            "{label} must be a finite value between {MIN_SMTP_ASCII_ASPECT} and {MAX_SMTP_ASCII_ASPECT}"
+        )));
+    }
+    Ok(())
 }
 
 fn validate_minecraft_session_server_url(raw: &str) -> Result<(), ConfigError> {
@@ -4618,6 +4870,147 @@ lmyzmail.htcpcp.pots[{index}].supported-additions=\n"
         let config = RuntimeConfig::from_properties(properties).unwrap();
         assert_eq!(config.listen.http, 18080);
         assert_eq!(config.listen.smtp, 2525);
+    }
+
+    #[test]
+    fn smtp_skibidi_ascii_defaults_match_java() {
+        let config = RuntimeConfig::from_properties(Properties::default()).unwrap();
+        assert!(config.smtp_skibidi.enabled);
+        assert_eq!(
+            config.smtp_skibidi.ascii.simd_mode,
+            MailRenderSimdMode::Auto
+        );
+        assert_eq!(config.smtp_skibidi.ascii.max_width, 450);
+        assert_eq!(config.smtp_skibidi.ascii.max_fps, 20.0);
+        assert_eq!(config.smtp_skibidi.ascii.default_width, 120);
+        assert_eq!(config.smtp_skibidi.ascii.default_fps, 10.0);
+        assert_eq!(config.smtp_skibidi.ascii.default_contrast, 1.2);
+        assert_eq!(config.smtp_skibidi.ascii.char_aspect, 2.0);
+    }
+
+    #[test]
+    fn smtp_skibidi_accepts_legacy_values_and_prefers_new_keys() {
+        let legacy = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.smtp.skibidi-toilet-quiz-enabled=false\n\
+botmail.smtp.asciiart.simd-mode=AVX512\n\
+botmail.smtp.asciiart.max-width=980\n\
+botmail.smtp.asciiart.max-fps=30\n\
+botmail.smtp.asciiart.default-width=150\n\
+botmail.smtp.asciiart.default-fps=12\n\
+botmail.smtp.asciiart.default-contrast=1.4\n\
+botmail.smtp.asciiart.char-aspect=1.5\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(!legacy.smtp_skibidi.enabled);
+        assert_eq!(
+            legacy.smtp_skibidi.ascii.simd_mode,
+            MailRenderSimdMode::Avx512
+        );
+        assert_eq!(legacy.smtp_skibidi.ascii.max_width, 980);
+        assert_eq!(legacy.smtp_skibidi.ascii.max_fps, 30.0);
+        assert_eq!(legacy.smtp_skibidi.ascii.default_width, 150);
+        assert_eq!(legacy.smtp_skibidi.ascii.default_fps, 12.0);
+        assert_eq!(legacy.smtp_skibidi.ascii.default_contrast, 1.4);
+        assert_eq!(legacy.smtp_skibidi.ascii.char_aspect, 1.5);
+
+        let both = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.smtp.skibidi-toilet-quiz-enabled=false\n\
+botmail.smtp.asciiart.max-width=980\n\
+botmail.smtp.asciiart.max-fps=30\n\
+botmail.smtp.asciiart.default-width=150\n\
+botmail.smtp.asciiart.default-fps=12\n\
+botmail.smtp.asciiart.default-contrast=1.4\n\
+botmail.smtp.asciiart.char-aspect=1.5\n\
+lmyzmail.smtp.skibidi-toilet-quiz-enabled=true\n\
+lmyzmail.smtp.asciiart.simd-mode=SCALAR\n\
+lmyzmail.smtp.asciiart.max-width=320\n\
+lmyzmail.smtp.asciiart.max-fps=18\n\
+lmyzmail.smtp.asciiart.default-width=80\n\
+lmyzmail.smtp.asciiart.default-fps=9\n\
+lmyzmail.smtp.asciiart.default-contrast=1.1\n\
+lmyzmail.smtp.asciiart.char-aspect=2.5\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(both.smtp_skibidi.enabled);
+        assert_eq!(
+            both.smtp_skibidi.ascii.simd_mode,
+            MailRenderSimdMode::Scalar
+        );
+        assert_eq!(both.smtp_skibidi.ascii.max_width, 320);
+        assert_eq!(both.smtp_skibidi.ascii.max_fps, 18.0);
+        assert_eq!(both.smtp_skibidi.ascii.default_width, 80);
+        assert_eq!(both.smtp_skibidi.ascii.default_fps, 9.0);
+        assert_eq!(both.smtp_skibidi.ascii.default_contrast, 1.1);
+        assert_eq!(both.smtp_skibidi.ascii.char_aspect, 2.5);
+    }
+
+    #[test]
+    fn smtp_skibidi_semantic_json_uses_nested_shape() {
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&semantic_json_with_htcpcp(serde_json::json!({
+                "enabled": false,
+                "default_brew_time_seconds": 30,
+                "pots": null
+            })))
+            .unwrap();
+        value["smtp"] = serde_json::json!({
+            "skibidi_toilet_quiz_enabled": false,
+            "asciiart": {
+                "simd_mode": "AVX2",
+                "max_width": 980,
+                "max_fps": 30.0,
+                "default_width": 150,
+                "default_fps": 12.0,
+                "default_contrast": 1.4,
+                "char_aspect": 1.5
+            }
+        });
+        let properties = parse_semantic_json(&serde_json::to_vec(&value).unwrap()).unwrap();
+        let config = RuntimeConfig::from_properties(properties).unwrap();
+        assert!(!config.smtp_skibidi.enabled);
+        assert_eq!(
+            config.smtp_skibidi.ascii.simd_mode,
+            MailRenderSimdMode::Avx2
+        );
+        assert_eq!(config.smtp_skibidi.ascii.max_width, 980);
+        assert_eq!(config.smtp_skibidi.ascii.max_fps, 30.0);
+        assert_eq!(config.smtp_skibidi.ascii.default_width, 150);
+        assert_eq!(config.smtp_skibidi.ascii.default_fps, 12.0);
+        assert_eq!(config.smtp_skibidi.ascii.default_contrast, 1.4);
+        assert_eq!(config.smtp_skibidi.ascii.char_aspect, 1.5);
+    }
+
+    #[test]
+    fn smtp_skibidi_ascii_values_are_bounded_and_finite() {
+        for input in [
+            b"lmyzmail.smtp.asciiart.max-width=9\n".as_slice(),
+            b"lmyzmail.smtp.asciiart.max-width=2049\n".as_slice(),
+            b"lmyzmail.smtp.asciiart.max-fps=0\n".as_slice(),
+            b"lmyzmail.smtp.asciiart.max-fps=60.1\n".as_slice(),
+            b"lmyzmail.smtp.asciiart.max-fps=NaN\n".as_slice(),
+            b"lmyzmail.smtp.asciiart.max-fps=Infinity\n".as_slice(),
+            b"lmyzmail.smtp.asciiart.default-width=451\n".as_slice(),
+            b"lmyzmail.smtp.asciiart.default-fps=21\n".as_slice(),
+            b"lmyzmail.smtp.asciiart.default-fps=NaN\n".as_slice(),
+            b"lmyzmail.smtp.asciiart.default-contrast=0.09\n".as_slice(),
+            b"lmyzmail.smtp.asciiart.default-contrast=3.1\n".as_slice(),
+            b"lmyzmail.smtp.asciiart.default-contrast=NaN\n".as_slice(),
+            b"lmyzmail.smtp.asciiart.char-aspect=0.09\n".as_slice(),
+            b"lmyzmail.smtp.asciiart.char-aspect=10.1\n".as_slice(),
+            b"lmyzmail.smtp.asciiart.char-aspect=Infinity\n".as_slice(),
+        ] {
+            assert!(
+                RuntimeConfig::from_properties(Properties::parse(input).unwrap()).is_err(),
+                "accepted unsafe SMTP ASCII configuration: {}",
+                String::from_utf8_lossy(input)
+            );
+        }
     }
 
     #[test]

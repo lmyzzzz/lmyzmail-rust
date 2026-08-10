@@ -1,8 +1,7 @@
 use std::{
     collections::{HashMap, HashSet, VecDeque},
-    fs::File,
     future::Future,
-    io::{self, Read as _, Write as _},
+    io::{self, Write as _},
     net::{IpAddr, SocketAddr},
     path::PathBuf,
     pin::Pin,
@@ -27,7 +26,6 @@ use openssl::{
 use regex::Regex;
 use reqwest::{Client, StatusCode, redirect::Policy};
 use sha1::Sha1;
-use sha2::Sha256;
 use subtle::ConstantTimeEq;
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
@@ -93,9 +91,6 @@ const MAP_TILE_PIXELS: usize = 128 * 128;
 const MAP_BLANK_COLOR: u8 = 34;
 const MAP_SUPPORT_BLOCK_STATE: i32 = 155 << 4;
 const HOTBAR_CLICK_COOLDOWN: Duration = Duration::from_millis(400);
-const VIDEO_ASSET_NAME: &str = "skibidi_toilet_episode_1.mp4";
-const VIDEO_ASSET_BYTES: u64 = 15_048_248;
-const VIDEO_ASSET_SHA256: &str = "0e76229bb77ebcf471aec692fa34709cfbbe3dc192127a852a518e34bdd0ecc7";
 const VIDEO_SOURCE_WIDTH: usize = 1920;
 const VIDEO_SOURCE_HEIGHT: usize = 1080;
 const VIDEO_SOURCE_FPS: f64 = 30.0;
@@ -1093,51 +1088,6 @@ struct StatusService {
     auth_limiter: Arc<MinecraftAuthLimiter>,
 }
 
-fn locate_video_asset() -> io::Result<PathBuf> {
-    let mut candidates = vec![
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("assets")
-            .join(VIDEO_ASSET_NAME),
-        PathBuf::from("/usr/share/lmyzmail/assets").join(VIDEO_ASSET_NAME),
-        PathBuf::from("/opt/lmyzmail/assets").join(VIDEO_ASSET_NAME),
-    ];
-    if let Ok(executable) = std::env::current_exe()
-        && let Some(parent) = executable.parent()
-    {
-        candidates.push(parent.join("assets").join(VIDEO_ASSET_NAME));
-    }
-    for path in candidates {
-        let Ok(metadata) = std::fs::metadata(&path) else {
-            continue;
-        };
-        if metadata.len() != VIDEO_ASSET_BYTES {
-            continue;
-        }
-        let mut file = File::open(&path)?;
-        let mut hasher = Sha256::new();
-        let mut buffer = [0_u8; 64 * 1024];
-        loop {
-            let read = file.read(&mut buffer)?;
-            if read == 0 {
-                break;
-            }
-            hasher.update(&buffer[..read]);
-        }
-        let digest = hasher
-            .finalize()
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
-        if digest == VIDEO_ASSET_SHA256 {
-            return Ok(path);
-        }
-    }
-    Err(io::Error::new(
-        io::ErrorKind::NotFound,
-        format!("frozen video asset {VIDEO_ASSET_NAME} is unavailable or has the wrong hash"),
-    ))
-}
-
 impl StatusService {
     fn new(config: &MinecraftConfig) -> io::Result<Self> {
         let status_frame = build_status_frame(config, 0)?;
@@ -1172,7 +1122,7 @@ impl StatusService {
             video_semaphore: Arc::new(Semaphore::new(
                 config.max_concurrent_videos.clamp(1, 64) as usize
             )),
-            video_asset: locate_video_asset()?,
+            video_asset: crate::video_asset::locate_frozen_video_asset()?,
             image_http: PinnedImageClient::new().ok(),
             online_mode: config
                 .online_mode

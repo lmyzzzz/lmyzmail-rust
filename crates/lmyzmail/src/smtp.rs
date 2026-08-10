@@ -25,12 +25,18 @@ use tokio::{
     net::{TcpListener, TcpStream},
     sync::Semaphore,
     task::{JoinSet, spawn_blocking},
-    time::timeout,
+    time::{Instant, sleep, timeout},
 };
 use tokio_rustls::{TlsAcceptor, server::TlsStream};
 use tokio_util::sync::CancellationToken;
 
-use crate::config::RuntimeConfig;
+use crate::{
+    config::{MailRenderSimdMode, RuntimeConfig},
+    smtp_ascii::AsciiSimdMode,
+    smtp_skibidi_quiz::{AnswerOutcome, QuizLevel, QuizState, ensure_question_bank_loaded},
+    smtp_skibidi_video::{VideoDefaults, VideoService, VideoStartError, frame_wire_bytes},
+    video_asset::locate_frozen_video_asset,
+};
 
 const HOSTNAME: &str = "lmyzmail";
 const MAX_COMMAND_BYTES: usize = 1_000;
@@ -40,6 +46,7 @@ const MAX_CONNECTIONS: usize = 256;
 const STORAGE_TIMEOUT: Duration = Duration::from_secs(15);
 const DATABASE_TIMEOUT: Duration = Duration::from_secs(8);
 const TLS_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(15);
+const VIDEO_WRITE_TIMEOUT: Duration = Duration::from_secs(5);
 const MAX_TLS_KEYSTORE_BYTES: u64 = 16 * 1024 * 1024;
 const SMTP_QUEUE_CAPACITY: usize = 256;
 static FILE_COUNTER: AtomicU64 = AtomicU64::new(1);
@@ -69,6 +76,7 @@ pub struct SmtpService {
     blocking_permits: Arc<Semaphore>,
     delivery_queue: Arc<Semaphore>,
     tls_acceptor: Option<TlsAcceptor>,
+    skibidi_video: Option<Arc<VideoService>>,
 }
 
 impl SmtpService {
@@ -159,6 +167,42 @@ impl SmtpService {
         } else {
             None
         };
+        let skibidi_video = if config.smtp_skibidi.enabled {
+            ensure_question_bank_loaded().map_err(|error| {
+                SmtpError::InvalidConfig(format!("SMTP quiz question bank is invalid: {error}"))
+            })?;
+            let video_asset = locate_frozen_video_asset().map_err(|error| {
+                SmtpError::InvalidConfig(format!("SMTP Skibidi video is unavailable: {error}"))
+            })?;
+            let ascii = &config.smtp_skibidi.ascii;
+            let simd_mode = match ascii.simd_mode {
+                MailRenderSimdMode::Auto => AsciiSimdMode::Auto,
+                MailRenderSimdMode::Scalar => AsciiSimdMode::Scalar,
+                MailRenderSimdMode::Avx2 => AsciiSimdMode::Avx2,
+                MailRenderSimdMode::Avx512 => AsciiSimdMode::Avx512,
+            };
+            Some(Arc::new(
+                VideoService::new(
+                    video_asset,
+                    VideoDefaults {
+                        max_width: ascii.max_width as usize,
+                        max_fps: ascii.max_fps,
+                        default_width: ascii.default_width as usize,
+                        default_fps: ascii.default_fps,
+                        default_contrast: ascii.default_contrast,
+                        char_aspect: ascii.char_aspect,
+                        simd_mode,
+                    },
+                )
+                .map_err(|error| {
+                    SmtpError::InvalidConfig(format!(
+                        "SMTP Skibidi video worker cannot start: {error}"
+                    ))
+                })?,
+            ))
+        } else {
+            None
+        };
         Ok(Self {
             config,
             pool,
@@ -166,6 +210,7 @@ impl SmtpService {
             blocking_permits: Arc::new(Semaphore::new(4)),
             delivery_queue: Arc::new(Semaphore::new(SMTP_QUEUE_CAPACITY)),
             tls_acceptor,
+            skibidi_video,
         })
     }
 
@@ -413,6 +458,11 @@ pub async fn serve_smtp(
     }
     tasks.abort_all();
     while tasks.join_next().await.is_some() {}
+    if let Some(video) = service.skibidi_video.as_ref()
+        && !video.shutdown().await
+    {
+        eprintln!("lmyzmail SMTP video worker exceeded its shutdown deadline");
+    }
     Ok(())
 }
 
@@ -611,11 +661,272 @@ impl BufferedConnection {
     }
 }
 
+struct CancelOnDrop(CancellationToken);
+
+impl Drop for CancelOnDrop {
+    fn drop(&mut self) {
+        self.0.cancel();
+    }
+}
+
+const SKIBIDI_HELP_LINES: &[&str] = &[
+    "SKIBIDITOILET - Brainrot Quiz & Video SMTP Extension",
+    "Tests your Gen Alpha / internet slang knowledge. Are you built different?",
+    "",
+    "Subcommands:",
+    "  SKIBIDITOILET HELP",
+    "    Prints this help message. You clearly needed it.",
+    "",
+    "  SKIBIDITOILET START <LEVEL>",
+    "    Starts a quiz. Available levels:",
+    "      BABYGRONK      - 15 questions, easy mode. For the NPC crowd.",
+    "      SKIBIDITOILET  - 30 questions, balanced. Mid-tier rizz required.",
+    "      OHIOFINALBOSS  - 60 questions, maximum aura drain. Only sigma males apply.",
+    "",
+    "  SKIBIDITOILET ANSWER <your answer>",
+    "    For multiple choice: reply with A, B, C, or D.",
+    "    For fill-in-the-blank: type your answer.",
+    "",
+    "  SKIBIDITOILET QUIT",
+    "    Forfeits the current quiz. Your aura will not recover from this.",
+    "",
+    "  SKIBIDITOILET WATCHSKIBIDITOILET [params...]",
+    "    Streams Skibidi Toilet Episode 1 as ASCII Art over SMTP.",
+    "    Your terminal must support ANSI escape codes.",
+    "",
+    "    Parameters (space-separated, all optional):",
+    "      WIDTH=<n>       Output width in characters    (default: 120, max: 450)",
+    "      FPS=<n>         Playback frame rate           (default: 10.0, max: 20)",
+    "      CONTRAST=<f>    Contrast multiplier           (default: 1.2)",
+    "      BRIGHTNESS=<f>  Brightness offset             (default: 0.0)",
+    "      GAMMA=<f>       Gamma correction              (default: 1.0)",
+    "      ASPECT=<f>      Character height/width ratio  (default: 2.0)",
+    "      INVERT          Invert brightness mapping",
+    "",
+    "    Example:",
+    "      SKIBIDITOILET WATCHSKIBIDITOILET WIDTH=160 FPS=12 CONTRAST=1.5",
+    "",
+    "    WARNING: Color mode is not supported (monochrome only).",
+    "    WARNING: Once playback starts, it CANNOT be stopped except by",
+    "             disconnecting. You have been warned. No cap.",
+    "    WARNING: Maximum 1 concurrent viewer globally.",
+    "    WARNING: Each line is prefixed with '250-' per SMTP multi-line",
+    "             response format. This is normal. Embrace the jank.",
+    "",
+    "Notes:",
+    "  - Quiz runs inline in the SMTP session. No MAIL transaction needed.",
+    "  - Commands are case-insensitive. Your excuses are not.",
+    "214 End of HELP. Skibidi dop dop yes yes.",
+];
+
+fn multiline_reply<T: AsRef<str>>(code: u16, lines: &[T]) -> Vec<u8> {
+    debug_assert!(!lines.is_empty());
+    let code = code.to_string();
+    let capacity = lines
+        .iter()
+        .map(|line| code.len() + 3 + line.as_ref().len())
+        .sum();
+    let mut output = Vec::with_capacity(capacity);
+    for (index, line) in lines.iter().enumerate() {
+        output.extend_from_slice(code.as_bytes());
+        output.push(if index + 1 == lines.len() { b' ' } else { b'-' });
+        output.extend_from_slice(line.as_ref().as_bytes());
+        output.extend_from_slice(b"\r\n");
+    }
+    output
+}
+
+async fn write_video_bytes(io: &mut BufferedConnection, bytes: &[u8]) -> io::Result<()> {
+    timeout(VIDEO_WRITE_TIMEOUT, io.write_all(bytes))
+        .await
+        .map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::TimedOut,
+                "SMTP video write deadline exceeded",
+            )
+        })?
+}
+
+async fn handle_skibidi_command(
+    io: &mut BufferedConnection,
+    argument: &str,
+    quiz_state: &mut Option<QuizState>,
+    video: Option<&Arc<VideoService>>,
+    connection_cancellation: &CancellationToken,
+) -> io::Result<()> {
+    let argument = argument.trim_start();
+    let (subcommand, subargument) = argument
+        .split_once(char::is_whitespace)
+        .map_or((argument, ""), |(command, rest)| (command, rest));
+    match subcommand.to_ascii_uppercase().as_str() {
+        "HELP" => {
+            io.write_all(&multiline_reply(214, SKIBIDI_HELP_LINES))
+                .await
+        }
+        "START" => {
+            if quiz_state.is_some() {
+                return io
+                    .write_all(b"503 5.5.1 Quiz already in progress. SKIBIDITOILET QUIT to forfeit, or SKIBIDITOILET ANSWER to keep coping.\r\n")
+                    .await;
+            }
+            let level_value = subargument.trim_matches(|character| character <= '\u{0020}');
+            if level_value.is_empty() {
+                return io
+                    .write_all(b"501 5.5.4 Syntax: SKIBIDITOILET START <LEVEL>. Levels: BABYGRONK, SKIBIDITOILET, OHIOFINALBOSS\r\n")
+                    .await;
+            }
+            let Some(level) = QuizLevel::from_arg(level_value) else {
+                let displayed = if level_value.bytes().all(|byte| byte.is_ascii_graphic()) {
+                    level_value
+                } else {
+                    "INVALID"
+                };
+                return io
+                    .write_all(
+                        format!(
+                            "501 5.5.4 Unknown level '{displayed}'. Valid: BABYGRONK, SKIBIDITOILET, OHIOFINALBOSS. Cope harder and try again.\r\n"
+                        )
+                        .as_bytes(),
+                    )
+                    .await;
+            };
+            match QuizState::start(level) {
+                Ok(start) => {
+                    let reply = multiline_reply(250, &start.lines);
+                    *quiz_state = Some(start.state);
+                    io.write_all(&reply).await
+                }
+                Err(error) => {
+                    eprintln!("lmyzmail SMTP quiz initialization failed: {error}");
+                    io.write_all(
+                        b"451 4.3.0 Brainrot quiz unavailable. The server lost its aura.\r\n",
+                    )
+                    .await
+                }
+            }
+        }
+        "ANSWER" => {
+            let Some(active) = quiz_state.as_mut() else {
+                return io
+                    .write_all(b"503 5.5.1 No quiz in progress. Use SKIBIDITOILET START <LEVEL> to begin. Stop yapping and do something.\r\n")
+                    .await;
+            };
+            if subargument
+                .trim_matches(|character| character <= '\u{0020}')
+                .is_empty()
+            {
+                return io
+                    .write_all(b"501 5.5.4 Empty answer detected. Submitting nothing is peak NPC behavior. Type SKIBIDITOILET ANSWER <your answer>.\r\n")
+                    .await;
+            }
+            let outcome = active.answer(subargument).map_err(io::Error::other)?;
+            match outcome {
+                AnswerOutcome::Continue(lines) => io.write_all(&multiline_reply(250, &lines)).await,
+                AnswerOutcome::Complete {
+                    answer_lines,
+                    final_lines,
+                } => {
+                    io.write_all(&multiline_reply(250, &answer_lines)).await?;
+                    io.write_all(&multiline_reply(220, &final_lines)).await?;
+                    *quiz_state = None;
+                    Ok(())
+                }
+            }
+        }
+        "QUIT" => {
+            let Some(active) = quiz_state.take() else {
+                return io
+                    .write_all(b"503 5.5.1 No quiz in progress. There is nothing to quit from. Classic NPC move.\r\n")
+                    .await;
+            };
+            io.write_all(&multiline_reply(250, &active.into_forfeit_lines()))
+                .await
+        }
+        "WATCHSKIBIDITOILET" => {
+            let Some(video) = video else {
+                return io
+                    .write_all(b"451 4.3.0 ASCII Art engine unavailable. The native library failed to load. Ohio moment.\r\n")
+                    .await;
+            };
+            let mut playback = match video.start(subargument, connection_cancellation).await {
+                Ok(playback) => playback,
+                Err(VideoStartError::Busy) => {
+                    return io
+                        .write_all(b"451 4.3.0 Another session is already watching Skibidi Toilet. Max 1 concurrent viewer. Cope and try later.\r\n")
+                        .await;
+                }
+                Err(VideoStartError::Invalid(message)) => {
+                    return io.write_all(format!("501 {message}\r\n").as_bytes()).await;
+                }
+                Err(VideoStartError::Unavailable(error)) => {
+                    eprintln!("lmyzmail SMTP video admission failed: {error}");
+                    return io
+                        .write_all(b"451 4.3.0 ASCII Art engine unavailable. The native library failed to load. Ohio moment.\r\n")
+                        .await;
+                }
+                Err(VideoStartError::Cancelled) => return Ok(()),
+            };
+            let params = playback.params();
+            eprintln!(
+                "lmyzmail SMTP video started: {}x{} at {} FPS",
+                params.width, params.height, params.fps
+            );
+            write_video_bytes(io, b"250-\x1b[2J\x1b[H\r\n").await?;
+            let frame_interval = Duration::from_secs_f64(1.0 / f64::from(params.fps));
+            let mut backend_logged = false;
+            loop {
+                let frame_started = Instant::now();
+                match playback.next_frame().await {
+                    Ok(Some(frame)) => {
+                        if !backend_logged {
+                            eprintln!(
+                                "lmyzmail SMTP video ASCII backend: {}",
+                                frame.backend.name()
+                            );
+                            backend_logged = true;
+                        }
+                        let bytes = frame_wire_bytes(&frame).map_err(io::Error::other)?;
+                        write_video_bytes(io, &bytes).await?;
+                    }
+                    Ok(None) => {
+                        write_video_bytes(
+                            io,
+                            b"250 PLAYBACK COMPLETE. Skibidi dop dop yes yes!\r\n",
+                        )
+                        .await?;
+                        return Ok(());
+                    }
+                    Err(error) => {
+                        eprintln!("lmyzmail SMTP video playback failed: {error}");
+                        write_video_bytes(
+                            io,
+                            format!("250 PLAYBACK ERROR: {error}\r\n").as_bytes(),
+                        )
+                        .await?;
+                        return Ok(());
+                    }
+                }
+                let remaining = frame_interval.saturating_sub(frame_started.elapsed());
+                tokio::select! {
+                    _ = connection_cancellation.cancelled() => return Ok(()),
+                    _ = sleep(remaining) => {}
+                }
+            }
+        }
+        _ => {
+            io.write_all(b"501 5.5.4 Unknown subcommand. Type SKIBIDITOILET HELP to git gud.\r\n")
+                .await
+        }
+    }
+}
+
 async fn handle_connection(
     stream: TcpStream,
     peer: IpAddr,
     service: Arc<SmtpService>,
 ) -> io::Result<()> {
+    let connection_cancellation = CancellationToken::new();
+    let _cancel_on_drop = CancelOnDrop(connection_cancellation.clone());
     let mut io = BufferedConnection::new(stream);
     io.write_all(
         b"220 lmyzmail ESMTP lmyzmail SMTP Server 2.8.0 - Skibidi dop dop dop yes yes!\r\n",
@@ -627,6 +938,7 @@ async fn handle_connection(
     let mut dispatcher_errors = 0_u8;
     let mut auth_probe_count = 0_u8;
     let mut tls_active = false;
+    let mut quiz_state = None;
     loop {
         let line = match io.read_line(MAX_COMMAND_BYTES).await {
             Ok(Some(line)) => line,
@@ -670,10 +982,15 @@ async fn handle_connection(
                     if service.tls_acceptor.is_some() && !tls_active {
                         io.write_all(b"250-STARTTLS\r\n").await?;
                     }
-                    io.write_all(
-                        b"250-ENHANCEDSTATUSCODES\r\n250-SMTPUTF8\r\n250 SKIBIDITOILET\r\n",
-                    )
-                    .await?;
+                    if service.config.smtp_skibidi.enabled {
+                        io.write_all(
+                            b"250-ENHANCEDSTATUSCODES\r\n250-SMTPUTF8\r\n250 SKIBIDITOILET\r\n",
+                        )
+                        .await?;
+                    } else {
+                        io.write_all(b"250-ENHANCEDSTATUSCODES\r\n250 SMTPUTF8\r\n")
+                            .await?;
+                    }
                 } else {
                     io.write_all(b"\r\n").await?;
                 }
@@ -815,7 +1132,18 @@ async fn handle_connection(
                     io.write_all(b"502 5.5.1 AUTH command not implemented. Blud is yapping about AUTH but nobody is listening. We don't do that here. Take your L and go back to the lobby.\r\n").await?;
                 }
             }
+            "SKIBIDITOILET" if service.config.smtp_skibidi.enabled => {
+                handle_skibidi_command(
+                    &mut io,
+                    argument,
+                    &mut quiz_state,
+                    service.skibidi_video.as_ref(),
+                    &connection_cancellation,
+                )
+                .await?;
+            }
             "QUIT" => {
+                drop(quiz_state.take());
                 io.write_all(b"221 2.0.0 lmyzmail closing connection\r\n").await?;
                 return Ok(());
             }
@@ -1157,7 +1485,25 @@ fn remove_published_file(path: &Path) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use sha2::{Digest as _, Sha256};
+
     use super::*;
+
+    #[test]
+    fn skibidi_help_wire_is_exactly_frozen() {
+        let wire = multiline_reply(214, SKIBIDI_HELP_LINES);
+        assert_eq!(SKIBIDI_HELP_LINES.len(), 47);
+        assert_eq!(wire.len(), 2_267);
+        let digest = Sha256::digest(&wire)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        assert_eq!(
+            digest,
+            "a9e3fc50710c4061298ee32f48887633bc4ae74afd7445bd293aa64b37e828e6"
+        );
+        assert!(wire.ends_with(b"214 214 End of HELP. Skibidi dop dop yes yes.\r\n"));
+    }
 
     #[test]
     fn parses_mail_rcpt_and_bdat_bounds() {

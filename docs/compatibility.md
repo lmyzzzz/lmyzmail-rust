@@ -43,6 +43,12 @@ commit and source hash, describes the exact scope, and states a stricter
 candidate requirement. An allowlisted difference never relaxes surrounding
 wire, state, storage, or recovery assertions.
 
+After a profile's complete blackbox definition tree is frozen, later
+profile-specific additions live under `evidence/compatibility` so the earlier
+golden attestation remains immutable. Such a supplemental manifest must bind
+the frozen definition-tree hash, oracle commit, source hashes, and its external
+candidate test; it has the same review requirements as the primary allowlist.
+
 - Maildir publication must use a flushed same-filesystem temporary file,
   atomic rename, and directory fsync instead of exposing a partially written
   final file.
@@ -64,6 +70,15 @@ wire, state, storage, or recovery assertions.
   order, reply and deliver within fixed deadlines, and use a hard-bounded
   pending queue. The frozen oracle can wedge the connection after the first
   two replies; that liveness evidence is not a candidate expectation.
+- SMTP Skibidi video rejects non-finite FPS, contrast, brightness, gamma, and
+  aspect before native work, and enforces checked transform and output budgets.
+  The frozen handler lets `NaN` bypass ordered range checks and forwards other
+  non-finite values into native dimension and pixel conversion.
+- SMTP Skibidi video acquires its one-viewer permit atomically and holds it
+  across decoder open, playback, writes, cancellation, disconnect, and bounded
+  shutdown. The frozen handler has a check-then-act `isPlaying`/CAS race that
+  sends concurrent losers through exceptional dispatcher handling instead of
+  the defined overload reply.
 - RFC null MX is an explicit permanent no-service route and cannot become an
   empty hostname or coexist with ordinary MX records.
 - MX, address, MTA-STS TXT, policy-pattern, and policy-body processing have the
@@ -296,6 +311,12 @@ and shutdown must all release admission and join or boundedly drain decode
 work. The v1 oracle golden freezes the exact width-10, three-row first-frame
 prefix at SHA-256
 `97cb629ab6ffd992439c2dc82664b4d61f11d4b99ea554db11b589421f877df1`.
+The candidate-only v2 security contract rejects non-finite transform values,
+proves one winner under 32 simultaneous requests, and requires permit recovery
+within five seconds after the admitted socket disconnects. These two reviewed
+differences are bound in
+`evidence/compatibility/smtp-skibidi-security-v2.json`; they do not alter the v1
+golden.
 
 ## SMTP STARTTLS contract
 

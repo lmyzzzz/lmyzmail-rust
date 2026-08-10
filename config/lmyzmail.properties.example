@@ -102,6 +102,14 @@ lmyzmail.smtp-security.tarpit-enabled=true
 lmyzmail.smtp-security.spamhaus-enabled=true
 lmyzmail.smtp.mta-sts-enabled=true
 lmyzmail.smtp.skibidi-generator-mode=AUTO_SAFE
+lmyzmail.smtp.skibidi-toilet-quiz-enabled=true
+lmyzmail.smtp.asciiart.simd-mode=AUTO
+lmyzmail.smtp.asciiart.max-width=450
+lmyzmail.smtp.asciiart.max-fps=20
+lmyzmail.smtp.asciiart.default-width=120
+lmyzmail.smtp.asciiart.default-fps=10
+lmyzmail.smtp.asciiart.default-contrast=1.2
+lmyzmail.smtp.asciiart.char-aspect=2.0
 lmyzmail.xdp.enabled=false
 lmyzmail.xdp.interface-name=eth0
 # Leave empty to use the BPF object embedded in the lmyzmail binary.

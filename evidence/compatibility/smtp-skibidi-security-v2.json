@@ -1,0 +1,38 @@
+{
+  "differences": [
+    {
+      "candidate_requirement": "Reject every non-finite FPS, contrast, brightness, gamma, or character-aspect value before decoder admission or size calculation. Apply finite absolute transform ceilings and checked source-pixel, output-pixel, and SMTP-frame byte budgets before allocation or floating-point-to-integer conversion.",
+      "evidence": {
+        "candidate_test": "blackbox/tools/test_candidate_smtp_skibidi_security.py::test_candidate_smtp_skibidi_rejects_non_finite_inputs_and_bounds_admission",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "native_source": "asciiart_linux/src/aa_context.c",
+        "native_source_sha256": "9c64902b15931f908e006c1522a3d39c01c991b1a188ef79367d6067ce95b8ec",
+        "source": "src/main/java/net/lmyz/lmyzmail/netty/smtp/command/handlers/SkibidiToiletHandler.java",
+        "source_sha256": "947836d3c203f407ee79572d11e0baea3a8fec843c5e03705409a3a54d12ced6"
+      },
+      "id": "smtp-skibidi-nonfinite-transform-rejection",
+      "oracle_behavior": "The frozen handler accepts Float.parseFloat results after checking only ordered ranges. NaN bypasses the FPS range check, and non-finite contrast, brightness, gamma, and aspect values are forwarded through the FFM boundary into native dimension and pixel conversion code without an absolute output budget.",
+      "reason": "Attacker-controlled non-finite arithmetic can bypass rate checks, reach undefined or implementation-specific floating-point-to-integer conversion, and drive invalid dimensions or excessive work. Reproducing that denial-of-service and native-safety boundary is explicitly forbidden.",
+      "scope": "Only non-finite transform values and finite values beyond the documented safe processing ceilings. Every frozen in-range integer or finite floating-point parameter, default, normalization, frame byte, and ordinary error response remains a compatibility requirement."
+    },
+    {
+      "candidate_requirement": "Acquire the process-wide one-viewer permit with one atomic nonblocking operation before opening the decoder, hold it across decode, conversion, writes, EOF, error, cancellation, disconnect, and shutdown, and return the exact overload reply to every losing concurrent request. Release within five seconds after the admitted client disconnects.",
+      "evidence": {
+        "candidate_test": "blackbox/tools/test_candidate_smtp_skibidi_security.py::test_candidate_smtp_skibidi_rejects_non_finite_inputs_and_bounds_admission",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "handler_source": "src/main/java/net/lmyz/lmyzmail/netty/smtp/command/handlers/SkibidiToiletHandler.java",
+        "handler_source_sha256": "947836d3c203f407ee79572d11e0baea3a8fec843c5e03705409a3a54d12ced6",
+        "source": "src/main/java/net/lmyz/lmyzmail/asciiart/SkibidiToiletVideoPlayer.java",
+        "source_sha256": "d59a69cdf06c3dc7c4ddb2fdedd683b744b4fc2801702b385cd7a19fa8927d34"
+      },
+      "id": "smtp-skibidi-atomic-viewer-admission",
+      "oracle_behavior": "The frozen handler first reads isPlaying and only later calls compareAndSet inside playAsync. Simultaneous callers can all pass the preliminary check; one starts while the others complete exceptionally through dispatcher error handling instead of receiving the frozen overload reply from the command handler.",
+      "reason": "A check-then-act admission race makes overload behavior timing-dependent and weakens the externally promised process-wide hard limit. The rewrite requires deterministic bounded admission and complete permit ownership on every terminal path.",
+      "scope": "Only simultaneous WATCHSKIBIDITOILET admission and terminal permit lifetime. Sequential busy replies, one admitted viewer, decoded frames, backpressure, playback completion, and all ordinary command bytes remain compatibility requirements."
+    }
+  ],
+  "frozen_harness_definition_tree_sha256": "65f4e5becaadf0905ceef2f9070914a07c01bacf82b6c383bb0d46b43fc0e951",
+  "oracle_commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+  "profile": "smtp-skibidi-security-v2",
+  "schema_version": 1
+}
