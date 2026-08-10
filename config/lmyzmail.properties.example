@@ -110,6 +110,15 @@ lmyzmail.smtp.asciiart.default-width=120
 lmyzmail.smtp.asciiart.default-fps=10
 lmyzmail.smtp.asciiart.default-contrast=1.2
 lmyzmail.smtp.asciiart.char-aspect=2.0
+lmyzmail.contentfilter.enabled=true
+lmyzmail.contentfilter.suspicious-threshold=5.0
+lmyzmail.contentfilter.spam-threshold=10.0
+lmyzmail.contentfilter.rules.MISSING_HEADERS.enabled=true
+lmyzmail.contentfilter.rules.MISSING_HEADERS.weight=1.0
+lmyzmail.contentfilter.rules.SUBJECT_ENCODING_TRICK.enabled=true
+lmyzmail.contentfilter.rules.SUBJECT_ENCODING_TRICK.weight=1.0
+lmyzmail.contentfilter.rules.EXCESSIVE_RECIPIENTS.enabled=true
+lmyzmail.contentfilter.rules.EXCESSIVE_RECIPIENTS.weight=1.0
 lmyzmail.xdp.enabled=false
 lmyzmail.xdp.interface-name=eth0
 # Leave empty to use the BPF object embedded in the lmyzmail binary.

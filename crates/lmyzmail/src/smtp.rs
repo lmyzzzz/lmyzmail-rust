@@ -1,4 +1,6 @@
 use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
     io,
     net::IpAddr,
     path::Path,
@@ -15,6 +17,7 @@ use chrono::{DateTime, Datelike, Timelike, Utc, Weekday};
 use deadpool_postgres::Pool;
 use deadpool_redis::Pool as RedisPool;
 use getrandom::fill as fill_random;
+use mail_parser::MessageParser;
 use openssl::pkcs12::Pkcs12;
 use rustls::{
     ServerConfig,
@@ -23,7 +26,7 @@ use rustls::{
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf},
     net::{TcpListener, TcpStream},
-    sync::Semaphore,
+    sync::{Mutex, Semaphore},
     task::{JoinSet, spawn_blocking},
     time::{Instant, sleep, timeout},
 };
@@ -31,8 +34,9 @@ use tokio_rustls::{TlsAcceptor, server::TlsStream};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    config::{MailRenderSimdMode, RuntimeConfig},
+    config::{ContentFilterConfig, MailRenderSimdMode, RuntimeConfig},
     smtp_ascii::AsciiSimdMode,
+    smtp_content_filter::{ContentScan, ParsedHeaders},
     smtp_skibidi_quiz::{AnswerOutcome, QuizLevel, QuizState, ensure_question_bank_loaded},
     smtp_skibidi_video::{VideoDefaults, VideoService, VideoStartError, frame_wire_bytes},
     video_asset::locate_frozen_video_asset,
@@ -49,6 +53,7 @@ const TLS_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(15);
 const VIDEO_WRITE_TIMEOUT: Duration = Duration::from_secs(5);
 const MAX_TLS_KEYSTORE_BYTES: u64 = 16 * 1024 * 1024;
 const SMTP_QUEUE_CAPACITY: usize = 256;
+const MAILDIR_SHARD_LOCKS: usize = 64;
 static FILE_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Debug)]
@@ -75,6 +80,8 @@ pub struct SmtpService {
     redis_pool: RedisPool,
     blocking_permits: Arc<Semaphore>,
     delivery_queue: Arc<Semaphore>,
+    maildir_max_files_per_directory: Option<usize>,
+    maildir_shard_locks: Arc<[Mutex<()>; MAILDIR_SHARD_LOCKS]>,
     tls_acceptor: Option<TlsAcceptor>,
     skibidi_video: Option<Arc<VideoService>>,
 }
@@ -85,6 +92,22 @@ impl SmtpService {
         pool: Pool,
         redis_pool: RedisPool,
     ) -> Result<Self, SmtpError> {
+        let maildir_max_files_per_directory = match config
+            .preferred_value(
+                "lmyzmail.maildir.max-files-per-directory",
+                "botmail.maildir.max-files-per-directory",
+            )
+            .unwrap_or("10000")
+            .parse::<i64>()
+        {
+            Ok(-1) => None,
+            Ok(value @ 1..=1_000_000) => Some(value as usize),
+            _ => {
+                return Err(SmtpError::InvalidConfig(
+                    "maildir max-files-per-directory must be -1 or between 1 and 1000000".into(),
+                ));
+            }
+        };
         let tls_acceptor = if config.tls.enabled {
             let path = config.tls.keystore_path.as_deref().ok_or_else(|| {
                 SmtpError::InvalidConfig("TLS keystore path is not configured".into())
@@ -209,6 +232,8 @@ impl SmtpService {
             redis_pool,
             blocking_permits: Arc::new(Semaphore::new(4)),
             delivery_queue: Arc::new(Semaphore::new(SMTP_QUEUE_CAPACITY)),
+            maildir_max_files_per_directory,
+            maildir_shard_locks: Arc::new(std::array::from_fn(|_| Mutex::new(()))),
             tls_acceptor,
             skibidi_video,
         })
@@ -244,21 +269,30 @@ impl SmtpService {
         helo: String,
         encrypted: bool,
     ) -> io::Result<String> {
+        let headers = ParsedHeaders::parse(&envelope.data)
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+        // The frozen Java verification path does not forward envelope RCPTs
+        // into ScanContext, so header rules observe an envelope count of zero.
+        let content_scan = headers.scan(0, &self.config.content_filter);
         let mailbox = envelope
             .recipients
             .first()
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "recipient missing"))?
             .to_ascii_lowercase();
-        let message_id = header_value(&envelope.data, "message-id").unwrap_or_else(|| {
+        let message_id = headers.first_trimmed("message-id").unwrap_or_else(|| {
             format!(
                 "<smtp-{}@{}>",
                 FILE_COUNTER.load(Ordering::Relaxed),
                 self.config.domain
             )
         });
-        let subject = header_value(&envelope.data, "subject");
-        let from_address = header_value(&envelope.data, "from");
-        let to_addresses = header_value(&envelope.data, "to")
+        let subject = MessageParser::default()
+            .parse_headers(&envelope.data)
+            .and_then(|message| message.subject().map(str::to_owned))
+            .or_else(|| headers.first_trimmed("subject"));
+        let from_address = headers.first_trimmed("from");
+        let to_addresses = headers
+            .first_trimmed("to")
             .map(|value| address_list_json(&value))
             .unwrap_or_else(|| "[]".to_owned());
         let has_attachments = has_first_mime_attachment(&envelope.data);
@@ -267,12 +301,16 @@ impl SmtpService {
         let accepted_id = random_hex(4).map_err(io::Error::other)?;
         let raw = compose_message(
             &envelope,
-            &mailbox,
-            peer,
-            &helo,
-            encrypted,
-            received_at,
-            &received_id,
+            MessageComposition {
+                mailbox: &mailbox,
+                peer,
+                helo: &helo,
+                encrypted,
+                received_at,
+                received_id: &received_id,
+                content_scan: &content_scan,
+                content_filter: &self.config.content_filter,
+            },
         );
         if raw.len() > MAX_MESSAGE_BYTES {
             return Err(io::Error::new(
@@ -296,14 +334,7 @@ impl SmtpService {
             counter,
         );
         let folder = "spam";
-        let subdirectory = 1_i32;
-        let final_path = self
-            .config
-            .maildir
-            .join(&mailbox)
-            .join(folder)
-            .join(subdirectory.to_string())
-            .join(&file_name);
+        let folder_root = self.config.maildir.join(&mailbox).join(folder);
         let temporary_path = self
             .config
             .maildir
@@ -316,14 +347,25 @@ impl SmtpService {
             .acquire_owned()
             .await
             .map_err(|_| io::Error::other("SMTP blocking pool closed"))?;
-        let final_path_for_write = final_path.clone();
+        let lock_index = maildir_lock_index(&mailbox, folder);
+        let shard_guard = self.maildir_shard_locks[lock_index].lock().await;
+        let max_files_per_directory = self.maildir_max_files_per_directory;
         let temporary_path_for_write = temporary_path.clone();
-        spawn_blocking(move || {
+        let file_name_for_write = file_name.clone();
+        let (subdirectory, final_path) = spawn_blocking(move || {
             let _permit = blocking_permit;
-            atomic_publish(&temporary_path_for_write, &final_path_for_write, &raw)
+            let subdirectory = select_inbound_subdirectory(&folder_root, max_files_per_directory)?;
+            let final_parent = subdirectory.map_or_else(
+                || folder_root.clone(),
+                |value| folder_root.join(value.to_string()),
+            );
+            let final_path = final_parent.join(file_name_for_write);
+            atomic_publish(&temporary_path_for_write, &final_path, &raw)?;
+            Ok::<_, io::Error>((subdirectory, final_path))
         })
         .await
         .map_err(|error| io::Error::other(error.to_string()))??;
+        drop(shard_guard);
 
         let client = timeout(DATABASE_TIMEOUT, self.pool.get())
             .await
@@ -1349,15 +1391,28 @@ fn has_first_mime_attachment(data: &[u8]) -> bool {
         .unwrap_or(false)
 }
 
-fn compose_message(
-    envelope: &Envelope,
-    mailbox: &str,
+struct MessageComposition<'a> {
+    mailbox: &'a str,
     peer: IpAddr,
-    helo: &str,
+    helo: &'a str,
     encrypted: bool,
     received_at: DateTime<Utc>,
-    received_id: &str,
-) -> Vec<u8> {
+    received_id: &'a str,
+    content_scan: &'a ContentScan,
+    content_filter: &'a ContentFilterConfig,
+}
+
+fn compose_message(envelope: &Envelope, composition: MessageComposition<'_>) -> Vec<u8> {
+    let MessageComposition {
+        mailbox,
+        peer,
+        helo,
+        encrypted,
+        received_at,
+        received_id,
+        content_scan,
+        content_filter,
+    } = composition;
     let sender_clause = envelope
         .sender
         .as_deref()
@@ -1369,17 +1424,31 @@ fn compose_message(
         "spf=neutral (No SPF record found)"
     };
     let protocol = if encrypted { "ESMTPS" } else { "ESMTP" };
-    let spam_rules = if header_value(&envelope.data, "from").is_some()
-        && header_value(&envelope.data, "to").is_some()
-    {
-        "NEW_DOMAIN=2.0, MISSING_HEADERS=1.5"
-    } else {
-        "MISSING_HEADERS=3.5"
-    };
     let date = java_rfc1123(received_at);
-    let header = format!(
-        "Received: from {helo} (localhost [{peer}])\r\n\tby {HOSTNAME} with {protocol} id {received_id}\r\n\tfor <{mailbox}>;\r\n\t{date}\r\nAuthentication-Results: {HOSTNAME};\r\n\t{auth_spf} smtp.client-ip={peer} smtp.mailfrom={sender_clause};\r\n\tdkim=none (No DKIM signature present);\r\n\tdmarc=none No DMARC record found\r\nX-Spam-Status: No\r\nX-Spam-Score: 3.5\r\nX-Spam-Rules: {spam_rules}\r\n"
+    let status = if content_scan.is_suspicious(content_filter) {
+        "Yes"
+    } else {
+        "No"
+    };
+    // Java serializes an empty score as `0.0`; normalize Rust's possible `-0.0`.
+    let total_score = if content_scan.total_score() == 0.0 {
+        0.0
+    } else {
+        content_scan.total_score()
+    };
+    let mut header = format!(
+        "Received: from {helo} (localhost [{peer}])\r\n\tby {HOSTNAME} with {protocol} id {received_id}\r\n\tfor <{mailbox}>;\r\n\t{date}\r\nAuthentication-Results: {HOSTNAME};\r\n\t{auth_spf} smtp.client-ip={peer} smtp.mailfrom={sender_clause};\r\n\tdkim=none (No DKIM signature present);\r\n\tdmarc=none No DMARC record found\r\nX-Spam-Status: {status}\r\nX-Spam-Score: {:.1}\r\n",
+        total_score
     );
+    let rules = content_scan
+        .hits()
+        .map(|(name, score)| format!("{name}={score:.1}"))
+        .collect::<Vec<_>>();
+    if !rules.is_empty() {
+        header.push_str("X-Spam-Rules: ");
+        header.push_str(&rules.join(", "));
+        header.push_str("\r\n");
+    }
     let mut output = header.into_bytes();
     output.extend_from_slice(&envelope.data);
     output
@@ -1424,6 +1493,70 @@ fn random_hex_upper(bytes: usize) -> Result<String, getrandom::Error> {
         .into_iter()
         .map(|byte| format!("{byte:02X}"))
         .collect())
+}
+
+fn maildir_lock_index(mailbox: &str, folder: &str) -> usize {
+    let mut hasher = DefaultHasher::new();
+    mailbox.hash(&mut hasher);
+    folder.hash(&mut hasher);
+    (hasher.finish() as usize) % MAILDIR_SHARD_LOCKS
+}
+
+fn select_inbound_subdirectory(
+    folder_root: &Path,
+    max_files_per_directory: Option<usize>,
+) -> io::Result<Option<i32>> {
+    let Some(max_files) = max_files_per_directory else {
+        return Ok(None);
+    };
+    if !folder_root.exists() {
+        return Ok(Some(1));
+    }
+
+    let mut maximum = 0_i32;
+    for entry in std::fs::read_dir(folder_root)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        if !file_type.is_dir() || file_type.is_symlink() {
+            continue;
+        }
+        let Some(index) = entry
+            .file_name()
+            .to_str()
+            .and_then(|value| value.parse::<i32>().ok())
+            .filter(|value| *value > 0)
+        else {
+            continue;
+        };
+        maximum = maximum.max(index);
+    }
+    if maximum == 0 {
+        return Ok(Some(1));
+    }
+
+    let maximum_path = folder_root.join(maximum.to_string());
+    let mut file_count = 0_usize;
+    for entry in std::fs::read_dir(maximum_path)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        if file_type.is_file()
+            && !file_type.is_symlink()
+            && entry
+                .file_name()
+                .to_str()
+                .is_some_and(|name| name.ends_with(".eml"))
+        {
+            file_count = file_count.saturating_add(1);
+        }
+    }
+    if file_count >= max_files {
+        maximum
+            .checked_add(1)
+            .map(Some)
+            .ok_or_else(|| io::Error::other("Maildir shard index overflow"))
+    } else {
+        Ok(Some(maximum))
+    }
 }
 
 fn atomic_publish(temporary: &Path, final_path: &Path, data: &[u8]) -> io::Result<()> {
@@ -1542,6 +1675,80 @@ mod tests {
             .unwrap()
             .with_timezone(&Utc);
         assert_eq!(java_rfc1123(value), "Mon, 1 Jan 2024 00:00:00 GMT");
+    }
+
+    #[test]
+    fn content_filter_headers_are_composed_in_frozen_order() {
+        let envelope = Envelope {
+            sender: None,
+            recipients: vec!["qa@example.test".into()],
+            data: b"From: sender@external.test\r\nDate: Tue, 5 Aug 2025 12:00:00 GMT\r\nSubject: =?UTF-8?Q?FREE?= =?ISO-8859-1?Q?MONEY?=\r\nMessage-ID: <encoded@example.test>\r\n\r\nbody\r\n".to_vec(),
+        };
+        let config = ContentFilterConfig::default();
+        let scan = ParsedHeaders::parse(&envelope.data)
+            .unwrap()
+            .scan(0, &config);
+        let received_at = chrono::DateTime::parse_from_rfc3339("2025-08-05T12:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let raw = compose_message(
+            &envelope,
+            MessageComposition {
+                mailbox: "qa@example.test",
+                peer: "127.0.0.1".parse().unwrap(),
+                helo: "blackbox.example",
+                encrypted: false,
+                received_at,
+                received_id: "ABCDEF01234567",
+                content_scan: &scan,
+                content_filter: &config,
+            },
+        );
+        let text = String::from_utf8(raw).unwrap();
+        assert!(text.contains(
+            "X-Spam-Status: No\r\nX-Spam-Score: 2.5\r\nX-Spam-Rules: SUBJECT_ENCODING_TRICK=2.5\r\nFrom: sender@external.test\r\n"
+        ));
+    }
+
+    #[test]
+    fn content_filter_empty_scan_serializes_positive_zero() {
+        let envelope = Envelope {
+            sender: None,
+            recipients: vec!["qa@example.test".into()],
+            data: b"From: sender@external.test\r\nDate: Tue, 5 Aug 2025 12:00:00 GMT\r\nSubject: clean\r\nMessage-ID: <clean@example.test>\r\n\r\nbody\r\n".to_vec(),
+        };
+        let config = ContentFilterConfig::default();
+        let scan = ParsedHeaders::parse(&envelope.data)
+            .unwrap()
+            .scan(0, &config);
+        let received_at = chrono::DateTime::parse_from_rfc3339("2025-08-05T12:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let raw = compose_message(
+            &envelope,
+            MessageComposition {
+                mailbox: "qa@example.test",
+                peer: "127.0.0.1".parse().unwrap(),
+                helo: "blackbox.example",
+                encrypted: false,
+                received_at,
+                received_id: "ABCDEF01234567",
+                content_scan: &scan,
+                content_filter: &config,
+            },
+        );
+        let text = String::from_utf8(raw).unwrap();
+        assert!(text.contains("X-Spam-Status: No\r\nX-Spam-Score: 0.0\r\n"));
+        assert!(!text.contains("X-Spam-Score: -0.0"));
+    }
+
+    #[test]
+    fn header_only_mime_parse_decodes_adjacent_encoded_words_like_java_indexing() {
+        let message = b"Subject: =?UTF-8?Q?FREE?= =?ISO-8859-1?Q?MONEY?=\r\n\r\nbody";
+        let subject = MessageParser::default()
+            .parse_headers(message)
+            .and_then(|parsed| parsed.subject().map(str::to_owned));
+        assert_eq!(subject.as_deref(), Some("FREEMONEY"));
     }
 
     #[test]

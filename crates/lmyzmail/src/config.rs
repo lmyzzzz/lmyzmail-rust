@@ -51,6 +51,8 @@ const MIN_SMTP_ASCII_CONTRAST: f32 = 0.1;
 const MAX_SMTP_ASCII_CONTRAST: f32 = 3.0;
 const MIN_SMTP_ASCII_ASPECT: f32 = 0.1;
 const MAX_SMTP_ASCII_ASPECT: f32 = 10.0;
+const MAX_CONTENT_FILTER_THRESHOLD: f64 = 1_000_000.0;
+const MAX_CONTENT_FILTER_RULE_WEIGHT: f64 = 100.0;
 const MAX_MESSAGE_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_CRINGE_DECAY_DURATION: Duration = Duration::from_secs(100 * 366 * 24 * 60 * 60);
 
@@ -233,6 +235,8 @@ struct JsonRuntimeConfig {
     #[serde(default)]
     smtp: JsonSmtpConfig,
     #[serde(default)]
+    content_filter: JsonContentFilterConfig,
+    #[serde(default)]
     xdp: JsonXdpConfig,
     #[serde(default)]
     cringe: JsonCringeConfig,
@@ -345,6 +349,50 @@ impl Default for JsonSmtpConfig {
         Self {
             skibidi_toilet_quiz_enabled: true,
             asciiart: JsonSmtpAsciiConfig::default(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct JsonContentFilterConfig {
+    enabled: bool,
+    suspicious_threshold: f64,
+    spam_threshold: f64,
+    rules: JsonContentFilterRules,
+}
+
+impl Default for JsonContentFilterConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            suspicious_threshold: 5.0,
+            spam_threshold: 10.0,
+            rules: JsonContentFilterRules::default(),
+        }
+    }
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct JsonContentFilterRules {
+    missing_headers: JsonContentFilterRule,
+    subject_encoding_trick: JsonContentFilterRule,
+    excessive_recipients: JsonContentFilterRule,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct JsonContentFilterRule {
+    enabled: bool,
+    weight: f64,
+}
+
+impl Default for JsonContentFilterRule {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            weight: 1.0,
         }
     }
 }
@@ -1141,6 +1189,7 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         skibidi_toilet_quiz_enabled,
         asciiart: smtp_ascii,
     } = value.smtp;
+    let content_filter = value.content_filter;
     let htcpcp_pots = pots.unwrap_or_else(default_json_htcpcp_pots);
     if htcpcp_pots.is_empty() {
         return Err(ConfigError::Invalid(
@@ -1191,6 +1240,33 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         "lmyzmail.smtp.asciiart.char-aspect".to_owned(),
         smtp_ascii.char_aspect.to_string(),
     )?;
+    properties.insert(
+        "lmyzmail.contentfilter.enabled".to_owned(),
+        content_filter.enabled.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.contentfilter.suspicious-threshold".to_owned(),
+        content_filter.suspicious_threshold.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.contentfilter.spam-threshold".to_owned(),
+        content_filter.spam_threshold.to_string(),
+    )?;
+    for (name, rule) in [
+        ("MISSING_HEADERS", content_filter.rules.missing_headers),
+        (
+            "SUBJECT_ENCODING_TRICK",
+            content_filter.rules.subject_encoding_trick,
+        ),
+        (
+            "EXCESSIVE_RECIPIENTS",
+            content_filter.rules.excessive_recipients,
+        ),
+    ] {
+        let prefix = format!("lmyzmail.contentfilter.rules.{name}");
+        properties.insert(format!("{prefix}.enabled"), rule.enabled.to_string())?;
+        properties.insert(format!("{prefix}.weight"), rule.weight.to_string())?;
+    }
     properties.insert(
         "lmyzmail.htcpcp.port".to_owned(),
         value.listen.htcpcp.to_string(),
@@ -1891,6 +1967,7 @@ pub struct RuntimeConfig {
     pub outbound_route: OutboundRouteConfig,
     pub features: FeatureConfig,
     pub smtp_skibidi: SmtpSkibidiConfig,
+    pub content_filter: ContentFilterConfig,
     pub xdp: XdpConfig,
     pub cringe_decay: CringeDecayConfig,
     pub reporting: ReportingConfig,
@@ -1985,6 +2062,44 @@ pub struct SmtpAsciiConfig {
     pub default_fps: f32,
     pub default_contrast: f32,
     pub char_aspect: f32,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ContentFilterConfig {
+    pub enabled: bool,
+    pub suspicious_threshold: f64,
+    pub spam_threshold: f64,
+    pub missing_headers: ContentFilterRuleConfig,
+    pub subject_encoding_trick: ContentFilterRuleConfig,
+    pub excessive_recipients: ContentFilterRuleConfig,
+}
+
+impl Default for ContentFilterConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            suspicious_threshold: 5.0,
+            spam_threshold: 10.0,
+            missing_headers: ContentFilterRuleConfig::default(),
+            subject_encoding_trick: ContentFilterRuleConfig::default(),
+            excessive_recipients: ContentFilterRuleConfig::default(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ContentFilterRuleConfig {
+    pub enabled: bool,
+    pub weight: f64,
+}
+
+impl Default for ContentFilterRuleConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            weight: 1.0,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -2208,6 +2323,7 @@ impl RuntimeConfig {
             )),
         };
         let smtp_skibidi = parse_smtp_skibidi_config(&properties)?;
+        let content_filter = parse_content_filter_config(&properties)?;
 
         let datasource_url = preferred(
             &properties,
@@ -2677,6 +2793,7 @@ impl RuntimeConfig {
             outbound_route,
             features,
             smtp_skibidi,
+            content_filter,
             xdp,
             cringe_decay,
             reporting,
@@ -3270,6 +3387,99 @@ fn parse_smtp_skibidi_config(properties: &Properties) -> Result<SmtpSkibidiConfi
             char_aspect,
         },
     })
+}
+
+fn parse_content_filter_config(
+    properties: &Properties,
+) -> Result<ContentFilterConfig, ConfigError> {
+    let suspicious_threshold = preferred_f64(
+        properties,
+        &["lmyzmail.contentfilter.suspicious-threshold"],
+        &["botmail.contentfilter.suspicious-threshold"],
+        5.0,
+        "contentfilter suspicious-threshold",
+    )?;
+    validate_content_filter_number(
+        suspicious_threshold,
+        MAX_CONTENT_FILTER_THRESHOLD,
+        "contentfilter suspicious-threshold",
+    )?;
+    let spam_threshold = preferred_f64(
+        properties,
+        &["lmyzmail.contentfilter.spam-threshold"],
+        &["botmail.contentfilter.spam-threshold"],
+        10.0,
+        "contentfilter spam-threshold",
+    )?;
+    validate_content_filter_number(
+        spam_threshold,
+        MAX_CONTENT_FILTER_THRESHOLD,
+        "contentfilter spam-threshold",
+    )?;
+    if spam_threshold < suspicious_threshold {
+        return Err(ConfigError::Invalid(
+            "contentfilter spam-threshold must not be below suspicious-threshold".into(),
+        ));
+    }
+    Ok(ContentFilterConfig {
+        enabled: preferred_bool(
+            properties,
+            &["lmyzmail.contentfilter.enabled"],
+            &["botmail.contentfilter.enabled"],
+            true,
+        )?,
+        suspicious_threshold,
+        spam_threshold,
+        missing_headers: parse_content_filter_rule(properties, "MISSING_HEADERS")?,
+        subject_encoding_trick: parse_content_filter_rule(properties, "SUBJECT_ENCODING_TRICK")?,
+        excessive_recipients: parse_content_filter_rule(properties, "EXCESSIVE_RECIPIENTS")?,
+    })
+}
+
+fn parse_content_filter_rule(
+    properties: &Properties,
+    name: &str,
+) -> Result<ContentFilterRuleConfig, ConfigError> {
+    let new_prefix = format!("lmyzmail.contentfilter.rules.{name}");
+    let legacy_prefix = format!("botmail.contentfilter.rules.{name}");
+    let new_enabled = format!("{new_prefix}.enabled");
+    let legacy_enabled = format!("{legacy_prefix}.enabled");
+    let new_weight = format!("{new_prefix}.weight");
+    let legacy_weight = format!("{legacy_prefix}.weight");
+    let weight = preferred_f64(
+        properties,
+        &[new_weight.as_str()],
+        &[legacy_weight.as_str()],
+        1.0,
+        &format!("contentfilter rule {name} weight"),
+    )?;
+    validate_content_filter_number(
+        weight,
+        MAX_CONTENT_FILTER_RULE_WEIGHT,
+        &format!("contentfilter rule {name} weight"),
+    )?;
+    Ok(ContentFilterRuleConfig {
+        enabled: preferred_bool(
+            properties,
+            &[new_enabled.as_str()],
+            &[legacy_enabled.as_str()],
+            true,
+        )?,
+        weight,
+    })
+}
+
+fn validate_content_filter_number(
+    value: f64,
+    maximum: f64,
+    label: &str,
+) -> Result<(), ConfigError> {
+    if !value.is_finite() || !(0.0..=maximum).contains(&value) {
+        return Err(ConfigError::Invalid(format!(
+            "{label} must be a finite value between 0 and {maximum}"
+        )));
+    }
+    Ok(())
 }
 
 fn validate_smtp_ascii_fps(value: f32, label: &str) -> Result<(), ConfigError> {
@@ -5008,6 +5218,98 @@ lmyzmail.smtp.asciiart.char-aspect=2.5\n",
             assert!(
                 RuntimeConfig::from_properties(Properties::parse(input).unwrap()).is_err(),
                 "accepted unsafe SMTP ASCII configuration: {}",
+                String::from_utf8_lossy(input)
+            );
+        }
+    }
+
+    #[test]
+    fn content_filter_defaults_match_java_header_phase() {
+        let config = RuntimeConfig::from_properties(Properties::default()).unwrap();
+        assert!(config.content_filter.enabled);
+        assert_eq!(config.content_filter.suspicious_threshold, 5.0);
+        assert_eq!(config.content_filter.spam_threshold, 10.0);
+        for rule in [
+            &config.content_filter.missing_headers,
+            &config.content_filter.subject_encoding_trick,
+            &config.content_filter.excessive_recipients,
+        ] {
+            assert!(rule.enabled);
+            assert_eq!(rule.weight, 1.0);
+        }
+    }
+
+    #[test]
+    fn content_filter_accepts_legacy_aliases_and_prefers_new_keys_per_field() {
+        let config = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.contentfilter.enabled=false\n\
+botmail.contentfilter.suspicious-threshold=4\n\
+botmail.contentfilter.spam-threshold=9\n\
+botmail.contentfilter.rules.MISSING_HEADERS.enabled=false\n\
+botmail.contentfilter.rules.MISSING_HEADERS.weight=2.5\n\
+botmail.contentfilter.rules.SUBJECT_ENCODING_TRICK.weight=3.0\n\
+lmyzmail.contentfilter.enabled=true\n\
+lmyzmail.contentfilter.spam-threshold=8\n\
+lmyzmail.contentfilter.rules.MISSING_HEADERS.weight=1.25\n\
+lmyzmail.contentfilter.rules.EXCESSIVE_RECIPIENTS.enabled=false\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(config.content_filter.enabled);
+        assert_eq!(config.content_filter.suspicious_threshold, 4.0);
+        assert_eq!(config.content_filter.spam_threshold, 8.0);
+        assert!(!config.content_filter.missing_headers.enabled);
+        assert_eq!(config.content_filter.missing_headers.weight, 1.25);
+        assert_eq!(config.content_filter.subject_encoding_trick.weight, 3.0);
+        assert!(!config.content_filter.excessive_recipients.enabled);
+    }
+
+    #[test]
+    fn content_filter_semantic_json_uses_bounded_nested_rules() {
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&semantic_json_with_htcpcp(serde_json::json!({
+                "enabled": false,
+                "default_brew_time_seconds": 30,
+                "pots": null
+            })))
+            .unwrap();
+        value["content_filter"] = serde_json::json!({
+            "enabled": false,
+            "suspicious_threshold": 6.0,
+            "spam_threshold": 12.0,
+            "rules": {
+                "missing_headers": {"enabled": false, "weight": 2.0},
+                "subject_encoding_trick": {"enabled": true, "weight": 1.5},
+                "excessive_recipients": {"enabled": true, "weight": 0.5}
+            }
+        });
+        let properties = parse_semantic_json(&serde_json::to_vec(&value).unwrap()).unwrap();
+        let config = RuntimeConfig::from_properties(properties).unwrap();
+        assert!(!config.content_filter.enabled);
+        assert_eq!(config.content_filter.suspicious_threshold, 6.0);
+        assert_eq!(config.content_filter.spam_threshold, 12.0);
+        assert!(!config.content_filter.missing_headers.enabled);
+        assert_eq!(config.content_filter.missing_headers.weight, 2.0);
+        assert_eq!(config.content_filter.subject_encoding_trick.weight, 1.5);
+        assert_eq!(config.content_filter.excessive_recipients.weight, 0.5);
+    }
+
+    #[test]
+    fn content_filter_numbers_are_finite_ordered_and_bounded() {
+        for input in [
+            b"lmyzmail.contentfilter.suspicious-threshold=NaN\n".as_slice(),
+            b"lmyzmail.contentfilter.spam-threshold=Infinity\n".as_slice(),
+            b"lmyzmail.contentfilter.suspicious-threshold=-1\n".as_slice(),
+            b"lmyzmail.contentfilter.suspicious-threshold=11\nlmyzmail.contentfilter.spam-threshold=10\n".as_slice(),
+            b"lmyzmail.contentfilter.rules.MISSING_HEADERS.weight=-0.1\n".as_slice(),
+            b"lmyzmail.contentfilter.rules.SUBJECT_ENCODING_TRICK.weight=NaN\n".as_slice(),
+            b"lmyzmail.contentfilter.rules.EXCESSIVE_RECIPIENTS.weight=101\n".as_slice(),
+        ] {
+            assert!(
+                RuntimeConfig::from_properties(Properties::parse(input).unwrap()).is_err(),
+                "accepted unsafe content-filter configuration: {}",
                 String::from_utf8_lossy(input)
             );
         }

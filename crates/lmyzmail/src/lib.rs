@@ -29,6 +29,7 @@ pub mod redis;
 pub mod reporting;
 pub mod smtp;
 pub(crate) mod smtp_ascii;
+pub(crate) mod smtp_content_filter;
 pub(crate) mod smtp_skibidi_quiz;
 pub(crate) mod smtp_skibidi_video;
 pub mod userdata;

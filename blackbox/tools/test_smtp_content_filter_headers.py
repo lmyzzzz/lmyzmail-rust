@@ -74,6 +74,7 @@ def _candidate(repository: Path) -> CandidateRuntime:
             str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
             "--config",
             "{config}",
+            "--botmail.maildir.max-files-per-directory=1",
             *_RULE_OVERRIDES,
         )
     )
