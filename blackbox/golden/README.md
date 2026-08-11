@@ -1127,18 +1127,49 @@ isolated Java runtime created v1, a second fresh Java runtime replayed it
 without record mode, and the Linux x86_64 Rust release matched it in a separate
 candidate workspace. No self-spoof golden was rewritten.
 
-The active outbound success-path set is:
+The first outbound success-path set consumed by both runtimes remains:
 
 - `managed-outbound-queue-v34.json`
 
 It binds definition tree
-`279a2fa81b338a0972a5582ac4541e024d3c6a8b043dff1bf2ad01604f1d6286`
-and is the first queue generation consumed by both the frozen Java probe and
-the Rust candidate probe. Four asynchronous messages freeze the 8,191/8,192
-byte inline-to-spool boundary, exact legacy Redis task and TTL state, Sent
-Maildir sharding, PostgreSQL terminal rows, remote SMTP ordering, and
-normalized MIME bytes. Only generated sent filenames, Date, Message-ID,
-optional DKIM-Signature, and the bounded seven-day TTL observation window are
-normalized. One isolated Java runtime created v34, a fresh Java runtime
-replayed it, and the locked Linux x86_64 Rust release matched it in a separate
-candidate environment. Versions v1 through v33 remain immutable history.
+`279a2fa81b338a0972a5582ac4541e024d3c6a8b043dff1bf2ad01604f1d6286`.
+The active re-attestation is:
+
+- `managed-outbound-queue-v35.json`
+
+It binds definition tree
+`90014e07747ac43bae4e8e0d6deef5f8d8bd40269b2b8265b266db04b549786c`
+and preserves the v34 observation byte-for-byte after the outbound 5xx
+differential driver was added to the definition tree. Four asynchronous
+messages freeze the 8,191/8,192 byte inline-to-spool boundary, exact legacy
+Redis task and TTL state, Sent Maildir sharding, PostgreSQL terminal rows,
+remote SMTP ordering, and normalized MIME bytes. Only generated sent
+filenames, Date, Message-ID, optional DKIM-Signature, and the bounded seven-day
+TTL observation window are normalized. One isolated Java runtime created v35,
+a fresh Java runtime replayed it, and the locked Linux x86_64 Rust release
+matched it in a separate candidate environment. Versions v1 through v34
+remain immutable history.
+
+The retained outbound permanent-failure generations are:
+
+- `managed-outbound-5xx-v1.json`, the stable Java observation before queue-ID
+  normalization
+- `managed-outbound-5xx-v2.json`, the same observation with only the generated
+  queue ID normalized
+
+The active outbound permanent-failure set is:
+
+- `managed-outbound-5xx-v3.json`
+
+It binds definition tree
+`90014e07747ac43bae4e8e0d6deef5f8d8bd40269b2b8265b266db04b549786c`
+and preserves the v2 observation byte-for-byte. Ten cases cross RCPT and DATA
+with reply codes 500, 501, 549, 550, and 554. They freeze the initial `202`
+queue response, exact SMTP commands and replies, whether DATA bytes were sent,
+the absence of QUIT after a failed final DATA reply, legacy Redis domain and
+aggregate status, task acknowledgement, and PostgreSQL `FAILED` rows. They
+also freeze Java's exact `RCPT TO failed: CODE ...`, `Message not accepted:
+CODE ...`, and `All domains failed: {domain=error}` strings. The generated
+queue ID is the only normalizer. One isolated Java runtime created v3, a fresh
+Java runtime replayed it, and the locked Linux x86_64 Rust release matched it
+in a separate candidate environment. No earlier outbound golden was rewritten.

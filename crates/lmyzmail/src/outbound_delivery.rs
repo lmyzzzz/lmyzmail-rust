@@ -2151,7 +2151,7 @@ impl PostgresDeliveryState {
                 let retry_at = next_retry_at.ok_or(DeliveryStateError::InvalidInput(
                     "retry deadline is required for retryable recipients",
                 ))?;
-                let last_error = projection_error(&recipients, "temporary delivery failure");
+                let last_error = projection_error(&recipients, "temporary delivery failure")?;
                 let row = transaction
                     .query_one(
                         "UPDATE outbound_mail_queue
@@ -2222,7 +2222,7 @@ impl PostgresDeliveryState {
             } else if terminal == TerminalStatus::Sent {
                 None
             } else {
-                Some(projection_error(&recipients, "permanent delivery failure"))
+                Some(projection_error(&recipients, "permanent delivery failure")?)
             };
             transaction
                 .execute(
@@ -2823,7 +2823,7 @@ impl PostgresDeliveryState {
                 } else if terminal == TerminalStatus::Sent {
                     None
                 } else {
-                    Some(projection_error(&recipients, "permanent delivery failure"))
+                    Some(projection_error(&recipients, "permanent delivery failure")?)
                 };
                 let sent_domains_json = serialize_optional(&sent_domains)?;
                 let failed_domains_json = if ambiguous {
@@ -3234,13 +3234,42 @@ fn ledger_rows_for_projection(
         .collect()
 }
 
-fn projection_error(recipients: &[ProjectionRecipient], fallback: &str) -> String {
-    bounded_error(
-        recipients
-            .iter()
-            .find_map(|recipient| recipient.detail.as_deref())
-            .unwrap_or(fallback),
-    )
+fn projection_error(
+    recipients: &[ProjectionRecipient],
+    fallback: &str,
+) -> Result<String, DeliveryStateError> {
+    let delivered = recipients
+        .iter()
+        .any(|recipient| recipient.state == RecipientDeliveryState::Delivered);
+    let mut failed = BTreeMap::new();
+    for recipient in recipients.iter().filter(|recipient| {
+        matches!(
+            recipient.state,
+            RecipientDeliveryState::Retryable | RecipientDeliveryState::Permanent
+        )
+    }) {
+        let domain = recipient_domain(&recipient.recipient)?;
+        failed.entry(domain).or_insert_with(|| {
+            recipient
+                .detail
+                .clone()
+                .unwrap_or_else(|| fallback.to_owned())
+        });
+    }
+    if failed.is_empty() {
+        return Ok(bounded_error(fallback));
+    }
+    let failures = failed
+        .into_iter()
+        .map(|(domain, detail)| format!("{domain}={detail}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let prefix = if delivered {
+        "Partial delivery. Failed domains: "
+    } else {
+        "All domains failed: "
+    };
+    Ok(bounded_error(&format!("{prefix}{{{failures}}}")))
 }
 
 fn projection_domains(

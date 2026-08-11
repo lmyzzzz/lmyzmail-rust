@@ -2022,13 +2022,17 @@ async fn smtp_server_for_recipient(
         assert_eq!(barrier.get::<_, &str>(0), "COMMIT_ARMED");
         assert_eq!(barrier.get::<_, &str>(1), "COMMIT_ARMED");
         match final_reply {
-            FinalReply::Accepted => write(&mut reader, b"250 2.0.0 accepted\r\n").await,
-            FinalReply::Temporary => write(&mut reader, b"451 4.3.0 later\r\n").await,
-            FinalReply::Disconnect => return,
+            FinalReply::Accepted => {
+                write(&mut reader, b"250 2.0.0 accepted\r\n").await;
+                assert_eq!(read_line(&mut reader).await, b"QUIT\r\n");
+                write(&mut reader, b"221 bye\r\n").await;
+            }
+            FinalReply::Temporary => {
+                write(&mut reader, b"451 4.3.0 later\r\n").await;
+            }
+            FinalReply::Disconnect => {}
             FinalReply::RcptPermanent | FinalReply::EhloDisconnect => unreachable!(),
         }
-        assert_eq!(read_line(&mut reader).await, b"QUIT\r\n");
-        write(&mut reader, b"221 bye\r\n").await;
     });
     (port, server)
 }

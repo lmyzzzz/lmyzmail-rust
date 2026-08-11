@@ -8,16 +8,14 @@ from pathlib import Path
 
 import pytest
 
+from lmyzmail_blackbox.golden import GoldenAttestation, GoldenStore
+
 
 def _repository() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-@pytest.mark.integration
-@pytest.mark.oracle
-@pytest.mark.timeout(360)
-def test_managed_java_outbound_5xx_wire_and_statuses() -> None:
-    repository = _repository()
+def _run_probe(repository: Path, *, target: str) -> dict[str, object]:
     result = subprocess.run(  # noqa: S603,S607
         [
             "/bin/bash",
@@ -30,6 +28,7 @@ def test_managed_java_outbound_5xx_wire_and_statuses() -> None:
             **os.environ,
             "LMYZMAIL_BLACKBOX_PYTHON": sys.executable,
             "LMYZMAIL_OUTBOUND_ORACLE_MODE": "5XX",
+            "LMYZMAIL_OUTBOUND_TARGET": target,
         },
         timeout=350,
         check=False,
@@ -40,10 +39,19 @@ def test_managed_java_outbound_5xx_wire_and_statuses() -> None:
             f"{result.returncode}:\nstdout={result.stdout}\nstderr={result.stderr}"
         )
 
-    observed = json.loads(result.stdout)
+    value = json.loads(result.stdout)
+    if not isinstance(value, dict):
+        raise AssertionError(f"outbound 5xx probe returned a non-object: {value!r}")
+    return value
+
+
+def _assert_contract(observed: dict[str, object]) -> None:
     assert observed["codes"] == [500, 501, 549, 550, 554]
     assert observed["case_count"] == 10
-    for case in observed["cases"]:
+    cases = observed["cases"]
+    assert isinstance(cases, list)
+    for case in cases:
+        assert isinstance(case, dict)
         code = case["code"]
         phase = case["phase"]
         task = case["redis"]["task"]
@@ -64,3 +72,39 @@ def test_managed_java_outbound_5xx_wire_and_statuses() -> None:
         assert case["redis"]["aggregate_status"] == (
             "FAILED" if code in (550, 554) else "PROCESSING"
         )
+
+
+def _assert_golden(
+    repository: Path,
+    observed: dict[str, object],
+    *,
+    record_java: bool,
+) -> None:
+    path = repository / "blackbox/golden/java/managed-outbound-5xx-v3.json"
+    attestation = GoldenAttestation.from_repository(
+        repository,
+        profile="managed-outbound-5xx",
+        normalizers=("outbound:queue-id",),
+    )
+    store = GoldenStore(path.parent, attestation, record=record_java)
+    store.assert_observation(path.name, observed)
+
+
+@pytest.mark.integration
+@pytest.mark.oracle
+@pytest.mark.timeout(360)
+def test_managed_java_outbound_5xx_wire_and_statuses(record_java_golden: bool) -> None:
+    repository = _repository()
+    observed = _run_probe(repository, target="java")
+    _assert_contract(observed)
+    _assert_golden(repository, observed, record_java=record_java_golden)
+
+
+@pytest.mark.integration
+@pytest.mark.candidate
+@pytest.mark.timeout(360)
+def test_rust_candidate_outbound_5xx_matches_frozen_java_golden() -> None:
+    repository = _repository()
+    observed = _run_probe(repository, target="candidate")
+    _assert_contract(observed)
+    _assert_golden(repository, observed, record_java=False)

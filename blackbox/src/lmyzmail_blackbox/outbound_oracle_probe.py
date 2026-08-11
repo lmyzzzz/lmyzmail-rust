@@ -622,8 +622,6 @@ def _capture_5xx_case(
             timeout=30.0,
             description=f"5xx {phase} {code} SMTP reply",
         )
-        task_before_archive, _ = _failure_redis_snapshot(redis_client, task_id)
-
         def final_row() -> dict[str, Any] | None:
             return next((row for row in _db_rows(runtime) if row["id"] == task_id), None)
 
@@ -641,6 +639,10 @@ def _capture_5xx_case(
         row = final_row()
         if row is None:
             raise AssertionError(f"archived 5xx task {task_id} disappeared from PostgreSQL")
+        if not isinstance(row.get("id"), int):
+            raise AssertionError(f"archived 5xx task has an invalid ID: {row!r}")
+        row["id_present"] = True
+        del row["id"]
         task, domain_statuses = _failure_redis_snapshot(redis_client, task_id)
         transcript = _smtp_transcript_snapshot(server)
         return {
@@ -655,7 +657,6 @@ def _capture_5xx_case(
             },
             "smtp": transcript,
             "redis": {
-                "task_before_archive": task_before_archive,
                 "task": task,
                 "task_present_after_archive": task is not None,
                 "domains": domain_statuses,
@@ -678,40 +679,55 @@ def run_5xx_probe() -> dict[str, Any]:
 
     codes = (500, 501, 549, 550, 554)
     cases: list[dict[str, Any]] = []
+    target = _outbound_target()
+    dns_server = _candidate_dns_server() if target == "candidate" else None
     with tempfile.TemporaryDirectory(prefix="lmyzmail-outbound-5xx-oracle-") as workspace:
-        runtime = OutboundOracleRuntime(Path(workspace))
-        with runtime:
-            case_index = 0
-            for phase in ("RCPT", "DATA"):
-                for code in codes:
-                    case_index += 1
-                    recipient = f"recipient-{phase.lower()}-{code}-{case_index}@{_DNS_HOST}"
-                    reply = f"{code} fixture scripted {phase.lower()} failure\r\n".encode("ascii")
-                    if phase == "RCPT":
-                        scenario = SmtpScenario(
-                            recipient_replies=(RecipientReply(recipient, reply),),
-                            max_connections=8,
-                            max_concurrent_connections=2,
-                            max_message_bytes=2 * 1024 * 1024,
+        runtime: JavaOracleRuntime
+        if target == "candidate":
+            repository = Path(__file__).resolve().parents[3]
+            runtime = _candidate_runtime(repository)
+        else:
+            runtime = OutboundOracleRuntime(Path(workspace))
+        if dns_server is not None:
+            dns_server.start()
+        try:
+            with runtime:
+                case_index = 0
+                for phase in ("RCPT", "DATA"):
+                    for code in codes:
+                        case_index += 1
+                        recipient = f"recipient-{phase.lower()}-{code}-{case_index}@{_DNS_HOST}"
+                        reply = f"{code} fixture scripted {phase.lower()} failure\r\n".encode(
+                            "ascii"
                         )
-                    else:
-                        scenario = SmtpScenario(
-                            data_result_reply=reply,
-                            max_connections=8,
-                            max_concurrent_connections=2,
-                            max_message_bytes=2 * 1024 * 1024,
-                        )
-                    server = ScriptedSmtpServer(scenario, bind_host=_FAKE_IP, bind_port=25)
-                    with server:
-                        cases.append(
-                            _capture_5xx_case(
-                                server,
-                                runtime,
-                                phase=phase,
-                                code=code,
-                                case_index=case_index,
+                        if phase == "RCPT":
+                            scenario = SmtpScenario(
+                                recipient_replies=(RecipientReply(recipient, reply),),
+                                max_connections=8,
+                                max_concurrent_connections=2,
+                                max_message_bytes=2 * 1024 * 1024,
                             )
-                        )
+                        else:
+                            scenario = SmtpScenario(
+                                data_result_reply=reply,
+                                max_connections=8,
+                                max_concurrent_connections=2,
+                                max_message_bytes=2 * 1024 * 1024,
+                            )
+                        server = ScriptedSmtpServer(scenario, bind_host=_FAKE_IP, bind_port=25)
+                        with server:
+                            cases.append(
+                                _capture_5xx_case(
+                                    server,
+                                    runtime,
+                                    phase=phase,
+                                    code=code,
+                                    case_index=case_index,
+                                )
+                            )
+        finally:
+            if dns_server is not None:
+                dns_server.stop()
     return {"codes": list(codes), "cases": cases, "case_count": len(cases)}
 
 

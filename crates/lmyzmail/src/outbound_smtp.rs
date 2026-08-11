@@ -572,7 +572,9 @@ impl PreparedDelivery {
             failure.recipients = self.recipients;
             return Err(failure);
         };
-        let _ = self.session.command("QUIT").await;
+        if status == DataStatus::Accepted {
+            let _ = self.session.command("QUIT").await;
+        }
         Ok(DeliveryResult {
             recipients: self.recipients,
             data_status: status,

@@ -138,7 +138,13 @@ impl CoordinatorConfig {
         )?;
         let value = Self {
             worker_id,
-            hello_name: config.domain.clone(),
+            hello_name: config
+                .preferred_value(
+                    "lmyzmail.outbound.helo-hostname",
+                    "botmail.outbound.helo-hostname",
+                )
+                .unwrap_or(config.domain.as_str())
+                .to_owned(),
             lease_duration: Duration::from_secs(lease_seconds),
             renew_interval: Duration::from_secs(renew_seconds),
             task_deadline: Duration::from_secs(task_deadline_minutes.checked_mul(60).ok_or(
@@ -171,6 +177,12 @@ impl CoordinatorConfig {
             ));
         }
         if self.hello_name.is_empty()
+            || self.hello_name.len() > 253
+            || !self.hello_name.is_ascii()
+            || self
+                .hello_name
+                .bytes()
+                .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace())
             || self.lease_duration < Duration::from_secs(MIN_SAFE_LEASE_SECONDS)
             || self.lease_duration > Duration::from_secs(60 * 60)
             || self.renew_interval.is_zero()
@@ -2436,7 +2448,7 @@ fn recipient_outcomes(
                 (
                     PreparedRecipientStatus::Retryable,
                     result.code,
-                    result.reply.as_str(),
+                    java_smtp_failure_detail("RCPT TO failed", result.code, &result.reply),
                 )
             }
             Some(RecipientStatus::PermanentFailure) => {
@@ -2444,7 +2456,7 @@ fn recipient_outcomes(
                 (
                     PreparedRecipientStatus::Permanent,
                     result.code,
-                    result.reply.as_str(),
+                    java_smtp_failure_detail("RCPT TO failed", result.code, &result.reply),
                 )
             }
             Some(RecipientStatus::Accepted) => match accepted {
@@ -2453,12 +2465,14 @@ fn recipient_outcomes(
                     (
                         PreparedRecipientStatus::Accepted,
                         result.code,
-                        result.reply.as_str(),
+                        bounded_detail(&result.reply),
                     )
                 }
-                AcceptedDisposition::Fail(status) => {
-                    (status, synthetic_code(status), fallback_detail)
-                }
+                AcceptedDisposition::Fail(status) => (
+                    status,
+                    synthetic_code(status),
+                    bounded_detail(fallback_detail),
+                ),
             },
             None => match accepted {
                 AcceptedDisposition::Arm => {
@@ -2466,12 +2480,16 @@ fn recipient_outcomes(
                         "SMTP prepared result omitted a durable recipient",
                     ));
                 }
-                AcceptedDisposition::ArmMissing => {
-                    (PreparedRecipientStatus::Accepted, 250, fallback_detail)
-                }
-                AcceptedDisposition::Fail(status) => {
-                    (status, synthetic_code(status), fallback_detail)
-                }
+                AcceptedDisposition::ArmMissing => (
+                    PreparedRecipientStatus::Accepted,
+                    250,
+                    bounded_detail(fallback_detail),
+                ),
+                AcceptedDisposition::Fail(status) => (
+                    status,
+                    synthetic_code(status),
+                    bounded_detail(fallback_detail),
+                ),
             },
         };
         outcomes.push(PreparedRecipientCheckpoint {
@@ -2479,7 +2497,7 @@ fn recipient_outcomes(
             recipient: recipient.address.clone(),
             status,
             smtp_code,
-            detail: bounded_detail(detail),
+            detail,
         });
     }
     Ok(outcomes)
@@ -2506,34 +2524,56 @@ fn complete_delivery_outcomes(
             RecipientStatus::TemporaryFailure => (
                 PreparedRecipientStatus::Retryable,
                 result_recipient.code,
-                result_recipient.reply.as_str(),
+                java_smtp_failure_detail(
+                    "RCPT TO failed",
+                    result_recipient.code,
+                    &result_recipient.reply,
+                ),
             ),
             RecipientStatus::PermanentFailure => (
                 PreparedRecipientStatus::Permanent,
                 result_recipient.code,
-                result_recipient.reply.as_str(),
+                java_smtp_failure_detail(
+                    "RCPT TO failed",
+                    result_recipient.code,
+                    &result_recipient.reply,
+                ),
             ),
             RecipientStatus::Accepted => match result.data_status {
-                DataStatus::TemporaryFailure => (
-                    PreparedRecipientStatus::Retryable,
-                    result.data_code.ok_or(CoordinatorError::Reconciliation(
+                DataStatus::TemporaryFailure => {
+                    let code = result.data_code.ok_or(CoordinatorError::Reconciliation(
                         "temporary DATA result has no reply code",
-                    ))?,
-                    result
-                        .data_reply
-                        .as_deref()
-                        .unwrap_or("temporary DATA failure"),
-                ),
-                DataStatus::PermanentFailure => (
-                    PreparedRecipientStatus::Permanent,
-                    result.data_code.ok_or(CoordinatorError::Reconciliation(
+                    ))?;
+                    (
+                        PreparedRecipientStatus::Retryable,
+                        code,
+                        java_smtp_failure_detail(
+                            "Message not accepted",
+                            code,
+                            result
+                                .data_reply
+                                .as_deref()
+                                .unwrap_or("temporary DATA failure"),
+                        ),
+                    )
+                }
+                DataStatus::PermanentFailure => {
+                    let code = result.data_code.ok_or(CoordinatorError::Reconciliation(
                         "permanent DATA result has no reply code",
-                    ))?,
-                    result
-                        .data_reply
-                        .as_deref()
-                        .unwrap_or("permanent DATA failure"),
-                ),
+                    ))?;
+                    (
+                        PreparedRecipientStatus::Permanent,
+                        code,
+                        java_smtp_failure_detail(
+                            "Message not accepted",
+                            code,
+                            result
+                                .data_reply
+                                .as_deref()
+                                .unwrap_or("permanent DATA failure"),
+                        ),
+                    )
+                }
                 DataStatus::Accepted | DataStatus::NotAttempted => {
                     return Err(CoordinatorError::Reconciliation(
                         "complete SMTP result bypassed the durable commit barrier",
@@ -2546,7 +2586,7 @@ fn complete_delivery_outcomes(
             recipient: recipient.address.clone(),
             status,
             smtp_code: code,
-            detail: bounded_detail(detail),
+            detail,
         });
     }
     Ok(outcomes)
@@ -2558,12 +2598,10 @@ fn commit_outcome(
     let code = result.data_code.ok_or(CoordinatorError::Reconciliation(
         "SMTP commit result has no reply code",
     ))?;
-    let detail = bounded_detail(
-        result
-            .data_reply
-            .as_deref()
-            .unwrap_or("SMTP commit returned no reply text"),
-    );
+    let reply = result
+        .data_reply
+        .as_deref()
+        .unwrap_or("SMTP commit returned no reply text");
     let status = match result.data_status {
         DataStatus::Accepted => CommitResultStatus::Delivered,
         DataStatus::TemporaryFailure => CommitResultStatus::Retryable,
@@ -2573,6 +2611,11 @@ fn commit_outcome(
                 "SMTP commit result says DATA was not attempted",
             ));
         }
+    };
+    let detail = if status == CommitResultStatus::Delivered {
+        bounded_detail(reply)
+    } else {
+        java_smtp_failure_detail("Message not accepted", code, reply)
     };
     Ok((status, code, detail))
 }
@@ -2594,6 +2637,23 @@ fn synthetic_code(status: PreparedRecipientStatus) -> u16 {
         PreparedRecipientStatus::Retryable => 451,
         PreparedRecipientStatus::Permanent => 550,
     }
+}
+
+fn java_smtp_failure_detail(prefix: &str, code: u16, reply: &str) -> String {
+    let reply = reply.trim();
+    let code_text = code.to_string();
+    let reply_with_code = if reply == code_text
+        || reply
+            .strip_prefix(&code_text)
+            .is_some_and(|suffix| suffix.starts_with(char::is_whitespace))
+    {
+        reply.to_owned()
+    } else if reply.is_empty() {
+        code_text
+    } else {
+        format!("{code} {reply}")
+    };
+    bounded_detail(&format!("{prefix}: {reply_with_code}"))
 }
 
 fn prepared_checkpoint_matches(
@@ -3398,12 +3458,15 @@ mod tests {
               lmyzmail.queue.renew-seconds=10\n\
               botmail.queue.processing-timeout-minutes=9\n\
               lmyzmail.queue.processing-timeout-minutes=8\n\
+              botmail.outbound.helo-hostname=legacy.example\n\
+              lmyzmail.outbound.helo-hostname=blackbox.example\n\
               lmyzmail.queue.worker-id=qa-worker\n",
         )
         .unwrap();
         let runtime = RuntimeConfig::from_properties(properties).unwrap();
         let config = CoordinatorConfig::from_config(&runtime).unwrap();
         assert_eq!(config.worker_id, "qa-worker");
+        assert_eq!(config.hello_name, "blackbox.example");
         assert_eq!(config.lease_duration, Duration::from_secs(90));
         assert_eq!(config.renew_interval, Duration::from_secs(10));
         assert_eq!(config.task_deadline, Duration::from_secs(8 * 60));
@@ -3429,6 +3492,12 @@ mod tests {
         )
         .unwrap();
         assert!(CoordinatorConfig::from_config(&oversized_worker).is_err());
+
+        let invalid_hello = RuntimeConfig::from_properties(
+            Properties::parse(b"lmyzmail.outbound.helo-hostname=bad name\n").unwrap(),
+        )
+        .unwrap();
+        assert!(CoordinatorConfig::from_config(&invalid_hello).is_err());
     }
 
     #[test]
@@ -3506,6 +3575,7 @@ mod tests {
         assert_eq!(prepared[0].status, PreparedRecipientStatus::Accepted);
         assert_eq!(prepared[1].ordinal, 7);
         assert_eq!(prepared[1].status, PreparedRecipientStatus::Retryable);
+        assert_eq!(prepared[1].detail, "RCPT TO failed: 451 later");
 
         let complete = DeliveryResult {
             recipients: results,
@@ -3519,7 +3589,26 @@ mod tests {
         let complete = complete_delivery_outcomes(&recipients, &complete).unwrap();
         assert_eq!(complete[0].status, PreparedRecipientStatus::Retryable);
         assert_eq!(complete[0].smtp_code, 421);
+        assert_eq!(
+            complete[0].detail,
+            "Message not accepted: 421 queue unavailable"
+        );
         assert_eq!(complete[1].smtp_code, 451);
+        assert_eq!(complete[1].detail, "RCPT TO failed: 451 later");
+
+        let committed = DeliveryResult {
+            recipients: vec![],
+            data_status: DataStatus::PermanentFailure,
+            data_code: Some(550),
+            data_reply: Some("mailbox unavailable".into()),
+            tls: false,
+            smtp_utf8: false,
+            pipelining: true,
+        };
+        let (status, code, detail) = commit_outcome(&committed).unwrap();
+        assert_eq!(status, CommitResultStatus::Permanent);
+        assert_eq!(code, 550);
+        assert_eq!(detail, "Message not accepted: 550 mailbox unavailable");
     }
 
     #[test]

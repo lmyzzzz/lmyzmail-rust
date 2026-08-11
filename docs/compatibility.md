@@ -255,14 +255,17 @@ persistence behavior remains differential. The post-freeze supplemental
 allowlist is bound in `evidence/compatibility/smtp-spamhaus-v1.json`; the frozen
 golden definition tree and global manifest are unchanged.
 
-## Outbound SMTP success path
+## Outbound SMTP success and permanent-failure paths
 
-The create-once `managed-outbound-queue-v34.json` generation is the first
-external outbound delivery observation replayed by both runtimes. It starts an
-isolated PostgreSQL, Redis, Maildir, remote SMTP peer, and network namespace,
-then submits four asynchronous API messages whose text bodies are 19, 8,191,
-8,192, and 12,288 bytes. The frozen 10 KiB estimate keeps 8,191 bytes inline
-in Redis and switches 8,192 bytes to an owned spool file.
+The immutable `managed-outbound-queue-v34.json` generation was the first
+external outbound delivery observation replayed by both runtimes. Active
+generation `managed-outbound-queue-v35.json` re-attests the same observation
+byte-for-byte under definition tree
+`90014e07747ac43bae4e8e0d6deef5f8d8bd40269b2b8265b266db04b549786c`.
+It starts isolated PostgreSQL, Redis, Maildir, remote SMTP peer, and network
+namespace fixtures, then submits four asynchronous API messages whose text
+bodies are 19, 8,191, 8,192, and 12,288 bytes. The frozen 10 KiB estimate keeps
+8,191 bytes inline in Redis and switches 8,192 bytes to an owned spool file.
 
 The Rust candidate matches the Java oracle's `202` admission bodies, legacy
 Redis task JSON/type/seven-day TTL, pending order, sent-file index, memory/file
@@ -277,10 +280,30 @@ The candidate's resolver consumes a zero-TTL A answer from a bounded scripted
 DNS server inside the probe namespace and connects to the already reviewed
 numeric address; the recipient-domain MX value remains the exact legacy Redis
 cache entry. Snapshot assertions are scoped to the four task IDs created by
-this scenario. Existing legacy queue takeover, retry, migration, recovery,
-4xx/5xx, STARTTLS/MTA-STS, commit ambiguity, DSN, restart, and soak behavior
-remain covered by their dedicated tests or by later external differential
-matrices; v34 does not claim those paths.
+this scenario.
+
+The active `managed-outbound-5xx-v3.json` generation uses the same definition
+tree and adds a ten-case raw-wire matrix: RCPT and final DATA replies for codes
+500, 501, 549, 550, and 554. The candidate matches the initial `202` queue
+response; exact EHLO, MAIL, RCPT, DATA, and reply order; absence of message data
+for RCPT failures; message data for DATA failures; no QUIT after a rejected
+final DATA reply; legacy Redis task acknowledgement, per-domain state, and
+aggregate status; and PostgreSQL `FAILED` rows with zero retries. The frozen
+aggregate remains `PROCESSING` for 500, 501, and 549 and becomes `FAILED` for
+550 and 554. Exact errors retain Java's `RCPT TO failed: CODE ...`, `Message
+not accepted: CODE ...`, and `All domains failed: {domain=error}` forms. Only
+the generated queue ID is normalized. v1 and v2 remain immutable history; a
+fresh Java recording, independent Java replay, and Rust candidate replay all
+passed v3.
+
+The candidate reads `lmyzmail.outbound.helo-hostname` with
+`botmail.outbound.helo-hostname` fallback and new-key precedence. Empty,
+non-ASCII, whitespace/control-bearing, or over-253-byte values are rejected at
+startup. The differential fixtures use `blackbox.example` through the legacy
+key for Java and the new key for Rust. Legacy queue takeover, retry timing and
+exhaustion, STARTTLS/MTA-STS, disconnect ambiguity, DSN, restart, fault
+injection, backpressure, concurrency, and soak remain separate external
+differential matrices; v35 and 5xx v3 do not claim those paths.
 
 ## Approved security differences
 

@@ -1,0 +1,227 @@
+{
+  "schema_version": 1,
+  "profile": "outbound-5xx-v1",
+  "captured_at": "2026-08-11T19:44:09+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "contract": {
+    "phases": [
+      "RCPT",
+      "DATA"
+    ],
+    "reply_codes": [
+      500,
+      501,
+      549,
+      550,
+      554
+    ],
+    "case_count": 10,
+    "api_status": 202,
+    "api_queued": true,
+    "postgres_terminal_status": "FAILED",
+    "postgres_retry_count": 0,
+    "redis_task_acknowledged": true,
+    "redis_domain_status": "FAILED",
+    "redis_aggregate_status_by_code": {
+      "500": "PROCESSING",
+      "501": "PROCESSING",
+      "549": "PROCESSING",
+      "550": "FAILED",
+      "554": "FAILED"
+    },
+    "error_formats": {
+      "rcpt": "RCPT TO failed: CODE REPLY",
+      "data": "Message not accepted: CODE REPLY",
+      "all_domains": "All domains failed: {domain=error}",
+      "partial_domains": "Partial delivery. Failed domains: {domain=error}"
+    },
+    "wire": {
+      "rcpt_failure_sends_data": false,
+      "data_failure_sends_message_bytes": true,
+      "quit_after_accepted_data": true,
+      "quit_after_failed_data": false
+    },
+    "normalizers": [
+      "outbound:queue-id"
+    ]
+  },
+  "configuration": {
+    "java_helo_key": "botmail.outbound.helo-hostname",
+    "rust_helo_key": "lmyzmail.outbound.helo-hostname",
+    "legacy_fallback": true,
+    "new_key_precedence": true,
+    "fixture_value": "blackbox.example",
+    "rejected_helo_values": [
+      "empty",
+      "over 253 bytes",
+      "non-ASCII",
+      "ASCII control-bearing",
+      "ASCII whitespace-bearing"
+    ]
+  },
+  "bounds": {
+    "queue_poll_interval_ms": 3000,
+    "queue_batch_size": 2,
+    "queue_max_concurrent_sends": 1,
+    "candidate_dns_query_timeout_seconds": 1,
+    "probe_timeout_seconds": 350,
+    "scripted_smtp_max_message_bytes": 2097152
+  },
+  "golden": {
+    "active_5xx": {
+      "profile": "managed-outbound-5xx",
+      "version": 3,
+      "definition_tree_sha256": "90014e07747ac43bae4e8e0d6deef5f8d8bd40269b2b8265b266db04b549786c",
+      "file_sha256": "e555a76445759ecf240820088e896c326abeecf22473ef7f0ee36ca6b668872a"
+    },
+    "retained_5xx": [
+      {
+        "version": 1,
+        "file_sha256": "7f69fc45b83a6d2c15cf0fd969b671f0636836a36487c1315eac8ffe66ea94f6"
+      },
+      {
+        "version": 2,
+        "file_sha256": "791fda6e9abc35ebb3aec461c19fcb3b40ba08bc339bae868d35587f1a3b46f5"
+      }
+    ],
+    "active_success_reattestation": {
+      "profile": "managed-outbound-queue",
+      "version": 35,
+      "definition_tree_sha256": "90014e07747ac43bae4e8e0d6deef5f8d8bd40269b2b8265b266db04b549786c",
+      "file_sha256": "dd9acf48965a3e77be29cfcd88aec40f9c3f5c577e83876f9479c2c107930a9a",
+      "observation_matches_version": 34
+    }
+  },
+  "implementation": {
+    "runtime": "stable-rust-1.94.0",
+    "java_runtime_dependency": false,
+    "failed_data_connection_close_matches_oracle": true,
+    "covered_paths": [
+      "HTTP asynchronous queue admission",
+      "RCPT permanent reply handling",
+      "final DATA permanent reply handling",
+      "SMTP transcript and connection close behavior",
+      "Redis per-domain and aggregate failure projection",
+      "Redis task acknowledgement",
+      "PostgreSQL terminal failure projection",
+      "Java-compatible per-domain error formatting",
+      "new and legacy outbound HELO configuration"
+    ],
+    "remaining_separate_matrices": [
+      "SMTP 4xx retry timing and exhaustion",
+      "STARTTLS and MTA-STS",
+      "disconnect and final-reply ambiguity",
+      "DSN generation and delivery",
+      "restart recovery and legacy queue takeover",
+      "fault injection and backpressure",
+      "high concurrency and soak"
+    ]
+  },
+  "source_sha256": {
+    "Cargo.lock": "025fda3214b0ed11e167ccf813132446913eed15ea20338acb5320798019417b",
+    "crates/lmyzmail/Cargo.toml": "4e38824e29d147f75f70a415ab05546a5eb8478f25702f6b47c25f75df31cd8d",
+    "crates/lmyzmail/src/outbound_coordinator.rs": "67fb46ac8482b426476638ac2486bd803274e407f2d0eb2589b42be6d742723b",
+    "crates/lmyzmail/src/outbound_delivery.rs": "086f46aa43f65c2bc30b3ee604c21dfa41bddb517e7e8f40172d106f7f417089",
+    "crates/lmyzmail/src/outbound_smtp.rs": "85fea085edb802a318d5cf0e1c04f0f0f56906acbfd464e49ffa2563c71e6b46",
+    "crates/lmyzmail/tests/outbound_coordinator_integration.rs": "087d1f7241adc9991f2a8bd07f2d76321ca779a27a849b02018935df180efd5d",
+    "blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py": "877794315dbacb95ad5d8861c39a3008d5b3e97e74d52345e3731ffd74f88701",
+    "blackbox/tests/test_oracle_outbound_5xx.py": "24cc13726edea88ecbcb4fd06a518f571229ea8a3bb830a5bfbaab7c39765ade",
+    "blackbox/tests/test_oracle_outbound_queue.py": "a07de743c8fc9cfe6733b24c8c34f23cffb4b46a99680448b0f6dc4760046604",
+    "blackbox/golden/README.md": "620d213e4ff43f450130a568ac883d22e615264bc8c6fee30e2bb5c184bc4407",
+    "docs/compatibility.md": "5c82fa77d8695d62a5bb88d9b30fd070bd4d6ef2ae0a220067d3a83edb94da24"
+  },
+  "release": {
+    "command": "cargo build --locked --release --target x86_64-unknown-linux-gnu -p lmyzmail",
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "e6a3bb809e5e1594e26be2d0e00cbbd2fd8638257fefd76ba11f91057c2b730c"
+  },
+  "verification": [
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_outbound_5xx.py::test_managed_java_outbound_5xx_wire_and_statuses --record-java-golden",
+      "result": "1 passed; create-once Java v3 golden recorded"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_outbound_5xx.py::test_managed_java_outbound_5xx_wire_and_statuses",
+      "result": "1 passed; fresh Java runtime replayed v3"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_outbound_5xx.py::test_rust_candidate_outbound_5xx_matches_frozen_java_golden",
+      "result": "1 passed; locked Rust release matched Java v3"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_outbound_queue.py::test_managed_java_outbound_queue_golden --record-java-golden",
+      "result": "1 passed; create-once Java v35 success golden recorded"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_outbound_queue.py::test_managed_java_outbound_queue_golden",
+      "result": "1 passed; fresh Java runtime replayed v35"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_outbound_queue.py::test_rust_candidate_outbound_queue_matches_frozen_java_golden",
+      "result": "1 passed; locked Rust release matched Java v35"
+    },
+    {
+      "command": "cargo test -p lmyzmail outbound_coordinator --lib",
+      "result": "11 passed"
+    },
+    {
+      "command": "cargo test -p lmyzmail outbound_delivery --lib",
+      "result": "8 passed"
+    },
+    {
+      "command": "cargo test -p lmyzmail outbound_smtp --lib",
+      "result": "8 passed"
+    },
+    {
+      "command": "cargo test -p lmyzmail --test outbound_coordinator_integration",
+      "result": "15 passed after the fixture was corrected to expect QUIT only after accepted DATA"
+    },
+    {
+      "command": "cargo test --workspace --all-features --all-targets",
+      "result": "passed; 510 lmyzmail library tests plus every binary and integration target"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --all-features -- -D warnings",
+      "result": "passed after removing one unneeded tail return from the corrected integration fixture"
+    },
+    {
+      "command": "cd blackbox && .venv/bin/python -m pytest -m 'not integration'",
+      "result": "135 passed, 111 deselected"
+    },
+    {
+      "command": "cd blackbox && .venv/bin/python -m ruff check .",
+      "result": "passed"
+    },
+    {
+      "command": "cd blackbox && .venv/bin/python -m mypy .",
+      "result": "Success: no issues found in 130 source files"
+    },
+    {
+      "command": "cargo build --locked --release --target x86_64-unknown-linux-gnu -p lmyzmail",
+      "result": "passed"
+    }
+  ],
+  "failed_gate_history": [
+    {
+      "gate": "first full workspace run",
+      "failure": "honeypot::tests::generated_certificate_matches_frozen_semantics failed once",
+      "outcome": "the isolated rerun passed and the final full workspace rerun passed the same test"
+    },
+    {
+      "gate": "second full workspace run",
+      "failure": "two outbound_coordinator_integration cases used a fixture that unconditionally expected QUIT after a temporary DATA rejection",
+      "outcome": "the fixture now expects QUIT only after accepted DATA; the 15-test target and final full workspace rerun passed"
+    }
+  ],
+  "attestation_scope": {
+    "new_suite_current": true,
+    "older_outbound_goldens": "all earlier generations remain immutable",
+    "older_goldens_modified": false,
+    "queue_id_only_5xx_normalization": true,
+    "final_full_reattestation_required": true
+  },
+  "security_differences": []
+}
