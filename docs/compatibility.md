@@ -152,6 +152,36 @@ neutral, and no-record behavior over raw SMTP, scripted DNS, Maildir,
 the golden unchanged, and the Linux x86_64 Rust release matched it byte for
 byte after the documented nondeterminism normalizers.
 
+## SMTP external-sender DKIM
+
+DKIM verification runs once when an accepted DATA or final BDAT transaction is
+delivered. It uses `mail-auth` with the configured SMTP security resolver. The
+initial selector TXT record is parsed once and injected into a
+transaction-local cache so a valid zero-TTL key produces one wire query per
+transaction. Verification and DNS share the connection cancellation token and
+a ten-second deadline; at most 16 verifications run concurrently and each
+transaction retains at most 16 TXT cache entries.
+
+`Authentication-Results` preserves the frozen Java result and reason. A valid
+signature reports `dkim=pass` and can route a clean message to `inbox` even
+when the null reverse path yields SPF none. A body-hash or signature failure
+reports `dkim=fail`, adds 3.0 to `X-Spam-Score`, sets
+`X-Spam-Status: Yes`, and routes to `spam`. A missing selector key reports
+`dkim=permerror`, adds no protocol score, leaves `X-Spam-Status: No` when no
+other rule fires, and routes an otherwise unauthenticated message to `spam`.
+Unsigned messages retain `dkim=none (No DKIM signature present)`. Content
+filter and SPF scores and quarantine decisions remain additive.
+
+The create-once `managed-smtp-dkim-v3` matrix uses a fixed RSA public key and
+four fixed pre-signed messages to freeze pass, body-hash failure, signature
+failure, and missing-key permerror behavior. It covers raw SMTP DATA,
+zero-TTL/NXDOMAIN scripted DNS, `Authentication-Results`, spam headers,
+Maildir, `email_index`, and legacy Redis count keys. A fresh Java runtime
+replayed the golden unchanged, and the locked Linux x86_64 Rust release matched
+it byte for byte after the documented field-scoped normalizers. Multiple
+signatures, identifier alignment, and combined SPF/DKIM verdicts remain
+separate compatibility work and are not claimed by this matrix.
+
 ## SMTP Spamhaus DNSBL and DBL
 
 Spamhaus is disabled by default, with the frozen `zen.spamhaus.org` IP zone,

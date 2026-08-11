@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "profile": "smtp-external-dkim-v1",
+  "captured_at": "2026-08-11T17:48:53+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "contract": {
+    "case_count": 4,
+    "results": {
+      "pass": {
+        "reason": "DKIM signature verified for dkim.blackbox-example.com",
+        "protocol_score": 0.0,
+        "spam_status": "No",
+        "folder": "inbox"
+      },
+      "body_hash_fail": {
+        "reason": "Body hash mismatch",
+        "protocol_score": 3.0,
+        "spam_status": "Yes",
+        "folder": "spam"
+      },
+      "signature_fail": {
+        "reason": "Signature verification failed for dkim.blackbox-example.com: Signature mismatch",
+        "protocol_score": 3.0,
+        "spam_status": "Yes",
+        "folder": "spam"
+      },
+      "missing_key": {
+        "reason": "DKIM public key not found for dkim.blackbox-example.com",
+        "protocol_score": 0.0,
+        "spam_status": "No",
+        "folder": "spam"
+      }
+    },
+    "positive_zero_ttl_txt_queries_per_transaction": 1,
+    "nxdomain_queries": "bounded from one through four",
+    "persistence": [
+      "Maildir atomic publish",
+      "email_index folder and byte length",
+      "legacy mail:count:<mailbox>:<folder> Redis key without TTL"
+    ]
+  },
+  "bounds": {
+    "dkim_lookup_and_evaluation_deadline_seconds": 10,
+    "concurrent_dkim_verifications": 16,
+    "transaction_txt_cache_entries": 16,
+    "smtp_connection_limit": 256,
+    "delivery_queue_capacity": 256,
+    "delivery_deadline_seconds": 15
+  },
+  "golden": {
+    "profile": "managed-smtp-dkim",
+    "version": 3,
+    "definition_tree_sha256": "b63564e53b1ae50503009d178f2169115d45a4fd31c3a39501416beb11dbc349",
+    "suite_sha256": "328fec8e0b9fc89e2d33dbf853e0656aefe46396e520b09d411b04e32e285abc",
+    "observation_sha256": "9a4c625468d65653c21af3f628173660d6a8c4321ced395643efe0b52446645e"
+  },
+  "implementation": {
+    "runtime": "stable-rust-1.94.0",
+    "java_runtime_dependency": false,
+    "dkim_engine": "mail-auth 0.11.2",
+    "verification_runs_once_at_delivery": true,
+    "top_level_positive_txt_query_reused": true,
+    "covered_message_completion_modes": [
+      "DATA",
+      "BDAT LAST"
+    ],
+    "covered_verdict_matrix": [
+      "pass",
+      "body hash fail",
+      "signature fail",
+      "missing key permerror"
+    ],
+    "remaining_separate_matrices": [
+      "multiple DKIM signatures",
+      "DKIM identifier alignment",
+      "combined SPF and DKIM verdicts"
+    ]
+  },
+  "source_sha256": {
+    "Cargo.lock": "285269289ac7b8e70c0008dfcc8d8337e1b2a6719096dd604627d616c452abc5",
+    "crates/lmyzmail/src/lib.rs": "2b1e6c0d33c9c29cecf4610566d69ace5496b3531f9939a9f07e36790e0f9013",
+    "crates/lmyzmail/src/smtp.rs": "21832ef156af6d1c9898216430beea6c75e8bd9a6f645d5267b0a890599795e5",
+    "crates/lmyzmail/src/smtp_dkim.rs": "3ef43d33a685f1991fc0367acabdc8c63d11b4288e68a8a085c6bda790ae5eb4",
+    "blackbox/src/lmyzmail_blackbox/scripted_dns.py": "edcfc3e7b2fc92d6a83af3590abeb7d34c006aaf112fca0e6e3a4fd980ca1e2f",
+    "blackbox/src/lmyzmail_blackbox/smtp_contract.py": "91a17c47e69c931ea852cdc8f70eadcc3c21b7f2c7055bbd371b38377ba8b103",
+    "blackbox/src/lmyzmail_blackbox/smtp_dkim_contract.py": "d9cfd440de83e9fb552d7117f61a25c448389e41a093fa3643b6047d861d0961",
+    "blackbox/tests/test_oracle_smtp_dkim.py": "6a4ce9024428aa5b345a82c0b83506c2db98ec6dfc2b1dcf06f2c84fe1e2ba53"
+  },
+  "release": {
+    "command": "cargo build --locked --release --target x86_64-unknown-linux-gnu -p lmyzmail",
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "7d5bdfdc3dc63cecbc381389a6d52f1d2272bdca0eed2674b778f716509f1c37"
+  },
+  "verification": [
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_smtp_dkim.py::test_managed_java_smtp_dkim_golden --record-java-golden",
+      "result": "1 passed; create-once Java v3 golden recorded"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_smtp_dkim.py::test_managed_java_smtp_dkim_golden",
+      "result": "1 passed; fresh Java runtime replayed the v3 golden"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_smtp_dkim.py::test_rust_candidate_smtp_dkim_matches_frozen_java_golden",
+      "result": "1 passed; locked Rust release matched the Java v3 golden"
+    },
+    {
+      "command": "cargo test -q -p lmyzmail smtp_dkim --lib",
+      "result": "3 passed"
+    },
+    {
+      "command": "cargo test -q -p lmyzmail smtp --lib",
+      "result": "109 passed"
+    },
+    {
+      "command": "cargo test --workspace --all-features --all-targets",
+      "result": "passed; 506 lmyzmail library tests plus every binary and integration target"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --all-features -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "blackbox/.venv/bin/pytest -q blackbox/tests -m 'not integration'",
+      "result": "135 passed, 107 deselected"
+    },
+    {
+      "command": "blackbox/.venv/bin/ruff check blackbox/src blackbox/tests blackbox/tools",
+      "result": "passed"
+    },
+    {
+      "command": "cd blackbox && .venv/bin/mypy src tests tools",
+      "result": "Success: no issues found in 127 source files"
+    }
+  ],
+  "attestation_scope": {
+    "new_suite_current": true,
+    "older_versioned_smtp_suites": "not re-recorded; their immutable definition-tree attestations reject the expanded harness before candidate observation",
+    "older_goldens_modified": false,
+    "final_full_reattestation_required": true
+  },
+  "security_differences": []
+}

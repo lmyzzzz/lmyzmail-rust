@@ -44,6 +44,7 @@ use crate::{
         ContentScan, NewDomainScanner, ParsedHeaders, RblScanner, has_first_mime_attachment,
         scan_attachments, scan_body,
     },
+    smtp_dkim::{DkimVerification, DkimVerifier},
     smtp_domain::validate_routable_domain,
     smtp_skibidi_quiz::{AnswerOutcome, QuizLevel, QuizState, ensure_question_bank_loaded},
     smtp_skibidi_video::{VideoDefaults, VideoService, VideoStartError, frame_wire_bytes},
@@ -100,6 +101,7 @@ pub struct SmtpService {
     rbl_scanner: RblScanner,
     new_domain_scanner: NewDomainScanner,
     spf_verifier: SpfVerifier,
+    dkim_verifier: DkimVerifier,
     spamhaus_service: SpamhausService,
     skibidi_generator: SkibidiGenerator,
     inferx_service: Arc<InferxService>,
@@ -248,6 +250,10 @@ impl SmtpService {
             SpfVerifier::new(config.features.smtp_spf_dns_server).map_err(|error| {
                 SmtpError::InvalidConfig(format!("SMTP SPF resolver cannot start: {error}"))
             })?;
+        let dkim_verifier =
+            DkimVerifier::new(config.features.smtp_spf_dns_server).map_err(|error| {
+                SmtpError::InvalidConfig(format!("SMTP DKIM resolver cannot start: {error}"))
+            })?;
         let spamhaus_service = SpamhausService::new(
             config.smtp_spamhaus.clone(),
             config.features.smtp_spf_dns_server,
@@ -301,6 +307,7 @@ impl SmtpService {
             rbl_scanner,
             new_domain_scanner,
             spf_verifier,
+            dkim_verifier,
             spamhaus_service,
             skibidi_generator,
             inferx_service,
@@ -424,6 +431,7 @@ impl SmtpService {
         peer: IpAddr,
         helo: &str,
         encrypted: bool,
+        cancellation: &CancellationToken,
     ) -> io::Result<String> {
         let permit = self
             .delivery_queue
@@ -433,7 +441,7 @@ impl SmtpService {
             .map_err(|_| io::Error::other("SMTP delivery queue closed"))?;
         let result = timeout(
             STORAGE_TIMEOUT,
-            self.deliver_inner(envelope, peer, helo.to_owned(), encrypted),
+            self.deliver_inner(envelope, peer, helo.to_owned(), encrypted, cancellation),
         )
         .await
         .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "SMTP delivery deadline exceeded"))?;
@@ -443,11 +451,17 @@ impl SmtpService {
 
     async fn deliver_inner(
         &self,
-        envelope: Envelope,
+        mut envelope: Envelope,
         peer: IpAddr,
         helo: String,
         encrypted: bool,
+        cancellation: &CancellationToken,
     ) -> io::Result<String> {
+        envelope.dkim = Some(
+            self.dkim_verifier
+                .verify(&envelope.data, cancellation)
+                .await,
+        );
         let headers = ParsedHeaders::parse(&envelope.data)
             .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
         let mut content_scan = self
@@ -501,12 +515,13 @@ impl SmtpService {
         let received_id = random_hex_upper(7).map_err(io::Error::other)?;
         let accepted_id = random_hex(4).map_err(io::Error::other)?;
         let content_quarantined = content_scan.is_suspicious(&self.config.content_filter);
-        let folder =
-            if envelope.spf.as_ref().is_some_and(SpfVerification::passed) && !content_quarantined {
-                "inbox"
-            } else {
-                "spam"
-            };
+        let authentication_passed = envelope.spf.as_ref().is_some_and(SpfVerification::passed)
+            || envelope.dkim.as_ref().is_some_and(DkimVerification::passed);
+        let folder = if authentication_passed && !content_quarantined {
+            "inbox"
+        } else {
+            "spam"
+        };
         let raw = compose_message(
             &envelope,
             MessageComposition {
@@ -890,6 +905,7 @@ struct Envelope {
     recipients: Vec<String>,
     data: Vec<u8>,
     spf: Option<SpfVerification>,
+    dkim: Option<DkimVerification>,
 }
 
 impl Envelope {
@@ -898,6 +914,7 @@ impl Envelope {
         self.recipients.clear();
         self.data.clear();
         self.spf = None;
+        self.dkim = None;
     }
 }
 
@@ -1541,7 +1558,16 @@ async fn handle_connection(
                 match read_data(&mut io).await {
                     Ok(Some(data)) => {
                         envelope.data = data;
-                        match service.deliver(envelope.clone(), peer, &helo, tls_active).await {
+                        match service
+                            .deliver(
+                                envelope.clone(),
+                                peer,
+                                &helo,
+                                tls_active,
+                                &connection_cancellation,
+                            )
+                            .await
+                        {
                             Ok(id) => io.write_all(format!("250 2.0.0 Message accepted for delivery, id={id}\r\n").as_bytes()).await?,
                             Err(_) => io.write_all(b"451 4.3.0 Temporary delivery failure\r\n").await?,
                         }
@@ -1571,7 +1597,16 @@ async fn handle_connection(
                         let chunk = io.read_exact_bytes(size).await?;
                         envelope.data.extend_from_slice(&chunk);
                         if last {
-                            match service.deliver(envelope.clone(), peer, &helo, tls_active).await {
+                            match service
+                                .deliver(
+                                    envelope.clone(),
+                                    peer,
+                                    &helo,
+                                    tls_active,
+                                    &connection_cancellation,
+                                )
+                                .await
+                            {
                                 Ok(id) => io.write_all(format!("250 2.0.0 Message accepted for delivery, id={id}\r\n").as_bytes()).await?,
                                 Err(_) => io.write_all(b"451 4.3.0 Temporary delivery failure\r\n").await?,
                             }
@@ -1840,6 +1875,10 @@ fn compose_message(envelope: &Envelope, composition: MessageComposition<'_>) -> 
     } else {
         "spf=temperror (SPF verification unavailable)".to_owned()
     };
+    let auth_dkim = envelope.dkim.as_ref().map_or_else(
+        || "dkim=temperror (DKIM verification unavailable)".to_owned(),
+        |verification| format!("dkim={} ({})", verification.result(), verification.reason()),
+    );
     let protocol = if encrypted { "ESMTPS" } else { "ESMTP" };
     let date = java_rfc1123(received_at);
     let status = if content_scan.is_suspicious(content_filter)
@@ -1847,6 +1886,10 @@ fn compose_message(envelope: &Envelope, composition: MessageComposition<'_>) -> 
             .spf
             .as_ref()
             .is_some_and(SpfVerification::should_quarantine)
+        || envelope
+            .dkim
+            .as_ref()
+            .is_some_and(DkimVerification::should_quarantine)
     {
         "Yes"
     } else {
@@ -1855,7 +1898,11 @@ fn compose_message(envelope: &Envelope, composition: MessageComposition<'_>) -> 
     let protocol_score = envelope
         .spf
         .as_ref()
-        .map_or(0.0, SpfVerification::protocol_score);
+        .map_or(0.0, SpfVerification::protocol_score)
+        + envelope
+            .dkim
+            .as_ref()
+            .map_or(0.0, DkimVerification::protocol_score);
     let total_score = java_one_decimal(content_scan.total_score() + protocol_score);
     let reverse_dns = match peer {
         IpAddr::V4(address) if address == Ipv4Addr::LOCALHOST => "localhost",
@@ -1863,7 +1910,7 @@ fn compose_message(envelope: &Envelope, composition: MessageComposition<'_>) -> 
         _ => "unverified",
     };
     let mut header = format!(
-        "Received: from {helo} ({reverse_dns} [{peer}])\r\n\tby {HOSTNAME} with {protocol} id {received_id}\r\n\tfor <{mailbox}>;\r\n\t{date}\r\nAuthentication-Results: {HOSTNAME};\r\n\t{auth_spf} smtp.client-ip={peer} smtp.mailfrom={sender_clause};\r\n\tdkim=none (No DKIM signature present);\r\n\tdmarc=none No DMARC record found\r\nX-Spam-Status: {status}\r\nX-Spam-Score: {total_score}\r\n",
+        "Received: from {helo} ({reverse_dns} [{peer}])\r\n\tby {HOSTNAME} with {protocol} id {received_id}\r\n\tfor <{mailbox}>;\r\n\t{date}\r\nAuthentication-Results: {HOSTNAME};\r\n\t{auth_spf} smtp.client-ip={peer} smtp.mailfrom={sender_clause};\r\n\t{auth_dkim};\r\n\tdmarc=none No DMARC record found\r\nX-Spam-Status: {status}\r\nX-Spam-Score: {total_score}\r\n",
     );
     let rules = content_scan
         .hits()
@@ -2129,6 +2176,7 @@ mod tests {
             recipients: vec!["qa@example.test".into()],
             data: b"From: sender@external.test\r\nDate: Tue, 5 Aug 2025 12:00:00 GMT\r\nSubject: =?UTF-8?Q?FREE?= =?ISO-8859-1?Q?MONEY?=\r\nMessage-ID: <encoded@example.test>\r\n\r\nbody\r\n".to_vec(),
             spf: None,
+            dkim: None,
         };
         let config = ContentFilterConfig::default();
         let scan = ParsedHeaders::parse(&envelope.data)
@@ -2163,6 +2211,7 @@ mod tests {
             recipients: vec!["qa@example.test".into()],
             data: b"From: sender@external.test\r\nDate: Tue, 5 Aug 2025 12:00:00 GMT\r\nSubject: clean\r\nMessage-ID: <clean@example.test>\r\n\r\nbody\r\n".to_vec(),
             spf: None,
+            dkim: None,
         };
         let config = ContentFilterConfig::default();
         let scan = ParsedHeaders::parse(&envelope.data)
