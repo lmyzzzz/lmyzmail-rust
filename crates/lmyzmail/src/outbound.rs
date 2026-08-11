@@ -2,6 +2,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fmt, fs,
     future::Future,
+    path::PathBuf,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -63,6 +64,8 @@ pub enum OutboundError {
     Database(String),
     InvalidInput(&'static str),
     InvalidCredentials,
+    AttachmentTooLarge(String),
+    AttachmentsTooLarge,
     QueueFull,
     RateLimited { remaining: i64 },
     SynchronousUnsupported,
@@ -77,6 +80,12 @@ impl fmt::Display for OutboundError {
             }
             Self::InvalidInput(message) => formatter.write_str(message),
             Self::InvalidCredentials => formatter.write_str("Invalid credentials"),
+            Self::AttachmentTooLarge(filename) => {
+                write!(formatter, "Attachment '{filename}' exceeds size limit")
+            }
+            Self::AttachmentsTooLarge => {
+                formatter.write_str("Total attachments size exceeds limit")
+            }
             Self::QueueFull => formatter.write_str("Outbound queue is full"),
             Self::RateLimited { remaining } => {
                 write!(
@@ -139,6 +148,14 @@ pub struct AttachmentInput {
     #[serde(default)]
     pub inline: bool,
     pub content_id: Option<String>,
+}
+
+#[derive(Debug)]
+pub(crate) struct StreamingAttachmentInput {
+    pub filename: String,
+    pub content_type: Option<String>,
+    pub path: PathBuf,
+    pub size: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -435,6 +452,27 @@ impl OutboundService {
         credentials: Option<(&AuthService, &str)>,
         cancellation: &CancellationToken,
     ) -> Result<QueueResponse, OutboundError> {
+        self.enqueue_inner(request, credentials, None, cancellation)
+            .await
+    }
+
+    pub(crate) async fn enqueue_streaming_with_cancellation(
+        &self,
+        request: SendRequest,
+        attachments: Vec<StreamingAttachmentInput>,
+        cancellation: &CancellationToken,
+    ) -> Result<QueueResponse, OutboundError> {
+        self.enqueue_inner(request, None, Some(attachments), cancellation)
+            .await
+    }
+
+    async fn enqueue_inner(
+        &self,
+        request: SendRequest,
+        credentials: Option<(&AuthService, &str)>,
+        streaming_attachments: Option<Vec<StreamingAttachmentInput>>,
+        cancellation: &CancellationToken,
+    ) -> Result<QueueResponse, OutboundError> {
         if request.asynchronous == Some(false) {
             return Err(OutboundError::SynchronousUnsupported);
         }
@@ -475,7 +513,10 @@ impl OutboundService {
         {
             return Err(OutboundError::InvalidInput("body_required"));
         }
-        let attachments = self.validate_attachments(attachments)?;
+        let attachments = match streaming_attachments {
+            Some(attachments) => self.validate_streaming_attachments(attachments)?,
+            None => self.validate_attachments(attachments)?,
+        };
         let recipients_json =
             serde_json::to_string(&recipients).map_err(|_| OutboundError::Unavailable)?;
         if let Some((auth, client_ip)) = credentials {
@@ -2134,12 +2175,62 @@ impl OutboundService {
                 filename,
                 content_type,
                 content_base64: content,
+                content_length: None,
+                source_path: None,
                 inline: attachment.inline,
                 content_id,
             });
         }
         if total > self.max_total_attachments_size_bytes {
             return Err(OutboundError::InvalidInput("attachments_too_large"));
+        }
+        Ok(validated)
+    }
+
+    fn validate_streaming_attachments(
+        &self,
+        attachments: Vec<StreamingAttachmentInput>,
+    ) -> Result<Vec<MessageAttachment>, OutboundError> {
+        if attachments.len() > MAX_ATTACHMENTS {
+            return Err(OutboundError::InvalidInput("too_many_attachments"));
+        }
+        let mut total = 0_u64;
+        let mut validated = Vec::with_capacity(attachments.len());
+        for attachment in attachments {
+            if attachment.size > self.max_attachment_size_bytes {
+                return Err(OutboundError::AttachmentTooLarge(attachment.filename));
+            }
+            total = total
+                .checked_add(attachment.size)
+                .ok_or(OutboundError::AttachmentsTooLarge)?;
+            if total > self.max_total_attachments_size_bytes {
+                return Err(OutboundError::AttachmentsTooLarge);
+            }
+            if attachment.filename.len() > MAX_ATTACHMENT_FILENAME_BYTES
+                || attachment.filename.chars().any(char::is_control)
+            {
+                return Err(OutboundError::InvalidInput("invalid_attachment"));
+            }
+            let content_type = attachment
+                .content_type
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or_else(|| "application/octet-stream".into());
+            if content_type.len() > MAX_CONTENT_TYPE_BYTES {
+                return Err(OutboundError::InvalidInput("invalid_attachment"));
+            }
+            let content_type = content_type
+                .parse::<mime::Mime>()
+                .map_err(|_| OutboundError::InvalidInput("invalid_attachment"))?
+                .to_string();
+            validated.push(MessageAttachment {
+                filename: attachment.filename,
+                content_type,
+                content_base64: String::new(),
+                content_length: Some(attachment.size),
+                source_path: Some(attachment.path),
+                inline: false,
+                content_id: None,
+            });
         }
         Ok(validated)
     }

@@ -42,6 +42,7 @@ pub(crate) mod smtp_spamhaus;
 pub(crate) mod smtp_spf;
 pub mod userdata;
 pub(crate) mod video_asset;
+pub(crate) mod web_multipart;
 pub mod xdp;
 pub mod xdp_pps;
 pub mod xdp_sync;

@@ -112,7 +112,7 @@ def test_rust_candidate_reports_match_frozen_java_golden() -> None:
         with _candidate(repository, dns) as candidate:
             DifferentialRunner(
                 repository,
-                repository / "blackbox/golden/java/managed-reports-v17",
+                repository / "blackbox/golden/java/managed-reports-v19",
                 "managed-reports",
             ).verify_candidate(REPORT_SCENARIOS, candidate)
 

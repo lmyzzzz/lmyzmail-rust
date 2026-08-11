@@ -16,6 +16,7 @@ xdp-test-hooks = []
 
 [dependencies]
 base64 = "0.22.1"
+bytes = "1.10.1"
 ammonia = "4.1.4"
 bcrypt = "0.19.3"
 bytemuck = "1.25.2"
@@ -39,6 +40,7 @@ md-5 = "0.11.0"
 memmap2 = "0.9.11"
 mime = "0.3.17"
 moka = { version = "0.12.15", features = ["future"] }
+multer = "3.1.0"
 percent-encoding = "2.3.1"
 psl = "2.1.223"
 openssl = "0.10.81"
@@ -56,7 +58,7 @@ sha2 = "0.11.0"
 subtle = "2.6.1"
 tokio = { version = "1.47.1", features = ["fs", "io-util", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-rustls = { version = "0.26.4", default-features = false, features = ["ring", "tls12"] }
-tokio-util = { version = "0.7.16", features = ["rt"] }
+tokio-util = { version = "0.7.16", features = ["io", "rt"] }
 tokio-postgres = { version = "0.7.18", features = ["with-chrono-0_4"] }
 url = "2.5.7"
 webpki-roots = "1.0.3"

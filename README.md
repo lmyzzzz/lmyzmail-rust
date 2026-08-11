@@ -84,7 +84,7 @@ The reporting slice now discovers Java-compatible DMARC and TLSRPT RUA
 destinations, reads the legacy PostgreSQL aggregates, renders byte-exact gzip
 attachments on a bounded blocking pool, and publishes single-domain or full
 manual-trigger deliveries through the durable PostgreSQL/Redis/Sent-Maildir
-outbound queue. The seeded v15 differential covers DNS order and positive TTL
+outbound queue. The seeded v19 differential covers DNS order and positive TTL
 cache reuse, HTTP summary counts, MIME, decompressed XML/JSON, queue fields and
 TTLs, Maildir shards, and unchanged source rows.
 TLSRPT HTTPS RUA delivery now performs the frozen POST through one validated,

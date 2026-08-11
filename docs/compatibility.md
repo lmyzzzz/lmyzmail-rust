@@ -74,6 +74,47 @@ These are required Java parity behaviors, not approved security differences.
 - A missing session token on `POST /web/mail/send/multipart` returns `401` with
   an empty body, `Content-Length: 0`, and `Connection: close`.
 
+## HTTP multipart outbound admission
+
+`POST /web/mail/send/multipart` reads at most 64 KiB of headers, applies the
+declared request limit before authentication, validates the session before
+consuming the body, and then parses multipart fields incrementally under the
+request cancellation token. The normal HTTP body limit remains 10 MiB. The
+multipart limit defaults to 200 MiB and resolves
+`lmyzmail.http.max-multipart-bytes` before the legacy
+`botmail.netty.http.max-multipart-size` alias.
+
+The `data` JSON field is capped at 64 KiB and the last Java-compatible data
+field wins. At most 256 attachment parts are admitted; the configured per-file,
+aggregate attachment, complete multipart, and final message limits all apply.
+Attachment bytes stream to random create-new files in the mode-0700
+`<maildir>/.lmyzmail-upload` directory unless
+`lmyzmail.http.upload-temp-dir` or its legacy `botmail.http.upload-temp-dir`
+alias selects another directory. MIME materialization reads those files in
+bounded chunks and does not load or Base64-copy a complete attachment in
+memory.
+
+Every request-owned upload is removed after success, validation failure,
+malformed input, disconnect, deadline, cancellation, PostgreSQL failure, or
+Redis failure. The two intentional oracle differences are recorded as
+`http-multipart-error-detail-redaction` and
+`http-multipart-request-owned-upload-cleanup` in
+`blackbox/manifests/behavior-differences.json`; all successful response,
+Redis, TTL, Maildir, MIME, limit, and error bytes remain differential
+requirements.
+
+The final common recording is `managed-web-multipart-v8`: `suite.json` has
+SHA-256 `1c0c2091193b862e6e967c8ad15aa5b9a3c01cb99a0c179698012f2b0354fb4a`
+and its observation has SHA-256
+`59217ebd361ea6c0979b623b5d7ac829d99763c6825ab2ea1b71a74602c04db6`.
+The independent defect evidence is
+`managed-web-multipart-oracle-evidence-v5`: `suite.json` has SHA-256
+`135a1ed3c35d311d7ae6303ede9338f31b55da65147ea8fc968cdd74849a5643`
+and its observation has SHA-256
+`ef10d8de210743489d3d008c337faf6a4c905b5427b563b54fc14058ca84edc5`.
+Historical common v1-v7 and defect-evidence v1-v4 recordings remain
+immutable evidence.
+
 ## SMTP body content filter
 
 `SPAM_KEYWORDS` and `SUSPICIOUS_URL` run in BODY order 10 and 20. Text and

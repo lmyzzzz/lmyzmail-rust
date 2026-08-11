@@ -25,7 +25,7 @@ The scheduling contract is traced to frozen Java commit
 `ReportGenerationScheduler.java`, SHA-256
 `7fff9bf0d8bdd157e1afcad4fa163a6de51ee828e426a1fd14a43b48d567e3cb`.
 
-The active `managed-reports-v15` profile exercises a full seeded trigger after
+The active `managed-reports-v19` profile exercises a full seeded trigger after
 single-domain delivery has warmed the resolver. It compares the HTTP result,
 zero additional DNS traffic, Redis tasks and TTLs, Sent Maildir MIME and gzip
 payloads, unchanged source rows, and exact fixture restoration across fresh

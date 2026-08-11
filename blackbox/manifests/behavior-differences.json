@@ -645,6 +645,36 @@
       "oracle_behavior": "The frozen Java monitor calls the transactional Cringe writer synchronously without a monitor-owned absolute database deadline or cancellation path and has no explicit reconciliation for a lost COMMIT response.",
       "reason": "A half-open database or ambiguous commit must not retain the only PPS monitor task indefinitely, and blind retry after an unknown commit could duplicate a security score. Both violate the rewrite's mandatory deadline, cancellation, and bounded-lifecycle constraints.",
       "scope": "Only PostgreSQL timeout, cancellation, half-open transport, pool failure, and lost COMMIT-response behavior. Healthy activity and aggregate SQL effects, score, metadata, identity allocation, and atomic transaction semantics remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Return only the bounded generic `500 {\"error\":\"internal_error\"}` response when multipart metadata is missing, malformed, unterminated, or classified as a non-data field. Never expose implementation class names, exception messages, null receiver details, paths, or request content.",
+      "evidence": {
+        "candidate_test": "blackbox/tests/test_candidate_web_multipart_golden.py::test_rust_candidate_web_multipart_redacts_errors_and_cleans_uploads",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "oracle_golden": "blackbox/golden/java/managed-web-multipart-oracle-evidence-v2/observations/http/outbound/web-multipart-oracle-defects.json",
+        "source": "src/main/java/net/lmyz/lmyzmail/web/WebMailController.java",
+        "source_sha256": "6371a27564c037b4cac95447ed55dbb58c465413e6b61d91b697253cbeac2c13"
+      },
+      "id": "http-multipart-error-detail-redaction",
+      "oracle_behavior": "The frozen Java multipart controller passes malformed or missing `data` state into a null dereference and returns a JSON error containing the Java NullPointerException class and receiver detail.",
+      "reason": "Exception and receiver disclosure reveals implementation detail and request-processing state to an authenticated remote caller. That information leak is an obvious vulnerability excluded from bug-for-bug replication.",
+      "scope": "Only implementation-detail text for malformed multipart state. The 500 status, generic content type, authentication order, request limit precedence, valid field classification, and every valid response remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Keep request-owned multipart files in one private mode-0700 directory and remove every file after successful materialization, validation rejection, malformed input, disconnect, request deadline, PostgreSQL failure, Redis failure, or cancellation. No enqueue path may retain ownership of the original upload file after returning.",
+      "evidence": {
+        "candidate_parser_test": "crates/lmyzmail/src/web_multipart.rs::tests",
+        "candidate_test": "blackbox/tests/test_candidate_web_multipart_golden.py::test_rust_candidate_web_multipart_disconnect_and_timeout_clean_uploads",
+        "candidate_test_backend": "blackbox/tests/test_candidate_web_multipart_golden.py::test_rust_candidate_web_multipart_backend_failures_clean_uploads",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "oracle_golden": "blackbox/golden/java/managed-web-multipart-oracle-evidence-v2/observations/http/outbound/web-multipart-oracle-defects.json",
+        "source": "src/main/java/net/lmyz/lmyzmail/web/WebMailController.java",
+        "source_sha256": "6371a27564c037b4cac95447ed55dbb58c465413e6b61d91b697253cbeac2c13"
+      },
+      "id": "http-multipart-request-owned-upload-cleanup",
+      "oracle_behavior": "After a successful asynchronous multipart enqueue, the frozen Java decoder temp files are released but the controller-owned copies remain in `botmail-web-upload`; no later owner removes them.",
+      "reason": "Authenticated repeated uploads can grow local disk usage without a bound even though the queue already materialized the message. Leaking request-owned files violates the rewrite's mandatory bounded-resource and lifecycle guarantees.",
+      "scope": "Only the lifetime and private storage of request-owned temporary uploads after their content has been materialized or rejected. Accepted attachment bytes, MIME, queue and Redis state, Maildir output, status codes, JSON, limits, and ordering remain exact compatibility requirements."
     }
   ],
   "schema_version": 1

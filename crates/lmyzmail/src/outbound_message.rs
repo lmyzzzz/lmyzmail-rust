@@ -121,6 +121,10 @@ pub struct MessageAttachment {
     pub filename: String,
     pub content_type: String,
     pub content_base64: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_length: Option<u64>,
+    #[serde(skip)]
+    pub source_path: Option<PathBuf>,
     pub inline: bool,
     pub content_id: Option<String>,
 }
@@ -845,15 +849,19 @@ fn java_estimated_message_parts(
             ))?;
     }
     for attachment in attachments {
-        let base64_bytes = attachment.content_base64.trim_end_matches('=').len();
-        let decoded_bytes = u64::try_from(base64_bytes)
-            .ok()
-            .and_then(|value| value.checked_mul(3))
-            .and_then(|value| value.checked_add(3))
-            .map(|value| value / 4)
-            .ok_or(MessageBuildError::InvalidInput(
-                "email_size_estimate_overflow",
-            ))?;
+        let decoded_bytes = if let Some(length) = attachment.content_length {
+            length
+        } else {
+            let base64_bytes = attachment.content_base64.trim_end_matches('=').len();
+            u64::try_from(base64_bytes)
+                .ok()
+                .and_then(|value| value.checked_mul(3))
+                .and_then(|value| value.checked_add(3))
+                .map(|value| value / 4)
+                .ok_or(MessageBuildError::InvalidInput(
+                    "email_size_estimate_overflow",
+                ))?
+        };
         let encoded_estimate = decoded_bytes
             .checked_mul(4)
             .map(|value| value / 3)
@@ -1040,11 +1048,56 @@ fn write_attachment(
         writeln_crlf(output, &format!("Content-ID: <{content_id}>"))?;
     }
     writeln_crlf(output, "")?;
-    for chunk in attachment.content_base64.as_bytes().chunks(76) {
-        output.write_all(chunk)?;
-        output.write_all(b"\r\n")?;
-    }
+    write_attachment_content(output, attachment)?;
     writeln_crlf(output, "")
+}
+
+fn write_attachment_content(
+    output: &mut impl Write,
+    attachment: &MessageAttachment,
+) -> io::Result<()> {
+    let Some(path) = attachment.source_path.as_deref() else {
+        for chunk in attachment.content_base64.as_bytes().chunks(76) {
+            output.write_all(chunk)?;
+            output.write_all(b"\r\n")?;
+        }
+        return Ok(());
+    };
+    let metadata = fs::symlink_metadata(path)?;
+    if !metadata.file_type().is_file()
+        || attachment
+            .content_length
+            .is_none_or(|length| length != metadata.len())
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "outbound attachment source changed before materialization",
+        ));
+    }
+    let mut input = BufReader::with_capacity(COPY_BUFFER_BYTES, File::open(path)?);
+    let mut buffer = [0_u8; 57];
+    let mut wrote_line = false;
+    loop {
+        let mut count = 0;
+        while count < buffer.len() {
+            let read = input.read(&mut buffer[count..])?;
+            if read == 0 {
+                break;
+            }
+            count += read;
+        }
+        if count == 0 {
+            return Ok(());
+        }
+        if wrote_line {
+            output.write_all(b"\r\n")?;
+        }
+        output.write_all(BASE64_STANDARD.encode(&buffer[..count]).as_bytes())?;
+        wrote_line = true;
+        if count < buffer.len() {
+            return Ok(());
+        }
+    }
 }
 
 fn write_boundary(output: &mut impl Write, boundary: &str, final_boundary: bool) -> io::Result<()> {
@@ -1062,11 +1115,16 @@ fn writeln_crlf(output: &mut impl Write, value: &str) -> io::Result<()> {
 
 fn boundary(message_id: &str, label: &str) -> String {
     let digest = Sha256Digest::digest(format!("{message_id}:{label}").as_bytes());
-    let suffix = digest[..16]
+    let suffix = digest
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
-    format!("=_lmyzmail_{suffix}")
+    format!(
+        "-=Part.0.{}.{}.{}=-",
+        &suffix[..16],
+        &suffix[16..27],
+        &suffix[27..43]
+    )
 }
 
 fn encode_filename(filename: &str) -> String {
@@ -1505,6 +1563,8 @@ mod tests {
                 filename: "proof.txt".into(),
                 content_type: "text/plain".into(),
                 content_base64: "aGVsbG8=".into(),
+                content_length: None,
+                source_path: None,
                 inline: false,
                 content_id: None,
             }],
@@ -1539,6 +1599,42 @@ mod tests {
         assert!(text.contains("aGVsbG8=\r\n"));
         assert!(!text.contains("hidden@remote.test"));
         assert!(!text.contains("Bcc:"));
+    }
+
+    #[test]
+    fn streamed_attachment_base64_has_line_breaks_only_between_lines() {
+        let directory = TestDirectory::new();
+        let path = directory.0.join("attachment.bin");
+        let payload = vec![b'a'; 58];
+        fs::write(&path, &payload).unwrap();
+        let attachment = MessageAttachment {
+            filename: "attachment.bin".into(),
+            content_type: "application/octet-stream".into(),
+            content_base64: String::new(),
+            content_length: Some(payload.len() as u64),
+            source_path: Some(path),
+            inline: false,
+            content_id: None,
+        };
+
+        let mut output = Vec::new();
+        write_attachment_content(&mut output, &attachment).unwrap();
+        let expected = format!(
+            "{}\r\n{}",
+            BASE64_STANDARD.encode(&payload[..57]),
+            BASE64_STANDARD.encode(&payload[57..])
+        );
+        assert_eq!(output, expected.as_bytes());
+    }
+
+    #[test]
+    fn deterministic_boundary_matches_frozen_mime4j_wire_length() {
+        let value = boundary("<stable@example.test>", "mixed");
+        assert_eq!(value.len(), 56);
+        assert!(value.starts_with("-=Part.0."));
+        assert!(value.ends_with("=-"));
+        assert_eq!(value, boundary("<stable@example.test>", "mixed"));
+        assert_ne!(value, boundary("<stable@example.test>", "related"));
     }
 
     #[test]
@@ -1687,6 +1783,8 @@ mod tests {
             filename: "three.bin".into(),
             content_type: "application/octet-stream".into(),
             content_base64: "YWJj".into(),
+            content_length: None,
+            source_path: None,
             inline: false,
             content_id: None,
         };

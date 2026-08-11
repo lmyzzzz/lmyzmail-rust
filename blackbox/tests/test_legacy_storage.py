@@ -82,6 +82,8 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "reporting-aggregate-render-budgets",
         "mta-sts-negative-cache-restart",
         "outbound-http-redis-outage-deadline",
+        "http-multipart-error-detail-redaction",
+        "http-multipart-request-owned-upload-cleanup",
         "userdata-malformed-write-rejection",
         "userdata-contact-admission-race",
         "userdata-contact-list-bound",

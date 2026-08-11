@@ -1199,6 +1199,8 @@ struct JsonLimitConfig {
     postgres_pool: u32,
     #[serde(default = "default_http_request_bytes")]
     max_http_request_bytes: usize,
+    #[serde(default = "default_http_multipart_bytes")]
+    max_http_multipart_bytes: usize,
     #[serde(default = "default_http_connections")]
     max_http_connections: usize,
     #[serde(default = "default_http_deadline_ms")]
@@ -1225,6 +1227,7 @@ impl Default for JsonLimitConfig {
             redis_pool: default_pool_size(),
             postgres_pool: default_pool_size(),
             max_http_request_bytes: default_http_request_bytes(),
+            max_http_multipart_bytes: default_http_multipart_bytes(),
             max_http_connections: default_http_connections(),
             http_deadline_ms: default_http_deadline_ms(),
             honeypot_initial_delay_ms: default_honeypot_initial_delay_ms(),
@@ -1361,6 +1364,10 @@ fn default_pool_size() -> u32 {
 
 fn default_http_request_bytes() -> usize {
     10 * 1024 * 1024
+}
+
+fn default_http_multipart_bytes() -> usize {
+    200 * 1024 * 1024
 }
 
 fn default_http_connections() -> usize {
@@ -2441,6 +2448,10 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         value.limits.max_http_request_bytes.to_string(),
     )?;
     properties.insert(
+        "lmyzmail.http.max-multipart-bytes".to_owned(),
+        value.limits.max_http_multipart_bytes.to_string(),
+    )?;
+    properties.insert(
         "lmyzmail.http.max-connections".to_owned(),
         value.limits.max_http_connections.to_string(),
     )?;
@@ -3116,6 +3127,7 @@ pub struct LimitConfig {
     pub redis_pool: u32,
     pub postgres_pool: u32,
     pub max_http_request_bytes: usize,
+    pub max_http_multipart_bytes: usize,
     pub max_http_connections: usize,
     pub http_deadline_ms: u64,
     pub honeypot_initial_delay_ms: u64,
@@ -3586,6 +3598,15 @@ impl RuntimeConfig {
                 ],
                 &["botmail.netty.http.max-content-length"],
                 10 * 1024 * 1024,
+            )?,
+            max_http_multipart_bytes: preferred_usize(
+                &properties,
+                &[
+                    "lmyzmail.http.max-multipart-bytes",
+                    "lmyzmail.netty.http.max-multipart-size",
+                ],
+                &["botmail.netty.http.max-multipart-size"],
+                default_http_multipart_bytes(),
             )?,
             max_http_connections: preferred_usize(
                 &properties,
@@ -6474,6 +6495,13 @@ fn validate_limits(value: &LimitConfig) -> Result<(), ConfigError> {
             "HTTP request limit is outside the safe bound".into(),
         ));
     }
+    if value.max_http_multipart_bytes < value.max_http_request_bytes
+        || value.max_http_multipart_bytes as u64 > MAX_MESSAGE_BYTES
+    {
+        return Err(ConfigError::Invalid(
+            "HTTP multipart request limit is outside the safe bound".into(),
+        ));
+    }
     if value.max_http_connections == 0 || value.max_http_connections > MAX_POOL_SIZE as usize * 4 {
         return Err(ConfigError::Invalid(
             "HTTP connection limit is outside the safe bound".into(),
@@ -6717,6 +6745,35 @@ lmyzmail.htcpcp.pots[{index}].supported-additions=\n"
         let config = RuntimeConfig::from_properties(properties).unwrap();
         assert_eq!(config.listen.http, 18080);
         assert_eq!(config.listen.smtp, 2525);
+    }
+
+    #[test]
+    fn multipart_http_limit_defaults_aliases_and_validates_bounds() {
+        let defaults = RuntimeConfig::from_properties(Properties::default()).unwrap();
+        assert_eq!(defaults.limits.max_http_multipart_bytes, 200 * 1024 * 1024);
+
+        let legacy = RuntimeConfig::from_properties(
+            Properties::parse(b"botmail.netty.http.max-multipart-size=20971520\n").unwrap(),
+        )
+        .unwrap();
+        assert_eq!(legacy.limits.max_http_multipart_bytes, 20 * 1024 * 1024);
+
+        let both = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.netty.http.max-multipart-size=20971520\n\
+lmyzmail.http.max-multipart-bytes=31457280\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(both.limits.max_http_multipart_bytes, 30 * 1024 * 1024);
+
+        let invalid = Properties::parse(
+            b"lmyzmail.http.max-request-bytes=10485760\n\
+lmyzmail.http.max-multipart-bytes=10485759\n",
+        )
+        .unwrap();
+        assert!(RuntimeConfig::from_properties(invalid).is_err());
     }
 
     #[test]

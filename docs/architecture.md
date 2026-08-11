@@ -89,6 +89,15 @@ commit reconciliation has started, the request joins it before returning.
 Listener shutdown first drains these cooperative request tasks and aborts only
 after the bounded service deadline.
 
+The multipart outbound route stops the common HTTP aggregator after its
+bounded header read. It rejects an oversized declared body and authenticates
+before constructing a `multer` stream over the already-read prefix plus a
+length-limited socket reader. Attachments are written once into a private
+request-owned directory, represented downstream by path and exact length, and
+Base64-encoded directly into the materialized MIME message. RAII ownership
+removes the source files on every return or cancellation path; no queued task
+retains the upload path after materialization.
+
 Authentication mutations use transaction-level advisory locks keyed by the
 normalized mailbox address or session-token hash. When a COMMIT response is
 lost, the original PostgreSQL connection is detached before a fresh connection

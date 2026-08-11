@@ -2,12 +2,15 @@ use std::{
     future::Future,
     io,
     net::{IpAddr, Shutdown},
+    path::PathBuf,
     sync::{Arc, LazyLock},
     time::Duration,
 };
 
+use bytes::Bytes;
 use chrono::{DateTime, NaiveDate, Utc};
 use deadpool_postgres::Pool;
+use futures_util::{StreamExt, stream};
 use percent_encoding::percent_decode_str;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -19,7 +22,7 @@ use tokio::{
     task::{JoinHandle, JoinSet, spawn_blocking},
     time::timeout,
 };
-use tokio_util::sync::CancellationToken;
+use tokio_util::{io::ReaderStream, sync::CancellationToken};
 use url::Url;
 
 use crate::{
@@ -34,12 +37,14 @@ use crate::{
     outbound::{OutboundError, OutboundService, SendRequest},
     reporting::ReportingService,
     userdata::{ContactRecord, UserDataError, UserDataService},
+    web_multipart::{self, WebMultipartError},
     xdp::XdpService,
     xdp_sync::XdpSyncService,
 };
 
 const DEFAULT_MAX_REQUEST_BYTES: usize = 16 * 1024;
 const DEFAULT_MAX_CONNECTIONS: usize = 256;
+const MAX_HTTP_HEADER_BYTES: usize = 64 * 1024;
 const HTTP_FDS_PER_CONNECTION: u32 = 2;
 const ACCEPT_RETRY_MIN_DELAY: Duration = Duration::from_millis(25);
 const ACCEPT_RETRY_MAX_DELAY: Duration = Duration::from_secs(1);
@@ -103,6 +108,7 @@ impl Status {
 #[derive(Debug, Clone, Copy)]
 struct ServerLimits {
     max_request_bytes: usize,
+    max_multipart_request_bytes: usize,
     max_connections: usize,
     request_deadline: Duration,
 }
@@ -170,6 +176,7 @@ impl ServerLimits {
                 .limits
                 .max_http_request_bytes
                 .max(DEFAULT_MAX_REQUEST_BYTES),
+            max_multipart_request_bytes: config.limits.max_http_multipart_bytes,
             max_connections: config
                 .limits
                 .max_http_connections
@@ -278,6 +285,7 @@ pub async fn serve_http(
                     stream,
                     peer.ip(),
                     limits.max_request_bytes,
+                    limits.max_multipart_request_bytes,
                     &ConnectionContext {
                         config: &config,
                         auth: &auth,
@@ -470,6 +478,7 @@ async fn handle_connection(
     mut stream: TcpStream,
     peer_ip: IpAddr,
     max_request_bytes: usize,
+    max_multipart_request_bytes: usize,
     context: &ConnectionContext<'_>,
 ) -> io::Result<()> {
     let ConnectionContext {
@@ -484,7 +493,21 @@ async fn handle_connection(
         xdp_sync,
         cancellation,
     } = *context;
-    let request = read_request(&mut stream, max_request_bytes).await?;
+    let mut request = read_request_head(&mut stream, MAX_HTTP_HEADER_BYTES).await?;
+    if is_web_multipart_form_request(&request) {
+        return handle_web_multipart_connection(
+            stream,
+            peer_ip,
+            request,
+            max_multipart_request_bytes,
+            config,
+            auth,
+            outbound,
+            cancellation,
+        )
+        .await;
+    }
+    complete_request(&mut stream, &mut request, max_request_bytes).await?;
     let client_ip = extract_client_ip(&request, peer_ip, config);
     let response = parse_request(&request, max_request_bytes, config);
     if let Some(expires_at) = auth.ban_expiry(&client_ip).await {
@@ -785,7 +808,9 @@ async fn handle_connection(
             )
             .await,
         },
-        ParsedRequest::MultipartSession => write_empty_unauthorized(stream).await,
+        ParsedRequest::MultipartSession => {
+            write_json_error(stream, Status::InternalServerError, "internal_error").await
+        }
         ParsedRequest::ApiSend => {
             let Some(input) = parse_json_body::<SendRequest>(&request) else {
                 return write_json_error(stream, Status::BadRequest, "invalid_request").await;
@@ -2336,31 +2361,206 @@ fn clean_ip_address(value: &str) -> String {
         .to_owned()
 }
 
-async fn read_request(stream: &mut TcpStream, max_request_bytes: usize) -> io::Result<Vec<u8>> {
-    let mut request = Vec::with_capacity(1024.min(max_request_bytes));
+fn is_web_multipart_form_request(request: &[u8]) -> bool {
+    let Some(header_end) = request.windows(4).position(|window| window == b"\r\n\r\n") else {
+        return false;
+    };
+    let Ok(headers) = std::str::from_utf8(&request[..header_end]) else {
+        return false;
+    };
+    let mut lines = headers.split("\r\n");
+    let Some(request_line) = lines.next() else {
+        return false;
+    };
+    let mut fields = request_line.split(' ');
+    let (Some(method), Some(path), Some("HTTP/1.1"), None) =
+        (fields.next(), fields.next(), fields.next(), fields.next())
+    else {
+        return false;
+    };
+    if method != "POST"
+        || path.split_once('?').map_or(path, |(route, _)| route) != "/web/mail/send/multipart"
+    {
+        return false;
+    }
+    lines.any(|line| {
+        line.split_once(':').is_some_and(|(name, value)| {
+            name.eq_ignore_ascii_case("content-type")
+                && value
+                    .trim_start()
+                    .get(.."multipart/form-data".len())
+                    .is_some_and(|prefix| prefix.eq_ignore_ascii_case("multipart/form-data"))
+        })
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn handle_web_multipart_connection(
+    mut socket: TcpStream,
+    peer_ip: IpAddr,
+    request: Vec<u8>,
+    max_multipart_request_bytes: usize,
+    config: &RuntimeConfig,
+    auth: &AuthService,
+    outbound: &OutboundService,
+    cancellation: &CancellationToken,
+) -> io::Result<()> {
+    match parse_request(&request, max_multipart_request_bytes, config) {
+        ParsedRequest::PayloadTooLarge => return write_empty_payload_too_large(socket).await,
+        ParsedRequest::MultipartSession => {}
+        ParsedRequest::BadRequest => {
+            return write_json_error(socket, Status::BadRequest, "bad_request").await;
+        }
+        _ => return write_json_error(socket, Status::InternalServerError, "internal_error").await,
+    }
+    let client_ip = extract_client_ip(&request, peer_ip, config);
+    if let Some(expires_at) = auth.ban_expiry(&client_ip).await {
+        let body = serde_json::to_vec(&IpBannedResponse {
+            error: "ip_banned",
+            message: "Your IP has been temporarily banned due to suspicious activity.",
+            expires_at: &expires_at.to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true),
+        })
+        .map_err(io::Error::other)?;
+        return write_response(
+            socket,
+            Status::Forbidden,
+            &body,
+            "application/json; charset=UTF-8",
+        )
+        .await;
+    }
+    let Some(token) = request_header(&request, "x-session-token").filter(|value| !value.is_empty())
+    else {
+        return write_empty_unauthorized(socket).await;
+    };
+    let address = match auth
+        .validate_token_with_cancellation(&token, cancellation)
+        .await
+    {
+        Ok(Some(address)) => address,
+        Ok(None) => return write_empty_unauthorized(socket).await,
+        Err(_) => return write_empty_service_unavailable(socket).await,
+    };
+    let content_type = request_header(&request, "content-type").unwrap_or_default();
+    let boundary = match web_multipart::boundary(&content_type) {
+        Ok(boundary) => boundary,
+        Err(_) => {
+            return write_json_error(socket, Status::InternalServerError, "internal_error").await;
+        }
+    };
+    let Some(header_end) = request.windows(4).position(|window| window == b"\r\n\r\n") else {
+        return write_json_error(socket, Status::BadRequest, "bad_request").await;
+    };
+    let declared_length = header_content_length(&request[..header_end]).unwrap_or(0);
+    let body_start = header_end + 4;
+    let prefix_length = request
+        .len()
+        .saturating_sub(body_start)
+        .min(declared_length);
+    let prefix = Bytes::copy_from_slice(&request[body_start..body_start + prefix_length]);
+    let remaining = declared_length - prefix_length;
+    let prefix_stream = stream::once(async move { Ok::<Bytes, io::Error>(prefix) });
+    let socket_stream = ReaderStream::new((&mut socket).take(remaining as u64));
+    let body_stream = prefix_stream.chain(socket_stream);
+    let upload_root = config
+        .preferred_value(
+            "lmyzmail.http.upload-temp-dir",
+            "botmail.http.upload-temp-dir",
+        )
+        .map(PathBuf::from)
+        .unwrap_or_else(|| config.maildir.join(".lmyzmail-upload"));
+    let mut parsed = match web_multipart::parse(
+        body_stream,
+        boundary,
+        &upload_root,
+        max_multipart_request_bytes as u64,
+        config.limits.max_attachment_size_bytes,
+        config.limits.max_total_attachments_size_bytes,
+    )
+    .await
+    {
+        Ok(parsed) => parsed,
+        Err(error) => return write_web_multipart_parse_error(socket, error).await,
+    };
+    let attachments = parsed.attachment_inputs();
+    let mut input = parsed.take_request();
+    input.from = Some(address);
+    let result = outbound
+        .enqueue_streaming_with_cancellation(input, attachments, cancellation)
+        .await;
+    drop(parsed);
+    match result {
+        Ok(result) => {
+            write_json_response(
+                socket,
+                Status::Accepted,
+                &WebQueueSuccess {
+                    queued: result.queued,
+                    queue_id: result.queue_id,
+                    message_id: &result.message_id,
+                    status: result.status,
+                    sent_file_name: Some(&result.sent_file_name),
+                },
+            )
+            .await
+        }
+        Err(error) => write_web_multipart_outbound_error(socket, error).await,
+    }
+}
+
+async fn read_request_head(stream: &mut TcpStream, max_header_bytes: usize) -> io::Result<Vec<u8>> {
+    let mut request = Vec::with_capacity(1024.min(max_header_bytes));
     let mut chunk = [0_u8; 1024];
     loop {
         let count = stream.read(&mut chunk).await?;
         if count == 0 {
             return Ok(request);
         }
-        if request.len().saturating_add(count) > max_request_bytes {
-            request.resize(max_request_bytes.saturating_add(1), 0);
+        if request.len().saturating_add(count) > max_header_bytes.saturating_add(1024) {
+            request.resize(max_header_bytes.saturating_add(1), 0);
             return Ok(request);
         }
         request.extend_from_slice(&chunk[..count]);
-        if let Some(header_end) = request.windows(4).position(|window| window == b"\r\n\r\n") {
-            let length = header_content_length(&request[..header_end]).unwrap_or(0);
-            let required = header_end.saturating_add(4).saturating_add(length);
-            if length > max_request_bytes || required > max_request_bytes.saturating_add(4 * 1024) {
-                return Ok(vec![0; max_request_bytes.saturating_add(1)]);
-            }
-            if request.len() >= required {
-                request.truncate(required);
-                return Ok(request);
-            }
+        if request.windows(4).any(|window| window == b"\r\n\r\n") {
+            return Ok(request);
         }
     }
+}
+
+async fn complete_request(
+    stream: &mut TcpStream,
+    request: &mut Vec<u8>,
+    max_request_bytes: usize,
+) -> io::Result<()> {
+    let Some(header_end) = request.windows(4).position(|window| window == b"\r\n\r\n") else {
+        return Ok(());
+    };
+    let length = header_content_length(&request[..header_end]).unwrap_or(0);
+    let required = header_end.saturating_add(4).saturating_add(length);
+    if length > max_request_bytes || required > max_request_bytes {
+        request.clear();
+        request.resize(max_request_bytes.saturating_add(1), 0);
+        return Ok(());
+    }
+    request.truncate(request.len().min(required));
+    let mut chunk = [0_u8; 1024];
+    while request.len() < required {
+        let to_read = (required - request.len()).min(chunk.len());
+        let count = stream.read(&mut chunk[..to_read]).await?;
+        if count == 0 {
+            return Ok(());
+        }
+        request.extend_from_slice(&chunk[..count]);
+    }
+    request.truncate(required);
+    Ok(())
+}
+
+#[cfg(test)]
+async fn read_request(stream: &mut TcpStream, max_request_bytes: usize) -> io::Result<Vec<u8>> {
+    let mut request = read_request_head(stream, max_request_bytes).await?;
+    complete_request(stream, &mut request, max_request_bytes).await?;
+    Ok(request)
 }
 
 fn header_content_length(headers: &[u8]) -> Option<usize> {
@@ -3550,6 +3750,16 @@ async fn write_outbound_error(
             )
             .await
         }
+        OutboundError::AttachmentTooLarge(filename) => {
+            write_web_queue_failure(
+                stream,
+                format!("Attachment '{filename}' exceeds size limit"),
+            )
+            .await
+        }
+        OutboundError::AttachmentsTooLarge => {
+            write_web_queue_failure(stream, "Total attachments size exceeds limit".into()).await
+        }
         OutboundError::RateLimited { remaining } => {
             #[derive(Serialize)]
             #[serde(rename_all = "camelCase")]
@@ -3584,11 +3794,68 @@ async fn write_outbound_error(
     }
 }
 
+async fn write_web_multipart_parse_error(
+    stream: TcpStream,
+    error: WebMultipartError,
+) -> io::Result<()> {
+    match error {
+        WebMultipartError::AttachmentTooLarge(filename) => {
+            write_web_queue_failure(
+                stream,
+                format!("Attachment '{filename}' exceeds size limit"),
+            )
+            .await
+        }
+        WebMultipartError::AttachmentsTooLarge => {
+            write_web_queue_failure(stream, "Total attachments size exceeds limit".into()).await
+        }
+        WebMultipartError::Invalid | WebMultipartError::Unavailable => {
+            write_json_error(stream, Status::InternalServerError, "internal_error").await
+        }
+    }
+}
+
+async fn write_web_multipart_outbound_error(
+    stream: TcpStream,
+    error: OutboundError,
+) -> io::Result<()> {
+    match error {
+        OutboundError::AttachmentTooLarge(filename) => {
+            write_web_queue_failure(
+                stream,
+                format!("Attachment '{filename}' exceeds size limit"),
+            )
+            .await
+        }
+        OutboundError::AttachmentsTooLarge => {
+            write_web_queue_failure(stream, "Total attachments size exceeds limit".into()).await
+        }
+        error => write_outbound_error(stream, error, false).await,
+    }
+}
+
+async fn write_web_queue_failure(stream: TcpStream, error: String) -> io::Result<()> {
+    write_json_response(
+        stream,
+        Status::BadRequest,
+        &QueueFailureResponse {
+            queued: false,
+            queue_id: None,
+            message_id: None,
+            status: "REJECTED",
+            error: &error,
+        },
+    )
+    .await
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct QueueFailureResponse<'a> {
     queued: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
     queue_id: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     message_id: Option<&'a str>,
     status: &'static str,
     error: &'a str,
@@ -3761,6 +4028,22 @@ async fn write_invalid_session(stream: TcpStream) -> io::Result<()> {
 async fn write_empty_unauthorized(mut stream: TcpStream) -> io::Result<()> {
     stream
         .write_all(b"HTTP/1.1 401 Unauthorized\r\ncontent-length: 0\r\nconnection: close\r\n\r\n")
+        .await
+}
+
+async fn write_empty_payload_too_large(mut stream: TcpStream) -> io::Result<()> {
+    stream
+        .write_all(
+            b"HTTP/1.1 413 Request Entity Too Large\r\ncontent-length: 0\r\nconnection: close\r\n\r\n",
+        )
+        .await
+}
+
+async fn write_empty_service_unavailable(mut stream: TcpStream) -> io::Result<()> {
+    stream
+        .write_all(
+            b"HTTP/1.1 503 Service Unavailable\r\ncontent-length: 0\r\nconnection: close\r\n\r\n",
+        )
         .await
 }
 
@@ -3984,6 +4267,23 @@ lmyzmail.public-registration-enabled=true\n",
         .await;
         assert!(result.is_ok());
         assert!(cancellation.is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn multipart_payload_too_large_matches_java_status_line() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let mut client = TcpStream::connect(address).await.unwrap();
+        let (server, _) = listener.accept().await.unwrap();
+
+        write_empty_payload_too_large(server).await.unwrap();
+        let mut response = Vec::new();
+        client.read_to_end(&mut response).await.unwrap();
+
+        assert_eq!(
+            response,
+            b"HTTP/1.1 413 Request Entity Too Large\r\ncontent-length: 0\r\nconnection: close\r\n\r\n"
+        );
     }
 
     #[test]
