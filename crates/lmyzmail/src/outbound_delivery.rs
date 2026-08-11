@@ -37,6 +37,14 @@ const OUTBOUND_DSN_SCHEMA: &str = include_str!("../migrations/003_outbound_dsn.s
 const OUTBOUND_SPOOL_CLEANUP_SCHEMA: &str =
     include_str!("../migrations/004_outbound_spool_cleanup.sql");
 
+pub(crate) fn legacy_smtp_failure_is_retryable(code: u16) -> bool {
+    matches!(code, 421 | 450 | 451 | 452)
+}
+
+fn legacy_smtp_failure_is_terminal(code: u16) -> bool {
+    (400..=599).contains(&code) && !legacy_smtp_failure_is_retryable(code)
+}
+
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum LegacyRecipientJson {
@@ -3619,8 +3627,12 @@ fn validate_prepared_outcomes(
         }
         let valid_code = match outcome.status {
             PreparedRecipientStatus::Accepted => (250..=252).contains(&outcome.smtp_code),
-            PreparedRecipientStatus::Retryable => (400..=499).contains(&outcome.smtp_code),
-            PreparedRecipientStatus::Permanent => (500..=599).contains(&outcome.smtp_code),
+            PreparedRecipientStatus::Retryable => {
+                legacy_smtp_failure_is_retryable(outcome.smtp_code)
+            }
+            PreparedRecipientStatus::Permanent => {
+                legacy_smtp_failure_is_terminal(outcome.smtp_code)
+            }
         };
         if !valid_code
             || outcome.detail.is_empty()
@@ -3641,8 +3653,8 @@ fn validate_commit_result(
 ) -> Result<(), DeliveryStateError> {
     let valid_code = match status {
         CommitResultStatus::Delivered => (200..=299).contains(&smtp_code),
-        CommitResultStatus::Retryable => (400..=499).contains(&smtp_code),
-        CommitResultStatus::Permanent => (500..=599).contains(&smtp_code),
+        CommitResultStatus::Retryable => legacy_smtp_failure_is_retryable(smtp_code),
+        CommitResultStatus::Permanent => legacy_smtp_failure_is_terminal(smtp_code),
     };
     if !valid_code || detail.is_empty() || detail.len() > MAX_RECIPIENT_DETAIL_BYTES {
         return Err(DeliveryStateError::InvalidInput(
@@ -3939,6 +3951,43 @@ mod tests {
             bounded_bytes(&format!("{}😀", "x".repeat(1_998)), 2_000),
             format!("{}...", "x".repeat(1_997))
         );
+    }
+
+    #[test]
+    fn durable_smtp_failure_states_enforce_frozen_java_retry_codes() {
+        for (status, code, valid) in [
+            (PreparedRecipientStatus::Retryable, 421, true),
+            (PreparedRecipientStatus::Retryable, 452, true),
+            (PreparedRecipientStatus::Retryable, 400, false),
+            (PreparedRecipientStatus::Retryable, 499, false),
+            (PreparedRecipientStatus::Permanent, 400, true),
+            (PreparedRecipientStatus::Permanent, 499, true),
+            (PreparedRecipientStatus::Permanent, 550, true),
+            (PreparedRecipientStatus::Permanent, 451, false),
+        ] {
+            let checkpoint = PreparedRecipientCheckpoint {
+                ordinal: 0,
+                recipient: "user@example.test".into(),
+                status,
+                smtp_code: code,
+                detail: "fixture failure".into(),
+            };
+            assert_eq!(
+                validate_prepared_outcomes(&[checkpoint]).is_ok(),
+                valid,
+                "prepared status {status:?} code {code}"
+            );
+            let commit_status = if status == PreparedRecipientStatus::Retryable {
+                CommitResultStatus::Retryable
+            } else {
+                CommitResultStatus::Permanent
+            };
+            assert_eq!(
+                validate_commit_result(commit_status, code, "fixture failure").is_ok(),
+                valid,
+                "commit status {commit_status:?} code {code}"
+            );
+        }
     }
 
     #[cfg(target_os = "linux")]

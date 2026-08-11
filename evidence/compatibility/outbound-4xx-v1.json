@@ -1,0 +1,219 @@
+{
+  "schema_version": 1,
+  "profile": "outbound-4xx-v1",
+  "captured_at": "2026-08-11T20:50:12+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "contract": {
+    "phases": [
+      "RCPT",
+      "DATA"
+    ],
+    "reply_codes": [
+      400,
+      421,
+      450,
+      451,
+      452,
+      499
+    ],
+    "retryable_codes": [
+      421,
+      450,
+      451,
+      452
+    ],
+    "terminal_codes": [
+      400,
+      499
+    ],
+    "matrix_case_count": 12,
+    "api_status": 202,
+    "api_queued": true,
+    "retry_delays_seconds": [
+      30,
+      60,
+      120,
+      240,
+      480
+    ],
+    "retry_deadline_observation_tolerance_seconds": 5,
+    "redis_deadline_source_spread_seconds": 1,
+    "max_retries": 5,
+    "terminal_attempt": 6,
+    "wall_clock_modified": false,
+    "runtime_retry_configuration_modified": false,
+    "smtp_data_observed_only_after_accepted_rcpt": true,
+    "normalizers": [
+      "outbound:queue-id",
+      "outbound:retry-deadline"
+    ]
+  },
+  "storage": {
+    "redis": {
+      "task_status_during_retry": "PENDING",
+      "retry_zset_member_during_retry": true,
+      "task_and_zset_deadlines_compared": true,
+      "terminal_task_acknowledged": true,
+      "terminal_retry_zset_member": false
+    },
+    "postgres": {
+      "oracle_intermediate_row_present": false,
+      "candidate_intermediate_row_present": true,
+      "candidate_intermediate_status": "PENDING",
+      "candidate_deadline_matches_redis": true,
+      "terminal_status": "FAILED",
+      "retryable_terminal_retry_count": 5,
+      "unclassified_4xx_terminal_retry_count": 0
+    }
+  },
+  "behavior_difference": {
+    "id": "outbound-retry-postgres-checkpoint",
+    "manifest": "blackbox/manifests/behavior-differences.json",
+    "oracle_behavior": "No outbound_mail_queue row exists while a retry is pending; Redis remains authoritative until terminal archive.",
+    "candidate_requirement": "Persist the accepted task and each retry count, error, and deadline in PostgreSQL before publishing matching Redis state.",
+    "comparison": "Both PostgreSQL checkpoint shapes are asserted exactly; after removing only those already-asserted db nodes from comparison copies, the complete candidate observation must equal the Java golden."
+  },
+  "golden": {
+    "definition_tree_sha256": "f5fadc4f3851ee9ba0b84d29234270f12cacd8d53922ae2c9459d82532432657",
+    "active_4xx": {
+      "path": "blackbox/golden/java/managed-outbound-4xx-v3.json",
+      "file_sha256": "581c6b8d14090b7c72d7759f6ead28c74a15186eb49b926f0eeaeac3a79c39ba"
+    },
+    "retained_4xx": [
+      {
+        "version": 1,
+        "file_sha256": "a1c9c922586a879ceb2e00715a1e6f1a7fc56e5111d2b7fc85f928bb21f6c4b7"
+      },
+      {
+        "version": 2,
+        "file_sha256": "24339d2fdec0483002ddbcdda74bed4e2d689bc14f05d795fa549ffde0bf7450"
+      }
+    ],
+    "active_success_reattestation": {
+      "path": "blackbox/golden/java/managed-outbound-queue-v36.json",
+      "file_sha256": "a8a0400b7f21fc9af9a0743a355bbfc1ca03794880bbe12ddcf8ad57df940551"
+    },
+    "active_5xx_reattestation": {
+      "path": "blackbox/golden/java/managed-outbound-5xx-v4.json",
+      "file_sha256": "f1af9829f232f177ce37b719b3ac81765b86f9b6f91335d2f2f0e6affaf7b7ed"
+    }
+  },
+  "implementation": {
+    "runtime": "stable-rust-1.94.0",
+    "java_runtime_dependency": false,
+    "protocol_parser_4xx_semantics_retained": true,
+    "java_queue_projection_codes": [
+      421,
+      450,
+      451,
+      452
+    ],
+    "durable_ledger_rejects_invalid_retryable_code_state": true,
+    "covered_paths": [
+      "HTTP asynchronous queue admission",
+      "RCPT 4xx classification and wire behavior",
+      "final DATA 4xx classification and wire behavior",
+      "first retry scheduling and deadline validation",
+      "complete exponential backoff sequence",
+      "retry exhaustion and terminal archive",
+      "Redis task, domain, retry ZSET, and acknowledgement state",
+      "PostgreSQL retry checkpoint and terminal projection",
+      "Java-compatible error formatting"
+    ],
+    "remaining_separate_matrices": [
+      "STARTTLS and MTA-STS",
+      "disconnect and final-reply ambiguity",
+      "DSN generation and delivery",
+      "restart recovery with process and storage fault injection",
+      "backpressure and high concurrency",
+      "long-duration soak"
+    ]
+  },
+  "source_sha256": {
+    "Cargo.lock": "025fda3214b0ed11e167ccf813132446913eed15ea20338acb5320798019417b",
+    "crates/lmyzmail/src/outbound_coordinator.rs": "7deb2a83d841c638835ab960fa08b7197d1c9743f1f7627f363966552e7da894",
+    "crates/lmyzmail/src/outbound_delivery.rs": "faf20d5b9f09e805f3d73d7d2d79c86a624b9be862865cb534fec8d1e943af5f",
+    "blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py": "2046468e70bf98fbcd8bdc0073c9171d73e8b6218152fdea751fcbbe178f2280",
+    "blackbox/tests/test_outbound_oracle_probe.py": "70da722721e0f4e32f941683a1f1af6077944aa6056d812fab4bfb028a6c4e43",
+    "blackbox/tests/test_oracle_outbound_4xx.py": "162ecc082d8c600aeccc00f0cc369581389ee61ee02f04b4139358ed31c4681e",
+    "blackbox/tests/test_oracle_outbound_5xx.py": "2bc11c60ca4eaeb2af8f9992fc85d5266edcc741af8fb3a0f2feaff6b54b07d3",
+    "blackbox/tests/test_oracle_outbound_queue.py": "2924767a5d4afad629a6730abd741941a866a075bda293b8f29d9882f4f7c666",
+    "blackbox/tests/test_legacy_storage.py": "bcdd62d363db09447fddd3d2eadb422ea6faf86d0dd7ce8971bfca0e30b443a4",
+    "blackbox/manifests/behavior-differences.json": "878e1644fc155c3fa75b6ed91612c425da4e346dc5111a7f137db53733a725e0",
+    "docs/compatibility.md": "5f07f5d64f3b9009abfcc2e10b83abc3c8c0991593e0f0a24c9e57c2f03f7f3a",
+    "blackbox/golden/README.md": "a5c7537357b26e8e7d651a452d4318cc744f6e4f65590a03f6f40aa7a41250b3"
+  },
+  "release": {
+    "command": "cargo build --workspace --release --locked --target x86_64-unknown-linux-gnu",
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "17dedacb6943622b97de358affe4465d5b17849f2aeda4161ad1391fa4fb41d6"
+  },
+  "verification": [
+    {
+      "gate": "4xx Java create-once",
+      "result": "1 passed; v3 recorded"
+    },
+    {
+      "gate": "4xx fresh Java replay",
+      "result": "1 passed"
+    },
+    {
+      "gate": "4xx Rust candidate",
+      "result": "1 passed with exact approved checkpoint difference"
+    },
+    {
+      "gate": "success Java create-once, fresh replay, and Rust candidate",
+      "result": "3 passed; v36 active"
+    },
+    {
+      "gate": "5xx Java create-once, fresh replay, and Rust candidate",
+      "result": "3 passed; v4 active"
+    },
+    {
+      "gate": "cargo test --workspace --all-features --all-targets --locked",
+      "result": "passed; 512 lmyzmail library tests plus every binary and integration target"
+    },
+    {
+      "gate": "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "gate": "pytest -m not integration",
+      "result": "139 passed, 113 deselected"
+    },
+    {
+      "gate": "ruff and mypy",
+      "result": "passed; mypy checked 96 source files"
+    },
+    {
+      "gate": "locked Linux x86_64 release",
+      "result": "passed"
+    }
+  ],
+  "failed_gate_history": [
+    {
+      "gate": "initial Java 4xx recording",
+      "failure": "The draft assumed every sampled 4xx code was retryable.",
+      "outcome": "Frozen source and runtime evidence proved only 421, 450, 451, and 452 retry; the matrix now asserts immediate terminal behavior for 400 and 499."
+    },
+    {
+      "gate": "initial retry storage observation",
+      "failure": "The draft required an intermediate Java PostgreSQL row.",
+      "outcome": "Frozen write-behind behavior proved the row is absent until archive; the exact candidate durability difference is now allowlisted and tested."
+    },
+    {
+      "gate": "first final clippy run",
+      "failure": "Two adjacent permanent-classification branches had identical bodies.",
+      "outcome": "The conditions were combined without changing behavior; focused and full all-target Clippy passed."
+    }
+  ],
+  "attestation_scope": {
+    "new_suite_current": true,
+    "older_goldens_modified": false,
+    "older_4xx_generations_retained": true,
+    "full_project_goal_complete": false
+  }
+}

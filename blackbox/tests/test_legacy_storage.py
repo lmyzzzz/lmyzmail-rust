@@ -75,6 +75,7 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "smtp-fragmented-overlong-double-error",
         "outbound-starttls-hostname-verification",
         "outbound-smtp-commit-ambiguity-no-retry",
+        "outbound-retry-postgres-checkpoint",
         "outbound-null-mx-rejection",
         "outbound-route-dns-answer-budgets",
         "reporting-dns-input-and-answer-budgets",
@@ -149,6 +150,16 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "f9abffe3fbc98e314db34fcf38d894fd200d93ad74ff933f2c0f57e2717f1bf4"
     )
     assert "stale pre-upgrade PROCESSING row" in commit_ambiguity["candidate_requirement"]
+    retry_checkpoint = by_id["outbound-retry-postgres-checkpoint"]
+    assert retry_checkpoint["evidence"]["oracle_golden"] == (
+        "blackbox/golden/java/managed-outbound-4xx-v3.json"
+    )
+    assert retry_checkpoint["evidence"]["sender_source_sha256"] == (
+        "c7f10f2416ae308335e9f6f77ffe00140b64904b0b2e8dc7eb04ed74394c603e"
+    )
+    assert retry_checkpoint["evidence"]["persister_source_sha256"] == (
+        "f5ba8596cf36f2fdb8af7bbde2133f9f352e9db2c073eacbf5bb8277e87b6360"
+    )
 
     htcpcp_close = by_id["htcpcp-connection-close-lifecycle"]
     assert htcpcp_close["evidence"]["oracle_golden"].startswith(

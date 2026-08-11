@@ -35,7 +35,7 @@ use crate::{
         OutboundSpoolKind, OutboundSpoolRecord, OutboundSpoolState, PostgresDeliveryState,
         PreparedRecipientCheckpoint, PreparedRecipientStatus, RecipientDeliveryState,
         RecipientLedgerClaim, RecipientLedgerSnapshot, RetryTransition, TerminalStatus,
-        parse_recipient_roster_json, recipient_domain,
+        legacy_smtp_failure_is_retryable, parse_recipient_roster_json, recipient_domain,
     },
     outbound_queue::{
         ClaimReconciliation, DomainStatus, LegacyOutboundQueue, QueueClaim, QueueError,
@@ -2446,7 +2446,7 @@ fn recipient_outcomes(
             Some(RecipientStatus::TemporaryFailure) => {
                 let result = result.expect("matched result exists");
                 (
-                    PreparedRecipientStatus::Retryable,
+                    legacy_prepared_failure_status(result.code),
                     result.code,
                     java_smtp_failure_detail("RCPT TO failed", result.code, &result.reply),
                 )
@@ -2454,7 +2454,7 @@ fn recipient_outcomes(
             Some(RecipientStatus::PermanentFailure) => {
                 let result = result.expect("matched result exists");
                 (
-                    PreparedRecipientStatus::Permanent,
+                    legacy_prepared_failure_status(result.code),
                     result.code,
                     java_smtp_failure_detail("RCPT TO failed", result.code, &result.reply),
                 )
@@ -2522,7 +2522,7 @@ fn complete_delivery_outcomes(
     for (recipient, result_recipient) in recipients.iter().zip(&result.recipients) {
         let (status, code, detail) = match result_recipient.status {
             RecipientStatus::TemporaryFailure => (
-                PreparedRecipientStatus::Retryable,
+                legacy_prepared_failure_status(result_recipient.code),
                 result_recipient.code,
                 java_smtp_failure_detail(
                     "RCPT TO failed",
@@ -2531,7 +2531,7 @@ fn complete_delivery_outcomes(
                 ),
             ),
             RecipientStatus::PermanentFailure => (
-                PreparedRecipientStatus::Permanent,
+                legacy_prepared_failure_status(result_recipient.code),
                 result_recipient.code,
                 java_smtp_failure_detail(
                     "RCPT TO failed",
@@ -2545,7 +2545,7 @@ fn complete_delivery_outcomes(
                         "temporary DATA result has no reply code",
                     ))?;
                     (
-                        PreparedRecipientStatus::Retryable,
+                        legacy_prepared_failure_status(code),
                         code,
                         java_smtp_failure_detail(
                             "Message not accepted",
@@ -2562,7 +2562,7 @@ fn complete_delivery_outcomes(
                         "permanent DATA result has no reply code",
                     ))?;
                     (
-                        PreparedRecipientStatus::Permanent,
+                        legacy_prepared_failure_status(code),
                         code,
                         java_smtp_failure_detail(
                             "Message not accepted",
@@ -2604,8 +2604,9 @@ fn commit_outcome(
         .unwrap_or("SMTP commit returned no reply text");
     let status = match result.data_status {
         DataStatus::Accepted => CommitResultStatus::Delivered,
-        DataStatus::TemporaryFailure => CommitResultStatus::Retryable,
-        DataStatus::PermanentFailure => CommitResultStatus::Permanent,
+        DataStatus::TemporaryFailure | DataStatus::PermanentFailure => {
+            legacy_commit_failure_status(code)
+        }
         DataStatus::NotAttempted => {
             return Err(CoordinatorError::Reconciliation(
                 "SMTP commit result says DATA was not attempted",
@@ -2624,10 +2625,29 @@ fn delivery_failure_status(error: &DeliveryError) -> PreparedRecipientStatus {
     if matches!(
         error.kind,
         DeliveryErrorKind::Configuration | DeliveryErrorKind::Permanent
-    ) {
+    ) || error
+        .smtp_code
+        .is_some_and(|code| !legacy_smtp_failure_is_retryable(code))
+    {
         PreparedRecipientStatus::Permanent
     } else {
         PreparedRecipientStatus::Retryable
+    }
+}
+
+fn legacy_prepared_failure_status(code: u16) -> PreparedRecipientStatus {
+    if legacy_smtp_failure_is_retryable(code) {
+        PreparedRecipientStatus::Retryable
+    } else {
+        PreparedRecipientStatus::Permanent
+    }
+}
+
+fn legacy_commit_failure_status(code: u16) -> CommitResultStatus {
+    if legacy_smtp_failure_is_retryable(code) {
+        CommitResultStatus::Retryable
+    } else {
+        CommitResultStatus::Permanent
     }
 }
 
@@ -3609,6 +3629,66 @@ mod tests {
         assert_eq!(status, CommitResultStatus::Permanent);
         assert_eq!(code, 550);
         assert_eq!(detail, "Message not accepted: 550 mailbox unavailable");
+    }
+
+    #[test]
+    fn frozen_java_smtp_code_classification_covers_rcpt_data_and_commit() {
+        let recipients = vec![DomainRecipient {
+            ordinal: 0,
+            address: "user@alpha.test".into(),
+        }];
+        for (code, expected) in [
+            (400, PreparedRecipientStatus::Permanent),
+            (421, PreparedRecipientStatus::Retryable),
+            (450, PreparedRecipientStatus::Retryable),
+            (451, PreparedRecipientStatus::Retryable),
+            (452, PreparedRecipientStatus::Retryable),
+            (499, PreparedRecipientStatus::Permanent),
+        ] {
+            let reply = format!("{code} fixture reply");
+            let rcpt = recipient_outcomes(
+                &recipients,
+                &[RecipientResult {
+                    recipient: recipients[0].address.clone(),
+                    status: RecipientStatus::TemporaryFailure,
+                    code,
+                    reply: reply.clone(),
+                }],
+                AcceptedDisposition::Arm,
+                "missing",
+            )
+            .unwrap();
+            assert_eq!(rcpt[0].status, expected, "RCPT code {code}");
+
+            let data = DeliveryResult {
+                recipients: vec![RecipientResult {
+                    recipient: recipients[0].address.clone(),
+                    status: RecipientStatus::Accepted,
+                    code: 250,
+                    reply: "250 accepted".into(),
+                }],
+                data_status: DataStatus::TemporaryFailure,
+                data_code: Some(code),
+                data_reply: Some(reply),
+                tls: false,
+                smtp_utf8: false,
+                pipelining: false,
+            };
+            let complete = complete_delivery_outcomes(&recipients, &data).unwrap();
+            assert_eq!(complete[0].status, expected, "DATA code {code}");
+
+            let (committed, committed_code, _) = commit_outcome(&data).unwrap();
+            assert_eq!(committed_code, code);
+            assert_eq!(
+                committed,
+                if expected == PreparedRecipientStatus::Retryable {
+                    CommitResultStatus::Retryable
+                } else {
+                    CommitResultStatus::Permanent
+                },
+                "commit code {code}"
+            );
+        }
     }
 
     #[test]

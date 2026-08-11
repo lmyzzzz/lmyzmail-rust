@@ -259,9 +259,9 @@ golden definition tree and global manifest are unchanged.
 
 The immutable `managed-outbound-queue-v34.json` generation was the first
 external outbound delivery observation replayed by both runtimes. Active
-generation `managed-outbound-queue-v35.json` re-attests the same observation
+generation `managed-outbound-queue-v36.json` re-attests the same observation
 byte-for-byte under definition tree
-`90014e07747ac43bae4e8e0d6deef5f8d8bd40269b2b8265b266db04b549786c`.
+`f5fadc4f3851ee9ba0b84d29234270f12cacd8d53922ae2c9459d82532432657`.
 It starts isolated PostgreSQL, Redis, Maildir, remote SMTP peer, and network
 namespace fixtures, then submits four asynchronous API messages whose text
 bodies are 19, 8,191, 8,192, and 12,288 bytes. The frozen 10 KiB estimate keeps
@@ -282,7 +282,7 @@ numeric address; the recipient-domain MX value remains the exact legacy Redis
 cache entry. Snapshot assertions are scoped to the four task IDs created by
 this scenario.
 
-The active `managed-outbound-5xx-v3.json` generation uses the same definition
+The active `managed-outbound-5xx-v4.json` generation uses the same definition
 tree and adds a ten-case raw-wire matrix: RCPT and final DATA replies for codes
 500, 501, 549, 550, and 554. The candidate matches the initial `202` queue
 response; exact EHLO, MAIL, RCPT, DATA, and reply order; absence of message data
@@ -292,18 +292,37 @@ aggregate status; and PostgreSQL `FAILED` rows with zero retries. The frozen
 aggregate remains `PROCESSING` for 500, 501, and 549 and becomes `FAILED` for
 550 and 554. Exact errors retain Java's `RCPT TO failed: CODE ...`, `Message
 not accepted: CODE ...`, and `All domains failed: {domain=error}` forms. Only
-the generated queue ID is normalized. v1 and v2 remain immutable history; a
+the generated queue ID is normalized. v1 through v3 remain immutable history; a
 fresh Java recording, independent Java replay, and Rust candidate replay all
-passed v3.
+passed v4.
+
+The active `managed-outbound-4xx-v3.json` generation freezes RCPT and final
+DATA replies for 400, 421, 450, 451, 452, and 499. The Java oracle retries only
+421, 450, 451, and 452; despite their reply class, 400 and 499 fail after one
+attempt with `retry_count=0`. Each retryable matrix case observes the real
+30-second deadline before advancing only that isolated task to retry count 5
+and proving the second failure is terminal. A separate DATA 451 case proves
+the complete 30, 60, 120, 240, and 480 second sequence followed by terminal
+failure on attempt six. Every Redis task deadline must agree with its retry
+ZSET score within one second and lie within a five-second observation window.
+No wall clock or runtime retry configuration is modified.
+
+The frozen Java queue has no `outbound_mail_queue` row while a retry is
+pending; Redis is authoritative until terminal archive. The candidate keeps a
+PostgreSQL `PENDING` checkpoint with the same retry count, error, and deadline
+before publishing Redis state. The approved
+`outbound-retry-postgres-checkpoint` difference asserts both sides exactly and
+then requires the rest of the complete observation to equal the Java golden.
+It is a crash-recovery improvement, not a deadline normalizer.
 
 The candidate reads `lmyzmail.outbound.helo-hostname` with
 `botmail.outbound.helo-hostname` fallback and new-key precedence. Empty,
 non-ASCII, whitespace/control-bearing, or over-253-byte values are rejected at
 startup. The differential fixtures use `blackbox.example` through the legacy
-key for Java and the new key for Rust. Legacy queue takeover, retry timing and
-exhaustion, STARTTLS/MTA-STS, disconnect ambiguity, DSN, restart, fault
-injection, backpressure, concurrency, and soak remain separate external
-differential matrices; v35 and 5xx v3 do not claim those paths.
+key for Java and the new key for Rust. STARTTLS/MTA-STS, disconnect ambiguity,
+DSN, restart recovery across injected process or storage loss, backpressure,
+high concurrency, and soak remain separate external differential matrices;
+v36, 5xx v4, and 4xx v3 do not claim those paths.
 
 ## Approved security differences
 

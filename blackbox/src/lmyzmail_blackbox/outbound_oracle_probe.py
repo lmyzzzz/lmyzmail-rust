@@ -11,6 +11,7 @@ import sys
 import tempfile
 import time
 from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -36,6 +37,10 @@ _FAKE_IP = "93.184.216.34"
 _RECIPIENT = f"recipient@{_DNS_HOST}"
 _TASK_TTL_SECONDS = 7 * 24 * 60 * 60
 _TASK_TTL_OBSERVATION_WINDOW_SECONDS = 30
+_FOURXX_CODES = (400, 421, 450, 451, 452, 499)
+_RETRYABLE_FOURXX_CODES = frozenset((421, 450, 451, 452))
+_RETRY_DELAYS_SECONDS = (30, 60, 120, 240, 480)
+_RETRY_DEADLINE_TOLERANCE_SECONDS = 5.0
 _OUTBOUND_TARGET_ENV = "LMYZMAIL_OUTBOUND_TARGET"
 _MESSAGE_ID_RE = re.compile(rb"(?im)^(Message-ID:\s*)<[^>\r\n]+>")
 _DATE_RE = re.compile(rb"(?im)^Date:\s*[^\r\n]+")
@@ -550,6 +555,216 @@ def _failure_redis_snapshot(
     return task, dict(sorted(domain_statuses.items()))
 
 
+def _parse_retry_instant(value: object, *, source: str) -> float:
+    if not isinstance(value, str):
+        raise AssertionError(f"{source} retry deadline is not a string: {value!r}")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise AssertionError(f"{source} retry deadline is invalid: {value!r}") from error
+    if parsed.tzinfo is None:
+        raise AssertionError(f"{source} retry deadline has no timezone: {value!r}")
+    return parsed.timestamp()
+
+
+def _normalize_retry_deadlines(
+    failure_observed_at: float,
+    expected_delay_seconds: int,
+    deadlines: dict[str, float],
+) -> int:
+    if set(deadlines) != {"redis_task", "redis_zset"}:
+        raise AssertionError(f"retry deadline sources are incomplete: {sorted(deadlines)!r}")
+    minimum = expected_delay_seconds - _RETRY_DEADLINE_TOLERANCE_SECONDS
+    maximum = expected_delay_seconds + _RETRY_DEADLINE_TOLERANCE_SECONDS
+    for source, deadline in deadlines.items():
+        observed = deadline - failure_observed_at
+        if not minimum <= observed <= maximum:
+            raise AssertionError(
+                f"{source} retry delay is outside the observation window: "
+                f"{observed:.3f}s not in [{minimum:.3f}, {maximum:.3f}]"
+            )
+    spread = max(deadlines.values()) - min(deadlines.values())
+    if spread > 1.0:
+        raise AssertionError(f"retry deadline sources differ by {spread:.3f}s")
+    return expected_delay_seconds
+
+
+def _retry_database_snapshot(runtime: JavaOracleRuntime, task_id: int) -> dict[str, Any]:
+    if runtime.ports is None:
+        raise AssertionError("runtime ports are unavailable")
+    with psycopg.connect(
+        host="127.0.0.1",
+        port=runtime.ports.postgres,
+        dbname="lmyzmail",
+        user="lmyzmail_test",
+        password="",
+    ) as connection:
+        row = connection.execute(
+            """
+            SELECT status, retry_count, max_retries, next_retry_at, last_error
+            FROM outbound_mail_queue
+            WHERE id = %s
+            """,
+            (task_id,),
+        ).fetchone()
+    if row is None:
+        return {"present": False}
+    deadline = row[3]
+    if not isinstance(deadline, datetime) or deadline.tzinfo is None:
+        raise AssertionError(f"outbound retry task {task_id} has an invalid PostgreSQL deadline")
+    return {
+        "present": True,
+        "status": row[0],
+        "retry_count": int(row[1]),
+        "max_retries": int(row[2]),
+        "next_retry_epoch": deadline.timestamp(),
+        "last_error": row[4],
+    }
+
+
+def _scheduled_retry_ready(client: redis.Redis, task_id: int, retry_count: int) -> bool:
+    raw = cast(bytes | None, client.get(f"{_REDIS_PREFIX}task:{task_id}"))
+    if raw is None or client.zscore(_REDIS_PREFIX + "retry", task_id) is None:
+        return False
+    try:
+        detail = cast(dict[str, Any], json.loads(raw))
+    except (TypeError, ValueError):
+        return False
+    return detail.get("status") == "PENDING" and detail.get("retryCount") == retry_count
+
+
+def _capture_scheduled_retry(
+    runtime: JavaOracleRuntime,
+    client: redis.Redis,
+    task_id: int,
+    *,
+    retry_count: int,
+    expected_delay_seconds: int,
+    failure_observed_at: float,
+) -> dict[str, Any]:
+    _wait_until(
+        lambda: _scheduled_retry_ready(client, task_id, retry_count),
+        timeout=15.0,
+        description=f"retry {retry_count} Redis scheduling",
+    )
+    raw = cast(bytes | None, client.get(f"{_REDIS_PREFIX}task:{task_id}"))
+    if raw is None:
+        raise AssertionError(f"retry task {task_id} disappeared after scheduling")
+    detail = cast(dict[str, Any], json.loads(raw))
+    zset_deadline = cast(
+        float | None, client.zscore(_REDIS_PREFIX + "retry", task_id)
+    )
+    if zset_deadline is None:
+        raise AssertionError(f"retry task {task_id} has no retry ZSET deadline")
+    task_deadline = _parse_retry_instant(
+        detail.get("nextRetryAt"), source="Redis task"
+    )
+    normalized_delay = _normalize_retry_deadlines(
+        failure_observed_at,
+        expected_delay_seconds,
+        {"redis_task": task_deadline, "redis_zset": float(zset_deadline)},
+    )
+    task, domains = _failure_redis_snapshot(client, task_id)
+    if task is None:
+        raise AssertionError(f"retry task {task_id} disappeared before snapshot")
+    database = _retry_database_snapshot(runtime, task_id)
+    database_deadline_matches: bool | None = None
+    if database["present"]:
+        database_deadline_matches = (
+            abs(float(database["next_retry_epoch"]) - task_deadline) <= 1.0
+        )
+        del database["next_retry_epoch"]
+    database["deadline_matches_retry"] = database_deadline_matches
+    return {
+        "retry_count": retry_count,
+        "scheduled_delay_seconds": normalized_delay,
+        "redis": {
+            "task": task,
+            "retry_zset_member": True,
+            "domains": domains,
+            "aggregate_status": _java_aggregate_status(domains),
+        },
+        "db": database,
+    }
+
+
+def _force_retry_due(
+    runtime: JavaOracleRuntime,
+    client: redis.Redis,
+    task_id: int,
+    *,
+    current_retry_count: int,
+    due_retry_count: int,
+    database_present: bool,
+) -> None:
+    task_key = f"{_REDIS_PREFIX}task:{task_id}"
+    raw = cast(bytes | None, client.get(task_key))
+    if raw is None:
+        raise AssertionError(f"retry task {task_id} disappeared before time advancement")
+    detail = cast(dict[str, Any], json.loads(raw))
+    if detail.get("status") != "PENDING" or detail.get("retryCount") != current_retry_count:
+        raise AssertionError(
+            f"retry task {task_id} changed before time advancement: {detail!r}"
+        )
+    max_retries = detail.get("maxRetries")
+    if not isinstance(max_retries, int) or not (
+        current_retry_count <= due_retry_count <= max_retries
+    ):
+        raise AssertionError(
+            f"retry task {task_id} cannot advance to retry {due_retry_count}: {detail!r}"
+        )
+    due = datetime.now(UTC)
+    due_text = due.isoformat().replace("+00:00", "Z")
+    detail["retryCount"] = due_retry_count
+    detail["nextRetryAt"] = due_text
+    encoded = json.dumps(detail, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    if not client.set(task_key, encoded, keepttl=True):
+        raise AssertionError(f"retry task {task_id} could not be advanced")
+
+    if runtime.ports is None:
+        raise AssertionError("runtime ports are unavailable")
+    with psycopg.connect(
+        host="127.0.0.1",
+        port=runtime.ports.postgres,
+        dbname="lmyzmail",
+        user="lmyzmail_test",
+        password="",
+    ) as connection:
+        updated = connection.execute(
+            """
+            UPDATE outbound_mail_queue
+            SET status = 'PENDING', retry_count = %s, next_retry_at = %s,
+                processor_id = NULL, updated_at = %s
+            WHERE id = %s
+            """,
+            (due_retry_count, due, due, task_id),
+        ).rowcount
+    expected_updates = 1 if database_present else 0
+    if updated != expected_updates:
+        raise AssertionError(
+            f"retry task {task_id} PostgreSQL presence changed before time advancement: "
+            f"expected {expected_updates} row, updated {updated}"
+        )
+    client.zadd(_REDIS_PREFIX + "retry", {str(task_id): due.timestamp() - 1.0})
+
+
+def _failure_reply_count(server: ScriptedSmtpServer, code: int) -> int:
+    prefix = f"{code} ".encode("ascii")
+    return sum(
+        event.kind == "reply" and event.payload.startswith(prefix)
+        for event in server.events()
+    )
+
+
+def _failure_reply_count_reached(
+    server: ScriptedSmtpServer, code: int, expected_count: int
+) -> Callable[[], bool]:
+    def reached() -> bool:
+        return _failure_reply_count(server, code) >= expected_count
+
+    return reached
+
+
 def _smtp_transcript_snapshot(server: ScriptedSmtpServer) -> dict[str, Any]:
     commands: list[str] = []
     replies: list[str] = []
@@ -668,6 +883,331 @@ def _capture_5xx_case(
         redis_client.close()
 
 
+def _post_failure_message(
+    runtime: JavaOracleRuntime,
+    *,
+    recipient: str,
+    subject: str,
+    text: str,
+) -> tuple[dict[str, Any], int]:
+    if runtime.ports is None:
+        raise AssertionError("runtime ports are unavailable")
+    with httpx.Client(
+        base_url=f"http://127.0.0.1:{runtime.ports.http}",
+        headers={"X-API-Key": API_KEY},
+        trust_env=False,
+        timeout=5.0,
+    ) as client:
+        response = client.post(
+            "/api/mail/send",
+            json={
+                "from": QA_ADDRESS,
+                "password": QA_PASSWORD,
+                "to": [recipient],
+                "subject": subject,
+                "text": text,
+                "async": True,
+            },
+        )
+    normalized = _normalize_response(response)
+    task_id = response.json().get("queueId")
+    if not isinstance(task_id, int):
+        raise AssertionError(f"outbound failure case was not queued: {normalized!r}")
+    return normalized, task_id
+
+
+def _capture_terminal_failure(
+    runtime: JavaOracleRuntime,
+    client: redis.Redis,
+    task_id: int,
+    *,
+    description: str,
+) -> dict[str, Any]:
+    def final_row() -> dict[str, Any] | None:
+        return next((row for row in _db_rows(runtime) if row["id"] == task_id), None)
+
+    _wait_until(
+        lambda: (row := final_row()) is not None and row["status"] == "FAILED",
+        timeout=45.0,
+        description=f"{description} PostgreSQL failure archive",
+    )
+    _wait_until(
+        lambda: client.llen(_REDIS_PREFIX + "archive") == 0
+        and client.scard(_REDIS_PREFIX + "processing") == 0
+        and client.zscore(_REDIS_PREFIX + "retry", task_id) is None,
+        timeout=15.0,
+        description=f"{description} Redis acknowledgement",
+    )
+    row = final_row()
+    if row is None:
+        raise AssertionError(f"terminal retry task {task_id} disappeared from PostgreSQL")
+    row["id_present"] = isinstance(row.get("id"), int)
+    del row["id"]
+    task, domains = _failure_redis_snapshot(client, task_id)
+    return {
+        "db": row,
+        "redis": {
+            "task": task,
+            "task_present_after_archive": task is not None,
+            "retry_zset_member": client.zscore(_REDIS_PREFIX + "retry", task_id) is not None,
+            "domains": domains,
+            "aggregate_status": _java_aggregate_status(domains),
+        },
+    }
+
+
+def _capture_4xx_case(
+    server: ScriptedSmtpServer,
+    runtime: JavaOracleRuntime,
+    *,
+    phase: str,
+    code: int,
+    case_index: int,
+) -> dict[str, Any]:
+    if runtime.ports is None:
+        raise AssertionError("runtime ports are unavailable")
+    recipient = f"recipient-{phase.lower()}-{code}-{case_index}@{_DNS_HOST}"
+    client: redis.Redis = redis.Redis(
+        host="127.0.0.1",
+        port=runtime.ports.redis,
+        decode_responses=False,
+    )
+    try:
+        client.set(f"dns:mx:{_DNS_HOST}", _DNS_HOST.encode("ascii"), ex=300)
+        response, task_id = _post_failure_message(
+            runtime,
+            recipient=recipient,
+            subject=f"blackbox 4xx {phase} {code} {case_index}",
+            text=f"4xx {phase} body {code} {case_index}",
+        )
+        _wait_until(
+            lambda: _failure_reply_count(server, code) >= 1,
+            timeout=30.0,
+            description=f"4xx {phase} {code} first SMTP reply",
+        )
+        retryable = code in _RETRYABLE_FOURXX_CODES
+        first_retry: dict[str, Any] | None = None
+        forced_exhaustion_retry_count: int | None = None
+        if retryable:
+            failure_observed_at = time.time()
+            first_retry = _capture_scheduled_retry(
+                runtime,
+                client,
+                task_id,
+                retry_count=1,
+                expected_delay_seconds=_RETRY_DELAYS_SECONDS[0],
+                failure_observed_at=failure_observed_at,
+            )
+            forced_exhaustion_retry_count = 5
+            _force_retry_due(
+                runtime,
+                client,
+                task_id,
+                current_retry_count=1,
+                due_retry_count=forced_exhaustion_retry_count,
+                database_present=bool(first_retry["db"]["present"]),
+            )
+            _wait_until(
+                lambda: _failure_reply_count(server, code) >= 2,
+                timeout=30.0,
+                description=f"4xx {phase} {code} exhausted SMTP reply",
+            )
+        terminal = _capture_terminal_failure(
+            runtime,
+            client,
+            task_id,
+            description=f"4xx {phase} {code}",
+        )
+        transcript = _smtp_transcript_snapshot(server)
+        return {
+            "phase": phase,
+            "code": code,
+            "classification": "retryable" if retryable else "terminal",
+            "recipient": recipient,
+            "response": response,
+            "first_retry": first_retry,
+            "forced_exhaustion_retry_count": forced_exhaustion_retry_count,
+            "terminal": terminal,
+            "wire": {
+                "failure_reply_count": _failure_reply_count(server, code),
+                "data_observed": transcript["data_event_count"] > 0,
+                "data_event_count": transcript["data_event_count"],
+                "data_bytes": transcript["data_bytes"],
+            },
+            "smtp": transcript,
+        }
+    finally:
+        client.close()
+
+
+def _capture_4xx_backoff_sequence(
+    server: ScriptedSmtpServer,
+    runtime: JavaOracleRuntime,
+) -> dict[str, Any]:
+    if runtime.ports is None:
+        raise AssertionError("runtime ports are unavailable")
+    code = 451
+    recipient = f"recipient-backoff-{code}@{_DNS_HOST}"
+    client: redis.Redis = redis.Redis(
+        host="127.0.0.1",
+        port=runtime.ports.redis,
+        decode_responses=False,
+    )
+    try:
+        client.set(f"dns:mx:{_DNS_HOST}", _DNS_HOST.encode("ascii"), ex=300)
+        response, task_id = _post_failure_message(
+            runtime,
+            recipient=recipient,
+            subject="blackbox 4xx full backoff sequence",
+            text="4xx full backoff body",
+        )
+        retries: list[dict[str, Any]] = []
+        for retry_count, expected_delay in enumerate(_RETRY_DELAYS_SECONDS, start=1):
+            _wait_until(
+                _failure_reply_count_reached(server, code, retry_count),
+                timeout=30.0,
+                description=f"4xx backoff SMTP reply {retry_count}",
+            )
+            failure_observed_at = time.time()
+            retries.append(
+                _capture_scheduled_retry(
+                    runtime,
+                    client,
+                    task_id,
+                    retry_count=retry_count,
+                    expected_delay_seconds=expected_delay,
+                    failure_observed_at=failure_observed_at,
+                )
+            )
+            _force_retry_due(
+                runtime,
+                client,
+                task_id,
+                current_retry_count=retry_count,
+                due_retry_count=retry_count,
+                database_present=bool(retries[-1]["db"]["present"]),
+            )
+        _wait_until(
+            lambda: _failure_reply_count(server, code) >= 6,
+            timeout=30.0,
+            description="4xx backoff exhausted SMTP reply",
+        )
+        terminal = _capture_terminal_failure(
+            runtime,
+            client,
+            task_id,
+            description="4xx full backoff",
+        )
+        transcript = _smtp_transcript_snapshot(server)
+        return {
+            "phase": "DATA",
+            "code": code,
+            "recipient": recipient,
+            "response": response,
+            "retries": retries,
+            "terminal": terminal,
+            "wire": {
+                "failure_reply_count": _failure_reply_count(server, code),
+                "data_event_count": transcript["data_event_count"],
+                "data_bytes": transcript["data_bytes"],
+            },
+            "smtp": transcript,
+        }
+    finally:
+        client.close()
+
+
+def run_4xx_probe() -> dict[str, Any]:
+    if (
+        subprocess.run(  # noqa: S603
+            ["/usr/sbin/ip", "link", "show", "lo"], capture_output=True
+        ).returncode
+        != 0
+    ):
+        raise AssertionError("outbound probe must run inside a network namespace with loopback")
+
+    cases: list[dict[str, Any]] = []
+    target = _outbound_target()
+    dns_server = _candidate_dns_server() if target == "candidate" else None
+    with tempfile.TemporaryDirectory(prefix="lmyzmail-outbound-4xx-oracle-") as workspace:
+        runtime: JavaOracleRuntime
+        if target == "candidate":
+            repository = Path(__file__).resolve().parents[3]
+            runtime = _candidate_runtime(repository)
+        else:
+            runtime = OutboundOracleRuntime(Path(workspace))
+        if dns_server is not None:
+            dns_server.start()
+        try:
+            with runtime:
+                case_index = 0
+                for phase in ("RCPT", "DATA"):
+                    for code in _FOURXX_CODES:
+                        case_index += 1
+                        recipient = (
+                            f"recipient-{phase.lower()}-{code}-{case_index}@{_DNS_HOST}"
+                        )
+                        reply = f"{code} fixture scripted {phase.lower()} retry\r\n".encode(
+                            "ascii"
+                        )
+                        if phase == "RCPT":
+                            scenario = SmtpScenario(
+                                recipient_replies=(RecipientReply(recipient, reply),),
+                                max_connections=4,
+                                max_concurrent_connections=2,
+                                max_message_bytes=2 * 1024 * 1024,
+                            )
+                        else:
+                            scenario = SmtpScenario(
+                                data_result_reply=reply,
+                                max_connections=4,
+                                max_concurrent_connections=2,
+                                max_message_bytes=2 * 1024 * 1024,
+                            )
+                        server = ScriptedSmtpServer(
+                            scenario, bind_host=_FAKE_IP, bind_port=25
+                        )
+                        with server:
+                            cases.append(
+                                _capture_4xx_case(
+                                    server,
+                                    runtime,
+                                    phase=phase,
+                                    code=code,
+                                    case_index=case_index,
+                                )
+                            )
+                backoff_server = ScriptedSmtpServer(
+                    SmtpScenario(
+                        data_result_reply=b"451 fixture scripted data retry\r\n",
+                        max_connections=8,
+                        max_concurrent_connections=2,
+                        max_message_bytes=2 * 1024 * 1024,
+                    ),
+                    bind_host=_FAKE_IP,
+                    bind_port=25,
+                )
+                with backoff_server:
+                    backoff = _capture_4xx_backoff_sequence(backoff_server, runtime)
+        finally:
+            if dns_server is not None:
+                dns_server.stop()
+    return {
+        "codes": list(_FOURXX_CODES),
+        "retryable_codes": sorted(_RETRYABLE_FOURXX_CODES),
+        "terminal_codes": sorted(set(_FOURXX_CODES) - _RETRYABLE_FOURXX_CODES),
+        "phases": ["RCPT", "DATA"],
+        "case_count": len(cases),
+        "cases": cases,
+        "backoff": backoff,
+        "time_advancement": {
+            "storage_contract": "legacy PostgreSQL row plus Redis task and retry ZSET",
+            "wall_clock_modified": False,
+            "observed_deadline_before_each_advance": True,
+        },
+    }
+
+
 def run_5xx_probe() -> dict[str, Any]:
     if (
         subprocess.run(  # noqa: S603
@@ -782,7 +1322,9 @@ def main() -> int:
     if len(sys.argv) != 2 or sys.argv[1] != "--child":
         raise SystemExit("outbound_oracle_probe must be invoked through run-outbound-probe.sh")
     mode = os.environ.get("LMYZMAIL_OUTBOUND_ORACLE_MODE", "success").lower()
-    if mode == "5xx":
+    if mode == "4xx":
+        observed = run_4xx_probe()
+    elif mode == "5xx":
         observed = run_5xx_probe()
     elif mode == "success":
         observed = run_probe()

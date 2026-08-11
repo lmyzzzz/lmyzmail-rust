@@ -1173,3 +1173,40 @@ CODE ...`, and `All domains failed: {domain=error}` strings. The generated
 queue ID is the only normalizer. One isolated Java runtime created v3, a fresh
 Java runtime replayed it, and the locked Linux x86_64 Rust release matched it
 in a separate candidate environment. No earlier outbound golden was rewritten.
+
+The outbound retry extension retains two superseded create-once recordings:
+
+- `managed-outbound-4xx-v1.json` first froze the Java 4xx classification and
+  Redis-only retry state.
+- `managed-outbound-4xx-v2.json` bound the explicit PostgreSQL checkpoint
+  behavior-difference contract before the final outbound re-attestation names
+  were selected.
+
+The active retry set is:
+
+- `managed-outbound-4xx-v3.json`
+
+It binds definition tree
+`f5fadc4f3851ee9ba0b84d29234270f12cacd8d53922ae2c9459d82532432657`.
+Across RCPT and DATA it freezes codes 400, 421, 450, 451, 452, and 499. The
+oracle retries only 421, 450, 451, and 452. Every retryable case observes its
+real first 30-second deadline before bounded fixture advancement to retry count
+5; the separate DATA 451 sequence freezes 30, 60, 120, 240, and 480 seconds
+before the sixth terminal attempt. Redis task and ZSET deadlines are checked
+before every advance. Queue ID and observed retry deadline are the only
+normalizers.
+
+Java has no PostgreSQL row during these retry windows. Rust instead proves an
+exact durable `PENDING` checkpoint whose retry count, max retries, error, and
+deadline match Redis. This is the narrowly allowlisted
+`outbound-retry-postgres-checkpoint` crash-recovery difference; after those
+checkpoint nodes are asserted and removed from both comparison copies, the
+entire candidate observation must equal the Java golden. One isolated Java
+runtime created v3, a fresh Java runtime replayed it, and the locked Linux
+x86_64 Rust release passed in a separate candidate environment.
+
+The same final definition tree re-attests the unchanged success and permanent
+failure observations as `managed-outbound-queue-v36.json` and
+`managed-outbound-5xx-v4.json`. Both were created once by Java, replayed in a
+fresh Java runtime, and matched by the Rust candidate. All earlier generations
+remain immutable.
