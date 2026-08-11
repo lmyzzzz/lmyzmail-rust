@@ -25,6 +25,7 @@ const MAX_TRANSACTION_TXT_CACHE_ENTRIES: usize = 16;
 pub(crate) struct DkimVerification {
     result: &'static str,
     reason: String,
+    signing_domain: Option<String>,
 }
 
 impl DkimVerification {
@@ -40,6 +41,10 @@ impl DkimVerification {
         self.result == "pass"
     }
 
+    pub(crate) fn signing_domain(&self) -> Option<&str> {
+        self.signing_domain.as_deref()
+    }
+
     pub(crate) fn protocol_score(&self) -> f64 {
         if self.result == "fail" { 3.0 } else { 0.0 }
     }
@@ -52,6 +57,7 @@ impl DkimVerification {
         Self {
             result: "none",
             reason: "No DKIM signature present".to_owned(),
+            signing_domain: None,
         }
     }
 
@@ -59,6 +65,7 @@ impl DkimVerification {
         Self {
             result: "permerror",
             reason: "Failed to parse email headers".to_owned(),
+            signing_domain: None,
         }
     }
 
@@ -66,6 +73,7 @@ impl DkimVerification {
         Self {
             result: "permerror",
             reason: "Missing required DKIM tags".to_owned(),
+            signing_domain: None,
         }
     }
 
@@ -73,6 +81,7 @@ impl DkimVerification {
         Self {
             result: "permerror",
             reason: format!("DKIM public key not found for {domain}"),
+            signing_domain: Some(domain.to_owned()),
         }
     }
 
@@ -80,6 +89,7 @@ impl DkimVerification {
         Self {
             result: "temperror",
             reason: reason.to_owned(),
+            signing_domain: None,
         }
     }
 }
@@ -195,19 +205,23 @@ fn map_result(result: &DkimResult, domain: &str) -> DkimVerification {
         DkimResult::Pass => DkimVerification {
             result: "pass",
             reason: format!("DKIM signature verified for {domain}"),
+            signing_domain: Some(domain.to_owned()),
         },
         DkimResult::Neutral(Error::Dkim(DkimError::FailedBodyHashMatch))
         | DkimResult::Fail(Error::Dkim(DkimError::FailedBodyHashMatch)) => DkimVerification {
             result: "fail",
             reason: "Body hash mismatch".to_owned(),
+            signing_domain: Some(domain.to_owned()),
         },
         DkimResult::Fail(Error::Crypto(CryptoError::FailedVerification)) => DkimVerification {
             result: "fail",
             reason: format!("Signature verification failed for {domain}: Signature mismatch"),
+            signing_domain: Some(domain.to_owned()),
         },
         DkimResult::Fail(error) => DkimVerification {
             result: "fail",
             reason: format!("Signature verification failed for {domain}: {error}"),
+            signing_domain: Some(domain.to_owned()),
         },
         DkimResult::PermError(Error::Dns(_)) | DkimResult::TempError(Error::Dns(_)) => {
             DkimVerification::missing_key(domain)
@@ -215,6 +229,7 @@ fn map_result(result: &DkimResult, domain: &str) -> DkimVerification {
         DkimResult::PermError(error) | DkimResult::Neutral(error) => DkimVerification {
             result: "permerror",
             reason: format!("Verification error: {error}"),
+            signing_domain: Some(domain.to_owned()),
         },
         DkimResult::TempError(error) => {
             DkimVerification::temporary_failure(&format!("Verification error: {error}"))

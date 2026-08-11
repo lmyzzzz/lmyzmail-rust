@@ -830,6 +830,82 @@ def capture_delivery(
     }
 
 
+def capture_accepted_without_delivery(
+    target: RuntimeTarget,
+    *,
+    subject: str,
+    message_id: str,
+    message: bytes,
+    envelope_sender: str = "",
+    source: str | None = None,
+    observation_seconds: float = 5.0,
+) -> dict[str, Any]:
+    workspace = target.workspace
+    if workspace is None:
+        raise AssertionError("SMTP target is not started")
+    _check(0.1 <= observation_seconds <= 30.0, observation_seconds)
+    preflight_deadline = time.monotonic() + 5.0
+    maildir_before = _maildir_files(workspace, deadline=preflight_deadline)
+    _check(
+        _index_count(target, message_id, deadline=preflight_deadline) == 0,
+        message_id,
+    )
+    count_keys = tuple(
+        f"mail:count:{_QA_ADDRESS}:{folder}" for folder in ("inbox", "spam")
+    )
+    redis_before = {
+        key: _redis_state(target, key, deadline=preflight_deadline) for key in count_keys
+    }
+
+    client, hostname = open_smtp_client(target, source=source)
+    with client:
+        greeting = smtp_greeting_snapshot()
+        ehlo = smtp_reply_snapshot(smtp_ehlo(client, hostname), hostname)
+        mail_from = client.command(f"MAIL FROM:<{envelope_sender}>".encode())
+        rcpt_to = client.command(b"RCPT TO:<qa@example.test>")
+        data_ready, accepted = client.data(message)
+        quit_reply = client.quit()
+
+    observation_deadline = time.monotonic() + observation_seconds
+    while True:
+        check_deadline = time.monotonic() + 2.0
+        maildir_after = _maildir_files(workspace, deadline=check_deadline)
+        _check(maildir_after == maildir_before, (maildir_before, maildir_after))
+        _check(
+            _index_count(target, message_id, deadline=check_deadline) == 0,
+            message_id,
+        )
+        redis_after = {
+            key: _redis_state(target, key, deadline=check_deadline) for key in count_keys
+        }
+        _check(redis_after == redis_before, (redis_before, redis_after))
+        remaining = observation_deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        time.sleep(min(0.05, remaining))
+
+    return {
+        "mode": "data",
+        "wire": {
+            "greeting": greeting,
+            "ehlo": ehlo,
+            "mail_from": smtp_reply_snapshot(mail_from, hostname),
+            "rcpt_to": smtp_reply_snapshot(rcpt_to, hostname),
+            "data_ready": smtp_reply_snapshot(data_ready, hostname),
+            "accepted": smtp_reply_snapshot(accepted, hostname, accepted=True),
+            "quit": smtp_reply_snapshot(quit_reply, hostname),
+        },
+        "storage": {
+            "observation_seconds": observation_seconds,
+            "maildir_unchanged": True,
+            "postgres_matching_rows": 0,
+            "redis_unchanged": True,
+            "subject": subject,
+            "message_id": message_id,
+        },
+    }
+
+
 def _capture_data(target: RuntimeTarget) -> dict[str, Any]:
     return capture_delivery(
         target,

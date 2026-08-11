@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "profile": "smtp-external-dmarc-v1",
+  "captured_at": "2026-08-11T18:23:20+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "contract": {
+    "case_count": 5,
+    "results": {
+      "dkim_aligned": {
+        "authentication_result": "dmarc=pass (p=quarantine) DMARC passed: DKIM aligned",
+        "protocol_score": 0.0,
+        "spam_status": "No",
+        "folder": "inbox"
+      },
+      "dkim_fail_quarantine": {
+        "authentication_result": "dmarc=fail (p=quarantine)",
+        "protocol_score_with_dkim": 5.0,
+        "spam_status": "Yes",
+        "folder": "spam"
+      },
+      "spf_aligned": {
+        "authentication_result": "dmarc=pass (p=reject) DMARC passed: SPF aligned",
+        "protocol_score": 0.0,
+        "spam_status": "No",
+        "folder": "inbox"
+      },
+      "spf_unaligned_quarantine": {
+        "authentication_result": "dmarc=fail (p=quarantine)",
+        "protocol_score": 2.0,
+        "spam_status": "Yes",
+        "folder": "spam"
+      },
+      "reject_no_auth": {
+        "smtp_reply": "250 2.0.0 Message accepted for delivery",
+        "maildir_unchanged": true,
+        "postgres_matching_rows": 0,
+        "redis_unchanged": true,
+        "observation_seconds": 5.0
+      }
+    },
+    "positive_zero_ttl_txt_queries_per_transaction": 1,
+    "persistence": [
+      "Maildir atomic publish for pass and quarantine",
+      "email_index folder and byte length for pass and quarantine",
+      "legacy mail:count:<mailbox>:<folder> Redis key without TTL",
+      "no Maildir, PostgreSQL, or Redis publication after accepted p=reject failure"
+    ]
+  },
+  "bounds": {
+    "dmarc_lookup_and_evaluation_deadline_seconds": 10,
+    "concurrent_dmarc_lookups": 16,
+    "txt_records_per_response": 32,
+    "joined_txt_record_bytes": 4096,
+    "smtp_connection_limit": 256,
+    "delivery_queue_capacity": 256,
+    "delivery_deadline_seconds": 15
+  },
+  "golden": {
+    "profile": "managed-smtp-dmarc",
+    "version": 1,
+    "definition_tree_sha256": "08c9823fc3fcdceb71b8b223f7bece660d630b2b4e6f31a1aad55858a5ced9ef",
+    "suite_sha256": "7ffffd8a5a77dda80cb4d2dc31a8c351828a9cd046f401e293bf02fd4bb12c24",
+    "observation_sha256": "563f97d9b7a487aa8a0fe5a0dcbc8eee1d2099054d074758e22147fe0410ec5b"
+  },
+  "implementation": {
+    "runtime": "stable-rust-1.94.0",
+    "java_runtime_dependency": false,
+    "dmarc_parser": "mail-auth 0.11.2",
+    "organizational_domain_source": "psl 2.1.223",
+    "mail_from_record_reused_for_matching_header_from": true,
+    "covered_completion_modes": [
+      "DATA"
+    ],
+    "covered_verdict_matrix": [
+      "strict DKIM aligned pass",
+      "DKIM body hash fail with quarantine",
+      "strict SPF aligned pass",
+      "SPF pass with cross-organizational-domain quarantine",
+      "unauthenticated reject with accepted SMTP reply and no persistence"
+    ],
+    "remaining_separate_matrices": [
+      "multiple RFC5322.From headers and group syntax",
+      "organizational-domain record fallback",
+      "subdomain policy selection",
+      "malformed and multiple DMARC records",
+      "multiple DKIM signatures",
+      "BDAT LAST DMARC completion"
+    ]
+  },
+  "source_sha256": {
+    "Cargo.lock": "025fda3214b0ed11e167ccf813132446913eed15ea20338acb5320798019417b",
+    "crates/lmyzmail/Cargo.toml": "4e38824e29d147f75f70a415ab05546a5eb8478f25702f6b47c25f75df31cd8d",
+    "crates/lmyzmail/src/lib.rs": "7f678c3361529368d48d5e1057da6d16fbcb1a5073509ee9bc8fdc5c6934f281",
+    "crates/lmyzmail/src/smtp.rs": "b12dae4615713cece5f10b79c26a223261589b4f2ea0f24f9a623afc81b67b50",
+    "crates/lmyzmail/src/smtp_dkim.rs": "7d9d10e1eac13966d0eeb8b1e4cc4b5c1a12f7b4290570d6f49ac817537df2f1",
+    "crates/lmyzmail/src/smtp_dmarc.rs": "c5ee2d7c08c0f8b722f5375326346e4110827c367fe1b85c246145e6150c9cf0",
+    "blackbox/src/lmyzmail_blackbox/scripted_dns.py": "edcfc3e7b2fc92d6a83af3590abeb7d34c006aaf112fca0e6e3a4fd980ca1e2f",
+    "blackbox/src/lmyzmail_blackbox/smtp_contract.py": "d97469b994baa223ca17793834136b31be49e982927ec17725821dac07fc2882",
+    "blackbox/src/lmyzmail_blackbox/smtp_dkim_contract.py": "d9cfd440de83e9fb552d7117f61a25c448389e41a093fa3643b6047d861d0961",
+    "blackbox/src/lmyzmail_blackbox/smtp_dmarc_contract.py": "0298e4aa6a32c2656d4cbdad5da114352f9cea216a1b87d6421162ae003ab07f",
+    "blackbox/tests/test_oracle_smtp_dmarc.py": "44e06165ccd818510e2cc174a0aa70f4a66b50d84ad94145dd06d6fe5e002589",
+    "docs/compatibility.md": "d1e88b806ef7575248614812f7f0536f0e1e11a4bc5c6da7ad2ebfef95394693"
+  },
+  "release": {
+    "command": "cargo build --locked --release --target x86_64-unknown-linux-gnu -p lmyzmail",
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "5f4deedb08f518626e7eaf11aedc963cccf92d5133bed61cb445e9d3a12af5ad"
+  },
+  "verification": [
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_smtp_dmarc.py::test_managed_java_smtp_dmarc_golden --record-java-golden",
+      "result": "1 passed; create-once Java v1 golden recorded"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_smtp_dmarc.py::test_managed_java_smtp_dmarc_golden",
+      "result": "1 passed; fresh Java runtime replayed the v1 golden"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_smtp_dmarc.py::test_rust_candidate_smtp_dmarc_matches_frozen_java_golden",
+      "result": "1 passed; locked Rust release matched the Java v1 golden"
+    },
+    {
+      "command": "cargo test -q -p lmyzmail smtp_dmarc --lib",
+      "result": "3 passed"
+    },
+    {
+      "command": "cargo test -q -p lmyzmail smtp --lib",
+      "result": "112 passed"
+    },
+    {
+      "command": "cargo test --workspace --all-features --all-targets",
+      "result": "passed; 509 lmyzmail library tests plus every binary and integration target"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --all-features -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "cargo build --locked --release --target x86_64-unknown-linux-gnu -p lmyzmail",
+      "result": "passed"
+    },
+    {
+      "command": "blackbox/.venv/bin/pytest -q blackbox/tests -m 'not integration'",
+      "result": "135 passed, 109 deselected"
+    },
+    {
+      "command": "blackbox/.venv/bin/ruff check blackbox/src blackbox/tests blackbox/tools",
+      "result": "passed"
+    },
+    {
+      "command": "cd blackbox && .venv/bin/mypy src tests tools",
+      "result": "Success: no issues found in 129 source files"
+    }
+  ],
+  "attestation_scope": {
+    "new_suite_current": true,
+    "older_versioned_smtp_suites": "not re-recorded; their immutable definition-tree attestations reject the expanded harness before candidate observation",
+    "older_goldens_modified": false,
+    "final_full_reattestation_required": true
+  },
+  "security_differences": []
+}

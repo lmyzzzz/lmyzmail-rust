@@ -182,6 +182,38 @@ it byte for byte after the documented field-scoped normalizers. Multiple
 signatures, identifier alignment, and combined SPF/DKIM verdicts remain
 separate compatibility work and are not claimed by this matrix.
 
+## SMTP DMARC alignment and disposition
+
+For each accepted non-null reverse path, lmyzmail performs the frozen early
+DMARC lookup for the envelope domain after SPF and retains a positive record in
+the bounded transaction state. At DATA or final BDAT delivery it parses exactly
+one non-group RFC5322.From mailbox, reuses that record only when the normalized
+From and envelope domains are equal, and otherwise looks up the author domain.
+IDNA normalization and the pinned Mozilla Public Suffix List from `psl
+2.1.223` provide strict or relaxed SPF/DKIM alignment without a JVM.
+
+DMARC lookup and its 16-permit admission share a ten-second deadline and the
+SMTP connection cancellation token. Each response considers at most 32 TXT
+records and 4 KiB per joined record. An author-domain miss falls back once to
+the registrable domain and applies `sp`; lookup, parse, or normalization failure
+fails open as the frozen oracle's `dmarc=none` result.
+
+An aligned SPF or DKIM pass emits `dmarc=pass` and permits inbox routing. A
+`p=quarantine` alignment failure overrides an otherwise passing mechanism,
+routes to spam, and sets `X-Spam-Status: Yes`. Every DMARC fail adds 2.0 to
+`X-Spam-Score`; SPF and DKIM scores remain additive. A `p=reject` failure keeps
+the frozen SMTP behavior of returning a normal `250` acceptance ID while
+publishing no Maildir file, PostgreSQL index row, or Redis counter change.
+
+The create-once `managed-smtp-dmarc-v1` matrix freezes five cases: strict
+DKIM-aligned pass, DKIM body-hash failure with quarantine, strict SPF-aligned
+pass, cross-organizational-domain SPF pass with quarantine, and unauthenticated
+reject with a five-second no-persistence observation. A fresh Java runtime
+replayed the golden unchanged, and the locked Linux x86_64 Rust release matched
+it byte for byte. Multiple From fields, organizational-domain record fallback,
+`sp` selection, malformed records, and additional multi-signature combinations
+remain separate compatibility matrices and are not claimed here.
+
 ## SMTP Spamhaus DNSBL and DBL
 
 Spamhaus is disabled by default, with the frozen `zen.spamhaus.org` IP zone,

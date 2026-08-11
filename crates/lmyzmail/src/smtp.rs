@@ -45,6 +45,7 @@ use crate::{
         scan_attachments, scan_body,
     },
     smtp_dkim::{DkimVerification, DkimVerifier},
+    smtp_dmarc::{DmarcRecord, DmarcVerification, DmarcVerifier},
     smtp_domain::validate_routable_domain,
     smtp_skibidi_quiz::{AnswerOutcome, QuizLevel, QuizState, ensure_question_bank_loaded},
     smtp_skibidi_video::{VideoDefaults, VideoService, VideoStartError, frame_wire_bytes},
@@ -102,6 +103,7 @@ pub struct SmtpService {
     new_domain_scanner: NewDomainScanner,
     spf_verifier: SpfVerifier,
     dkim_verifier: DkimVerifier,
+    dmarc_verifier: DmarcVerifier,
     spamhaus_service: SpamhausService,
     skibidi_generator: SkibidiGenerator,
     inferx_service: Arc<InferxService>,
@@ -254,6 +256,10 @@ impl SmtpService {
             DkimVerifier::new(config.features.smtp_spf_dns_server).map_err(|error| {
                 SmtpError::InvalidConfig(format!("SMTP DKIM resolver cannot start: {error}"))
             })?;
+        let dmarc_verifier =
+            DmarcVerifier::new(config.features.smtp_spf_dns_server).map_err(|error| {
+                SmtpError::InvalidConfig(format!("SMTP DMARC resolver cannot start: {error}"))
+            })?;
         let spamhaus_service = SpamhausService::new(
             config.smtp_spamhaus.clone(),
             config.features.smtp_spf_dns_server,
@@ -308,6 +314,7 @@ impl SmtpService {
             new_domain_scanner,
             spf_verifier,
             dkim_verifier,
+            dmarc_verifier,
             spamhaus_service,
             skibidi_generator,
             inferx_service,
@@ -464,6 +471,19 @@ impl SmtpService {
         );
         let headers = ParsedHeaders::parse(&envelope.data)
             .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+        let parsed_message = MessageParser::default().parse_headers(&envelope.data);
+        envelope.dmarc = Some(
+            self.dmarc_verifier
+                .verify(
+                    parsed_message.as_ref(),
+                    envelope.sender.as_deref(),
+                    envelope.spf.as_ref(),
+                    envelope.dkim.as_ref(),
+                    envelope.dmarc_record.clone(),
+                    cancellation,
+                )
+                .await,
+        );
         let mut content_scan = self
             .rbl_scanner
             .scan(peer, &self.config.content_filter)
@@ -500,8 +520,8 @@ impl SmtpService {
                 self.config.domain
             )
         });
-        let subject = MessageParser::default()
-            .parse_headers(&envelope.data)
+        let subject = parsed_message
+            .as_ref()
             .and_then(|message| message.subject().map(str::to_owned))
             .or_else(|| headers.first_trimmed("subject"));
         let from_address = headers.first_trimmed("from");
@@ -514,10 +534,26 @@ impl SmtpService {
         let received_at = Utc::now();
         let received_id = random_hex_upper(7).map_err(io::Error::other)?;
         let accepted_id = random_hex(4).map_err(io::Error::other)?;
+        if envelope
+            .dmarc
+            .as_ref()
+            .is_some_and(DmarcVerification::should_reject)
+        {
+            return Ok(accepted_id);
+        }
         let content_quarantined = content_scan.is_suspicious(&self.config.content_filter);
         let authentication_passed = envelope.spf.as_ref().is_some_and(SpfVerification::passed)
-            || envelope.dkim.as_ref().is_some_and(DkimVerification::passed);
-        let folder = if authentication_passed && !content_quarantined {
+            || envelope.dkim.as_ref().is_some_and(DkimVerification::passed)
+            || envelope
+                .dmarc
+                .as_ref()
+                .is_some_and(DmarcVerification::passed);
+        let authentication_quarantined = envelope
+            .dmarc
+            .as_ref()
+            .is_some_and(DmarcVerification::should_quarantine);
+        let folder = if authentication_passed && !content_quarantined && !authentication_quarantined
+        {
             "inbox"
         } else {
             "spam"
@@ -906,6 +942,8 @@ struct Envelope {
     data: Vec<u8>,
     spf: Option<SpfVerification>,
     dkim: Option<DkimVerification>,
+    dmarc_record: Option<DmarcRecord>,
+    dmarc: Option<DmarcVerification>,
 }
 
 impl Envelope {
@@ -915,6 +953,8 @@ impl Envelope {
         self.data.clear();
         self.spf = None;
         self.dkim = None;
+        self.dmarc_record = None;
+        self.dmarc = None;
     }
 }
 
@@ -1491,7 +1531,18 @@ async fn handle_connection(
                                         &connection_cancellation,
                                     )
                                     .await,
-                            )
+                                )
+                        };
+                        let dmarc_record = if sender.canonical.is_empty() {
+                            None
+                        } else {
+                            service
+                                .dmarc_verifier
+                                .lookup_sender_record(
+                                    &sender.canonical,
+                                    &connection_cancellation,
+                                )
+                                .await
                         };
                         if let Some(verification) = spf.as_ref()
                             && let Some(message) = service
@@ -1510,6 +1561,7 @@ async fn handle_connection(
                         envelope.sender = Some(sender.canonical);
                         envelope.recipients.clear();
                         envelope.spf = spf;
+                        envelope.dmarc_record = dmarc_record;
                         io.write_all(b"250 2.1.0 Sender OK\r\n").await?;
                     }
                     Ok(None) => io.write_all(b"501 5.5.4 Syntax error in parameters\r\n").await?,
@@ -1879,6 +1931,10 @@ fn compose_message(envelope: &Envelope, composition: MessageComposition<'_>) -> 
         || "dkim=temperror (DKIM verification unavailable)".to_owned(),
         |verification| format!("dkim={} ({})", verification.result(), verification.reason()),
     );
+    let auth_dmarc = envelope.dmarc.as_ref().map_or_else(
+        || "dmarc=none No DMARC record found".to_owned(),
+        DmarcVerification::authentication_result,
+    );
     let protocol = if encrypted { "ESMTPS" } else { "ESMTP" };
     let date = java_rfc1123(received_at);
     let status = if content_scan.is_suspicious(content_filter)
@@ -1890,6 +1946,10 @@ fn compose_message(envelope: &Envelope, composition: MessageComposition<'_>) -> 
             .dkim
             .as_ref()
             .is_some_and(DkimVerification::should_quarantine)
+        || envelope
+            .dmarc
+            .as_ref()
+            .is_some_and(DmarcVerification::should_quarantine)
     {
         "Yes"
     } else {
@@ -1902,7 +1962,11 @@ fn compose_message(envelope: &Envelope, composition: MessageComposition<'_>) -> 
         + envelope
             .dkim
             .as_ref()
-            .map_or(0.0, DkimVerification::protocol_score);
+            .map_or(0.0, DkimVerification::protocol_score)
+        + envelope
+            .dmarc
+            .as_ref()
+            .map_or(0.0, DmarcVerification::protocol_score);
     let total_score = java_one_decimal(content_scan.total_score() + protocol_score);
     let reverse_dns = match peer {
         IpAddr::V4(address) if address == Ipv4Addr::LOCALHOST => "localhost",
@@ -1910,7 +1974,7 @@ fn compose_message(envelope: &Envelope, composition: MessageComposition<'_>) -> 
         _ => "unverified",
     };
     let mut header = format!(
-        "Received: from {helo} ({reverse_dns} [{peer}])\r\n\tby {HOSTNAME} with {protocol} id {received_id}\r\n\tfor <{mailbox}>;\r\n\t{date}\r\nAuthentication-Results: {HOSTNAME};\r\n\t{auth_spf} smtp.client-ip={peer} smtp.mailfrom={sender_clause};\r\n\t{auth_dkim};\r\n\tdmarc=none No DMARC record found\r\nX-Spam-Status: {status}\r\nX-Spam-Score: {total_score}\r\n",
+        "Received: from {helo} ({reverse_dns} [{peer}])\r\n\tby {HOSTNAME} with {protocol} id {received_id}\r\n\tfor <{mailbox}>;\r\n\t{date}\r\nAuthentication-Results: {HOSTNAME};\r\n\t{auth_spf} smtp.client-ip={peer} smtp.mailfrom={sender_clause};\r\n\t{auth_dkim};\r\n\t{auth_dmarc}\r\nX-Spam-Status: {status}\r\nX-Spam-Score: {total_score}\r\n",
     );
     let rules = content_scan
         .hits()
@@ -2177,6 +2241,8 @@ mod tests {
             data: b"From: sender@external.test\r\nDate: Tue, 5 Aug 2025 12:00:00 GMT\r\nSubject: =?UTF-8?Q?FREE?= =?ISO-8859-1?Q?MONEY?=\r\nMessage-ID: <encoded@example.test>\r\n\r\nbody\r\n".to_vec(),
             spf: None,
             dkim: None,
+            dmarc_record: None,
+            dmarc: None,
         };
         let config = ContentFilterConfig::default();
         let scan = ParsedHeaders::parse(&envelope.data)
@@ -2212,6 +2278,8 @@ mod tests {
             data: b"From: sender@external.test\r\nDate: Tue, 5 Aug 2025 12:00:00 GMT\r\nSubject: clean\r\nMessage-ID: <clean@example.test>\r\n\r\nbody\r\n".to_vec(),
             spf: None,
             dkim: None,
+            dmarc_record: None,
+            dmarc: None,
         };
         let config = ContentFilterConfig::default();
         let scan = ParsedHeaders::parse(&envelope.data)

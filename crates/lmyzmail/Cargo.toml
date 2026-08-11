@@ -40,6 +40,7 @@ memmap2 = "0.9.11"
 mime = "0.3.17"
 moka = { version = "0.12.15", features = ["future"] }
 percent-encoding = "2.3.1"
+psl = "2.1.223"
 openssl = "0.10.81"
 rustls = { version = "0.23.37", default-features = false, features = ["ring", "std", "tls12"] }
 rustls-native-certs = "0.8.4"
