@@ -26,6 +26,7 @@ const MAX_XDP_EXISTING_BANS: usize = 200_000;
 const MAX_XDP_NEW_CANDIDATES: usize = 200_000;
 const MAX_XDP_RECONCILE_CANDIDATES: usize = MAX_XDP_EXISTING_BANS + MAX_XDP_NEW_CANDIDATES;
 const XDP_TRAFFIC_SCORE: i32 = 50;
+const SSH_BRUTEFORCE_SCORE: i32 = 10;
 const DECAY_ADVISORY_LOCK_ID: i64 = 0x4c4d_595a_4445_4341;
 
 const IP_COLUMNS: &str = "ip_address, total_score, current_score, activity_count, \
@@ -40,6 +41,13 @@ const ACTIVITY_COLUMNS: &str = "id, ip_address, activity_type, score, timestamp,
 #[derive(Clone)]
 pub struct CringeService {
     pool: Pool,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct ActivityIncrements {
+    pps_overlimit: i32,
+    syn_flood: i32,
+    ssh_bruteforce: i32,
 }
 
 impl CringeService {
@@ -86,6 +94,52 @@ impl CringeService {
         metadata: &str,
         cancellation: &CancellationToken,
     ) -> Result<Option<i32>, CringeError> {
+        let (pps_increment, syn_increment) = activity.counter_increments();
+        self.record_scored_activity(
+            ip,
+            activity.name(),
+            XDP_TRAFFIC_SCORE,
+            metadata,
+            ActivityIncrements {
+                pps_overlimit: pps_increment,
+                syn_flood: syn_increment,
+                ssh_bruteforce: 0,
+            },
+            cancellation,
+        )
+        .await
+    }
+
+    pub async fn record_ssh_bruteforce(
+        &self,
+        ip: IpAddr,
+        metadata: &str,
+        cancellation: &CancellationToken,
+    ) -> Result<Option<i32>, CringeError> {
+        self.record_scored_activity(
+            ip,
+            "SSH_BRUTEFORCE",
+            SSH_BRUTEFORCE_SCORE,
+            metadata,
+            ActivityIncrements {
+                pps_overlimit: 0,
+                syn_flood: 0,
+                ssh_bruteforce: 1,
+            },
+            cancellation,
+        )
+        .await
+    }
+
+    async fn record_scored_activity(
+        &self,
+        ip: IpAddr,
+        activity_type: &str,
+        score: i32,
+        metadata: &str,
+        increments: ActivityIncrements,
+        cancellation: &CancellationToken,
+    ) -> Result<Option<i32>, CringeError> {
         if is_exact_localhost(ip) {
             return Ok(None);
         }
@@ -97,8 +151,7 @@ impl CringeService {
         let now = DateTime::from_timestamp_micros(Utc::now().timestamp_micros())
             .ok_or_else(|| CringeError::Database("current timestamp is out of range".into()))?;
         let ip_address = ip.to_string();
-        let activity_type = activity.name();
-        let (pps_increment, syn_increment) = activity.counter_increments();
+        let activity_type = activity_type.to_owned();
         let client = self.client(deadline, cancellation).await?;
         let mut connection = DatabaseConnection::new(client);
         let cancel_token = connection.cancel_token();
@@ -131,7 +184,7 @@ impl CringeService {
                             &activity_id,
                             &ip_address,
                             &activity_type,
-                            &XDP_TRAFFIC_SCORE,
+                            &score,
                             &now,
                             &metadata,
                         ],
@@ -149,7 +202,7 @@ impl CringeService {
                              ssh_on_smtp_count,http_port_scanning_count,honeypot_hit_count,\
                              ssh_bruteforce_count,pps_overlimit_count,syn_flood_count,other_count\
                          ) VALUES (\
-                             $1,$2,$2,1,$3,$3,$3,0,0,0,0,0,0,0,0,0,0,$4,$5,0\
+                             $1,$2,$2,1,$3,$3,$3,0,0,0,0,0,0,0,0,0,$6,$4,$5,0\
                          ) ON CONFLICT (ip_address) DO UPDATE SET \
                              total_score=skibidi_cringe_ip.total_score+$2,\
                              current_score=skibidi_cringe_ip.current_score+$2,\
@@ -164,7 +217,9 @@ impl CringeService {
                              ssh_on_smtp_count=skibidi_cringe_ip.ssh_on_smtp_count+0,\
                              http_port_scanning_count=skibidi_cringe_ip.http_port_scanning_count+0,\
                              honeypot_hit_count=skibidi_cringe_ip.honeypot_hit_count+0,\
-                             ssh_bruteforce_count=skibidi_cringe_ip.ssh_bruteforce_count+0,\
+                             ssh_bruteforce_count=CASE WHEN $6<>0 \
+                                 THEN COALESCE(skibidi_cringe_ip.ssh_bruteforce_count,0)+$6 \
+                                 ELSE skibidi_cringe_ip.ssh_bruteforce_count END,\
                              pps_overlimit_count=CASE WHEN $4<>0 \
                                  THEN COALESCE(skibidi_cringe_ip.pps_overlimit_count,0)+$4 \
                                  ELSE skibidi_cringe_ip.pps_overlimit_count END,\
@@ -175,10 +230,11 @@ impl CringeService {
                          RETURNING current_score",
                         &[
                             &ip_address,
-                            &XDP_TRAFFIC_SCORE,
+                            &score,
                             &now,
-                            &pps_increment,
-                            &syn_increment,
+                            &increments.pps_overlimit,
+                            &increments.syn_flood,
+                            &increments.ssh_bruteforce,
                         ],
                     )
                     .await
@@ -195,7 +251,14 @@ impl CringeService {
             // Once COMMIT starts, cancellation cannot tell whether PostgreSQL applied it.
             // Reconcile independently, but never beyond its own absolute database deadline.
             Err(CringeError::OutcomeUnknown) => self
-                .reconcile_xdp_traffic(activity_id, &ip_address, activity_type, metadata, now)
+                .reconcile_activity(
+                    activity_id,
+                    &ip_address,
+                    &activity_type,
+                    score,
+                    metadata,
+                    now,
+                )
                 .await
                 .map(Some),
             Err(error) => Err(error),
@@ -222,11 +285,12 @@ impl CringeService {
         connection.finish(outcome)
     }
 
-    async fn reconcile_xdp_traffic(
+    async fn reconcile_activity(
         &self,
         activity_id: i64,
         ip_address: &str,
         activity_type: &str,
+        score: i32,
         metadata: &str,
         timestamp: DateTime<Utc>,
     ) -> Result<i32, CringeError> {
@@ -274,7 +338,7 @@ impl CringeService {
             Some(row)
                 if row.get::<_, &str>(0) == ip_address
                     && row.get::<_, &str>(1) == activity_type
-                    && row.get::<_, i32>(2) == XDP_TRAFFIC_SCORE
+                    && row.get::<_, i32>(2) == score
                     && row.get::<_, DateTime<Utc>>(3) == timestamp
                     && row.get::<_, Option<&str>>(4) == Some(metadata) =>
             {

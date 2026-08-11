@@ -3,7 +3,7 @@ use std::{env, io, path::PathBuf, sync::Arc, time::Duration};
 use lmyzmail::{
     config::{Properties, RuntimeConfig},
     cringe::CringeService,
-    cringe_decay, database, honeypot, htcpcp, http, lifecycle, minecraft,
+    cringe_decay, database, fail2ban, honeypot, htcpcp, http, lifecycle, minecraft,
     outbound::OutboundService,
     outbound_worker::OutboundWorker,
     redis,
@@ -99,6 +99,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await;
         ("cringe decay scheduler", Ok::<(), io::Error>(()))
     });
+    if config.fail2ban.enabled {
+        let fail2ban_config = config.fail2ban.clone();
+        let fail2ban_cringe = cringe_service.clone();
+        let fail2ban_cancellation = cancellation.clone();
+        services.spawn(async move {
+            fail2ban::run(fail2ban_config, fail2ban_cringe, fail2ban_cancellation).await;
+            ("Fail2Ban", Ok::<(), io::Error>(()))
+        });
+    }
     let http_config = Arc::clone(&config);
     let http_cancellation = cancellation.clone();
     let http_pool = database_pool.clone();

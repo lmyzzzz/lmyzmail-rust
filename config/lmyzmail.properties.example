@@ -193,7 +193,16 @@ lmyzmail.cringe.decay.amount=10
 # lmyzmail.cringe.decay.check-interval=1h
 lmyzmail.cringe.decay.activity-retention-days=360
 
+# Monitor the first readable SSH log and begin at EOF. All queues and tracked
+# state remain bounded even when the input log is adversarial.
 lmyzmail.fail2ban.enabled=false
+lmyzmail.fail2ban.ssh-log-paths=/var/log/auth.log,/var/log/secure,/var/log/messages
+lmyzmail.fail2ban.scan-interval=10s
+lmyzmail.fail2ban.max-retries=5
+lmyzmail.fail2ban.find-time=10m
+lmyzmail.fail2ban.report-cooldown=5m
+lmyzmail.fail2ban.max-tracked-ips=10000
+lmyzmail.fail2ban.cleanup-interval=5m
 lmyzmail.reporting.enabled=false
 lmyzmail.reporting.auto-send-enabled=false
 lmyzmail.reporting.batch-size=500

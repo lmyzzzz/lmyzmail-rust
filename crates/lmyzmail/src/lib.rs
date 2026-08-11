@@ -4,6 +4,7 @@ pub mod config;
 pub mod cringe;
 pub mod cringe_decay;
 pub mod database;
+pub mod fail2ban;
 pub(crate) mod ffmpeg_video;
 pub mod honeypot;
 pub mod htcpcp;

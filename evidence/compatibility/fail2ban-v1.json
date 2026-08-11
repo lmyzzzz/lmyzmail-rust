@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "profile": "fail2ban-v1",
+  "oracle_commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+  "oracle_jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc",
+  "contract": {
+    "source": "incremental SSH authentication log",
+    "startup_position": "EOF",
+    "paths": "first readable regular file, then readable alternatives after an I/O failure",
+    "rotation": "Linux device/inode replacement or truncation resets the offset",
+    "patterns": [
+      "failed-password-or-publickey",
+      "invalid-user",
+      "pam-auth-failure",
+      "preauth-disconnect",
+      "max-auth-attempts",
+      "bad-protocol",
+      "missing-identification",
+      "refused-connect"
+    ],
+    "report": {
+      "activity_type": "SSH_BRUTEFORCE",
+      "score": 10,
+      "metadata": "SSH brute force: <count> failed attempts in <Java duration>. Sample: <bounded source line>"
+    },
+    "persistence": [
+      "skibidi_cringe_ip",
+      "skibidi_cringe_ip_activity"
+    ],
+    "configuration": {
+      "new_keys": "lmyzmail.fail2ban.*",
+      "legacy_aliases": "botmail.fail2ban.*",
+      "precedence": "new key wins independently for each field"
+    }
+  },
+  "bounds": {
+    "configured_log_paths": 16,
+    "configured_max_retries": 4096,
+    "configured_max_tracked_ips": 200000,
+    "scan_bytes": 1048576,
+    "line_bytes": 65536,
+    "events_per_scan": 8192,
+    "failure_timestamps_per_ip": 4096,
+    "persistence_in_flight": 8,
+    "file_worker_threads": 1,
+    "file_worker_queue": 1,
+    "hourly_summary_ips": 4096,
+    "hourly_summary_usernames": 10,
+    "hourly_summary_samples": 3
+  },
+  "frozen_golden": {
+    "suite_sha256": "b71ecc0855c2019cc6f418e6267f2fa5def3c39e7804e3a002af79b8a476b487",
+    "threshold_and_cooldown_sha256": "d9c902a17838fcc769d8d74bb52b766b79b8190279892d7dec40eac28a9b589a",
+    "eight_sshd_patterns_sha256": "d0b7d7cb22fb8e47aeef0b149372b6383dfdf921594d2917779b925cdab2d734",
+    "partial_line_and_rotation_sha256": "34aa0d5f55dac803a10c2ff34a13a8ca1f3197c546a70c0c59e6d0bf6f247869"
+  },
+  "behavior_differences": [
+    {
+      "id": "fail2ban-preserve-report-cooldown",
+      "scope": "cleanup runs while a report has cleared the failure queue but its cooldown is still active",
+      "oracle_behavior": "Java cleanup removes an empty failure queue and its lastReported entry before the cooldown expires, so two new failures can report again early",
+      "candidate_behavior": "Rust keeps last_report through the configured cooldown and only removes it after twice the cooldown; cleanup also honors cleanup-interval",
+      "reason": "Replicating the early-removal path would defeat the configured brute-force report cooldown",
+      "evidence": "crates/lmyzmail/src/fail2ban.rs tests::cleanup_does_not_remove_an_active_report_cooldown"
+    },
+    {
+      "id": "fail2ban-bounded-summary",
+      "scope": "more than 4096 unique reported IPs in one summary period or more than the bounded sample state",
+      "oracle_behavior": "Java hourly summary maps, username set, and retained sample state are not hard bounded",
+      "candidate_behavior": "Rust retains at most 4096 IP detail rows, 10 usernames, and 3 bounded samples, and emits an omitted-data marker",
+      "reason": "Prevent log amplification and attacker-controlled hourly memory growth",
+      "evidence": "crates/lmyzmail/src/fail2ban.rs tests::hourly_summary_ip_state_is_bounded"
+    },
+    {
+      "id": "fail2ban-streaming-input-budgets",
+      "scope": "adversarial input beyond the explicit parser and scheduling budgets",
+      "oracle_behavior": "Java reads an unbounded batch of newly appended lines and keeps unbounded per-IP failure timestamps",
+      "candidate_behavior": "Rust defers bytes/events beyond each scan budget, drops an unterminated line over 64 KiB, and caps each IP queue at 4096 timestamps",
+      "reason": "Keep file I/O, parser state, CPU work, and persistence admission bounded without dropping in-budget complete lines",
+      "evidence": "crates/lmyzmail/src/fail2ban.rs tests::scan_event_limit_defers_complete_lines_without_dropping_them, tests::oversized_partial_lines_are_dropped_without_growing_state, tests::failure_timestamp_queue_has_a_hard_per_ip_limit"
+    }
+  ],
+  "source": {
+    "candidate": {
+      "Cargo.lock": "b2d3b0f7c10eda2ad071955a4a842966e7fe9cb90b91e79d9ea06081fb556c16",
+      "config/lmyzmail.properties.example": "2aa6359ca4ff99012abad0595b65387156a3042399c3130aea6b0d58bc575542",
+      "crates/lmyzmail/src/config.rs": "020f8e9979df2d6e685d450424505eafc81ae0f09968dee737362a445c6162cb",
+      "crates/lmyzmail/src/cringe.rs": "5abfb793ca8f0fec5dea5322472ce10a2fa2f21e1df61583b8f0e18978a18f7c",
+      "crates/lmyzmail/src/fail2ban.rs": "8f167a8239144380eaad4c7ba0f324f48c515b1336f854736ec7b0b7953fbc1f",
+      "crates/lmyzmail/src/lib.rs": "f929498248e88d4c77c143da286b04d5f77fe690b94eadad48030c24cc7f08fd",
+      "crates/lmyzmail/src/main.rs": "b9ca044fb24781e824b43e9d96dc45a5d17650ebba3d9ba8c66a57fe2b0d75ea",
+      "blackbox/tools/test_fail2ban.py": "e91e36808f842fb119d79bbd538873de8ce229788d5005496f6be6427f5f2d63"
+    },
+    "oracle": {
+      "SshFail2BanService.java": "405241780C671557F3FA8375E132D48AB83F56278940EDD4F9E3CA11C47C0129",
+      "Fail2BanProperties.java": "EF33C0502C56760A27A28E36AE8E2AFC5AB751088657FDA8D861A6BD19BBABA0",
+      "SkibidiCringeIPTransactionalHelper.java": "4EB48D930E923840D5FDE506D4E7AB53B28AE4FD57B5A5FE45D9273526A941EF"
+    }
+  },
+  "release": {
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "a8e404930cf9e46dad89b9e6eb384eb1c1b04d503f3e3e5f5fda4e609cca8591"
+  },
+  "verification": [
+    {
+      "command": "cargo test -p lmyzmail fail2ban",
+      "result": "15 passed"
+    },
+    {
+      "command": "cargo test --workspace --all-targets --locked --quiet",
+      "result": "549 passed"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --locked --quiet -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "python -m pytest -q blackbox/tests -m 'not integration'",
+      "result": "133 passed, 89 deselected"
+    },
+    {
+      "command": "python -m pytest -q blackbox/tools/test_fail2ban.py::test_frozen_java_fail2ban_golden",
+      "result": "1 passed"
+    },
+    {
+      "command": "python -m pytest -q blackbox/tools/test_fail2ban.py::test_rust_candidate_fail2ban_matches_golden",
+      "result": "1 passed"
+    },
+    {
+      "command": "python -m pytest -q blackbox/tools -m candidate --ignore=blackbox/tools/test_smtp_content_filter_rbl.py",
+      "result": "34 passed, 36 deselected"
+    },
+    {
+      "command": "python blackbox/tools/run_smtp_rbl.py -m oracle && python blackbox/tools/run_smtp_rbl.py -m candidate",
+      "result": "each 1 passed, 1 deselected"
+    },
+    {
+      "command": "python -m ruff check blackbox/tools/test_fail2ban.py",
+      "result": "passed"
+    }
+  ]
+}

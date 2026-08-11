@@ -67,6 +67,9 @@ const DEFAULT_CONTENT_FILTER_STREAM_BUFFER_SIZE: usize = 65_536;
 const MAX_CONTENT_FILTER_STREAM_BUFFER_SIZE: usize = 1_048_576;
 const MAX_MESSAGE_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_CRINGE_DECAY_DURATION: Duration = Duration::from_secs(100 * 366 * 24 * 60 * 60);
+const MAX_FAIL2BAN_LOG_PATHS: usize = 16;
+const MAX_FAIL2BAN_TRACKED_IPS: u64 = 200_000;
+const MAX_FAIL2BAN_RETRIES: u64 = 4_096;
 
 #[derive(Debug)]
 pub enum ConfigError {
@@ -330,6 +333,8 @@ struct JsonRuntimeConfig {
     #[serde(default)]
     features: JsonFeatureConfig,
     #[serde(default)]
+    fail2ban: Option<JsonFail2BanConfig>,
+    #[serde(default)]
     smtp: JsonSmtpConfig,
     #[serde(default)]
     content_filter: JsonContentFilterConfig,
@@ -434,6 +439,27 @@ struct JsonFeatureConfig {
     report_delivery: bool,
     #[serde(default)]
     show_internet_nl_badge: bool,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct JsonFail2BanConfig {
+    #[serde(default)]
+    enabled: Option<bool>,
+    #[serde(default)]
+    ssh_log_paths: Option<Vec<String>>,
+    #[serde(default)]
+    scan_interval: Option<String>,
+    #[serde(default)]
+    max_retries: Option<u64>,
+    #[serde(default)]
+    find_time: Option<String>,
+    #[serde(default)]
+    report_cooldown: Option<String>,
+    #[serde(default)]
+    max_tracked_ips: Option<u64>,
+    #[serde(default)]
+    cleanup_interval: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2045,10 +2071,56 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         "lmyzmail.cringe.decay.activity-retention-days".to_owned(),
         value.cringe.decay.activity_retention_days.to_string(),
     )?;
-    properties.insert(
-        "lmyzmail.fail2ban.enabled".to_owned(),
-        value.features.fail2ban.to_string(),
-    )?;
+    if let Some(fail2ban) = value.fail2ban {
+        properties.insert(
+            "lmyzmail.fail2ban.enabled".to_owned(),
+            fail2ban
+                .enabled
+                .unwrap_or(value.features.fail2ban)
+                .to_string(),
+        )?;
+        if let Some(paths) = fail2ban.ssh_log_paths {
+            properties.insert(
+                "lmyzmail.fail2ban.ssh-log-paths".to_owned(),
+                paths.join(","),
+            )?;
+        }
+        insert_optional_property(
+            &mut properties,
+            "lmyzmail.fail2ban.scan-interval",
+            fail2ban.scan_interval,
+        )?;
+        insert_optional_property(
+            &mut properties,
+            "lmyzmail.fail2ban.max-retries",
+            fail2ban.max_retries.map(|value| value.to_string()),
+        )?;
+        insert_optional_property(
+            &mut properties,
+            "lmyzmail.fail2ban.find-time",
+            fail2ban.find_time,
+        )?;
+        insert_optional_property(
+            &mut properties,
+            "lmyzmail.fail2ban.report-cooldown",
+            fail2ban.report_cooldown,
+        )?;
+        insert_optional_property(
+            &mut properties,
+            "lmyzmail.fail2ban.max-tracked-ips",
+            fail2ban.max_tracked_ips.map(|value| value.to_string()),
+        )?;
+        insert_optional_property(
+            &mut properties,
+            "lmyzmail.fail2ban.cleanup-interval",
+            fail2ban.cleanup_interval,
+        )?;
+    } else {
+        properties.insert(
+            "lmyzmail.fail2ban.enabled".to_owned(),
+            value.features.fail2ban.to_string(),
+        )?;
+    }
     properties.insert(
         "lmyzmail.reporting.http-delivery-enabled".to_owned(),
         value
@@ -2318,6 +2390,7 @@ pub struct RuntimeConfig {
     pub features: FeatureConfig,
     pub smtp_skibidi: SmtpSkibidiConfig,
     pub content_filter: ContentFilterConfig,
+    pub fail2ban: Fail2BanConfig,
     pub xdp: XdpConfig,
     pub cringe_decay: CringeDecayConfig,
     pub reporting: ReportingConfig,
@@ -2397,6 +2470,18 @@ pub struct FeatureConfig {
     pub fail2ban: bool,
     pub report_delivery: bool,
     pub show_internet_nl_badge: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Fail2BanConfig {
+    pub enabled: bool,
+    pub ssh_log_paths: Vec<PathBuf>,
+    pub scan_interval: Duration,
+    pub max_retries: usize,
+    pub find_time: Duration,
+    pub report_cooldown: Duration,
+    pub max_tracked_ips: usize,
+    pub cleanup_interval: Duration,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -2840,6 +2925,7 @@ impl RuntimeConfig {
         };
         let smtp_skibidi = parse_smtp_skibidi_config(&properties)?;
         let content_filter = parse_content_filter_config(&properties)?;
+        let fail2ban = parse_fail2ban_config(&properties)?;
 
         let datasource_url = preferred(
             &properties,
@@ -3053,12 +3139,7 @@ impl RuntimeConfig {
                 true,
             )?,
             xdp: xdp.enabled,
-            fail2ban: preferred_bool(
-                &properties,
-                &["lmyzmail.fail2ban.enabled"],
-                &["botmail.fail2ban.enabled"],
-                false,
-            )?,
+            fail2ban: fail2ban.enabled,
             report_delivery: preferred_bool(
                 &properties,
                 &["lmyzmail.reporting.http-delivery-enabled"],
@@ -3322,6 +3403,7 @@ impl RuntimeConfig {
             features,
             smtp_skibidi,
             content_filter,
+            fail2ban,
             xdp,
             cringe_decay,
             reporting,
@@ -5148,6 +5230,107 @@ fn parse_honeypots(
         });
     }
     Ok(traps)
+}
+
+fn parse_fail2ban_config(properties: &Properties) -> Result<Fail2BanConfig, ConfigError> {
+    let enabled = preferred_bool(
+        properties,
+        &["lmyzmail.fail2ban.enabled"],
+        &["botmail.fail2ban.enabled"],
+        false,
+    )?;
+    let path_value = preferred(
+        properties,
+        &["lmyzmail.fail2ban.ssh-log-paths"],
+        &["botmail.fail2ban.ssh-log-paths"],
+    )
+    .unwrap_or("/var/log/auth.log,/var/log/secure,/var/log/messages");
+    let ssh_log_paths = path_value
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| {
+            validate_path(value, "fail2ban ssh log path")?;
+            Ok(PathBuf::from(value))
+        })
+        .collect::<Result<Vec<_>, ConfigError>>()?;
+    if ssh_log_paths.is_empty() || ssh_log_paths.len() > MAX_FAIL2BAN_LOG_PATHS {
+        return Err(ConfigError::Invalid(format!(
+            "fail2ban ssh-log-paths must contain between 1 and {MAX_FAIL2BAN_LOG_PATHS} paths"
+        )));
+    }
+
+    let scan_interval = preferred(
+        properties,
+        &["lmyzmail.fail2ban.scan-interval"],
+        &["botmail.fail2ban.scan-interval"],
+    )
+    .map_or_else(
+        || Ok(Duration::from_secs(10)),
+        |value| parse_spring_duration(value, "fail2ban scan interval"),
+    )?;
+    let max_retries = preferred_u64(
+        properties,
+        &["lmyzmail.fail2ban.max-retries"],
+        &["botmail.fail2ban.max-retries"],
+        5,
+    )?;
+    if !(1..=MAX_FAIL2BAN_RETRIES).contains(&max_retries) {
+        return Err(ConfigError::Invalid(format!(
+            "fail2ban max-retries must be between 1 and {MAX_FAIL2BAN_RETRIES}"
+        )));
+    }
+    let find_time = preferred(
+        properties,
+        &["lmyzmail.fail2ban.find-time"],
+        &["botmail.fail2ban.find-time"],
+    )
+    .map_or_else(
+        || Ok(Duration::from_secs(600)),
+        |value| parse_spring_duration(value, "fail2ban find time"),
+    )?;
+    let report_cooldown = preferred(
+        properties,
+        &["lmyzmail.fail2ban.report-cooldown"],
+        &["botmail.fail2ban.report-cooldown"],
+    )
+    .map_or_else(
+        || Ok(Duration::from_secs(300)),
+        |value| parse_spring_duration(value, "fail2ban report cooldown"),
+    )?;
+    let max_tracked_ips = preferred_u64(
+        properties,
+        &["lmyzmail.fail2ban.max-tracked-ips"],
+        &["botmail.fail2ban.max-tracked-ips"],
+        10_000,
+    )?;
+    if !(1..=MAX_FAIL2BAN_TRACKED_IPS).contains(&max_tracked_ips) {
+        return Err(ConfigError::Invalid(format!(
+            "fail2ban max-tracked-ips must be between 1 and {MAX_FAIL2BAN_TRACKED_IPS}"
+        )));
+    }
+    let cleanup_interval = preferred(
+        properties,
+        &["lmyzmail.fail2ban.cleanup-interval"],
+        &["botmail.fail2ban.cleanup-interval"],
+    )
+    .map_or_else(
+        || Ok(Duration::from_secs(300)),
+        |value| parse_spring_duration(value, "fail2ban cleanup interval"),
+    )?;
+
+    Ok(Fail2BanConfig {
+        enabled,
+        ssh_log_paths,
+        scan_interval,
+        max_retries: usize::try_from(max_retries)
+            .map_err(|_| ConfigError::Invalid("fail2ban max-retries is too large".into()))?,
+        find_time,
+        report_cooldown,
+        max_tracked_ips: usize::try_from(max_tracked_ips)
+            .map_err(|_| ConfigError::Invalid("fail2ban max-tracked-ips is too large".into()))?,
+        cleanup_interval,
+    })
 }
 
 fn parse_cringe_decay_config(properties: &Properties) -> Result<CringeDecayConfig, ConfigError> {
@@ -7695,6 +7878,92 @@ lmyzmail.cringe.decay.amount=4\n",
                 String::from_utf8_lossy(input),
             );
         }
+    }
+
+    #[test]
+    fn fail2ban_defaults_aliases_and_bounds_are_checked() {
+        let defaults = RuntimeConfig::from_properties(Properties::default()).unwrap();
+        assert!(!defaults.fail2ban.enabled);
+        assert_eq!(defaults.fail2ban.ssh_log_paths.len(), 3);
+        assert_eq!(defaults.fail2ban.scan_interval, Duration::from_secs(10));
+        assert_eq!(defaults.fail2ban.max_retries, 5);
+        assert_eq!(defaults.fail2ban.find_time, Duration::from_secs(600));
+        assert_eq!(defaults.fail2ban.report_cooldown, Duration::from_secs(300));
+        assert_eq!(defaults.fail2ban.max_tracked_ips, 10_000);
+        assert_eq!(defaults.fail2ban.cleanup_interval, Duration::from_secs(300));
+
+        let config = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.fail2ban.enabled=true\n\
+botmail.fail2ban.ssh-log-paths=/tmp/old-auth.log\n\
+botmail.fail2ban.scan-interval=3s\n\
+botmail.fail2ban.max-retries=1\n\
+botmail.fail2ban.find-time=60m\n\
+botmail.fail2ban.report-cooldown=1ms\n\
+botmail.fail2ban.max-tracked-ips=100\n\
+lmyzmail.fail2ban.ssh-log-paths=/tmp/new-auth.log\n\
+lmyzmail.fail2ban.max-retries=2\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(config.fail2ban.enabled);
+        assert_eq!(
+            config.fail2ban.ssh_log_paths,
+            [PathBuf::from("/tmp/new-auth.log")]
+        );
+        assert_eq!(config.fail2ban.scan_interval, Duration::from_secs(3));
+        assert_eq!(config.fail2ban.max_retries, 2);
+        assert_eq!(config.features.fail2ban, config.fail2ban.enabled);
+
+        for input in [
+            b"lmyzmail.fail2ban.max-retries=0\n".as_slice(),
+            b"lmyzmail.fail2ban.max-retries=4097\n".as_slice(),
+            b"lmyzmail.fail2ban.max-tracked-ips=0\n".as_slice(),
+            b"lmyzmail.fail2ban.ssh-log-paths=\n".as_slice(),
+            b"lmyzmail.fail2ban.scan-interval=0ms\n".as_slice(),
+        ] {
+            assert!(
+                RuntimeConfig::from_properties(Properties::parse(input).unwrap()).is_err(),
+                "accepted invalid Fail2Ban configuration: {}",
+                String::from_utf8_lossy(input),
+            );
+        }
+    }
+
+    #[test]
+    fn fail2ban_semantic_json_preserves_feature_fallback_and_overrides() {
+        let json = br#"{
+            "schema_version": 1,
+            "profile": "test",
+            "listen": {"host":"127.0.0.1","http":18080,"smtp":1025,"htcpcp":18888,"minecraft":25575},
+            "postgres": {"host":"localhost","port":15432,"database":"lmyzmail","username":"qa","password":""},
+            "redis": {"host":"localhost","port":16379,"database":0},
+            "maildir": "/tmp/lmyzmail-mail",
+            "domain": "example.test",
+            "features": {"fail2ban": true},
+            "fail2ban": {
+                "ssh_log_paths": ["/tmp/auth.log"],
+                "scan_interval": "50ms",
+                "max_retries": 2,
+                "find_time": "PT10M",
+                "report_cooldown": "1s",
+                "max_tracked_ips": 16,
+                "cleanup_interval": "30s"
+            }
+        }"#;
+        let config = RuntimeConfig::from_properties(parse_semantic_json(json).unwrap()).unwrap();
+        assert!(config.fail2ban.enabled);
+        assert_eq!(
+            config.fail2ban.ssh_log_paths,
+            [PathBuf::from("/tmp/auth.log")]
+        );
+        assert_eq!(config.fail2ban.scan_interval, Duration::from_millis(50));
+        assert_eq!(config.fail2ban.max_retries, 2);
+        assert_eq!(config.fail2ban.find_time, Duration::from_secs(600));
+        assert_eq!(config.fail2ban.report_cooldown, Duration::from_secs(1));
+        assert_eq!(config.fail2ban.max_tracked_ips, 16);
+        assert_eq!(config.fail2ban.cleanup_interval, Duration::from_secs(30));
     }
 
     #[test]
