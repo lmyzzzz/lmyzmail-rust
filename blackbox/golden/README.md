@@ -1110,3 +1110,19 @@ normalization; every emitted question is matched against the full frozen
 question, difficulty, answer, and option tuple, with no duplicate ID inside a
 quiz and the configured difficulty tolerance enforced. One fresh isolated Java
 runtime created v1 and a second fresh runtime replayed it without record mode.
+
+The first SMTP sender-domain validation set is:
+
+- `managed-smtp-sender-domain-v1/`
+
+It binds definition tree
+`236bb0bfe719d7fd1bf42dccc82fde467110ede8c57331fa0a6a03619396f973`
+and freezes 23 raw-socket cases: 20 exact early rejections spanning reserved
+domains/TLDs, missing dots, IPv4/IPv6/address literals, malformed labels,
+length limits, numeric and frozen-invalid TLDs, Punycode, and Unicode
+boundaries; plus accepted ASCII, A-label, and U-label senders. Every rejection
+also freezes the post-rejection `RCPT` state and PostgreSQL
+`ILLEGAL_SENDER_DOMAIN`/`PROTOCOL_VIOLATION` rows and aggregate. One fresh
+isolated Java runtime created v1, a second fresh Java runtime replayed it
+without record mode, and the Linux x86_64 Rust release matched it in a separate
+candidate workspace. No self-spoof golden was rewritten.

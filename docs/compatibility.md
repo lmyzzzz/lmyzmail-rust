@@ -102,6 +102,28 @@ The four base golden observations are recorded under
 malformed, deep embedded-message, and UTF-8 parser-chunk observations are
 recorded under `managed-smtp-content-filter-body-edge-v1`.
 
+## SMTP sender-domain rejection
+
+`MAIL FROM` validates the extracted sender domain before local-domain SPF or
+other DNS work. The Rust validator preserves the frozen Java check order and
+exact `550 5.1.8 Sender address rejected: <reason>` text for reserved names and
+TLDs, missing dots, IPv4/IPv6 and address literals, dot and hyphen placement,
+ASCII label syntax, label/domain length, numeric and frozen-invalid TLDs,
+Punycode shape, and the frozen Unicode control/private-use/surrogate rules.
+
+An invalid domain does not become the accepted sender. A following `RCPT`
+therefore receives the frozen `503 5.5.1 Bad sequence of commands`. The server
+persists one `ILLEGAL_SENDER_DOMAIN` activity with score 4 and exact metadata,
+then the RCPT state probe persists one `PROTOCOL_VIOLATION` with score 1. The
+aggregate is `(total_score=5, current_score=5, activity_count=2,
+illegal_domain_count=1, other_count=1)`. Activity admission uses the existing
+256-entry bounded SMTP Cringe queue and shutdown deadlines.
+
+The create-once oracle matrix is `managed-smtp-sender-domain-v1`. It freezes
+20 rejection cases plus accepted ASCII, A-label, and U-label boundaries using
+raw sockets and independent PostgreSQL state; a second fresh Java runtime
+replayed it unchanged, and the Linux x86_64 Rust release matched it.
+
 ## Approved security differences
 
 The authoritative allowlist is

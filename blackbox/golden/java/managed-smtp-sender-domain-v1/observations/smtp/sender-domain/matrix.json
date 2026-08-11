@@ -1,0 +1,1318 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "236bb0bfe719d7fd1bf42dccc82fde467110ede8c57331fa0a6a03619396f973",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "smtp:greeting-skibidi-grammar",
+      "smtp:server-hostname",
+      "postgres:async-activity-observation-window"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-smtp-sender-domain"
+  },
+  "observation": {
+    "cases": [
+      {
+        "decision": "rejected",
+        "mail_from": "sender@example.com",
+        "name": "reserved-domain",
+        "persistence": {
+          "illegal_sender_domain_activity": {
+            "helo_name": null,
+            "mail_from": "sender@example.com",
+            "metadata": "Invalid domain: example.com - Reserved domain 'example.com' is not allowed",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 4,
+            "session_id": null,
+            "type": "ILLEGAL_SENDER_DOMAIN"
+          },
+          "ip": {
+            "activity_count": 2,
+            "current_score": 5,
+            "illegal_domain_count": 1,
+            "other_count": 1,
+            "total_score": 5
+          },
+          "post_rejection_protocol_activity": {
+            "helo_name": "blackbox.example",
+            "mail_from": null,
+            "metadata": "Bad sequence: RCPT in state HELO",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 1,
+            "session_id": "<session-id>",
+            "type": "PROTOCOL_VIOLATION"
+          }
+        },
+        "reason": "Reserved domain 'example.com' is not allowed",
+        "source": "127.0.0.2",
+        "wire": {
+          "ehlo": [
+            "250-<hostname> Hello blackbox.example\r\n",
+            "250-PIPELINING\r\n",
+            "250-SIZE 15728640\r\n",
+            "250-8BITMIME\r\n",
+            "250-CHUNKING\r\n",
+            "250-ENHANCEDSTATUSCODES\r\n",
+            "250-SMTPUTF8\r\n",
+            "250 SKIBIDITOILET\r\n"
+          ],
+          "greeting": [
+            "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+          ],
+          "mail_from": [
+            "550 5.1.8 Sender address rejected: Reserved domain 'example.com' is not allowed\r\n"
+          ],
+          "quit": [
+            "221 2.0.0 <hostname> closing connection\r\n"
+          ],
+          "rcpt_after_rejection": [
+            "503 5.5.1 Bad sequence of commands\r\n"
+          ]
+        }
+      },
+      {
+        "decision": "rejected",
+        "mail_from": "sender@mx.test",
+        "name": "reserved-tld",
+        "persistence": {
+          "illegal_sender_domain_activity": {
+            "helo_name": null,
+            "mail_from": "sender@mx.test",
+            "metadata": "Invalid domain: mx.test - Reserved TLD '.test' is not allowed",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 4,
+            "session_id": null,
+            "type": "ILLEGAL_SENDER_DOMAIN"
+          },
+          "ip": {
+            "activity_count": 2,
+            "current_score": 5,
+            "illegal_domain_count": 1,
+            "other_count": 1,
+            "total_score": 5
+          },
+          "post_rejection_protocol_activity": {
+            "helo_name": "blackbox.example",
+            "mail_from": null,
+            "metadata": "Bad sequence: RCPT in state HELO",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 1,
+            "session_id": "<session-id>",
+            "type": "PROTOCOL_VIOLATION"
+          }
+        },
+        "reason": "Reserved TLD '.test' is not allowed",
+        "source": "127.0.0.3",
+        "wire": {
+          "ehlo": [
+            "250-<hostname> Hello blackbox.example\r\n",
+            "250-PIPELINING\r\n",
+            "250-SIZE 15728640\r\n",
+            "250-8BITMIME\r\n",
+            "250-CHUNKING\r\n",
+            "250-ENHANCEDSTATUSCODES\r\n",
+            "250-SMTPUTF8\r\n",
+            "250 SKIBIDITOILET\r\n"
+          ],
+          "greeting": [
+            "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+          ],
+          "mail_from": [
+            "550 5.1.8 Sender address rejected: Reserved TLD '.test' is not allowed\r\n"
+          ],
+          "quit": [
+            "221 2.0.0 <hostname> closing connection\r\n"
+          ],
+          "rcpt_after_rejection": [
+            "503 5.5.1 Bad sequence of commands\r\n"
+          ]
+        }
+      },
+      {
+        "decision": "rejected",
+        "mail_from": "sender@localhost",
+        "name": "missing-dot",
+        "persistence": {
+          "illegal_sender_domain_activity": {
+            "helo_name": null,
+            "mail_from": "sender@localhost",
+            "metadata": "Invalid domain: localhost - Domain must contain at least one dot",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 4,
+            "session_id": null,
+            "type": "ILLEGAL_SENDER_DOMAIN"
+          },
+          "ip": {
+            "activity_count": 2,
+            "current_score": 5,
+            "illegal_domain_count": 1,
+            "other_count": 1,
+            "total_score": 5
+          },
+          "post_rejection_protocol_activity": {
+            "helo_name": "blackbox.example",
+            "mail_from": null,
+            "metadata": "Bad sequence: RCPT in state HELO",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 1,
+            "session_id": "<session-id>",
+            "type": "PROTOCOL_VIOLATION"
+          }
+        },
+        "reason": "Domain must contain at least one dot",
+        "source": "127.0.0.4",
+        "wire": {
+          "ehlo": [
+            "250-<hostname> Hello blackbox.example\r\n",
+            "250-PIPELINING\r\n",
+            "250-SIZE 15728640\r\n",
+            "250-8BITMIME\r\n",
+            "250-CHUNKING\r\n",
+            "250-ENHANCEDSTATUSCODES\r\n",
+            "250-SMTPUTF8\r\n",
+            "250 SKIBIDITOILET\r\n"
+          ],
+          "greeting": [
+            "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+          ],
+          "mail_from": [
+            "550 5.1.8 Sender address rejected: Domain must contain at least one dot\r\n"
+          ],
+          "quit": [
+            "221 2.0.0 <hostname> closing connection\r\n"
+          ],
+          "rcpt_after_rejection": [
+            "503 5.5.1 Bad sequence of commands\r\n"
+          ]
+        }
+      },
+      {
+        "decision": "rejected",
+        "mail_from": "sender@192.0.2.1",
+        "name": "ipv4",
+        "persistence": {
+          "illegal_sender_domain_activity": {
+            "helo_name": null,
+            "mail_from": "sender@192.0.2.1",
+            "metadata": "Invalid domain: 192.0.2.1 - IP address is not allowed as sender domain",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 4,
+            "session_id": null,
+            "type": "ILLEGAL_SENDER_DOMAIN"
+          },
+          "ip": {
+            "activity_count": 2,
+            "current_score": 5,
+            "illegal_domain_count": 1,
+            "other_count": 1,
+            "total_score": 5
+          },
+          "post_rejection_protocol_activity": {
+            "helo_name": "blackbox.example",
+            "mail_from": null,
+            "metadata": "Bad sequence: RCPT in state HELO",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 1,
+            "session_id": "<session-id>",
+            "type": "PROTOCOL_VIOLATION"
+          }
+        },
+        "reason": "IP address is not allowed as sender domain",
+        "source": "127.0.0.5",
+        "wire": {
+          "ehlo": [
+            "250-<hostname> Hello blackbox.example\r\n",
+            "250-PIPELINING\r\n",
+            "250-SIZE 15728640\r\n",
+            "250-8BITMIME\r\n",
+            "250-CHUNKING\r\n",
+            "250-ENHANCEDSTATUSCODES\r\n",
+            "250-SMTPUTF8\r\n",
+            "250 SKIBIDITOILET\r\n"
+          ],
+          "greeting": [
+            "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+          ],
+          "mail_from": [
+            "550 5.1.8 Sender address rejected: IP address is not allowed as sender domain\r\n"
+          ],
+          "quit": [
+            "221 2.0.0 <hostname> closing connection\r\n"
+          ],
+          "rcpt_after_rejection": [
+            "503 5.5.1 Bad sequence of commands\r\n"
+          ]
+        }
+      },
+      {
+        "decision": "rejected",
+        "mail_from": "sender@2001:db8::1",
+        "name": "ipv6",
+        "persistence": {
+          "illegal_sender_domain_activity": {
+            "helo_name": null,
+            "mail_from": "sender@2001:db8::1",
+            "metadata": "Invalid domain: 2001:db8::1 - IP address is not allowed as sender domain",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 4,
+            "session_id": null,
+            "type": "ILLEGAL_SENDER_DOMAIN"
+          },
+          "ip": {
+            "activity_count": 2,
+            "current_score": 5,
+            "illegal_domain_count": 1,
+            "other_count": 1,
+            "total_score": 5
+          },
+          "post_rejection_protocol_activity": {
+            "helo_name": "blackbox.example",
+            "mail_from": null,
+            "metadata": "Bad sequence: RCPT in state HELO",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 1,
+            "session_id": "<session-id>",
+            "type": "PROTOCOL_VIOLATION"
+          }
+        },
+        "reason": "IP address is not allowed as sender domain",
+        "source": "127.0.0.6",
+        "wire": {
+          "ehlo": [
+            "250-<hostname> Hello blackbox.example\r\n",
+            "250-PIPELINING\r\n",
+            "250-SIZE 15728640\r\n",
+            "250-8BITMIME\r\n",
+            "250-CHUNKING\r\n",
+            "250-ENHANCEDSTATUSCODES\r\n",
+            "250-SMTPUTF8\r\n",
+            "250 SKIBIDITOILET\r\n"
+          ],
+          "greeting": [
+            "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+          ],
+          "mail_from": [
+            "550 5.1.8 Sender address rejected: IP address is not allowed as sender domain\r\n"
+          ],
+          "quit": [
+            "221 2.0.0 <hostname> closing connection\r\n"
+          ],
+          "rcpt_after_rejection": [
+            "503 5.5.1 Bad sequence of commands\r\n"
+          ]
+        }
+      },
+      {
+        "decision": "rejected",
+        "mail_from": "sender@[192.0.2.1]",
+        "name": "address-literal",
+        "persistence": {
+          "illegal_sender_domain_activity": {
+            "helo_name": null,
+            "mail_from": "sender@[192.0.2.1]",
+            "metadata": "Invalid domain: [192.0.2.1] - IP address is not allowed as sender domain",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 4,
+            "session_id": null,
+            "type": "ILLEGAL_SENDER_DOMAIN"
+          },
+          "ip": {
+            "activity_count": 2,
+            "current_score": 5,
+            "illegal_domain_count": 1,
+            "other_count": 1,
+            "total_score": 5
+          },
+          "post_rejection_protocol_activity": {
+            "helo_name": "blackbox.example",
+            "mail_from": null,
+            "metadata": "Bad sequence: RCPT in state HELO",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 1,
+            "session_id": "<session-id>",
+            "type": "PROTOCOL_VIOLATION"
+          }
+        },
+        "reason": "IP address is not allowed as sender domain",
+        "source": "127.0.0.7",
+        "wire": {
+          "ehlo": [
+            "250-<hostname> Hello blackbox.example\r\n",
+            "250-PIPELINING\r\n",
+            "250-SIZE 15728640\r\n",
+            "250-8BITMIME\r\n",
+            "250-CHUNKING\r\n",
+            "250-ENHANCEDSTATUSCODES\r\n",
+            "250-SMTPUTF8\r\n",
+            "250 SKIBIDITOILET\r\n"
+          ],
+          "greeting": [
+            "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+          ],
+          "mail_from": [
+            "550 5.1.8 Sender address rejected: IP address is not allowed as sender domain\r\n"
+          ],
+          "quit": [
+            "221 2.0.0 <hostname> closing connection\r\n"
+          ],
+          "rcpt_after_rejection": [
+            "503 5.5.1 Bad sequence of commands\r\n"
+          ]
+        }
+      },
+      {
+        "decision": "rejected",
+        "mail_from": "sender@.mail.com",
+        "name": "leading-dot",
+        "persistence": {
+          "illegal_sender_domain_activity": {
+            "helo_name": null,
+            "mail_from": "sender@.mail.com",
+            "metadata": "Invalid domain: .mail.com - Domain cannot start or end with a dot",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 4,
+            "session_id": null,
+            "type": "ILLEGAL_SENDER_DOMAIN"
+          },
+          "ip": {
+            "activity_count": 2,
+            "current_score": 5,
+            "illegal_domain_count": 1,
+            "other_count": 1,
+            "total_score": 5
+          },
+          "post_rejection_protocol_activity": {
+            "helo_name": "blackbox.example",
+            "mail_from": null,
+            "metadata": "Bad sequence: RCPT in state HELO",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 1,
+            "session_id": "<session-id>",
+            "type": "PROTOCOL_VIOLATION"
+          }
+        },
+        "reason": "Domain cannot start or end with a dot",
+        "source": "127.0.0.8",
+        "wire": {
+          "ehlo": [
+            "250-<hostname> Hello blackbox.example\r\n",
+            "250-PIPELINING\r\n",
+            "250-SIZE 15728640\r\n",
+            "250-8BITMIME\r\n",
+            "250-CHUNKING\r\n",
+            "250-ENHANCEDSTATUSCODES\r\n",
+            "250-SMTPUTF8\r\n",
+            "250 SKIBIDITOILET\r\n"
+          ],
+          "greeting": [
+            "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+          ],
+          "mail_from": [
+            "550 5.1.8 Sender address rejected: Domain cannot start or end with a dot\r\n"
+          ],
+          "quit": [
+            "221 2.0.0 <hostname> closing connection\r\n"
+          ],
+          "rcpt_after_rejection": [
+            "503 5.5.1 Bad sequence of commands\r\n"
+          ]
+        }
+      },
+      {
+        "decision": "rejected",
+        "mail_from": "sender@mail.com.",
+        "name": "trailing-dot",
+        "persistence": {
+          "illegal_sender_domain_activity": {
+            "helo_name": null,
+            "mail_from": "sender@mail.com.",
+            "metadata": "Invalid domain: mail.com. - Domain cannot start or end with a dot",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 4,
+            "session_id": null,
+            "type": "ILLEGAL_SENDER_DOMAIN"
+          },
+          "ip": {
+            "activity_count": 2,
+            "current_score": 5,
+            "illegal_domain_count": 1,
+            "other_count": 1,
+            "total_score": 5
+          },
+          "post_rejection_protocol_activity": {
+            "helo_name": "blackbox.example",
+            "mail_from": null,
+            "metadata": "Bad sequence: RCPT in state HELO",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 1,
+            "session_id": "<session-id>",
+            "type": "PROTOCOL_VIOLATION"
+          }
+        },
+        "reason": "Domain cannot start or end with a dot",
+        "source": "127.0.0.9",
+        "wire": {
+          "ehlo": [
+            "250-<hostname> Hello blackbox.example\r\n",
+            "250-PIPELINING\r\n",
+            "250-SIZE 15728640\r\n",
+            "250-8BITMIME\r\n",
+            "250-CHUNKING\r\n",
+            "250-ENHANCEDSTATUSCODES\r\n",
+            "250-SMTPUTF8\r\n",
+            "250 SKIBIDITOILET\r\n"
+          ],
+          "greeting": [
+            "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+          ],
+          "mail_from": [
+            "550 5.1.8 Sender address rejected: Domain cannot start or end with a dot\r\n"
+          ],
+          "quit": [
+            "221 2.0.0 <hostname> closing connection\r\n"
+          ],
+          "rcpt_after_rejection": [
+            "503 5.5.1 Bad sequence of commands\r\n"
+          ]
+        }
+      },
+      {
+        "decision": "rejected",
+        "mail_from": "sender@bad..com",
+        "name": "consecutive-dots",
+        "persistence": {
+          "illegal_sender_domain_activity": {
+            "helo_name": null,
+            "mail_from": "sender@bad..com",
+            "metadata": "Invalid domain: bad..com - Domain cannot contain consecutive dots",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 4,
+            "session_id": null,
+            "type": "ILLEGAL_SENDER_DOMAIN"
+          },
+          "ip": {
+            "activity_count": 2,
+            "current_score": 5,
+            "illegal_domain_count": 1,
+            "other_count": 1,
+            "total_score": 5
+          },
+          "post_rejection_protocol_activity": {
+            "helo_name": "blackbox.example",
+            "mail_from": null,
+            "metadata": "Bad sequence: RCPT in state HELO",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 1,
+            "session_id": "<session-id>",
+            "type": "PROTOCOL_VIOLATION"
+          }
+        },
+        "reason": "Domain cannot contain consecutive dots",
+        "source": "127.0.0.10",
+        "wire": {
+          "ehlo": [
+            "250-<hostname> Hello blackbox.example\r\n",
+            "250-PIPELINING\r\n",
+            "250-SIZE 15728640\r\n",
+            "250-8BITMIME\r\n",
+            "250-CHUNKING\r\n",
+            "250-ENHANCEDSTATUSCODES\r\n",
+            "250-SMTPUTF8\r\n",
+            "250 SKIBIDITOILET\r\n"
+          ],
+          "greeting": [
+            "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+          ],
+          "mail_from": [
+            "550 5.1.8 Sender address rejected: Domain cannot contain consecutive dots\r\n"
+          ],
+          "quit": [
+            "221 2.0.0 <hostname> closing connection\r\n"
+          ],
+          "rcpt_after_rejection": [
+            "503 5.5.1 Bad sequence of commands\r\n"
+          ]
+        }
+      },
+      {
+        "decision": "rejected",
+        "mail_from": "sender@-mail.com",
+        "name": "leading-hyphen",
+        "persistence": {
+          "illegal_sender_domain_activity": {
+            "helo_name": null,
+            "mail_from": "sender@-mail.com",
+            "metadata": "Invalid domain: -mail.com - Label '-mail' cannot start or end with hyphen",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 4,
+            "session_id": null,
+            "type": "ILLEGAL_SENDER_DOMAIN"
+          },
+          "ip": {
+            "activity_count": 2,
+            "current_score": 5,
+            "illegal_domain_count": 1,
+            "other_count": 1,
+            "total_score": 5
+          },
+          "post_rejection_protocol_activity": {
+            "helo_name": "blackbox.example",
+            "mail_from": null,
+            "metadata": "Bad sequence: RCPT in state HELO",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 1,
+            "session_id": "<session-id>",
+            "type": "PROTOCOL_VIOLATION"
+          }
+        },
+        "reason": "Label '-mail' cannot start or end with hyphen",
+        "source": "127.0.0.11",
+        "wire": {
+          "ehlo": [
+            "250-<hostname> Hello blackbox.example\r\n",
+            "250-PIPELINING\r\n",
+            "250-SIZE 15728640\r\n",
+            "250-8BITMIME\r\n",
+            "250-CHUNKING\r\n",
+            "250-ENHANCEDSTATUSCODES\r\n",
+            "250-SMTPUTF8\r\n",
+            "250 SKIBIDITOILET\r\n"
+          ],
+          "greeting": [
+            "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+          ],
+          "mail_from": [
+            "550 5.1.8 Sender address rejected: Label '-mail' cannot start or end with hyphen\r\n"
+          ],
+          "quit": [
+            "221 2.0.0 <hostname> closing connection\r\n"
+          ],
+          "rcpt_after_rejection": [
+            "503 5.5.1 Bad sequence of commands\r\n"
+          ]
+        }
+      },
+      {
+        "decision": "rejected",
+        "mail_from": "sender@mail-.com",
+        "name": "trailing-hyphen",
+        "persistence": {
+          "illegal_sender_domain_activity": {
+            "helo_name": null,
+            "mail_from": "sender@mail-.com",
+            "metadata": "Invalid domain: mail-.com - Label 'mail-' cannot start or end with hyphen",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 4,
+            "session_id": null,
+            "type": "ILLEGAL_SENDER_DOMAIN"
+          },
+          "ip": {
+            "activity_count": 2,
+            "current_score": 5,
+            "illegal_domain_count": 1,
+            "other_count": 1,
+            "total_score": 5
+          },
+          "post_rejection_protocol_activity": {
+            "helo_name": "blackbox.example",
+            "mail_from": null,
+            "metadata": "Bad sequence: RCPT in state HELO",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 1,
+            "session_id": "<session-id>",
+            "type": "PROTOCOL_VIOLATION"
+          }
+        },
+        "reason": "Label 'mail-' cannot start or end with hyphen",
+        "source": "127.0.0.12",
+        "wire": {
+          "ehlo": [
+            "250-<hostname> Hello blackbox.example\r\n",
+            "250-PIPELINING\r\n",
+            "250-SIZE 15728640\r\n",
+            "250-8BITMIME\r\n",
+            "250-CHUNKING\r\n",
+            "250-ENHANCEDSTATUSCODES\r\n",
+            "250-SMTPUTF8\r\n",
+            "250 SKIBIDITOILET\r\n"
+          ],
+          "greeting": [
+            "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+          ],
+          "mail_from": [
+            "550 5.1.8 Sender address rejected: Label 'mail-' cannot start or end with hyphen\r\n"
+          ],
+          "quit": [
+            "221 2.0.0 <hostname> closing connection\r\n"
+          ],
+          "rcpt_after_rejection": [
+            "503 5.5.1 Bad sequence of commands\r\n"
+          ]
+        }
+      },
+      {
+        "decision": "rejected",
+        "mail_from": "sender@bad_name.com",
+        "name": "invalid-ascii-character",
+        "persistence": {
+          "illegal_sender_domain_activity": {
+            "helo_name": null,
+            "mail_from": "sender@bad_name.com",
+            "metadata": "Invalid domain: bad_name.com - Invalid characters in label 'bad_name'",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 4,
+            "session_id": null,
+            "type": "ILLEGAL_SENDER_DOMAIN"
+          },
+          "ip": {
+            "activity_count": 2,
+            "current_score": 5,
+            "illegal_domain_count": 1,
+            "other_count": 1,
+            "total_score": 5
+          },
+          "post_rejection_protocol_activity": {
+            "helo_name": "blackbox.example",
+            "mail_from": null,
+            "metadata": "Bad sequence: RCPT in state HELO",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 1,
+            "session_id": "<session-id>",
+            "type": "PROTOCOL_VIOLATION"
+          }
+        },
+        "reason": "Invalid characters in label 'bad_name'",
+        "source": "127.0.0.13",
+        "wire": {
+          "ehlo": [
+            "250-<hostname> Hello blackbox.example\r\n",
+            "250-PIPELINING\r\n",
+            "250-SIZE 15728640\r\n",
+            "250-8BITMIME\r\n",
+            "250-CHUNKING\r\n",
+            "250-ENHANCEDSTATUSCODES\r\n",
+            "250-SMTPUTF8\r\n",
+            "250 SKIBIDITOILET\r\n"
+          ],
+          "greeting": [
+            "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+          ],
+          "mail_from": [
+            "550 5.1.8 Sender address rejected: Invalid characters in label 'bad_name'\r\n"
+          ],
+          "quit": [
+            "221 2.0.0 <hostname> closing connection\r\n"
+          ],
+          "rcpt_after_rejection": [
+            "503 5.5.1 Bad sequence of commands\r\n"
+          ]
+        }
+      },
+      {
+        "decision": "rejected",
+        "mail_from": "sender@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com",
+        "name": "label-too-long",
+        "persistence": {
+          "illegal_sender_domain_activity": {
+            "helo_name": null,
+            "mail_from": "sender@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com",
+            "metadata": "Invalid domain: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com - Label 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' exceeds 63 characters",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 4,
+            "session_id": null,
+            "type": "ILLEGAL_SENDER_DOMAIN"
+          },
+          "ip": {
+            "activity_count": 2,
+            "current_score": 5,
+            "illegal_domain_count": 1,
+            "other_count": 1,
+            "total_score": 5
+          },
+          "post_rejection_protocol_activity": {
+            "helo_name": "blackbox.example",
+            "mail_from": null,
+            "metadata": "Bad sequence: RCPT in state HELO",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 1,
+            "session_id": "<session-id>",
+            "type": "PROTOCOL_VIOLATION"
+          }
+        },
+        "reason": "Label 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' exceeds 63 characters",
+        "source": "127.0.0.14",
+        "wire": {
+          "ehlo": [
+            "250-<hostname> Hello blackbox.example\r\n",
+            "250-PIPELINING\r\n",
+            "250-SIZE 15728640\r\n",
+            "250-8BITMIME\r\n",
+            "250-CHUNKING\r\n",
+            "250-ENHANCEDSTATUSCODES\r\n",
+            "250-SMTPUTF8\r\n",
+            "250 SKIBIDITOILET\r\n"
+          ],
+          "greeting": [
+            "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+          ],
+          "mail_from": [
+            "550 5.1.8 Sender address rejected: Label 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' exceeds 63 characters\r\n"
+          ],
+          "quit": [
+            "221 2.0.0 <hostname> closing connection\r\n"
+          ],
+          "rcpt_after_rejection": [
+            "503 5.5.1 Bad sequence of commands\r\n"
+          ]
+        }
+      },
+      {
+        "decision": "rejected",
+        "mail_from": "sender@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd.com",
+        "name": "domain-too-long",
+        "persistence": {
+          "illegal_sender_domain_activity": {
+            "helo_name": null,
+            "mail_from": "sender@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.dddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "metadata": "Invalid domain: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd.com - Domain name too long (max 255 characters)",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 4,
+            "session_id": null,
+            "type": "ILLEGAL_SENDER_DOMAIN"
+          },
+          "ip": {
+            "activity_count": 2,
+            "current_score": 5,
+            "illegal_domain_count": 1,
+            "other_count": 1,
+            "total_score": 5
+          },
+          "post_rejection_protocol_activity": {
+            "helo_name": "blackbox.example",
+            "mail_from": null,
+            "metadata": "Bad sequence: RCPT in state HELO",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 1,
+            "session_id": "<session-id>",
+            "type": "PROTOCOL_VIOLATION"
+          }
+        },
+        "reason": "Domain name too long (max 255 characters)",
+        "source": "127.0.0.15",
+        "wire": {
+          "ehlo": [
+            "250-<hostname> Hello blackbox.example\r\n",
+            "250-PIPELINING\r\n",
+            "250-SIZE 15728640\r\n",
+            "250-8BITMIME\r\n",
+            "250-CHUNKING\r\n",
+            "250-ENHANCEDSTATUSCODES\r\n",
+            "250-SMTPUTF8\r\n",
+            "250 SKIBIDITOILET\r\n"
+          ],
+          "greeting": [
+            "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+          ],
+          "mail_from": [
+            "550 5.1.8 Sender address rejected: Domain name too long (max 255 characters)\r\n"
+          ],
+          "quit": [
+            "221 2.0.0 <hostname> closing connection\r\n"
+          ],
+          "rcpt_after_rejection": [
+            "503 5.5.1 Bad sequence of commands\r\n"
+          ]
+        }
+      },
+      {
+        "decision": "rejected",
+        "mail_from": "sender@mail.c",
+        "name": "short-tld",
+        "persistence": {
+          "illegal_sender_domain_activity": {
+            "helo_name": null,
+            "mail_from": "sender@mail.c",
+            "metadata": "Invalid domain: mail.c - TLD must be at least 2 characters",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 4,
+            "session_id": null,
+            "type": "ILLEGAL_SENDER_DOMAIN"
+          },
+          "ip": {
+            "activity_count": 2,
+            "current_score": 5,
+            "illegal_domain_count": 1,
+            "other_count": 1,
+            "total_score": 5
+          },
+          "post_rejection_protocol_activity": {
+            "helo_name": "blackbox.example",
+            "mail_from": null,
+            "metadata": "Bad sequence: RCPT in state HELO",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 1,
+            "session_id": "<session-id>",
+            "type": "PROTOCOL_VIOLATION"
+          }
+        },
+        "reason": "TLD must be at least 2 characters",
+        "source": "127.0.0.16",
+        "wire": {
+          "ehlo": [
+            "250-<hostname> Hello blackbox.example\r\n",
+            "250-PIPELINING\r\n",
+            "250-SIZE 15728640\r\n",
+            "250-8BITMIME\r\n",
+            "250-CHUNKING\r\n",
+            "250-ENHANCEDSTATUSCODES\r\n",
+            "250-SMTPUTF8\r\n",
+            "250 SKIBIDITOILET\r\n"
+          ],
+          "greeting": [
+            "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+          ],
+          "mail_from": [
+            "550 5.1.8 Sender address rejected: TLD must be at least 2 characters\r\n"
+          ],
+          "quit": [
+            "221 2.0.0 <hostname> closing connection\r\n"
+          ],
+          "rcpt_after_rejection": [
+            "503 5.5.1 Bad sequence of commands\r\n"
+          ]
+        }
+      },
+      {
+        "decision": "rejected",
+        "mail_from": "sender@mail.123",
+        "name": "numeric-tld",
+        "persistence": {
+          "illegal_sender_domain_activity": {
+            "helo_name": null,
+            "mail_from": "sender@mail.123",
+            "metadata": "Invalid domain: mail.123 - TLD cannot be all numeric",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 4,
+            "session_id": null,
+            "type": "ILLEGAL_SENDER_DOMAIN"
+          },
+          "ip": {
+            "activity_count": 2,
+            "current_score": 5,
+            "illegal_domain_count": 1,
+            "other_count": 1,
+            "total_score": 5
+          },
+          "post_rejection_protocol_activity": {
+            "helo_name": "blackbox.example",
+            "mail_from": null,
+            "metadata": "Bad sequence: RCPT in state HELO",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 1,
+            "session_id": "<session-id>",
+            "type": "PROTOCOL_VIOLATION"
+          }
+        },
+        "reason": "TLD cannot be all numeric",
+        "source": "127.0.0.17",
+        "wire": {
+          "ehlo": [
+            "250-<hostname> Hello blackbox.example\r\n",
+            "250-PIPELINING\r\n",
+            "250-SIZE 15728640\r\n",
+            "250-8BITMIME\r\n",
+            "250-CHUNKING\r\n",
+            "250-ENHANCEDSTATUSCODES\r\n",
+            "250-SMTPUTF8\r\n",
+            "250 SKIBIDITOILET\r\n"
+          ],
+          "greeting": [
+            "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+          ],
+          "mail_from": [
+            "550 5.1.8 Sender address rejected: TLD cannot be all numeric\r\n"
+          ],
+          "quit": [
+            "221 2.0.0 <hostname> closing connection\r\n"
+          ],
+          "rcpt_after_rejection": [
+            "503 5.5.1 Bad sequence of commands\r\n"
+          ]
+        }
+      },
+      {
+        "decision": "rejected",
+        "mail_from": "sender@mail.testing",
+        "name": "frozen-invalid-tld",
+        "persistence": {
+          "illegal_sender_domain_activity": {
+            "helo_name": null,
+            "mail_from": "sender@mail.testing",
+            "metadata": "Invalid domain: mail.testing - Invalid or non-existent TLD 'testing'",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 4,
+            "session_id": null,
+            "type": "ILLEGAL_SENDER_DOMAIN"
+          },
+          "ip": {
+            "activity_count": 2,
+            "current_score": 5,
+            "illegal_domain_count": 1,
+            "other_count": 1,
+            "total_score": 5
+          },
+          "post_rejection_protocol_activity": {
+            "helo_name": "blackbox.example",
+            "mail_from": null,
+            "metadata": "Bad sequence: RCPT in state HELO",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 1,
+            "session_id": "<session-id>",
+            "type": "PROTOCOL_VIOLATION"
+          }
+        },
+        "reason": "Invalid or non-existent TLD 'testing'",
+        "source": "127.0.0.18",
+        "wire": {
+          "ehlo": [
+            "250-<hostname> Hello blackbox.example\r\n",
+            "250-PIPELINING\r\n",
+            "250-SIZE 15728640\r\n",
+            "250-8BITMIME\r\n",
+            "250-CHUNKING\r\n",
+            "250-ENHANCEDSTATUSCODES\r\n",
+            "250-SMTPUTF8\r\n",
+            "250 SKIBIDITOILET\r\n"
+          ],
+          "greeting": [
+            "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+          ],
+          "mail_from": [
+            "550 5.1.8 Sender address rejected: Invalid or non-existent TLD 'testing'\r\n"
+          ],
+          "quit": [
+            "221 2.0.0 <hostname> closing connection\r\n"
+          ],
+          "rcpt_after_rejection": [
+            "503 5.5.1 Bad sequence of commands\r\n"
+          ]
+        }
+      },
+      {
+        "decision": "rejected",
+        "mail_from": "sender@xn--a_.de",
+        "name": "invalid-punycode",
+        "persistence": {
+          "illegal_sender_domain_activity": {
+            "helo_name": null,
+            "mail_from": "sender@xn--a_.de",
+            "metadata": "Invalid domain: xn--a_.de - Invalid Punycode label: xn--a_",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 4,
+            "session_id": null,
+            "type": "ILLEGAL_SENDER_DOMAIN"
+          },
+          "ip": {
+            "activity_count": 2,
+            "current_score": 5,
+            "illegal_domain_count": 1,
+            "other_count": 1,
+            "total_score": 5
+          },
+          "post_rejection_protocol_activity": {
+            "helo_name": "blackbox.example",
+            "mail_from": null,
+            "metadata": "Bad sequence: RCPT in state HELO",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 1,
+            "session_id": "<session-id>",
+            "type": "PROTOCOL_VIOLATION"
+          }
+        },
+        "reason": "Invalid Punycode label: xn--a_",
+        "source": "127.0.0.19",
+        "wire": {
+          "ehlo": [
+            "250-<hostname> Hello blackbox.example\r\n",
+            "250-PIPELINING\r\n",
+            "250-SIZE 15728640\r\n",
+            "250-8BITMIME\r\n",
+            "250-CHUNKING\r\n",
+            "250-ENHANCEDSTATUSCODES\r\n",
+            "250-SMTPUTF8\r\n",
+            "250 SKIBIDITOILET\r\n"
+          ],
+          "greeting": [
+            "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+          ],
+          "mail_from": [
+            "550 5.1.8 Sender address rejected: Invalid Punycode label: xn--a_\r\n"
+          ],
+          "quit": [
+            "221 2.0.0 <hostname> closing connection\r\n"
+          ],
+          "rcpt_after_rejection": [
+            "503 5.5.1 Bad sequence of commands\r\n"
+          ]
+        }
+      },
+      {
+        "decision": "rejected",
+        "mail_from": "sender@.de",
+        "name": "unicode-private-use",
+        "persistence": {
+          "illegal_sender_domain_activity": {
+            "helo_name": null,
+            "mail_from": "sender@.de",
+            "metadata": "Invalid domain: .de - Label contains invalid Unicode character",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 4,
+            "session_id": null,
+            "type": "ILLEGAL_SENDER_DOMAIN"
+          },
+          "ip": {
+            "activity_count": 2,
+            "current_score": 5,
+            "illegal_domain_count": 1,
+            "other_count": 1,
+            "total_score": 5
+          },
+          "post_rejection_protocol_activity": {
+            "helo_name": "blackbox.example",
+            "mail_from": null,
+            "metadata": "Bad sequence: RCPT in state HELO",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 1,
+            "session_id": "<session-id>",
+            "type": "PROTOCOL_VIOLATION"
+          }
+        },
+        "reason": "Label contains invalid Unicode character",
+        "source": "127.0.0.20",
+        "wire": {
+          "ehlo": [
+            "250-<hostname> Hello blackbox.example\r\n",
+            "250-PIPELINING\r\n",
+            "250-SIZE 15728640\r\n",
+            "250-8BITMIME\r\n",
+            "250-CHUNKING\r\n",
+            "250-ENHANCEDSTATUSCODES\r\n",
+            "250-SMTPUTF8\r\n",
+            "250 SKIBIDITOILET\r\n"
+          ],
+          "greeting": [
+            "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+          ],
+          "mail_from": [
+            "550 5.1.8 Sender address rejected: Label contains invalid Unicode character\r\n"
+          ],
+          "quit": [
+            "221 2.0.0 <hostname> closing connection\r\n"
+          ],
+          "rcpt_after_rejection": [
+            "503 5.5.1 Bad sequence of commands\r\n"
+          ]
+        }
+      },
+      {
+        "decision": "rejected",
+        "mail_from": "sender@éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé.de",
+        "name": "unicode-label-too-long",
+        "persistence": {
+          "illegal_sender_domain_activity": {
+            "helo_name": null,
+            "mail_from": "sender@éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé.de",
+            "metadata": "Invalid domain: éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé.de - Label too long (max 63 characters)",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 4,
+            "session_id": null,
+            "type": "ILLEGAL_SENDER_DOMAIN"
+          },
+          "ip": {
+            "activity_count": 2,
+            "current_score": 5,
+            "illegal_domain_count": 1,
+            "other_count": 1,
+            "total_score": 5
+          },
+          "post_rejection_protocol_activity": {
+            "helo_name": "blackbox.example",
+            "mail_from": null,
+            "metadata": "Bad sequence: RCPT in state HELO",
+            "rcpt_to": null,
+            "response_message": null,
+            "score": 1,
+            "session_id": "<session-id>",
+            "type": "PROTOCOL_VIOLATION"
+          }
+        },
+        "reason": "Label too long (max 63 characters)",
+        "source": "127.0.0.21",
+        "wire": {
+          "ehlo": [
+            "250-<hostname> Hello blackbox.example\r\n",
+            "250-PIPELINING\r\n",
+            "250-SIZE 15728640\r\n",
+            "250-8BITMIME\r\n",
+            "250-CHUNKING\r\n",
+            "250-ENHANCEDSTATUSCODES\r\n",
+            "250-SMTPUTF8\r\n",
+            "250 SKIBIDITOILET\r\n"
+          ],
+          "greeting": [
+            "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+          ],
+          "mail_from": [
+            "550 5.1.8 Sender address rejected: Label too long (max 63 characters)\r\n"
+          ],
+          "quit": [
+            "221 2.0.0 <hostname> closing connection\r\n"
+          ],
+          "rcpt_after_rejection": [
+            "503 5.5.1 Bad sequence of commands\r\n"
+          ]
+        }
+      },
+      {
+        "decision": "accepted",
+        "mail_from": "sender@real-domain.com",
+        "name": "valid-ascii",
+        "persistence": null,
+        "source": "127.0.0.22",
+        "wire": {
+          "ehlo": [
+            "250-<hostname> Hello blackbox.example\r\n",
+            "250-PIPELINING\r\n",
+            "250-SIZE 15728640\r\n",
+            "250-8BITMIME\r\n",
+            "250-CHUNKING\r\n",
+            "250-ENHANCEDSTATUSCODES\r\n",
+            "250-SMTPUTF8\r\n",
+            "250 SKIBIDITOILET\r\n"
+          ],
+          "greeting": [
+            "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+          ],
+          "mail_from": [
+            "250 2.1.0 Sender OK\r\n"
+          ],
+          "quit": [
+            "221 2.0.0 <hostname> closing connection\r\n"
+          ]
+        }
+      },
+      {
+        "decision": "accepted",
+        "mail_from": "sender@xn--bcher-kva.de",
+        "name": "valid-punycode",
+        "persistence": null,
+        "source": "127.0.0.23",
+        "wire": {
+          "ehlo": [
+            "250-<hostname> Hello blackbox.example\r\n",
+            "250-PIPELINING\r\n",
+            "250-SIZE 15728640\r\n",
+            "250-8BITMIME\r\n",
+            "250-CHUNKING\r\n",
+            "250-ENHANCEDSTATUSCODES\r\n",
+            "250-SMTPUTF8\r\n",
+            "250 SKIBIDITOILET\r\n"
+          ],
+          "greeting": [
+            "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+          ],
+          "mail_from": [
+            "250 2.1.0 Sender OK\r\n"
+          ],
+          "quit": [
+            "221 2.0.0 <hostname> closing connection\r\n"
+          ]
+        }
+      },
+      {
+        "decision": "accepted",
+        "mail_from": "sender@bücher.de",
+        "name": "valid-unicode",
+        "persistence": null,
+        "source": "127.0.0.24",
+        "wire": {
+          "ehlo": [
+            "250-<hostname> Hello blackbox.example\r\n",
+            "250-PIPELINING\r\n",
+            "250-SIZE 15728640\r\n",
+            "250-8BITMIME\r\n",
+            "250-CHUNKING\r\n",
+            "250-ENHANCEDSTATUSCODES\r\n",
+            "250-SMTPUTF8\r\n",
+            "250 SKIBIDITOILET\r\n"
+          ],
+          "greeting": [
+            "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+          ],
+          "mail_from": [
+            "250 2.1.0 Sender OK\r\n"
+          ],
+          "quit": [
+            "221 2.0.0 <hostname> closing connection\r\n"
+          ]
+        }
+      }
+    ]
+  },
+  "schema_version": 2
+}

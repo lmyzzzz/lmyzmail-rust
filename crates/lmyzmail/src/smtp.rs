@@ -46,6 +46,7 @@ use crate::{
         ContentScan, NewDomainScanner, ParsedHeaders, RblScanner, has_first_mime_attachment,
         scan_attachments, scan_body,
     },
+    smtp_domain::validate_routable_domain,
     smtp_skibidi_quiz::{AnswerOutcome, QuizLevel, QuizState, ensure_question_bank_loaded},
     smtp_skibidi_video::{VideoDefaults, VideoService, VideoStartError, frame_wire_bytes},
     video_asset::locate_frozen_video_asset,
@@ -383,6 +384,24 @@ impl SmtpService {
         Some(message)
     }
 
+    fn sender_domain_rejection(&self, peer: IpAddr, sender: &str) -> Option<String> {
+        let sender_domain = sender
+            .rsplit_once('@')
+            .map(|(_, domain)| domain)
+            .filter(|domain| !domain.is_empty())?;
+        let reason = validate_routable_domain(sender_domain).err()?;
+        let metadata = format!("Invalid domain: {sender_domain} - {reason}");
+        let activity = SmtpCringeActivity::IllegalSenderDomain {
+            ip: peer,
+            mail_from: sender.to_owned(),
+            metadata,
+        };
+        if let Err(error) = self.cringe_sender.try_send(activity) {
+            eprintln!("lmyzmail SMTP illegal-domain activity queue rejected a record: {error}");
+        }
+        Some(format!("5.1.8 Sender address rejected: {reason}"))
+    }
+
     fn queue_protocol_violation(&self, peer: IpAddr, helo: &str, session_id: &str, metadata: &str) {
         let activity = SmtpCringeActivity::ProtocolViolation {
             ip: peer,
@@ -649,6 +668,11 @@ enum SmtpCringeActivity {
         response_message: String,
         metadata: String,
     },
+    IllegalSenderDomain {
+        ip: IpAddr,
+        mail_from: String,
+        metadata: String,
+    },
     ProtocolViolation {
         ip: IpAddr,
         helo_name: String,
@@ -661,6 +685,7 @@ impl SmtpCringeActivity {
     const fn kind(&self) -> &'static str {
         match self {
             Self::SelfSpoof { .. } => "SELF_SPOOFING",
+            Self::IllegalSenderDomain { .. } => "ILLEGAL_SENDER_DOMAIN",
             Self::ProtocolViolation { .. } => "PROTOCOL_VIOLATION",
         }
     }
@@ -764,6 +789,15 @@ async fn persist_cringe_activity(
         } => {
             cringe_service
                 .record_self_spoofing(ip, &mail_from, &response_message, &metadata, &cancellation)
+                .await
+        }
+        SmtpCringeActivity::IllegalSenderDomain {
+            ip,
+            mail_from,
+            metadata,
+        } => {
+            cringe_service
+                .record_illegal_sender_domain(ip, &mail_from, &metadata, &cancellation)
                 .await
         }
         SmtpCringeActivity::ProtocolViolation {
@@ -1414,6 +1448,11 @@ async fn handle_connection(
                 }
                 match parse_mail(argument) {
                     Ok(Some(sender)) => {
+                        if let Some(message) = service.sender_domain_rejection(peer, &sender) {
+                            io.write_all(format!("550 {message}\r\n").as_bytes())
+                                .await?;
+                            continue;
+                        }
                         if let Some(message) = service
                             .self_spoof_rejection(
                                 peer,

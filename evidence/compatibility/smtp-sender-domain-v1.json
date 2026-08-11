@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "profile": "smtp-sender-domain-v1",
+  "captured_at": "2026-08-11T13:51:42+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "contract": {
+    "case_count": 23,
+    "invalid_case_count": 20,
+    "valid_case_count": 3,
+    "coverage": [
+      "reserved domain",
+      "reserved TLD",
+      "missing dot",
+      "IPv4",
+      "IPv6",
+      "address literal",
+      "leading/trailing/consecutive dots",
+      "leading/trailing hyphen",
+      "invalid ASCII label character",
+      "63-character label boundary",
+      "255-character domain boundary",
+      "single-character TLD",
+      "all-numeric TLD",
+      "frozen invalid-TLD set",
+      "invalid and valid Punycode shape",
+      "Unicode private-use and label length",
+      "accepted ASCII and Unicode IDN"
+    ],
+    "wire": {
+      "invalid_mail_from": "550 5.1.8 Sender address rejected: <exact frozen reason>",
+      "post_rejection_rcpt": "503 5.5.1 Bad sequence of commands",
+      "valid_mail_from": "250 2.1.0 Sender OK",
+      "post_rejection_state": "HELO without an accepted sender"
+    },
+    "persistence": {
+      "activities": ["ILLEGAL_SENDER_DOMAIN", "PROTOCOL_VIOLATION"],
+      "scores": [4, 1],
+      "aggregate": [5, 5, 2, 1, 1],
+      "aggregate_columns": [
+        "total_score",
+        "current_score",
+        "activity_count",
+        "illegal_domain_count",
+        "other_count"
+      ],
+      "valid_sender_rows": 0
+    }
+  },
+  "golden": {
+    "definition_tree_sha256": "236bb0bfe719d7fd1bf42dccc82fde467110ede8c57331fa0a6a03619396f973",
+    "suite_sha256": "a7c16e981834ecfbba8c62bfa30a2c09b171406e53c80389020fcb38f4785067",
+    "observation_sha256": "dd1f32bc7c556e023c14c5583537ea9a8d5057fbb82afe5dd9d5f260a08aa832"
+  },
+  "implementation": {
+    "runtime": "stable-rust",
+    "java_runtime_dependency": false,
+    "validation_order": "frozen Java EarlyRejectService order and exact reason text",
+    "idn_conversion": "idna 1.1.0 for bounded ASCII conversion after frozen prechecks",
+    "java_string_length_compatibility": "UTF-16 code-unit counts",
+    "cringe_queue_capacity": 256,
+    "cringe_shutdown_deadline_ms": 10000,
+    "cringe_forced_shutdown_deadline_ms": 2000,
+    "postgres_update": "single transaction inserts activity and atomically increments illegal_domain_count"
+  },
+  "source_sha256": {
+    "crates/lmyzmail/src/smtp.rs": "62b6b8daf7e58d882b6ea66b0ae7823f442ce1d42a560490eae05c0b631650ab",
+    "crates/lmyzmail/src/smtp_domain.rs": "5cda7c1a4cde4c280f20a2b9f2fd162fed1b8711f5f3b78ea888822845774d5c",
+    "crates/lmyzmail/src/cringe.rs": "7537a157cd0c41fdbc1cff01b226bb4af19adaed1fc97571d6d96e670b7e4242",
+    "crates/lmyzmail/src/lib.rs": "493d4c939eadaafcc2aa10e359d577aa65abefe5746d96ca0f570eabb42b409c",
+    "blackbox/src/lmyzmail_blackbox/smtp_sender_domain_contract.py": "9276ea208d3b7736af3970d714cf70fb415e2dc9b4a6467ebeda2f61c3e5106e",
+    "blackbox/tests/test_oracle_smtp_sender_domain.py": "04054b0ec3dc11c022c2f5eceec20bcf5e037be115849904aacb9ee9693a57eb",
+    "docs/compatibility.md": "f081db4ccea2d8026586768c9854df7ccad0a0cca9b8e38e8cd4752efbaafd8c",
+    "blackbox/golden/README.md": "dfeb8632b9f420239d65a923b4362d4555c87a03bdfda84aa4f3ab7ffd130787",
+    "Cargo.lock": "285269289ac7b8e70c0008dfcc8d8337e1b2a6719096dd604627d616c452abc5"
+  },
+  "release": {
+    "command": "CFLAGS=-w CXXFLAGS=-w cargo build --release --locked -p lmyzmail --target x86_64-unknown-linux-gnu",
+    "sha256": "7a3cc21a9ca0e0975d4e07ed107143d2f7fe32323746db76d64905f4bb3ae088",
+    "independent_build_count": 3,
+    "independent_builds_same_sha256": true,
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail"
+  },
+  "verification": [
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_smtp_sender_domain.py",
+      "result": "2 passed; independent Java replay and final Rust candidate both matched"
+    },
+    {
+      "command": "cd blackbox && .venv/bin/pytest -q -m 'not integration'",
+      "result": "133 passed, 97 deselected"
+    },
+    {
+      "command": "cargo test --workspace --all-targets --all-features --target x86_64-unknown-linux-gnu",
+      "result": "580 passed, 0 failed"
+    },
+    {
+      "command": "cargo clippy -p lmyzmail --lib --all-features --target x86_64-unknown-linux-gnu -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "blackbox/.venv/bin/ruff check blackbox",
+      "result": "passed"
+    },
+    {
+      "command": "cd blackbox && .venv/bin/mypy src tests tools",
+      "result": "Success: no issues found in 121 source files"
+    }
+  ],
+  "security_differences": [
+    "smtp-cringe-queue-overflow-bound"
+  ]
+}
