@@ -124,6 +124,34 @@ The create-once oracle matrix is `managed-smtp-sender-domain-v1`. It freezes
 raw sockets and independent PostgreSQL state; a second fresh Java runtime
 replayed it unchanged, and the Linux x86_64 Rust release matched it.
 
+## SMTP external-sender SPF
+
+For every accepted non-null `MAIL FROM`, SMTP evaluates SPF once before
+accepting the sender. The check uses the canonical envelope address, peer IP,
+current HELO name, and configured local domain. Its result is retained in the
+bounded transaction state and reused by local-domain self-spoof rejection and
+DATA or BDAT delivery; EHLO, RSET, STARTTLS, and completed delivery clear it.
+Null reverse paths retain the frozen `spf=none (No MAIL FROM address)` behavior
+without a DNS query.
+
+The implementation uses `mail-auth` for SPF evaluation. The initial positive
+TXT record is parsed once and injected into a transaction-local FQDN cache, so
+the evaluator does not repeat the top-level query. That cache holds at most 16
+TXT entries, and lookup plus evaluation share a ten-second deadline and the
+connection cancellation token.
+
+`Authentication-Results` carries the frozen result and reason. SPF `fail` adds
+3.0 to `X-Spam-Score` and sets `X-Spam-Status: Yes`; `softfail` adds 1.0 but
+does not set the status by itself. Other SPF results add zero. A clean SPF pass
+is stored in `inbox`; every other unsigned result is stored in `spam`. Content
+filter scores and quarantine decisions remain additive.
+
+The create-once `managed-smtp-spf-v1` matrix freezes pass, fail, softfail,
+neutral, and no-record behavior over raw SMTP, scripted DNS, Maildir,
+`email_index`, and the legacy Redis count keys. A fresh Java runtime replayed
+the golden unchanged, and the Linux x86_64 Rust release matched it byte for
+byte after the documented nondeterminism normalizers.
+
 ## SMTP Spamhaus DNSBL and DBL
 
 Spamhaus is disabled by default, with the frozen `zen.spamhaus.org` IP zone,

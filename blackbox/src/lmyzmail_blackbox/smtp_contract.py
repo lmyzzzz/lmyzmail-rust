@@ -401,6 +401,7 @@ def _index_rows(
     connection: psycopg.Connection[tuple[Any, ...]],
     message_id: str,
     *,
+    folder: str = _FOLDER,
     deadline: float,
 ) -> list[tuple[Any, ...]]:
     _set_statement_timeout(connection, deadline=deadline)
@@ -411,7 +412,7 @@ def _index_rows(
             "size_bytes, message_id, indexed_at FROM email_index "
             "WHERE mailbox_address = %s AND folder = %s AND message_id = %s "
             "ORDER BY indexed_at ASC, id ASC",
-            (_QA_ADDRESS, _FOLDER, message_id),
+            (_QA_ADDRESS, folder, message_id),
         ).fetchall()
     except psycopg.errors.QueryCanceled as error:
         raise AssertionError(
@@ -426,6 +427,7 @@ def _wait_for_delivery_state(
     connection: psycopg.Connection[tuple[Any, ...]],
     message_id: str,
     *,
+    folder: str = _FOLDER,
     maildir_before: Mapping[str, tuple[int, str]],
     redis_before: int | None,
     deadline: float,
@@ -438,15 +440,16 @@ def _wait_for_delivery_state(
     last_details: object = "delivery state was not observed"
 
     while True:
-        rows = _index_rows(connection, message_id, deadline=deadline)
+        rows = _index_rows(connection, message_id, folder=folder, deadline=deadline)
         maildir_after = _maildir_files(workspace, deadline=deadline)
-        redis_state = _redis_state(target, _COUNT_KEY, deadline=deadline)
+        count_key = f"mail:count:{_QA_ADDRESS}:{folder}"
+        redis_state = _redis_state(target, count_key, deadline=deadline)
         expected_path: str | None = None
         if len(rows) == 1:
             subdirectory = rows[0][3]
             file_name = rows[0][4]
             if isinstance(subdirectory, int) and isinstance(file_name, str):
-                expected_path = f"{_QA_ADDRESS}/{_FOLDER}/{subdirectory}/{file_name}"
+                expected_path = f"{_QA_ADDRESS}/{folder}/{subdirectory}/{file_name}"
         added = set(maildir_after).difference(maildir_before)
         removed = set(maildir_before).difference(maildir_after)
         modified = {
@@ -555,6 +558,7 @@ def _storage_snapshot(
     maildir_before: Mapping[str, tuple[int, str]],
     redis_before: int | None,
     started_at: datetime,
+    expected_folder: str = _FOLDER,
     expected_from_address: str | None = None,
     expected_to_addresses: str = "[]",
     expected_has_attachments: bool = False,
@@ -565,6 +569,7 @@ def _storage_snapshot(
             target,
             connection,
             message_id,
+            folder=expected_folder,
             maildir_before=maildir_before,
             redis_before=redis_before,
             deadline=deadline,
@@ -588,7 +593,7 @@ def _storage_snapshot(
 
     _check(isinstance(identity, int) and identity > 0, identity)
     _check(mailbox_address == _QA_ADDRESS, mailbox_address)
-    _check(folder == _FOLDER, folder)
+    _check(folder == expected_folder, folder)
     _check(isinstance(subdirectory, int) and subdirectory > 0, subdirectory)
     _check(isinstance(file_name, str), file_name)
     file_timestamp = _parse_maildir_filename_time(file_name)
@@ -617,7 +622,7 @@ def _storage_snapshot(
     if workspace is None:
         raise AssertionError("SMTP target is not started")
     maildir_root = workspace / "maildir"
-    folder_root = maildir_root / _QA_ADDRESS / _FOLDER
+    folder_root = maildir_root / _QA_ADDRESS / expected_folder
     file_path = folder_root / str(subdirectory) / file_name
     _assert_path_chain_without_symlinks(workspace, file_path)
     _check(folder_root.is_dir(), folder_root)
@@ -634,7 +639,8 @@ def _storage_snapshot(
     _remaining(deadline, "Maildir message read")
     _check(len(raw) == size_bytes, (len(raw), size_bytes))
 
-    redis_final = _redis_state(target, _COUNT_KEY, deadline=deadline)
+    count_key = f"mail:count:{_QA_ADDRESS}:{expected_folder}"
+    redis_final = _redis_state(target, count_key, deadline=deadline)
     _check(redis_final == redis_state, (redis_state, redis_final))
     _check(_index_count(target, message_id, deadline=deadline) == 1, message_id)
     maildir_final = _maildir_files(workspace, deadline=deadline)
@@ -654,7 +660,7 @@ def _storage_snapshot(
     _remaining(deadline, "storage snapshot normalization")
     return {
         "maildir": {
-            "path": f"{_QA_ADDRESS}/{_FOLDER}/{subdirectory}/<generated>.eml",
+            "path": f"{_QA_ADDRESS}/{expected_folder}/{subdirectory}/<generated>.eml",
             "raw": raw_snapshot,
             "new_regular_files": 1,
             "orphan_files": 0,
@@ -680,7 +686,7 @@ def _storage_snapshot(
         },
         "size_contract": "postgres-size_bytes-equals-maildir-byte-length",
         "redis": {
-            "key": _COUNT_KEY,
+            "key": count_key,
             "before": redis_before,
             "after": redis_after,
             "delta": 1,
@@ -733,6 +739,9 @@ def capture_delivery(
     expected_from_address: str | None = None,
     expected_to_addresses: str = "[]",
     expected_has_attachments: bool = False,
+    expected_folder: str = _FOLDER,
+    envelope_sender: str = "",
+    source: str | None = None,
 ) -> dict[str, Any]:
     workspace = target.workspace
     if workspace is None:
@@ -744,14 +753,12 @@ def capture_delivery(
         _index_count(target, message_id, deadline=preflight_deadline) == 0,
         message_id,
     )
-    redis_before = _redis_state(
-        target,
-        _COUNT_KEY,
-        deadline=preflight_deadline,
-    )[0]
+    count_key = f"mail:count:{_QA_ADDRESS}:{expected_folder}"
+    redis_before = _redis_state(target, count_key, deadline=preflight_deadline)[0]
 
     started_at = datetime.now(UTC)
-    client, hostname = open_smtp_client(target)
+    mail_from_command = f"MAIL FROM:<{envelope_sender}>".encode()
+    client, hostname = open_smtp_client(target, source=source)
     with client:
         wire: dict[str, Any] = {"greeting": smtp_greeting_snapshot()}
         if session_setup is None:
@@ -759,7 +766,7 @@ def capture_delivery(
         else:
             wire.update(session_setup(target, client, hostname))
         if mode == "data":
-            mail_from = client.command(b"MAIL FROM:<>")
+            mail_from = client.command(mail_from_command)
             rcpt_to = client.command(b"RCPT TO:<qa@example.test>")
             data_ready, accepted = client.data(message)
             wire.update(
@@ -773,7 +780,7 @@ def capture_delivery(
         elif mode == "pipeline":
             replies = client.pipeline(
                 (
-                    b"MAIL FROM:<>",
+                    mail_from_command,
                     b"RCPT TO:<qa@example.test>",
                     b"DATA",
                 )
@@ -788,7 +795,7 @@ def capture_delivery(
         elif mode == "bdat":
             replies = client.pipeline(
                 (
-                    b"MAIL FROM:<>",
+                    mail_from_command,
                     b"RCPT TO:<qa@example.test>",
                 )
             )
@@ -815,6 +822,7 @@ def capture_delivery(
             maildir_before=maildir_before,
             redis_before=redis_before,
             started_at=started_at,
+            expected_folder=expected_folder,
             expected_from_address=expected_from_address,
             expected_to_addresses=expected_to_addresses,
             expected_has_attachments=expected_has_attachments,

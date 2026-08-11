@@ -1,0 +1,137 @@
+{
+  "schema_version": 1,
+  "profile": "smtp-external-spf-v1",
+  "captured_at": "2026-08-11T16:48:37+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "contract": {
+    "case_count": 5,
+    "results": {
+      "pass": {
+        "reason": "Matched ip4:127.0.0.51",
+        "protocol_score": 0.0,
+        "spam_status": "No",
+        "folder": "inbox"
+      },
+      "fail": {
+        "reason": "Matched 'all'",
+        "protocol_score": 3.0,
+        "spam_status": "Yes",
+        "folder": "spam"
+      },
+      "softfail": {
+        "reason": "Matched 'all'",
+        "protocol_score": 1.0,
+        "spam_status": "No",
+        "folder": "spam"
+      },
+      "neutral": {
+        "reason": "Matched 'all'",
+        "protocol_score": 0.0,
+        "spam_status": "No",
+        "folder": "spam"
+      },
+      "none": {
+        "reason": "No SPF record found for spf-none.blackbox-example.co",
+        "protocol_score": 0.0,
+        "spam_status": "No",
+        "folder": "spam"
+      }
+    },
+    "positive_txt_queries": 1,
+    "nxdomain_queries": "bounded and at least one",
+    "persistence": [
+      "Maildir atomic publish",
+      "email_index folder and byte length",
+      "legacy mail:count:<mailbox>:<folder> Redis key without TTL"
+    ]
+  },
+  "bounds": {
+    "spf_lookup_and_evaluation_deadline_seconds": 10,
+    "transaction_txt_cache_entries": 16,
+    "smtp_connection_limit": 256,
+    "delivery_queue_capacity": 256,
+    "delivery_deadline_seconds": 15
+  },
+  "golden": {
+    "profile": "managed-smtp-spf",
+    "definition_tree_sha256": "78e918847ce864a74062480ba9b695f8c896c0e416999884a9069674cc2c624f",
+    "suite_sha256": "05f5f0dad62979066d96d64a0c816ce087a9651a62e9997edea24f2238de63bf",
+    "observation_sha256": "291d5536c76677f7a91a2dff6f32d8b58b8f947bc0cbc993e51e3c16953caf3d"
+  },
+  "implementation": {
+    "runtime": "stable-rust-1.94.0",
+    "java_runtime_dependency": false,
+    "spf_engine": "mail-auth 0.11.2",
+    "transaction_result_reused": true,
+    "top_level_positive_txt_query_reused": true,
+    "reset_events": [
+      "EHLO or HELO",
+      "RSET",
+      "STARTTLS",
+      "completed DATA or BDAT LAST transaction",
+      "DATA or BDAT size rejection"
+    ]
+  },
+  "source_sha256": {
+    "Cargo.lock": "285269289ac7b8e70c0008dfcc8d8337e1b2a6719096dd604627d616c452abc5",
+    "crates/lmyzmail/src/lib.rs": "fce146f5fb8673e5dd2756c3d07aeaff89a2e1a0fec68faeda9e6f9ef4403265",
+    "crates/lmyzmail/src/smtp.rs": "b157e62537d170536972878df920c2429b7f49a51408f76143c2608cc2034019",
+    "crates/lmyzmail/src/smtp_spf.rs": "54bb29f29901252e335ce23a21349d5a09cba1c6239454d61b896f7848103d57",
+    "blackbox/src/lmyzmail_blackbox/smtp_contract.py": "91a17c47e69c931ea852cdc8f70eadcc3c21b7f2c7055bbd371b38377ba8b103",
+    "blackbox/src/lmyzmail_blackbox/smtp_spf_contract.py": "cdd9b3f4b70a12cc5231106ab1c3989c5cbbd0dea8020d8e1768c1cf2624c0ce",
+    "blackbox/tests/test_oracle_smtp_spf.py": "16c30f62d2aaccf4683b54ca7ef5204d942b0bd697ada3dbb7a4e8b69c21a6cd"
+  },
+  "release": {
+    "command": "cargo build --release --locked --target x86_64-unknown-linux-gnu -p lmyzmail",
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "d338dd668f6b84089ab722bb5ff15eee3d0633cee1d983779656813f6c03b498"
+  },
+  "verification": [
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_smtp_spf.py -m oracle",
+      "result": "1 passed; fresh Java replay matched the frozen golden"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_smtp_spf.py -m candidate",
+      "result": "1 passed; Rust release matched the frozen golden"
+    },
+    {
+      "command": "cargo test -p lmyzmail smtp_spf --target x86_64-unknown-linux-gnu",
+      "result": "5 passed, including structured property and hard-cache-bound tests"
+    },
+    {
+      "command": "cargo test -p lmyzmail smtp::tests --target x86_64-unknown-linux-gnu",
+      "result": "21 passed"
+    },
+    {
+      "command": "cargo test --workspace --all-targets --all-features --locked --target x86_64-unknown-linux-gnu",
+      "result": "passed; 503 lmyzmail library tests plus every binary and integration target"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --all-features --locked --target x86_64-unknown-linux-gnu -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "blackbox/.venv/bin/pytest -q -m 'not integration'",
+      "result": "135 passed, 105 deselected"
+    },
+    {
+      "command": "blackbox/.venv/bin/ruff check blackbox",
+      "result": "passed"
+    },
+    {
+      "command": "cd blackbox && .venv/bin/mypy src tests tools",
+      "result": "Success: no issues found in 125 source files"
+    }
+  ],
+  "attestation_scope": {
+    "new_suite_current": true,
+    "older_versioned_smtp_suites": "not re-recorded; their immutable definition-tree attestations reject the expanded harness before candidate observation",
+    "older_goldens_modified": false,
+    "final_full_reattestation_required": true
+  },
+  "security_differences": []
+}

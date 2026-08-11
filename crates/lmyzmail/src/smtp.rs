@@ -3,7 +3,7 @@ use std::{
     future::Future,
     hash::{Hash, Hasher},
     io,
-    net::IpAddr,
+    net::{IpAddr, Ipv4Addr, Ipv6Addr},
     path::Path,
     pin::Pin,
     sync::{
@@ -18,8 +18,6 @@ use chrono::{DateTime, Datelike, Timelike, Utc, Weekday};
 use deadpool_postgres::Pool;
 use deadpool_redis::Pool as RedisPool;
 use getrandom::fill as fill_random;
-use hickory_resolver::config::{NameServerConfig, ResolverConfig, ResolverOpts};
-use mail_auth::{MessageAuthenticator, SpfResult, spf::verify::SpfParameters};
 use mail_parser::MessageParser;
 use openssl::pkcs12::Pkcs12;
 use rustls::{
@@ -50,6 +48,7 @@ use crate::{
     smtp_skibidi_quiz::{AnswerOutcome, QuizLevel, QuizState, ensure_question_bank_loaded},
     smtp_skibidi_video::{VideoDefaults, VideoService, VideoStartError, frame_wire_bytes},
     smtp_spamhaus::SpamhausService,
+    smtp_spf::{SpfVerification, SpfVerifier},
     video_asset::locate_frozen_video_asset,
 };
 
@@ -67,7 +66,6 @@ const SMTP_QUEUE_CAPACITY: usize = 256;
 const CRINGE_QUEUE_CAPACITY: usize = 256;
 const CRINGE_SHUTDOWN_DEADLINE: Duration = Duration::from_secs(10);
 const CRINGE_FORCED_SHUTDOWN_DEADLINE: Duration = Duration::from_secs(2);
-const SPF_DEADLINE: Duration = Duration::from_secs(10);
 const MAX_SMTP_REPLY_TEXT_BYTES: usize = 506;
 const MAILDIR_SHARD_LOCKS: usize = 64;
 static FILE_COUNTER: AtomicU64 = AtomicU64::new(1);
@@ -101,7 +99,7 @@ pub struct SmtpService {
     tls_acceptor: Option<TlsAcceptor>,
     rbl_scanner: RblScanner,
     new_domain_scanner: NewDomainScanner,
-    spf_authenticator: MessageAuthenticator,
+    spf_verifier: SpfVerifier,
     spamhaus_service: SpamhausService,
     skibidi_generator: SkibidiGenerator,
     inferx_service: Arc<InferxService>,
@@ -246,19 +244,10 @@ impl SmtpService {
                 "SMTP content-filter DNS resolver cannot start: {error}"
             ))
         })?;
-        let spf_authenticator = if let Some(server) = config.features.smtp_spf_dns_server {
-            let mut name_server = NameServerConfig::udp(server.ip());
-            name_server.connections[0].port = server.port();
-            MessageAuthenticator::new(
-                ResolverConfig::from_parts(None, Vec::new(), vec![name_server]),
-                ResolverOpts::default(),
-            )
-        } else {
-            MessageAuthenticator::new_system_conf()
-        }
-        .map_err(|error| {
-            SmtpError::InvalidConfig(format!("SMTP SPF resolver cannot start: {error}"))
-        })?;
+        let spf_verifier =
+            SpfVerifier::new(config.features.smtp_spf_dns_server).map_err(|error| {
+                SmtpError::InvalidConfig(format!("SMTP SPF resolver cannot start: {error}"))
+            })?;
         let spamhaus_service = SpamhausService::new(
             config.smtp_spamhaus.clone(),
             config.features.smtp_spf_dns_server,
@@ -311,7 +300,7 @@ impl SmtpService {
             tls_acceptor,
             rbl_scanner,
             new_domain_scanner,
-            spf_authenticator,
+            spf_verifier,
             spamhaus_service,
             skibidi_generator,
             inferx_service,
@@ -323,8 +312,8 @@ impl SmtpService {
     async fn self_spoof_rejection(
         &self,
         peer: IpAddr,
-        helo: &str,
         sender: &str,
+        verification: &SpfVerification,
         cancellation: &CancellationToken,
     ) -> Option<String> {
         let sender_domain = sender.rsplit_once('@').map(|(_, domain)| domain)?;
@@ -335,29 +324,11 @@ impl SmtpService {
             return None;
         }
 
-        let verification = timeout(
-            SPF_DEADLINE,
-            self.spf_authenticator
-                .verify_spf(SpfParameters::verify_mail_from(
-                    peer,
-                    helo,
-                    &self.config.domain,
-                    sender,
-                )),
-        )
-        .await;
-        let (spf_result, spf_reason) = match verification {
-            Ok(output) => {
-                spf_result_and_reason(output.result(), sender_domain, output.explanation())
-            }
-            Err(_) => (
-                "temperror",
-                "SPF check error: DNS query timed out".to_owned(),
-            ),
-        };
-        if spf_result == "pass" {
+        if verification.passed() {
             return None;
         }
+        let spf_result = verification.result();
+        let spf_reason = verification.reason();
 
         let seed = format!("{peer}:{sender}:{}", Utc::now().timestamp_millis());
         let insult = if self.config.features.smtp_skibidi_insults {
@@ -529,6 +500,13 @@ impl SmtpService {
         let received_at = Utc::now();
         let received_id = random_hex_upper(7).map_err(io::Error::other)?;
         let accepted_id = random_hex(4).map_err(io::Error::other)?;
+        let content_quarantined = content_scan.is_suspicious(&self.config.content_filter);
+        let folder =
+            if envelope.spf.as_ref().is_some_and(SpfVerification::passed) && !content_quarantined {
+                "inbox"
+            } else {
+                "spam"
+            };
         let raw = compose_message(
             &envelope,
             MessageComposition {
@@ -563,7 +541,6 @@ impl SmtpService {
             counter,
             counter,
         );
-        let folder = "spam";
         let folder_root = self.config.maildir.join(&mailbox).join(folder);
         let temporary_path = self
             .config
@@ -746,35 +723,6 @@ fn sanitize_smtp_reply_text(value: &str) -> String {
     sanitized
 }
 
-fn spf_result_and_reason(
-    result: SpfResult,
-    domain: &str,
-    explanation: Option<&str>,
-) -> (&'static str, String) {
-    let name = match result {
-        SpfResult::Pass => "pass",
-        SpfResult::Fail => "fail",
-        SpfResult::SoftFail => "softfail",
-        SpfResult::Neutral => "neutral",
-        SpfResult::TempError => "temperror",
-        SpfResult::PermError => "permerror",
-        SpfResult::None => "none",
-    };
-    let reason = explanation.map_or_else(
-        || match result {
-            SpfResult::None => format!("No SPF record found for {domain}"),
-            SpfResult::Pass => "SPF validation passed".to_owned(),
-            SpfResult::Fail => "SPF policy rejected the client IP".to_owned(),
-            SpfResult::SoftFail => "SPF policy soft-failed the client IP".to_owned(),
-            SpfResult::Neutral => "SPF policy returned neutral".to_owned(),
-            SpfResult::TempError => "SPF DNS lookup failed temporarily".to_owned(),
-            SpfResult::PermError => "SPF record is invalid".to_owned(),
-        },
-        str::to_owned,
-    );
-    (name, reason)
-}
-
 async fn run_cringe_persistence(
     receiver: mpsc::Receiver<SmtpCringeActivity>,
     cringe_service: CringeService,
@@ -941,6 +889,7 @@ struct Envelope {
     sender: Option<String>,
     recipients: Vec<String>,
     data: Vec<u8>,
+    spf: Option<SpfVerification>,
 }
 
 impl Envelope {
@@ -948,6 +897,7 @@ impl Envelope {
         self.sender = None;
         self.recipients.clear();
         self.data.clear();
+        self.spf = None;
     }
 }
 
@@ -1510,14 +1460,31 @@ async fn handle_connection(
                             io.write_all(&wire).await?;
                             continue;
                         }
-                        if let Some(message) = service
-                            .self_spoof_rejection(
-                                peer,
-                                &helo,
-                                &sender.canonical,
-                                &connection_cancellation,
+                        let spf = if sender.canonical.is_empty() {
+                            None
+                        } else {
+                            Some(
+                                service
+                                    .spf_verifier
+                                    .verify(
+                                        peer,
+                                        &helo,
+                                        &service.config.domain,
+                                        &sender.canonical,
+                                        &connection_cancellation,
+                                    )
+                                    .await,
                             )
-                            .await
+                        };
+                        if let Some(verification) = spf.as_ref()
+                            && let Some(message) = service
+                                .self_spoof_rejection(
+                                    peer,
+                                    &sender.canonical,
+                                    verification,
+                                    &connection_cancellation,
+                                )
+                                .await
                         {
                             io.write_all(format!("550 {message}\r\n").as_bytes())
                                 .await?;
@@ -1525,6 +1492,7 @@ async fn handle_connection(
                         }
                         envelope.sender = Some(sender.canonical);
                         envelope.recipients.clear();
+                        envelope.spf = spf;
                         io.write_all(b"250 2.1.0 Sender OK\r\n").await?;
                     }
                     Ok(None) => io.write_all(b"501 5.5.4 Syntax error in parameters\r\n").await?,
@@ -1866,22 +1834,33 @@ fn compose_message(envelope: &Envelope, composition: MessageComposition<'_>) -> 
         .filter(|value| !value.is_empty())
         .unwrap_or("");
     let auth_spf = if sender_clause.is_empty() {
-        "spf=none (No MAIL FROM address)"
+        "spf=none (No MAIL FROM address)".to_owned()
+    } else if let Some(spf) = envelope.spf.as_ref() {
+        format!("spf={} ({})", spf.result(), spf.reason())
     } else {
-        "spf=neutral (No SPF record found)"
+        "spf=temperror (SPF verification unavailable)".to_owned()
     };
     let protocol = if encrypted { "ESMTPS" } else { "ESMTP" };
     let date = java_rfc1123(received_at);
-    let status = if content_scan.is_suspicious(content_filter) {
+    let status = if content_scan.is_suspicious(content_filter)
+        || envelope
+            .spf
+            .as_ref()
+            .is_some_and(SpfVerification::should_quarantine)
+    {
         "Yes"
     } else {
         "No"
     };
-    let total_score = java_one_decimal(content_scan.total_score());
-    let reverse_dns = if peer.is_loopback() {
-        "localhost"
-    } else {
-        "unverified"
+    let protocol_score = envelope
+        .spf
+        .as_ref()
+        .map_or(0.0, SpfVerification::protocol_score);
+    let total_score = java_one_decimal(content_scan.total_score() + protocol_score);
+    let reverse_dns = match peer {
+        IpAddr::V4(address) if address == Ipv4Addr::LOCALHOST => "localhost",
+        IpAddr::V6(address) if address == Ipv6Addr::LOCALHOST => "localhost",
+        _ => "unverified",
     };
     let mut header = format!(
         "Received: from {helo} ({reverse_dns} [{peer}])\r\n\tby {HOSTNAME} with {protocol} id {received_id}\r\n\tfor <{mailbox}>;\r\n\t{date}\r\nAuthentication-Results: {HOSTNAME};\r\n\t{auth_spf} smtp.client-ip={peer} smtp.mailfrom={sender_clause};\r\n\tdkim=none (No DKIM signature present);\r\n\tdmarc=none No DMARC record found\r\nX-Spam-Status: {status}\r\nX-Spam-Score: {total_score}\r\n",
@@ -2149,6 +2128,7 @@ mod tests {
             sender: None,
             recipients: vec!["qa@example.test".into()],
             data: b"From: sender@external.test\r\nDate: Tue, 5 Aug 2025 12:00:00 GMT\r\nSubject: =?UTF-8?Q?FREE?= =?ISO-8859-1?Q?MONEY?=\r\nMessage-ID: <encoded@example.test>\r\n\r\nbody\r\n".to_vec(),
+            spf: None,
         };
         let config = ContentFilterConfig::default();
         let scan = ParsedHeaders::parse(&envelope.data)
@@ -2182,6 +2162,7 @@ mod tests {
             sender: None,
             recipients: vec!["qa@example.test".into()],
             data: b"From: sender@external.test\r\nDate: Tue, 5 Aug 2025 12:00:00 GMT\r\nSubject: clean\r\nMessage-ID: <clean@example.test>\r\n\r\nbody\r\n".to_vec(),
+            spf: None,
         };
         let config = ContentFilterConfig::default();
         let scan = ParsedHeaders::parse(&envelope.data)
@@ -2278,44 +2259,6 @@ Subject: binary\r\nMessage-ID: <binary@example.test>\r\n\r\n\x00\xff\x80";
             b"Content-Type: multipart/mixed; boundary=outer\r\n\r\n--outer\r\nContent-Type: multipart/alternative; boundary=inner\r\n\r\n--inner\r\nContent-Type: text/plain\r\n\r\nbody\r\n--inner--\r\n--outer--\r\n"
         )
         .unwrap());
-    }
-
-    #[test]
-    fn spf_result_mapping_is_complete_and_explanations_take_precedence() {
-        let cases = [
-            (SpfResult::Pass, "pass", "SPF validation passed"),
-            (SpfResult::Fail, "fail", "SPF policy rejected the client IP"),
-            (
-                SpfResult::SoftFail,
-                "softfail",
-                "SPF policy soft-failed the client IP",
-            ),
-            (SpfResult::Neutral, "neutral", "SPF policy returned neutral"),
-            (
-                SpfResult::TempError,
-                "temperror",
-                "SPF DNS lookup failed temporarily",
-            ),
-            (SpfResult::PermError, "permerror", "SPF record is invalid"),
-            (
-                SpfResult::None,
-                "none",
-                "No SPF record found for blackbox.example.com",
-            ),
-        ];
-        for (result, expected_name, expected_reason) in cases {
-            let (name, reason) = spf_result_and_reason(result, "blackbox.example.com", None);
-            assert_eq!(name, expected_name);
-            assert_eq!(reason, expected_reason);
-        }
-        assert_eq!(
-            spf_result_and_reason(
-                SpfResult::Fail,
-                "blackbox.example.com",
-                Some("oracle explanation"),
-            ),
-            ("fail", "oracle explanation".to_owned()),
-        );
     }
 
     #[test]
