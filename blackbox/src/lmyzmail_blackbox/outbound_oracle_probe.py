@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import ipaddress
 import json
 import os
 import re
@@ -18,8 +19,14 @@ import psycopg
 import redis
 
 from .persistent_runtime import PersistentJavaOracleRuntime
-from .runtime import API_KEY, QA_ADDRESS, QA_PASSWORD
-from .scripted_smtp import RecipientReply, ScriptedSmtpServer, SmtpMessageAttempt, SmtpScenario
+from .runtime import API_KEY, QA_ADDRESS, QA_PASSWORD, CandidateRuntime, JavaOracleRuntime
+from .scripted_dns import AAnswer, DnsAnswer, ScriptedDnsServer
+from .scripted_smtp import (
+    RecipientReply,
+    ScriptedSmtpServer,
+    SmtpMessageAttempt,
+    SmtpScenario,
+)
 
 _REDIS_PREFIX = "botmail:mail:queue:"
 _DOMAIN_STATUS_PREFIX = _REDIS_PREFIX + "domains:"
@@ -29,6 +36,7 @@ _FAKE_IP = "93.184.216.34"
 _RECIPIENT = f"recipient@{_DNS_HOST}"
 _TASK_TTL_SECONDS = 7 * 24 * 60 * 60
 _TASK_TTL_OBSERVATION_WINDOW_SECONDS = 30
+_OUTBOUND_TARGET_ENV = "LMYZMAIL_OUTBOUND_TARGET"
 _MESSAGE_ID_RE = re.compile(rb"(?im)^(Message-ID:\s*)<[^>\r\n]+>")
 _DATE_RE = re.compile(rb"(?im)^Date:\s*[^\r\n]+")
 _DKIM_RE = re.compile(rb"(?ims)^DKIM-Signature:.*?(?=^[^ \t\r\n][^\r\n]*:|\Z)")
@@ -64,6 +72,78 @@ class OutboundOracleRuntime(PersistentJavaOracleRuntime):
         return arguments
 
 
+class OutboundCandidateRuntime(CandidateRuntime):
+    def _application_arguments(self) -> list[str]:
+        arguments = CandidateRuntime._application_arguments(self)
+        arguments.extend(
+            (
+                "--lmyzmail.queue.poll-interval-ms=3000",
+                "--lmyzmail.queue.batch-size=2",
+                "--lmyzmail.queue.max-concurrent-sends=1",
+                "--lmyzmail.outbound.pool-enabled=false",
+                "--lmyzmail.outbound.helo-hostname=blackbox.example",
+                "--lmyzmail.outbound.dns.query-timeout-seconds=1",
+                "--lmyzmail.maildir.max-files-per-directory=1",
+            )
+        )
+        return arguments
+
+
+def _outbound_target() -> str:
+    target = os.environ.get(_OUTBOUND_TARGET_ENV, "java").casefold()
+    if target not in {"java", "candidate"}:
+        raise AssertionError(f"unsupported outbound target: {target}")
+    return target
+
+
+def _candidate_runtime(repository: Path) -> OutboundCandidateRuntime:
+    if os.environ.get("LMYZMAIL_CANDIDATE_COMMAND_JSON") is not None:
+        return cast(
+            OutboundCandidateRuntime,
+            OutboundCandidateRuntime.from_environment(),
+        )
+    return OutboundCandidateRuntime(
+        command_template=(
+            str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+            "--config",
+            "{config}",
+        )
+    )
+
+
+def _ipv4_nameserver() -> str:
+    for line in Path("/etc/resolv.conf").read_text(encoding="ascii").splitlines():
+        fields = line.split()
+        if len(fields) != 2 or fields[0] != "nameserver":
+            continue
+        try:
+            address = ipaddress.ip_address(fields[1])
+        except ValueError:
+            continue
+        if address.version == 4 and not address.is_unspecified and not address.is_multicast:
+            return str(address)
+    raise AssertionError("outbound candidate probe requires an IPv4 system nameserver")
+
+
+def _candidate_dns_server() -> ScriptedDnsServer:
+    nameserver = _ipv4_nameserver()
+    result = subprocess.run(  # noqa: S603
+        ["/usr/sbin/ip", "address", "add", f"{nameserver}/32", "dev", "lo"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0 and "File exists" not in result.stderr:
+        raise AssertionError(
+            f"failed to pin candidate DNS fixture address: {result.stderr.strip()}"
+        )
+    return ScriptedDnsServer(
+        {(_DNS_HOST, 1): DnsAnswer(a=(AAnswer(_FAKE_IP, ttl=0),))},
+        bind_host=nameserver,
+        bind_port=53,
+    )
+
+
 def _normalize_message(value: bytes) -> bytes:
     value = _DATE_RE.sub(rb"Date: <NORMALIZED>", value)
     value = _MESSAGE_ID_RE.sub(rb"\1<MESSAGE_ID>", value)
@@ -94,45 +174,49 @@ def _normalize_task_ttl(ttl_seconds: int) -> int:
 
 
 def _redis_snapshot(client: redis.Redis, ids: dict[int, str]) -> dict[str, Any]:
-    def decode(value: bytes) -> str:
-        return value.decode("utf-8", errors="replace")
-
+    expected = frozenset(ids.values())
     pending_values = cast(list[bytes], client.lrange(_REDIS_PREFIX + "pending", 0, -1))
     pending = [
-        _logical_id(int(value), ids)
+        logical
         for value in pending_values
         if value.decode("ascii", errors="ignore").isdigit()
+        and (logical := _logical_id(int(value), ids)) in expected
     ]
     processing_values = cast(set[bytes], client.smembers(_REDIS_PREFIX + "processing"))
     processing = sorted(
-        _logical_id(int(value), ids)
+        logical
         for value in processing_values
         if value.decode("ascii", errors="ignore").isdigit()
+        and (logical := _logical_id(int(value), ids)) in expected
     )
     retry_values = cast(list[bytes], client.zrange(_REDIS_PREFIX + "retry", 0, -1))
     retry = [
-        _logical_id(int(value), ids)
+        logical
         for value in retry_values
         if value.decode("ascii", errors="ignore").isdigit()
+        and (logical := _logical_id(int(value), ids)) in expected
     ]
     processing_time_values = cast(list[bytes], client.hkeys(_REDIS_PREFIX + "processing_time"))
     processing_time = sorted(
-        _logical_id(int(value), ids)
+        logical
         for value in processing_time_values
         if value.decode("ascii", errors="ignore").isdigit()
+        and (logical := _logical_id(int(value), ids)) in expected
     )
     archive = client.llen(_REDIS_PREFIX + "archive")
     status_updates = client.llen(_REDIS_PREFIX + "status_updates")
     sent_index_values = cast(dict[bytes, bytes], client.hgetall(_REDIS_PREFIX + "sentfile_index"))
     sent_index: dict[str, str] = {}
-    for filename, value in sent_index_values.items():
+    for _filename, value in sent_index_values.items():
         if not value.decode("ascii", errors="ignore").isdigit():
             continue
         logical = _logical_id(int(value), ids)
+        if logical not in expected:
+            continue
         # Java embeds wall-clock time and a process-local counter in generated
         # sent filenames. The task-to-file relation is stable and is asserted
-        # through the normalized key; legacy filenames remain byte-visible.
-        normalized_key = f"generated:{logical}" if logical in ids.values() else decode(filename)
+        # through the normalized key.
+        normalized_key = f"generated:{logical}"
         sent_index[normalized_key] = logical
     tasks: dict[str, Any] = {}
     for task_id, logical in ids.items():
@@ -204,7 +288,7 @@ def _wait_until(
     raise AssertionError(f"timed out waiting for {description}")
 
 
-def _db_rows(runtime: OutboundOracleRuntime) -> list[dict[str, Any]]:
+def _db_rows(runtime: JavaOracleRuntime) -> list[dict[str, Any]]:
     if runtime.workspace is None or runtime.ports is None:
         raise AssertionError("runtime is not started")
     with psycopg.connect(
@@ -239,7 +323,7 @@ def _db_rows(runtime: OutboundOracleRuntime) -> list[dict[str, Any]]:
     return output
 
 
-def _maildir_snapshot(runtime: OutboundOracleRuntime) -> dict[str, Any]:
+def _maildir_snapshot(runtime: JavaOracleRuntime) -> dict[str, Any]:
     if runtime.workspace is None:
         raise AssertionError("runtime is not started")
     sent = runtime.workspace / "maildir" / QA_ADDRESS / "sent"
@@ -260,7 +344,7 @@ def _attempt_snapshot(attempt: SmtpMessageAttempt) -> dict[str, Any]:
 
 def _capture_runtime(
     server: ScriptedSmtpServer,
-    runtime: OutboundOracleRuntime,
+    runtime: JavaOracleRuntime,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[int, str], dict[str, int]]:
     if runtime.ports is None:
         raise AssertionError("runtime ports are unavailable")
@@ -285,25 +369,26 @@ def _capture_runtime(
             _DNS_HOST.encode("ascii"),
             ex=300,
         )
-        redis_client.rpush(_REDIS_PREFIX + "pending", _SENTINEL)
-        _wait_until(
-            lambda: _SENTINEL
-            not in cast(
-                list[bytes],
-                redis_client.lrange(_REDIS_PREFIX + "pending", 0, -1),
-            ),
-            timeout=10.0,
-            description="scheduler sentinel consumption",
-        )
-        _wait_until(
-            lambda: _SENTINEL
-            not in cast(
-                set[bytes],
-                redis_client.smembers(_REDIS_PREFIX + "processing"),
-            ),
-            timeout=10.0,
-            description="scheduler sentinel completion",
-        )
+        if isinstance(runtime, OutboundOracleRuntime):
+            redis_client.rpush(_REDIS_PREFIX + "pending", _SENTINEL)
+            _wait_until(
+                lambda: _SENTINEL
+                not in cast(
+                    list[bytes],
+                    redis_client.lrange(_REDIS_PREFIX + "pending", 0, -1),
+                ),
+                timeout=10.0,
+                description="scheduler sentinel consumption",
+            )
+            _wait_until(
+                lambda: _SENTINEL
+                not in cast(
+                    set[bytes],
+                    redis_client.smembers(_REDIS_PREFIX + "processing"),
+                ),
+                timeout=10.0,
+                description="scheduler sentinel completion",
+            )
         with httpx.Client(
             base_url=f"http://127.0.0.1:{runtime.ports.http}",
             headers={"X-API-Key": API_KEY},
@@ -339,7 +424,7 @@ def _capture_runtime(
                 description="remote SMTP acceptance of all tasks",
             )
         except AssertionError as error:
-            log_paths = sorted(workspace.glob("java-application-*.log"))
+            log_paths = sorted(workspace.glob("*-application-*.log"))
             log_tail = (
                 log_paths[-1].read_text(encoding="utf-8", errors="replace")[-32_768:]
                 if log_paths
@@ -489,7 +574,7 @@ def _smtp_transcript_snapshot(server: ScriptedSmtpServer) -> dict[str, Any]:
 
 def _capture_5xx_case(
     server: ScriptedSmtpServer,
-    runtime: OutboundOracleRuntime,
+    runtime: JavaOracleRuntime,
     *,
     phase: str,
     code: int,
@@ -644,11 +729,24 @@ def run_probe() -> dict[str, Any]:
         max_message_bytes=2 * 1024 * 1024,
     )
     server = ScriptedSmtpServer(scenario, bind_host=_FAKE_IP, bind_port=25)
+    target = _outbound_target()
+    dns_server = _candidate_dns_server() if target == "candidate" else None
     with tempfile.TemporaryDirectory(prefix="lmyzmail-outbound-oracle-") as workspace:
-        runtime = OutboundOracleRuntime(Path(workspace))
-        with server:
-            with runtime:
-                pre, post, ids, body_lengths = _capture_runtime(server, runtime)
+        runtime: JavaOracleRuntime
+        if target == "candidate":
+            repository = Path(__file__).resolve().parents[3]
+            runtime = _candidate_runtime(repository)
+        else:
+            runtime = OutboundOracleRuntime(Path(workspace))
+        if dns_server is not None:
+            dns_server.start()
+        try:
+            with server:
+                with runtime:
+                    pre, post, ids, body_lengths = _capture_runtime(server, runtime)
+        finally:
+            if dns_server is not None:
+                dns_server.stop()
     rows = [row for row in post["db"] if row["id"] in ids]
     for row in rows:
         row["id"] = ids[int(row["id"])]

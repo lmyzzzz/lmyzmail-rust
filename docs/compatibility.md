@@ -255,6 +255,33 @@ persistence behavior remains differential. The post-freeze supplemental
 allowlist is bound in `evidence/compatibility/smtp-spamhaus-v1.json`; the frozen
 golden definition tree and global manifest are unchanged.
 
+## Outbound SMTP success path
+
+The create-once `managed-outbound-queue-v34.json` generation is the first
+external outbound delivery observation replayed by both runtimes. It starts an
+isolated PostgreSQL, Redis, Maildir, remote SMTP peer, and network namespace,
+then submits four asynchronous API messages whose text bodies are 19, 8,191,
+8,192, and 12,288 bytes. The frozen 10 KiB estimate keeps 8,191 bytes inline
+in Redis and switches 8,192 bytes to an owned spool file.
+
+The Rust candidate matches the Java oracle's `202` admission bodies, legacy
+Redis task JSON/type/seven-day TTL, pending order, sent-file index, memory/file
+boundary, Sent Maildir byte totals and shard numbers, PostgreSQL `SENT` rows,
+SMTP envelope, message and wire byte lengths, ordered SMTP event sequence, and
+all four normalized message SHA-256 values. The message normalizer replaces
+only Date, Message-ID, and an optional DKIM-Signature. Java's streaming
+quoted-printable rule folds before byte 76, so the Rust writer deliberately
+emits at most 75 encoded bytes before a soft break without buffering the body.
+
+The candidate's resolver consumes a zero-TTL A answer from a bounded scripted
+DNS server inside the probe namespace and connects to the already reviewed
+numeric address; the recipient-domain MX value remains the exact legacy Redis
+cache entry. Snapshot assertions are scoped to the four task IDs created by
+this scenario. Existing legacy queue takeover, retry, migration, recovery,
+4xx/5xx, STARTTLS/MTA-STS, commit ambiguity, DSN, restart, and soak behavior
+remain covered by their dedicated tests or by later external differential
+matrices; v34 does not claim those paths.
+
 ## Approved security differences
 
 The authoritative allowlist is

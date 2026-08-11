@@ -1,0 +1,157 @@
+{
+  "schema_version": 1,
+  "profile": "outbound-success-v1",
+  "captured_at": "2026-08-11T18:52:44+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "contract": {
+    "message_count": 4,
+    "body_bytes": [
+      19,
+      8191,
+      8192,
+      12288
+    ],
+    "api_status": 202,
+    "inline_body_max_bytes": 8191,
+    "spool_body_min_bytes": 8192,
+    "redis_task_ttl_seconds": 604800,
+    "maildir_sent_count": 4,
+    "maildir_sent_bytes": 31070,
+    "maildir_shards": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "postgres_terminal_status": "SENT",
+    "smtp_normalized_sha256": [
+      "6000c97b7d0b25727a8d29bac84fa6e9465a49ae8a1ee7bdf5a95b1ddb0bc8df",
+      "9117cab3bd9bbc1091a651a6ffda591d50a77ee8a08c674305ad1f8728a057de",
+      "d83fcf3d4cc81bb4b4348d08b8b04f726192fbb910032b621d705c21b9c456ba",
+      "b638eaeb7c42bf9beef7ce73a950c95d1bcc28b03b26336c1793bc985a212a20"
+    ],
+    "normalizers": [
+      "generated sent filename",
+      "Date",
+      "Message-ID",
+      "optional DKIM-Signature",
+      "bounded seven-day Redis TTL observation window"
+    ]
+  },
+  "bounds": {
+    "queue_poll_interval_ms": 3000,
+    "queue_batch_size": 2,
+    "queue_max_concurrent_sends": 1,
+    "maildir_max_files_per_directory": 1,
+    "candidate_dns_query_timeout_seconds": 1,
+    "scripted_dns_a_ttl_seconds": 0,
+    "probe_timeout_seconds": 170,
+    "scripted_smtp_max_message_bytes": 2097152
+  },
+  "golden": {
+    "profile": "managed-outbound-queue",
+    "version": 34,
+    "definition_tree_sha256": "279a2fa81b338a0972a5582ac4541e024d3c6a8b043dff1bf2ad01604f1d6286",
+    "file_sha256": "3a79867593c03d208f8d30ff9a77fe741bacde95186795477db2be0ba541b42c"
+  },
+  "implementation": {
+    "runtime": "stable-rust-1.94.0",
+    "java_runtime_dependency": false,
+    "quoted_printable_encoded_line_max_bytes": 75,
+    "quoted_printable_body_buffered": false,
+    "candidate_dns_isolated": true,
+    "candidate_system_dns_modified": false,
+    "snapshot_task_scope": "four task IDs created by this scenario",
+    "covered_paths": [
+      "HTTP asynchronous queue admission",
+      "inline Redis content",
+      "owned spool-file content",
+      "queue scheduling and successful SMTP delivery",
+      "Sent Maildir publication and sharding",
+      "PostgreSQL terminal status",
+      "Redis successful-delivery cleanup"
+    ],
+    "remaining_separate_matrices": [
+      "SMTP 4xx and 5xx phase failures",
+      "STARTTLS and MTA-STS",
+      "commit ambiguity and connection loss",
+      "retry exhaustion and DSN",
+      "restart recovery and legacy queue takeover",
+      "fault injection, backpressure, concurrency, and soak"
+    ]
+  },
+  "source_sha256": {
+    "Cargo.lock": "025fda3214b0ed11e167ccf813132446913eed15ea20338acb5320798019417b",
+    "crates/lmyzmail/Cargo.toml": "4e38824e29d147f75f70a415ab05546a5eb8478f25702f6b47c25f75df31cd8d",
+    "crates/lmyzmail/src/outbound_message.rs": "21a026f14599602406cfe17307ec787baa984579b80d25382a491dd510156f18",
+    "blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py": "962621cf7d6525e1645e8529ab6623f6f5eecfe2129ae76342988d88c42b7f4d",
+    "blackbox/tests/test_oracle_outbound_queue.py": "7e8bf06158af18698d179f599fe69f1391597578dba6dd18ccddf564d9b826a7",
+    "blackbox/golden/README.md": "8ada3753e2f63d1947d7af0a03a81afcc6d21ac207d74575253797e5f6969b27",
+    "docs/compatibility.md": "88e4e2178f45cb7403823f5cba029cb31438b1edbd739ea9d767e5b8ef488a5a"
+  },
+  "release": {
+    "command": "cargo build --locked --release --target x86_64-unknown-linux-gnu -p lmyzmail",
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "6c8e0cffc3088c9c758f0cffe213c9bc82b496b699beb7df5c1674dca81f9c3b"
+  },
+  "verification": [
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_outbound_queue.py::test_managed_java_outbound_queue_golden --record-java-golden",
+      "result": "1 passed; create-once Java v34 golden recorded"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_outbound_queue.py::test_managed_java_outbound_queue_golden",
+      "result": "1 passed; fresh Java runtime replayed v34"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_outbound_queue.py::test_rust_candidate_outbound_queue_matches_frozen_java_golden",
+      "result": "1 passed; locked Rust release matched Java v34"
+    },
+    {
+      "command": "cargo test -p lmyzmail outbound --lib",
+      "result": "88 passed"
+    },
+    {
+      "command": "cargo test -p lmyzmail outbound_message --lib",
+      "result": "11 passed; includes Java-compatible 75-byte quoted-printable folding"
+    },
+    {
+      "command": "cargo test --workspace --all-features --all-targets",
+      "result": "passed on retry after one isolated auth_postgres transient; 510 lmyzmail library tests plus every binary and integration target"
+    },
+    {
+      "command": "cargo test -p lmyzmail --test auth_postgres",
+      "result": "3 passed after the isolated transient"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --all-features -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "cargo build --locked --release --target x86_64-unknown-linux-gnu -p lmyzmail",
+      "result": "passed"
+    },
+    {
+      "command": "cd blackbox && .venv/bin/python -m pytest -m 'not integration'",
+      "result": "135 passed, 110 deselected"
+    },
+    {
+      "command": "cd blackbox && .venv/bin/python -m ruff check .",
+      "result": "passed"
+    },
+    {
+      "command": "cd blackbox && .venv/bin/python -m mypy .",
+      "result": "Success: no issues found in 130 source files"
+    }
+  ],
+  "attestation_scope": {
+    "new_suite_current": true,
+    "older_outbound_goldens": "v1 through v33 remain immutable history",
+    "older_goldens_modified": false,
+    "final_full_reattestation_required": true
+  },
+  "security_differences": []
+}

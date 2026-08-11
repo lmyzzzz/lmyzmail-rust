@@ -1126,3 +1126,19 @@ also freezes the post-rejection `RCPT` state and PostgreSQL
 isolated Java runtime created v1, a second fresh Java runtime replayed it
 without record mode, and the Linux x86_64 Rust release matched it in a separate
 candidate workspace. No self-spoof golden was rewritten.
+
+The active outbound success-path set is:
+
+- `managed-outbound-queue-v34.json`
+
+It binds definition tree
+`279a2fa81b338a0972a5582ac4541e024d3c6a8b043dff1bf2ad01604f1d6286`
+and is the first queue generation consumed by both the frozen Java probe and
+the Rust candidate probe. Four asynchronous messages freeze the 8,191/8,192
+byte inline-to-spool boundary, exact legacy Redis task and TTL state, Sent
+Maildir sharding, PostgreSQL terminal rows, remote SMTP ordering, and
+normalized MIME bytes. Only generated sent filenames, Date, Message-ID,
+optional DKIM-Signature, and the bounded seven-day TTL observation window are
+normalized. One isolated Java runtime created v34, a fresh Java runtime
+replayed it, and the locked Linux x86_64 Rust release matched it in a separate
+candidate environment. Versions v1 through v33 remain immutable history.

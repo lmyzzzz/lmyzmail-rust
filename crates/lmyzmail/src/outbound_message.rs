@@ -17,9 +17,7 @@ use mail_auth::{
     },
     dkim::{Canonicalization, DkimSigner, Done, Signature},
 };
-use mail_builder::encoders::{
-    base64::base64_encode as dkim_base64_encode, quoted_printable::quoted_printable_encode,
-};
+use mail_builder::encoders::base64::base64_encode as dkim_base64_encode;
 use openssl::pkey::PKey;
 use rustls::pki_types::{PrivateKeyDer, PrivatePkcs8KeyDer};
 use sha2::{Digest, Sha256 as Sha256Digest};
@@ -978,7 +976,39 @@ fn write_text_part(output: &mut impl Write, text: &str) -> io::Result<()> {
 }
 
 fn write_quoted_printable(text: &str, output: &mut impl Write) -> io::Result<()> {
-    quoted_printable_encode(text.as_bytes(), output, true).map(|_| ())
+    let mut line_length = 0_usize;
+    for byte in text.bytes() {
+        match byte {
+            b'\r' => {}
+            b'\n' => {
+                output.write_all(b"\r\n")?;
+                line_length = 0;
+            }
+            b'!'..=b'<' | b'>'..=b'~' | b' ' | b'\t' => {
+                write_quoted_printable_unit(output, &mut line_length, &[byte])?;
+            }
+            _ => {
+                const HEX: &[u8; 16] = b"0123456789ABCDEF";
+                let encoded = [b'=', HEX[(byte >> 4) as usize], HEX[(byte & 0x0f) as usize]];
+                write_quoted_printable_unit(output, &mut line_length, &encoded)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn write_quoted_printable_unit(
+    output: &mut impl Write,
+    line_length: &mut usize,
+    unit: &[u8],
+) -> io::Result<()> {
+    if line_length.saturating_add(unit.len()) > 75 {
+        output.write_all(b"=\r\n")?;
+        *line_length = 0;
+    }
+    output.write_all(unit)?;
+    *line_length += unit.len();
+    Ok(())
 }
 
 fn write_attachment(
@@ -1509,6 +1539,17 @@ mod tests {
         assert!(text.contains("aGVsbG8=\r\n"));
         assert!(!text.contains("hidden@remote.test"));
         assert!(!text.contains("Bcc:"));
+    }
+
+    #[test]
+    fn quoted_printable_matches_frozen_java_line_folding() {
+        let mut output = Vec::new();
+        write_quoted_printable(&"a".repeat(76), &mut output).unwrap();
+        assert_eq!(output, format!("{}=\r\na", "a".repeat(75)).as_bytes());
+
+        output.clear();
+        write_quoted_printable("a\r\nb\nc\rd\0", &mut output).unwrap();
+        assert_eq!(output, b"a\r\nb\r\ncd=00");
     }
 
     #[test]
