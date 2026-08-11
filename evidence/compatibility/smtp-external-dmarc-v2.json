@@ -1,0 +1,195 @@
+{
+  "schema_version": 1,
+  "profile": "smtp-external-dmarc-v2",
+  "captured_at": "2026-08-12T07:49:59+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "contract": {
+    "original_case_count": 5,
+    "edge_case_count": 8,
+    "total_case_count": 13,
+    "edge_results": {
+      "multiple_from": {
+        "dmarc_result": "none",
+        "folder": "inbox",
+        "indexed_from": "Second Sender <second@second-from.dmarc-edge-example.org>",
+        "invalid_author_domain_queries": 0
+      },
+      "group_from": {
+        "dmarc_result": "none",
+        "folder": "inbox",
+        "invalid_author_domain_queries": 0
+      },
+      "organizational_fallback_subdomain_policy": {
+        "effective_policy": "quarantine",
+        "folder": "spam",
+        "organizational_record_queries": 1
+      },
+      "malformed_then_valid": {
+        "effective_policy": "quarantine",
+        "folder": "spam",
+        "author_domain_queries": 1
+      },
+      "multiple_valid_records": {
+        "effective_policy": "none",
+        "selection": "first valid record",
+        "folder": "spam"
+      },
+      "dkim_valid_first_missing_second": {
+        "dmarc_result": "pass",
+        "folder": "inbox",
+        "ignored_selector_queries": 0
+      },
+      "dkim_missing_first_valid_second": {
+        "dmarc_result": "fail",
+        "effective_policy": "quarantine",
+        "folder": "spam",
+        "ignored_selector_queries": 0
+      },
+      "bdat_last": {
+        "dmarc_result": "pass",
+        "folder": "inbox",
+        "completion_mode": "BDAT LAST"
+      }
+    },
+    "dns": {
+      "positive_zero_ttl_queries": "exact per transaction",
+      "nxdomain_retries": "bounded from one through four",
+      "forbidden_author_and_selector_queries": 0
+    },
+    "persistence": [
+      "SMTP wire replies and Authentication-Results headers",
+      "Maildir atomic publication and normalized raw bytes",
+      "email_index folder, final From field, size, and message identity",
+      "legacy mail:count:<mailbox>:<folder> Redis key without TTL"
+    ]
+  },
+  "bounds": {
+    "dmarc_lookup_and_evaluation_deadline_seconds": 10,
+    "concurrent_dmarc_lookups": 16,
+    "txt_records_per_response": 32,
+    "joined_txt_record_bytes": 4096,
+    "smtp_connection_limit": 256,
+    "delivery_queue_capacity": 256,
+    "delivery_deadline_seconds": 15
+  },
+  "golden": {
+    "active": {
+      "profile": "managed-smtp-dmarc",
+      "version": 3,
+      "definition_tree_sha256": "138554d6c8bd1aaf8ed3a1a190a532de4cb26815a827a482141019a36cc72606",
+      "suite_sha256": "d8083e218987f8efda5f363622ee6998df03e99097a83e1d6e925632f2f9a738",
+      "base_observation_sha256": "7e6b8eea58fc31581d360bdda2670a5ee997918340a852d8e49ed67e99f2fc44",
+      "edge_observation_sha256": "85a82fe95f6de8ce11ff4cb5918e67be42502015a3f7633bf381994a042c296b"
+    },
+    "immutable_exploration": {
+      "profile": "managed-smtp-dmarc",
+      "version": 2,
+      "definition_tree_sha256": "6dfadfe60a19505270f6cd1493a75ed347f8329cad2b7ce65349390459b3ed4e",
+      "suite_sha256": "a38f77d01f7f1484e8e9dae4d5d31407287693086ce5ceedf40a43d701365645",
+      "edge_observation_sha256": "c643ccb5e69df001e62b8b17769b4bfbb98b328952f1525d7a5439d4bd767a71",
+      "candidate_expectation": false,
+      "reason": "isolated the frozen early envelope-domain malformed-record requery before the active author-domain contract was selected"
+    }
+  },
+  "implementation": {
+    "runtime": "stable-rust-1.94.0",
+    "java_runtime_dependency": false,
+    "dmarc_parser": "mail-auth 0.11.2",
+    "organizational_domain_source": "psl 2.1.223",
+    "from_cardinality_requires_one_mailbox": true,
+    "email_index_duplicate_from_selection": "last field, matching Java Mime4j overwrite order",
+    "only_first_dkim_signature_evaluated": true,
+    "covered_completion_modes": [
+      "DATA",
+      "BDAT LAST"
+    ],
+    "covered_edge_matrix": [
+      "multiple RFC5322.From headers",
+      "group From syntax",
+      "organizational-domain record fallback",
+      "subdomain sp policy selection",
+      "malformed followed by valid DMARC record",
+      "first of multiple valid DMARC records",
+      "both multiple-DKIM signature orders",
+      "BDAT LAST DMARC completion"
+    ],
+    "remaining_separate_matrices": []
+  },
+  "source_sha256": {
+    "Cargo.lock": "952e6cec5696d1eab472fd481f6ce9f12c1bf364a291f67931a56dbcab9ae007",
+    "crates/lmyzmail/Cargo.toml": "69e2c7c08ef8e393b9534ac28d0ea8b2f83c689f03d661da25cd764d96aea5e8",
+    "crates/lmyzmail/src/lib.rs": "a4fd61ac5edc8f9cdee8fec5b7d066bc001ecc7a98040ec580b695bbf8bfea3a",
+    "crates/lmyzmail/src/smtp.rs": "5c6093c24ef5a938889625ddb2f53b79220bd27323619d5d9863475491e88496",
+    "crates/lmyzmail/src/smtp_content_filter.rs": "99b5ed4627cf591aa4190831901360328d20be9c9e4a28f2fae94c340a600439",
+    "crates/lmyzmail/src/smtp_dkim.rs": "fa31f9c69c5601eea284c1e27ef84d4e16ec2b4965dec852d0011e446efbe7ec",
+    "crates/lmyzmail/src/smtp_dmarc.rs": "c5ee2d7c08c0f8b722f5375326346e4110827c367fe1b85c246145e6150c9cf0",
+    "blackbox/src/lmyzmail_blackbox/scripted_dns.py": "edcfc3e7b2fc92d6a83af3590abeb7d34c006aaf112fca0e6e3a4fd980ca1e2f",
+    "blackbox/src/lmyzmail_blackbox/smtp_contract.py": "d97469b994baa223ca17793834136b31be49e982927ec17725821dac07fc2882",
+    "blackbox/src/lmyzmail_blackbox/smtp_dkim_contract.py": "67482e9ab810d2144b981e2f4d063e5e8c924c33a137e25bd6beb591d5967020",
+    "blackbox/src/lmyzmail_blackbox/smtp_dmarc_contract.py": "d4544497ca6b9b007c7f164a77c867fd1e3ce5ac1917737e9c956c53a28b4677",
+    "blackbox/tests/test_oracle_smtp_dmarc.py": "95ea30b3efdb14ba7dbfc6aa1c8b507148d792e3e5b3afb731c526897e4f992f",
+    "blackbox/golden/README.md": "aa7913e87e3c9f2122000d67c599886996decde4ca58984dae74f390b0fe2e9d",
+    "docs/compatibility.md": "20c5b4e97d9e66c33b6553b6a2a4fd3bf38b2ca5b98748edd415f40e3829de17"
+  },
+  "release": {
+    "command": "cargo build --locked --release --target x86_64-unknown-linux-gnu -p lmyzmail",
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "da7de099968638253709412a14077a81830e298595793fc196aa60ad151057d1"
+  },
+  "verification": [
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_smtp_dmarc.py::test_managed_java_smtp_dmarc_golden --record-java-golden",
+      "result": "1 passed in 21.54s; create-once Java v3 golden recorded"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_smtp_dmarc.py::test_managed_java_smtp_dmarc_golden",
+      "result": "1 passed in 21.54s; a fresh JVM replayed v3 without record mode"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_smtp_dmarc.py::test_rust_candidate_smtp_dmarc_matches_frozen_java_golden",
+      "result": "1 passed in 8.83s; locked Rust release matched all 13 Java transactions"
+    },
+    {
+      "command": "cargo test --locked -p lmyzmail duplicate_header_accessors_preserve_wire_order --lib",
+      "result": "1 passed"
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "result": "passed"
+    },
+    {
+      "command": "cargo build --locked --release --target x86_64-unknown-linux-gnu -p lmyzmail",
+      "result": "passed"
+    },
+    {
+      "command": "cargo test --locked --workspace --all-features --all-targets",
+      "result": "passed; 543 lmyzmail library tests plus every binary and integration target"
+    },
+    {
+      "command": "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "blackbox/.venv/bin/pytest -q blackbox/tests -m 'not integration'",
+      "result": "142 passed, 140 deselected"
+    },
+    {
+      "command": "blackbox/.venv/bin/ruff check blackbox/src blackbox/tests blackbox/tools",
+      "result": "passed"
+    },
+    {
+      "command": "cd blackbox && PYTHONPATH=src .venv/bin/mypy src tests tools",
+      "result": "Success: no issues found in 139 source files"
+    }
+  ],
+  "attestation_scope": {
+    "active_v3_current": true,
+    "v2_exploration_is_not_candidate_golden": true,
+    "older_goldens_modified": false,
+    "final_full_reattestation_required": true
+  },
+  "security_differences": []
+}

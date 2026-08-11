@@ -524,7 +524,8 @@ impl SmtpService {
             .as_ref()
             .and_then(|message| message.subject().map(str::to_owned))
             .or_else(|| headers.first_trimmed("subject"));
-        let from_address = headers.first_trimmed("from");
+        // Java Mime4j overwrites this scalar for each From field while parsing.
+        let from_address = headers.last_trimmed("from");
         let to_addresses = headers
             .first_trimmed("to")
             .map(|value| address_list_json(&value))

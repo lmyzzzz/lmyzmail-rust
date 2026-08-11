@@ -274,14 +274,21 @@ routes to spam, and sets `X-Spam-Status: Yes`. Every DMARC fail adds 2.0 to
 the frozen SMTP behavior of returning a normal `250` acceptance ID while
 publishing no Maildir file, PostgreSQL index row, or Redis counter change.
 
-The create-once `managed-smtp-dmarc-v1` matrix freezes five cases: strict
-DKIM-aligned pass, DKIM body-hash failure with quarantine, strict SPF-aligned
-pass, cross-organizational-domain SPF pass with quarantine, and unauthenticated
-reject with a five-second no-persistence observation. A fresh Java runtime
-replayed the golden unchanged, and the locked Linux x86_64 Rust release matched
-it byte for byte. Multiple From fields, organizational-domain record fallback,
-`sp` selection, malformed records, and additional multi-signature combinations
-remain separate compatibility matrices and are not claimed here.
+The active create-once `managed-smtp-dmarc-v3` profile retains the original five
+DATA cases and adds eight edge transactions. Multiple From fields and group
+syntax produce `dmarc=none` without querying either invalid author domain while
+the frozen index keeps the final raw From value. Organizational-domain fallback
+uses `sp` for a distinct author subdomain. A malformed record is skipped in
+favor of the following valid record, while two valid records preserve the
+oracle's first-record selection. Both multiple-DKIM orders prove that only the
+first signature contributes to DMARC, including zero queries for the ignored
+selector. The final case runs aligned SPF through BDAT LAST and proves the same
+wire, Maildir, PostgreSQL, and Redis outcome as DATA.
+
+One isolated Java runtime created v3, a fresh JVM replayed it unchanged, and the
+locked Linux x86_64 Rust release matched all thirteen transactions byte for
+byte. `managed-smtp-dmarc-v2` remains immutable exploration history from the
+early envelope-domain lookup path; it is not the active candidate expectation.
 
 ## SMTP Spamhaus DNSBL and DBL
 

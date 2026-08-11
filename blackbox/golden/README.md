@@ -1299,3 +1299,26 @@ softfail adds 1.0 without setting the status, while neutral, none, and DKIM
 permerror add zero. One isolated Java runtime created the set, a fresh JVM
 replayed it unchanged, and the locked Linux x86_64 Rust release matched all 20
 wire, header, Maildir, PostgreSQL, Redis, and DNS observations.
+
+The active external DMARC set is:
+
+- `managed-smtp-dmarc-v3/`
+
+It binds definition tree
+`138554d6c8bd1aaf8ed3a1a190a532de4cb26815a827a482141019a36cc72606`.
+The original five DATA transactions remain unchanged. Eight added cases freeze
+multiple and group From cardinality, final-From indexing, organizational-domain
+fallback with `sp`, malformed-then-valid and first-of-multiple-valid record
+selection, both first-signature DKIM orders, and BDAT LAST completion. Every
+positive zero-TTL TXT lookup is counted exactly; expected NXDOMAIN retries are
+bounded and ignored author or DKIM selector names must receive zero queries.
+
+One isolated Java runtime created v3, a fresh JVM replayed it unchanged, and the
+locked Linux x86_64 Rust release matched all thirteen transactions. The active
+suite hash is
+`d8083e218987f8efda5f363622ee6998df03e99097a83e1d6e925632f2f9a738`;
+the edge observation hash is
+`85a82fe95f6de8ce11ff4cb5918e67be42502015a3f7633bf381994a042c296b`.
+`managed-smtp-dmarc-v2/` is immutable exploration history that exposed the
+frozen early-envelope lookup's redundant malformed-record query. It is not an
+active candidate expectation, and neither it nor v1 was rewritten.

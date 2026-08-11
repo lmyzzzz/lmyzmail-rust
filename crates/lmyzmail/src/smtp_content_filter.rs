@@ -487,6 +487,14 @@ impl ParsedHeaders {
         self.first_raw(wanted).map(|value| value.trim().to_owned())
     }
 
+    pub(crate) fn last_trimmed(&self, wanted: &str) -> Option<String> {
+        self.fields
+            .iter()
+            .rev()
+            .find(|field| field.name.eq_ignore_ascii_case(wanted))
+            .map(|field| field.value.trim().to_owned())
+    }
+
     fn first_raw(&self, wanted: &str) -> Option<&str> {
         self.fields
             .iter()
@@ -3417,6 +3425,20 @@ mod tests {
             ParsedHeaders::parse(too_many.as_bytes()),
             Err(HeaderParseError::TooManyFields)
         );
+    }
+
+    #[test]
+    fn duplicate_header_accessors_preserve_wire_order() {
+        let headers = parse(b"From: first@example.test\r\nFrom: second@example.test\r\n\r\n");
+        assert_eq!(
+            headers.first_trimmed("from").as_deref(),
+            Some("first@example.test")
+        );
+        assert_eq!(
+            headers.last_trimmed("FROM").as_deref(),
+            Some("second@example.test")
+        );
+        assert_eq!(headers.last_trimmed("missing"), None);
     }
 
     #[test]
