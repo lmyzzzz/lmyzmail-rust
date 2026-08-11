@@ -70,6 +70,16 @@ downloads, inbound SMTP persistence, and the complete HTCPCP coffee/tea state
 machine. Each admitted surface is exercised by the external Java/Rust
 differential harness.
 
+Inbound SMTP now includes the frozen Spamhaus DNSBL/DBL early-check path. The
+candidate accepts every legacy `botmail.smtp-security.spamhaus-*` setting with
+field-by-field `lmyzmail.*` precedence, performs bounded asynchronous A lookups,
+preserves Java return-code descriptions and Latin-1 rejection bytes, caches the
+combined client/domain result, and persists exact `SPAMHAUS_LISTED` Cringe
+activity. Three create-once profiles cover DBL decisions, fail-open DNS errors,
+cache expiry, reject-disabled behavior, and the fully disabled no-query path.
+Malformed explicit-DNS replies fail open after strict transaction, question,
+response-type, truncation, and 4 KiB checks.
+
 The reporting slice now discovers Java-compatible DMARC and TLSRPT RUA
 destinations, reads the legacy PostgreSQL aggregates, renders byte-exact gzip
 attachments on a bounded blocking pool, and publishes single-domain or full

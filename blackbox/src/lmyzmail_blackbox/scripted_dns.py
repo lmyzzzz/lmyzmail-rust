@@ -12,8 +12,25 @@ from .errors import HarnessError
 
 _MAX_PACKET_BYTES = 4096
 _MAX_QUERIES = 256
+_A_TYPE = 1
 _TXT_TYPE = 16
 _IN_CLASS = 1
+
+
+@dataclass(frozen=True, slots=True)
+class AAnswer:
+    address: str
+    ttl: int = 60
+
+    def __post_init__(self) -> None:
+        try:
+            parsed = ipaddress.ip_address(self.address)
+        except ValueError as error:
+            raise ValueError("A answer must contain a valid IPv4 address") from error
+        if parsed.version != 4:
+            raise ValueError("A answer must contain a valid IPv4 address")
+        if isinstance(self.ttl, bool) or not 0 <= self.ttl <= 2**31 - 1:
+            raise ValueError("A answer TTL is out of range")
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,12 +51,16 @@ class TxtAnswer:
 
 @dataclass(frozen=True, slots=True)
 class DnsAnswer:
+    a: tuple[AAnswer, ...] = ()
     txt: tuple[TxtAnswer, ...] = ()
     rcode: int = 0
+    drop: bool = False
 
     def __post_init__(self) -> None:
         if isinstance(self.rcode, bool) or not 0 <= self.rcode <= 15:
             raise ValueError("DNS rcode must be between 0 and 15")
+        if not isinstance(self.drop, bool):
+            raise ValueError("DNS drop flag must be boolean")
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,10 +71,11 @@ class DnsQuery:
 
 
 class ScriptedDnsServer:
-    """Bounded UDP DNS fixture for deterministic TXT lookups.
+    """Bounded UDP DNS fixture for deterministic A and TXT lookups.
 
     Only one uncompressed question is accepted per datagram. Unknown names return
-    NXDOMAIN, while configured names can return zero or more TXT answers.
+    NXDOMAIN, while configured names can return records, an explicit rcode, or no
+    response for deadline tests.
     """
 
     def __init__(
@@ -182,10 +204,11 @@ class ScriptedDnsServer:
             except (ValueError, struct.error) as error:
                 self._record_error(error)
                 continue
-            with contextlib.suppress(OSError):
-                listener.sendto(response, address)
+            if response is not None:
+                with contextlib.suppress(OSError):
+                    listener.sendto(response, address)
 
-    def _response(self, packet: bytes) -> bytes:
+    def _response(self, packet: bytes) -> bytes | None:
         if len(packet) < 12:
             raise ValueError("DNS packet header is truncated")
         transaction_id, request_flags, question_count, _, _, additional_count = struct.unpack(
@@ -205,12 +228,25 @@ class ScriptedDnsServer:
                 raise ValueError("scripted DNS query budget exceeded")
             self._queries.append(query)
         answer = self._answers.get((qname, qtype))
+        if answer is not None and answer.drop:
+            return None
         rcode = 3 if answer is None else answer.rcode
-        txt_answers = () if answer is None or qclass != _IN_CLASS else answer.txt
+        a_answers = (
+            ()
+            if answer is None or qclass != _IN_CLASS or rcode != 0 or qtype != _A_TYPE
+            else answer.a
+        )
+        txt_answers = (
+            ()
+            if answer is None or qclass != _IN_CLASS or rcode != 0 or qtype != _TXT_TYPE
+            else answer.txt
+        )
+        answer_count = len(a_answers) + len(txt_answers)
         flags = 0x8000 | 0x0400 | 0x0080 | (request_flags & 0x0100) | rcode
-        header = struct.pack("!HHHHHH", transaction_id, flags, 1, len(txt_answers), 0, 0)
+        header = struct.pack("!HHHHHH", transaction_id, flags, 1, answer_count, 0, 0)
         question = packet[12 : offset + 4]
-        records = b"".join(_encode_txt_answer(item) for item in txt_answers)
+        records = b"".join(_encode_a_answer(item) for item in a_answers)
+        records += b"".join(_encode_txt_answer(item) for item in txt_answers)
         return header + question + records
 
     def _record_error(self, error: Exception) -> None:
@@ -261,4 +297,10 @@ def _encode_txt_answer(answer: TxtAnswer) -> bytes:
     if len(payload) > 65_535:
         raise ValueError("DNS TXT answer exceeds 65535 bytes")
     header = struct.pack("!HHIH", _TXT_TYPE, _IN_CLASS, answer.ttl, len(payload))
+    return b"\xc0\x0c" + header + payload
+
+
+def _encode_a_answer(answer: AAnswer) -> bytes:
+    payload = ipaddress.ip_address(answer.address).packed
+    header = struct.pack("!HHIH", _A_TYPE, _IN_CLASS, answer.ttl, len(payload))
     return b"\xc0\x0c" + header + payload

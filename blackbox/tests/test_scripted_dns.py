@@ -6,15 +6,22 @@ import struct
 import pytest
 
 from lmyzmail_blackbox.errors import HarnessError
-from lmyzmail_blackbox.scripted_dns import DnsAnswer, ScriptedDnsServer, TxtAnswer
+from lmyzmail_blackbox.scripted_dns import AAnswer, DnsAnswer, ScriptedDnsServer, TxtAnswer
 
+_A = 1
 _TXT = 16
 _IN = 1
 
 
-def _query(name: str, *, transaction_id: int, edns: bool = False) -> bytes:
+def _query(
+    name: str,
+    *,
+    transaction_id: int,
+    qtype: int = _TXT,
+    edns: bool = False,
+) -> bytes:
     labels = b"".join(bytes((len(label),)) + label.encode("ascii") for label in name.split("."))
-    question = labels + b"\x00" + struct.pack("!HH", _TXT, _IN)
+    question = labels + b"\x00" + struct.pack("!HH", qtype, _IN)
     additional = b"\x00" + struct.pack("!HHIH", 41, 1232, 0, 0) if edns else b""
     return (
         struct.pack("!HHHHHH", transaction_id, 0x0100, 1, 0, 0, int(edns))
@@ -69,6 +76,46 @@ def test_scripted_dns_unknown_name_returns_nxdomain() -> None:
     assert flags & 0x000F == 3
     assert (questions, answers, authorities, additional) == (1, 0, 0, 0)
     assert server.queries()[0].qname == "missing.example.test"
+
+
+def test_scripted_dns_returns_ipv4_a_records() -> None:
+    server = ScriptedDnsServer(
+        {
+            ("listed.dbl.example", _A): DnsAnswer(
+                a=(AAnswer("127.0.1.2", ttl=17), AAnswer("127.0.1.4"))
+            )
+        }
+    )
+    with server:
+        response = _exchange(
+            server,
+            _query("listed.dbl.example", transaction_id=0x2345, qtype=_A),
+        )
+
+    transaction_id, flags, questions, answers, authorities, additional = struct.unpack(
+        "!HHHHHH", response[:12]
+    )
+    assert transaction_id == 0x2345
+    assert flags & 0x800F == 0x8000
+    assert (questions, answers, authorities, additional) == (1, 2, 0, 0)
+    assert b"\x7f\x00\x01\x02" in response
+    assert b"\x7f\x00\x01\x04" in response
+    assert server.queries()[0].qtype == _A
+
+
+def test_scripted_dns_can_drop_a_scripted_query() -> None:
+    server = ScriptedDnsServer({("timeout.dbl.example", _A): DnsAnswer(drop=True)})
+    with server:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client:
+            client.settimeout(0.25)
+            client.sendto(
+                _query("timeout.dbl.example", transaction_id=0x3456, qtype=_A),
+                (server.host, server.port),
+            )
+            with pytest.raises(TimeoutError):
+                client.recv(4096)
+
+    assert server.queries()[0].qname == "timeout.dbl.example"
 
 
 def test_scripted_dns_rejects_compressed_question_names() -> None:

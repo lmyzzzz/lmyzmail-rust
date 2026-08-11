@@ -49,6 +49,7 @@ use crate::{
     smtp_domain::validate_routable_domain,
     smtp_skibidi_quiz::{AnswerOutcome, QuizLevel, QuizState, ensure_question_bank_loaded},
     smtp_skibidi_video::{VideoDefaults, VideoService, VideoStartError, frame_wire_bytes},
+    smtp_spamhaus::SpamhausService,
     video_asset::locate_frozen_video_asset,
 };
 
@@ -101,6 +102,7 @@ pub struct SmtpService {
     rbl_scanner: RblScanner,
     new_domain_scanner: NewDomainScanner,
     spf_authenticator: MessageAuthenticator,
+    spamhaus_service: SpamhausService,
     skibidi_generator: SkibidiGenerator,
     inferx_service: Arc<InferxService>,
     cringe_sender: mpsc::Sender<SmtpCringeActivity>,
@@ -257,6 +259,11 @@ impl SmtpService {
         .map_err(|error| {
             SmtpError::InvalidConfig(format!("SMTP SPF resolver cannot start: {error}"))
         })?;
+        let spamhaus_service = SpamhausService::new(
+            config.smtp_spamhaus.clone(),
+            config.features.smtp_spf_dns_server,
+        )
+        .map_err(SmtpError::InvalidConfig)?;
         let skibidi_video = if config.smtp_skibidi.enabled {
             ensure_question_bank_loaded().map_err(|error| {
                 SmtpError::InvalidConfig(format!("SMTP quiz question bank is invalid: {error}"))
@@ -305,6 +312,7 @@ impl SmtpService {
             rbl_scanner,
             new_domain_scanner,
             spf_authenticator,
+            spamhaus_service,
             skibidi_generator,
             inferx_service,
             cringe_sender,
@@ -400,6 +408,31 @@ impl SmtpService {
             eprintln!("lmyzmail SMTP illegal-domain activity queue rejected a record: {error}");
         }
         Some(format!("5.1.8 Sender address rejected: {reason}"))
+    }
+
+    async fn spamhaus_rejection(
+        &self,
+        peer: IpAddr,
+        sender: &str,
+        cancellation: &CancellationToken,
+    ) -> Option<Vec<u8>> {
+        let sender_domain = sender.rsplit_once('@').map(|(_, domain)| domain)?;
+        let result = self
+            .spamhaus_service
+            .check(peer, sender_domain, cancellation)
+            .await;
+        if !result.is_any_listed() || !self.config.smtp_spamhaus.reject_on_listed {
+            return None;
+        }
+        let activity = SmtpCringeActivity::Spamhaus {
+            ip: peer,
+            mail_from: sender.to_owned(),
+            metadata: result.metadata(),
+        };
+        if let Err(error) = self.cringe_sender.try_send(activity) {
+            eprintln!("lmyzmail SMTP Spamhaus activity queue rejected a record: {error}");
+        }
+        Some(result.rejection_wire(peer, sender_domain))
     }
 
     fn queue_protocol_violation(&self, peer: IpAddr, helo: &str, session_id: &str, metadata: &str) {
@@ -673,6 +706,11 @@ enum SmtpCringeActivity {
         mail_from: String,
         metadata: String,
     },
+    Spamhaus {
+        ip: IpAddr,
+        mail_from: String,
+        metadata: String,
+    },
     ProtocolViolation {
         ip: IpAddr,
         helo_name: String,
@@ -686,6 +724,7 @@ impl SmtpCringeActivity {
         match self {
             Self::SelfSpoof { .. } => "SELF_SPOOFING",
             Self::IllegalSenderDomain { .. } => "ILLEGAL_SENDER_DOMAIN",
+            Self::Spamhaus { .. } => "SPAMHAUS_LISTED",
             Self::ProtocolViolation { .. } => "PROTOCOL_VIOLATION",
         }
     }
@@ -798,6 +837,15 @@ async fn persist_cringe_activity(
         } => {
             cringe_service
                 .record_illegal_sender_domain(ip, &mail_from, &metadata, &cancellation)
+                .await
+        }
+        SmtpCringeActivity::Spamhaus {
+            ip,
+            mail_from,
+            metadata,
+        } => {
+            cringe_service
+                .record_spamhaus(ip, &mail_from, &metadata, &cancellation)
                 .await
         }
         SmtpCringeActivity::ProtocolViolation {
@@ -1448,16 +1496,25 @@ async fn handle_connection(
                 }
                 match parse_mail(argument) {
                     Ok(Some(sender)) => {
-                        if let Some(message) = service.sender_domain_rejection(peer, &sender) {
+                        if let Some(message) =
+                            service.sender_domain_rejection(peer, &sender.canonical)
+                        {
                             io.write_all(format!("550 {message}\r\n").as_bytes())
                                 .await?;
+                            continue;
+                        }
+                        if let Some(wire) = service
+                            .spamhaus_rejection(peer, &sender.original, &connection_cancellation)
+                            .await
+                        {
+                            io.write_all(&wire).await?;
                             continue;
                         }
                         if let Some(message) = service
                             .self_spoof_rejection(
                                 peer,
                                 &helo,
-                                &sender,
+                                &sender.canonical,
                                 &connection_cancellation,
                             )
                             .await
@@ -1466,7 +1523,7 @@ async fn handle_connection(
                                 .await?;
                             continue;
                         }
-                        envelope.sender = Some(sender);
+                        envelope.sender = Some(sender.canonical);
                         envelope.recipients.clear();
                         io.write_all(b"250 2.1.0 Sender OK\r\n").await?;
                     }
@@ -1648,7 +1705,13 @@ fn split_command(line: &[u8]) -> (&str, &str) {
         .map_or((text, ""), |(verb, argument)| (verb, argument))
 }
 
-fn parse_mail(argument: &str) -> Result<Option<String>, ParseError> {
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ParsedMailFrom {
+    canonical: String,
+    original: String,
+}
+
+fn parse_mail(argument: &str) -> Result<Option<ParsedMailFrom>, ParseError> {
     let trimmed = argument.trim_start();
     let Some(rest) = trimmed
         .strip_prefix("FROM:")
@@ -1667,7 +1730,10 @@ fn parse_mail(argument: &str) -> Result<Option<String>, ParseError> {
                 return Err(ParseError::TooLarge);
             }
         }
-        return Ok(Some(String::new()));
+        return Ok(Some(ParsedMailFrom {
+            canonical: String::new(),
+            original: String::new(),
+        }));
     }
     let Some(value) = path
         .strip_prefix('<')
@@ -1678,7 +1744,10 @@ fn parse_mail(argument: &str) -> Result<Option<String>, ParseError> {
     if value.is_empty() || !value.contains('@') {
         return Ok(None);
     }
-    Ok(Some(value.to_ascii_lowercase()))
+    Ok(Some(ParsedMailFrom {
+        canonical: value.to_ascii_lowercase(),
+        original: value.to_owned(),
+    }))
 }
 
 fn parse_recipient(argument: &str) -> Option<String> {
@@ -2023,13 +2092,27 @@ mod tests {
 
     #[test]
     fn parses_mail_rcpt_and_bdat_bounds() {
-        assert_eq!(parse_mail("FROM:<>").unwrap(), Some(String::new()));
+        let null_sender = ParsedMailFrom {
+            canonical: String::new(),
+            original: String::new(),
+        };
+        assert_eq!(parse_mail("FROM:<>").unwrap(), Some(null_sender.clone()));
         assert_eq!(
             parse_mail("FROM:<qa@example.test> SIZE=10").unwrap(),
-            Some("qa@example.test".into())
+            Some(ParsedMailFrom {
+                canonical: "qa@example.test".into(),
+                original: "qa@example.test".into(),
+            })
         );
-        assert_eq!(parse_mail("FROM:<>").unwrap(), Some(String::new()));
-        assert_eq!(parse_mail("FROM:<>").unwrap(), Some(String::new()));
+        assert_eq!(parse_mail("FROM:<>").unwrap(), Some(null_sender.clone()));
+        assert_eq!(parse_mail("FROM:<>").unwrap(), Some(null_sender));
+        assert_eq!(
+            parse_mail("FROM:<Sender@KnOwN-DbL.CoM>").unwrap(),
+            Some(ParsedMailFrom {
+                canonical: "sender@known-dbl.com".into(),
+                original: "Sender@KnOwN-DbL.CoM".into(),
+            })
+        );
         assert_eq!(
             parse_recipient("TO:<qa@example.test>"),
             Some("qa@example.test".into())

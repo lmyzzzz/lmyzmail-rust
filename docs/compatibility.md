@@ -124,6 +124,47 @@ The create-once oracle matrix is `managed-smtp-sender-domain-v1`. It freezes
 raw sockets and independent PostgreSQL state; a second fresh Java runtime
 replayed it unchanged, and the Linux x86_64 Rust release matched it.
 
+## SMTP Spamhaus DNSBL and DBL
+
+Spamhaus is disabled by default, with the frozen `zen.spamhaus.org` IP zone,
+`dbl.spamhaus.org` domain zone, 3,000 ms total check deadline, 300-second cache
+TTL, reject-on-listed enabled, and DBL disabled. Every
+`botmail.smtp-security.spamhaus-*` property remains accepted; the corresponding
+`lmyzmail.*` value wins independently when both exist. Semantic JSON exposes
+the same fields without changing the property precedence contract.
+
+After sender-domain syntax validation, an enabled check concurrently evaluates
+the reversed public IPv4 address against the configured DNSBL zones and the
+lowercase IDNA sender domain against DBL. Private, loopback, link-local, and
+unspecified client addresses skip the IP path. The first non-ignored IPv4 A
+answer in configured zone order uses the frozen Java return-code description.
+NXDOMAIN receives the oracle-compatible second lookup; NODATA, SERVFAIL,
+malformed replies, timeout, cancellation, and transport failures fail open.
+The explicit fixture resolver uses connected UDP, admits at most 64 active DNS
+requests, accepts at most 4,096 response bytes, and validates transaction ID,
+response type, opcode, truncation state, and the exact question before using an
+A record. The combined `(client IP, ASCII sender domain)` cache contains at
+most 10,000 entries and uses the configured wall-clock TTL rather than DNS TTL.
+
+Listed senders receive the frozen Latin-1 `550 5.7.1 Service unavailable`
+reply. A rejected listing persists `SPAMHAUS_LISTED` with score 3 and increments
+only `spamhaus_count`; a following RCPT state probe adds the frozen score-1
+`PROTOCOL_VIOLATION`. The seven-case DBL matrix and cache scenario are frozen
+under `managed-smtp-spamhaus-v1`; one-case profiles separately freeze
+reject-disabled acceptance and disabled no-query behavior. A fresh Java replay
+and the Linux x86_64 Rust release matched all three profile definitions without
+changing their golden bytes.
+
+Invalid or operationally unsafe configuration is the reviewed
+`smtp-spamhaus-config-bounds` difference. The candidate accepts at most 32
+zones and 256 ignored IPv4 codes, requires bounded DNS-name syntax, restricts
+the timeout to 1 through 60,000 ms, and caps cache TTL at seven days. Cache TTL
+zero remains valid and disables caching. These checks affect only invalid or
+out-of-budget configuration; every in-budget lookup, wire, cache, and
+persistence behavior remains differential. The post-freeze supplemental
+allowlist is bound in `evidence/compatibility/smtp-spamhaus-v1.json`; the frozen
+golden definition tree and global manifest are unchanged.
+
 ## Approved security differences
 
 The authoritative allowlist is

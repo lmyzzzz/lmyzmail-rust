@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "profile": "smtp-spamhaus-v1",
+  "captured_at": "2026-08-11T15:48:24.3685870+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc",
+    "source_sha256": {
+      "src/main/java/net/lmyz/lmyzmail/inbound/EarlyRejectService.java": "8b201ab14f121e8e53b9b6ff16d9e742aeedd3b37b85bdc69fda989d1b15924b",
+      "src/main/java/net/lmyz/lmyzmail/inbound/SmtpSecurityProperties.java": "03870a41294d1ce34baeeabaa1b84790c4940cb5577d96fa297c2dad839d46ee"
+    }
+  },
+  "contract": {
+    "profiles": [
+      "managed-smtp-spamhaus-v1",
+      "managed-smtp-spamhaus-reject-disabled-v1",
+      "managed-smtp-spamhaus-disabled-v1"
+    ],
+    "coverage": [
+      "known and unknown DBL return codes",
+      "NXDOMAIN retry and fail-open",
+      "NODATA, SERVFAIL, and timeout fail-open",
+      "Unicode IDNA query and Latin-1 rejection wire",
+      "combined client/domain result cache reuse and expiry",
+      "reject-on-listed disabled acceptance",
+      "fully disabled no-query path",
+      "SPAMHAUS_LISTED and post-rejection protocol persistence"
+    ],
+    "dns": {
+      "record_type": "A",
+      "explicit_response_byte_limit": 4096,
+      "active_request_limit": 64,
+      "validated_fields": [
+        "transaction ID",
+        "message type",
+        "opcode",
+        "truncation bit",
+        "exact question"
+      ],
+      "failure_policy": "fail open"
+    },
+    "cache": {
+      "entry_limit": 10000,
+      "key": "client IP plus ASCII sender domain",
+      "ttl_authority": "configured Spamhaus cache TTL"
+    },
+    "persistence": {
+      "listing_activity": "SPAMHAUS_LISTED",
+      "listing_score": 3,
+      "listing_counter": "spamhaus_count",
+      "post_rejection_activity": "PROTOCOL_VIOLATION",
+      "post_rejection_score": 1
+    }
+  },
+  "golden": {
+    "definition_tree_sha256": "2b39c6167c75ef7729606b44e552ebe113f3aa889c2a031cbb8d446bdf91d2b6",
+    "profiles": {
+      "managed-smtp-spamhaus-v1": {
+        "suite_sha256": "43379821bd6253cb878f415b383f971c2105a0dc4bc9ecc8f217a66bc228012c",
+        "observations": {
+          "smtp/spamhaus/cache": "c9af187245240c7fdba1b553631ffaa9e278696668634ea4601664a8ac1b2082",
+          "smtp/spamhaus/domain-dbl-matrix": "5a343bff2b5ecbb4307443442ce274ceb991c6e75a6474b80646ce2aa687433c"
+        }
+      },
+      "managed-smtp-spamhaus-reject-disabled-v1": {
+        "suite_sha256": "96f2b7078f7d0e730517439d100a2d5a35f662a82e6eb9c72feef75f705e25e7",
+        "observations": {
+          "smtp/spamhaus/reject-disabled": "e396d5affbba57b93da7bf023a1d4771d7376e7201a1189da0a6a2a504679a9d"
+        }
+      },
+      "managed-smtp-spamhaus-disabled-v1": {
+        "suite_sha256": "b559daebcae09830508b5a4a7682c1671c8ee53a60e1307a3eba5ae082e7b1a6",
+        "observations": {
+          "smtp/spamhaus/disabled": "6bf5b727255d8d5383a474799672a10c5e859bb8f58975cbb612288a9fa7d9f4"
+        }
+      }
+    }
+  },
+  "implementation": {
+    "runtime": "stable Rust 1.94.0",
+    "java_runtime_dependency": false,
+    "resolver": "Hickory system resolver or connected Tokio UDP for an explicit fixture endpoint",
+    "cache": "bounded Moka future cache",
+    "legacy_aliases": "all botmail.smtp-security.spamhaus-* fields",
+    "new_precedence": "lmyzmail.smtp-security.spamhaus-* wins per field",
+    "cringe_queue_capacity": 256
+  },
+  "supplemental_security_differences": [
+    {
+      "id": "smtp-spamhaus-config-bounds",
+      "frozen_definition_tree_sha256": "2b39c6167c75ef7729606b44e552ebe113f3aa889c2a031cbb8d446bdf91d2b6",
+      "candidate_requirement": "Accept at most 32 zones and 256 ignored IPv4 codes; require bounded DNS-name and IPv4 syntax; accept timeout-ms only from 1 through 60000 and cache-ttl-seconds only from 0 through 604800; reject invalid configuration before listeners open.",
+      "oracle_behavior": "The frozen Spring properties object accepts signed integer timeout and cache TTL values, arbitrary strings, and unbounded lists without Bean Validation. The service later fans out one future per zone and passes timeout and TTL values into asynchronous timer/cache APIs.",
+      "reason": "Malformed security policy must not create unbounded DNS fan-out, bypass hard limits, or defer configuration failure into protocol handling.",
+      "scope": "Only malformed or out-of-budget Spamhaus configuration. Defaults, aliases, new-key precedence, valid zero cache TTL, and every in-budget wire, DNS, cache, and PostgreSQL behavior remain differential.",
+      "candidate_test": "crates/lmyzmail/src/config.rs::tests::smtp_spamhaus_semantic_json_and_bounds_are_validated"
+    }
+  ],
+  "source_sha256": {
+    "README.md": "d27e89577625625804af9b26faf482fc844711a8d916fbf2297aeebe2dcdf65a",
+    "docs/compatibility.md": "004fb84369cb28e5a75261da5dcc9bd8ada9e4990f4a44fdb556d4642cf897be",
+    "Cargo.lock": "285269289ac7b8e70c0008dfcc8d8337e1b2a6719096dd604627d616c452abc5",
+    "crates/lmyzmail/src/config.rs": "e84e720a4e2a3b491b69a0520e99d76c4c2948545d59b91ec0b19fa5728a3b32",
+    "crates/lmyzmail/src/cringe.rs": "b2d5e6965a0f96c958f219ad506a4d56e239b856f8a7301ad2bce3bc8698c991",
+    "crates/lmyzmail/src/lib.rs": "679861b65a976822ac567f4f4da11b9e5db440180d2cb8d6ebd6d20adace9861",
+    "crates/lmyzmail/src/smtp.rs": "07cac8e119f365e2c9017418af818612b5d399fd92190b18ecd45c20c9368403",
+    "crates/lmyzmail/src/smtp_spamhaus.rs": "ac6bdf3451ac0b5a4e5ce49e186824bc625dd11cf6046289faef2c08c406af3a",
+    "blackbox/src/lmyzmail_blackbox/scripted_dns.py": "edcfc3e7b2fc92d6a83af3590abeb7d34c006aaf112fca0e6e3a4fd980ca1e2f",
+    "blackbox/src/lmyzmail_blackbox/smtp_spamhaus_contract.py": "6b59f9b0a3087ae17e8c1dfdb87a62100919a5a9a476ad4f6cf22ef6fa1ee6dc",
+    "blackbox/tests/test_scripted_dns.py": "f228ec23118fe40604b5679f8544448399501197edcc608cb5b2dd05fae3c5bb",
+    "blackbox/tests/test_oracle_smtp_spamhaus.py": "6eb8137784e50d56439c2eb2e9a35005002a125125e2e43160d8ebd7a005af4d"
+  },
+  "release": {
+    "command": "CFLAGS=-w CXXFLAGS=-w cargo build --release --locked -p lmyzmail --target x86_64-unknown-linux-gnu",
+    "sha256": "e19895add73d082266ccb64dc9ccd29523233359ad1a0986e3577caa7fc23e76",
+    "independent_build_count": 2,
+    "independent_builds_same_sha256": true,
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail"
+  },
+  "verification": [
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_smtp_spamhaus.py",
+      "result": "6 passed; three fresh Java replays and three Rust candidate replays matched the unchanged golden"
+    },
+    {
+      "command": "cargo test --workspace --all-targets --all-features --target x86_64-unknown-linux-gnu -- --test-threads=1",
+      "result": "590 passed, 0 failed"
+    },
+    {
+      "command": "cargo test -p lmyzmail smtp_spamhaus --target x86_64-unknown-linux-gnu",
+      "result": "10 passed, including unit, property, and structured-fuzz DNS response validation"
+    },
+    {
+      "command": "cd blackbox && .venv/bin/pytest -q -m 'not integration'",
+      "result": "135 passed, 103 deselected"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --all-features --target x86_64-unknown-linux-gnu -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "result": "passed"
+    },
+    {
+      "command": "blackbox/.venv/bin/ruff check blackbox",
+      "result": "passed"
+    },
+    {
+      "command": "cd blackbox && .venv/bin/mypy src tests tools",
+      "result": "Success: no issues found in 123 source files"
+    }
+  ],
+  "test_harness_note": "An initial default-parallel workspace run passed all 499 library tests but two existing outbound_delivery_postgres cases raced while reserving ephemeral fixture ports. The affected target passed 9/9 immediately with one test thread, and the complete unfiltered workspace then passed with test-threads=1."
+}

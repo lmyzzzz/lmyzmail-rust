@@ -36,6 +36,7 @@ pub(crate) mod smtp_content_filter;
 pub(crate) mod smtp_domain;
 pub(crate) mod smtp_skibidi_quiz;
 pub(crate) mod smtp_skibidi_video;
+pub(crate) mod smtp_spamhaus;
 pub mod userdata;
 pub(crate) mod video_asset;
 pub mod xdp;

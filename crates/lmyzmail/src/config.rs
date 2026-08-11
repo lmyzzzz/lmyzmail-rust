@@ -3,7 +3,7 @@ use std::{
     fmt,
     fs::File,
     io::{self, Read},
-    net::{IpAddr, SocketAddr},
+    net::{IpAddr, Ipv4Addr, SocketAddr},
     path::{Path, PathBuf},
     str,
     time::Duration,
@@ -74,6 +74,10 @@ const MAX_INFERX_TIMEOUT_MS: u64 = 60_000;
 const MAX_INFERX_CONCURRENCY: usize = 64;
 const MAX_INFERX_TOKENS: usize = 128;
 const MAX_INFERX_TOP_K: usize = 1_048_576;
+const MAX_SPAMHAUS_ZONES: usize = 32;
+const MAX_SPAMHAUS_IGNORED_CODES: usize = 256;
+const MAX_SPAMHAUS_TIMEOUT_MS: u64 = 60_000;
+const MAX_SPAMHAUS_CACHE_TTL_SECONDS: u64 = 7 * 24 * 60 * 60;
 
 #[derive(Debug)]
 pub enum ConfigError {
@@ -435,8 +439,22 @@ struct JsonFeatureConfig {
     smtp_skibidi_insults: bool,
     #[serde(default)]
     smtp_spf_dns_server: Option<String>,
-    #[serde(default = "default_true")]
+    #[serde(default)]
     spamhaus: bool,
+    #[serde(default = "default_spamhaus_zones")]
+    smtp_spamhaus_zones: Vec<String>,
+    #[serde(default = "default_true")]
+    smtp_spamhaus_reject_on_listed: bool,
+    #[serde(default = "default_spamhaus_timeout_ms")]
+    smtp_spamhaus_timeout_ms: u64,
+    #[serde(default = "default_spamhaus_cache_ttl_seconds")]
+    smtp_spamhaus_cache_ttl_seconds: u64,
+    #[serde(default)]
+    smtp_spamhaus_ignored_codes: Vec<String>,
+    #[serde(default)]
+    smtp_spamhaus_dbl_enabled: bool,
+    #[serde(default = "default_spamhaus_dbl_zone")]
+    smtp_spamhaus_dbl_zone: String,
     #[serde(default = "default_true")]
     tarpit: bool,
     #[serde(default = "default_true")]
@@ -1089,7 +1107,14 @@ impl Default for JsonFeatureConfig {
             smtp_skibidi_enable_simd_rng: true,
             smtp_skibidi_insults: true,
             smtp_spf_dns_server: None,
-            spamhaus: true,
+            spamhaus: false,
+            smtp_spamhaus_zones: default_spamhaus_zones(),
+            smtp_spamhaus_reject_on_listed: true,
+            smtp_spamhaus_timeout_ms: default_spamhaus_timeout_ms(),
+            smtp_spamhaus_cache_ttl_seconds: default_spamhaus_cache_ttl_seconds(),
+            smtp_spamhaus_ignored_codes: Vec::new(),
+            smtp_spamhaus_dbl_enabled: false,
+            smtp_spamhaus_dbl_zone: default_spamhaus_dbl_zone(),
             tarpit: true,
             mta_sts: true,
             xdp: false,
@@ -1227,6 +1252,22 @@ fn default_api_label() -> String {
 
 fn default_true() -> bool {
     true
+}
+
+fn default_spamhaus_zones() -> Vec<String> {
+    vec!["zen.spamhaus.org".to_owned()]
+}
+
+fn default_spamhaus_timeout_ms() -> u64 {
+    3_000
+}
+
+fn default_spamhaus_cache_ttl_seconds() -> u64 {
+    300
+}
+
+fn default_spamhaus_dbl_zone() -> String {
+    "dbl.spamhaus.org".to_owned()
 }
 
 fn default_skibidi_mode() -> String {
@@ -2082,6 +2123,34 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         value.features.spamhaus.to_string(),
     )?;
     properties.insert(
+        "lmyzmail.smtp-security.spamhaus-zones".to_owned(),
+        value.features.smtp_spamhaus_zones.join(","),
+    )?;
+    properties.insert(
+        "lmyzmail.smtp-security.spamhaus-reject-on-listed".to_owned(),
+        value.features.smtp_spamhaus_reject_on_listed.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.smtp-security.spamhaus-timeout-ms".to_owned(),
+        value.features.smtp_spamhaus_timeout_ms.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.smtp-security.spamhaus-cache-ttl-seconds".to_owned(),
+        value.features.smtp_spamhaus_cache_ttl_seconds.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.smtp-security.spamhaus-ignored-codes".to_owned(),
+        value.features.smtp_spamhaus_ignored_codes.join(","),
+    )?;
+    properties.insert(
+        "lmyzmail.smtp-security.spamhaus-dbl-enabled".to_owned(),
+        value.features.smtp_spamhaus_dbl_enabled.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.smtp-security.spamhaus-dbl-zone".to_owned(),
+        value.features.smtp_spamhaus_dbl_zone,
+    )?;
+    properties.insert(
         "lmyzmail.smtp-security.tarpit-enabled".to_owned(),
         value.features.tarpit.to_string(),
     )?;
@@ -2533,6 +2602,7 @@ pub struct RuntimeConfig {
     pub api_keys: Vec<ApiKeyConfig>,
     pub outbound_route: OutboundRouteConfig,
     pub features: FeatureConfig,
+    pub smtp_spamhaus: SpamhausConfig,
     pub skibidi_inferx: SkibidiInferxConfig,
     pub smtp_skibidi: SmtpSkibidiConfig,
     pub content_filter: ContentFilterConfig,
@@ -2611,13 +2681,24 @@ pub struct FeatureConfig {
     pub smtp_skibidi_enable_simd_rng: bool,
     pub smtp_skibidi_insults: bool,
     pub smtp_spf_dns_server: Option<SocketAddr>,
-    pub spamhaus: bool,
     pub tarpit: bool,
     pub mta_sts: bool,
     pub xdp: bool,
     pub fail2ban: bool,
     pub report_delivery: bool,
     pub show_internet_nl_badge: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SpamhausConfig {
+    pub enabled: bool,
+    pub zones: Vec<String>,
+    pub reject_on_listed: bool,
+    pub timeout: Duration,
+    pub cache_ttl: Duration,
+    pub ignored_codes: Vec<Ipv4Addr>,
+    pub dbl_enabled: bool,
+    pub dbl_zone: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -3266,6 +3347,7 @@ impl RuntimeConfig {
         let xdp = parse_xdp_config(&properties)?;
         let cringe_decay = parse_cringe_decay_config(&properties)?;
 
+        let smtp_spamhaus = parse_spamhaus_config(&properties)?;
         let features = FeatureConfig {
             public_registration: preferred_bool(
                 &properties,
@@ -3314,12 +3396,6 @@ impl RuntimeConfig {
                 })
             })
             .transpose()?,
-            spamhaus: preferred_bool(
-                &properties,
-                &["lmyzmail.smtp-security.spamhaus-enabled"],
-                &["botmail.smtp-security.spamhaus-enabled"],
-                true,
-            )?,
             tarpit: preferred_bool(
                 &properties,
                 &["lmyzmail.smtp-security.tarpit-enabled"],
@@ -3595,6 +3671,7 @@ impl RuntimeConfig {
             api_keys,
             outbound_route,
             features,
+            smtp_spamhaus,
             skibidi_inferx,
             smtp_skibidi,
             content_filter,
@@ -3635,6 +3712,162 @@ fn preferred<'a>(
         .iter()
         .find_map(|key| properties.get(key))
         .or_else(|| legacy_keys.iter().find_map(|key| properties.get(key)))
+}
+
+fn parse_spamhaus_config(properties: &Properties) -> Result<SpamhausConfig, ConfigError> {
+    let zones = parse_preferred_property_list(
+        properties,
+        "lmyzmail.smtp-security.spamhaus-zones",
+        "botmail.smtp-security.spamhaus-zones",
+        default_spamhaus_zones(),
+        MAX_SPAMHAUS_ZONES,
+        "Spamhaus zones",
+    )?;
+    if zones.iter().any(|zone| !valid_rbl_server(zone)) {
+        return Err(ConfigError::Invalid(
+            "Spamhaus zones must be bounded DNS names".into(),
+        ));
+    }
+    let ignored = parse_preferred_property_list(
+        properties,
+        "lmyzmail.smtp-security.spamhaus-ignored-codes",
+        "botmail.smtp-security.spamhaus-ignored-codes",
+        Vec::new(),
+        MAX_SPAMHAUS_IGNORED_CODES,
+        "Spamhaus ignored codes",
+    )?;
+    let ignored_codes = ignored
+        .into_iter()
+        .map(|value| {
+            value.parse::<Ipv4Addr>().map_err(|_| {
+                ConfigError::Invalid("Spamhaus ignored codes must be IPv4 addresses".into())
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let timeout_ms = parse_number(
+        properties,
+        &["lmyzmail.smtp-security.spamhaus-timeout-ms"],
+        &["botmail.smtp-security.spamhaus-timeout-ms"],
+        default_spamhaus_timeout_ms(),
+        "Spamhaus timeout-ms",
+    )?;
+    if !(1..=MAX_SPAMHAUS_TIMEOUT_MS).contains(&timeout_ms) {
+        return Err(ConfigError::Invalid(format!(
+            "Spamhaus timeout-ms must be between 1 and {MAX_SPAMHAUS_TIMEOUT_MS}"
+        )));
+    }
+    let cache_ttl_seconds = parse_number(
+        properties,
+        &["lmyzmail.smtp-security.spamhaus-cache-ttl-seconds"],
+        &["botmail.smtp-security.spamhaus-cache-ttl-seconds"],
+        default_spamhaus_cache_ttl_seconds(),
+        "Spamhaus cache TTL",
+    )?;
+    if cache_ttl_seconds > MAX_SPAMHAUS_CACHE_TTL_SECONDS {
+        return Err(ConfigError::Invalid(format!(
+            "Spamhaus cache TTL must not exceed {MAX_SPAMHAUS_CACHE_TTL_SECONDS} seconds"
+        )));
+    }
+    let dbl_zone = preferred(
+        properties,
+        &["lmyzmail.smtp-security.spamhaus-dbl-zone"],
+        &["botmail.smtp-security.spamhaus-dbl-zone"],
+    )
+    .map(str::trim)
+    .unwrap_or("dbl.spamhaus.org")
+    .to_owned();
+    if !valid_rbl_server(&dbl_zone) {
+        return Err(ConfigError::Invalid(
+            "Spamhaus DBL zone must be a bounded DNS name".into(),
+        ));
+    }
+    Ok(SpamhausConfig {
+        enabled: preferred_bool(
+            properties,
+            &["lmyzmail.smtp-security.spamhaus-enabled"],
+            &["botmail.smtp-security.spamhaus-enabled"],
+            false,
+        )?,
+        zones,
+        reject_on_listed: preferred_bool(
+            properties,
+            &["lmyzmail.smtp-security.spamhaus-reject-on-listed"],
+            &["botmail.smtp-security.spamhaus-reject-on-listed"],
+            true,
+        )?,
+        timeout: Duration::from_millis(timeout_ms),
+        cache_ttl: Duration::from_secs(cache_ttl_seconds),
+        ignored_codes,
+        dbl_enabled: preferred_bool(
+            properties,
+            &["lmyzmail.smtp-security.spamhaus-dbl-enabled"],
+            &["botmail.smtp-security.spamhaus-dbl-enabled"],
+            false,
+        )?,
+        dbl_zone,
+    })
+}
+
+fn parse_preferred_property_list(
+    properties: &Properties,
+    new_prefix: &str,
+    legacy_prefix: &str,
+    defaults: Vec<String>,
+    max_entries: usize,
+    label: &str,
+) -> Result<Vec<String>, ConfigError> {
+    let values = if let Some(value) = properties.get(new_prefix) {
+        split_property_list(value)
+    } else if properties.get(&format!("{new_prefix}[0]")).is_some() {
+        indexed_property_list(properties, new_prefix, max_entries, label)?
+    } else if let Some(value) = properties.get(legacy_prefix) {
+        split_property_list(value)
+    } else if properties.get(&format!("{legacy_prefix}[0]")).is_some() {
+        indexed_property_list(properties, legacy_prefix, max_entries, label)?
+    } else {
+        return Ok(defaults);
+    };
+    if values.len() > max_entries {
+        return Err(ConfigError::Invalid(format!(
+            "{label} exceed the {max_entries}-entry limit"
+        )));
+    }
+    let mut normalized = Vec::with_capacity(values.len());
+    for value in values {
+        let value = value.trim();
+        if value.is_empty() || value.len() > MAX_CONTENT_FILTER_RBL_SERVER_BYTES {
+            return Err(ConfigError::Invalid(format!(
+                "{label} contain an empty or oversized entry"
+            )));
+        }
+        normalized.push(value.to_owned());
+    }
+    Ok(normalized)
+}
+
+fn split_property_list(value: &str) -> Vec<&str> {
+    if value.trim().is_empty() {
+        Vec::new()
+    } else {
+        value.split(',').collect()
+    }
+}
+
+fn indexed_property_list<'a>(
+    properties: &'a Properties,
+    prefix: &str,
+    max_entries: usize,
+    label: &str,
+) -> Result<Vec<&'a str>, ConfigError> {
+    let values = (0..=max_entries)
+        .map_while(|index| properties.get(&format!("{prefix}[{index}]")))
+        .collect::<Vec<_>>();
+    if values.len() > max_entries {
+        return Err(ConfigError::Invalid(format!(
+            "{label} exceed the {max_entries}-entry limit"
+        )));
+    }
+    Ok(values)
 }
 
 fn parse_minecraft_config(properties: &Properties) -> Result<MinecraftConfig, ConfigError> {
@@ -6569,6 +6802,185 @@ lmyzmail.smtp-security.dns-server=127.0.0.2:5353\n",
         assert_eq!(
             config.features.smtp_spf_dns_server,
             Some("127.0.0.3:5300".parse().unwrap()),
+        );
+    }
+
+    #[test]
+    fn smtp_spamhaus_defaults_aliases_and_new_precedence_match_java() {
+        let defaults = RuntimeConfig::from_properties(Properties::default()).unwrap();
+        assert!(!defaults.smtp_spamhaus.enabled);
+        assert_eq!(defaults.smtp_spamhaus.zones, ["zen.spamhaus.org"]);
+        assert!(defaults.smtp_spamhaus.reject_on_listed);
+        assert_eq!(defaults.smtp_spamhaus.timeout, Duration::from_millis(3_000));
+        assert_eq!(defaults.smtp_spamhaus.cache_ttl, Duration::from_secs(300));
+        assert!(defaults.smtp_spamhaus.ignored_codes.is_empty());
+        assert!(!defaults.smtp_spamhaus.dbl_enabled);
+        assert_eq!(defaults.smtp_spamhaus.dbl_zone, "dbl.spamhaus.org");
+
+        let legacy = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.smtp-security.spamhaus-enabled=true\n\
+botmail.smtp-security.spamhaus-zones[0]=zen.legacy.test\n\
+botmail.smtp-security.spamhaus-zones[1]=second.legacy.test\n\
+botmail.smtp-security.spamhaus-reject-on-listed=false\n\
+botmail.smtp-security.spamhaus-timeout-ms=4500\n\
+botmail.smtp-security.spamhaus-cache-ttl-seconds=0\n\
+botmail.smtp-security.spamhaus-ignored-codes[0]=127.0.0.10\n\
+botmail.smtp-security.spamhaus-dbl-enabled=true\n\
+botmail.smtp-security.spamhaus-dbl-zone=dbl.legacy.test\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(legacy.smtp_spamhaus.enabled);
+        assert_eq!(
+            legacy.smtp_spamhaus.zones,
+            ["zen.legacy.test", "second.legacy.test"]
+        );
+        assert!(!legacy.smtp_spamhaus.reject_on_listed);
+        assert_eq!(legacy.smtp_spamhaus.timeout, Duration::from_millis(4_500));
+        assert_eq!(legacy.smtp_spamhaus.cache_ttl, Duration::ZERO);
+        assert_eq!(
+            legacy.smtp_spamhaus.ignored_codes,
+            [Ipv4Addr::new(127, 0, 0, 10)]
+        );
+        assert!(legacy.smtp_spamhaus.dbl_enabled);
+        assert_eq!(legacy.smtp_spamhaus.dbl_zone, "dbl.legacy.test");
+
+        let both = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.smtp-security.spamhaus-enabled=false\n\
+botmail.smtp-security.spamhaus-zones[0]=legacy.test\n\
+botmail.smtp-security.spamhaus-reject-on-listed=false\n\
+botmail.smtp-security.spamhaus-timeout-ms=9999\n\
+botmail.smtp-security.spamhaus-cache-ttl-seconds=9999\n\
+botmail.smtp-security.spamhaus-ignored-codes[0]=127.0.0.11\n\
+botmail.smtp-security.spamhaus-dbl-enabled=false\n\
+botmail.smtp-security.spamhaus-dbl-zone=dbl.legacy.test\n\
+lmyzmail.smtp-security.spamhaus-enabled=true\n\
+lmyzmail.smtp-security.spamhaus-zones=new-one.test,new-two.test\n\
+lmyzmail.smtp-security.spamhaus-reject-on-listed=true\n\
+lmyzmail.smtp-security.spamhaus-timeout-ms=250\n\
+lmyzmail.smtp-security.spamhaus-cache-ttl-seconds=10\n\
+lmyzmail.smtp-security.spamhaus-ignored-codes=127.0.1.2\n\
+lmyzmail.smtp-security.spamhaus-dbl-enabled=true\n\
+lmyzmail.smtp-security.spamhaus-dbl-zone=dbl.new.test\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(both.smtp_spamhaus.enabled);
+        assert_eq!(both.smtp_spamhaus.zones, ["new-one.test", "new-two.test"]);
+        assert!(both.smtp_spamhaus.reject_on_listed);
+        assert_eq!(both.smtp_spamhaus.timeout, Duration::from_millis(250));
+        assert_eq!(both.smtp_spamhaus.cache_ttl, Duration::from_secs(10));
+        assert_eq!(
+            both.smtp_spamhaus.ignored_codes,
+            [Ipv4Addr::new(127, 0, 1, 2)]
+        );
+        assert!(both.smtp_spamhaus.dbl_enabled);
+        assert_eq!(both.smtp_spamhaus.dbl_zone, "dbl.new.test");
+    }
+
+    #[test]
+    fn smtp_spamhaus_semantic_json_and_bounds_are_validated() {
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&semantic_json_with_htcpcp(serde_json::json!({
+                "enabled": false,
+                "default_brew_time_seconds": 30,
+                "pots": null
+            })))
+            .unwrap();
+        value["features"]["spamhaus"] = serde_json::json!(true);
+        value["features"]["smtp_spamhaus_zones"] =
+            serde_json::json!(["zen.json.test", "second.json.test"]);
+        value["features"]["smtp_spamhaus_reject_on_listed"] = serde_json::json!(false);
+        value["features"]["smtp_spamhaus_timeout_ms"] = serde_json::json!(425);
+        value["features"]["smtp_spamhaus_cache_ttl_seconds"] = serde_json::json!(17);
+        value["features"]["smtp_spamhaus_ignored_codes"] = serde_json::json!(["127.0.0.10"]);
+        value["features"]["smtp_spamhaus_dbl_enabled"] = serde_json::json!(true);
+        value["features"]["smtp_spamhaus_dbl_zone"] = serde_json::json!("dbl.json.test");
+        let config = RuntimeConfig::from_properties(
+            parse_semantic_json(&serde_json::to_vec(&value).unwrap()).unwrap(),
+        )
+        .unwrap();
+        assert!(config.smtp_spamhaus.enabled);
+        assert_eq!(
+            config.smtp_spamhaus.zones,
+            ["zen.json.test", "second.json.test"]
+        );
+        assert!(!config.smtp_spamhaus.reject_on_listed);
+        assert_eq!(config.smtp_spamhaus.timeout, Duration::from_millis(425));
+        assert_eq!(config.smtp_spamhaus.cache_ttl, Duration::from_secs(17));
+        assert_eq!(
+            config.smtp_spamhaus.ignored_codes,
+            [Ipv4Addr::new(127, 0, 0, 10)]
+        );
+        assert!(config.smtp_spamhaus.dbl_enabled);
+        assert_eq!(config.smtp_spamhaus.dbl_zone, "dbl.json.test");
+
+        for invalid in [
+            "lmyzmail.smtp-security.spamhaus-timeout-ms=0\n",
+            "lmyzmail.smtp-security.spamhaus-timeout-ms=60001\n",
+            "lmyzmail.smtp-security.spamhaus-cache-ttl-seconds=604801\n",
+            "lmyzmail.smtp-security.spamhaus-ignored-codes=not-an-ip\n",
+            "lmyzmail.smtp-security.spamhaus-ignored-codes=127.0.0.2,,127.0.0.3\n",
+            "lmyzmail.smtp-security.spamhaus-zones=zen.valid.test,,second.valid.test\n",
+            "lmyzmail.smtp-security.spamhaus-zones=underscore.invalid_test\n",
+            "lmyzmail.smtp-security.spamhaus-dbl-zone=-invalid.example\n",
+        ] {
+            assert!(
+                RuntimeConfig::from_properties(Properties::parse(invalid.as_bytes()).unwrap())
+                    .is_err(),
+                "invalid Spamhaus configuration was accepted: {invalid}"
+            );
+        }
+
+        let max_zones = (0..MAX_SPAMHAUS_ZONES)
+            .map(|index| format!("zone-{index}.example"))
+            .collect::<Vec<_>>();
+        let max_ignored_codes = (0..MAX_SPAMHAUS_IGNORED_CODES)
+            .map(|index| format!("127.0.{}.{}", index / 256, index % 256))
+            .collect::<Vec<_>>();
+        let at_limit = format!(
+            "lmyzmail.smtp-security.spamhaus-zones={}\n\
+lmyzmail.smtp-security.spamhaus-ignored-codes={}\n",
+            max_zones.join(","),
+            max_ignored_codes.join(","),
+        );
+        let config =
+            RuntimeConfig::from_properties(Properties::parse(at_limit.as_bytes()).unwrap())
+                .unwrap();
+        assert_eq!(config.smtp_spamhaus.zones.len(), MAX_SPAMHAUS_ZONES);
+        assert_eq!(
+            config.smtp_spamhaus.ignored_codes.len(),
+            MAX_SPAMHAUS_IGNORED_CODES
+        );
+
+        let too_many_zones = format!(
+            "lmyzmail.smtp-security.spamhaus-zones={}\n",
+            (0..=MAX_SPAMHAUS_ZONES)
+                .map(|index| format!("zone-{index}.example"))
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+        assert!(
+            RuntimeConfig::from_properties(Properties::parse(too_many_zones.as_bytes()).unwrap())
+                .is_err()
+        );
+
+        let too_many_ignored_codes = format!(
+            "lmyzmail.smtp-security.spamhaus-ignored-codes={}\n",
+            (0..=MAX_SPAMHAUS_IGNORED_CODES)
+                .map(|index| format!("127.1.{}.{}", index / 256, index % 256))
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+        assert!(
+            RuntimeConfig::from_properties(
+                Properties::parse(too_many_ignored_codes.as_bytes()).unwrap()
+            )
+            .is_err()
         );
     }
 

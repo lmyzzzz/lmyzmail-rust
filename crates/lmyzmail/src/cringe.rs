@@ -47,6 +47,7 @@ pub struct CringeService {
 struct ActivityIncrements {
     self_spoofing: i32,
     illegal_domain: i32,
+    spamhaus: i32,
     pps_overlimit: i32,
     syn_flood: i32,
     ssh_bruteforce: i32,
@@ -58,6 +59,7 @@ impl ActivityIncrements {
         Self {
             self_spoofing: 1,
             illegal_domain: 0,
+            spamhaus: 0,
             pps_overlimit: 0,
             syn_flood: 0,
             ssh_bruteforce: 0,
@@ -69,6 +71,7 @@ impl ActivityIncrements {
         Self {
             self_spoofing: 0,
             illegal_domain: 0,
+            spamhaus: 0,
             pps_overlimit: 0,
             syn_flood: 0,
             ssh_bruteforce: 0,
@@ -83,10 +86,18 @@ impl ActivityIncrements {
         }
     }
 
+    const fn spamhaus() -> Self {
+        Self {
+            spamhaus: 1,
+            ..Self::default_const()
+        }
+    }
+
     const fn default_const() -> Self {
         Self {
             self_spoofing: 0,
             illegal_domain: 0,
+            spamhaus: 0,
             pps_overlimit: 0,
             syn_flood: 0,
             ssh_bruteforce: 0,
@@ -137,6 +148,10 @@ impl ActivityDetails {
             response_message: None,
             metadata: truncate_chars(metadata, 1_024),
         }
+    }
+
+    fn spamhaus(mail_from: &str, metadata: &str) -> Self {
+        Self::illegal_sender_domain(mail_from, metadata)
     }
 
     fn protocol_violation(helo_name: &str, session_id: &str, metadata: &str) -> Self {
@@ -204,6 +219,7 @@ impl CringeService {
             ActivityIncrements {
                 self_spoofing: 0,
                 illegal_domain: 0,
+                spamhaus: 0,
                 pps_overlimit: pps_increment,
                 syn_flood: syn_increment,
                 ssh_bruteforce: 0,
@@ -228,6 +244,7 @@ impl CringeService {
             ActivityIncrements {
                 self_spoofing: 0,
                 illegal_domain: 0,
+                spamhaus: 0,
                 pps_overlimit: 0,
                 syn_flood: 0,
                 ssh_bruteforce: 1,
@@ -289,6 +306,24 @@ impl CringeService {
             1,
             ActivityDetails::protocol_violation(helo_name, session_id, metadata),
             ActivityIncrements::protocol_violation(),
+            cancellation,
+        )
+        .await
+    }
+
+    pub async fn record_spamhaus(
+        &self,
+        ip: IpAddr,
+        mail_from: &str,
+        metadata: &str,
+        cancellation: &CancellationToken,
+    ) -> Result<Option<i32>, CringeError> {
+        self.record_scored_activity(
+            ip,
+            "SPAMHAUS_LISTED",
+            3,
+            ActivityDetails::spamhaus(mail_from, metadata),
+            ActivityIncrements::spamhaus(),
             cancellation,
         )
         .await
@@ -392,7 +427,7 @@ impl CringeService {
                              ssh_on_smtp_count,http_port_scanning_count,honeypot_hit_count,\
                              ssh_bruteforce_count,pps_overlimit_count,syn_flood_count,other_count\
                          ) VALUES (\
-                             $1,$2,$2,1,$3,$3,$3,$7,0,0,$9,0,0,0,0,0,$6,$4,$5,$8\
+                             $1,$2,$2,1,$3,$3,$3,$7,0,0,$9,$10,0,0,0,0,$6,$4,$5,$8\
                          ) ON CONFLICT (ip_address) DO UPDATE SET \
                              total_score=skibidi_cringe_ip.total_score+$2,\
                              current_score=skibidi_cringe_ip.current_score+$2,\
@@ -402,7 +437,7 @@ impl CringeService {
                              open_relay_count=skibidi_cringe_ip.open_relay_count+0,\
                              auth_probe_count=skibidi_cringe_ip.auth_probe_count+0,\
                              illegal_domain_count=skibidi_cringe_ip.illegal_domain_count+$9,\
-                             spamhaus_count=skibidi_cringe_ip.spamhaus_count+0,\
+                             spamhaus_count=skibidi_cringe_ip.spamhaus_count+$10,\
                              http_on_smtp_count=skibidi_cringe_ip.http_on_smtp_count+0,\
                              ssh_on_smtp_count=skibidi_cringe_ip.ssh_on_smtp_count+0,\
                              http_port_scanning_count=skibidi_cringe_ip.http_port_scanning_count+0,\
@@ -428,6 +463,7 @@ impl CringeService {
                             &increments.self_spoofing,
                             &increments.other,
                             &increments.illegal_domain,
+                            &increments.spamhaus,
                         ],
                     )
                     .await
@@ -1722,6 +1758,18 @@ mod tests {
             ActivityIncrements::illegal_sender_domain(),
             ActivityIncrements {
                 illegal_domain: 1,
+                ..ActivityIncrements::default()
+            },
+        );
+
+        let spamhaus = ActivityDetails::spamhaus(&mail_from, &metadata);
+        assert_eq!(spamhaus.mail_from.as_deref().unwrap().chars().count(), 255);
+        assert!(spamhaus.response_message.is_none());
+        assert_eq!(spamhaus.metadata.chars().count(), 1_024);
+        assert_eq!(
+            ActivityIncrements::spamhaus(),
+            ActivityIncrements {
+                spamhaus: 1,
                 ..ActivityIncrements::default()
             },
         );
