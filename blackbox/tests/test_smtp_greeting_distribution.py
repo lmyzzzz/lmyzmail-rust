@@ -107,10 +107,11 @@ def _assert_wire_grammar(sample: GreetingSample, *, minimum_distinct: int) -> No
     assert len(sample.hostnames) == 1, sample
 
 
-def _assert_frozen_c_distribution(sample: GreetingSample) -> None:
+def _assert_frozen_probability_contract(sample: GreetingSample) -> None:
     # At n=2048 and p=0.4 this is wider than 5.5 standard deviations. It is
-    # stable for the frozen C generator while rejecting the wrong canonical
-    # expression, a constant banner, and gross RNG bias.
+    # stable for the frozen C generator selected through the Rust wrapper while
+    # rejecting the wrong canonical expression, a constant banner, and gross
+    # RNG bias.
     _assert_wire_grammar(sample, minimum_distinct=64)
     assert 0.34 <= sample.canonical_rate <= 0.46, sample
 
@@ -131,7 +132,7 @@ def test_java_smtp_greeting_preserves_frozen_wire_grammar() -> None:
 @pytest.mark.integration
 @pytest.mark.candidate
 @pytest.mark.timeout(240)
-def test_rust_smtp_greeting_uses_frozen_c_grammar_and_distribution() -> None:
+def test_rust_smtp_greeting_uses_frozen_c_probability_contract() -> None:
     repository = Path(__file__).resolve().parents[2]
     with _candidate(repository) as candidate:
         sample = _sample(
@@ -139,4 +140,4 @@ def test_rust_smtp_greeting_uses_frozen_c_grammar_and_distribution() -> None:
             sample_count=_C_DISTRIBUTION_SAMPLES,
             canonical=_NATIVE_CANONICAL,
         )
-        _assert_frozen_c_distribution(sample)
+        _assert_frozen_probability_contract(sample)
