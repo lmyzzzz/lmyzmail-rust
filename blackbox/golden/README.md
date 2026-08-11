@@ -1276,3 +1276,26 @@ matched v5 and passed the explicit security-difference assertions in separate
 candidate workspaces. `managed-smtp-dkim-v3/` and
 `managed-smtp-dkim-v4/` remain immutable history; no earlier generation was
 rewritten.
+
+The active combined authentication set is:
+
+- `managed-smtp-spf-dkim-v1/`
+
+It binds definition tree
+`5af7ae295981d1cd56980fa49700f505c154e4560258d1dbdf46f322b9faa446`.
+The full 20-case Cartesian matrix combines SPF pass, fail, softfail, neutral,
+and no-record with DKIM pass, body-hash fail, missing-key permerror, and
+unsigned. Every case uses a unique envelope domain and signed Message-ID so
+positive zero-TTL and bounded NXDOMAIN query counts cannot be hidden by DNS
+cache or duplicate-delivery state. The fixture contains only a public key and
+fixed signatures; all ten cryptographic signatures pass an independent
+`cryptography` integrity test, while each fail case separately proves its
+stored body hash is different.
+
+The matrix freezes the non-obvious Java interaction: either mechanism passing
+routes to `inbox`, even when the other explicitly fails; an explicit SPF or
+DKIM fail still sets `X-Spam-Status: Yes`, and scores remain additive. SPF
+softfail adds 1.0 without setting the status, while neutral, none, and DKIM
+permerror add zero. One isolated Java runtime created the set, a fresh JVM
+replayed it unchanged, and the locked Linux x86_64 Rust release matched all 20
+wire, header, Maildir, PostgreSQL, Redis, and DNS observations.

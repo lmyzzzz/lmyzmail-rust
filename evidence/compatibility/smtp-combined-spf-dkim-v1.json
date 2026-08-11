@@ -1,0 +1,176 @@
+{
+  "schema_version": 1,
+  "profile": "smtp-combined-spf-dkim-v1",
+  "captured_at": "2026-08-12T04:54:01+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "contract": {
+    "case_count": 20,
+    "spf_results": [
+      "pass",
+      "fail",
+      "softfail",
+      "neutral",
+      "none"
+    ],
+    "dkim_results": [
+      "pass",
+      "fail",
+      "permerror",
+      "none"
+    ],
+    "cartesian_product_complete": true,
+    "folder_routing": {
+      "inbox": "SPF pass or DKIM pass, unless another independent subsystem quarantines",
+      "spam": "neither SPF nor DKIM passes"
+    },
+    "spam_status": {
+      "Yes": "SPF fail or DKIM fail",
+      "No": "no explicit SPF or DKIM fail"
+    },
+    "protocol_score": {
+      "spf_fail": 3.0,
+      "spf_softfail": 1.0,
+      "dkim_fail": 3.0,
+      "all_other_spf_or_dkim_results": 0.0,
+      "combination": "additive"
+    },
+    "cross_verdict_examples": {
+      "spf_pass_dkim_fail": {
+        "folder": "inbox",
+        "spam_status": "Yes",
+        "protocol_score": 3.0
+      },
+      "spf_fail_dkim_pass": {
+        "folder": "inbox",
+        "spam_status": "Yes",
+        "protocol_score": 3.0
+      },
+      "spf_softfail_dkim_pass": {
+        "folder": "inbox",
+        "spam_status": "No",
+        "protocol_score": 1.0
+      },
+      "spf_fail_dkim_fail": {
+        "folder": "spam",
+        "spam_status": "Yes",
+        "protocol_score": 6.0
+      }
+    },
+    "dmarc": "no record; exact dmarc=none result asserted so this matrix isolates SPF and DKIM",
+    "persistence": [
+      "Maildir atomic publish and exact raw message",
+      "email_index folder, identity, and byte length",
+      "legacy mail:count:<mailbox>:<folder> Redis key without TTL"
+    ]
+  },
+  "dns": {
+    "spf_domains": "one unique envelope domain per Cartesian case",
+    "positive_spf_txt_queries_per_transaction": 1,
+    "positive_dkim_txt_queries_per_transaction": 1,
+    "unsigned_dkim_txt_queries": 0,
+    "nxdomain_queries": "bounded from one through four",
+    "positive_fixture_ttl_seconds": 0
+  },
+  "fixtures": {
+    "private_key_committed": false,
+    "public_key_and_fixed_signatures_only": true,
+    "unique_message_ids": 20,
+    "cryptographically_verified_signatures": 10,
+    "body_hash_mismatch_cases": 5,
+    "missing_selector_cases": 5,
+    "unsigned_cases": 5
+  },
+  "bounds": {
+    "spf_lookup_and_evaluation_deadline_seconds": 10,
+    "dkim_lookup_and_evaluation_deadline_seconds": 10,
+    "concurrent_dkim_verifications": 16,
+    "transaction_txt_cache_entries": 16,
+    "smtp_connection_limit": 256,
+    "delivery_queue_capacity": 256,
+    "delivery_deadline_seconds": 15
+  },
+  "golden": {
+    "profile": "managed-smtp-spf-dkim",
+    "version": 1,
+    "definition_tree_sha256": "5af7ae295981d1cd56980fa49700f505c154e4560258d1dbdf46f322b9faa446",
+    "suite_sha256": "a6a4d3590ffa1ee02bdb3b1aff4d3ad5d87df79b4785080371cd5211adf37ab2",
+    "observation_sha256": "4fc96e3985e0ff8bfb347e0d74102328e30d373dfe64ef68b5f903a002b39b8b"
+  },
+  "implementation": {
+    "runtime": "stable-rust-1.94.0",
+    "java_runtime_dependency": false,
+    "spf_engine": "mail-auth 0.11.2 with transaction-local bounded TXT cache",
+    "dkim_engine": "mail-auth 0.11.2 with transaction-local bounded TXT cache",
+    "message_completion_mode": "DATA",
+    "content_filter_disabled_for_isolation": true,
+    "maildir_postgres_redis_verified": true
+  },
+  "source_sha256": {
+    "Cargo.lock": "952e6cec5696d1eab472fd481f6ce9f12c1bf364a291f67931a56dbcab9ae007",
+    "crates/lmyzmail/src/smtp.rs": "b12dae4615713cece5f10b79c26a223261589b4f2ea0f24f9a623afc81b67b50",
+    "crates/lmyzmail/src/smtp_spf.rs": "54bb29f29901252e335ce23a21349d5a09cba1c6239454d61b896f7848103d57",
+    "crates/lmyzmail/src/smtp_dkim.rs": "fa31f9c69c5601eea284c1e27ef84d4e16ec2b4965dec852d0011e446efbe7ec",
+    "blackbox/fixtures/smtp-spf-dkim-signatures.json": "e2e9cf2563ee9ddf3d4d2681648333c6d6baf6aff0aeed2f28a6b3367b9c3e56",
+    "blackbox/src/lmyzmail_blackbox/smtp_spf_dkim_contract.py": "c9ae2d2477f3f3b7b02f94fe63c2442a31497f433ee8cf9f1413898193ec3ddd",
+    "blackbox/tests/test_oracle_smtp_spf_dkim.py": "7cac1785f443ff71f8f67fcafbdef35798874ddb39ab1e5bb9b01c021e7e5256",
+    "blackbox/golden/README.md": "9a69605d66d0c13403bd39d3fde758272d5eec75edf5cdb596a0f8220d83fa7f",
+    "docs/compatibility.md": "3191174c37a586ba9edd2d481b324ed997107183103650d3851d7ff03ec16a66"
+  },
+  "release": {
+    "command": "cargo build --locked --release --target x86_64-unknown-linux-gnu -p lmyzmail",
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "5bbe9580674a1ade9eef94dd096c49c519c81ca73442cbc6108c809193110376"
+  },
+  "verification": [
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_smtp_spf_dkim.py::test_combined_messages_have_unique_identity_and_valid_signatures",
+      "result": "1 passed; 20 unique identities, ten independent RSA signature checks, and five explicit body-hash mismatches"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_smtp_spf_dkim.py::test_managed_java_smtp_spf_dkim_golden --record-java-golden",
+      "result": "1 passed in 22.56s; create-once Java 20-case golden recorded"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_smtp_spf_dkim.py::test_managed_java_smtp_spf_dkim_golden",
+      "result": "1 passed in 22.57s; fresh JVM replayed the golden without record mode"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_smtp_spf_dkim.py::test_rust_candidate_smtp_spf_dkim_matches_frozen_java_golden",
+      "result": "1 passed in 6.62s; locked Rust release matched all 20 cases"
+    },
+    {
+      "command": "blackbox/.venv/bin/pytest -q blackbox/tests -m 'not integration'",
+      "result": "142 passed, 140 deselected"
+    },
+    {
+      "command": "blackbox/.venv/bin/ruff check blackbox/src blackbox/tests blackbox/tools",
+      "result": "passed"
+    },
+    {
+      "command": "cd blackbox && PYTHONPATH=src .venv/bin/mypy src tests tools",
+      "result": "Success: no issues found in 139 source files"
+    },
+    {
+      "command": "cargo test --locked --workspace --all-features --all-targets",
+      "result": "passed; 542 lmyzmail library tests plus every binary and integration target"
+    },
+    {
+      "command": "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "result": "passed"
+    }
+  ],
+  "attestation_scope": {
+    "new_suite_current": true,
+    "older_versioned_smtp_suites": "not re-recorded; their immutable definition-tree attestations remain historical",
+    "older_goldens_modified": false,
+    "final_full_reattestation_required": true
+  },
+  "security_differences": []
+}

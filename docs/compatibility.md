@@ -233,7 +233,23 @@ covers raw SMTP DATA, zero-TTL/NXDOMAIN scripted DNS,
 Redis count keys. A fresh Java runtime replayed both golden sets unchanged;
 the locked Linux x86_64 Rust release matched v5 byte for byte after the
 documented field-scoped normalizers and passed the stricter identity checks.
-Combined SPF/DKIM verdicts remain separate compatibility work.
+
+The create-once `managed-smtp-spf-dkim-v1` matrix exhaustively crosses SPF
+pass, fail, softfail, neutral, and no-record with DKIM pass, body-hash fail,
+missing-key permerror, and unsigned. Either mechanism passing routes to
+`inbox`, including SPF-pass/DKIM-fail and SPF-fail/DKIM-pass. An explicit fail
+still sets `X-Spam-Status: Yes`, so those inbox cases retain a 3.0 protocol
+score and spam-status header. SPF softfail adds 1.0 without setting the status;
+neutral, none, and DKIM permerror add zero. The both-fail case adds 6.0 and
+routes to `spam`.
+
+All 20 cases use unique envelope domains and Message-IDs, assert positive and
+bounded missing-record DNS traffic, and freeze the exact
+`Authentication-Results`, spam headers, folder, Maildir, `email_index`, and
+legacy Redis counter behavior. The committed fixture contains only its RSA
+public key and fixed signatures. A fresh Java runtime replayed the golden, all
+ten signatures passed independent verification, and the locked Rust release
+matched the matrix without a Java runtime dependency.
 
 ## SMTP DMARC alignment and disposition
 
