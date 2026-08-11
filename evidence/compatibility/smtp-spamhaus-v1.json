@@ -123,7 +123,7 @@
       "result": "6 passed; three fresh Java replays and three Rust candidate replays matched the unchanged golden"
     },
     {
-      "command": "cargo test --workspace --all-targets --all-features --target x86_64-unknown-linux-gnu -- --test-threads=1",
+      "command": "cargo test --workspace --all-targets --all-features --target x86_64-unknown-linux-gnu",
       "result": "590 passed, 0 failed"
     },
     {
@@ -151,5 +151,5 @@
       "result": "Success: no issues found in 123 source files"
     }
   ],
-  "test_harness_note": "An initial default-parallel workspace run passed all 499 library tests but two existing outbound_delivery_postgres cases raced while reserving ephemeral fixture ports. The affected target passed 9/9 immediately with one test thread, and the complete unfiltered workspace then passed with test-threads=1."
+  "test_harness_note": "An initial default-parallel workspace run exposed a TOCTOU race while concurrent outbound_delivery_postgres fixtures handed free ports to PostgreSQL and Redis. The test fixture now serializes only that startup handoff and uses an atomic process-local directory sequence. The affected target passed three consecutive default-parallel 9/9 runs, and the complete default-parallel workspace passed unfiltered."
 }
