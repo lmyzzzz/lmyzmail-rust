@@ -1,0 +1,246 @@
+{
+  "schema_version": 1,
+  "profile": "stress-v1",
+  "captured_at": "2026-08-12T03:30:00+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "contract": {
+    "routes": [
+      "POST /api/stress/start",
+      "POST /api/stress/reset",
+      "POST /api/stress/status",
+      "POST /api/stress/cleanup"
+    ],
+    "api_permissions": {
+      "status": "read",
+      "start": "write",
+      "reset": "write",
+      "cleanup": "write"
+    },
+    "disabled_by_default": true,
+    "legacy_configuration_aliases": true,
+    "new_configuration_precedence": "field-by-field lmyzmail.* over botmail.*",
+    "warmup_and_production_rounds": true,
+    "java_concurrency_thresholds": [
+      1500,
+      1000,
+      400,
+      200,
+      120,
+      80
+    ],
+    "in_memory_threshold_bytes": 20480,
+    "streaming_chunk_bytes": 32768,
+    "generated_body_budget_bytes": 67108864,
+    "body_workers": 4,
+    "body_queue_capacity": 4,
+    "queue_deadline_seconds": 1800,
+    "delivery_deadline_seconds": 1200,
+    "cleanup_entry_limit": 1100000,
+    "startup_recovery_before_http_readiness": true,
+    "maildir_deletion": "descriptor-relative openat2/unlinkat with no symlink traversal and inode validation",
+    "postgres_schema_changed": false,
+    "redis_key_or_ttl_changed": false,
+    "java_runtime_dependency": false
+  },
+  "domain_scope": {
+    "attested_configuration": "managed singleton example.test",
+    "oracle_multi_domain_behavior": "sender and receiver independently select the first eligible Java HashMap domain and may differ",
+    "candidate_current_behavior": "one RuntimeConfig.domain is shared by stress and other subsystems",
+    "status": "unresolved goal scope",
+    "approved_difference": false
+  },
+  "approved_differences": [
+    {
+      "id": "stress-bounded-run-admission",
+      "manifest": "blackbox/manifests/behavior-differences.json",
+      "candidate_test": "blackbox/tests/test_oracle_stress.py::test_rust_candidate_bounds_overlapping_stress_runs"
+    },
+    {
+      "id": "stress-resource-and-input-bounds",
+      "manifest": "blackbox/manifests/behavior-differences.json",
+      "candidate_tests": [
+        "crates/lmyzmail/src/config.rs::tests::stress_configuration_rejects_unbounded_or_unsafe_values",
+        "crates/lmyzmail/src/stress.rs::tests"
+      ]
+    },
+    {
+      "id": "stress-cleanup-run-serialization",
+      "manifest": "blackbox/manifests/behavior-differences.json",
+      "candidate_test": "blackbox/tests/test_oracle_stress.py::test_rust_candidate_serializes_cleanup_with_active_run"
+    }
+  ],
+  "golden": {
+    "definition_tree_sha256": "c38f4ed04efd083ef7b62a097fcfe7a4d9f75639da0a74ca078504198a446e5e",
+    "active": [
+      {
+        "path": "blackbox/golden/java/managed-stress-disabled-v5",
+        "suite_sha256": "96999501d552695adc6f0b1b9c325d8983d1c7302a0c75be58d7a0d50d8cb630",
+        "observation_sha256": "8801a1ab096922e2849e971f9a7e3226d4cbb432e8cc0d4efeb444beef947382"
+      },
+      {
+        "path": "blackbox/golden/java/managed-stress-enabled-v5",
+        "suite_sha256": "d4abb0c5c736a364ee6210da3bcef7202adee786091189b7e2900b8d0465bf98",
+        "observation_sha256": "63832ce670963870fc636f5175a0ab1ff7631c16771487314cc375a0793fc95f"
+      },
+      {
+        "path": "blackbox/golden/java/managed-stress-streaming-v3",
+        "suite_sha256": "f0315e1ebd49b890c1fbb3fe98084baebbbd6aeb63aa1c7af30987cd0bbe4887",
+        "observation_sha256": "0cfaccb6138f71ffb931b49259ab503376cc9f5016ba562c7b4e4e28abf3e9ef"
+      },
+      {
+        "path": "blackbox/golden/java/managed-stress-oracle-evidence-v4",
+        "suite_sha256": "b1b6702e7bfee85758b7ddcc925fd51b6e31c008084bba4ad48cdd7af3dccc5e",
+        "observation_sha256": "6df8d05295710d0b92aaa4751e52dec03e2293df4779cb31f4cd7457bfd28c83"
+      },
+      {
+        "path": "blackbox/golden/java/managed-stress-cleanup-oracle-evidence-v3",
+        "suite_sha256": "df3dfa6c79a236f07e357fb66f3313b532ceaa0575c6aa7b43c9ebc0e13ff3b9",
+        "observation_sha256": "385fb0e8102967401be355615acc61749c60d05129a746e69fc05e5781d76c04"
+      }
+    ],
+    "previous_definition_tree_sha256": "490dbc14e23ebe77c057039f09447d67ec04fc69febae04a70a14f41ea1f17e9",
+    "previous_generations_retained": true,
+    "previous_generations_modified": false
+  },
+  "fault_injection": [
+    {
+      "boundary": "SIGTERM during streaming body generation",
+      "assertions": "owned temp and stress mailbox state is absent; published queue state remains recoverable"
+    },
+    {
+      "boundary": "SIGTERM after body materialization and before PostgreSQL queue commit",
+      "injection": "candidate outbound PostgreSQL advisory lock",
+      "assertions": "uncommitted spool and owned stress state are removed"
+    },
+    {
+      "boundary": "SIGTERM after Redis publication while awaiting delivery",
+      "assertions": "durable queue state remains internally consistent and stress mailbox state is removed"
+    },
+    {
+      "boundary": "SIGKILL followed by restart in the same workspace",
+      "assertions": "startup recovery finishes before HTTP readiness and removes stale owned state"
+    }
+  ],
+  "source_sha256": {
+    "Cargo.lock": "952e6cec5696d1eab472fd481f6ce9f12c1bf364a291f67931a56dbcab9ae007",
+    "crates/lmyzmail/src/config.rs": "bb1dffe3a9e97c9c19802a41d223df74915f7cc9a391135d6e5dc30c147bee6b",
+    "crates/lmyzmail/src/http.rs": "519a512afb21693648262fa5e72731a7bada8f9c6bc37ff0d49ac59a06e8f95b",
+    "crates/lmyzmail/src/mailbox.rs": "1a7e429d877f50645556edc72baef5ff627f3f0580b5d7e0032d22358d6c95f6",
+    "crates/lmyzmail/src/outbound.rs": "c77131243d1fb773f019d0a73319c43655098a46a504a87382c95c5296a47afe",
+    "crates/lmyzmail/src/outbound_message.rs": "42fa88d77dffc43b52517928653ba5cf8e09461bee3d5a81cf90d963ad8e9a73",
+    "crates/lmyzmail/src/stress.rs": "8047ae8d8918524ab2aeccd39a37cb36cefcc9858c30151a9cb2308eecead264",
+    "blackbox/src/lmyzmail_blackbox/stress_contract.py": "c48236d172205510c5a1d793c66c898175777824d84d77411d06275b06d29b5e",
+    "blackbox/tests/test_oracle_stress.py": "13640b6f24577a2a6510d6a2e6606e7c36661afd71623ed7fcf31862a3f28184",
+    "blackbox/manifests/behavior-differences.json": "c0f463ba939c4cc4b7ee6f6db1d7cabe18abc83afd6483455913af74fe0a98b1",
+    "docs/compatibility.md": "c4193bcf749443faeb59e9549b9de101f6e86a655cb48d4efde6977f1bcd180d",
+    "blackbox/golden/README.md": "565f612e3a948522c142bcb4d3a4fea798d0629e58c54d5880227b82f23e9071"
+  },
+  "release": {
+    "command": "cargo build --workspace --release --locked --target x86_64-unknown-linux-gnu",
+    "runtime": "stable-rust-1.94.0",
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "1274068d4d841de0eb25c95504191dcb7a6ae1fe595d7dd491dbe7767f32861e"
+  },
+  "verification": [
+    {
+      "gate": "stress Java create-once",
+      "result": "5 passed; v5/v5/v3/v4/v3 recorded"
+    },
+    {
+      "gate": "stress fresh-JVM replay",
+      "result": "5 passed"
+    },
+    {
+      "gate": "stress Java-Rust parity and approved race differences",
+      "result": "5 passed"
+    },
+    {
+      "gate": "grouped candidate SIGTERM and SIGKILL fault tests",
+      "result": "4 passed"
+    },
+    {
+      "gate": "complete candidate stress file",
+      "result": "9 passed, 5 deselected"
+    },
+    {
+      "gate": "cargo test --workspace --all-features --all-targets --locked",
+      "result": "passed; 541 lmyzmail library tests plus every binary and integration target"
+    },
+    {
+      "gate": "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "gate": "pytest -m not integration",
+      "result": "139 passed, 137 deselected"
+    },
+    {
+      "gate": "ruff check",
+      "result": "passed"
+    },
+    {
+      "gate": "mypy --strict src tests",
+      "result": "passed; 103 source files"
+    },
+    {
+      "gate": "cargo fmt --all -- --check and git diff --check",
+      "result": "passed"
+    },
+    {
+      "gate": "locked Linux x86_64 release",
+      "result": "passed"
+    }
+  ],
+  "failed_gate_history": [
+    {
+      "gate": "initial stress lifecycle parity",
+      "failure": "cleanup was invoked while the oracle run was active, mixing normal parity with a frozen race",
+      "outcome": "idle cleanup moved before start and all later goldens used new immutable generations"
+    },
+    {
+      "gate": "initial enqueue fault injection",
+      "failure": "Redis CLIENT PAUSE WRITE also blocked the candidate pre-commit Redis capacity check, so no PostgreSQL row could be reached",
+      "outcome": "fault injection moved to the candidate PostgreSQL outbound advisory lock"
+    },
+    {
+      "gate": "corrected enqueue SIGTERM fault",
+      "failure": "database cleanup exhausted the ten-second final cleanup budget before Maildir deletion ran",
+      "outcome": "per-address index and descriptor-relative file cleanup now run concurrently; the fault test passes"
+    },
+    {
+      "gate": "candidate replay after adding fault assertions",
+      "failure": "old suite attestations rejected the changed harness definition tree",
+      "outcome": "five new create-once generations were recorded without overwriting any old golden"
+    },
+    {
+      "gate": "first grouped fault pytest invocation",
+      "failure": "the migrated venv editable install did not discover the new stress_contract module",
+      "outcome": "repository PYTHONPATH=blackbox/src was made explicit; all grouped and full candidate tests pass"
+    },
+    {
+      "gate": "first fresh-JVM replay command",
+      "failure": "the outer shell command reached its 120-second budget before pytest completed",
+      "outcome": "all isolated processes exited, no residue remained, and a 300-second outer budget completed the unchanged pytest contract with 5 passed"
+    },
+    {
+      "gate": "submission security review",
+      "failure": "path-based lstat followed by read_dir retained a directory-to-symlink race",
+      "outcome": "cleanup now uses iterative descriptor-relative openat2/unlinkat with NO_SYMLINKS, inode validation, cancellation, and the existing entry budget"
+    }
+  ],
+  "remaining_scope": [
+    "full multi-domain configuration and independent Java HashMap send/receive domain selection",
+    "cross-module domain compatibility for auth, outbound, HTTP domain reporting, and stress",
+    "long-duration stress soak and broader whole-product concurrency campaigns"
+  ],
+  "attestation_scope": {
+    "milestone_current": true,
+    "older_goldens_modified": false,
+    "frozen_repositories_modified": false,
+    "windows_delivery_tree_synced": false,
+    "full_project_goal_complete": false
+  }
+}

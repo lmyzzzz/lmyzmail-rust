@@ -113,6 +113,9 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "xdp-pps-legacy-null-counter-repair",
         "xdp-pps-monotonic-last-seen",
         "xdp-pps-monitor-bounded-state",
+        "stress-bounded-run-admission",
+        "stress-cleanup-run-serialization",
+        "stress-resource-and-input-bounds",
     }
     starttls = next(
         entry
@@ -161,6 +164,15 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
     )
     assert retry_checkpoint["evidence"]["persister_source_sha256"] == (
         "f5ba8596cf36f2fdb8af7bbde2133f9f352e9db2c073eacbf5bb8277e87b6360"
+    )
+    assert by_id["stress-bounded-run-admission"]["evidence"]["source_sha256"] == (
+        "1f89c3d577cb9fcc13721a56c28e866e30c759f34b4a0617177d91f4885158a0"
+    )
+    assert by_id["stress-resource-and-input-bounds"]["candidate_requirement"].startswith(
+        "Require production count in 1..1000000"
+    )
+    assert by_id["stress-cleanup-run-serialization"]["evidence"]["oracle_golden"].endswith(
+        "/observations/http/stress/oracle-cleanup-during-run.json"
     )
 
     htcpcp_close = by_id["htcpcp-connection-close-lifecycle"]

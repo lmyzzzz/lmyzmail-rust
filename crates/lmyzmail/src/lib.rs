@@ -40,6 +40,7 @@ pub(crate) mod smtp_skibidi_quiz;
 pub(crate) mod smtp_skibidi_video;
 pub(crate) mod smtp_spamhaus;
 pub(crate) mod smtp_spf;
+pub(crate) mod stress;
 pub mod userdata;
 pub(crate) mod video_asset;
 pub(crate) mod web_multipart;

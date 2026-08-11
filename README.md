@@ -97,6 +97,17 @@ bounded generation path at 01:00 UTC. The frozen Java retention queries are not
 invoked by its scheduler, so the candidate likewise performs no implicit
 report-row deletion.
 
+The authenticated `/api/stress/*` slice now preserves the frozen warmup and
+production round state, dynamic 1500/1000/400/200/120/80 concurrency
+thresholds, exact generated bodies, mailbox creation, outbound quota bypass,
+Redis task/TTL state, status/reset responses, and automatic or manual cleanup.
+It is disabled by default and accepts every legacy `botmail.stress-test-*`
+setting with field-by-field `lmyzmail.*` precedence. One active run, four
+dedicated body workers, a four-job blocking queue, a shared 64 MiB generated
+body budget, file-backed streaming for bodies above 20 KiB, serialized manual
+cleanup, and bounded non-symlink-following cleanup prevent the frozen
+controller's overlapping-run, cleanup-race, and resource-growth defects.
+
 The XDP foundation embeds the frozen C/eBPF source behind a serialized Rust FFI
 worker. Its build verifies every frozen source hash, requires Clang 18.1.3, and
 compiles x86_64 C ABI layout assertions. Configuration accepts the complete

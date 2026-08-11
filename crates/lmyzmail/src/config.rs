@@ -78,6 +78,10 @@ const MAX_SPAMHAUS_ZONES: usize = 32;
 const MAX_SPAMHAUS_IGNORED_CODES: usize = 256;
 const MAX_SPAMHAUS_TIMEOUT_MS: u64 = 60_000;
 const MAX_SPAMHAUS_CACHE_TTL_SECONDS: u64 = 7 * 24 * 60 * 60;
+const MAX_STRESS_TEST_COUNT: i32 = 1_000_000;
+const MAX_STRESS_TEST_WARMUP_ROUNDS: i32 = 10_000;
+const MAX_STRESS_TEST_PREFIX_BYTES: usize = 64;
+const MAX_STRESS_TEST_PASSWORD_BYTES: usize = 4_096;
 
 #[derive(Debug)]
 pub enum ConfigError {
@@ -355,6 +359,8 @@ struct JsonRuntimeConfig {
     #[serde(default)]
     reporting: JsonReportingConfig,
     #[serde(default)]
+    stress: JsonStressConfig,
+    #[serde(default)]
     htcpcp: JsonHtcpcpConfig,
     #[serde(default)]
     minecraft: JsonMinecraftConfig,
@@ -467,6 +473,34 @@ struct JsonFeatureConfig {
     report_delivery: bool,
     #[serde(default)]
     show_internet_nl_badge: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct JsonStressConfig {
+    enabled: bool,
+    sender_prefix: String,
+    receiver_prefix: String,
+    password: String,
+    production_count: i32,
+    warmup_count: i32,
+    warmup_rounds: i32,
+    email_size_kb: i32,
+}
+
+impl Default for JsonStressConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            sender_prefix: "stresstest_send".to_owned(),
+            receiver_prefix: "stresstest_receive".to_owned(),
+            password: ",lhs?anaRGU|yD^:_fDGo".to_owned(),
+            production_count: 5_000,
+            warmup_count: 1_000,
+            warmup_rounds: 2,
+            email_size_kb: 100,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -1219,6 +1253,8 @@ struct JsonLimitConfig {
     max_attachment_size_bytes: u64,
     #[serde(default = "default_max_total_attachments_size_bytes")]
     max_total_attachments_size_bytes: u64,
+    #[serde(default = "default_outbound_poll_interval_ms")]
+    outbound_poll_interval_ms: u64,
 }
 
 impl Default for JsonLimitConfig {
@@ -1237,8 +1273,13 @@ impl Default for JsonLimitConfig {
             max_email_size_bytes: default_max_email_size_bytes(),
             max_attachment_size_bytes: default_max_attachment_size_bytes(),
             max_total_attachments_size_bytes: default_max_total_attachments_size_bytes(),
+            outbound_poll_interval_ms: default_outbound_poll_interval_ms(),
         }
     }
+}
+
+const fn default_outbound_poll_interval_ms() -> u64 {
+    1_000
 }
 
 fn default_schema_version() -> u32 {
@@ -1585,6 +1626,7 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
     } = value.smtp;
     let content_filter = value.content_filter;
     let skibidi_inferx = value.skibidi_inferx;
+    let stress = value.stress;
     let htcpcp_pots = pots.unwrap_or_else(default_json_htcpcp_pots);
     if htcpcp_pots.is_empty() {
         return Err(ConfigError::Invalid(
@@ -2420,6 +2462,35 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         value.features.show_internet_nl_badge.to_string(),
     )?;
     properties.insert(
+        "lmyzmail.stress-test-enabled".to_owned(),
+        stress.enabled.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.stress-test-sender-prefix".to_owned(),
+        stress.sender_prefix,
+    )?;
+    properties.insert(
+        "lmyzmail.stress-test-receiver-prefix".to_owned(),
+        stress.receiver_prefix,
+    )?;
+    properties.insert("lmyzmail.stress-test-password".to_owned(), stress.password)?;
+    properties.insert(
+        "lmyzmail.stress-test-count".to_owned(),
+        stress.production_count.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.stress-test-warmup-count".to_owned(),
+        stress.warmup_count.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.stress-test-warmup-rounds".to_owned(),
+        stress.warmup_rounds.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.stress-test-email-size-kb".to_owned(),
+        stress.email_size_kb.to_string(),
+    )?;
+    properties.insert(
         "lmyzmail.ssl.use-custom-certificate".to_owned(),
         value.tls.enabled.to_string(),
     )?;
@@ -2486,6 +2557,10 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
     properties.insert(
         "lmyzmail.max-total-attachments-size-bytes".to_owned(),
         value.limits.max_total_attachments_size_bytes.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.queue.poll-interval-ms".to_owned(),
+        value.limits.outbound_poll_interval_ms.to_string(),
     )?;
     Ok(properties)
 }
@@ -2621,6 +2696,7 @@ pub struct RuntimeConfig {
     pub xdp: XdpConfig,
     pub cringe_decay: CringeDecayConfig,
     pub reporting: ReportingConfig,
+    pub stress: StressConfig,
     pub htcpcp: HtcpcpConfig,
     pub minecraft: MinecraftConfig,
     pub mail_render: MailRenderConfig,
@@ -2663,6 +2739,18 @@ pub struct RedisConfig {
     pub username: Option<String>,
     pub password: Option<String>,
     pub tls: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StressConfig {
+    pub enabled: bool,
+    pub sender_prefix: String,
+    pub receiver_prefix: String,
+    pub password: String,
+    pub production_count: i32,
+    pub warmup_count: i32,
+    pub warmup_rounds: i32,
+    pub email_size_kb: i32,
 }
 
 #[derive(Clone, Debug)]
@@ -3540,6 +3628,8 @@ impl RuntimeConfig {
         };
         validate_reporting(&reporting)?;
 
+        let stress = parse_stress_config(&properties)?;
+
         let tls_enabled = preferred_bool(
             &properties,
             &["lmyzmail.ssl.use-custom-certificate"],
@@ -3700,6 +3790,7 @@ impl RuntimeConfig {
             xdp,
             cringe_decay,
             reporting,
+            stress,
             htcpcp: htcpcp_config,
             minecraft: minecraft_config,
             mail_render,
@@ -3711,6 +3802,112 @@ impl RuntimeConfig {
     pub fn preferred_value(&self, new_key: &str, legacy_key: &str) -> Option<&str> {
         preferred(&self.properties, &[new_key], &[legacy_key])
     }
+}
+
+fn parse_stress_config(properties: &Properties) -> Result<StressConfig, ConfigError> {
+    let enabled = preferred_bool(
+        properties,
+        &["lmyzmail.stress-test-enabled"],
+        &["botmail.stress-test-enabled"],
+        false,
+    )?;
+    let sender_prefix = preferred(
+        properties,
+        &["lmyzmail.stress-test-sender-prefix"],
+        &["botmail.stress-test-sender-prefix"],
+    )
+    .unwrap_or("stresstest_send")
+    .to_owned();
+    let receiver_prefix = preferred(
+        properties,
+        &["lmyzmail.stress-test-receiver-prefix"],
+        &["botmail.stress-test-receiver-prefix"],
+    )
+    .unwrap_or("stresstest_receive")
+    .to_owned();
+    validate_stress_prefix(&sender_prefix, "stress-test-sender-prefix")?;
+    validate_stress_prefix(&receiver_prefix, "stress-test-receiver-prefix")?;
+    let password = preferred(
+        properties,
+        &["lmyzmail.stress-test-password"],
+        &["botmail.stress-test-password"],
+    )
+    .unwrap_or(",lhs?anaRGU|yD^:_fDGo")
+    .to_owned();
+    if password.len() > MAX_STRESS_TEST_PASSWORD_BYTES
+        || password.chars().any(char::is_control)
+        || (enabled && password.encode_utf16().count() < 8)
+    {
+        return Err(ConfigError::Invalid(
+            "stress-test-password is too short, too long, or contains controls".into(),
+        ));
+    }
+    let production_count = preferred_i32(
+        properties,
+        &["lmyzmail.stress-test-count"],
+        &["botmail.stress-test-count"],
+        5_000,
+    )?;
+    if !(1..=MAX_STRESS_TEST_COUNT).contains(&production_count) {
+        return Err(ConfigError::Invalid(format!(
+            "stress-test-count must be between 1 and {MAX_STRESS_TEST_COUNT}"
+        )));
+    }
+    let warmup_count = preferred_i32(
+        properties,
+        &["lmyzmail.stress-test-warmup-count"],
+        &["botmail.stress-test-warmup-count"],
+        1_000,
+    )?
+    .max(1);
+    if warmup_count > MAX_STRESS_TEST_COUNT {
+        return Err(ConfigError::Invalid(format!(
+            "stress-test-warmup-count must not exceed {MAX_STRESS_TEST_COUNT}"
+        )));
+    }
+    let warmup_rounds = preferred_i32(
+        properties,
+        &["lmyzmail.stress-test-warmup-rounds"],
+        &["botmail.stress-test-warmup-rounds"],
+        2,
+    )?
+    .max(0);
+    if warmup_rounds > MAX_STRESS_TEST_WARMUP_ROUNDS {
+        return Err(ConfigError::Invalid(format!(
+            "stress-test-warmup-rounds must not exceed {MAX_STRESS_TEST_WARMUP_ROUNDS}"
+        )));
+    }
+    let email_size_kb = preferred_i32(
+        properties,
+        &["lmyzmail.stress-test-email-size-kb"],
+        &["botmail.stress-test-email-size-kb"],
+        100,
+    )?
+    .clamp(1, 10_240);
+    Ok(StressConfig {
+        enabled,
+        sender_prefix,
+        receiver_prefix,
+        password,
+        production_count,
+        warmup_count,
+        warmup_rounds,
+        email_size_kb,
+    })
+}
+
+fn validate_stress_prefix(value: &str, field: &str) -> Result<(), ConfigError> {
+    if value.is_empty()
+        || value.len() > MAX_STRESS_TEST_PREFIX_BYTES
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'+' | b'-'))
+    {
+        return Err(ConfigError::Invalid(format!(
+            "{field} is not a bounded ASCII mailbox local-part prefix"
+        )));
+    }
+    Ok(())
 }
 
 fn insert_optional_property(
@@ -8930,6 +9127,125 @@ lmyzmail.fail2ban.max-retries=2\n",
         assert_eq!(config.fail2ban.report_cooldown, Duration::from_secs(1));
         assert_eq!(config.fail2ban.max_tracked_ips, 16);
         assert_eq!(config.fail2ban.cleanup_interval, Duration::from_secs(30));
+    }
+
+    #[test]
+    fn stress_defaults_legacy_clamps_and_new_key_precedence_match_java() {
+        let defaults = RuntimeConfig::from_properties(Properties::default()).unwrap();
+        assert!(!defaults.stress.enabled);
+        assert_eq!(defaults.stress.sender_prefix, "stresstest_send");
+        assert_eq!(defaults.stress.receiver_prefix, "stresstest_receive");
+        assert_eq!(defaults.stress.production_count, 5_000);
+        assert_eq!(defaults.stress.warmup_count, 1_000);
+        assert_eq!(defaults.stress.warmup_rounds, 2);
+        assert_eq!(defaults.stress.email_size_kb, 100);
+
+        let config = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.stress-test-enabled=true\n\
+botmail.stress-test-sender-prefix=legacy-sender\n\
+botmail.stress-test-receiver-prefix=legacy-receiver\n\
+botmail.stress-test-password=LegacyStressPass123!\n\
+botmail.stress-test-count=7\n\
+botmail.stress-test-warmup-count=-5\n\
+botmail.stress-test-warmup-rounds=-2\n\
+botmail.stress-test-email-size-kb=20000\n\
+lmyzmail.stress-test-enabled=false\n\
+lmyzmail.stress-test-sender-prefix=current-sender\n\
+lmyzmail.stress-test-count=9\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(!config.stress.enabled);
+        assert_eq!(config.stress.sender_prefix, "current-sender");
+        assert_eq!(config.stress.receiver_prefix, "legacy-receiver");
+        assert_eq!(config.stress.password, "LegacyStressPass123!");
+        assert_eq!(config.stress.production_count, 9);
+        assert_eq!(config.stress.warmup_count, 1);
+        assert_eq!(config.stress.warmup_rounds, 0);
+        assert_eq!(config.stress.email_size_kb, 10_240);
+    }
+
+    #[test]
+    fn stress_configuration_rejects_unbounded_or_unsafe_values() {
+        for input in [
+            b"lmyzmail.stress-test-count=0\n".as_slice(),
+            b"lmyzmail.stress-test-count=1000001\n".as_slice(),
+            b"lmyzmail.stress-test-warmup-count=1000001\n".as_slice(),
+            b"lmyzmail.stress-test-warmup-rounds=10001\n".as_slice(),
+            b"lmyzmail.stress-test-sender-prefix=\n".as_slice(),
+            b"lmyzmail.stress-test-sender-prefix=bad@prefix\n".as_slice(),
+            b"lmyzmail.stress-test-password=bad\\u0001password\n".as_slice(),
+            b"lmyzmail.stress-test-enabled=true\nlmyzmail.stress-test-password=short\n".as_slice(),
+        ] {
+            assert!(
+                RuntimeConfig::from_properties(Properties::parse(input).unwrap()).is_err(),
+                "accepted unsafe stress configuration: {}",
+                String::from_utf8_lossy(input),
+            );
+        }
+        for input in [
+            format!(
+                "lmyzmail.stress-test-sender-prefix={}\n",
+                "a".repeat(MAX_STRESS_TEST_PREFIX_BYTES + 1)
+            ),
+            format!(
+                "lmyzmail.stress-test-password={}\n",
+                "a".repeat(MAX_STRESS_TEST_PASSWORD_BYTES + 1)
+            ),
+        ] {
+            assert!(
+                RuntimeConfig::from_properties(Properties::parse(input.as_bytes()).unwrap())
+                    .is_err(),
+                "accepted unsafe stress configuration"
+            );
+        }
+
+        let disabled_empty_password = RuntimeConfig::from_properties(
+            Properties::parse(b"lmyzmail.stress-test-password=\n").unwrap(),
+        )
+        .unwrap();
+        assert!(disabled_empty_password.stress.password.is_empty());
+    }
+
+    #[test]
+    fn semantic_stress_configuration_is_supported() {
+        let json = br#"{
+            "schema_version": 1,
+            "profile": "test",
+            "listen": {"host":"127.0.0.1","http":18080,"smtp":1025,"htcpcp":18888,"minecraft":25575},
+            "postgres": {"host":"localhost","port":15432,"database":"lmyzmail","username":"qa","password":""},
+            "redis": {"host":"localhost","port":16379,"database":0},
+            "maildir": "/tmp/lmyzmail-mail",
+            "domain": "example.test",
+            "stress": {
+                "enabled": true,
+                "sender_prefix": "load-sender",
+                "receiver_prefix": "load-receiver",
+                "password": "StressSemanticPass123!",
+                "production_count": 12,
+                "warmup_count": 3,
+                "warmup_rounds": 1,
+                "email_size_kb": 256
+            },
+            "limits": {"outbound_poll_interval_ms": 60000}
+        }"#;
+        let config = RuntimeConfig::from_properties(parse_semantic_json(json).unwrap()).unwrap();
+        assert!(config.stress.enabled);
+        assert_eq!(config.stress.sender_prefix, "load-sender");
+        assert_eq!(config.stress.receiver_prefix, "load-receiver");
+        assert_eq!(config.stress.production_count, 12);
+        assert_eq!(config.stress.warmup_count, 3);
+        assert_eq!(config.stress.warmup_rounds, 1);
+        assert_eq!(config.stress.email_size_kb, 256);
+        assert_eq!(
+            config.preferred_value(
+                "lmyzmail.queue.poll-interval-ms",
+                "botmail.queue.poll-interval-ms"
+            ),
+            Some("60000")
+        );
     }
 
     #[test]

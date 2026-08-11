@@ -234,6 +234,17 @@ lmyzmail.reporting.organization-email=
 lmyzmail.reporting.dns-server=
 lmyzmail.reporting.http-delivery-enabled=false
 lmyzmail.reporting.http-delivery-timeout-seconds=30
+
+# Internal authenticated load generator. Keep disabled in production. Set the
+# password through a protected deployment override before enabling it.
+lmyzmail.stress-test-enabled=false
+lmyzmail.stress-test-sender-prefix=stresstest_send
+lmyzmail.stress-test-receiver-prefix=stresstest_receive
+lmyzmail.stress-test-password=
+lmyzmail.stress-test-count=5000
+lmyzmail.stress-test-warmup-count=1000
+lmyzmail.stress-test-warmup-rounds=2
+lmyzmail.stress-test-email-size-kb=100
 lmyzmail.show-internet-nl-badge=false
 
 # API keys are intentionally absent from this example. Inject them through a

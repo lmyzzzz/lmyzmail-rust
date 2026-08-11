@@ -14,6 +14,7 @@ use getrandom::fill as fill_random;
 use mail_parser::{MessageParser, MimeHeaders, PartType};
 use serde::Serialize;
 use tokio::{task::spawn_blocking, time::timeout};
+use tokio_util::sync::CancellationToken;
 
 use crate::config::RuntimeConfig;
 
@@ -163,6 +164,107 @@ impl MailboxService {
             max_attachment_size: config.limits.max_attachment_size_bytes,
             max_total_attachments_size: config.limits.max_total_attachments_size_bytes,
         }
+    }
+
+    pub(crate) fn user_directory(&self, mailbox: &str) -> Result<PathBuf, MailboxError> {
+        let mailbox = normalize_mailbox(mailbox)?;
+        Ok(self.base_dir.join(sanitize_address_for_path(&mailbox)))
+    }
+
+    pub(crate) async fn count_folder(
+        &self,
+        mailbox: &str,
+        folder: &str,
+        cancellation: &CancellationToken,
+    ) -> Result<i64, MailboxError> {
+        validate_folder(folder)?;
+        let mailbox = normalize_mailbox(mailbox)?;
+        let client = tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => {
+                return Err(MailboxError::Database("query cancelled".into()));
+            }
+            result = timeout(DATABASE_TIMEOUT, self.pool.get()) => result
+                .map_err(|_| MailboxError::Database("pool timeout".into()))?
+                .map_err(|error| MailboxError::Database(error.to_string()))?,
+        };
+        let count_params: [&(dyn tokio_postgres::types::ToSql + Sync); 2] = [&mailbox, &folder];
+        tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => {
+                Err(MailboxError::Database("query cancelled".into()))
+            }
+            result = timeout(
+                DATABASE_TIMEOUT,
+                client.query_one(
+                    "SELECT count(*) FROM email_index WHERE mailbox_address=$1 AND folder=$2",
+                    &count_params,
+                ),
+            ) => Ok(result
+                .map_err(|_| MailboxError::Database("query timeout".into()))?
+                .map_err(db_error)?
+                .get(0)),
+        }
+    }
+
+    pub(crate) async fn delete_indexes_for_mailbox(
+        &self,
+        mailbox: &str,
+        cancellation: &CancellationToken,
+    ) -> Result<(), MailboxError> {
+        let mailbox = normalize_mailbox(mailbox)?;
+        let mut client = tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => {
+                return Err(MailboxError::Database("cleanup cancelled".into()));
+            }
+            result = timeout(DATABASE_TIMEOUT, self.pool.get()) => result
+                .map_err(|_| MailboxError::Database("pool timeout".into()))?
+                .map_err(|error| MailboxError::Database(error.to_string()))?,
+        };
+        let transaction = timeout(DATABASE_TIMEOUT, client.transaction())
+            .await
+            .map_err(|_| MailboxError::Database("transaction timeout".into()))?
+            .map_err(db_error)?;
+        let mailbox_params: [&(dyn tokio_postgres::types::ToSql + Sync); 1] = [&mailbox];
+        tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => {
+                return Err(MailboxError::Database("cleanup cancelled".into()));
+            }
+            result = timeout(
+                DATABASE_TIMEOUT,
+                transaction.query_one(
+                    "SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))",
+                    &mailbox_params,
+                ),
+            ) => {
+                result
+                    .map_err(|_| MailboxError::Database("cleanup lock timeout".into()))?
+                    .map_err(db_error)?;
+            }
+        }
+        tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => {
+                return Err(MailboxError::Database("cleanup cancelled".into()));
+            }
+            result = timeout(
+                DATABASE_TIMEOUT,
+                transaction.execute(
+                    "DELETE FROM email_index WHERE mailbox_address=$1",
+                    &mailbox_params,
+                ),
+            ) => {
+                result
+                    .map_err(|_| MailboxError::Database("cleanup delete timeout".into()))?
+                    .map_err(db_error)?;
+            }
+        }
+        timeout(DATABASE_TIMEOUT, transaction.commit())
+            .await
+            .map_err(|_| MailboxError::Database("cleanup commit timeout".into()))?
+            .map_err(db_error)
     }
 
     pub async fn list_folder(

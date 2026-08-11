@@ -534,6 +534,62 @@ candidate test; it has the same review requirements as the primary allowlist.
   strings retain Java UTF-16 substring semantics, including CESU-8 for an
   isolated surrogate produced by a split supplementary character.
 
+## Stress-test contract
+
+`POST /api/stress/status` requires API read permission. `start`, `reset`, and
+`cleanup` require write permission. All four routes fail closed while
+`lmyzmail.stress-test-enabled=false`; the legacy
+`botmail.stress-test-enabled` alias remains accepted, and a new key wins when
+both are present. Every other frozen `botmail.stress-test-*` property has the
+same field-by-field `lmyzmail.*` precedence. The disabled start message names
+only the new product key.
+
+An admitted run preserves Java's warmup counter transition, exact response
+fields including the `KB` acronym, 20 KiB mode threshold, dynamic
+1500/1000/400/200/120/80 concurrency thresholds, generated subject and body,
+test mailbox creation, sender quota bypass, durable outbound admission, Redis
+task and seven-day TTL, delivery polling, and cleanup of both test mailbox
+indexes and trees. Reset remains process-local and manual cleanup retains the
+frozen best-effort response contract while no run is active. Bodies above 20
+KiB are generated into private mode-0600 files and quoted-printable encoded
+incrementally into the durable spool. The frozen PostgreSQL `body_text` value
+still requires one bounded UTF-8 materialization at the database parameter
+boundary; no second full body copy is retained by the stress service.
+
+The active stress goldens attest only the managed singleton domain
+`example.test`. In a multi-domain Java configuration, the sender uses the
+first send-enabled domain and the receiver independently uses the first
+receive-enabled domain in Java `HashMap` iteration order, so the two domains
+can differ. The current Rust runtime still exposes one scalar domain to stress
+and other subsystems. Full multi-domain configuration and selection parity is
+therefore unresolved goal scope, not an approved behavior difference.
+
+The candidate clamps the same warmup and email-size inputs as Java. It also
+enforces the approved `stress-resource-and-input-bounds` difference: production
+counts from 1 through 1,000,000, at most 1,000,000 warmup messages and 10,000
+warmup rounds, safe nonempty 64-byte ASCII mailbox prefixes, a control-free
+4,096-byte password of at least eight UTF-16 code units while enabled, four
+body workers plus a four-job queue, a shared 64 MiB generated-body admission
+budget, a 30-minute queue deadline, and 1,100,000 cleanup entries. Cancellation
+propagates through body generation, database calls, delivery polling, cleanup,
+and shutdown joins. HTTP requests, stress shutdown, its blocking pool, and the
+outbound reconciler share one absolute 20-second HTTP-service shutdown budget.
+
+Java accepts overlapping starts against the same sender and receiver and lets
+each run recursively delete those shared trees. Rust returns the exact bounded
+503 response recorded by the `stress-bounded-run-admission` allowlist entry
+without incrementing the round or starting work. Normal single-run behavior is
+governed by `managed-stress-disabled-v5`, `managed-stress-enabled-v5`, and the
+32 KiB `managed-stress-streaming-v3`; the frozen defect is isolated in
+`managed-stress-oracle-evidence-v4`.
+
+Java also accepts manual cleanup while an active run is concurrently queueing
+or waiting for delivery against the same Maildir and index namespace. Rust
+returns the same bounded 503 busy body as overlapping start and does not delete
+active state. This race repair is isolated under
+`stress-cleanup-run-serialization` and
+`managed-stress-cleanup-oracle-evidence-v3`.
+
 ## Cringe decay contract
 
 The candidate accepts `lmyzmail.cringe.decay.*` and the frozen

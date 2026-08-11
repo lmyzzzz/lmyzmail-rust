@@ -153,10 +153,23 @@ pub struct MessageInput {
     pub bcc: Vec<String>,
     pub subject: String,
     pub text: Option<String>,
+    pub(crate) text_file: Option<MessageTextFile>,
     pub html: Option<String>,
     pub attachments: Vec<MessageAttachment>,
     pub message_id: String,
     pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug)]
+pub(crate) struct MessageTextFile {
+    path: PathBuf,
+    size: u64,
+}
+
+impl MessageTextFile {
+    pub(crate) fn new(path: PathBuf, size: u64) -> Self {
+        Self { path, size }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -297,6 +310,34 @@ impl OutboundMessageBuilder {
         if message.cleanup_spool_after_publish {
             remove_regular_file(&message.spool_path)?;
         }
+        Ok(())
+    }
+
+    /// Materialize the frozen PostgreSQL `body_text` value once, after MIME
+    /// construction has streamed the caller-owned source file into the spool.
+    pub(crate) fn materialize_persistence_text(
+        &self,
+        input: &mut MessageInput,
+        cancelled: &AtomicBool,
+    ) -> Result<(), MessageBuildError> {
+        let Some(source) = input.text_file.take() else {
+            return Ok(());
+        };
+        if input.text.is_some() {
+            return Err(MessageBuildError::InvalidInput(
+                "conflicting_outbound_text_sources",
+            ));
+        }
+        let text = read_streaming_text(&source, self.max_email_size, cancelled)?;
+        if text.trim().is_empty()
+            && input
+                .html
+                .as_deref()
+                .is_none_or(|value| value.trim().is_empty())
+        {
+            return Err(MessageBuildError::InvalidInput("body_required"));
+        }
+        input.text = Some(text);
         Ok(())
     }
 
@@ -679,11 +720,7 @@ impl OutboundMessageBuilder {
             atomic_copy(&spool_path, &sent_path, self.max_email_size, cancelled)?;
             true
         };
-        let signed_content_base64 = match java_storage_mode(
-            input.text.as_deref(),
-            input.html.as_deref(),
-            &input.attachments,
-        )? {
+        let signed_content_base64 = match java_storage_mode_for_input(input)? {
             MessageStorageMode::Inline => {
                 check_cancelled(cancelled)?;
                 let mut bytes = Vec::with_capacity(message_bytes as usize);
@@ -747,7 +784,7 @@ impl OutboundMessageBuilder {
             writeln_crlf(output, "Content-Type: text/plain; charset=UTF-8")?;
             writeln_crlf(output, "Content-Transfer-Encoding: quoted-printable")?;
             writeln_crlf(output, "")?;
-            write_quoted_printable(input.text.as_deref().unwrap_or_default(), output)?;
+            self.write_text_content(input, output, cancelled)?;
             return Ok(());
         }
 
@@ -759,7 +796,7 @@ impl OutboundMessageBuilder {
                 &format!("Content-Type: multipart/alternative; boundary=\"{alternative}\""),
             )?;
             writeln_crlf(output, "")?;
-            write_alternative(input, &alternative, output)?;
+            self.write_alternative(input, &alternative, output, cancelled)?;
             return Ok(());
         }
 
@@ -783,7 +820,7 @@ impl OutboundMessageBuilder {
                 &format!("Content-Type: multipart/alternative; boundary=\"{alternative}\""),
             )?;
             writeln_crlf(output, "")?;
-            write_alternative(input, &alternative, output)?;
+            self.write_alternative(input, &alternative, output, cancelled)?;
             for attachment in input.attachments.iter().filter(|value| value.inline) {
                 check_cancelled(cancelled)?;
                 write_attachment(output, &related, attachment)?;
@@ -797,10 +834,10 @@ impl OutboundMessageBuilder {
                 &format!("Content-Type: multipart/alternative; boundary=\"{alternative}\""),
             )?;
             writeln_crlf(output, "")?;
-            write_alternative(input, &alternative, output)?;
+            self.write_alternative(input, &alternative, output, cancelled)?;
         } else {
             write_boundary(output, &mixed, false)?;
-            write_text_part(output, input.text.as_deref().unwrap_or_default())?;
+            self.write_text_part(input, output, cancelled)?;
         }
         for attachment in input.attachments.iter().filter(|value| !value.inline) {
             check_cancelled(cancelled)?;
@@ -809,15 +846,86 @@ impl OutboundMessageBuilder {
         write_boundary(output, &mixed, true)?;
         Ok(())
     }
+
+    fn write_alternative(
+        &self,
+        input: &MessageInput,
+        boundary: &str,
+        output: &mut impl Write,
+        cancelled: &AtomicBool,
+    ) -> Result<(), MessageBuildError> {
+        write_boundary(output, boundary, false)?;
+        self.write_text_part(input, output, cancelled)?;
+        write_boundary(output, boundary, false)?;
+        writeln_crlf(output, "Content-Type: text/html; charset=UTF-8")?;
+        writeln_crlf(output, "Content-Transfer-Encoding: quoted-printable")?;
+        writeln_crlf(output, "")?;
+        write_quoted_printable(input.html.as_deref().unwrap_or_default(), output)?;
+        writeln_crlf(output, "")?;
+        write_boundary(output, boundary, true)?;
+        Ok(())
+    }
+
+    fn write_text_part(
+        &self,
+        input: &MessageInput,
+        output: &mut impl Write,
+        cancelled: &AtomicBool,
+    ) -> Result<(), MessageBuildError> {
+        writeln_crlf(output, "Content-Type: text/plain; charset=UTF-8")?;
+        writeln_crlf(output, "Content-Transfer-Encoding: quoted-printable")?;
+        writeln_crlf(output, "")?;
+        self.write_text_content(input, output, cancelled)?;
+        writeln_crlf(output, "")?;
+        Ok(())
+    }
+
+    fn write_text_content(
+        &self,
+        input: &MessageInput,
+        output: &mut impl Write,
+        cancelled: &AtomicBool,
+    ) -> Result<(), MessageBuildError> {
+        match (&input.text, &input.text_file) {
+            (Some(text), None) => {
+                write_quoted_printable(text, output)?;
+                Ok(())
+            }
+            (None, Some(source)) => {
+                write_quoted_printable_file(source, self.max_email_size, output, cancelled)
+            }
+            (None, None) => Ok(()),
+            (Some(_), Some(_)) => Err(MessageBuildError::InvalidInput(
+                "conflicting_outbound_text_sources",
+            )),
+        }
+    }
 }
 
 #[cfg(test)]
 fn java_estimated_message_size(input: &MessageInput) -> Result<u64, MessageBuildError> {
-    java_estimated_message_parts(
+    java_estimated_message_parts_with_file(
         input.text.as_deref(),
+        input.text_file.as_ref().map(|source| source.size),
         input.html.as_deref(),
         &input.attachments,
     )
+}
+
+fn java_storage_mode_for_input(
+    input: &MessageInput,
+) -> Result<MessageStorageMode, MessageBuildError> {
+    if java_estimated_message_parts_with_file(
+        input.text.as_deref(),
+        input.text_file.as_ref().map(|source| source.size),
+        input.html.as_deref(),
+        &input.attachments,
+    )? < SMALL_MESSAGE_THRESHOLD
+    {
+        Ok(MessageStorageMode::Inline)
+    } else {
+        Ok(MessageStorageMode::Spool)
+    }
 }
 
 pub fn java_storage_mode(
@@ -837,7 +945,28 @@ fn java_estimated_message_parts(
     html: Option<&str>,
     attachments: &[MessageAttachment],
 ) -> Result<u64, MessageBuildError> {
+    java_estimated_message_parts_with_file(text, None, html, attachments)
+}
+
+fn java_estimated_message_parts_with_file(
+    text: Option<&str>,
+    text_file_size: Option<u64>,
+    html: Option<&str>,
+    attachments: &[MessageAttachment],
+) -> Result<u64, MessageBuildError> {
+    if text.is_some() && text_file_size.is_some() {
+        return Err(MessageBuildError::InvalidInput(
+            "conflicting_outbound_text_sources",
+        ));
+    }
     let mut size = 2_048_u64;
+    if let Some(text_file_size) = text_file_size {
+        size = size
+            .checked_add(text_file_size)
+            .ok_or(MessageBuildError::InvalidInput(
+                "email_size_estimate_overflow",
+            ))?;
+    }
     for body in [text, html].into_iter().flatten() {
         size = size
             .checked_add(
@@ -959,50 +1088,215 @@ fn sign_dkim_at(
     Ok(signature)
 }
 
-fn write_alternative(
-    input: &MessageInput,
-    boundary: &str,
-    output: &mut impl Write,
-) -> io::Result<()> {
-    write_boundary(output, boundary, false)?;
-    write_text_part(output, input.text.as_deref().unwrap_or_default())?;
-    write_boundary(output, boundary, false)?;
-    writeln_crlf(output, "Content-Type: text/html; charset=UTF-8")?;
-    writeln_crlf(output, "Content-Transfer-Encoding: quoted-printable")?;
-    writeln_crlf(output, "")?;
-    write_quoted_printable(input.html.as_deref().unwrap_or_default(), output)?;
-    writeln_crlf(output, "")?;
-    write_boundary(output, boundary, true)
-}
-
-fn write_text_part(output: &mut impl Write, text: &str) -> io::Result<()> {
-    writeln_crlf(output, "Content-Type: text/plain; charset=UTF-8")?;
-    writeln_crlf(output, "Content-Transfer-Encoding: quoted-printable")?;
-    writeln_crlf(output, "")?;
-    write_quoted_printable(text, output)?;
-    writeln_crlf(output, "")
-}
-
 fn write_quoted_printable(text: &str, output: &mut impl Write) -> io::Result<()> {
     let mut line_length = 0_usize;
-    for byte in text.bytes() {
+    write_quoted_printable_bytes(text.as_bytes(), output, &mut line_length)
+}
+
+fn write_quoted_printable_bytes(
+    bytes: &[u8],
+    output: &mut impl Write,
+    line_length: &mut usize,
+) -> io::Result<()> {
+    for &byte in bytes {
         match byte {
             b'\r' => {}
             b'\n' => {
                 output.write_all(b"\r\n")?;
-                line_length = 0;
+                *line_length = 0;
             }
             b'!'..=b'<' | b'>'..=b'~' | b' ' | b'\t' => {
-                write_quoted_printable_unit(output, &mut line_length, &[byte])?;
+                write_quoted_printable_unit(output, line_length, &[byte])?;
             }
             _ => {
                 const HEX: &[u8; 16] = b"0123456789ABCDEF";
                 let encoded = [b'=', HEX[(byte >> 4) as usize], HEX[(byte & 0x0f) as usize]];
-                write_quoted_printable_unit(output, &mut line_length, &encoded)?;
+                write_quoted_printable_unit(output, line_length, &encoded)?;
             }
         }
     }
     Ok(())
+}
+
+fn write_quoted_printable_file(
+    source: &MessageTextFile,
+    maximum: u64,
+    output: &mut impl Write,
+    cancelled: &AtomicBool,
+) -> Result<(), MessageBuildError> {
+    let mut input =
+        BufReader::with_capacity(COPY_BUFFER_BYTES, open_streaming_text(source, maximum)?);
+    let mut remaining = source.size;
+    let mut buffer = [0_u8; COPY_BUFFER_BYTES];
+    let mut line_length = 0_usize;
+    let mut utf8 = Utf8StreamValidator::default();
+    while remaining > 0 {
+        check_cancelled(cancelled)?;
+        let maximum_read = usize::try_from(remaining.min(COPY_BUFFER_BYTES as u64))
+            .expect("bounded read length fits usize");
+        let count = input.read(&mut buffer[..maximum_read])?;
+        if count == 0 {
+            return Err(MessageBuildError::InvalidInput(
+                "invalid_outbound_text_file",
+            ));
+        }
+        utf8.consume(&buffer[..count])?;
+        write_quoted_printable_bytes(&buffer[..count], output, &mut line_length)?;
+        remaining -= count as u64;
+    }
+    check_cancelled(cancelled)?;
+    if input.read(&mut buffer[..1])? != 0 {
+        return Err(MessageBuildError::InvalidInput(
+            "invalid_outbound_text_file",
+        ));
+    }
+    utf8.finish()?;
+    Ok(())
+}
+
+fn read_streaming_text(
+    source: &MessageTextFile,
+    maximum: u64,
+    cancelled: &AtomicBool,
+) -> Result<String, MessageBuildError> {
+    check_cancelled(cancelled)?;
+    let capacity = usize::try_from(source.size)
+        .map_err(|_| MessageBuildError::InvalidInput("email_too_large"))?;
+    let file = open_streaming_text(source, maximum)?;
+    let mut text = String::with_capacity(capacity);
+    let mut reader = CooperativeReader {
+        inner: file,
+        cancelled,
+    };
+    let count = (&mut reader)
+        .take(source.size)
+        .read_to_string(&mut text)
+        .map_err(|error| {
+            if cancelled.load(Ordering::Acquire) {
+                MessageBuildError::Cancelled
+            } else if error.kind() == io::ErrorKind::InvalidData {
+                MessageBuildError::InvalidInput("invalid_outbound_text_file")
+            } else {
+                MessageBuildError::Io(error)
+            }
+        })?;
+    let mut extra = [0_u8; 1];
+    if count as u64 != source.size
+        || reader.read(&mut extra).map_err(|error| {
+            if cancelled.load(Ordering::Acquire) {
+                MessageBuildError::Cancelled
+            } else {
+                MessageBuildError::Io(error)
+            }
+        })? != 0
+    {
+        return Err(MessageBuildError::InvalidInput(
+            "invalid_outbound_text_file",
+        ));
+    }
+    check_cancelled(cancelled)?;
+    Ok(text)
+}
+
+fn open_streaming_text(source: &MessageTextFile, maximum: u64) -> Result<File, MessageBuildError> {
+    use rustix::fs::{FileType, Mode, OFlags, fstat, open};
+
+    if source.size > maximum {
+        return Err(MessageBuildError::InvalidInput("email_too_large"));
+    }
+    let descriptor = open(
+        &source.path,
+        OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC | OFlags::NONBLOCK,
+        Mode::empty(),
+    )
+    .map_err(io::Error::from)?;
+    let stat = fstat(&descriptor).map_err(io::Error::from)?;
+    if FileType::from_raw_mode(stat.st_mode) != FileType::RegularFile
+        || stat.st_size < 0
+        || stat.st_size as u64 != source.size
+    {
+        return Err(MessageBuildError::InvalidInput(
+            "invalid_outbound_text_file",
+        ));
+    }
+    Ok(File::from(descriptor))
+}
+
+#[derive(Default)]
+struct Utf8StreamValidator {
+    trailing: [u8; 4],
+    trailing_len: usize,
+}
+
+impl Utf8StreamValidator {
+    fn consume(&mut self, mut bytes: &[u8]) -> Result<(), MessageBuildError> {
+        if self.trailing_len != 0 {
+            let width = utf8_sequence_width(self.trailing[0]).ok_or(
+                MessageBuildError::InvalidInput("invalid_outbound_text_file"),
+            )?;
+            let appended = bytes.len().min(width - self.trailing_len);
+            self.trailing[self.trailing_len..self.trailing_len + appended]
+                .copy_from_slice(&bytes[..appended]);
+            self.trailing_len += appended;
+            bytes = &bytes[appended..];
+            if self.trailing_len < width {
+                return Ok(());
+            }
+            std::str::from_utf8(&self.trailing[..width])
+                .map_err(|_| MessageBuildError::InvalidInput("invalid_outbound_text_file"))?;
+            self.trailing_len = 0;
+        }
+
+        if let Err(error) = std::str::from_utf8(bytes) {
+            if error.error_len().is_some() {
+                return Err(MessageBuildError::InvalidInput(
+                    "invalid_outbound_text_file",
+                ));
+            }
+            let trailing = &bytes[error.valid_up_to()..];
+            debug_assert!(!trailing.is_empty() && trailing.len() <= self.trailing.len());
+            self.trailing[..trailing.len()].copy_from_slice(trailing);
+            self.trailing_len = trailing.len();
+        }
+        Ok(())
+    }
+
+    fn finish(self) -> Result<(), MessageBuildError> {
+        if self.trailing_len == 0 {
+            Ok(())
+        } else {
+            Err(MessageBuildError::InvalidInput(
+                "invalid_outbound_text_file",
+            ))
+        }
+    }
+}
+
+fn utf8_sequence_width(first: u8) -> Option<usize> {
+    match first {
+        0x00..=0x7f => Some(1),
+        0xc2..=0xdf => Some(2),
+        0xe0..=0xef => Some(3),
+        0xf0..=0xf4 => Some(4),
+        _ => None,
+    }
+}
+
+struct CooperativeReader<'a, R> {
+    inner: R,
+    cancelled: &'a AtomicBool,
+}
+
+impl<R: Read> Read for CooperativeReader<'_, R> {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        if self.cancelled.load(Ordering::Acquire) {
+            return Err(io::Error::new(
+                io::ErrorKind::Interrupted,
+                "outbound text read cancelled",
+            ));
+        }
+        self.inner.read(buffer)
+    }
 }
 
 fn write_quoted_printable_unit(
@@ -1558,6 +1852,7 @@ mod tests {
             bcc: vec!["hidden@remote.test".into()],
             subject: "Hello".into(),
             text: Some("plain body".into()),
+            text_file: None,
             html: Some("<p>HTML body</p>".into()),
             attachments: vec![MessageAttachment {
                 filename: "proof.txt".into(),
@@ -1646,6 +1941,128 @@ mod tests {
         output.clear();
         write_quoted_printable("a\r\nb\nc\rd\0", &mut output).unwrap();
         assert_eq!(output, b"a\r\nb\r\ncd=00");
+    }
+
+    #[test]
+    fn streamed_text_matches_in_memory_mime_and_remains_caller_owned() {
+        let root = TestDirectory::new();
+        let path = root.0.join("stress-body.txt");
+        let body = format!("{}\u{754c}\r\nend\n", "a".repeat(COPY_BUFFER_BYTES - 1));
+        fs::write(&path, body.as_bytes()).unwrap();
+        let builder = system_builder(&root.0, None);
+        let cancelled = AtomicBool::new(false);
+
+        let mut in_memory = message();
+        in_memory.html = None;
+        in_memory.attachments.clear();
+        in_memory.text = Some(body.clone());
+        let mut expected = Vec::new();
+        builder
+            .write_message(&in_memory, &mut expected, &cancelled)
+            .unwrap();
+
+        let mut streamed = message();
+        streamed.html = None;
+        streamed.attachments.clear();
+        streamed.text = None;
+        streamed.text_file = Some(MessageTextFile::new(path.clone(), body.len() as u64));
+        let mut actual = Vec::new();
+        builder
+            .write_message(&streamed, &mut actual, &cancelled)
+            .unwrap();
+        assert_eq!(actual, expected);
+
+        let materialized = builder.materialize(&streamed, &cancelled).unwrap();
+        builder
+            .materialize_persistence_text(&mut streamed, &cancelled)
+            .unwrap();
+        assert_eq!(streamed.text.as_deref(), Some(body.as_str()));
+        assert!(streamed.text_file.is_none());
+        assert!(path.is_file());
+        builder.rollback_unpublished(&materialized).unwrap();
+        assert!(path.is_file(), "outbound must not delete caller-owned text");
+    }
+
+    #[test]
+    fn streamed_text_rejects_non_regular_changed_and_invalid_utf8_sources() {
+        use std::os::unix::fs::symlink;
+
+        let root = TestDirectory::new();
+        let builder = system_builder(&root.0, None);
+        let cancelled = AtomicBool::new(false);
+        let valid = root.0.join("valid.txt");
+        fs::write(&valid, b"valid body").unwrap();
+
+        let symlink_path = root.0.join("body-link.txt");
+        symlink(&valid, &symlink_path).unwrap();
+        let symlink_source = MessageTextFile::new(symlink_path, 10);
+        assert!(
+            write_quoted_printable_file(
+                &symlink_source,
+                builder.max_email_size,
+                &mut Vec::new(),
+                &cancelled,
+            )
+            .is_err()
+        );
+
+        let changed = MessageTextFile::new(valid, 9);
+        assert!(matches!(
+            write_quoted_printable_file(
+                &changed,
+                builder.max_email_size,
+                &mut Vec::new(),
+                &cancelled,
+            ),
+            Err(MessageBuildError::InvalidInput(
+                "invalid_outbound_text_file"
+            ))
+        ));
+
+        let invalid = root.0.join("invalid-utf8.txt");
+        fs::write(&invalid, [b'a', 0xf0, 0x9f, 0x92]).unwrap();
+        let invalid_source = MessageTextFile::new(invalid, 4);
+        assert!(matches!(
+            write_quoted_printable_file(
+                &invalid_source,
+                builder.max_email_size,
+                &mut Vec::new(),
+                &cancelled,
+            ),
+            Err(MessageBuildError::InvalidInput(
+                "invalid_outbound_text_file"
+            ))
+        ));
+    }
+
+    #[test]
+    fn streamed_text_size_drives_storage_mode_and_observes_cancellation() {
+        let root = TestDirectory::new();
+        let path = root.0.join("body.txt");
+        fs::write(&path, b"body").unwrap();
+        let mut input = message();
+        input.text = None;
+        input.html = None;
+        input.attachments.clear();
+        input.text_file = Some(MessageTextFile::new(path.clone(), 8_191));
+        assert_eq!(java_estimated_message_size(&input).unwrap(), 10_239);
+        assert_eq!(
+            java_storage_mode_for_input(&input).unwrap(),
+            MessageStorageMode::Inline
+        );
+        input.text_file = Some(MessageTextFile::new(path.clone(), 8_192));
+        assert_eq!(java_estimated_message_size(&input).unwrap(), 10_240);
+        assert_eq!(
+            java_storage_mode_for_input(&input).unwrap(),
+            MessageStorageMode::Spool
+        );
+
+        let cancelled = AtomicBool::new(true);
+        let source = MessageTextFile::new(path, 4);
+        assert!(matches!(
+            write_quoted_printable_file(&source, 64 * 1024, &mut Vec::new(), &cancelled,),
+            Err(MessageBuildError::Cancelled)
+        ));
     }
 
     #[test]

@@ -1210,3 +1210,41 @@ failure observations as `managed-outbound-queue-v36.json` and
 `managed-outbound-5xx-v4.json`. Both were created once by Java, replayed in a
 fresh Java runtime, and matched by the Rust candidate. All earlier generations
 remain immutable.
+
+The active stress-test sets are:
+
+- `managed-stress-disabled-v5/`
+- `managed-stress-enabled-v5/`
+- `managed-stress-streaming-v3/`
+- `managed-stress-oracle-evidence-v4/`
+- `managed-stress-cleanup-oracle-evidence-v3/`
+
+They bind definition tree
+`c38f4ed04efd083ef7b62a097fcfe7a4d9f75639da0a74ca078504198a446e5e`.
+The disabled set freezes all four fail-closed responses and the read/write API
+permission matrix, with only the legacy configuration-key brand normalized.
+The enabled set freezes the warmup-to-production transition, one exact 1 KiB
+generated message, both stress mailboxes, Redis task JSON and seven-day TTL,
+status/reset state, and idle manual cleanup. The streaming set freezes an exact
+32 KiB generated body and spool-backed queue state. The evidence-only sets prove
+that Java accepts both overlapping starts and cleanup during a run against the
+same destructive namespace; Rust's bounded 503 responses are separately
+asserted under `stress-bounded-run-admission` and
+`stress-cleanup-run-serialization`.
+
+The same candidate definition also proves bounded cancellation and recovery at
+body generation, pre-commit enqueue, published delivery, and SIGKILL/restart
+boundaries. Startup removes only owned stress temporary files, mailbox trees,
+and matching legacy index rows before HTTP readiness. These fault tests are
+candidate safety assertions and do not alter the frozen Java expectation.
+
+One fresh isolated Java run created all five sets and a further fresh-JVM run
+replayed them (`5 passed` each). The locked Linux x86_64 Rust release matched
+all three parity profiles and passed both intentional race differences
+(`5 passed`); the four grouped candidate fault tests also passed. The active
+goldens attest only the managed singleton domain `example.test`; Java's
+independent send-enabled and receive-enabled `HashMap` domain selection remains
+unresolved multi-domain goal scope rather than an approved difference. Every
+earlier stress recording remains immutable, including v4/v4/v2/v3/v2 under
+definition tree
+`490dbc14e23ebe77c057039f09447d67ec04fc69febae04a70a14f41ea1f17e9`.

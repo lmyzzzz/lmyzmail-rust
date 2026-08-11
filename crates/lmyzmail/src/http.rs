@@ -20,7 +20,7 @@ use tokio::{
     net::{TcpListener, TcpStream},
     sync::{OwnedSemaphorePermit, Semaphore, mpsc, oneshot},
     task::{JoinHandle, JoinSet, spawn_blocking},
-    time::timeout,
+    time::{Instant, timeout, timeout_at},
 };
 use tokio_util::{io::ReaderStream, sync::CancellationToken};
 use url::Url;
@@ -36,6 +36,7 @@ use crate::{
     },
     outbound::{OutboundError, OutboundService, SendRequest},
     reporting::ReportingService,
+    stress::{StressError, StressService},
     userdata::{ContactRecord, UserDataError, UserDataService},
     web_multipart::{self, WebMultipartError},
     web_static::{self, StaticAsset},
@@ -124,6 +125,7 @@ struct ConnectionContext<'a> {
     reporting: &'a ReportingService,
     xdp: &'a XdpService,
     xdp_sync: &'a XdpSyncService,
+    stress: &'a StressService,
     cancellation: &'a CancellationToken,
 }
 
@@ -202,6 +204,17 @@ pub async fn serve_http(
     );
     let mailbox = Arc::new(MailboxService::from_config(&config, database_pool.clone()));
     let userdata = Arc::new(UserDataService::new(database_pool.clone()));
+    let stress = Arc::new(
+        StressService::from_config(
+            &config,
+            Arc::clone(&auth),
+            Arc::clone(&mailbox),
+            Arc::clone(&outbound),
+            cancellation.child_token(),
+        )
+        .map_err(io::Error::other)?,
+    );
+    stress.recover_stale_state(&cancellation).await?;
     let cringe_pool = database_pool.clone();
     let cringe = Arc::new(CringeService::new(cringe_pool));
     let reconciliation_outbound = Arc::clone(&outbound);
@@ -278,6 +291,7 @@ pub async fn serve_http(
         let reporting = Arc::clone(&reporting);
         let xdp = Arc::clone(&xdp);
         let xdp_sync = Arc::clone(&xdp_sync);
+        let stress = Arc::clone(&stress);
         let request_cancellation = cancellation.child_token();
         tasks.spawn(async move {
             let _permit = permit;
@@ -297,6 +311,7 @@ pub async fn serve_http(
                         reporting: &reporting,
                         xdp: &xdp,
                         xdp_sync: &xdp_sync,
+                        stress: &stress,
                         cancellation: &request_cancellation,
                     },
                 ),
@@ -316,7 +331,8 @@ pub async fn serve_http(
         });
     }
 
-    if timeout(SHUTDOWN_DEADLINE, async {
+    let shutdown_deadline = Instant::now() + SHUTDOWN_DEADLINE;
+    if timeout_at(shutdown_deadline, async {
         while tasks.join_next().await.is_some() {}
     })
     .await
@@ -325,7 +341,8 @@ pub async fn serve_http(
         tasks.abort_all();
         while tasks.join_next().await.is_some() {}
     }
-    if timeout(SHUTDOWN_DEADLINE, &mut reconciliation_task)
+    stress.shutdown(shutdown_deadline).await;
+    if timeout_at(shutdown_deadline, &mut reconciliation_task)
         .await
         .is_err()
     {
@@ -492,6 +509,7 @@ async fn handle_connection(
         reporting,
         xdp,
         xdp_sync,
+        stress,
         cancellation,
     } = *context;
     let mut request = read_request_head(&mut stream, MAX_HTTP_HEADER_BYTES).await?;
@@ -574,6 +592,84 @@ async fn handle_connection(
             )
             .await
         }
+        ParsedRequest::StressStart => match stress.start().await {
+            Ok(response) => write_json_response(stream, Status::Ok, &response).await,
+            Err(StressError::Disabled) => {
+                write_response(
+                    stream,
+                    Status::Forbidden,
+                    br#"{"error":"disabled","message":"Stress test endpoint is disabled. Set 'lmyzmail.stress-test-enabled=true' to enable."}"#,
+                    "application/json; charset=UTF-8",
+                )
+                .await
+            }
+            Err(StressError::Busy) => {
+                write_response(
+                    stream,
+                    Status::ServiceUnavailable,
+                    br#"{"error":"busy","message":"A stress test is already running."}"#,
+                    "application/json; charset=UTF-8",
+                )
+                .await
+            }
+            Err(StressError::Cancelled | StressError::Backend) => {
+                write_json_error(stream, Status::InternalServerError, "stress_unavailable").await
+            }
+        },
+        ParsedRequest::StressReset => match stress.reset() {
+            Ok(response) => write_json_response(stream, Status::Ok, &response).await,
+            Err(StressError::Disabled) => {
+                write_response(
+                    stream,
+                    Status::Forbidden,
+                    br#"{"error":"disabled","message":"Stress test endpoint is disabled."}"#,
+                    "application/json; charset=UTF-8",
+                )
+                .await
+            }
+            Err(_) => {
+                write_json_error(stream, Status::InternalServerError, "stress_unavailable").await
+            }
+        },
+        ParsedRequest::StressStatus => match stress.status() {
+            Ok(response) => write_json_response(stream, Status::Ok, &response).await,
+            Err(StressError::Disabled) => {
+                write_response(
+                    stream,
+                    Status::Forbidden,
+                    br#"{"error":"disabled","message":"Stress test endpoint is disabled."}"#,
+                    "application/json; charset=UTF-8",
+                )
+                .await
+            }
+            Err(_) => {
+                write_json_error(stream, Status::InternalServerError, "stress_unavailable").await
+            }
+        },
+        ParsedRequest::StressCleanup => match stress.cleanup(cancellation).await {
+            Ok(response) => write_json_response(stream, Status::Ok, &response).await,
+            Err(StressError::Disabled) => {
+                write_response(
+                    stream,
+                    Status::Forbidden,
+                    br#"{"error":"disabled","message":"Stress test endpoint is disabled."}"#,
+                    "application/json; charset=UTF-8",
+                )
+                .await
+            }
+            Err(StressError::Busy) => {
+                write_response(
+                    stream,
+                    Status::ServiceUnavailable,
+                    br#"{"error":"busy","message":"A stress test is already running."}"#,
+                    "application/json; charset=UTF-8",
+                )
+                .await
+            }
+            Err(_) => {
+                write_json_error(stream, Status::InternalServerError, "stress_unavailable").await
+            }
+        },
         ParsedRequest::WebDomains => {
             let body = serde_json::to_vec(&WebDomainsResponse {
                 receivable: [&config.domain],
@@ -2665,6 +2761,10 @@ enum ParsedRequest {
     ApiStatusByMessage(String),
     ApiQuota(String),
     ApiQuotaMissing,
+    StressStart,
+    StressReset,
+    StressStatus,
+    StressCleanup,
     ReportStatus,
     ReportAddresses(String),
     ReportDomains(Option<String>),
@@ -2898,6 +2998,26 @@ fn parse_request(
             ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
             ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
             ApiPermission::Granted => ParsedRequest::ReportStatus,
+        },
+        ("POST", "/api/stress/start") => match api_permission(config, api_key, true) {
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenWrite,
+            ApiPermission::Granted => ParsedRequest::StressStart,
+        },
+        ("POST", "/api/stress/reset") => match api_permission(config, api_key, true) {
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenWrite,
+            ApiPermission::Granted => ParsedRequest::StressReset,
+        },
+        ("POST", "/api/stress/status") => match api_permission(config, api_key, false) {
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
+            ApiPermission::Granted => ParsedRequest::StressStatus,
+        },
+        ("POST", "/api/stress/cleanup") => match api_permission(config, api_key, true) {
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenWrite,
+            ApiPermission::Granted => ParsedRequest::StressCleanup,
         },
         ("GET", routing) if report_addresses_path(routing).is_some() => {
             match api_permission(config, api_key, false) {
@@ -4444,6 +4564,46 @@ lmyzmail.public-registration-enabled=true\n",
                 &config,
             ),
             ParsedRequest::ForbiddenRead
+        );
+    }
+
+    #[test]
+    fn stress_routes_preserve_java_read_write_permissions() {
+        let config = config_with_api_keys();
+        for (path, expected) in [
+            ("/api/stress/start", ParsedRequest::StressStart),
+            ("/api/stress/reset", ParsedRequest::StressReset),
+            ("/api/stress/cleanup", ParsedRequest::StressCleanup),
+        ] {
+            let request = |key: &str| {
+                format!("POST {path} HTTP/1.1\r\nX-API-Key: {key}\r\nContent-Length: 0\r\n\r\n")
+            };
+            assert_eq!(
+                parse_request(request("missing").as_bytes(), 1024, &config),
+                ParsedRequest::Unauthorized
+            );
+            assert_eq!(
+                parse_request(request("read-key").as_bytes(), 1024, &config),
+                ParsedRequest::ForbiddenWrite
+            );
+            assert_eq!(
+                parse_request(request("write-key").as_bytes(), 1024, &config),
+                expected
+            );
+        }
+
+        let status = |key: &str| {
+            format!(
+                "POST /api/stress/status HTTP/1.1\r\nX-API-Key: {key}\r\nContent-Length: 0\r\n\r\n"
+            )
+        };
+        assert_eq!(
+            parse_request(status("write-key").as_bytes(), 1024, &config),
+            ParsedRequest::ForbiddenRead
+        );
+        assert_eq!(
+            parse_request(status("read-key").as_bytes(), 1024, &config),
+            ParsedRequest::StressStatus
         );
     }
 

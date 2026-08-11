@@ -34,7 +34,8 @@ use crate::{
     },
     outbound_message::{
         MaterializedMessage, MessageAttachment, MessageBuildError, MessageInput,
-        MessageStorageMode, OutboundMessageBuilder, SystemMaterialization, java_storage_mode,
+        MessageStorageMode, MessageTextFile, OutboundMessageBuilder, SystemMaterialization,
+        java_storage_mode,
     },
     outbound_queue::{DomainStatus, LegacyOutboundQueue, QueueError, TaskDetail},
 };
@@ -156,6 +157,14 @@ pub(crate) struct StreamingAttachmentInput {
     pub content_type: Option<String>,
     pub path: PathBuf,
     pub size: u64,
+}
+
+/// Caller-owned, trusted temporary text source. Outbound validates and reads
+/// the file but never removes it; the stress caller retains cleanup ownership.
+#[derive(Debug)]
+pub(crate) struct StreamingTextInput {
+    pub(crate) path: PathBuf,
+    pub(crate) size: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -308,6 +317,7 @@ struct PersistenceContext<'a> {
     to_addresses: &'a str,
     now: DateTime<Utc>,
     dsn_source: Option<&'a DsnAdmissionSource>,
+    bypass_sender_quota: bool,
 }
 
 impl OutboundService {
@@ -452,7 +462,26 @@ impl OutboundService {
         credentials: Option<(&AuthService, &str)>,
         cancellation: &CancellationToken,
     ) -> Result<QueueResponse, OutboundError> {
-        self.enqueue_inner(request, credentials, None, cancellation)
+        self.enqueue_inner(request, credentials, None, None, false, cancellation)
+            .await
+    }
+
+    pub(crate) async fn enqueue_stress_with_cancellation(
+        &self,
+        request: SendRequest,
+        cancellation: &CancellationToken,
+    ) -> Result<QueueResponse, OutboundError> {
+        self.enqueue_inner(request, None, None, None, true, cancellation)
+            .await
+    }
+
+    pub(crate) async fn enqueue_stress_streaming_text_with_cancellation(
+        &self,
+        request: SendRequest,
+        text: StreamingTextInput,
+        cancellation: &CancellationToken,
+    ) -> Result<QueueResponse, OutboundError> {
+        self.enqueue_inner(request, None, None, Some(text), true, cancellation)
             .await
     }
 
@@ -462,7 +491,7 @@ impl OutboundService {
         attachments: Vec<StreamingAttachmentInput>,
         cancellation: &CancellationToken,
     ) -> Result<QueueResponse, OutboundError> {
-        self.enqueue_inner(request, None, Some(attachments), cancellation)
+        self.enqueue_inner(request, None, Some(attachments), None, false, cancellation)
             .await
     }
 
@@ -471,6 +500,8 @@ impl OutboundService {
         request: SendRequest,
         credentials: Option<(&AuthService, &str)>,
         streaming_attachments: Option<Vec<StreamingAttachmentInput>>,
+        streaming_text: Option<StreamingTextInput>,
+        bypass_sender_quota: bool,
         cancellation: &CancellationToken,
     ) -> Result<QueueResponse, OutboundError> {
         if request.asynchronous == Some(false) {
@@ -508,11 +539,18 @@ impl OutboundService {
                 .as_deref()
                 .ok_or(OutboundError::InvalidInput("subject_required"))?,
         )?;
-        if text.as_deref().is_none_or(|value| value.trim().is_empty())
+        if streaming_text.is_some() && text.is_some() {
+            return Err(OutboundError::InvalidInput(
+                "conflicting_outbound_text_sources",
+            ));
+        }
+        if streaming_text.is_none()
+            && text.as_deref().is_none_or(|value| value.trim().is_empty())
             && html.as_deref().is_none_or(|value| value.trim().is_empty())
         {
             return Err(OutboundError::InvalidInput("body_required"));
         }
+        let text_file = streaming_text.map(|source| MessageTextFile::new(source.path, source.size));
         let attachments = match streaming_attachments {
             Some(attachments) => self.validate_streaming_attachments(attachments)?,
             None => self.validate_attachments(attachments)?,
@@ -548,6 +586,7 @@ impl OutboundService {
             bcc: recipients.bcc,
             subject,
             text,
+            text_file,
             html,
             attachments,
             message_id: message_id.clone(),
@@ -569,6 +608,7 @@ impl OutboundService {
                     to_addresses: &to_addresses,
                     now,
                     dsn_source: None,
+                    bypass_sender_quota,
                 },
                 cancellation,
             )
@@ -716,6 +756,7 @@ impl OutboundService {
             bcc: Vec::new(),
             subject,
             text: Some(body),
+            text_file: None,
             html: None,
             attachments: Vec::new(),
             message_id,
@@ -744,6 +785,7 @@ impl OutboundService {
                     to_addresses: &recipient,
                     now: created_at,
                     dsn_source: Some(&dsn_source),
+                    bypass_sender_quota: true,
                 },
                 cancellation,
             )
@@ -1006,7 +1048,7 @@ impl OutboundService {
 
     async fn materialize_message(
         &self,
-        input: MessageInput,
+        mut input: MessageInput,
         cancellation: &CancellationToken,
     ) -> Result<(MaterializedMessage, MessageInput), OutboundError> {
         let builder = self.message_builder.clone();
@@ -1015,7 +1057,14 @@ impl OutboundService {
             cancellation,
             STORAGE_TIMEOUT,
             move |cancelled| {
-                let result = builder.materialize(&input, cancelled);
+                let result = builder.materialize(&input, cancelled).and_then(|message| {
+                    if let Err(error) = builder.materialize_persistence_text(&mut input, cancelled)
+                    {
+                        let _ = builder.rollback_unpublished(&message);
+                        return Err(error);
+                    }
+                    Ok(message)
+                });
                 if cancelled.load(Ordering::Acquire)
                     && let Ok(message) = result.as_ref()
                 {
@@ -1044,6 +1093,7 @@ impl OutboundService {
             to_addresses,
             now,
             dsn_source,
+            bypass_sender_quota,
         } = context;
         let message_bytes = i64::try_from(materialized.message_bytes)
             .map_err(|_| OutboundError::InvalidInput("email_too_large"))?;
@@ -1090,7 +1140,7 @@ impl OutboundService {
         if active_ids.len() >= self.max_pending_tasks as usize {
             return Err(OutboundError::QueueFull.into());
         }
-        if dsn_source.is_none() {
+        if dsn_source.is_none() && !bypass_sender_quota {
             let window_start = now - self.rate_window;
             let used: i64 = cancellable_db_call(
                 cancellation,
