@@ -132,6 +132,20 @@
       "scope": "Only the duplicate response and duplicate error charge for one fragmented overlong line. The 1000-byte boundary, complete overlong-line reply, discard-through-CRLF behavior, session recovery, and overall error threshold remain differential requirements."
     },
     {
+      "candidate_requirement": "Reject an explicit DKIM AUID whose domain is neither the signing domain nor one of its subdomains. When the public key carries t=s, require the AUID domain to equal the signing domain exactly. Treat a missing @ delimiter, an empty AUID domain, a suffix-prefix confusion, an unrelated domain, or a forbidden subdomain as dkim=fail without weakening signature, DNS, persistence, or resource-bound checks.",
+      "evidence": {
+        "candidate_test": "blackbox/tests/test_oracle_smtp_dkim.py::test_rust_candidate_rejects_invalid_dkim_identities",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "oracle_golden": "blackbox/golden/java/managed-smtp-dkim-identity-oracle-evidence-v1/observations/smtp/authentication/oracle-invalid-dkim-identity.json",
+        "source": "src/main/java/net/lmyz/lmyzmail/inbound/SpamVerifierService.java",
+        "source_sha256": "38fe01423b22ace4166cec34803fe71bd6a9a3461b5416bc85d685ecfa00792d"
+      },
+      "id": "smtp-dkim-auid-domain-validation",
+      "oracle_behavior": "The frozen Java verifier parses the first DKIM-Signature and verifies its body hash, signed headers, signature, d= selector lookup, and public key, but never reads the i= AUID or the public key t=s flag. A correctly signed message therefore reports dkim=pass even when i= has no @ delimiter, names an unrelated domain, uses a subdomain forbidden by t=s, or appends an attacker-controlled suffix to the signing domain.",
+      "reason": "The AUID domain relationship and t=s restriction are authenticated DKIM identity constraints. Treating an out-of-scope identity as a passing signature is an authentication defect explicitly excluded from bug-for-bug replication.",
+      "scope": "Only malformed or out-of-domain explicit i= values and t=s domain mismatches. An absent AUID, exact-domain AUID, permitted subdomain AUID, valid cryptographic signature, selector DNS bytes and query count, bounded verification, and all persistence behavior remain exact compatibility requirements."
+    },
+    {
       "candidate_requirement": "Before sending the SMTP DATA terminator, durably mark every remotely accepted recipient COMMIT_ARMED. If the process then crashes, loses ownership, times out, disconnects, is cancelled, or cannot prove the final checkpoint result, persist AMBIGUOUS, forbid automatic retry, and forbid a failure DSN for those recipients. A stale pre-upgrade PROCESSING row without a recipient sidecar is likewise projected into an all-AMBIGUOUS sidecar because its remote commit outcome cannot be reconstructed.",
       "evidence": {
         "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",

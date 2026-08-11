@@ -7,7 +7,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from cryptography.hazmat.primitives import hashes, serialization
@@ -18,7 +18,12 @@ from lmyzmail_blackbox import smtp_dkim_contract
 from lmyzmail_blackbox.differential import DifferentialRunner
 from lmyzmail_blackbox.runtime import CandidateRuntime, JavaOracleRuntime
 from lmyzmail_blackbox.scripted_dns import DnsQuery, ScriptedDnsServer
-from lmyzmail_blackbox.smtp_dkim_contract import SMTP_DKIM_SCENARIOS, dkim_dns_answers
+from lmyzmail_blackbox.smtp_dkim_contract import (
+    SMTP_DKIM_IDENTITY_ORACLE_EVIDENCE_SCENARIOS,
+    SMTP_DKIM_SCENARIOS,
+    capture_external_dkim_identity_candidate_security,
+    dkim_dns_answers,
+)
 
 
 @dataclass(slots=True)
@@ -102,8 +107,19 @@ class _DkimCandidateRuntime(CandidateRuntime):
 def _runner(repository: Path, *, record_java: bool = False) -> DifferentialRunner:
     return DifferentialRunner(
         repository,
-        repository / "blackbox/golden/java/managed-smtp-dkim-v4",
+        repository / "blackbox/golden/java/managed-smtp-dkim-v5",
         "managed-smtp-dkim",
+        record_java=record_java,
+    )
+
+
+def _identity_evidence_runner(
+    repository: Path, *, record_java: bool = False
+) -> DifferentialRunner:
+    return DifferentialRunner(
+        repository,
+        repository / "blackbox/golden/java/managed-smtp-dkim-identity-oracle-evidence-v1",
+        "managed-smtp-dkim-identity-oracle-evidence",
         record_java=record_java,
     )
 
@@ -125,7 +141,7 @@ def _relaxed_header(name: str, value: str) -> bytes:
     return f"{name.lower()}:{normalized}\r\n".encode("ascii")
 
 
-def _verify_fixed_signature(message: bytes, valid_index: int) -> None:
+def _verify_fixed_signature(message: bytes, valid_index: int, public_key_record: str) -> None:
     head, body = message.split(b"\r\n\r\n", 1)
     headers = []
     for line in head.decode("ascii").split("\r\n"):
@@ -151,7 +167,7 @@ def _verify_fixed_signature(message: bytes, valid_index: int) -> None:
     unsigned_value = re.sub(r"(?i)(\bb\s*=\s*)[^;]*$", r"\1", signature_header[1])
     signed.extend(_relaxed_header(signature_header[0], unsigned_value)[:-2])
 
-    public_der = base64.b64decode(smtp_dkim_contract._MULTI_PUBLIC_KEY.split("p=", 1)[1])
+    public_der = base64.b64decode(public_key_record.split("p=", 1)[1])
     public_key = cast(RSAPublicKey, serialization.load_der_public_key(public_der))
     public_key.verify(
         base64.b64decode(tags["b"]),
@@ -162,8 +178,25 @@ def _verify_fixed_signature(message: bytes, valid_index: int) -> None:
 
 
 def test_fixed_multiple_signature_fixtures_verify() -> None:
-    _verify_fixed_signature(smtp_dkim_contract._VALID_FIRST_MISSING_SECOND, 0)
-    _verify_fixed_signature(smtp_dkim_contract._MISSING_FIRST_VALID_SECOND, 1)
+    _verify_fixed_signature(
+        smtp_dkim_contract._VALID_FIRST_MISSING_SECOND,
+        0,
+        smtp_dkim_contract._MULTI_PUBLIC_KEY,
+    )
+    _verify_fixed_signature(
+        smtp_dkim_contract._MISSING_FIRST_VALID_SECOND,
+        1,
+        smtp_dkim_contract._MULTI_PUBLIC_KEY,
+    )
+
+
+def test_fixed_identity_signature_fixtures_verify() -> None:
+    cases = (
+        *smtp_dkim_contract._IDENTITY_COMPAT_CASES,
+        *smtp_dkim_contract._IDENTITY_ORACLE_EVIDENCE_CASES,
+    )
+    for case in cases:
+        _verify_fixed_signature(case.message, 0, smtp_dkim_contract._IDENTITY_PUBLIC_KEY)
 
 
 @pytest.mark.integration
@@ -172,11 +205,20 @@ def test_fixed_multiple_signature_fixtures_verify() -> None:
 def test_managed_java_smtp_dkim_golden(record_java_golden: bool) -> None:
     paths = JavaOracleRuntime().paths
     differential = _runner(paths.repository, record_java=record_java_golden)
+    identity_evidence = _identity_evidence_runner(
+        paths.repository, record_java=record_java_golden
+    )
     with _DkimJavaRuntime(paths=paths) as oracle:
         if record_java_golden:
             differential.record_from_java(SMTP_DKIM_SCENARIOS, oracle)
+            identity_evidence.record_from_java(
+                SMTP_DKIM_IDENTITY_ORACLE_EVIDENCE_SCENARIOS, oracle
+            )
         else:
             differential.verify_java(SMTP_DKIM_SCENARIOS, oracle)
+            identity_evidence.verify_java(
+                SMTP_DKIM_IDENTITY_ORACLE_EVIDENCE_SCENARIOS, oracle
+            )
 
 
 @pytest.mark.integration
@@ -187,3 +229,42 @@ def test_rust_candidate_smtp_dkim_matches_frozen_java_golden() -> None:
     differential = _runner(repository)
     with _candidate(repository) as candidate:
         differential.verify_candidate(SMTP_DKIM_SCENARIOS, candidate)
+
+
+@pytest.mark.integration
+@pytest.mark.candidate
+@pytest.mark.timeout(360)
+def test_rust_candidate_rejects_invalid_dkim_identities() -> None:
+    repository = Path(__file__).resolve().parents[2]
+    manifest = json.loads(
+        (repository / "blackbox/manifests/behavior-differences.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    difference = next(
+        entry
+        for entry in manifest["differences"]
+        if entry["id"] == "smtp-dkim-auid-domain-validation"
+    )
+    assert difference["candidate_requirement"].startswith("Reject an explicit DKIM AUID")
+
+    with _candidate(repository) as candidate:
+        observed = capture_external_dkim_identity_candidate_security(candidate)
+    cases = cast(list[dict[str, Any]], observed["cases"])
+    assert {case["name"] for case in cases} == {
+        "identity-unrelated",
+        "identity-strict-subdomain",
+        "identity-strict-prefix-confusion",
+        "identity-missing-at",
+    }
+    for case in cases:
+        assert case["expected_dkim_result"] == "fail"
+        assert case["expected_folder"] == "spam"
+        assert case["dkim_txt_query_count"] == 1
+        delivery = case["delivery"]
+        assert delivery["storage"]["postgres"]["folder"] == "spam"
+        raw = base64.b64decode(delivery["storage"]["maildir"]["raw"]["base64"])
+        assert b"dkim=fail (Signature verification failed for " in raw
+        assert b"AUID does not match domain name)" in raw
+        assert b"X-Spam-Status: Yes\r\n" in raw
+        assert b"X-Spam-Score: 3.0\r\n" in raw

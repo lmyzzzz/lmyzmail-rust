@@ -1249,20 +1249,30 @@ earlier stress recording remains immutable, including v4/v4/v2/v3/v2 under
 definition tree
 `490dbc14e23ebe77c057039f09447d67ec04fc69febae04a70a14f41ea1f17e9`.
 
-The active external-sender DKIM set is:
+The active external-sender DKIM sets are:
 
-- `managed-smtp-dkim-v4/`
+- `managed-smtp-dkim-v5/`
+- `managed-smtp-dkim-identity-oracle-evidence-v1/`
 
-It binds definition tree
-`2511671d4f40d2c2d6e198863deba063ab96f794e0359e6629f6797d8aea7d1a`.
-Six fixed pre-signed messages retain the v3 pass, body-hash failure,
-signature failure, and missing-key permerror cases and add both orders of a
-valid and a missing-selector `DKIM-Signature`. The first header alone controls
-the verdict and folder, and the ignored second selector has exactly zero DNS
-queries in both orders. The fixture signatures also pass an independent
-`cryptography` integrity test.
+They bind definition tree
+`b6219f3aa611f305b002f3d569891c808279c358f4f94d21f6d1d4ccb57477ac`.
+The nine-case normal set retains every v4 observation and adds exact-domain,
+permitted-subdomain, and `t=s` exact-domain AUID signatures. The first header
+alone still controls a multiple-signature verdict and folder, and the ignored
+second selector has exactly zero DNS queries in both orders. Every fixture
+signature passes an independent `cryptography` integrity test.
 
-One fresh isolated Java runtime created v4, a second fresh Java runtime
-replayed it without record mode, and the locked Linux x86_64 Rust release
-matched it in a separate candidate workspace. `managed-smtp-dkim-v3/` remains
-immutable history; no earlier generation was rewritten.
+The four-case evidence-only set proves that Java ignores `i=` domain scope and
+the public key `t=s` flag. It records Java pass behavior for an unrelated
+domain, a forbidden strict-key subdomain, an attacker suffix appended to the
+signing domain, and a value without `@`. Rust rejects those cases as
+`dkim=fail`, spam score 3.0, under the narrowly allowlisted
+`smtp-dkim-auid-domain-validation` security difference. The evidence set is
+never a candidate expectation.
+
+One fresh isolated Java runtime created both sets, a second fresh Java runtime
+replayed them without record mode, and the locked Linux x86_64 Rust release
+matched v5 and passed the explicit security-difference assertions in separate
+candidate workspaces. `managed-smtp-dkim-v3/` and
+`managed-smtp-dkim-v4/` remain immutable history; no earlier generation was
+rewritten.

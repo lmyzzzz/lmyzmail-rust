@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Protocol, cast
 
 from .differential import RuntimeTarget, Scenario
@@ -12,6 +12,8 @@ _DOMAIN = "dkim.blackbox-example.com"
 _SELECTOR = "blackbox"
 _MULTI_SELECTOR = "multi"
 _MISSING_MULTI_SELECTOR = "missing-multi"
+_IDENTITY_SELECTOR = "identity"
+_STRICT_IDENTITY_SELECTOR = "identity-strict"
 _PUBLIC_KEY = (
     "v=DKIM1; k=rsa; p="
     "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzAu/Fv067zysN0vELgeM0JIM"
@@ -30,6 +32,16 @@ _MULTI_PUBLIC_KEY = (
     "yfJmcbKNRrg9lBREDREfoahToyeUReJDNdatPmm94NXeXnmDibWbJPJ7gh5tpH/mYk9T"
     "NINMLDoum8/n2cqXnywx9kk3blWaQkomO2RFzYr9BKgLg1wIDAQAB"
 )
+_IDENTITY_PUBLIC_KEY = (
+    "v=DKIM1; k=rsa; p="
+    "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxc1dAcNG9C+rVhqK0ADNssPx"
+    "giUyc2+j8UGotTEyneJNtP8gmVQJpRNJ7FJqobaI+cJ3EbLfp4HIN9gthZqMEeoP40xW"
+    "oBeb/vW/Q1P8fKs+J6Wh3WOylCPRq+xCxcNQJ4XJl56ruS4oLOSsOjY3YMCrDXqEnvOW"
+    "TJnR3O2E4R8w7eZ//r+eOJFNZsqhMBP061VlMI9yGSHGQlWhZPxzPiBAvv29JcmKg38h"
+    "ShNBlrVoRAJZ3iQmmWltMxe/MTkkvmCZtx/WLGV3DYS4DskICeKgVWZRarqL2clTUnsh"
+    "RgK56bwQZWMzwkuQXJ2gx98Cvnst/PCO6QRz1BNDi0HtAQIDAQAB"
+)
+_STRICT_IDENTITY_PUBLIC_KEY = _IDENTITY_PUBLIC_KEY.replace("p=", "t=s; p=", 1)
 
 
 class DkimDnsTarget(Protocol):
@@ -190,6 +202,132 @@ _MISSING_FIRST_VALID_SECOND = _multiple_signature_message(
     valid_first=False,
 )
 
+
+def _identity_case(
+    label: str,
+    selector: str,
+    identity: str,
+    body_hash: str,
+    signature: str,
+    *,
+    expected_result: str = "pass",
+    expected_folder: str = "inbox",
+) -> DkimCase:
+    header = (
+        "DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/simple; "
+        f"d={_DOMAIN}; s={selector}; i={identity}; "
+        f"h={_SIGNED_HEADERS}; bh={body_hash}; b={signature}"
+    )
+    headers = (
+        header,
+        f"From: Fixture Sender <sender@{_DOMAIN}>",
+        "To: qa@example.test",
+        f"Subject: bb-dkim-{label}",
+        "Date: Wed, 12 Aug 2026 01:00:00 +0000",
+        f"Message-ID: <bb-dkim-{label}@example.test>",
+        "MIME-Version: 1.0",
+        "Content-Type: text/plain; charset=us-ascii",
+    )
+    body = f"DKIM identity {label} fixture."
+    message = "\r\n".join((*headers, "", body, "")).encode("ascii")
+    return DkimCase(label, message, selector, expected_result, expected_folder, 1)
+
+
+_IDENTITY_COMPAT_CASES = (
+    _identity_case(
+        "identity-exact",
+        _IDENTITY_SELECTOR,
+        f"sender@{_DOMAIN}",
+        "kJ4l2qKOOGCtPG2yEnpe31KVGslwEEuPoiwGx84SEkY=",
+        "lxB4TPLiLZrUSjY+qscW6ka4hYqAKd3ShZAaPTZ56oky8pXS8TRpH74YA1Zd0gvN"
+        "pFw1HlOrpkX80e5ajV3Svi3V+/szzwEUEOkoM7hNZvsFinWRrwKB8HTQ6e9ESKh3Q"
+        "x2FzuH+Abq0ze88jYts8aGzt4+QjDv+v114lQeWa9T9IqHPNF20OWyGYZ02al+uwW"
+        "1v/FFmXsf+6ymaUv3ai+wlRcrfviZSUMWIEMxDZR5eRPTiExGYipB29zJF9umIvIo"
+        "fcyVjEZFjMZ/AS3srrIoHfV1w/TvqTnIplIEta7SBJFFptCOeeUg3jCgW8aNI30AU"
+        "837QkCWoeOLq+Zhpng==",
+    ),
+    _identity_case(
+        "identity-subdomain",
+        _IDENTITY_SELECTOR,
+        f"sender@sub.{_DOMAIN}",
+        "f/InY0o+7uD0xbiuQoBaL5c9GN4W2G6xH/AzEUHD/Ug=",
+        "o200fiZEogs2UVtVveACkt2CNS9RCbWh/wj1kn679AczA8tOXId8XtusT+gW48a6"
+        "aC2Lc+rb0ZNC2oLH6ToV+Mp1ECaJQaOAqTJyptg6ruWaRvKbNYv3OyhiblSDhMVhk"
+        "SE9liO8d3hJ+AT/9SpUmZByvHFnDnoPqrG6JX6Wf2n16P21jgEicbTSprkICJ5ddy"
+        "zJxgkm+Lga4EJcsSL1EUu5Fgbx9ciO1I++l6HT34+VZnwpB0HcDuLAPSir1X9xoyf"
+        "nBxoGjSVbQGTbw8egH5shLNsETypwiW341oeDY5BHSyQqKHwyHb83QfCrLdY9v857"
+        "4I0kc5wEvZsaVLxXYA==",
+    ),
+    _identity_case(
+        "identity-strict-exact",
+        _STRICT_IDENTITY_SELECTOR,
+        f"sender@{_DOMAIN}",
+        "Fd7Y8YAlMHIRgLRVPMiu2WDhzQ2EyrxGKllBppJ6Z/Y=",
+        "POEin/U4wG48RjYUIyEM8iWdmXjAUP1zyuKADJQUHAuHlLWkJYKrot99buPJzfBw"
+        "ArdKh3WR7ow3N2QuYqWx729IEeo9ST/5CPfdFnOqzzIW+2eS6dpbgaCPiRg1ztZPS"
+        "fCFbdncblJl5y3Hpa2M3AbS28HYmUaxEDAP82BSidpsr9NfituFcQJQd3LHG4oJPf"
+        "BfS8pJ1FrXAiD+JtUJmsoI5nzDW3NGUqyC8X1yTx4bSL1HF3a1tb/ogNerV5K6Jm"
+        "18GiN/LQkFs1BKKKhG2VZo0tni1DPajnFub3vHi8pZFUqq99kn/bTDUhsz2cDXk+1"
+        "YZKkFCglgT8I+3W6nmg==",
+    ),
+)
+
+_IDENTITY_ORACLE_EVIDENCE_CASES = (
+    _identity_case(
+        "identity-unrelated",
+        _IDENTITY_SELECTOR,
+        "sender@unrelated.example",
+        "hjNdZX0sHItI9f2oZTNEb1DifnZ/1I99I7hzv8Gt9NQ=",
+        "mpwIJra4ozjOLlCKcMZbVbVkumw0lLdxu7Nwdz+iuaObnncYrhkAZBjdWZn2rMsz"
+        "ZH2MlwylHevntG9Fqr1JV/TOit4GewREFJpO/3Pr1rXQjK5ooCFPRQr3M+zQP/I7g"
+        "oHzJAnp726YdNMXh8PJbXdo3BiiKW9gGuVSMgrz6BOXQrY7P8yfwQcqJfA4QlmNpv"
+        "9yKar3Mh2kCqLn2XS8J3BJldvvCtNOC3QlDVlWF1l8aRwZiNTUX4v7GgucxrXxNC7"
+        "fvppQqWf+IjOKFrnqyawA4kXABjU5HmbxV7YE2AjEqnP/7UtaHxbKwDxiX/9fMdcV"
+        "a/wV11kR3gUjeb+6yA==",
+    ),
+    _identity_case(
+        "identity-strict-subdomain",
+        _STRICT_IDENTITY_SELECTOR,
+        f"sender@sub.{_DOMAIN}",
+        "Ff43eHP+6/fuJPlozSYwaVaXtgYMYXusUsDh4/EO/AQ=",
+        "DjYigTFIPzUzZ+p6WfXXPM5NeIctxJACFjcqqlUXzuOmc1zuytcWu/Htwz8+8WQd"
+        "h4cFv2JRirbkmEK3haFVJ9dNj7P1nvsSJGg5sWZTgjyuvvNbbl4cdmikNHkTBJzF"
+        "PRbLISay1X5hQpxq+nWdpNWODGJtYsMElywjQyABSD7vJeE+Mb/5juhD8JVRcqmmR"
+        "2PH7KNYDYSWlrUz7QapoCxHxagKJdV38Y+SDd0YnRSgfcgQLg8MIEKZpGPA0CXrQi"
+        "Cps05YcQwoVVIAihbqAlbighQoOh2Ys5KcZ+NrMbXOHQPHqFuMoZU1/aJ7PWpg2/K"
+        "KmlEnCB5pzSqlvVRj7Q==",
+    ),
+    _identity_case(
+        "identity-strict-prefix-confusion",
+        _STRICT_IDENTITY_SELECTOR,
+        f"sender@{_DOMAIN}.attacker.example",
+        "jKodcIA3ca4xDM5i2fXrD9cwn3TF5yhGgWjjREhIpuw=",
+        "E5WqLTNlDDZ1755SJunRSElLWAzs0TsutSy7MLygyR+ivTHBcDhpVg/lEPD4inR8"
+        "3vH9YARObKtbCMQsPty5Pitf6mKanKCj4AOCdrXrZ2rrsoGPz99BnQ6s5nOUIBZtj"
+        "keGQeOwuwbojQ0JN+L60BEcp2IoT/yNHlWmcKlrxwe8TYlYfZ6XDcsF4p4YfWZaR"
+        "fHFVPzw6JsVGght7mCwsH2cMxWNtZg5s/7PPSlYryhO9WpL25kjXDs6sY75XwRUXA"
+        "efXoAQSnNfrzHQ/h2QJvx875wckWLKPXdus0yKBNTZB7tPmlSWkcYj5hqcTRsR1+s"
+        "xBeCpw/VJo17rr4SbPA==",
+    ),
+    _identity_case(
+        "identity-missing-at",
+        _IDENTITY_SELECTOR,
+        f"sender.{_DOMAIN}",
+        "yfmGGoC5OGGFXwGeQOpbpAwI0BYkZMNHwnugmrgTbas=",
+        "WZPrc962nZWbI5iUBnHLRUaE18PoV3NmEXynuwyEOQCIIHSRGDyP0b7MI2RZNIs0"
+        "wOW8WCkW9jfIX4n3eLBJq8tzS7GbrS9khACsFl3mMagJwAWdtGwhoHfivwS5RQpUp"
+        "3lVNE4UtJmsdHrYcpU4P/sVG5WKfcaeVRzHOZn3GZLuaNCSYYYo+eoLN90TkdTnpn"
+        "CEIGO9pFHxCufQociDVS6fvZfwcjvIWq2Yjv+NhsFZQ6XZv4rgLQ392xFLAphFzhn"
+        "addF455+pB0/EuqOY0eCyelx7R4Q5rQCfC08IZ174H7urD5nhXF/I+IzfYRmQ5Gs"
+        "vUoOc63fqy7aManLTdw==",
+    ),
+)
+
+_IDENTITY_CANDIDATE_SECURITY_CASES = tuple(
+    replace(case, expected_result="fail", expected_folder="spam")
+    for case in _IDENTITY_ORACLE_EVIDENCE_CASES
+)
+
 _CASES = (
     DkimCase("pass", _PASS, _SELECTOR, "pass", "inbox", 1),
     DkimCase("body-hash-fail", _BODY_HASH_FAIL, _SELECTOR, "fail", "spam", 1),
@@ -213,6 +351,7 @@ _CASES = (
         "at-least-one",
         (_MULTI_SELECTOR,),
     ),
+    *_IDENTITY_COMPAT_CASES,
 )
 
 
@@ -226,7 +365,12 @@ def dkim_dns_answers() -> dict[tuple[str, int], DnsAnswer]:
                 ),
             )
         )
-        for selector, key in ((_SELECTOR, _PUBLIC_KEY), (_MULTI_SELECTOR, _MULTI_PUBLIC_KEY))
+        for selector, key in (
+            (_SELECTOR, _PUBLIC_KEY),
+            (_MULTI_SELECTOR, _MULTI_PUBLIC_KEY),
+            (_IDENTITY_SELECTOR, _IDENTITY_PUBLIC_KEY),
+            (_STRICT_IDENTITY_SELECTOR, _STRICT_IDENTITY_PUBLIC_KEY),
+        )
     }
 
 
@@ -295,6 +439,18 @@ def capture_external_dkim_matrix(target: RuntimeTarget) -> dict[str, Any]:
     return {"cases": [_capture_case(target, case) for case in _CASES]}
 
 
+def capture_external_dkim_identity_oracle_evidence(target: RuntimeTarget) -> dict[str, Any]:
+    return {
+        "cases": [_capture_case(target, case) for case in _IDENTITY_ORACLE_EVIDENCE_CASES]
+    }
+
+
+def capture_external_dkim_identity_candidate_security(target: RuntimeTarget) -> dict[str, Any]:
+    return {
+        "cases": [_capture_case(target, case) for case in _IDENTITY_CANDIDATE_SECURITY_CASES]
+    }
+
+
 SMTP_DKIM_SCENARIOS = (
     Scenario(
         "smtp/authentication/external-dkim",
@@ -316,12 +472,30 @@ SMTP_DKIM_SCENARIOS = (
             "fixtures": "fixed pre-signed RSA messages and public DNS key",
             "verdicts": "pass, body hash fail, signature fail, and missing key permerror",
             "multiple_signatures": "only the first DKIM-Signature header is evaluated",
+            "identity": "absent, exact, subdomain, and strict exact AUID compatibility",
             "dns": (
                 "one positive zero-TTL TXT lookup per transaction; "
                 "bounded nonzero NXDOMAIN retries"
             ),
             "persistence": "Maildir, email_index, and legacy Redis count key",
             "folder_routing": "DKIM pass to inbox; all other null-sender messages to spam",
+        },
+    ),
+)
+
+SMTP_DKIM_IDENTITY_ORACLE_EVIDENCE_SCENARIOS = (
+    Scenario(
+        "smtp/authentication/oracle-invalid-dkim-identity",
+        capture_external_dkim_identity_oracle_evidence,
+        normalizers=SMTP_DKIM_SCENARIOS[0].normalizers,
+        contract={
+            "protocol": "SMTP DATA DKIM AUID validation evidence",
+            "case_count": len(_IDENTITY_ORACLE_EVIDENCE_CASES),
+            "difference_id": "smtp-dkim-auid-domain-validation",
+            "oracle_only": True,
+            "candidate_expectation": (
+                "reject malformed or out-of-domain AUID values and enforce t=s exact matching"
+            ),
         },
     ),
 )

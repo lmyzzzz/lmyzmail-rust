@@ -213,18 +213,27 @@ other rule fires, and routes an otherwise unauthenticated message to `spam`.
 Unsigned messages retain `dkim=none (No DKIM signature present)`. Content
 filter and SPF scores and quarantine decisions remain additive.
 
-The create-once `managed-smtp-dkim-v4` matrix uses two fixed RSA public keys and
-six fixed pre-signed messages to freeze pass, body-hash failure, signature
-failure, missing-key permerror, and multiple-signature ordering. When the first
-signature is valid and the second selector is missing, the result is pass and
-the second selector is never queried. Reversing those headers produces the
-first signature's permerror and the valid second selector is never queried.
-The matrix covers raw SMTP DATA, zero-TTL/NXDOMAIN scripted DNS,
+The create-once `managed-smtp-dkim-v5` matrix uses three fixed RSA public keys
+and nine fixed pre-signed messages to freeze pass, body-hash failure,
+signature failure, missing-key permerror, multiple-signature ordering, and
+valid AUID forms. When the first signature is valid and the second selector is
+missing, the result is pass and the second selector is never queried. Reversing
+those headers produces the first signature's permerror and the valid second
+selector is never queried. Exact-domain and permitted subdomain `i=` values
+pass; a public key carrying `t=s` passes an exact-domain AUID.
+
+The separate create-once
+`managed-smtp-dkim-identity-oracle-evidence-v1` set proves that Java also
+accepts an unrelated AUID domain, a subdomain forbidden by `t=s`, a signing
+domain followed by an attacker suffix, and an `i=` value with no `@`. Rust
+rejects exactly those four cases as `dkim=fail` under the approved
+`smtp-dkim-auid-domain-validation` security difference. The normal matrix
+covers raw SMTP DATA, zero-TTL/NXDOMAIN scripted DNS,
 `Authentication-Results`, spam headers, Maildir, `email_index`, and legacy
-Redis count keys. A fresh Java runtime replayed the golden unchanged, and the
-locked Linux x86_64 Rust release matched it byte for byte after the documented
-field-scoped normalizers. Identifier alignment and combined SPF/DKIM verdicts
-remain separate compatibility work and are not claimed by this matrix.
+Redis count keys. A fresh Java runtime replayed both golden sets unchanged;
+the locked Linux x86_64 Rust release matched v5 byte for byte after the
+documented field-scoped normalizers and passed the stricter identity checks.
+Combined SPF/DKIM verdicts remain separate compatibility work.
 
 ## SMTP DMARC alignment and disposition
 

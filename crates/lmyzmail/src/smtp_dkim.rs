@@ -20,6 +20,8 @@ use tokio_util::sync::CancellationToken;
 const DKIM_DEADLINE: Duration = Duration::from_secs(10);
 const MAX_CONCURRENT_DKIM_VERIFICATIONS: usize = 16;
 const MAX_TRANSACTION_TXT_CACHE_ENTRIES: usize = 16;
+// mail-auth 0.11.2's pinned DomainKey::f bit for the RFC 6376 `t=s` flag.
+const DOMAIN_KEY_MATCH_DOMAIN_FLAG: u64 = 0x20;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct DkimVerification {
@@ -153,6 +155,16 @@ impl DkimVerifier {
             let Some(domain_key_record) = self.lookup_domain_key(&domain_key).await else {
                 return DkimVerification::missing_key(signing_domain);
             };
+            if !auid_matches_signing_domain(
+                signature.i.as_str(),
+                signing_domain,
+                domain_key_record.has_flag(DOMAIN_KEY_MATCH_DOMAIN_FLAG),
+            ) {
+                return map_result(
+                    &DkimResult::Fail(Error::Dkim(DkimError::FailedAuidMatch)),
+                    signing_domain,
+                );
+            }
             let cache = TransactionTxtCache::with_domain_key(&domain_key, domain_key_record);
             self.authenticator
                 .verify_dkim(Parameters::new(&message).with_txt_cache(&cache))
@@ -198,6 +210,35 @@ impl DkimVerifier {
             DomainKey::parse(&bytes).ok()
         })
     }
+}
+
+fn auid_matches_signing_domain(identity: &str, signing_domain: &str, strict: bool) -> bool {
+    if identity.is_empty() {
+        return true;
+    }
+    let Some((_, identity_domain)) = identity.rsplit_once('@') else {
+        return false;
+    };
+    let identity_domain = identity_domain.trim_end_matches('.');
+    let signing_domain = signing_domain.trim_end_matches('.');
+    if identity_domain.is_empty() || signing_domain.is_empty() {
+        return false;
+    }
+    if identity_domain.eq_ignore_ascii_case(signing_domain) {
+        return true;
+    }
+    if strict {
+        return false;
+    }
+
+    let Some(suffix_start) = identity_domain.len().checked_sub(signing_domain.len()) else {
+        return false;
+    };
+    identity_domain
+        .get(suffix_start..)
+        .is_some_and(|suffix| suffix.eq_ignore_ascii_case(signing_domain))
+        && suffix_start > 0
+        && identity_domain.as_bytes()[suffix_start - 1] == b'.'
 }
 
 fn map_result(result: &DkimResult, domain: &str) -> DkimVerification {
@@ -359,5 +400,41 @@ mod tests {
             DkimVerification::none().reason(),
             "No DKIM signature present"
         );
+    }
+
+    #[test]
+    fn auid_alignment_enforces_domain_boundaries_and_strict_keys() {
+        let domain = "dkim.blackbox-example.com";
+        assert!(auid_matches_signing_domain("", domain, false));
+        assert!(auid_matches_signing_domain(
+            "sender@dkim.blackbox-example.com",
+            domain,
+            false
+        ));
+        assert!(auid_matches_signing_domain(
+            "sender@sub.dkim.blackbox-example.com",
+            domain,
+            false
+        ));
+        assert!(!auid_matches_signing_domain(
+            "sender@sub.dkim.blackbox-example.com",
+            domain,
+            true
+        ));
+        assert!(!auid_matches_signing_domain(
+            "sender@dkim.blackbox-example.com.attacker.example",
+            domain,
+            false
+        ));
+        assert!(!auid_matches_signing_domain(
+            "sender@unrelated.example",
+            domain,
+            false
+        ));
+        assert!(!auid_matches_signing_domain(
+            "sender.dkim.blackbox-example.com",
+            domain,
+            false
+        ));
     }
 }

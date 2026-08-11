@@ -73,6 +73,7 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "smtp-generated-reply-control-sanitization",
         "smtp-cringe-queue-overflow-bound",
         "smtp-fragmented-overlong-double-error",
+        "smtp-dkim-auid-domain-validation",
         "outbound-starttls-hostname-verification",
         "outbound-smtp-commit-ambiguity-no-retry",
         "outbound-retry-postgres-checkpoint",
@@ -146,6 +147,13 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
     )
     assert queue_bound["candidate_requirement"].startswith(
         "Admit at most 256 queued SMTP Cringe activities"
+    )
+    dkim_auid = by_id["smtp-dkim-auid-domain-validation"]
+    assert dkim_auid["evidence"]["source_sha256"] == (
+        "38fe01423b22ace4166cec34803fe71bd6a9a3461b5416bc85d685ecfa00792d"
+    )
+    assert dkim_auid["candidate_requirement"].startswith(
+        "Reject an explicit DKIM AUID"
     )
     commit_ambiguity = by_id["outbound-smtp-commit-ambiguity-no-retry"]
     assert commit_ambiguity["evidence"]["sender_source_sha256"] == (
