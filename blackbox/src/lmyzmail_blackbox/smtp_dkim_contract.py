@@ -10,6 +10,8 @@ from .smtp_contract import capture_delivery
 DNS_TXT_TYPE = 16
 _DOMAIN = "dkim.blackbox-example.com"
 _SELECTOR = "blackbox"
+_MULTI_SELECTOR = "multi"
+_MISSING_MULTI_SELECTOR = "missing-multi"
 _PUBLIC_KEY = (
     "v=DKIM1; k=rsa; p="
     "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzAu/Fv067zysN0vELgeM0JIM"
@@ -18,6 +20,15 @@ _PUBLIC_KEY = (
     "dnWgW/igAVurHiX4GxMjrqQ9dFKugXShyWnFUgJj1RP+6rQVoH1pTzco+AicJJloeRsc"
     "n3KpBdmB4iLxAT1fP8uN5URipSO+MjqPD/OqEpeI5lJepo+erB/FOzoxEk8YZVGoSRZo"
     "QqVTLIM97XTnkf+LZ+d8EEJChKuy9I69b3vPpzwkzZ3t/wIDAQAB"
+)
+_MULTI_PUBLIC_KEY = (
+    "v=DKIM1; k=rsa; p="
+    "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxAKPGKGU1c9sNq0CbtNUuspP"
+    "evI/fCKy6wzQPwU5cV8IY3kMuQrVS4Qwqz7EMhN4n7IFDGg+NQihCF/5diITA/hVwv9"
+    "SiDHXpfUed+elMhFi/bHq/ONpuMR268Z2Bs0/FnUBxQ+1j4ais7trQBLyUF5cc4Nqx4q"
+    "f9qykpOJ9xdUvQ86GkEl6E/ayAKp2+u2lxRvJfPaxQQtSrBmGB1kpiTED8V1pHs3DG6d"
+    "yfJmcbKNRrg9lBREDREfoahToyeUReJDNdatPmm94NXeXnmDibWbJPJ7gh5tpH/mYk9T"
+    "NINMLDoum8/n2cqXnywx9kk3blWaQkomO2RFzYr9BKgLg1wIDAQAB"
 )
 
 
@@ -33,6 +44,7 @@ class DkimCase:
     expected_result: str
     expected_folder: str
     expected_query_count: int | str
+    ignored_selectors: tuple[str, ...] = ()
 
     @property
     def subject(self) -> str:
@@ -115,27 +127,107 @@ _MISSING_KEY = (
     "DKIM missing key fixture.\r\n"
 ).encode("ascii")
 
+_SIGNED_HEADERS = "from:to:subject:date:message-id:mime-version:content-type"
+_VALID_FIRST_HEADER = (
+    "DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/simple; "
+    "d=dkim.blackbox-example.com; s=multi; "
+    f"h={_SIGNED_HEADERS}; bh=mAkCyrxyVzaLotjDPlkIFn7fgIk9FLFoYKPM9IFeP9c=; "
+    "b=YwkLWlSRDj8FIsvs2qC83ucYH4EHx0I/WJ1+E+6t1KyorNMy2Yji2X9v1BiQB1gou1KR"
+    "IUKpZ6Bk8E7W1EEnekLnjAThFgqIaNuIXvQzP9Vi2xGP6IPKQVYokWA2LXzQ5NtjcUsV"
+    "pvrf1kyqDB3tST+uKIuvGUAiu6RKi2HQcgobKslMe4wF5taUQiXVn8iNVqUjDT+GXSgY"
+    "6qP8pUL/XP9us+3fJZpAPqs45jX7g9orm9o9MC+X9l0PgHIT9Wd74pafyyqZLD3zrkis"
+    "cu7xaAy1URQ+xZR4zaUUFnwqoF75nyf1WSn9b/bMJjIuJCq+5vrSC8kA5JtlT5WajfQmYg=="
+)
+_VALID_SECOND_HEADER = (
+    "DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/simple; "
+    "d=dkim.blackbox-example.com; s=multi; "
+    f"h={_SIGNED_HEADERS}; bh=y5/h3L3oVe0PSgH6ejcZEceqayFV/jEDSpS7L/B2OSA=; "
+    "b=WSlGFM70bxRnuPDrwvVnDDquyORZtrZxqcRirZ4ZUevYo0s5a/qhWx3097NprXpMVLcx"
+    "gMFbIllYiq+5DRqX2hX9DlZOVYkiFiy/LO7lgLqjw1zCar3EU9rFqFqw1JBaczuU6NV3"
+    "UnyVsEQVr0zKgTzsaebJr0ua6BT+wg/lAa1bhzzfuSWkO9HZ1qTICBsleyTXy1lErXjh"
+    "J2tCGl6S+tADFfj9fBhyam61cd5jZe0oGX4ts61Zk35NzsgX909M0j9FL0hDU77UmGeM"
+    "PeEKdtsxnfXujOaGtYUeAilpFFaqH+JP2uLcNsif5NKagnyB+SKccjC7qIC/RkDDld5vlA=="
+)
+
+
+def _multiple_signature_message(
+    label: str,
+    body_hash: str,
+    valid_header: str,
+    *,
+    valid_first: bool,
+) -> bytes:
+    missing_header = (
+        "DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/simple; "
+        f"d={_DOMAIN}; s={_MISSING_MULTI_SELECTOR}; h={_SIGNED_HEADERS}; "
+        f"bh={body_hash}; b=AA=="
+    )
+    signatures = (valid_header, missing_header) if valid_first else (missing_header, valid_header)
+    headers = (
+        *signatures,
+        f"From: Fixture Sender <sender@{_DOMAIN}>",
+        "To: qa@example.test",
+        f"Subject: bb-dkim-{label}",
+        "Date: Wed, 12 Aug 2026 00:00:00 +0000",
+        f"Message-ID: <bb-dkim-{label}@example.test>",
+        "MIME-Version: 1.0",
+        "Content-Type: text/plain; charset=us-ascii",
+    )
+    body = f"DKIM multiple signature {label} fixture."
+    return ("\r\n".join((*headers, "", body, ""))).encode("ascii")
+
+
+_VALID_FIRST_MISSING_SECOND = _multiple_signature_message(
+    "valid-first-missing-second",
+    "mAkCyrxyVzaLotjDPlkIFn7fgIk9FLFoYKPM9IFeP9c=",
+    _VALID_FIRST_HEADER,
+    valid_first=True,
+)
+_MISSING_FIRST_VALID_SECOND = _multiple_signature_message(
+    "missing-first-valid-second",
+    "y5/h3L3oVe0PSgH6ejcZEceqayFV/jEDSpS7L/B2OSA=",
+    _VALID_SECOND_HEADER,
+    valid_first=False,
+)
+
 _CASES = (
     DkimCase("pass", _PASS, _SELECTOR, "pass", "inbox", 1),
     DkimCase("body-hash-fail", _BODY_HASH_FAIL, _SELECTOR, "fail", "spam", 1),
     DkimCase("signature-fail", _SIGNATURE_FAIL, _SELECTOR, "fail", "spam", 1),
     DkimCase("missing-key", _MISSING_KEY, "missing", "permerror", "spam", "at-least-one"),
+    DkimCase(
+        "valid-first-missing-second",
+        _VALID_FIRST_MISSING_SECOND,
+        _MULTI_SELECTOR,
+        "pass",
+        "inbox",
+        1,
+        (_MISSING_MULTI_SELECTOR,),
+    ),
+    DkimCase(
+        "missing-first-valid-second",
+        _MISSING_FIRST_VALID_SECOND,
+        _MISSING_MULTI_SELECTOR,
+        "permerror",
+        "spam",
+        "at-least-one",
+        (_MULTI_SELECTOR,),
+    ),
 )
 
 
 def dkim_dns_answers() -> dict[tuple[str, int], DnsAnswer]:
-    answer = DnsAnswer(
-        txt=(
-            TxtAnswer(
-                tuple(
-                    _PUBLIC_KEY[offset : offset + 200]
-                    for offset in range(0, len(_PUBLIC_KEY), 200)
+    return {
+        (f"{selector}._domainkey.{_DOMAIN}", DNS_TXT_TYPE): DnsAnswer(
+            txt=(
+                TxtAnswer(
+                    tuple(key[offset : offset + 200] for offset in range(0, len(key), 200)),
+                    ttl=0,
                 ),
-                ttl=0,
-            ),
+            )
         )
-    )
-    return {(f"{_SELECTOR}._domainkey.{_DOMAIN}", DNS_TXT_TYPE): answer}
+        for selector, key in ((_SELECTOR, _PUBLIC_KEY), (_MULTI_SELECTOR, _MULTI_PUBLIC_KEY))
+    }
 
 
 def _check(condition: bool, details: object) -> None:
@@ -163,9 +255,10 @@ def _capture_case(target: RuntimeTarget, case: DkimCase) -> dict[str, Any]:
         )
     except AssertionError as error:
         raise AssertionError(f"SMTP DKIM case {case.name!r} failed: {error}") from error
+    all_queries = _drain_queries(target)
     queries = tuple(
         query
-        for query in _drain_queries(target)
+        for query in all_queries
         if query.qname == case.qname and query.qtype == DNS_TXT_TYPE
     )
     if isinstance(case.expected_query_count, int):
@@ -174,7 +267,16 @@ def _capture_case(target: RuntimeTarget, case: DkimCase) -> dict[str, Any]:
     else:
         _check(1 <= len(queries) <= 4, {case.name: queries})
         query_count = "at-least-one"
-    return {
+    ignored_qnames = {
+        f"{selector}._domainkey.{_DOMAIN}" for selector in case.ignored_selectors
+    }
+    ignored_queries = tuple(
+        query
+        for query in all_queries
+        if query.qname in ignored_qnames and query.qtype == DNS_TXT_TYPE
+    )
+    _check(not ignored_queries, {case.name: ignored_queries})
+    observation: dict[str, Any] = {
         "name": case.name,
         "selector": case.selector,
         "signing_domain": _DOMAIN,
@@ -183,6 +285,10 @@ def _capture_case(target: RuntimeTarget, case: DkimCase) -> dict[str, Any]:
         "dkim_txt_query_count": query_count,
         "delivery": delivery,
     }
+    if case.ignored_selectors:
+        observation["ignored_selectors"] = list(case.ignored_selectors)
+        observation["ignored_selector_query_count"] = 0
+    return observation
 
 
 def capture_external_dkim_matrix(target: RuntimeTarget) -> dict[str, Any]:
@@ -209,6 +315,7 @@ SMTP_DKIM_SCENARIOS = (
             "case_count": len(_CASES),
             "fixtures": "fixed pre-signed RSA messages and public DNS key",
             "verdicts": "pass, body hash fail, signature fail, and missing key permerror",
+            "multiple_signatures": "only the first DKIM-Signature header is evaluated",
             "dns": (
                 "one positive zero-TTL TXT lookup per transaction; "
                 "bounded nonzero NXDOMAIN retries"

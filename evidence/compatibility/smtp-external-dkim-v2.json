@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "profile": "smtp-external-dkim-v2",
+  "captured_at": "2026-08-12T03:57:27+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "contract": {
+    "case_count": 6,
+    "results": {
+      "pass": {
+        "reason": "DKIM signature verified for dkim.blackbox-example.com",
+        "protocol_score": 0.0,
+        "spam_status": "No",
+        "folder": "inbox"
+      },
+      "body_hash_fail": {
+        "reason": "Body hash mismatch",
+        "protocol_score": 3.0,
+        "spam_status": "Yes",
+        "folder": "spam"
+      },
+      "signature_fail": {
+        "reason": "Signature verification failed for dkim.blackbox-example.com: Signature mismatch",
+        "protocol_score": 3.0,
+        "spam_status": "Yes",
+        "folder": "spam"
+      },
+      "missing_key": {
+        "reason": "DKIM public key not found for dkim.blackbox-example.com",
+        "protocol_score": 0.0,
+        "spam_status": "No",
+        "folder": "spam"
+      }
+    },
+    "multiple_signature_order": {
+      "evaluated_header_index": 0,
+      "valid_first_missing_second": {
+        "result": "pass",
+        "folder": "inbox",
+        "multi_selector_queries": 1,
+        "missing_multi_selector_queries": 0
+      },
+      "missing_first_valid_second": {
+        "result": "permerror",
+        "folder": "spam",
+        "missing_multi_selector_queries": "bounded from one through four",
+        "multi_selector_queries": 0
+      }
+    },
+    "positive_zero_ttl_txt_queries_per_transaction": 1,
+    "nxdomain_queries": "bounded from one through four",
+    "persistence": [
+      "Maildir atomic publish",
+      "email_index folder and byte length",
+      "legacy mail:count:<mailbox>:<folder> Redis key without TTL"
+    ]
+  },
+  "bounds": {
+    "dkim_lookup_and_evaluation_deadline_seconds": 10,
+    "concurrent_dkim_verifications": 16,
+    "transaction_txt_cache_entries": 16,
+    "smtp_connection_limit": 256,
+    "delivery_queue_capacity": 256,
+    "delivery_deadline_seconds": 15
+  },
+  "golden": {
+    "profile": "managed-smtp-dkim",
+    "version": 4,
+    "definition_tree_sha256": "2511671d4f40d2c2d6e198863deba063ab96f794e0359e6629f6797d8aea7d1a",
+    "suite_sha256": "8059c720e3c1dfcfae3e8e3286ea9a7a84a688251e8ab74eec1b2f3c732a5621",
+    "observation_sha256": "9c1e7d59715c629ba7663b1659796c50caa8ff8d6a629c99198a2424dd5b8fd8"
+  },
+  "implementation": {
+    "runtime": "stable-rust-1.94.0",
+    "java_runtime_dependency": false,
+    "dkim_engine": "mail-auth 0.11.2",
+    "verification_runs_once_at_delivery": true,
+    "top_level_positive_txt_query_reused": true,
+    "only_first_dkim_signature_evaluated": true,
+    "covered_message_completion_modes": [
+      "DATA",
+      "BDAT LAST"
+    ],
+    "covered_verdict_matrix": [
+      "pass",
+      "body hash fail",
+      "signature fail",
+      "missing key permerror",
+      "valid first and missing second",
+      "missing first and valid second"
+    ],
+    "remaining_separate_matrices": [
+      "DKIM identifier alignment",
+      "combined SPF and DKIM verdicts"
+    ]
+  },
+  "source_sha256": {
+    "Cargo.lock": "952e6cec5696d1eab472fd481f6ce9f12c1bf364a291f67931a56dbcab9ae007",
+    "crates/lmyzmail/src/lib.rs": "a4fd61ac5edc8f9cdee8fec5b7d066bc001ecc7a98040ec580b695bbf8bfea3a",
+    "crates/lmyzmail/src/smtp.rs": "b12dae4615713cece5f10b79c26a223261589b4f2ea0f24f9a623afc81b67b50",
+    "crates/lmyzmail/src/smtp_dkim.rs": "7d9d10e1eac13966d0eeb8b1e4cc4b5c1a12f7b4290570d6f49ac817537df2f1",
+    "blackbox/src/lmyzmail_blackbox/scripted_dns.py": "edcfc3e7b2fc92d6a83af3590abeb7d34c006aaf112fca0e6e3a4fd980ca1e2f",
+    "blackbox/src/lmyzmail_blackbox/smtp_contract.py": "d97469b994baa223ca17793834136b31be49e982927ec17725821dac07fc2882",
+    "blackbox/src/lmyzmail_blackbox/smtp_dkim_contract.py": "984199a74b70082502b5dbadc17eaa9973e89f85bf1bfe820501cf396b80796d",
+    "blackbox/tests/test_oracle_smtp_dkim.py": "bdbab5a632b8f4adae44fb8eb9084532e0b50912f5fc399482a98f48ec9b89ef"
+  },
+  "release": {
+    "command": "cargo build --locked --release --target x86_64-unknown-linux-gnu -p lmyzmail",
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "1274068d4d841de0eb25c95504191dcb7a6ae1fe595d7dd491dbe7767f32861e"
+  },
+  "verification": [
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_smtp_dkim.py::test_fixed_multiple_signature_fixtures_verify",
+      "result": "1 passed; both fixed valid signatures verified independently with cryptography"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_smtp_dkim.py::test_managed_java_smtp_dkim_golden --record-java-golden",
+      "result": "1 passed; create-once Java v4 golden recorded"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_smtp_dkim.py::test_managed_java_smtp_dkim_golden",
+      "result": "1 passed; fresh Java runtime replayed the v4 golden"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_smtp_dkim.py::test_rust_candidate_smtp_dkim_matches_frozen_java_golden",
+      "result": "1 passed; locked Rust release matched the Java v4 golden"
+    },
+    {
+      "command": "cargo test --locked --workspace --all-features --all-targets",
+      "result": "passed; 541 lmyzmail library tests plus every binary and integration target"
+    },
+    {
+      "command": "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "result": "passed"
+    },
+    {
+      "command": "blackbox/.venv/bin/pytest -q blackbox/tests -m 'not integration'",
+      "result": "140 passed, 137 deselected"
+    },
+    {
+      "command": "blackbox/.venv/bin/ruff check blackbox/src blackbox/tests blackbox/tools",
+      "result": "passed"
+    },
+    {
+      "command": "cd blackbox && PYTHONPATH=src .venv/bin/mypy src tests tools",
+      "result": "Success: no issues found in 137 source files"
+    }
+  ],
+  "attestation_scope": {
+    "new_suite_current": true,
+    "older_versioned_smtp_suites": "not re-recorded; their immutable definition-tree attestations reject the expanded harness before candidate observation",
+    "older_goldens_modified": false,
+    "final_full_reattestation_required": true
+  },
+  "security_differences": []
+}

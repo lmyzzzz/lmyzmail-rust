@@ -213,15 +213,18 @@ other rule fires, and routes an otherwise unauthenticated message to `spam`.
 Unsigned messages retain `dkim=none (No DKIM signature present)`. Content
 filter and SPF scores and quarantine decisions remain additive.
 
-The create-once `managed-smtp-dkim-v3` matrix uses a fixed RSA public key and
-four fixed pre-signed messages to freeze pass, body-hash failure, signature
-failure, and missing-key permerror behavior. It covers raw SMTP DATA,
-zero-TTL/NXDOMAIN scripted DNS, `Authentication-Results`, spam headers,
-Maildir, `email_index`, and legacy Redis count keys. A fresh Java runtime
-replayed the golden unchanged, and the locked Linux x86_64 Rust release matched
-it byte for byte after the documented field-scoped normalizers. Multiple
-signatures, identifier alignment, and combined SPF/DKIM verdicts remain
-separate compatibility work and are not claimed by this matrix.
+The create-once `managed-smtp-dkim-v4` matrix uses two fixed RSA public keys and
+six fixed pre-signed messages to freeze pass, body-hash failure, signature
+failure, missing-key permerror, and multiple-signature ordering. When the first
+signature is valid and the second selector is missing, the result is pass and
+the second selector is never queried. Reversing those headers produces the
+first signature's permerror and the valid second selector is never queried.
+The matrix covers raw SMTP DATA, zero-TTL/NXDOMAIN scripted DNS,
+`Authentication-Results`, spam headers, Maildir, `email_index`, and legacy
+Redis count keys. A fresh Java runtime replayed the golden unchanged, and the
+locked Linux x86_64 Rust release matched it byte for byte after the documented
+field-scoped normalizers. Identifier alignment and combined SPF/DKIM verdicts
+remain separate compatibility work and are not claimed by this matrix.
 
 ## SMTP DMARC alignment and disposition
 

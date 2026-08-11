@@ -1,13 +1,20 @@
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import cast
 
 import pytest
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 
+from lmyzmail_blackbox import smtp_dkim_contract
 from lmyzmail_blackbox.differential import DifferentialRunner
 from lmyzmail_blackbox.runtime import CandidateRuntime, JavaOracleRuntime
 from lmyzmail_blackbox.scripted_dns import DnsQuery, ScriptedDnsServer
@@ -95,7 +102,7 @@ class _DkimCandidateRuntime(CandidateRuntime):
 def _runner(repository: Path, *, record_java: bool = False) -> DifferentialRunner:
     return DifferentialRunner(
         repository,
-        repository / "blackbox/golden/java/managed-smtp-dkim-v3",
+        repository / "blackbox/golden/java/managed-smtp-dkim-v4",
         "managed-smtp-dkim",
         record_java=record_java,
     )
@@ -111,6 +118,52 @@ def _candidate(repository: Path) -> CandidateRuntime:
             "{config}",
         )
     )
+
+
+def _relaxed_header(name: str, value: str) -> bytes:
+    normalized = re.sub(r"[ \t]+", " ", value).strip()
+    return f"{name.lower()}:{normalized}\r\n".encode("ascii")
+
+
+def _verify_fixed_signature(message: bytes, valid_index: int) -> None:
+    head, body = message.split(b"\r\n\r\n", 1)
+    headers = []
+    for line in head.decode("ascii").split("\r\n"):
+        name, value = line.split(":", 1)
+        headers.append((name, value))
+    signature_header = [
+        header for header in headers if header[0].lower() == "dkim-signature"
+    ][valid_index]
+    tags = {
+        name.strip(): value.strip()
+        for item in signature_header[1].split(";")
+        if "=" in item
+        for name, value in (item.split("=", 1),)
+    }
+    canonical_body = body.rstrip(b"\r\n") + b"\r\n"
+    body_hash = base64.b64encode(hashlib.sha256(canonical_body).digest()).decode("ascii")
+    assert body_hash == tags["bh"]
+
+    signed = bytearray()
+    for wanted in tags["h"].split(":"):
+        selected = next(header for header in reversed(headers) if header[0].lower() == wanted)
+        signed.extend(_relaxed_header(*selected))
+    unsigned_value = re.sub(r"(?i)(\bb\s*=\s*)[^;]*$", r"\1", signature_header[1])
+    signed.extend(_relaxed_header(signature_header[0], unsigned_value)[:-2])
+
+    public_der = base64.b64decode(smtp_dkim_contract._MULTI_PUBLIC_KEY.split("p=", 1)[1])
+    public_key = cast(RSAPublicKey, serialization.load_der_public_key(public_der))
+    public_key.verify(
+        base64.b64decode(tags["b"]),
+        bytes(signed),
+        padding.PKCS1v15(),
+        hashes.SHA256(),
+    )
+
+
+def test_fixed_multiple_signature_fixtures_verify() -> None:
+    _verify_fixed_signature(smtp_dkim_contract._VALID_FIRST_MISSING_SECOND, 0)
+    _verify_fixed_signature(smtp_dkim_contract._MISSING_FIRST_VALID_SECOND, 1)
 
 
 @pytest.mark.integration
