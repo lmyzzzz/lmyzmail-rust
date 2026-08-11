@@ -106,13 +106,17 @@ def connect_bounded(
     *,
     timeout: float,
     max_received: int = 8 * 1024 * 1024,
+    source: str | None = None,
 ) -> BoundedSocket:
     if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("protocol timeout must be finite and positive")
     if max_received < 1:
         raise ValueError("receive budget must be positive")
     deadline = time.monotonic() + timeout
-    sock = socket.create_connection((host, port), timeout=timeout)
+    source_address = None if source is None else (source, 0)
+    sock = socket.create_connection(
+        (host, port), timeout=timeout, source_address=source_address
+    )
     return BoundedSocket(sock, deadline=deadline, max_received=max_received)
 
 
@@ -182,12 +186,14 @@ class RawSmtpClient:
         *,
         timeout: float = 10.0,
         max_received: int = 8 * 1024 * 1024,
+        source: str | None = None,
     ) -> RawSmtpClient:
         stream = connect_bounded(
             host,
             port,
             timeout=timeout,
             max_received=max_received,
+            source=source,
         )
         try:
             greeting = read_smtp_reply(stream)

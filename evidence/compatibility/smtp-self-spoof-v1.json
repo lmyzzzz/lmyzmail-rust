@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "profile": "smtp-self-spoof-v1",
+  "captured_at": "2026-08-11T12:52:00+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "contract": {
+    "local_domain": "blackbox.example.com",
+    "mail_from": "spoof@blackbox.example.com",
+    "source_ip": "127.0.0.2",
+    "spf": {
+      "result": "none",
+      "reason": "No SPF record found for blackbox.example.com"
+    },
+    "wire": {
+      "mail_from_status": 550,
+      "post_rejection_rcpt": "503 5.5.1 Bad sequence of commands",
+      "post_rejection_state": "GREETED without an accepted sender"
+    },
+    "persistence": {
+      "activities": ["SELF_SPOOFING", "PROTOCOL_VIOLATION"],
+      "scores": [10, 1],
+      "aggregate": [11, 11, 2, 1, 1]
+    },
+    "profiles": ["inferx", "fallback", "generic"]
+  },
+  "golden": {
+    "definition_tree_sha256": "e060e666a9844cd25fd9c931e70ce3a87b34fc82e9d06a6a9ebc8070dfab84d3",
+    "suites": {
+      "inferx": {
+        "suite_sha256": "ecf49358e886f55eb8039cfd77f1eb98577a69ab3c77affd3ce88ddbf855c6cb",
+        "observation_sha256": "1b016aee5967bd523c8920febdc2ce1f4db1301c49327a7232eb74d56d6f3df9"
+      },
+      "fallback": {
+        "suite_sha256": "e481e3c1e736b18a17f543424cb6bdf1ed2e3cb4a7fdac31ffe9791c75f5bfde",
+        "observation_sha256": "c5cbf97d5d1d2f7bb8662c360e8484df4942bc6be0e5ff6e80029c8f26f22c96"
+      },
+      "generic": {
+        "suite_sha256": "36dd9387128bc77075f1e513262cf456fdb3a9cf55a73267910c013de2b87f19",
+        "observation_sha256": "9b64501014c76270d0f6b22aae3df35632fc15af6c96dd9c5d6dd15633b20d0a"
+      }
+    }
+  },
+  "implementation": {
+    "runtime": "stable-rust",
+    "java_runtime_dependency": false,
+    "spf_resolver": "mail-auth with system DNS or bounded numeric test endpoint",
+    "cringe_queue_capacity": 256,
+    "cringe_shutdown_deadline_ms": 10000,
+    "cringe_forced_shutdown_deadline_ms": 2000,
+    "reply_text_max_bytes": 506,
+    "reply_control_policy": "Unicode control scalars become ASCII spaces; UTF-8 truncation is boundary-safe"
+  },
+  "source_sha256": {
+    "crates/lmyzmail/src/smtp.rs": "00d7ee36e22a7746bc20e1a0288d2f1dbd3495392ad06dc569e8df08538dd0c2",
+    "crates/lmyzmail/src/cringe.rs": "6b8eb9d5da1092383bc844e85f5e4592f78a76a7e6c0283a027091a2cbdc78e7",
+    "crates/lmyzmail/src/config.rs": "f59eed0f4fcb4205cf58258636409129195f1633efe01e14ede833205ba683e4",
+    "crates/lmyzmail/src/main.rs": "ff0643c1dc53b1f1cda945f011e865bba97666daf97b76899e5c44a60167332f",
+    "crates/lmyzmail/build.rs": "91b8143c2160cdf69303040fcae4048bdd44c2e375d45e35917155e7fe5c0e9a",
+    "blackbox/src/lmyzmail_blackbox/smtp_self_spoof_contract.py": "09d79b06d34a9d1fd243118dd9f3606117270bd7b6dcef9dcd81a224a610a471",
+    "blackbox/tests/test_oracle_smtp_self_spoof.py": "a404ea95cb0533ff16a15dc38916cdb9c6e5bc0a4dbe22670552b7c3e17e4bee",
+    "blackbox/manifests/behavior-differences.json": "1ab11421c81139179da71f33731a447776c58a3e8cfc2837ff2cb0e4216efbfb",
+    "Cargo.lock": "285269289ac7b8e70c0008dfcc8d8337e1b2a6719096dd604627d616c452abc5"
+  },
+  "release": {
+    "command": "CFLAGS=-w CXXFLAGS=-w cargo build --release --locked -p lmyzmail --target x86_64-unknown-linux-gnu",
+    "sha256": "701353d177354d74ace6911b7256f63a60ffd90442e774d584b5a97d579a0397",
+    "independent_builds_same_sha256": true,
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail"
+  },
+  "verification": [
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_smtp_self_spoof.py",
+      "result": "6 passed; Java inferx/fallback/generic goldens and Rust candidate all matched"
+    },
+    {
+      "command": "pytest -q blackbox/tests -m 'not integration'",
+      "result": "133 passed, 95 deselected"
+    },
+    {
+      "command": "cargo test --workspace --all-targets --all-features --target x86_64-unknown-linux-gnu",
+      "result": "577 passed, 0 failed"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --all-features --target x86_64-unknown-linux-gnu -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "ruff check blackbox",
+      "result": "passed"
+    },
+    {
+      "command": "mypy blackbox/src blackbox/tests blackbox/tools",
+      "result": "Success: no issues found in 119 source files"
+    }
+  ],
+  "security_differences": [
+    "smtp-generated-reply-control-sanitization",
+    "smtp-cringe-queue-overflow-bound"
+  ]
+}

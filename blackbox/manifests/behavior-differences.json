@@ -85,6 +85,38 @@
       "scope": "Only malformed command-line bytes. Valid UTF-8 SMTPUTF8 arguments, ordinary command recognition, exact status codes for validly framed commands, line limits, and connection error-budget semantics remain differential requirements."
     },
     {
+      "candidate_requirement": "Before sending or persisting a generated self-spoof rejection, replace every Unicode control scalar in the complete reply text with one ASCII space and truncate at a UTF-8 boundary to at most 506 bytes. The resulting `550 ` line including CRLF must never exceed 512 bytes or contain an embedded protocol delimiter.",
+      "evidence": {
+        "candidate_test": "crates/lmyzmail/src/smtp.rs::tests::smtp_reply_sanitizer_blocks_response_injection_and_preserves_utf8_boundaries",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "inferx_source": "src/main/java/net/lmyz/lmyzmail/skibidi_inferx/SkibidiInferxService.java",
+        "inferx_source_sha256": "04a3ea4532de40f153cefc3fa7ba31cac764ba0749f79c4b392037f2977d0468",
+        "response_source": "src/main/java/net/lmyz/lmyzmail/netty/smtp/codec/SmtpResponse.java",
+        "response_source_sha256": "99cc7fcaf6947046ed18e4ce60b9005208784e8abdc63559ebab0177ffd7d665",
+        "source": "src/main/java/net/lmyz/lmyzmail/inbound/EarlyRejectService.java",
+        "source_sha256": "8b201ab14f121e8e53b9b6ff16d9e742aeedd3b37b85bdc69fda989d1b15924b"
+      },
+      "id": "smtp-generated-reply-control-sanitization",
+      "oracle_behavior": "The frozen Java InferX service trims only the ends of generated text, then EarlyRejectService concatenates the interior text into a rejection and SmtpResponse writes it followed by CRLF. An embedded control character or an overlong generated token can therefore split framing or exceed the SMTP reply-line limit.",
+      "reason": "Model output is data, not protocol framing. Allowing generated control bytes to create additional SMTP lines is a response-splitting defect explicitly excluded from bug-for-bug replication.",
+      "scope": "Only generated self-spoof reply text containing control scalars or exceeding the 506-byte reply-text budget. In-budget control-free InferX, frozen fallback, and generic messages; status code; SPF explanation; LM tag; post-rejection state; and persistence remain exact compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Admit at most 256 queued SMTP Cringe activities, apply nonblocking backpressure at the queue boundary, and emit a neutral bounded-overflow diagnostic when an activity is dropped. Drain accepted activities on normal shutdown for ten seconds and force-cancel the worker only after the separate two-second deadline.",
+      "evidence": {
+        "candidate_test": "crates/lmyzmail/src/smtp.rs::tests::cringe_worker_uses_a_bounded_queue_and_drains_it_after_sender_close",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "properties_source": "src/main/java/net/lmyz/lmyzmail/cringe/config/CringeBatchProperties.java",
+        "properties_source_sha256": "d1be650540643b9e883edc68f345eab28f0debbe8f3c2fff896cfb41928f5e88",
+        "source": "src/main/java/net/lmyz/lmyzmail/cringe/service/CringeBatchWriteService.java",
+        "source_sha256": "1dac59437ba54413e93569c59f641cd918cd185912fa6f407bbde5c5bcfe1056"
+      },
+      "id": "smtp-cringe-queue-overflow-bound",
+      "oracle_behavior": "The frozen Java batch writer defaults to a 10,000-entry LinkedBlockingQueue and offers activities without the Rust worker's 256-entry admission bound. Under sustained queue saturation, the two implementations therefore differ in which late activities are retained and persisted.",
+      "reason": "Cringe records are attacker-influenced telemetry and cannot be allowed to grow an unbounded heap queue or block SMTP protocol progress. The candidate keeps protocol I/O deadline-safe and bounds shutdown work even when persistence is unavailable.",
+      "scope": "Only activity admission after the 256-entry candidate queue is full, and forced shutdown after the bounded drain deadlines. In-budget activity order, exact activity fields, aggregate counters, PostgreSQL transactions, normal shutdown drain, and all SMTP wire behavior remain differential requirements."
+    },
+    {
       "candidate_requirement": "For an overlong SMTP command arriving before its CRLF terminator, emit one `500 5.5.2 Line too long` reply for that logical line, discard bytes through its terminating CRLF, charge one connection error, and then resume command parsing.",
       "evidence": {
         "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",

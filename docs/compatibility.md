@@ -123,6 +123,15 @@ candidate test; it has the same review requirements as the primary allowlist.
   response. The frozen oracle can reflect tabs, NUL, bare CR/LF, and replaced
   invalid UTF-8 into its reply; its isolated evidence golden is not a candidate
   expectation.
+- Generated self-spoof rejection text must replace control scalars with spaces
+  and fit within the 506-byte reply-text budget, preserving the SMTP 512-byte
+  line ceiling after `550 ` and CRLF. The frozen Java InferX path can pass an
+  embedded model-generated delimiter directly into response framing.
+- SMTP Cringe persistence admits at most 256 queued activities and applies
+  nonblocking overflow backpressure, while the Java batch writer's default
+  queue is 10,000 entries. Accepted activities, transaction fields, normal
+  shutdown drain, and SMTP replies remain differential requirements; only
+  post-cap admission is allowlisted as `smtp-cringe-queue-overflow-bound`.
 - One fragmented overlong SMTP command must produce and charge exactly one
   error regardless of packetization. The frozen oracle can reply twice and
   consume two error-budget entries when CRLF arrives after the length error;

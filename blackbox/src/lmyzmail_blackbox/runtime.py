@@ -967,12 +967,31 @@ class CandidateRuntime(JavaOracleRuntime):
             "features": {
                 "public_registration": True,
                 "smtp_skibidi_mode": "AUTO_SAFE",
+                "smtp_skibidi_insults": True,
                 "spamhaus": False,
                 "tarpit": False,
                 "mta_sts": False,
                 "xdp": False,
                 "fail2ban": False,
                 "report_delivery": False,
+            },
+            "skibidi_inferx": {
+                "enabled": True,
+                "model_path": str(
+                    self.paths.repository
+                    / "models/skibidi-inferx/skibidi_ai.safetensors"
+                ),
+                "tokenizer_path": str(
+                    self.paths.repository / "models/skibidi-inferx/tokenizer.json"
+                ),
+                "temperature": 0.85,
+                "top_k": 50,
+                "top_p": 0.92,
+                "max_tokens": 80,
+                "timeout_ms": 500,
+                "max_concurrent_generations": 1,
+                "fallback_on_error": True,
+                "simd_level": "auto",
             },
             "htcpcp": {
                 "enabled": True,

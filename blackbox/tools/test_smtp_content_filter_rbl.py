@@ -183,7 +183,13 @@ def _candidate(repository: Path) -> _RblCandidateRuntime:
     )
 
 
-def _source_bound_smtp_client(target: RuntimeTarget) -> tuple[RawSmtpClient, bytes]:
+def _source_bound_smtp_client(
+    target: RuntimeTarget,
+    *,
+    source: str | None = None,
+) -> tuple[RawSmtpClient, bytes]:
+    if source is not None:
+        raise RuntimeError("RBL SMTP helper owns the source address")
     if target.ports is None:
         raise RuntimeError("RBL SMTP target is not started")
     deadline = time.monotonic() + 10.0

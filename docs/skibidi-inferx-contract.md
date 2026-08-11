@@ -73,8 +73,27 @@ Legacy `classpath:skibidi-inferx-model/...` values resolve to the repository
 model during development or `/usr/share/lmyzmail/models/skibidi-inferx` after
 installation, without starting Java.
 
-The service is initialized and shut down by the Rust monolith and exposes
-bounded runtime status. It is intentionally not connected to the SMTP
-self-spoofing reply path in this milestone. That connection must follow a raw
-socket Java oracle golden for the exact reply, tag, timing, and fallback
-semantics; internal Java classes are not a substitute for the wire oracle.
+The service is initialized and shut down by the Rust monolith, exposes bounded
+runtime status, and now supplies SMTP self-spoofing replies. For a sender whose
+domain equals the configured local domain, SMTP evaluates SPF with `mail-auth`.
+`pass` continues the transaction; every other result returns the frozen `550`
+explanation and records `SELF_SPOOFING`. The seed is exactly
+`peer-ip:mail-from:current-milliseconds`. A rejected session retains no sender,
+so a following RCPT produces the frozen `503` state error and one
+`PROTOCOL_VIOLATION` activity.
+
+`lmyzmail.smtp.skibidi-insults-enabled` defaults to true and takes precedence
+over both `botmail.smtp.skibidi-insults-enabled` and
+`botmail.smtp.use-skibidi-insults-against-self-spoofing`. Disabling it selects
+the generic frozen rejection. For isolated differential tests, the numeric
+`lmyzmail.smtp-security.dns-server` socket (legacy
+`botmail.smtp-security.dns-server`) overrides the system resolver; production
+defaults to the system DNS configuration.
+
+Cringe persistence uses a 256-entry bounded queue. Normal shutdown closes all
+senders and drains the queue for up to ten seconds; a forced cancellation then
+has a separate two-second deadline before abort. Generated reply text is
+control-free and limited to 506 UTF-8 bytes before the status prefix and CRLF.
+This reviewed response-splitting repair is allowlisted as
+`smtp-generated-reply-control-sanitization`; all ordinary control-free output
+continues to match the raw-socket Java golden.

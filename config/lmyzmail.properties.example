@@ -119,6 +119,7 @@ lmyzmail.skibidi-inferx.timeout-ms=500
 lmyzmail.skibidi-inferx.max-concurrent-generations=1
 lmyzmail.skibidi-inferx.fallback-on-error=true
 lmyzmail.skibidi-inferx.simd-level=auto
+lmyzmail.smtp.skibidi-insults-enabled=true
 lmyzmail.smtp.skibidi-toilet-quiz-enabled=true
 lmyzmail.smtp.asciiart.simd-mode=AUTO
 lmyzmail.smtp.asciiart.max-width=450

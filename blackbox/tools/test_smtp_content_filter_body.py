@@ -150,7 +150,6 @@ def _chunk_boundary_utf8_body() -> bytes:
     # Java's frozen body dispatcher reads roughly 4,096-byte chunks. Split a UTF-8
     # sequence at that boundary while keeping the matching text on the next line.
     prefix = b"a" * 4_095
-    assert len(prefix) == 4_095
     return prefix + b"\xc3\xa9\r\nviagra https://bit.ly/offer\r\n"
 
 

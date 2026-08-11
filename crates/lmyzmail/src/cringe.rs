@@ -43,11 +43,80 @@ pub struct CringeService {
     pool: Pool,
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 struct ActivityIncrements {
+    self_spoofing: i32,
     pps_overlimit: i32,
     syn_flood: i32,
     ssh_bruteforce: i32,
+    other: i32,
+}
+
+impl ActivityIncrements {
+    const fn self_spoofing() -> Self {
+        Self {
+            self_spoofing: 1,
+            pps_overlimit: 0,
+            syn_flood: 0,
+            ssh_bruteforce: 0,
+            other: 0,
+        }
+    }
+
+    const fn protocol_violation() -> Self {
+        Self {
+            self_spoofing: 0,
+            pps_overlimit: 0,
+            syn_flood: 0,
+            ssh_bruteforce: 0,
+            other: 1,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct ActivityDetails {
+    mail_from: Option<String>,
+    rcpt_to: Option<String>,
+    helo_name: Option<String>,
+    session_id: Option<String>,
+    response_message: Option<String>,
+    metadata: String,
+}
+
+impl ActivityDetails {
+    fn metadata(metadata: &str) -> Self {
+        Self {
+            mail_from: None,
+            rcpt_to: None,
+            helo_name: None,
+            session_id: None,
+            response_message: None,
+            metadata: metadata.to_owned(),
+        }
+    }
+
+    fn self_spoofing(mail_from: &str, response_message: &str, metadata: &str) -> Self {
+        Self {
+            mail_from: Some(truncate_chars(mail_from, 255)),
+            rcpt_to: None,
+            helo_name: None,
+            session_id: None,
+            response_message: Some(truncate_chars(response_message, 512)),
+            metadata: truncate_chars(metadata, 1_024),
+        }
+    }
+
+    fn protocol_violation(helo_name: &str, session_id: &str, metadata: &str) -> Self {
+        Self {
+            mail_from: None,
+            rcpt_to: None,
+            helo_name: Some(truncate_chars(helo_name, 255)),
+            session_id: Some(truncate_chars(session_id, 64)),
+            response_message: None,
+            metadata: truncate_chars(metadata, 1_024),
+        }
+    }
 }
 
 impl CringeService {
@@ -99,11 +168,13 @@ impl CringeService {
             ip,
             activity.name(),
             XDP_TRAFFIC_SCORE,
-            metadata,
+            ActivityDetails::metadata(metadata),
             ActivityIncrements {
+                self_spoofing: 0,
                 pps_overlimit: pps_increment,
                 syn_flood: syn_increment,
                 ssh_bruteforce: 0,
+                other: 0,
             },
             cancellation,
         )
@@ -120,12 +191,52 @@ impl CringeService {
             ip,
             "SSH_BRUTEFORCE",
             SSH_BRUTEFORCE_SCORE,
-            metadata,
+            ActivityDetails::metadata(metadata),
             ActivityIncrements {
+                self_spoofing: 0,
                 pps_overlimit: 0,
                 syn_flood: 0,
                 ssh_bruteforce: 1,
+                other: 0,
             },
+            cancellation,
+        )
+        .await
+    }
+
+    pub async fn record_self_spoofing(
+        &self,
+        ip: IpAddr,
+        mail_from: &str,
+        response_message: &str,
+        metadata: &str,
+        cancellation: &CancellationToken,
+    ) -> Result<Option<i32>, CringeError> {
+        self.record_scored_activity(
+            ip,
+            "SELF_SPOOFING",
+            10,
+            ActivityDetails::self_spoofing(mail_from, response_message, metadata),
+            ActivityIncrements::self_spoofing(),
+            cancellation,
+        )
+        .await
+    }
+
+    pub async fn record_protocol_violation(
+        &self,
+        ip: IpAddr,
+        helo_name: &str,
+        session_id: &str,
+        metadata: &str,
+        cancellation: &CancellationToken,
+    ) -> Result<Option<i32>, CringeError> {
+        self.record_scored_activity(
+            ip,
+            "PROTOCOL_VIOLATION",
+            1,
+            ActivityDetails::protocol_violation(helo_name, session_id, metadata),
+            ActivityIncrements::protocol_violation(),
             cancellation,
         )
         .await
@@ -136,14 +247,35 @@ impl CringeService {
         ip: IpAddr,
         activity_type: &str,
         score: i32,
-        metadata: &str,
+        details: ActivityDetails,
         increments: ActivityIncrements,
         cancellation: &CancellationToken,
     ) -> Result<Option<i32>, CringeError> {
         if is_exact_localhost(ip) {
             return Ok(None);
         }
-        if metadata.len() > 1_024 {
+        if details.metadata.chars().count() > 1_024
+            || details
+                .mail_from
+                .as_deref()
+                .is_some_and(|value| value.chars().count() > 255)
+            || details
+                .response_message
+                .as_deref()
+                .is_some_and(|value| value.chars().count() > 512)
+            || details
+                .helo_name
+                .as_deref()
+                .is_some_and(|value| value.chars().count() > 255)
+            || details
+                .session_id
+                .as_deref()
+                .is_some_and(|value| value.chars().count() > 64)
+            || details
+                .rcpt_to
+                .as_deref()
+                .is_some_and(|value| value.chars().count() > 255)
+        {
             return Err(CringeError::InvalidInput);
         }
         let deadline = Instant::now() + DATABASE_DEADLINE;
@@ -178,15 +310,21 @@ impl CringeService {
                 transaction
                     .execute(
                         "INSERT INTO skibidi_cringe_ip_activity (\
-                             id,ip_address,activity_type,score,timestamp,metadata\
-                         ) VALUES ($1,$2,$3,$4,$5,$6)",
+                             id,ip_address,activity_type,score,timestamp,mail_from,rcpt_to,\
+                             helo_name,session_id,response_message,metadata\
+                         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
                         &[
                             &activity_id,
                             &ip_address,
                             &activity_type,
                             &score,
                             &now,
-                            &metadata,
+                            &details.mail_from,
+                            &details.rcpt_to,
+                            &details.helo_name,
+                            &details.session_id,
+                            &details.response_message,
+                            &details.metadata,
                         ],
                     )
                     .await
@@ -202,13 +340,13 @@ impl CringeService {
                              ssh_on_smtp_count,http_port_scanning_count,honeypot_hit_count,\
                              ssh_bruteforce_count,pps_overlimit_count,syn_flood_count,other_count\
                          ) VALUES (\
-                             $1,$2,$2,1,$3,$3,$3,0,0,0,0,0,0,0,0,0,$6,$4,$5,0\
+                             $1,$2,$2,1,$3,$3,$3,$7,0,0,0,0,0,0,0,0,$6,$4,$5,$8\
                          ) ON CONFLICT (ip_address) DO UPDATE SET \
                              total_score=skibidi_cringe_ip.total_score+$2,\
                              current_score=skibidi_cringe_ip.current_score+$2,\
                              activity_count=skibidi_cringe_ip.activity_count+1,\
                              last_seen_at=GREATEST(skibidi_cringe_ip.last_seen_at,$3),\
-                             self_spoofing_count=skibidi_cringe_ip.self_spoofing_count+0,\
+                             self_spoofing_count=skibidi_cringe_ip.self_spoofing_count+$7,\
                              open_relay_count=skibidi_cringe_ip.open_relay_count+0,\
                              auth_probe_count=skibidi_cringe_ip.auth_probe_count+0,\
                              illegal_domain_count=skibidi_cringe_ip.illegal_domain_count+0,\
@@ -226,7 +364,7 @@ impl CringeService {
                              syn_flood_count=CASE WHEN $5<>0 \
                                  THEN COALESCE(skibidi_cringe_ip.syn_flood_count,0)+$5 \
                                  ELSE skibidi_cringe_ip.syn_flood_count END,\
-                             other_count=skibidi_cringe_ip.other_count+0 \
+                             other_count=skibidi_cringe_ip.other_count+$8 \
                          RETURNING current_score",
                         &[
                             &ip_address,
@@ -235,6 +373,8 @@ impl CringeService {
                             &increments.pps_overlimit,
                             &increments.syn_flood,
                             &increments.ssh_bruteforce,
+                            &increments.self_spoofing,
+                            &increments.other,
                         ],
                     )
                     .await
@@ -256,7 +396,7 @@ impl CringeService {
                     &ip_address,
                     &activity_type,
                     score,
-                    metadata,
+                    &details,
                     now,
                 )
                 .await
@@ -291,7 +431,7 @@ impl CringeService {
         ip_address: &str,
         activity_type: &str,
         score: i32,
-        metadata: &str,
+        details: &ActivityDetails,
         timestamp: DateTime<Utc>,
     ) -> Result<i32, CringeError> {
         let deadline = Instant::now() + DATABASE_DEADLINE;
@@ -318,7 +458,8 @@ impl CringeService {
             deadline,
             transaction.query_opt(
                 "/* lmyzmail_xdp_traffic_commit_reconciliation */ \
-                 SELECT a.ip_address,a.activity_type,a.score,a.timestamp,a.metadata,i.current_score \
+                 SELECT a.ip_address,a.activity_type,a.score,a.timestamp,a.mail_from,a.rcpt_to,\
+                        a.helo_name,a.session_id,a.response_message,a.metadata,i.current_score \
                  FROM skibidi_cringe_ip_activity a \
                  JOIN skibidi_cringe_ip i ON i.ip_address=a.ip_address \
                  WHERE a.id=$1",
@@ -340,9 +481,14 @@ impl CringeService {
                     && row.get::<_, &str>(1) == activity_type
                     && row.get::<_, i32>(2) == score
                     && row.get::<_, DateTime<Utc>>(3) == timestamp
-                    && row.get::<_, Option<&str>>(4) == Some(metadata) =>
+                    && row.get::<_, Option<&str>>(4) == details.mail_from.as_deref()
+                    && row.get::<_, Option<&str>>(5) == details.rcpt_to.as_deref()
+                    && row.get::<_, Option<&str>>(6) == details.helo_name.as_deref()
+                    && row.get::<_, Option<&str>>(7) == details.session_id.as_deref()
+                    && row.get::<_, Option<&str>>(8) == details.response_message.as_deref()
+                    && row.get::<_, Option<&str>>(9) == Some(details.metadata.as_str()) =>
             {
-                Ok(row.get::<_, i32>(5))
+                Ok(row.get::<_, i32>(10))
             }
             Some(_) => Err(CringeError::OutcomeUnknown),
             None => Err(CringeError::Database(
@@ -1356,6 +1502,13 @@ fn reconciliation_error(stage: &str, error: impl fmt::Display + fmt::Debug) -> C
     CringeError::OutcomeUnknown
 }
 
+fn truncate_chars(value: &str, limit: usize) -> String {
+    match value.char_indices().nth(limit) {
+        Some((end, _)) => value[..end].to_owned(),
+        None => value.to_owned(),
+    }
+}
+
 fn is_exact_localhost(ip: IpAddr) -> bool {
     ip == IpAddr::V4(Ipv4Addr::LOCALHOST) || ip == IpAddr::V6(Ipv6Addr::LOCALHOST)
 }
@@ -1477,6 +1630,48 @@ mod tests {
         assert_eq!(
             MAX_XDP_RECONCILE_CANDIDATES,
             MAX_XDP_EXISTING_BANS + MAX_XDP_NEW_CANDIDATES
+        );
+    }
+
+    #[test]
+    fn smtp_activity_details_truncate_on_character_boundaries_and_increment_one_category() {
+        let mail_from = "\u{e9}".repeat(300);
+        let response = "\u{e9}".repeat(600);
+        let metadata = "\u{e9}".repeat(1_100);
+        let self_spoof = ActivityDetails::self_spoofing(&mail_from, &response, &metadata);
+        assert_eq!(
+            self_spoof.mail_from.as_deref().unwrap().chars().count(),
+            255
+        );
+        assert_eq!(
+            self_spoof
+                .response_message
+                .as_deref()
+                .unwrap()
+                .chars()
+                .count(),
+            512,
+        );
+        assert_eq!(self_spoof.metadata.chars().count(), 1_024);
+        assert_eq!(
+            ActivityIncrements::self_spoofing(),
+            ActivityIncrements {
+                self_spoofing: 1,
+                ..ActivityIncrements::default()
+            },
+        );
+
+        let protocol =
+            ActivityDetails::protocol_violation(&"h".repeat(300), &"s".repeat(80), &metadata);
+        assert_eq!(protocol.helo_name.as_deref().unwrap().len(), 255);
+        assert_eq!(protocol.session_id.as_deref().unwrap().len(), 64);
+        assert_eq!(protocol.metadata.chars().count(), 1_024);
+        assert_eq!(
+            ActivityIncrements::protocol_violation(),
+            ActivityIncrements {
+                other: 1,
+                ..ActivityIncrements::default()
+            },
         );
     }
 }

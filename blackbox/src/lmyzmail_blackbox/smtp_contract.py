@@ -92,9 +92,13 @@ def _endpoint(target: RuntimeTarget) -> tuple[str, int]:
     return "127.0.0.1", ports.smtp
 
 
-def open_smtp_client(target: RuntimeTarget) -> tuple[RawSmtpClient, bytes]:
+def open_smtp_client(
+    target: RuntimeTarget,
+    *,
+    source: str | None = None,
+) -> tuple[RawSmtpClient, bytes]:
     host, port = _endpoint(target)
-    client = RawSmtpClient.connect(host, port, timeout=10.0)
+    client = RawSmtpClient.connect(host, port, timeout=10.0, source=source)
     try:
         _check(len(client.greeting) == 1, client.greeting)
         match = _GREETING.fullmatch(client.greeting[0])

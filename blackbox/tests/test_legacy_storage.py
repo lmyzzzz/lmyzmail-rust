@@ -70,6 +70,8 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "smtp-data-terminator-command-loss",
         "smtp-bdat-coalesced-prerequisite-state-stall",
         "smtp-command-control-byte-reflection",
+        "smtp-generated-reply-control-sanitization",
+        "smtp-cringe-queue-overflow-bound",
         "smtp-fragmented-overlong-double-error",
         "outbound-starttls-hostname-verification",
         "outbound-smtp-commit-ambiguity-no-retry",
@@ -124,6 +126,20 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
     bdat_stall = by_id["smtp-bdat-coalesced-prerequisite-state-stall"]
     assert bdat_stall["candidate_requirement"].startswith(
         "For a valid EHLO session receiving coalesced MAIL"
+    )
+    generated_reply = by_id["smtp-generated-reply-control-sanitization"]
+    assert generated_reply["evidence"]["source_sha256"] == (
+        "8b201ab14f121e8e53b9b6ff16d9e742aeedd3b37b85bdc69fda989d1b15924b"
+    )
+    assert generated_reply["candidate_requirement"].startswith(
+        "Before sending or persisting a generated self-spoof rejection"
+    )
+    queue_bound = by_id["smtp-cringe-queue-overflow-bound"]
+    assert queue_bound["evidence"]["source_sha256"] == (
+        "1dac59437ba54413e93569c59f641cd918cd185912fa6f407bbde5c5bcfe1056"
+    )
+    assert queue_bound["candidate_requirement"].startswith(
+        "Admit at most 256 queued SMTP Cringe activities"
     )
     commit_ambiguity = by_id["outbound-smtp-commit-ambiguity-no-retry"]
     assert commit_ambiguity["evidence"]["sender_source_sha256"] == (

@@ -432,6 +432,10 @@ struct JsonFeatureConfig {
     #[serde(default = "default_true")]
     smtp_skibidi_enable_simd_rng: bool,
     #[serde(default = "default_true")]
+    smtp_skibidi_insults: bool,
+    #[serde(default)]
+    smtp_spf_dns_server: Option<String>,
+    #[serde(default = "default_true")]
     spamhaus: bool,
     #[serde(default = "default_true")]
     tarpit: bool,
@@ -1083,6 +1087,8 @@ impl Default for JsonFeatureConfig {
             smtp_skibidi_mode: default_skibidi_mode(),
             smtp_skibidi_enable_avx512: true,
             smtp_skibidi_enable_simd_rng: true,
+            smtp_skibidi_insults: true,
+            smtp_spf_dns_server: None,
             spamhaus: true,
             tarpit: true,
             mta_sts: true,
@@ -2021,6 +2027,13 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         value.features.smtp_skibidi_enable_simd_rng.to_string(),
     )?;
     properties.insert(
+        "lmyzmail.smtp.skibidi-insults-enabled".to_owned(),
+        value.features.smtp_skibidi_insults.to_string(),
+    )?;
+    if let Some(server) = value.features.smtp_spf_dns_server {
+        properties.insert("lmyzmail.smtp-security.dns-server".to_owned(), server)?;
+    }
+    properties.insert(
         "lmyzmail.skibidi-inferx.enabled".to_owned(),
         skibidi_inferx.enabled.to_string(),
     )?;
@@ -2596,6 +2609,8 @@ pub struct FeatureConfig {
     pub smtp_skibidi_mode: String,
     pub smtp_skibidi_enable_avx512: bool,
     pub smtp_skibidi_enable_simd_rng: bool,
+    pub smtp_skibidi_insults: bool,
+    pub smtp_spf_dns_server: Option<SocketAddr>,
     pub spamhaus: bool,
     pub tarpit: bool,
     pub mta_sts: bool,
@@ -3277,6 +3292,28 @@ impl RuntimeConfig {
                 &["botmail.smtp.skibidi-generator-enable-simd-rng"],
                 true,
             )?,
+            smtp_skibidi_insults: preferred_bool(
+                &properties,
+                &["lmyzmail.smtp.skibidi-insults-enabled"],
+                &[
+                    "botmail.smtp.skibidi-insults-enabled",
+                    "botmail.smtp.use-skibidi-insults-against-self-spoofing",
+                ],
+                true,
+            )?,
+            smtp_spf_dns_server: preferred(
+                &properties,
+                &["lmyzmail.smtp-security.dns-server"],
+                &["botmail.smtp-security.dns-server"],
+            )
+            .map(|value| {
+                value.parse::<SocketAddr>().map_err(|_| {
+                    ConfigError::Invalid(
+                        "SMTP security dns-server must be a numeric IP socket address".into(),
+                    )
+                })
+            })
+            .transpose()?,
             spamhaus: preferred_bool(
                 &properties,
                 &["lmyzmail.smtp-security.spamhaus-enabled"],
@@ -6466,6 +6503,73 @@ lmyzmail.htcpcp.pots[{index}].supported-additions=\n"
         assert_eq!(config.smtp_skibidi.ascii.default_fps, 10.0);
         assert_eq!(config.smtp_skibidi.ascii.default_contrast, 1.2);
         assert_eq!(config.smtp_skibidi.ascii.char_aspect, 2.0);
+    }
+
+    #[test]
+    fn smtp_self_spoof_aliases_are_validated_and_new_keys_win() {
+        let defaults = RuntimeConfig::from_properties(Properties::default()).unwrap();
+        assert!(defaults.features.smtp_skibidi_insults);
+        assert_eq!(defaults.features.smtp_spf_dns_server, None);
+
+        let legacy = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.smtp.use-skibidi-insults-against-self-spoofing=false\n\
+botmail.smtp-security.dns-server=127.0.0.1:5300\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(!legacy.features.smtp_skibidi_insults);
+        assert_eq!(
+            legacy.features.smtp_spf_dns_server,
+            Some("127.0.0.1:5300".parse().unwrap()),
+        );
+
+        let both = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.smtp.skibidi-insults-enabled=false\n\
+botmail.smtp-security.dns-server=127.0.0.1:5300\n\
+lmyzmail.smtp.skibidi-insults-enabled=true\n\
+lmyzmail.smtp-security.dns-server=127.0.0.2:5353\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(both.features.smtp_skibidi_insults);
+        assert_eq!(
+            both.features.smtp_spf_dns_server,
+            Some("127.0.0.2:5353".parse().unwrap()),
+        );
+
+        assert!(
+            RuntimeConfig::from_properties(
+                Properties::parse(b"lmyzmail.smtp-security.dns-server=dns.example.test:53\n",)
+                    .unwrap(),
+            )
+            .is_err(),
+        );
+    }
+
+    #[test]
+    fn smtp_self_spoof_semantic_json_maps_dns_and_insult_fields() {
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&semantic_json_with_htcpcp(serde_json::json!({
+                "enabled": false,
+                "default_brew_time_seconds": 30,
+                "pots": null
+            })))
+            .unwrap();
+        value["features"]["smtp_skibidi_insults"] = serde_json::json!(false);
+        value["features"]["smtp_spf_dns_server"] = serde_json::json!("127.0.0.3:5300");
+        let config = RuntimeConfig::from_properties(
+            parse_semantic_json(&serde_json::to_vec(&value).unwrap()).unwrap(),
+        )
+        .unwrap();
+        assert!(!config.features.smtp_skibidi_insults);
+        assert_eq!(
+            config.features.smtp_spf_dns_server,
+            Some("127.0.0.3:5300".parse().unwrap()),
+        );
     }
 
     #[test]

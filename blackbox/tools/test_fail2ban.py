@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -229,7 +230,7 @@ def _capture_threshold_and_cooldown(target: RuntimeTarget) -> dict[str, Any]:
     }
 
 
-_PATTERNS = (
+_PATTERNS: tuple[Callable[[str], str], ...] = (
     lambda ip: f"Aug 10 12:01:00 host sshd[200]: Failed publickey for root from {ip} port 22 ssh2",
     lambda ip: f"Aug 10 12:01:01 host sshd[201]: Invalid user oracle from {ip} port 2222",
     lambda ip: (

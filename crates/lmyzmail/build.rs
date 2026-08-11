@@ -84,7 +84,7 @@ const LITEHTML_SOURCES: &[&str] = &[
 ];
 
 const FFMPEG_NORMALIZATION_VERSION: &str = "lf-text-v2";
-const FFMPEG_BUILD_VERSION: &str = "n7.1-minimal-static-v1-lf-text-v2";
+const FFMPEG_BUILD_VERSION: &str = "n7.1-minimal-static-v2-reproducible-paths-lf-text-v2";
 const XDP_CLANG_VERSION: &str = "18.1.3";
 const XDP_FROZEN_SOURCES: &[(&str, &str)] = &[
     (
@@ -141,6 +141,7 @@ const SKIBIDI_PUBLIC_SYMBOLS: &[&str] = &[
 ];
 
 fn main() {
+    println!("cargo:rerun-if-changed=build.rs");
     let target_os = env::var("CARGO_CFG_TARGET_OS").expect("Cargo did not set target OS");
     let target_arch = env::var("CARGO_CFG_TARGET_ARCH").expect("Cargo did not set target arch");
     if target_os != "linux" || target_arch != "x86_64" {
@@ -520,8 +521,12 @@ fn build_ffmpeg(source: &Path, out_dir: &Path) -> (PathBuf, PathBuf) {
                         "--disable-filters",
                         "--disable-hwaccels",
                         "--disable-asm",
-                        "--extra-cflags=-fPIC -O2",
-                    ]),
+                    ])
+                    .arg(format!(
+                        "--extra-cflags=-fPIC -O2 -ffile-prefix-map={}=vendor/ffmpeg-n7.1 -fdebug-prefix-map={}=vendor/ffmpeg-n7.1",
+                        normalized_source.display(),
+                        normalized_source.display(),
+                    )),
                 "configure FFmpeg n7.1",
             );
             fs::write(&build_marker, FFMPEG_BUILD_VERSION)

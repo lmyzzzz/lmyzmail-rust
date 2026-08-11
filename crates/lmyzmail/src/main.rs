@@ -175,11 +175,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let smtp_config = Arc::clone(&config);
     let smtp_pool = database_pool.clone();
     let smtp_redis_pool = redis_pool.clone();
+    let smtp_inferx = Arc::clone(&inferx_service);
+    let smtp_cringe = cringe_service.clone();
     let smtp_cancellation = cancellation.clone();
     services.spawn(async move {
         (
             "SMTP",
-            smtp::serve_smtp(smtp_config, smtp_pool, smtp_redis_pool, smtp_cancellation).await,
+            smtp::serve_smtp(
+                smtp_config,
+                smtp_pool,
+                smtp_redis_pool,
+                smtp_inferx,
+                smtp_cringe,
+                smtp_cancellation,
+            )
+            .await,
         )
     });
     if config.htcpcp.enabled {

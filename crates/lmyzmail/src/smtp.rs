@@ -1,5 +1,6 @@
 use std::{
     collections::hash_map::DefaultHasher,
+    future::Future,
     hash::{Hash, Hasher},
     io,
     net::IpAddr,
@@ -17,6 +18,8 @@ use chrono::{DateTime, Datelike, Timelike, Utc, Weekday};
 use deadpool_postgres::Pool;
 use deadpool_redis::Pool as RedisPool;
 use getrandom::fill as fill_random;
+use hickory_resolver::config::{NameServerConfig, ResolverConfig, ResolverOpts};
+use mail_auth::{MessageAuthenticator, SpfResult, spf::verify::SpfParameters};
 use mail_parser::MessageParser;
 use openssl::pkcs12::Pkcs12;
 use rustls::{
@@ -26,7 +29,7 @@ use rustls::{
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf},
     net::{TcpListener, TcpStream},
-    sync::{Mutex, Semaphore},
+    sync::{Mutex, Semaphore, mpsc},
     task::{JoinSet, spawn_blocking},
     time::{Instant, sleep, timeout},
 };
@@ -35,7 +38,9 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     config::{ContentFilterConfig, MailRenderSimdMode, RuntimeConfig},
+    cringe::{CringeError, CringeService},
     skibidi::SkibidiGenerator,
+    skibidi_inferx::InferxService,
     smtp_ascii::AsciiSimdMode,
     smtp_content_filter::{
         ContentScan, NewDomainScanner, ParsedHeaders, RblScanner, has_first_mime_attachment,
@@ -57,6 +62,11 @@ const TLS_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(15);
 const VIDEO_WRITE_TIMEOUT: Duration = Duration::from_secs(5);
 const MAX_TLS_KEYSTORE_BYTES: u64 = 16 * 1024 * 1024;
 const SMTP_QUEUE_CAPACITY: usize = 256;
+const CRINGE_QUEUE_CAPACITY: usize = 256;
+const CRINGE_SHUTDOWN_DEADLINE: Duration = Duration::from_secs(10);
+const CRINGE_FORCED_SHUTDOWN_DEADLINE: Duration = Duration::from_secs(2);
+const SPF_DEADLINE: Duration = Duration::from_secs(10);
+const MAX_SMTP_REPLY_TEXT_BYTES: usize = 506;
 const MAILDIR_SHARD_LOCKS: usize = 64;
 static FILE_COUNTER: AtomicU64 = AtomicU64::new(1);
 
@@ -89,15 +99,20 @@ pub struct SmtpService {
     tls_acceptor: Option<TlsAcceptor>,
     rbl_scanner: RblScanner,
     new_domain_scanner: NewDomainScanner,
+    spf_authenticator: MessageAuthenticator,
     skibidi_generator: SkibidiGenerator,
+    inferx_service: Arc<InferxService>,
+    cringe_sender: mpsc::Sender<SmtpCringeActivity>,
     skibidi_video: Option<Arc<VideoService>>,
 }
 
 impl SmtpService {
-    pub fn from_config(
+    fn from_config(
         config: Arc<RuntimeConfig>,
         pool: Pool,
         redis_pool: RedisPool,
+        inferx_service: Arc<InferxService>,
+        cringe_sender: mpsc::Sender<SmtpCringeActivity>,
     ) -> Result<Self, SmtpError> {
         let maildir_max_files_per_directory = match config
             .preferred_value(
@@ -228,6 +243,19 @@ impl SmtpService {
                 "SMTP content-filter DNS resolver cannot start: {error}"
             ))
         })?;
+        let spf_authenticator = if let Some(server) = config.features.smtp_spf_dns_server {
+            let mut name_server = NameServerConfig::udp(server.ip());
+            name_server.connections[0].port = server.port();
+            MessageAuthenticator::new(
+                ResolverConfig::from_parts(None, Vec::new(), vec![name_server]),
+                ResolverOpts::default(),
+            )
+        } else {
+            MessageAuthenticator::new_system_conf()
+        }
+        .map_err(|error| {
+            SmtpError::InvalidConfig(format!("SMTP SPF resolver cannot start: {error}"))
+        })?;
         let skibidi_video = if config.smtp_skibidi.enabled {
             ensure_question_bank_loaded().map_err(|error| {
                 SmtpError::InvalidConfig(format!("SMTP quiz question bank is invalid: {error}"))
@@ -275,9 +303,96 @@ impl SmtpService {
             tls_acceptor,
             rbl_scanner,
             new_domain_scanner,
+            spf_authenticator,
             skibidi_generator,
+            inferx_service,
+            cringe_sender,
             skibidi_video,
         })
+    }
+
+    async fn self_spoof_rejection(
+        &self,
+        peer: IpAddr,
+        helo: &str,
+        sender: &str,
+        cancellation: &CancellationToken,
+    ) -> Option<String> {
+        let sender_domain = sender.rsplit_once('@').map(|(_, domain)| domain)?;
+        if !sender_domain
+            .trim_end_matches('.')
+            .eq_ignore_ascii_case(&self.config.domain)
+        {
+            return None;
+        }
+
+        let verification = timeout(
+            SPF_DEADLINE,
+            self.spf_authenticator
+                .verify_spf(SpfParameters::verify_mail_from(
+                    peer,
+                    helo,
+                    &self.config.domain,
+                    sender,
+                )),
+        )
+        .await;
+        let (spf_result, spf_reason) = match verification {
+            Ok(output) => {
+                spf_result_and_reason(output.result(), sender_domain, output.explanation())
+            }
+            Err(_) => (
+                "temperror",
+                "SPF check error: DNS query timed out".to_owned(),
+            ),
+        };
+        if spf_result == "pass" {
+            return None;
+        }
+
+        let seed = format!("{peer}:{sender}:{}", Utc::now().timestamp_millis());
+        let insult = if self.config.features.smtp_skibidi_insults {
+            self.inferx_service
+                .generate_insult(seed, cancellation)
+                .await
+        } else {
+            crate::skibidi_inferx::InsultResult {
+                message: "5.7.1 Sender address rejected: SPF validation failed for local domain."
+                    .to_owned(),
+                lm_generated: false,
+            }
+        };
+        let message = sanitize_smtp_reply_text(&format!(
+            "{} This domain belongs to this server and your IP ({peer}) is not authorized to send from it. SPF result: {spf_result}.{}",
+            insult.message,
+            insult.lm_tag(),
+        ));
+        let metadata = format!(
+            "SPF: {spf_result}, Reason: {spf_reason}, Domain: {sender_domain}, LM-generated: {}",
+            insult.lm_generated,
+        );
+        let activity = SmtpCringeActivity::SelfSpoof {
+            ip: peer,
+            mail_from: sender.to_owned(),
+            response_message: message.clone(),
+            metadata,
+        };
+        if let Err(error) = self.cringe_sender.try_send(activity) {
+            eprintln!("lmyzmail SMTP self-spoof activity queue rejected a record: {error}");
+        }
+        Some(message)
+    }
+
+    fn queue_protocol_violation(&self, peer: IpAddr, helo: &str, session_id: &str, metadata: &str) {
+        let activity = SmtpCringeActivity::ProtocolViolation {
+            ip: peer,
+            helo_name: helo.to_owned(),
+            session_id: session_id.to_owned(),
+            metadata: metadata.to_owned(),
+        };
+        if let Err(error) = self.cringe_sender.try_send(activity) {
+            eprintln!("lmyzmail SMTP protocol activity queue rejected a record: {error}");
+        }
     }
 
     async fn deliver(
@@ -526,17 +641,170 @@ impl SmtpService {
     }
 }
 
+#[derive(Debug)]
+enum SmtpCringeActivity {
+    SelfSpoof {
+        ip: IpAddr,
+        mail_from: String,
+        response_message: String,
+        metadata: String,
+    },
+    ProtocolViolation {
+        ip: IpAddr,
+        helo_name: String,
+        session_id: String,
+        metadata: String,
+    },
+}
+
+impl SmtpCringeActivity {
+    const fn kind(&self) -> &'static str {
+        match self {
+            Self::SelfSpoof { .. } => "SELF_SPOOFING",
+            Self::ProtocolViolation { .. } => "PROTOCOL_VIOLATION",
+        }
+    }
+}
+
+fn sanitize_smtp_reply_text(value: &str) -> String {
+    let mut sanitized = String::with_capacity(value.len().min(MAX_SMTP_REPLY_TEXT_BYTES));
+    for character in value.chars() {
+        let character = if character.is_control() {
+            ' '
+        } else {
+            character
+        };
+        if sanitized.len() + character.len_utf8() > MAX_SMTP_REPLY_TEXT_BYTES {
+            break;
+        }
+        sanitized.push(character);
+    }
+    sanitized
+}
+
+fn spf_result_and_reason(
+    result: SpfResult,
+    domain: &str,
+    explanation: Option<&str>,
+) -> (&'static str, String) {
+    let name = match result {
+        SpfResult::Pass => "pass",
+        SpfResult::Fail => "fail",
+        SpfResult::SoftFail => "softfail",
+        SpfResult::Neutral => "neutral",
+        SpfResult::TempError => "temperror",
+        SpfResult::PermError => "permerror",
+        SpfResult::None => "none",
+    };
+    let reason = explanation.map_or_else(
+        || match result {
+            SpfResult::None => format!("No SPF record found for {domain}"),
+            SpfResult::Pass => "SPF validation passed".to_owned(),
+            SpfResult::Fail => "SPF policy rejected the client IP".to_owned(),
+            SpfResult::SoftFail => "SPF policy soft-failed the client IP".to_owned(),
+            SpfResult::Neutral => "SPF policy returned neutral".to_owned(),
+            SpfResult::TempError => "SPF DNS lookup failed temporarily".to_owned(),
+            SpfResult::PermError => "SPF record is invalid".to_owned(),
+        },
+        str::to_owned,
+    );
+    (name, reason)
+}
+
+async fn run_cringe_persistence(
+    receiver: mpsc::Receiver<SmtpCringeActivity>,
+    cringe_service: CringeService,
+    cancellation: CancellationToken,
+) {
+    run_cringe_persistence_with(
+        receiver,
+        cancellation,
+        move |activity, activity_cancellation| {
+            persist_cringe_activity(cringe_service.clone(), activity, activity_cancellation)
+        },
+    )
+    .await;
+}
+
+async fn run_cringe_persistence_with<P, F>(
+    mut receiver: mpsc::Receiver<SmtpCringeActivity>,
+    cancellation: CancellationToken,
+    mut persist: P,
+) where
+    P: FnMut(SmtpCringeActivity, CancellationToken) -> F,
+    F: Future<Output = Result<Option<i32>, CringeError>>,
+{
+    loop {
+        let activity = tokio::select! {
+            biased;
+            () = cancellation.cancelled() => return,
+            activity = receiver.recv() => match activity {
+                Some(activity) => activity,
+                None => return,
+            },
+        };
+        let kind = activity.kind();
+        if let Err(error) = persist(activity, cancellation.clone()).await {
+            eprintln!("lmyzmail SMTP cringe {kind} persistence failed: {error}");
+        }
+    }
+}
+
+async fn persist_cringe_activity(
+    cringe_service: CringeService,
+    activity: SmtpCringeActivity,
+    cancellation: CancellationToken,
+) -> Result<Option<i32>, CringeError> {
+    match activity {
+        SmtpCringeActivity::SelfSpoof {
+            ip,
+            mail_from,
+            response_message,
+            metadata,
+        } => {
+            cringe_service
+                .record_self_spoofing(ip, &mail_from, &response_message, &metadata, &cancellation)
+                .await
+        }
+        SmtpCringeActivity::ProtocolViolation {
+            ip,
+            helo_name,
+            session_id,
+            metadata,
+        } => {
+            cringe_service
+                .record_protocol_violation(ip, &helo_name, &session_id, &metadata, &cancellation)
+                .await
+        }
+    }
+}
+
 pub async fn serve_smtp(
     config: Arc<RuntimeConfig>,
     database_pool: Pool,
     redis_pool: RedisPool,
+    inferx_service: Arc<InferxService>,
+    cringe_service: CringeService,
     cancellation: CancellationToken,
 ) -> io::Result<()> {
     let listener = TcpListener::bind((config.listen.host.as_str(), config.listen.smtp)).await?;
+    let (cringe_sender, cringe_receiver) = mpsc::channel(CRINGE_QUEUE_CAPACITY);
+    let cringe_cancellation = CancellationToken::new();
     let service = Arc::new(
-        SmtpService::from_config(Arc::clone(&config), database_pool, redis_pool)
-            .map_err(io::Error::other)?,
+        SmtpService::from_config(
+            Arc::clone(&config),
+            database_pool,
+            redis_pool,
+            inferx_service,
+            cringe_sender,
+        )
+        .map_err(io::Error::other)?,
     );
+    let mut cringe_task = tokio::spawn(run_cringe_persistence(
+        cringe_receiver,
+        cringe_service,
+        cringe_cancellation.clone(),
+    ));
     let connections = Arc::new(Semaphore::new(MAX_CONNECTIONS));
     let mut tasks = JoinSet::new();
     loop {
@@ -568,6 +836,21 @@ pub async fn serve_smtp(
     {
         eprintln!("lmyzmail SMTP video worker exceeded its shutdown deadline");
     }
+    drop(service);
+    if timeout(CRINGE_SHUTDOWN_DEADLINE, &mut cringe_task)
+        .await
+        .is_err()
+    {
+        cringe_cancellation.cancel();
+        if timeout(CRINGE_FORCED_SHUTDOWN_DEADLINE, &mut cringe_task)
+            .await
+            .is_err()
+        {
+            cringe_task.abort();
+            let _ = cringe_task.await;
+            eprintln!("lmyzmail SMTP cringe persistence worker exceeded its shutdown deadline");
+        }
+    }
     Ok(())
 }
 
@@ -590,6 +873,21 @@ impl Envelope {
 enum SessionState {
     Connected,
     Greeted,
+}
+
+impl SessionState {
+    fn oracle_name(self, envelope: &Envelope) -> &'static str {
+        match (
+            self,
+            envelope.sender.is_some(),
+            envelope.recipients.is_empty(),
+        ) {
+            (Self::Connected, _, _) => "CONNECT",
+            (Self::Greeted, false, _) => "HELO",
+            (Self::Greeted, true, true) => "MAIL",
+            (Self::Greeted, true, false) => "RCPT",
+        }
+    }
 }
 
 enum ConnectionStream {
@@ -1032,6 +1330,7 @@ async fn handle_connection(
 ) -> io::Result<()> {
     let connection_cancellation = CancellationToken::new();
     let _cancel_on_drop = CancelOnDrop(connection_cancellation.clone());
+    let session_id = random_hex(4).map_err(io::Error::other)?;
     let mut io = BufferedConnection::new(stream);
     let greeting = service
         .skibidi_generator
@@ -1115,6 +1414,19 @@ async fn handle_connection(
                 }
                 match parse_mail(argument) {
                     Ok(Some(sender)) => {
+                        if let Some(message) = service
+                            .self_spoof_rejection(
+                                peer,
+                                &helo,
+                                &sender,
+                                &connection_cancellation,
+                            )
+                            .await
+                        {
+                            io.write_all(format!("550 {message}\r\n").as_bytes())
+                                .await?;
+                            continue;
+                        }
                         envelope.sender = Some(sender);
                         envelope.recipients.clear();
                         io.write_all(b"250 2.1.0 Sender OK\r\n").await?;
@@ -1126,6 +1438,16 @@ async fn handle_connection(
             }
             "RCPT" => {
                 if state != SessionState::Greeted || envelope.sender.is_none() {
+                    let metadata = format!(
+                        "Bad sequence: RCPT in state {}",
+                        state.oracle_name(&envelope),
+                    );
+                    service.queue_protocol_violation(
+                        peer,
+                        &helo,
+                        &session_id,
+                        &metadata,
+                    );
                     io.write_all(b"503 5.5.1 Bad sequence of commands\r\n").await?;
                     continue;
                 }
@@ -1834,5 +2156,113 @@ Subject: binary\r\nMessage-ID: <binary@example.test>\r\n\r\n\x00\xff\x80";
             b"Content-Type: multipart/mixed; boundary=outer\r\n\r\n--outer\r\nContent-Type: multipart/alternative; boundary=inner\r\n\r\n--inner\r\nContent-Type: text/plain\r\n\r\nbody\r\n--inner--\r\n--outer--\r\n"
         )
         .unwrap());
+    }
+
+    #[test]
+    fn spf_result_mapping_is_complete_and_explanations_take_precedence() {
+        let cases = [
+            (SpfResult::Pass, "pass", "SPF validation passed"),
+            (SpfResult::Fail, "fail", "SPF policy rejected the client IP"),
+            (
+                SpfResult::SoftFail,
+                "softfail",
+                "SPF policy soft-failed the client IP",
+            ),
+            (SpfResult::Neutral, "neutral", "SPF policy returned neutral"),
+            (
+                SpfResult::TempError,
+                "temperror",
+                "SPF DNS lookup failed temporarily",
+            ),
+            (SpfResult::PermError, "permerror", "SPF record is invalid"),
+            (
+                SpfResult::None,
+                "none",
+                "No SPF record found for blackbox.example.com",
+            ),
+        ];
+        for (result, expected_name, expected_reason) in cases {
+            let (name, reason) = spf_result_and_reason(result, "blackbox.example.com", None);
+            assert_eq!(name, expected_name);
+            assert_eq!(reason, expected_reason);
+        }
+        assert_eq!(
+            spf_result_and_reason(
+                SpfResult::Fail,
+                "blackbox.example.com",
+                Some("oracle explanation"),
+            ),
+            ("fail", "oracle explanation".to_owned()),
+        );
+    }
+
+    #[test]
+    fn smtp_reply_sanitizer_blocks_response_injection_and_preserves_utf8_boundaries() {
+        let malicious = format!(
+            "5.7.1 rejected\r\n250 injected\0{}",
+            "\u{e9}".repeat(MAX_SMTP_REPLY_TEXT_BYTES),
+        );
+        let sanitized = sanitize_smtp_reply_text(&malicious);
+        assert!(sanitized.starts_with("5.7.1 rejected  250 injected "));
+        assert!(sanitized.chars().all(|character| !character.is_control()));
+        assert!(sanitized.len() <= MAX_SMTP_REPLY_TEXT_BYTES);
+        assert!(std::str::from_utf8(sanitized.as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn oracle_state_name_is_derived_from_session_and_envelope() {
+        let mut envelope = Envelope::default();
+        assert_eq!(SessionState::Connected.oracle_name(&envelope), "CONNECT");
+        assert_eq!(SessionState::Greeted.oracle_name(&envelope), "HELO");
+        envelope.sender = Some("sender@example.test".to_owned());
+        assert_eq!(SessionState::Greeted.oracle_name(&envelope), "MAIL");
+        envelope.recipients.push("qa@example.test".to_owned());
+        assert_eq!(SessionState::Greeted.oracle_name(&envelope), "RCPT");
+    }
+
+    #[tokio::test]
+    async fn cringe_worker_uses_a_bounded_queue_and_drains_it_after_sender_close() {
+        let (sender, receiver) = mpsc::channel(2);
+        sender
+            .try_send(SmtpCringeActivity::SelfSpoof {
+                ip: "192.0.2.1".parse().unwrap(),
+                mail_from: "sender@example.test".to_owned(),
+                response_message: "rejected".to_owned(),
+                metadata: "spf".to_owned(),
+            })
+            .unwrap();
+        sender
+            .try_send(SmtpCringeActivity::ProtocolViolation {
+                ip: "192.0.2.1".parse().unwrap(),
+                helo_name: "example.test".to_owned(),
+                session_id: "01234567".to_owned(),
+                metadata: "bad sequence".to_owned(),
+            })
+            .unwrap();
+        assert!(matches!(
+            sender.try_send(SmtpCringeActivity::ProtocolViolation {
+                ip: "192.0.2.2".parse().unwrap(),
+                helo_name: "example.test".to_owned(),
+                session_id: "89abcdef".to_owned(),
+                metadata: "queue full".to_owned(),
+            }),
+            Err(mpsc::error::TrySendError::Full(_)),
+        ));
+        drop(sender);
+
+        let observed = Arc::new(Mutex::new(Vec::new()));
+        let worker_observed = Arc::clone(&observed);
+        run_cringe_persistence_with(receiver, CancellationToken::new(), move |activity, _| {
+            let worker_observed = Arc::clone(&worker_observed);
+            async move {
+                worker_observed.lock().await.push(activity.kind());
+                Ok::<Option<i32>, CringeError>(None)
+            }
+        })
+        .await;
+        assert_eq!(
+            *observed.lock().await,
+            vec!["SELF_SPOOFING", "PROTOCOL_VIOLATION"],
+        );
     }
 }
