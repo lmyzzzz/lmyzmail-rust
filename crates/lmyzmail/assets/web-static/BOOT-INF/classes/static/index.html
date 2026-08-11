@@ -1,0 +1,2833 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>lmyzmail</title>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <style>
+        :root {
+            --primary: #1a73e8;
+            --primary-hover: #1557b0;
+            --primary-light: #e8f0fe;
+            --danger: #d93025;
+            --danger-hover: #b5281f;
+            --success: #1e8e3e;
+            --warning: #f9ab00;
+            --gray-50: #f8f9fa;
+            --gray-100: #f1f3f4;
+            --gray-200: #e8eaed;
+            --gray-300: #dadce0;
+            --gray-400: #bdc1c6;
+            --gray-500: #9aa0a6;
+            --gray-600: #80868b;
+            --gray-700: #5f6368;
+            --gray-800: #3c4043;
+            --gray-900: #202124;
+            --white: #ffffff;
+            --shadow-sm: 0 1px 2px 0 rgba(60,64,67,.3), 0 1px 3px 1px rgba(60,64,67,.15);
+            --shadow-md: 0 1px 3px 0 rgba(60,64,67,.3), 0 4px 8px 3px rgba(60,64,67,.15);
+            --shadow-lg: 0 4px 8px 3px rgba(60,64,67,.15), 0 1px 3px rgba(60,64,67,.3);
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 16px;
+            --radius-xl: 24px;
+            --radius-full: 9999px;
+            --sidebar-width: 256px;
+            --header-height: 64px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--gray-100);
+            color: var(--gray-900);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        .flex { display: flex; }
+        .flex-col { flex-direction: column; }
+        .items-center { align-items: center; }
+        .justify-center { justify-content: center; }
+        .justify-between { justify-content: space-between; }
+        .gap-1 { gap: 4px; }
+        .gap-2 { gap: 8px; }
+        .gap-3 { gap: 12px; }
+        .gap-4 { gap: 16px; }
+        .w-full { width: 100%; }
+        .h-full { height: 100%; }
+        .text-center { text-align: center; }
+        .text-sm { font-size: 0.875rem; }
+        .text-xs { font-size: 0.75rem; }
+        .font-medium { font-weight: 500; }
+        .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 24px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            border-radius: var(--radius-full);
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        .btn-primary { background: var(--primary); color: var(--white); }
+        .btn-primary:hover { background: var(--primary-hover); box-shadow: var(--shadow-sm); }
+        .btn-secondary { background: var(--white); color: var(--gray-700); border: 1px solid var(--gray-300); }
+        .btn-secondary:hover { background: var(--gray-50); }
+        .btn-danger { background: var(--danger); color: var(--white); }
+        .btn-danger:hover { background: var(--danger-hover); }
+        .btn-ghost { background: transparent; color: var(--gray-700); padding: 8px 12px; }
+        .btn-ghost:hover { background: var(--gray-100); }
+        .btn-icon { width: 40px; height: 40px; padding: 0; border-radius: 50%; }
+        .btn-sm { padding: 6px 16px; font-size: 0.8125rem; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .btn-compose {
+            background: var(--white);
+            color: var(--gray-800);
+            box-shadow: var(--shadow-md);
+            padding: 16px 24px;
+            font-size: 0.875rem;
+            border-radius: var(--radius-lg);
+        }
+        .btn-compose:hover { background: var(--primary-light); box-shadow: var(--shadow-lg); }
+
+        /* Form Elements */
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-label { font-size: 0.875rem; font-weight: 500; color: var(--gray-700); }
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            font-size: 1rem;
+            border: 1px solid var(--gray-300);
+            border-radius: var(--radius-md);
+            background: var(--white);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .form-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
+        .form-input::placeholder { color: var(--gray-500); }
+
+        /* Auth */
+        .auth-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: linear-gradient(135deg, var(--gray-100) 0%, var(--white) 100%);
+        }
+        .auth-card {
+            width: 100%;
+            max-width: 420px;
+            background: var(--white);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-lg);
+            padding: 40px;
+        }
+        .auth-logo { text-align: center; margin-bottom: 32px; }
+        .auth-logo h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        .auth-tabs { display: flex; margin-bottom: 24px; border-bottom: 1px solid var(--gray-200); }
+        .auth-tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            font-weight: 500;
+            color: var(--gray-600);
+            border: none;
+            background: none;
+            cursor: pointer;
+            position: relative;
+        }
+        .auth-tab:hover { color: var(--gray-800); }
+        .auth-tab.active { color: var(--primary); }
+        .auth-tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--primary);
+        }
+        .auth-form { display: flex; flex-direction: column; gap: 16px; }
+        .auth-error { padding: 12px 16px; background: #fce8e6; color: var(--danger); border-radius: var(--radius-md); font-size: 0.875rem; }
+        .auth-success { padding: 12px 16px; background: #e6f4ea; color: var(--success); border-radius: var(--radius-md); font-size: 0.875rem; }
+
+        .domain-select { display: flex; align-items: center; gap: 0; }
+        .domain-select input { flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none; }
+        .domain-select select {
+            padding: 12px;
+            font-size: 1rem;
+            border: 1px solid var(--gray-300);
+            border-top-right-radius: var(--radius-md);
+            border-bottom-right-radius: var(--radius-md);
+            background: var(--gray-50);
+            color: var(--gray-700);
+        }
+
+        .form-hint {
+            font-size: 0.75rem;
+            color: var(--gray-500);
+            margin-top: 4px;
+        }
+
+        .eai-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            background: var(--primary-light);
+            color: var(--primary);
+            border-radius: var(--radius-sm);
+            font-size: 0.6875rem;
+            font-weight: 500;
+            margin-left: 8px;
+        }
+
+        /* Layout */
+        .app-layout { display: flex; min-height: 100vh; }
+
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--gray-50);
+            border-right: 1px solid var(--gray-200);
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            z-index: 100;
+            transition: transform 0.3s ease;
+        }
+        .sidebar-header { padding: 16px; display: flex; align-items: center; gap: 12px; }
+        .sidebar-logo { font-size: 1.5rem; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 8px; }
+        .sidebar-compose { padding: 16px; }
+        .sidebar-nav { flex: 1; overflow-y: auto; padding: 8px; }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 10px 24px;
+            margin: 2px 0;
+            color: var(--gray-800);
+            text-decoration: none;
+            border-radius: var(--radius-full);
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+        }
+        .nav-item:hover { background: var(--gray-200); }
+        .nav-item.active { background: var(--primary-light); color: var(--primary); }
+        .nav-item .material-icons-outlined { font-size: 20px; }
+        .nav-badge { margin-left: auto; background: var(--primary); color: var(--white); font-size: 0.75rem; padding: 2px 8px; border-radius: var(--radius-full); }
+
+        .nav-section { padding: 16px 24px 8px; font-size: 0.75rem; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.5px; }
+
+        .sidebar-footer { padding: 16px; border-top: 1px solid var(--gray-200); }
+        .user-info { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: var(--radius-md); }
+        .user-avatar { width: 36px; height: 36px; background: var(--primary); color: var(--white); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.875rem; }
+        .user-email { flex: 1; font-size: 0.875rem; color: var(--gray-700); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .quota-info { padding: 8px 16px; background: var(--gray-100); font-size: 0.75rem; color: var(--gray-600); border-radius: var(--radius-md); margin-top: 8px; }
+
+        /* Main Content */
+        .main-content { flex: 1; margin-left: var(--sidebar-width); display: flex; flex-direction: column; min-height: 100vh; }
+
+        /* Header */
+        .header {
+            height: var(--header-height);
+            background: var(--white);
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 16px;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+        .header-search { flex: 1; max-width: 720px; position: relative; }
+        .header-search input {
+            width: 100%;
+            padding: 12px 16px 12px 48px;
+            background: var(--gray-100);
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: 1rem;
+        }
+        .header-search input:focus { background: var(--white); box-shadow: var(--shadow-md); outline: none; }
+        .header-search .material-icons-outlined { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--gray-600); }
+        .header-actions { display: flex; align-items: center; gap: 8px; }
+        .menu-toggle { display: none; }
+
+        /* Email List */
+        .email-list-container { flex: 1; background: var(--white); overflow: hidden; display: flex; flex-direction: column; }
+        .email-list-header { padding: 8px 16px; border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; gap: 8px; }
+        .email-list { flex: 1; overflow-y: auto; }
+
+        .email-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            gap: 12px;
+            border-bottom: 1px solid var(--gray-100);
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .email-item:hover { background: var(--gray-50); box-shadow: inset 3px 0 0 var(--primary); }
+        .email-item.unread { background: var(--primary-light); }
+        .email-item.unread .email-from, .email-item.unread .email-subject { font-weight: 600; }
+
+        .email-star { color: var(--gray-400); cursor: pointer; transition: color 0.15s; font-size: 20px; }
+        .email-star:hover, .email-star.starred { color: var(--warning); }
+
+        .email-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+        .email-row { display: flex; align-items: center; gap: 8px; }
+        .email-from { width: 180px; font-weight: 500; color: var(--gray-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.875rem; }
+        .email-subject { flex: 1; color: var(--gray-800); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.875rem; }
+        .email-preview { color: var(--gray-500); font-size: 0.8125rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .email-date { font-size: 0.75rem; color: var(--gray-600); white-space: nowrap; }
+        .email-attachment-icon { color: var(--gray-500); font-size: 18px; }
+
+        .email-labels { display: flex; gap: 4px; margin-left: 8px; }
+        .email-label-tag { padding: 2px 8px; border-radius: var(--radius-sm); font-size: 0.6875rem; font-weight: 500; }
+
+        /* Email Detail */
+        .email-detail { flex: 1; background: var(--white); display: flex; flex-direction: column; overflow: hidden; }
+        .email-detail-header { padding: 16px 24px; border-bottom: 1px solid var(--gray-200); display: flex; align-items: flex-start; gap: 16px; }
+        .email-detail-back { display: none; }
+        .email-detail-subject { flex: 1; }
+        .email-detail-subject h2 { font-size: 1.375rem; font-weight: 400; color: var(--gray-900); margin-bottom: 8px; }
+        .email-detail-actions { display: flex; gap: 4px; }
+
+        .email-detail-meta { padding: 16px 24px; border-bottom: 1px solid var(--gray-200); display: flex; align-items: flex-start; gap: 16px; }
+        .sender-avatar { width: 40px; height: 40px; background: var(--primary); color: var(--white); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; flex-shrink: 0; }
+        .sender-info { flex: 1; }
+        .sender-name { font-weight: 500; color: var(--gray-900); }
+        .sender-email { font-size: 0.875rem; color: var(--gray-600); }
+        .recipient-info { font-size: 0.875rem; color: var(--gray-600); margin-top: 4px; }
+        .email-date-full { font-size: 0.875rem; color: var(--gray-600); white-space: nowrap; }
+
+        .email-detail-body { flex: 1; overflow-y: auto; padding: 24px; }
+        .email-body-content { max-width: 800px; line-height: 1.6; }
+        .email-body-content img { max-width: 100%; height: auto; }
+
+        .email-attachments { margin-top: 24px; padding: 16px; background: var(--gray-50); border-radius: var(--radius-md); }
+        .email-attachments-title { font-size: 0.875rem; font-weight: 500; color: var(--gray-700); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .attachment-list { display: flex; flex-wrap: wrap; gap: 12px; }
+        .attachment-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-md); cursor: pointer; transition: border-color 0.2s; text-decoration: none; color: inherit; }
+        .attachment-item:hover { border-color: var(--primary); box-shadow: var(--shadow-sm); }
+        .attachment-icon { width: 40px; height: 40px; background: var(--primary-light); color: var(--primary); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; }
+        .attachment-name { font-size: 0.875rem; font-weight: 500; color: var(--gray-800); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .attachment-size { font-size: 0.75rem; color: var(--gray-600); }
+
+        /* Raw Headers Panel */
+        .raw-headers-panel { margin-top: 24px; padding: 16px; background: var(--gray-900); border-radius: var(--radius-md); }
+        .raw-headers-title { font-size: 0.875rem; font-weight: 500; color: var(--gray-300); margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+        .raw-headers-content { font-family: 'Consolas', 'Monaco', monospace; font-size: 0.75rem; color: var(--gray-300); white-space: pre-wrap; word-break: break-all; max-height: 400px; overflow-y: auto; }
+
+        /* Compose Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            padding: 24px;
+        }
+
+        .compose-modal {
+            width: 100%;
+            max-width: 800px;
+            max-height: calc(100vh - 48px);
+            background: var(--white);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        .compose-modal.fullscreen {
+            max-width: 100%;
+            max-height: 100%;
+            width: 100%;
+            height: 100%;
+            border-radius: 0;
+        }
+        .compose-modal.minimized { max-height: 48px; max-width: 320px; position: fixed; bottom: 24px; right: 24px; border-radius: var(--radius-lg); }
+
+        .compose-header {
+            padding: 14px 20px;
+            background: var(--gray-800);
+            color: var(--white);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+        }
+        .compose-modal.fullscreen .compose-header { border-radius: 0; }
+        .compose-modal.minimized .compose-header { border-radius: var(--radius-lg); }
+        .compose-header h3 { font-size: 0.9375rem; font-weight: 500; }
+        .compose-header-actions { display: flex; gap: 4px; }
+        .compose-header-actions button { background: none; border: none; color: var(--white); padding: 6px; cursor: pointer; border-radius: var(--radius-sm); display: flex; }
+        .compose-header-actions button:hover { background: rgba(255, 255, 255, 0.1); }
+
+        .compose-body { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .compose-fields { padding: 0 20px; border-bottom: 1px solid var(--gray-200); }
+        .compose-field { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--gray-100); }
+        .compose-field:last-child { border-bottom: none; }
+        .compose-field-label { width: 70px; font-size: 0.875rem; color: var(--gray-600); }
+        .compose-field-input { flex: 1; border: none; outline: none; font-size: 0.875rem; padding: 4px 0; }
+        .compose-field-action { font-size: 0.875rem; color: var(--primary); cursor: pointer; font-weight: 500; }
+
+        .compose-editor-container { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 300px; }
+
+        .compose-toolbar {
+            padding: 8px 16px;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            gap: 2px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .toolbar-btn {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: none;
+            border: none;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            color: var(--gray-700);
+            font-size: 18px;
+        }
+        .toolbar-btn:hover { background: var(--gray-100); }
+        .toolbar-btn.active { background: var(--primary-light); color: var(--primary); }
+        .toolbar-separator { width: 1px; height: 24px; background: var(--gray-200); margin: 0 6px; }
+        .toolbar-select { padding: 4px 8px; border: 1px solid var(--gray-300); border-radius: var(--radius-sm); font-size: 0.8125rem; background: var(--white); }
+
+        .compose-editor {
+            flex: 1;
+            padding: 16px 20px;
+            overflow-y: auto;
+            outline: none;
+            font-size: 0.9375rem;
+            line-height: 1.6;
+            min-height: 200px;
+        }
+        .compose-editor:empty::before { content: attr(data-placeholder); color: var(--gray-400); }
+        .compose-editor img { max-width: 100%; height: auto; border-radius: var(--radius-sm); }
+
+        .compose-attachments { padding: 12px 20px; border-top: 1px solid var(--gray-200); display: flex; flex-wrap: wrap; gap: 8px; max-height: 120px; overflow-y: auto; }
+        .compose-attachment { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--gray-100); border-radius: var(--radius-md); font-size: 0.8125rem; }
+        .compose-attachment-remove { cursor: pointer; color: var(--gray-600); font-size: 18px; }
+        .compose-attachment-remove:hover { color: var(--danger); }
+
+        .compose-footer { padding: 12px 20px; border-top: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between; }
+        .compose-footer-left { display: flex; align-items: center; gap: 8px; }
+        .compose-footer-right { display: flex; align-items: center; gap: 12px; }
+        .size-indicator { font-size: 0.75rem; color: var(--gray-500); }
+        .size-indicator.warning { color: var(--warning); }
+        .size-indicator.error { color: var(--danger); }
+
+        /* Send Status Indicator */
+        .send-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--gray-100);
+            border-radius: var(--radius-md);
+            font-size: 0.8125rem;
+        }
+        .send-status.pending { background: var(--primary-light); color: var(--primary); }
+        .send-status.success { background: #e6f4ea; color: var(--success); }
+        .send-status.error { background: #fce8e6; color: var(--danger); }
+        .send-status .spinner-small {
+            width: 14px;
+            height: 14px;
+            border: 2px solid currentColor;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        /* Contacts Panel */
+        .contacts-panel { position: fixed; top: 0; right: -400px; width: 400px; height: 100%; background: var(--white); box-shadow: var(--shadow-lg); z-index: 150; transition: right 0.3s ease; display: flex; flex-direction: column; }
+        .contacts-panel.open { right: 0; }
+        .contacts-header { padding: 20px; border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between; }
+        .contacts-header h2 { font-size: 1.125rem; font-weight: 600; }
+        .contacts-body { flex: 1; overflow-y: auto; padding: 16px; }
+        .contact-item { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--radius-md); cursor: pointer; transition: background 0.15s; }
+        .contact-item:hover { background: var(--gray-100); }
+        .contact-avatar { width: 40px; height: 40px; background: var(--gray-300); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--gray-700); font-weight: 600; }
+        .contact-info { flex: 1; }
+        .contact-name { font-weight: 500; font-size: 0.875rem; }
+        .contact-email { font-size: 0.75rem; color: var(--gray-600); }
+        .contact-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s; }
+        .contact-item:hover .contact-actions { opacity: 1; }
+
+        .add-contact-form { padding: 16px; border-top: 1px solid var(--gray-200); }
+        .add-contact-form input { margin-bottom: 8px; }
+
+        /* Labels Panel */
+        .labels-panel { position: fixed; top: 0; right: -360px; width: 360px; height: 100%; background: var(--white); box-shadow: var(--shadow-lg); z-index: 150; transition: right 0.3s ease; display: flex; flex-direction: column; }
+        .labels-panel.open { right: 0; }
+        .labels-header { padding: 20px; border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between; }
+        .labels-body { flex: 1; overflow-y: auto; padding: 16px; }
+        .label-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--radius-md); cursor: pointer; transition: background 0.15s; }
+        .label-item:hover { background: var(--gray-100); }
+        .label-color { width: 16px; height: 16px; border-radius: 50%; }
+        .label-name { flex: 1; font-size: 0.875rem; }
+        .label-actions { display: flex; gap: 4px; opacity: 0; }
+        .label-item:hover .label-actions { opacity: 1; }
+
+        .color-picker { display: flex; gap: 8px; flex-wrap: wrap; padding: 8px 0; }
+        .color-option { width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
+        .color-option:hover, .color-option.selected { border-color: var(--gray-800); }
+
+        /* Empty State */
+        .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 64px 24px; color: var(--gray-600); text-align: center; }
+        .empty-state .material-icons-outlined { font-size: 64px; color: var(--gray-400); margin-bottom: 16px; }
+        .empty-state h3 { font-size: 1.125rem; font-weight: 500; color: var(--gray-800); margin-bottom: 8px; }
+
+        /* Loading */
+        .loading { display: flex; align-items: center; justify-content: center; padding: 48px; color: var(--gray-600); }
+        .spinner { width: 24px; height: 24px; border: 2px solid var(--gray-200); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Toast */
+        .toast-container { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 300; display: flex; flex-direction: column; gap: 8px; }
+        .toast { padding: 12px 24px; background: var(--gray-900); color: var(--white); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); font-size: 0.875rem; display: flex; align-items: center; gap: 12px; animation: slideUp 0.3s ease; }
+        .toast.success { background: var(--success); }
+        .toast.error { background: var(--danger); }
+        .toast.info { background: var(--primary); }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Dialog */
+        .dialog-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; z-index: 250; }
+        .dialog { background: var(--white); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); padding: 24px; max-width: 400px; width: 90%; }
+        .dialog h3 { font-size: 1.125rem; margin-bottom: 12px; }
+        .dialog p { color: var(--gray-600); margin-bottom: 24px; }
+        .dialog-actions { display: flex; justify-content: flex-end; gap: 12px; }
+
+        /* Overlay for panels */
+        .panel-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.3); z-index: 140; display: none; }
+        .panel-overlay.open { display: block; }
+
+        /* Mobile */
+        .sidebar-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); z-index: 99; }
+        .sidebar-overlay.open { display: block; }
+
+        .file-input-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
+        
+        /* Email Send Status Badge */
+        .email-send-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: var(--radius-sm);
+            font-size: 0.6875rem;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .email-send-status.pending { background: var(--primary-light); color: var(--primary); }
+        .email-send-status.processing { background: var(--primary-light); color: var(--primary); }
+        .email-send-status.sending { background: var(--primary-light); color: var(--primary); }
+        .email-send-status.sent { background: #e6f4ea; color: var(--success); }
+        .email-send-status.failed { background: #fce8e6; color: var(--danger); }
+        .email-send-status.cancelled { background: var(--gray-100); color: var(--gray-600); }
+        .email-send-status.partial_success { background: #fff3e0; color: #e65100; }
+
+        .email-send-status .spinner-xs {
+            width: 10px; height: 10px;
+            border: 1.5px solid currentColor;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        /* 发送进度提示 */
+        .send-status .progress-text {
+            font-size: 0.75rem;
+            margin-left: 4px;
+            opacity: 0.8;
+        }
+
+        /* Send Info Panel in Email Detail */
+        .send-info-panel {
+            margin: 12px 24px;
+            padding: 12px 16px;
+            background: var(--gray-50);
+            border-radius: var(--radius-md);
+            font-size: 0.875rem;
+        }
+        .send-info-panel.pending, .send-info-panel.processing, .send-info-panel.sending { border-left: 3px solid var(--primary); }
+        .send-info-panel.sent { border-left: 3px solid var(--success); }
+        .send-info-panel.failed { border-left: 3px solid var(--danger); }
+        .send-info-panel.partial_success { border-left: 3px solid #e65100; }
+        .send-info-row { display: flex; justify-content: space-between; padding: 4px 0; }
+        .send-info-label { color: var(--gray-600); }
+        .send-info-value { font-weight: 500; }
+        .send-info-error { color: var(--danger); margin-top: 8px; padding: 8px; background: #fce8e6; border-radius: var(--radius-sm); }
+
+        /* 域名状态详情列表 */
+        .domain-details-container {
+            margin-top: 12px;
+        }
+
+        .domain-details-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--primary);
+            cursor: pointer;
+            font-size: 0.8125rem;
+            padding: 6px 10px;
+            border-radius: var(--radius-md);
+            transition: background 0.15s;
+            user-select: none;
+        }
+
+        .domain-details-toggle:hover {
+            background: var(--primary-light);
+        }
+
+        .domain-details-toggle .material-icons-outlined {
+            font-size: 18px;
+            transition: transform 0.2s;
+        }
+
+        .domain-details-toggle.expanded .material-icons-outlined {
+            transform: rotate(180deg);
+        }
+
+        .domain-details-toggle-text {
+            font-weight: 500;
+        }
+
+        .domain-details-count {
+            background: var(--gray-200);
+            color: var(--gray-700);
+            padding: 2px 8px;
+            border-radius: var(--radius-full);
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .domain-details-list {
+            margin-top: 12px;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            background: var(--white);
+        }
+
+        .domain-detail-item {
+            display: flex;
+            align-items: flex-start;
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--gray-100);
+            gap: 12px;
+            transition: background 0.15s;
+        }
+
+        .domain-detail-item:last-child {
+            border-bottom: none;
+        }
+
+        .domain-detail-item:hover {
+            background: var(--gray-50);
+        }
+
+        .domain-detail-status-icon {
+            flex-shrink: 0;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 2px;
+        }
+
+        .domain-detail-status-icon.sent {
+            background: #e6f4ea;
+            color: var(--success);
+        }
+
+        .domain-detail-status-icon.failed {
+            background: #fce8e6;
+            color: var(--danger);
+        }
+
+        .domain-detail-status-icon.pending,
+        .domain-detail-status-icon.sending {
+            background: var(--primary-light);
+            color: var(--primary);
+        }
+
+        .domain-detail-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .domain-detail-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .domain-detail-domain {
+            font-weight: 600;
+            color: var(--gray-800);
+            font-size: 0.875rem;
+        }
+
+        .domain-detail-badge {
+            padding: 3px 8px;
+            border-radius: var(--radius-sm);
+            font-size: 0.6875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .domain-detail-badge.sent { 
+            background: #e6f4ea; 
+            color: var(--success); 
+        }
+
+        .domain-detail-badge.failed { 
+            background: #fce8e6; 
+            color: var(--danger); 
+        }
+
+        .domain-detail-badge.pending { 
+            background: var(--gray-100); 
+            color: var(--gray-600); 
+        }
+
+        .domain-detail-badge.sending { 
+            background: var(--primary-light); 
+            color: var(--primary); 
+        }
+
+        .domain-detail-recipients {
+            margin-top: 6px;
+            color: var(--gray-600);
+            font-size: 0.8125rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 4px;
+        }
+
+        .domain-detail-recipients .material-icons-outlined {
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .domain-detail-error {
+            margin-top: 8px;
+            padding: 8px 10px;
+            background: #fef7f6;
+            border: 1px solid #fce8e6;
+            border-radius: var(--radius-sm);
+            color: var(--danger);
+            font-size: 0.8125rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+            word-break: break-word;
+        }
+
+        .domain-detail-error .material-icons-outlined {
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .domain-detail-time {
+            margin-top: 6px;
+            color: var(--gray-500);
+            font-size: 0.75rem;
+        }
+
+        /* 分页控件 */
+        .pagination-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-top: 1px solid var(--gray-200);
+            background: var(--gray-50);
+        }
+
+        .pagination-info {
+            font-size: 0.875rem;
+            color: var(--gray-600);
+        }
+
+        .pagination-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .page-numbers {
+            display: flex;
+            gap: 4px;
+        }
+
+        .page-number-btn {
+            min-width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--gray-300);
+            border-radius: var(--radius-sm);
+            background: var(--white);
+            color: var(--gray-700);
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .page-number-btn:hover {
+            background: var(--gray-100);
+            border-color: var(--gray-400);
+        }
+
+        .page-number-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: var(--white);
+        }
+
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); }
+            .main-content { margin-left: 0; }
+            .menu-toggle { display: flex; }
+            .email-detail-back { display: flex; }
+            .email-from { width: auto; max-width: 120px; }
+            .compose-modal { max-width: 100%; border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
+            .compose-modal.fullscreen { border-radius: 0; }
+            .modal-overlay { padding: 0; align-items: flex-end; }
+            .header-search { display: none; }
+            .contacts-panel, .labels-panel { width: 100%; right: -100%; }
+            
+            .pagination-bar {
+                flex-direction: column;
+                gap: 12px;
+            }
+            
+            .page-numbers {
+                display: none;  /* 移动端隐藏页码按钮 */
+            }
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <!-- Auth Screen -->
+    <div v-if="!token" class="auth-container">
+        <div class="auth-card">
+            <div class="auth-logo">
+                <h1><span class="material-icons-outlined">mail</span>lmyzmail</h1>
+            </div>
+            <div class="auth-tabs">
+                <button class="auth-tab" :class="{ active: authMode === 'login' }" @click="authMode = 'login'">登录</button>
+                <button class="auth-tab" :class="{ active: authMode === 'register' }" @click="authMode = 'register'" v-if="registrationEnabled">注册</button>
+            </div>
+            <div v-if="authError" class="auth-error">{{ authError }}</div>
+            <div v-if="authSuccess" class="auth-success">{{ authSuccess }}</div>
+
+            <form v-if="authMode === 'login'" class="auth-form" @submit.prevent="login">
+                <div class="form-group">
+                    <label class="form-label">
+                        邮箱地址
+                        <span class="eai-badge" title="支持国际化邮箱地址">EAI</span>
+                    </label>
+                    <input type="text" class="form-input" v-model="loginForm.address" placeholder="user@example.com 或 用户@示例.中国" required autocomplete="email">
+                    <div class="form-hint">支持国际化邮箱地址（如中文用户名和域名）</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">密码</label>
+                    <input type="password" class="form-input" v-model="loginForm.password" placeholder="请输入密码" required autocomplete="current-password">
+                </div>
+                <button type="submit" class="btn btn-primary w-full" :disabled="authLoading">
+                    <span v-if="authLoading" class="spinner"></span>
+                    <span v-else>登录</span>
+                </button>
+            </form>
+
+            <form v-if="authMode === 'register'" class="auth-form" @submit.prevent="register">
+                <div class="form-group">
+                    <label class="form-label">
+                        用户名
+                        <span class="eai-badge" title="支持国际化邮箱地址">EAI</span>
+                    </label>
+                    <div class="domain-select">
+                        <input type="text" class="form-input" v-model="registerForm.username" placeholder="username 或 中文用户名" required>
+                        <select v-model="registerForm.domain">
+                            <option v-for="d in domains" :key="d" :value="d">@{{ d }}</option>
+                        </select>
+                    </div>
+                    <div class="form-hint">支持中文、日文、韩文等国际化字符作为用户名</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">密码 (至少8位)</label>
+                    <input type="password" class="form-input" v-model="registerForm.password" placeholder="请输入密码" required minlength="8" autocomplete="new-password">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">确认密码</label>
+                    <input type="password" class="form-input" v-model="registerForm.confirmPassword" placeholder="再次输入密码" required autocomplete="new-password">
+                </div>
+                <button type="submit" class="btn btn-primary w-full" :disabled="authLoading">
+                    <span v-if="authLoading" class="spinner"></span>
+                    <span v-else>注册</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div v-else class="app-layout">
+        <div class="sidebar-overlay" :class="{ open: sidebarOpen }" @click="sidebarOpen = false"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" :class="{ open: sidebarOpen }">
+            <div class="sidebar-header">
+                <div class="sidebar-logo"><span class="material-icons-outlined">mail</span>lmyzmail</div>
+            </div>
+            <div class="sidebar-compose">
+                <button class="btn btn-compose w-full" @click="openCompose()">
+                    <span class="material-icons-outlined">edit</span>写信
+                </button>
+            </div>
+            <nav class="sidebar-nav">
+                <button class="nav-item" :class="{ active: currentFolder === 'inbox' && !currentLabel }" @click="switchFolder('inbox')">
+                    <span class="material-icons-outlined">inbox</span>收件箱
+                    <span class="nav-badge" v-if="inboxCount > 0">{{ inboxCount }}</span>
+                </button>
+                <button class="nav-item" :class="{ active: currentFolder === 'sent' && !currentLabel }" @click="switchFolder('sent')">
+                    <span class="material-icons-outlined">send</span>已发送
+                </button>
+                <button class="nav-item" :class="{ active: currentFolder === 'spam' && !currentLabel }" @click="switchFolder('spam')">
+                    <span class="material-icons-outlined">report</span>垃圾邮件
+                </button>
+                <button class="nav-item" :class="{ active: currentFolder === 'starred' && !currentLabel }" @click="switchFolder('starred')">
+                    <span class="material-icons-outlined">star</span>已加星标
+                </button>
+
+                <div class="nav-section">标签</div>
+                <button v-for="label in labels" :key="label.id" class="nav-item" :class="{ active: currentLabel === label.id }" @click="filterByLabel(label.id)">
+                    <span class="label-color" :style="{ background: label.color || '#9aa0a6' }"></span>
+                    {{ label.name }}
+                </button>
+                <button class="nav-item" @click="openLabelsPanel" style="color: var(--primary);">
+                    <span class="material-icons-outlined">add</span>管理标签
+                </button>
+
+                <div class="nav-section">其他</div>
+                <button class="nav-item" @click="openContactsPanel">
+                    <span class="material-icons-outlined">contacts</span>联系人
+                </button>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="user-avatar">{{ userInitial }}</div>
+                    <div class="user-email">{{ userAddress }}</div>
+                    <button class="btn btn-icon btn-ghost" @click="logout" title="退出登录">
+                        <span class="material-icons-outlined">logout</span>
+                    </button>
+                </div>
+                <div class="quota-info" v-if="quota !== null">发信配额: {{ quota }} 封/3小时</div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="header">
+                <button class="btn btn-icon btn-ghost menu-toggle" @click="sidebarOpen = !sidebarOpen">
+                    <span class="material-icons-outlined">menu</span>
+                </button>
+                <div class="header-search">
+                    <span class="material-icons-outlined">search</span>
+                    <input type="text" placeholder="搜索邮件" v-model="searchQuery">
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-icon btn-ghost" @click="refreshEmails" title="刷新">
+                        <span class="material-icons-outlined">refresh</span>
+                    </button>
+                    <a href="/cringe.html" class="btn btn-icon btn-ghost" title="Cringe">
+                        <span class="material-icons-outlined">auto_awesome</span>
+                    </a>
+                    <a v-if="showBadge" href="https://internet.nl" target="_blank" title="internet.nl score" style="display: flex; align-items: center; margin-right: 8px;">
+                        <img src="/images/embed-badge-emailtest-internet.nl.svg" alt="internet.nl 100%" style="height: 32px;">
+                    </a>
+                </div>
+            </header>
+
+            <!-- Email List View -->
+            <div v-if="!selectedEmail" class="email-list-container">
+                <div class="email-list-header">
+                    <button class="btn btn-ghost btn-sm" @click="refreshEmails">
+                        <span class="material-icons-outlined">refresh</span>刷新
+                    </button>
+                    <span class="text-sm" style="color: var(--gray-600); margin-left: auto;">
+                        {{ currentFolderName }} · {{ filteredEmails.length }} 封邮件
+                    </span>
+                </div>
+
+                <div v-if="loading" class="loading"><div class="spinner"></div></div>
+
+                <div v-else-if="filteredEmails.length === 0" class="empty-state">
+                    <span class="material-icons-outlined">{{ currentFolder === 'sent' ? 'send' : (currentFolder === 'spam' ? 'report' : 'inbox') }}</span>
+                    <h3>{{ searchQuery ? '没有找到匹配的邮件' : '暂无邮件' }}</h3>
+                </div>
+
+                <div v-else class="email-list">
+                    <div v-for="email in filteredEmails" :key="email.fileName" class="email-item" @click="viewEmail(email)">
+                        <span class="material-icons-outlined email-star" :class="{ starred: email.starred }" @click.stop="toggleStar(email)">
+                            {{ email.starred ? 'star' : 'star_border' }}
+                        </span>
+                        <div class="email-main">
+                            <div class="email-row">
+                                <span class="email-from">{{ currentFolder === 'sent' ? extractEmailDisplay(email.to?.[0]) : extractEmailDisplay(email.from) }}</span>
+                                <span class="email-subject">{{ email.subject || '(无主题)' }}</span>
+                                <span v-if="email.hasAttachments" class="material-icons-outlined email-attachment-icon">attach_file</span>
+                                <div class="email-labels">
+                                    <span v-for="lid in email.labels" :key="lid" class="email-label-tag" :style="{ background: getLabelColor(lid) + '20', color: getLabelColor(lid) }">
+                                        {{ getLabelName(lid) }}
+                                    </span>
+                                </div>
+                                <span v-if="currentFolder === 'sent'" 
+                                    class="email-send-status" 
+                                    :class="getEmailSendStatusClass(email)">
+                                    <span v-if="isEmailSending(email)" class="spinner-xs"></span>
+                                    <span class="material-icons-outlined" v-else-if="email.aggregatedStatus === 'PARTIAL_SUCCESS' || email.sendStatus === 'PARTIAL_SUCCESS'" style="font-size: 12px;">warning</span>
+                                    <span class="material-icons-outlined" v-else-if="email.aggregatedStatus === 'FAILED' || email.sendStatus === 'FAILED'" style="font-size: 12px;">error</span>
+                                    <span class="material-icons-outlined" v-else-if="email.aggregatedStatus === 'SENT' || email.sendStatus === 'SENT'" style="font-size: 12px;">check_circle</span>
+                                    {{ getAggregatedStatusDescription(email) }}
+                                </span>
+                                <span class="email-date">{{ formatDate(email.receivedAt) }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 分页控件 -->
+                <div v-if="!loading && filteredEmails.length > 0" class="pagination-bar">
+                    <div class="pagination-info">
+                        共 {{ totalElements }} 封邮件，第 {{ currentPage + 1 }} / {{ totalPages }} 页
+                    </div>
+                    <div class="pagination-actions">
+                        <button class="btn btn-secondary btn-sm" 
+                                :disabled="!hasPrevPage" 
+                                @click="prevPage">
+                            <span class="material-icons-outlined" style="font-size: 18px;">chevron_left</span>
+                            上一页
+                        </button>
+                        
+                        <!-- 页码快捷跳转（可选，显示最多5个页码） -->
+                        <div class="page-numbers">
+                            <button v-for="p in visiblePageNumbers" 
+                                    :key="p" 
+                                    class="page-number-btn"
+                                    :class="{ active: p === currentPage }"
+                                    @click="goToPage(p)">
+                                {{ p + 1 }}
+                            </button>
+                        </div>
+                        
+                        <button class="btn btn-secondary btn-sm" 
+                                :disabled="!hasNextPage" 
+                                @click="nextPage">
+                            下一页
+                            <span class="material-icons-outlined" style="font-size: 18px;">chevron_right</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Email Detail View -->
+            <div v-else class="email-detail">
+                <div class="email-detail-header">
+                    <button class="btn btn-icon btn-ghost email-detail-back" @click="selectedEmail = null">
+                        <span class="material-icons-outlined">arrow_back</span>
+                    </button>
+                    <div class="email-detail-subject">
+                        <h2>{{ emailDetail?.subject || '(无主题)' }}</h2>
+                        <div class="email-labels" v-if="emailDetail">
+                            <span v-for="lid in emailDetail.labels" :key="lid" class="email-label-tag" :style="{ background: getLabelColor(lid) + '20', color: getLabelColor(lid) }">
+                                {{ getLabelName(lid) }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="email-detail-actions">
+                        <button class="btn btn-icon btn-ghost" @click="toggleDetailStar" :title="emailDetail?.starred ? '取消星标' : '添加星标'">
+                            <span class="material-icons-outlined" :style="{ color: emailDetail?.starred ? 'var(--warning)' : '' }">
+                                {{ emailDetail?.starred ? 'star' : 'star_border' }}
+                            </span>
+                        </button>
+                        <button class="btn btn-icon btn-ghost" @click="showLabelMenu = !showLabelMenu" title="添加标签">
+                            <span class="material-icons-outlined">label</span>
+                        </button>
+                        <button class="btn btn-icon btn-ghost" @click="replyToEmail" title="回复">
+                            <span class="material-icons-outlined">reply</span>
+                        </button>
+                        <button class="btn btn-icon btn-ghost" @click="forwardEmail" title="转发">
+                            <span class="material-icons-outlined">forward</span>
+                        </button>
+                        <button class="btn btn-icon btn-ghost" @click="toggleRawHeaders" title="查看原文信头">
+                            <span class="material-icons-outlined">code</span>
+                        </button>
+                        <button class="btn btn-icon btn-ghost" @click="confirmDeleteEmail" title="删除">
+                            <span class="material-icons-outlined">delete</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Label Menu Dropdown -->
+                <div v-if="showLabelMenu" style="position: absolute; right: 100px; top: 80px; background: white; border-radius: 8px; box-shadow: var(--shadow-lg); padding: 8px; z-index: 100; min-width: 160px;">
+                    <div v-for="label in labels" :key="label.id" style="padding: 8px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; border-radius: 4px;" @click="toggleEmailLabel(label.id)" :style="{ background: emailDetail?.labels?.includes(label.id) ? 'var(--primary-light)' : '' }">
+                        <span class="label-color" :style="{ background: label.color || '#9aa0a6', width: '12px', height: '12px' }"></span>
+                        {{ label.name }}
+                        <span v-if="emailDetail?.labels?.includes(label.id)" class="material-icons-outlined" style="margin-left: auto; font-size: 16px; color: var(--primary);">check</span>
+                    </div>
+                </div>
+
+                <!-- 发送状态面板（仅已发送文件夹） -->
+                <div v-if="currentFolder === 'sent' && emailDetail?.sendInfo" 
+                    class="send-info-panel" 
+                    :class="(emailDetail.sendInfo.aggregatedStatus || emailDetail.sendInfo.status)?.toLowerCase()">
+                    
+                    <!-- 总体状态 -->
+                    <div class="send-info-row">
+                        <span class="send-info-label">发送状态</span>
+                        <span class="send-info-value" :style="{ color: getSendStatusColor(emailDetail.sendInfo.aggregatedStatus || emailDetail.sendInfo.status) }">
+                            <span v-if="emailDetail.sendInfo.status === 'PENDING' || emailDetail.sendInfo.status === 'PROCESSING' || emailDetail.sendInfo.aggregatedStatus === 'PROCESSING'" 
+                                  class="spinner-xs" style="display: inline-block; margin-right: 6px;"></span>
+                            <span class="material-icons-outlined" v-else-if="emailDetail.sendInfo.aggregatedStatus === 'PARTIAL_SUCCESS'" 
+                                  style="font-size: 16px; vertical-align: middle; margin-right: 4px;">warning</span>
+                            {{ emailDetail.sendInfo.statusDescription }}
+                        </span>
+                    </div>
+                    
+                    <div class="send-info-row" v-if="emailDetail.sendInfo.retryCount > 0">
+                        <span class="send-info-label">重试次数</span>
+                        <span class="send-info-value">{{ emailDetail.sendInfo.retryCount }} / {{ emailDetail.sendInfo.maxRetries }}</span>
+                    </div>
+                    
+                    <div class="send-info-row" v-if="emailDetail.sendInfo.sentAt">
+                        <span class="send-info-label">发送时间</span>
+                        <span class="send-info-value">{{ formatFullDate(emailDetail.sendInfo.sentAt) }}</span>
+                    </div>
+                    
+                    <div class="send-info-row" v-if="emailDetail.sendInfo.nextRetryAt && emailDetail.sendInfo.aggregatedStatus !== 'SENT' && emailDetail.sendInfo.aggregatedStatus !== 'PARTIAL_SUCCESS'">
+                        <span class="send-info-label">下次重试</span>
+                        <span class="send-info-value">{{ formatFullDate(emailDetail.sendInfo.nextRetryAt) }}</span>
+                    </div>
+                    
+                    <!-- 域名状态详情（可展开） -->
+                    <div v-if="emailDetail.sendInfo.domainDetails?.length > 0" class="domain-details-container">
+                        <div class="domain-details-toggle" 
+                             :class="{ expanded: showDomainDetails }"
+                             @click="showDomainDetails = !showDomainDetails">
+                            <span class="material-icons-outlined">expand_more</span>
+                            <span class="domain-details-toggle-text">{{ showDomainDetails ? '收起' : '查看' }}投递详情</span>
+                            <span class="domain-details-count">{{ emailDetail.sendInfo.domainDetails.length }} 个域名</span>
+                        </div>
+                        
+                        <div v-if="showDomainDetails" class="domain-details-list">
+                            <div v-for="domain in emailDetail.sendInfo.domainDetails" :key="domain.domain" class="domain-detail-item">
+                                <!-- 状态图标 -->
+                                <div class="domain-detail-status-icon" :class="domain.status.toLowerCase()">
+                                    <span v-if="domain.status === 'PENDING' || domain.status === 'SENDING'" class="spinner-xs"></span>
+                                    <span v-else-if="domain.status === 'SENT'" class="material-icons-outlined" style="font-size: 14px;">check</span>
+                                    <span v-else-if="domain.status === 'FAILED'" class="material-icons-outlined" style="font-size: 14px;">close</span>
+                                </div>
+                                
+                                <!-- 详情内容 -->
+                                <div class="domain-detail-content">
+                                    <div class="domain-detail-header">
+                                        <span class="domain-detail-domain">{{ domain.domain }}</span>
+                                        <span class="domain-detail-badge" :class="domain.status.toLowerCase()">
+                                            {{ domain.statusDescription }}
+                                        </span>
+                                    </div>
+                                    
+                                    <!-- 收件人列表 -->
+                                    <div v-if="domain.recipients?.length" class="domain-detail-recipients">
+                                        <span class="material-icons-outlined">person</span>
+                                        {{ domain.recipients.join(', ') }}
+                                    </div>
+                                    
+                                    <!-- 错误信息 -->
+                                    <div v-if="domain.error" class="domain-detail-error">
+                                        <span class="material-icons-outlined">error_outline</span>
+                                        {{ domain.error }}
+                                    </div>
+                                    
+                                    <!-- 更新时间 -->
+                                    <div v-if="domain.updatedAt" class="domain-detail-time">
+                                        更新于 {{ formatRelativeTime(domain.updatedAt) }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 全局错误信息（如果没有域名详情） -->
+                    <div v-if="emailDetail.sendInfo.lastError && !emailDetail.sendInfo.domainDetails?.length" class="send-info-error">
+                        <strong>错误信息：</strong>{{ emailDetail.sendInfo.lastError }}
+                    </div>
+                    
+                    <!-- 刷新按钮 -->
+                    <button v-if="emailDetail.sendInfo.aggregatedStatus !== 'SENT' && emailDetail.sendInfo.aggregatedStatus !== 'FAILED'" 
+                          class="btn btn-secondary btn-sm" 
+                          style="margin-top: 12px;"
+                          @click="refreshSendStatus"
+                          :disabled="refreshingStatus">
+                        <span v-if="refreshingStatus" class="spinner-xs" style="margin-right: 4px;"></span>
+                        <span class="material-icons-outlined" v-else style="font-size: 16px;">refresh</span>
+                        {{ refreshingStatus ? '刷新中...' : '刷新状态' }}
+                    </button>
+                </div>
+
+                <div v-if="loadingDetail" class="loading"><div class="spinner"></div></div>
+
+                <template v-else-if="emailDetail">
+                    <div class="email-detail-meta">
+                        <div class="sender-avatar">{{ getInitial(emailDetail.from) }}</div>
+                        <div class="sender-info">
+                            <div class="sender-name">{{ extractName(emailDetail.from) }}</div>
+                            <div class="sender-email">{{ emailDetail.from }}</div>
+                            <div class="recipient-info">
+                                收件人: {{ emailDetail.to?.join(', ') }}
+                                <span v-if="emailDetail.cc?.length"> | 抄送: {{ emailDetail.cc.join(', ') }}</span>
+                            </div>
+                        </div>
+                        <div class="email-date-full">{{ formatFullDate(emailDetail.date) }}</div>
+                    </div>
+
+                        <div class="email-detail-body">
+                        <div ref="emailBody" class="email-body-content" v-if="emailDetail.html" v-html="emailDetail.html"></div>
+                        <div class="email-body-content" v-else style="white-space: pre-wrap;">{{ emailDetail.text }}</div>
+
+                        <div v-if="emailDetail.attachments?.length" class="email-attachments">
+                            <div class="email-attachments-title">
+                                <span class="material-icons-outlined">attach_file</span>{{ emailDetail.attachments.length }} 个附件
+                            </div>
+                            <div class="attachment-list">
+                                <button v-for="(att, index) in emailDetail.attachments" :key="index" type="button" class="attachment-item" @click="downloadAttachment(index, att)">
+                                    <div class="attachment-icon"><span class="material-icons-outlined">{{ getFileIcon(att.contentType) }}</span></div>
+                                    <div>
+                                        <div class="attachment-name">{{ att.filename }}</div>
+                                        <div class="attachment-size">{{ formatSize(att.size) }}</div>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div v-if="showRawHeaders && rawHeadersContent" class="raw-headers-panel">
+                            <div class="raw-headers-title">
+                                <span>邮件原文信头</span>
+                                <button class="btn btn-ghost btn-sm" @click="copyRawHeaders">复制</button>
+                            </div>
+                            <pre class="raw-headers-content">{{ rawHeadersContent }}</pre>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </main>
+
+        <!-- Compose Modal -->
+        <div v-if="composeOpen" class="modal-overlay" @click.self="composeMinimized ? null : closeCompose()">
+            <div class="compose-modal" :class="{ minimized: composeMinimized, fullscreen: composeFullscreen }">
+                <div class="compose-header" @click="composeMinimized = !composeMinimized">
+                    <h3>{{ composeTitle }}</h3>
+                    <div class="compose-header-actions" @click.stop>
+                        <button @click="composeMinimized = !composeMinimized" :title="composeMinimized ? '展开' : '最小化'">
+                            <span class="material-icons-outlined">{{ composeMinimized ? 'open_in_full' : 'minimize' }}</span>
+                        </button>
+                        <button @click="composeFullscreen = !composeFullscreen" :title="composeFullscreen ? '退出全屏' : '全屏'">
+                            <span class="material-icons-outlined">{{ composeFullscreen ? 'close_fullscreen' : 'open_in_full' }}</span>
+                        </button>
+                        <button @click="closeCompose" title="关闭">
+                            <span class="material-icons-outlined">close</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="compose-body" v-show="!composeMinimized">
+                    <div class="compose-fields">
+                        <div class="compose-field">
+                            <span class="compose-field-label">收件人</span>
+                            <input type="text" class="compose-field-input" v-model="composeForm.to" placeholder="输入邮箱地址（支持国际化邮箱），多个用逗号分隔">
+                            <span class="compose-field-action" @click="showCc = !showCc">{{ showCc ? '隐藏' : '抄送/密送' }}</span>
+                        </div>
+                        <div class="compose-field" v-if="showCc">
+                            <span class="compose-field-label">抄送</span>
+                            <input type="text" class="compose-field-input" v-model="composeForm.cc" placeholder="抄送地址（支持国际化邮箱）">
+                        </div>
+                        <div class="compose-field" v-if="showCc">
+                            <span class="compose-field-label">密送</span>
+                            <input type="text" class="compose-field-input" v-model="composeForm.bcc" placeholder="密送地址（支持国际化邮箱）">
+                        </div>
+                        <div class="compose-field">
+                            <span class="compose-field-label">主题</span>
+                            <input type="text" class="compose-field-input" v-model="composeForm.subject" placeholder="邮件主题">
+                        </div>
+                    </div>
+
+                    <div class="compose-editor-container">
+                        <div class="compose-toolbar">
+                            <select class="toolbar-select" @change="execCommand('formatBlock', $event.target.value); $event.target.value = ''">
+                                <option value="">格式</option>
+                                <option value="h1">标题 1</option>
+                                <option value="h2">标题 2</option>
+                                <option value="h3">标题 3</option>
+                                <option value="p">正文</option>
+                            </select>
+                            <select class="toolbar-select" @change="execCommand('fontName', $event.target.value)">
+                                <option value="Arial">Arial</option>
+                                <option value="Times New Roman">Times New Roman</option>
+                                <option value="Georgia">Georgia</option>
+                                <option value="Courier New">Courier New</option>
+                                <option value="Microsoft YaHei">微软雅黑</option>
+                                <option value="SimSun">宋体</option>
+                            </select>
+                            <select class="toolbar-select" @change="execCommand('fontSize', $event.target.value)">
+                                <option value="1">小</option>
+                                <option value="3" selected>中</option>
+                                <option value="5">大</option>
+                                <option value="7">特大</option>
+                            </select>
+                            <div class="toolbar-separator"></div>
+                            <button class="toolbar-btn" @click="execCommand('bold')" title="粗体"><span class="material-icons-outlined">format_bold</span></button>
+                            <button class="toolbar-btn" @click="execCommand('italic')" title="斜体"><span class="material-icons-outlined">format_italic</span></button>
+                            <button class="toolbar-btn" @click="execCommand('underline')" title="下划线"><span class="material-icons-outlined">format_underlined</span></button>
+                            <button class="toolbar-btn" @click="execCommand('strikeThrough')" title="删除线"><span class="material-icons-outlined">strikethrough_s</span></button>
+                            <div class="toolbar-separator"></div>
+                            <input type="color" id="textColor" style="width: 24px; height: 24px; border: none; cursor: pointer;" @change="execCommand('foreColor', $event.target.value)" title="文字颜色">
+                            <input type="color" id="bgColor" style="width: 24px; height: 24px; border: none; cursor: pointer;" @change="execCommand('hiliteColor', $event.target.value)" title="背景颜色">
+                            <div class="toolbar-separator"></div>
+                            <button class="toolbar-btn" @click="execCommand('justifyLeft')" title="左对齐"><span class="material-icons-outlined">format_align_left</span></button>
+                            <button class="toolbar-btn" @click="execCommand('justifyCenter')" title="居中"><span class="material-icons-outlined">format_align_center</span></button>
+                            <button class="toolbar-btn" @click="execCommand('justifyRight')" title="右对齐"><span class="material-icons-outlined">format_align_right</span></button>
+                            <div class="toolbar-separator"></div>
+                            <button class="toolbar-btn" @click="execCommand('insertUnorderedList')" title="无序列表"><span class="material-icons-outlined">format_list_bulleted</span></button>
+                            <button class="toolbar-btn" @click="execCommand('insertOrderedList')" title="有序列表"><span class="material-icons-outlined">format_list_numbered</span></button>
+                            <button class="toolbar-btn" @click="execCommand('indent')" title="增加缩进"><span class="material-icons-outlined">format_indent_increase</span></button>
+                            <button class="toolbar-btn" @click="execCommand('outdent')" title="减少缩进"><span class="material-icons-outlined">format_indent_decrease</span></button>
+                            <div class="toolbar-separator"></div>
+                            <button class="toolbar-btn" @click="insertLink" title="插入链接"><span class="material-icons-outlined">link</span></button>
+                            <button class="toolbar-btn" @click="triggerImageUpload" title="插入图片"><span class="material-icons-outlined">image</span></button>
+                            <button class="toolbar-btn" @click="triggerAttachment" title="添加附件"><span class="material-icons-outlined">attach_file</span></button>
+                            <button class="toolbar-btn" @click="insertHorizontalRule" title="分割线"><span class="material-icons-outlined">horizontal_rule</span></button>
+                            <button class="toolbar-btn" @click="execCommand('removeFormat')" title="清除格式"><span class="material-icons-outlined">format_clear</span></button>
+                        </div>
+
+                        <div class="compose-editor" ref="editor" contenteditable="true" data-placeholder="在这里输入邮件内容..." @input="updateComposeContent" @paste="handlePaste"></div>
+                    </div>
+
+                    <div v-if="composeForm.attachments.length" class="compose-attachments">
+                        <div v-for="(att, index) in composeForm.attachments" :key="index" class="compose-attachment">
+                            <span class="material-icons-outlined">{{ getFileIcon(att.contentType) }}</span>
+                            <span>{{ att.filename }} ({{ formatSize(att.size) }})</span>
+                            <span class="material-icons-outlined compose-attachment-remove" @click="removeAttachment(index)">close</span>
+                        </div>
+                    </div>
+
+                    <div class="compose-footer">
+                        <div class="compose-footer-left">
+                            <button class="btn btn-primary" @click="sendEmail" :disabled="sending">
+                                <span v-if="sending" class="spinner"></span>
+                                <span v-else>发送</span>
+                            </button>
+                            <!-- 发送状态指示器 -->
+                            <div v-if="sendStatus.show" class="send-status" :class="sendStatus.type">
+                                <span v-if="sendStatus.type === 'pending'" class="spinner-small"></span>
+                                <span class="material-icons-outlined" v-else-if="sendStatus.type === 'success'" style="font-size: 16px;">check_circle</span>
+                                <span class="material-icons-outlined" v-else-if="sendStatus.type === 'error'" style="font-size: 16px;">error</span>
+                                <span>{{ sendStatus.message }}</span>
+                            </div>
+                        </div>
+                        <div class="compose-footer-right">
+                            <span class="size-indicator" :class="{ warning: composeSize > maxEmailSize * 0.8, error: composeSize > maxEmailSize }">
+                                {{ formatSize(composeSize) }} / {{ formatSize(maxEmailSize) }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <input type="file" ref="attachmentInput" class="file-input-hidden" multiple @change="handleAttachment">
+                <input type="file" ref="imageInput" class="file-input-hidden" accept="image/*" @change="handleImageUpload">
+            </div>
+        </div>
+
+        <!-- Contacts Panel -->
+        <div class="panel-overlay" :class="{ open: contactsPanelOpen }" @click="contactsPanelOpen = false"></div>
+        <div class="contacts-panel" :class="{ open: contactsPanelOpen }">
+            <div class="contacts-header">
+                <h2>联系人</h2>
+                <button class="btn btn-icon btn-ghost" @click="contactsPanelOpen = false">
+                    <span class="material-icons-outlined">close</span>
+                </button>
+            </div>
+            <div class="contacts-body">
+                <div v-if="contacts.length === 0" class="empty-state" style="padding: 24px;">
+                    <span class="material-icons-outlined" style="font-size: 48px;">contacts</span>
+                    <p>暂无联系人</p>
+                </div>
+                <div v-for="contact in contacts" :key="contact.id" class="contact-item">
+                    <div class="contact-avatar">{{ getInitial(contact.name || contact.email) }}</div>
+                    <div class="contact-info">
+                        <div class="contact-name">{{ contact.name || contact.email }}</div>
+                        <div class="contact-email">{{ contact.email }}</div>
+                    </div>
+                    <div class="contact-actions">
+                        <button class="btn btn-icon btn-ghost btn-sm" @click="composeToContact(contact)" title="发邮件">
+                            <span class="material-icons-outlined" style="font-size: 18px;">email</span>
+                        </button>
+                        <button class="btn btn-icon btn-ghost btn-sm" @click="deleteContact(contact.id)" title="删除">
+                            <span class="material-icons-outlined" style="font-size: 18px;">delete</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="add-contact-form">
+                <input type="text" class="form-input" v-model="newContact.name" placeholder="姓名">
+                <input type="text" class="form-input" v-model="newContact.email" placeholder="邮箱地址（支持国际化邮箱）" required>
+                <button class="btn btn-primary w-full" @click="addContact" :disabled="!newContact.email">添加联系人</button>
+            </div>
+        </div>
+
+        <!-- Labels Panel -->
+        <div class="panel-overlay" :class="{ open: labelsPanelOpen }" @click="labelsPanelOpen = false"></div>
+        <div class="labels-panel" :class="{ open: labelsPanelOpen }">
+            <div class="labels-header">
+                <h2>管理标签</h2>
+                <button class="btn btn-icon btn-ghost" @click="labelsPanelOpen = false">
+                    <span class="material-icons-outlined">close</span>
+                </button>
+            </div>
+            <div class="labels-body">
+                <div v-for="label in labels" :key="label.id" class="label-item">
+                    <span class="label-color" :style="{ background: label.color || '#9aa0a6' }"></span>
+                    <span class="label-name">{{ label.name }}</span>
+                    <div class="label-actions">
+                        <button class="btn btn-icon btn-ghost btn-sm" @click="deleteLabel(label.id)" title="删除">
+                            <span class="material-icons-outlined" style="font-size: 18px;">delete</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="add-contact-form">
+                <input type="text" class="form-input" v-model="newLabel.name" placeholder="标签名称">
+                <div class="color-picker">
+                    <div v-for="c in labelColors" :key="c" class="color-option" :class="{ selected: newLabel.color === c }" :style="{ background: c }" @click="newLabel.color = c"></div>
+                </div>
+                <button class="btn btn-primary w-full" @click="addLabel" :disabled="!newLabel.name">创建标签</button>
+            </div>
+        </div>
+
+        <!-- Delete Confirmation -->
+        <div v-if="showDeleteDialog" class="dialog-overlay" @click.self="showDeleteDialog = false">
+            <div class="dialog">
+                <h3>确认删除</h3>
+                <p>确定要删除这封邮件吗？此操作无法撤销。</p>
+                <div class="dialog-actions">
+                    <button class="btn btn-secondary" @click="showDeleteDialog = false">取消</button>
+                    <button class="btn btn-danger" @click="deleteEmail">删除</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast -->
+        <div class="toast-container">
+            <div v-for="toast in toasts" :key="toast.id" class="toast" :class="toast.type">{{ toast.message }}</div>
+        </div>
+    </div>
+</div>
+
+<script>
+const { createApp, ref, computed, watch, onMounted, onBeforeUnmount, nextTick, reactive } = Vue;
+
+createApp({
+    setup() {
+        // Auth
+        const token = ref(localStorage.getItem('bm_token') || '');
+        const userAddress = ref(localStorage.getItem('bm_addr') || '');
+        const authMode = ref('login');
+        const authError = ref('');
+        const authSuccess = ref('');
+        const authLoading = ref(false);
+        const registrationEnabled = ref(true);
+        const domains = ref([]);
+        const loginForm = ref({ address: '', password: '' });
+        const registerForm = ref({ username: '', domain: '', password: '', confirmPassword: '' });
+
+        // App
+        const sidebarOpen = ref(false);
+        const currentFolder = ref('inbox');
+        const currentLabel = ref(null);
+        const searchQuery = ref('');
+        const loading = ref(false);
+        const emails = ref([]);
+        const selectedEmail = ref(null);
+        const emailDetail = ref(null);
+        const emailBody = ref(null);
+        const loadingDetail = ref(false);
+        const quota = ref(null);
+        const inboxCount = ref(0);
+        const showRawHeaders = ref(false);
+        const rawHeadersContent = ref('');
+        const showLabelMenu = ref(false);
+        const showBadge = ref(false);
+        const showDomainDetails = ref(false);
+        const refreshingStatus = ref(false);
+
+        // 分页状态
+        const currentPage = ref(0);      // 当前页码（从0开始，与后端一致）
+        const pageSize = ref(100);        // 每页数量
+        const totalElements = ref(0);    // 总邮件数
+        const totalPages = ref(0);       // 总页数
+        const hasNextPage = ref(false);  // 是否有下一页
+        const hasPrevPage = ref(false);  // 是否有上一页
+
+        // Compose
+        const composeOpen = ref(false);
+        const composeMinimized = ref(false);
+        const composeFullscreen = ref(false);
+        const composeMode = ref('new');
+        const showCc = ref(false);
+        const sending = ref(false);
+        const editor = ref(null);
+        const attachmentInput = ref(null);
+        const imageInput = ref(null);
+        const maxEmailSize = ref(15 * 1024 * 1024);
+        const composeForm = ref({ 
+            to: '', cc: '', bcc: '', subject: '', html: '', 
+            attachments: [],      // 附件元数据（用于UI显示）
+            attachmentFiles: []   // 原始 File 对象（用于发送）
+        });
+        
+        // 发送状态追踪
+        const sendStatus = reactive({
+            show: false,
+            type: '', // 'pending', 'success', 'error'
+            message: '',
+            queueId: null,
+            pollTimer: null
+        });
+
+        // Panels
+        const contactsPanelOpen = ref(false);
+        const labelsPanelOpen = ref(false);
+        const contacts = ref([]);
+        const labels = ref([]);
+        const newContact = ref({ name: '', email: '' });
+        const newLabel = ref({ name: '', color: '#1a73e8' });
+        const labelColors = ['#d93025', '#f9ab00', '#1e8e3e', '#1a73e8', '#9334e6', '#e91e63', '#00bcd4', '#607d8b'];
+
+        // Dialog
+        const showDeleteDialog = ref(false);
+
+        // Toast
+        const toasts = ref([]);
+        let toastId = 0;
+
+        // Computed
+        const userInitial = computed(() => {
+            if (!userAddress.value) return '?';
+            // 支持国际化字符，取第一个字符
+            const firstChar = [...userAddress.value][0];
+            return firstChar ? firstChar.toUpperCase() : '?';
+        });
+
+        const currentFolderName = computed(() => {
+            if (currentLabel.value) return labels.value.find(l => l.id === currentLabel.value)?.name || '标签';
+            return { inbox: '收件箱', sent: '已发送', spam: '垃圾邮件', starred: '已加星标' }[currentFolder.value] || '邮件';
+        });
+
+        const filteredEmails = computed(() => {
+            let list = emails.value;
+            
+            // 注意：星标过滤现在由后端处理，前端只需要处理搜索和标签过滤
+            // 移除了 currentFolder === 'starred' 的过滤逻辑
+            
+            if (currentLabel.value) {
+                list = list.filter(e => e.labels?.includes(currentLabel.value));
+            }
+            
+            if (searchQuery.value) {
+                const q = searchQuery.value.toLowerCase();
+                list = list.filter(e => 
+                    (e.subject || '').toLowerCase().includes(q) || 
+                    (e.from || '').toLowerCase().includes(q)
+                );
+            }
+            
+            return list;
+        });
+
+        const composeTitle = computed(() => ({ reply: '回复', forward: '转发', new: '新邮件' }[composeMode.value]));
+
+        const composeSize = computed(() => {
+            let size = (composeForm.value.html || '').length;
+            // 使用 attachmentFiles 获取准确的文件大小
+            composeForm.value.attachmentFiles.forEach(f => size += f.size || 0);
+            return size;
+        });
+
+        // 计算可见的页码按钮（最多显示5个）
+        const visiblePageNumbers = computed(() => {
+            const total = totalPages.value;
+            const current = currentPage.value;
+            const maxVisible = 5;
+            
+            if (total <= maxVisible) {
+                return Array.from({ length: total }, (_, i) => i);
+            }
+            
+            let start = Math.max(0, current - Math.floor(maxVisible / 2));
+            let end = start + maxVisible;
+            
+            if (end > total) {
+                end = total;
+                start = Math.max(0, end - maxVisible);
+            }
+            
+            return Array.from({ length: end - start }, (_, i) => start + i);
+        });
+
+        // Methods
+        const showToast = (message, type = 'info') => {
+            const id = ++toastId;
+            toasts.value.push({ id, message, type });
+            setTimeout(() => { toasts.value = toasts.value.filter(t => t.id !== id); }, 4000);
+        };
+
+        const formatDate = (dateStr) => {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diff = now - date;
+            const formatter = new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit' });
+            const dateFormatter = new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', month: 'short', day: 'numeric' });
+            if (diff < 86400000 && date.getDate() === now.getDate()) return formatter.format(date);
+            if (date.getFullYear() === now.getFullYear()) return dateFormatter.format(date);
+            return new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: 'short', day: 'numeric' }).format(date);
+        };
+
+        const formatFullDate = (dateStr) => {
+            if (!dateStr) return '';
+            try {
+                const date = new Date(dateStr);
+                return new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: 'long', day: 'numeric', weekday: 'long', hour: '2-digit', minute: '2-digit' }).format(date);
+            } catch { return dateStr; }
+        };
+
+        const formatRelativeTime = (dateStr) => {
+            if (!dateStr) return '';
+            try {
+                const date = new Date(dateStr);
+                const now = new Date();
+                const diff = now - date;
+                
+                if (diff < 60000) return '刚刚';
+                if (diff < 3600000) return Math.floor(diff / 60000) + ' 分钟前';
+                if (diff < 86400000) return Math.floor(diff / 3600000) + ' 小时前';
+                
+                return formatFullDate(dateStr);
+            } catch {
+                return dateStr;
+            }
+        };
+
+        const formatSize = (bytes) => {
+            if (!bytes) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        };
+
+        const extractPureEmail = (str) => {
+            if (!str) return '';
+            const match = str.match(/<([^>]+)>/);
+            if (match) return match[1];
+            if (str.includes('@') && !str.includes('<')) return str.trim();
+            return str;
+        };
+
+        const extractEmailDisplay = (str) => {
+            if (!str) return '(未知)';
+            const match = str.match(/^([^<]+)</);
+            if (match) return match[1].trim();
+            const email = extractPureEmail(str);
+            // 支持国际化邮箱地址的本地部分提取
+            const atIndex = email.indexOf('@');
+            if (atIndex > 0) return email.substring(0, atIndex);
+            return email || str;
+        };
+
+        const getInitial = (str) => {
+            if (!str) return '?';
+            // 支持国际化字符
+            const match = str.match(/^([^<\s]+)/);
+            if (match) {
+                // 使用扩展运算符正确处理Unicode字符
+                const chars = [...match[1]];
+                return chars[0] ? chars[0].toUpperCase() : '?';
+            }
+            const chars = [...str];
+            return chars[0] ? chars[0].toUpperCase() : '?';
+        };
+
+        const extractName = (from) => {
+            if (!from) return '未知';
+            const match = from.match(/^([^<]+)</);
+            if (match) return match[1].trim();
+            const email = extractPureEmail(from);
+            // 支持国际化邮箱地址
+            const atIndex = email.indexOf('@');
+            if (atIndex > 0) return email.substring(0, atIndex);
+            return from;
+        };
+
+        const getFileIcon = (ct) => {
+            if (!ct) return 'insert_drive_file';
+            if (ct.startsWith('image/')) return 'image';
+            if (ct.includes('pdf')) return 'picture_as_pdf';
+            if (ct.includes('word') || ct.includes('document')) return 'description';
+            if (ct.includes('sheet') || ct.includes('excel')) return 'table_chart';
+            if (ct.includes('zip')) return 'folder_zip';
+            return 'insert_drive_file';
+        };
+
+        const getLabelColor = (id) => labels.value.find(l => l.id === id)?.color || '#9aa0a6';
+        const getLabelName = (id) => labels.value.find(l => l.id === id)?.name || '';
+
+        // 获取聚合状态描述（用于列表）
+        const getAggregatedStatusDescription = (email) => {
+            const aggregated = email.aggregatedStatus || email.sendStatus;
+            switch (aggregated) {
+                case 'PENDING': 
+                    return email.retryCount > 0 ? `等待重试 (${email.retryCount}次)` : '等待发送';
+                case 'PROCESSING':
+                case 'SENDING':
+                    return '发送中...';
+                case 'SENT':
+                    return '发送成功';
+                case 'PARTIAL_SUCCESS':
+                    return '部分成功';
+                case 'FAILED':
+                    return '发送失败';
+                case 'CANCELLED':
+                    return '已取消';
+                default:
+                    return aggregated || '未知';
+            }
+        };
+
+        // 判断邮件是否正在发送中
+        const isEmailSending = (email) => {
+            const status = email.aggregatedStatus || email.sendStatus;
+            return status === 'PENDING' || status === 'PROCESSING' || status === 'SENDING';
+        };
+
+        // 获取邮件发送状态的 CSS 类
+        const getEmailSendStatusClass = (email) => {
+            const status = email.aggregatedStatus || email.sendStatus || 'PENDING';
+            return status.toLowerCase();
+        };
+
+        const apiGet = async (url) => {
+            const res = await fetch(url, { headers: { 'X-Session-Token': token.value } });
+            if (res.status === 401) { logout(); throw new Error('Unauthorized'); }
+            return res;
+        };
+
+        const apiPost = async (url, data) => {
+            const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Session-Token': token.value }, body: JSON.stringify(data) });
+            if (res.status === 401) { logout(); throw new Error('Unauthorized'); }
+            return res;
+        };
+
+        const loadConfig = async () => {
+            try {
+                const res = await fetch('/web/config');
+                if (res.ok) {
+                    const data = await res.json();
+                    domains.value = data.domains || [];
+                    maxEmailSize.value = data.maxEmailSizeBytes || 15 * 1024 * 1024;
+                    showBadge.value = data.showInternetNlBadge || false;
+                    if (domains.value.length && !registerForm.value.domain) registerForm.value.domain = domains.value[0];
+                }
+                const dRes = await fetch('/web/domains');
+                if (dRes.ok) { registrationEnabled.value = (await dRes.json()).registrationEnabled !== false; }
+            } catch (e) { console.error(e); }
+        };
+
+        // 验证邮箱地址（支持国际化邮箱）
+        const isValidEmail = (email) => {
+            if (!email || typeof email !== 'string') return false;
+            email = email.trim();
+            // 支持半角 @ 和全角 ＠
+            // 先将全角 ＠ 统一转换为半角 @
+            const normalizedEmail = email.replace(/＠/g, '@');
+            // 基本格式检查：必须包含@，且@前后都有内容
+            const atIndex = normalizedEmail.indexOf('@');
+            if (atIndex <= 0 || atIndex === normalizedEmail.length - 1) return false;
+            const localPart = normalizedEmail.substring(0, atIndex);
+            const domainPart = normalizedEmail.substring(atIndex + 1);
+            // 本地部分和域名部分都不能为空
+            if (!localPart || !domainPart) return false;
+            // 域名部分基本检查（允许IDN域名）
+            // 同时支持半角点和全角点
+            const normalizedDomain = domainPart.replace(/．/g, '.');
+            if (normalizedDomain.includes('..') || normalizedDomain.startsWith('.') || normalizedDomain.endsWith('.')) return false;
+            return true;
+        };
+
+        // 验证用户名（支持国际化字符）
+        const isValidUsername = (username) => {
+            if (!username || typeof username !== 'string') return false;
+            username = username.trim();
+            if (username.length === 0 || username.length > 64) return false;
+            // 不允许空白字符开头或结尾
+            if (/^\s|\s$/.test(username)) return false;
+            // 不允许包含 @ 符号
+            if (username.includes('@')) return false;
+            // 不允许包含控制字符
+            if (/[\x00-\x1F\x7F]/.test(username)) return false;
+            return true;
+        };
+
+        const login = async () => {
+            authError.value = ''; authLoading.value = true;
+            const address = loginForm.value.address.trim();
+            
+            // 验证邮箱格式（支持国际化邮箱）
+            if (!isValidEmail(address)) {
+                authError.value = '请输入有效的邮箱地址';
+                authLoading.value = false;
+                return;
+            }
+            
+            try {
+                const res = await fetch('/web/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ address: address, password: loginForm.value.password }) });
+                const data = await res.json();
+                if (!res.ok) { authError.value = data.message || data.error || '登录失败'; return; }
+                token.value = data.token; userAddress.value = data.address;
+                localStorage.setItem('bm_token', token.value); localStorage.setItem('bm_addr', userAddress.value);
+                await loadUserData();
+            } catch (e) { authError.value = '网络错误'; } finally { authLoading.value = false; }
+        };
+
+        const register = async () => {
+            authError.value = ''; authSuccess.value = '';
+            
+            const username = registerForm.value.username.trim();
+            
+            // 验证用户名（支持国际化字符）
+            if (!isValidUsername(username)) {
+                authError.value = '用户名无效，请检查格式';
+                return;
+            }
+            
+            if (registerForm.value.password !== registerForm.value.confirmPassword) { authError.value = '两次密码不一致'; return; }
+            if (registerForm.value.password.length < 8) { authError.value = '密码至少8位'; return; }
+            authLoading.value = true;
+            try {
+                const addr = `${username}@${registerForm.value.domain}`;
+                const res = await fetch('/web/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ address: addr, password: registerForm.value.password }) });
+                const data = await res.json();
+                if (!res.ok) { authError.value = data.message || '注册失败'; return; }
+                authSuccess.value = '注册成功！请登录'; authMode.value = 'login'; loginForm.value.address = addr;
+            } catch (e) { authError.value = '网络错误'; } finally { authLoading.value = false; }
+        };
+
+        const logout = () => {
+            clearInlineAttachmentUrls();
+            fetch('/web/logout', { method: 'POST', headers: { 'X-Session-Token': token.value } }).catch(() => {});
+            token.value = ''; userAddress.value = ''; localStorage.removeItem('bm_token'); localStorage.removeItem('bm_addr');
+            emails.value = []; selectedEmail.value = null; emailDetail.value = null;
+        };
+
+        const loadUserData = async () => {
+            await Promise.all([loadEmails(), loadContacts(), loadLabels(), loadQuota()]);
+        };
+
+        const loadEmails = async () => {
+            if (!token.value) return;
+            loading.value = true;
+            try {
+                // 确定实际请求的文件夹和是否为星标模式
+                let folder = currentFolder.value;
+                let starredOnly = false;
+                
+                if (folder === 'starred') {
+                    folder = 'inbox';  // 星标邮件实际存储在 inbox
+                    starredOnly = true;
+                }
+                
+                // 构建请求 URL
+                let url = `/web/mail/list/${folder}?page=${currentPage.value}&size=${pageSize.value}`;
+                if (starredOnly) {
+                    url += '&starredOnly=true';
+                }
+                
+                const res = await apiGet(url);
+                if (res.ok) {
+                    const data = await res.json();
+                    // 处理分页响应
+                    emails.value = data.content || [];
+                    totalElements.value = data.totalElements || 0;
+                    totalPages.value = data.totalPages || 0;
+                    hasNextPage.value = data.hasNext || false;
+                    hasPrevPage.value = data.hasPrevious || false;
+                    
+                    // 更新收件箱计数（仅普通 inbox 首页时更新）
+                    if (currentFolder.value === 'inbox' && currentPage.value === 0) {
+                        inboxCount.value = data.totalElements || 0;
+                    }
+                }
+            } catch (e) { 
+                showToast('加载失败', 'error'); 
+            } finally { 
+                loading.value = false; 
+            }
+        };
+
+        // 上一页
+        const prevPage = () => {
+            if (currentPage.value > 0) {
+                currentPage.value--;
+                loadEmails();
+            }
+        };
+
+        // 下一页
+        const nextPage = () => {
+            if (hasNextPage.value) {
+                currentPage.value++;
+                loadEmails();
+            }
+        };
+
+        // 跳转到指定页
+        const goToPage = (page) => {
+            if (page >= 0 && page < totalPages.value) {
+                currentPage.value = page;
+                loadEmails();
+            }
+        };
+
+        const refreshEmails = () => { 
+            selectedEmail.value = null; 
+            currentPage.value = 0;  // 刷新时回到第一页
+            loadEmails(); 
+        };
+
+        // 获取发送状态颜色
+        const getSendStatusColor = (status) => {
+            const colors = {
+                'PENDING': 'var(--primary)',
+                'PROCESSING': 'var(--primary)',
+                'SENDING': 'var(--primary)',
+                'SENT': 'var(--success)',
+                'PARTIAL_SUCCESS': '#e65100',
+                'FAILED': 'var(--danger)',
+                'CANCELLED': 'var(--gray-600)'
+            };
+            return colors[status] || 'var(--gray-700)';
+        };
+
+        // 刷新发送状态（在邮件详情页）
+        const refreshSendStatus = async () => {
+            if (!emailDetail.value?.sendInfo?.queueId) return;
+            
+            refreshingStatus.value = true;
+            
+            try {
+                const res = await apiGet(`/web/mail/send/status/${emailDetail.value.sendInfo.queueId}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    emailDetail.value.sendInfo = {
+                        ...emailDetail.value.sendInfo,
+                        status: data.status,
+                        aggregatedStatus: data.aggregatedStatus,
+                        statusDescription: data.statusDescription,
+                        retryCount: data.retryCount,
+                        maxRetries: data.maxRetries,
+                        lastError: data.lastError,
+                        sentAt: data.sentAt,
+                        nextRetryAt: data.nextRetryAt,
+                        domainDetails: data.domainDetails
+                    };
+                    
+                    // 同步更新列表中的状态
+                    const email = emails.value.find(e => e.fileName === selectedEmail.value?.fileName);
+                    if (email) {
+                        email.sendStatus = data.status;
+                        email.aggregatedStatus = data.aggregatedStatus;
+                        email.sendStatusDescription = data.statusDescription;
+                    }
+                    
+                    showToast('状态已刷新', 'info');
+                }
+            } catch (e) {
+                showToast('刷新失败', 'error');
+            } finally {
+                refreshingStatus.value = false;
+            }
+        };
+
+        const switchFolder = (folder) => {
+            clearInlineAttachmentUrls();
+            currentFolder.value = folder;
+            currentLabel.value = null;
+            sidebarOpen.value = false;
+            selectedEmail.value = null;
+            emailDetail.value = null;
+            showRawHeaders.value = false;
+            rawHeadersContent.value = '';
+            showDomainDetails.value = false;  // 重置展开状态
+            // 重置分页到第一页
+            currentPage.value = 0;
+            loadEmails();
+        };
+
+        const filterByLabel = (labelId) => {
+            clearInlineAttachmentUrls();
+            currentLabel.value = labelId;
+            currentFolder.value = 'inbox';
+            sidebarOpen.value = false;
+            selectedEmail.value = null;
+            emailDetail.value = null;
+        };
+
+        const viewEmail = async (email) => {
+            clearInlineAttachmentUrls();
+            selectedEmail.value = email; 
+            loadingDetail.value = true; 
+            emailDetail.value = null; 
+            showRawHeaders.value = false; 
+            rawHeadersContent.value = ''; 
+            showLabelMenu.value = false;
+            showDomainDetails.value = false;  // 新增：重置展开状态
+            const folder = currentFolder.value === 'starred' ? 'inbox' : currentFolder.value;
+            try {
+                const res = await apiGet(`/web/mail/detail/${folder}/${encodeURIComponent(email.fileName)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    emailDetail.value = data;
+                    if (data.rawHeaders) {
+                        rawHeadersContent.value = data.rawHeaders;
+                    }
+                    hydrateInlineAttachments(data).catch(() => {});
+                }
+                else showToast('加载失败', 'error');
+            } catch (e) { showToast('加载失败', 'error'); } finally { loadingDetail.value = false; }
+            
+            if (currentFolder.value === 'sent' && emailDetail.value?.sendInfo) {
+                const status = emailDetail.value.sendInfo.aggregatedStatus || emailDetail.value.sendInfo.status;
+                if (status === 'PENDING' || status === 'PROCESSING' || status === 'SENDING') {
+                    // 启动自动刷新（每5秒一次，最多12次）
+                    let attempts = 0;
+                    const autoPoll = setInterval(async () => {
+                        if (!emailDetail.value?.sendInfo?.queueId || attempts++ >= 12) {
+                            clearInterval(autoPoll);
+                            return;
+                        }
+                        await refreshSendStatus();
+                        const newStatus = emailDetail.value?.sendInfo?.aggregatedStatus || emailDetail.value?.sendInfo?.status;
+                        if (newStatus === 'SENT' || newStatus === 'PARTIAL_SUCCESS' || newStatus === 'FAILED') {
+                            clearInterval(autoPoll);
+                        }
+                    }, 5000);
+                }
+            }
+        };
+
+        const toggleRawHeaders = async () => {
+            if (!selectedEmail.value) return;
+            
+            if (showRawHeaders.value) {
+                showRawHeaders.value = false;
+                return;
+            }
+            
+            if (rawHeadersContent.value) {
+                showRawHeaders.value = true;
+                return;
+            }
+            
+            const folder = emailDetail.value?.folder || (currentFolder.value === 'starred' ? 'inbox' : currentFolder.value);
+            try {
+                const res = await apiGet(`/web/mail/headers/${folder}/${encodeURIComponent(selectedEmail.value.fileName)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    rawHeadersContent.value = data.rawHeaders || '(无法获取邮件头信息)';
+                    showRawHeaders.value = true;
+                } else {
+                    showToast('获取邮件头失败', 'error');
+                }
+            } catch (e) {
+                showToast('获取邮件头失败', 'error');
+            }
+        };
+
+        const toggleStar = async (email) => {
+            // 确定实际文件夹
+            const folder = currentFolder.value === 'starred' ? 'inbox' : currentFolder.value;
+            try {
+                const res = await apiPost(`/web/mail/star/${folder}/${encodeURIComponent(email.fileName)}`);
+                if (res.ok) { 
+                    const data = await res.json(); 
+                    email.starred = data.starred;
+                    
+                    // 如果在星标视图中取消星标，需要从列表中移除该邮件
+                    if (currentFolder.value === 'starred' && !data.starred) {
+                        emails.value = emails.value.filter(e => e.fileName !== email.fileName);
+                        // 更新分页信息
+                        totalElements.value = Math.max(0, totalElements.value - 1);
+                        totalPages.value = Math.ceil(totalElements.value / pageSize.value);
+                    }
+                }
+            } catch (e) { showToast('操作失败', 'error'); }
+        };
+
+        const toggleDetailStar = async () => {
+            if (!selectedEmail.value || !emailDetail.value) return;
+            const folder = emailDetail.value.folder || (currentFolder.value === 'starred' ? 'inbox' : currentFolder.value);
+            try {
+                const res = await apiPost(`/web/mail/star/${folder}/${encodeURIComponent(selectedEmail.value.fileName)}`);
+                if (res.ok) { const data = await res.json(); emailDetail.value.starred = data.starred; selectedEmail.value.starred = data.starred; }
+            } catch (e) { showToast('操作失败', 'error'); }
+        };
+
+        const toggleEmailLabel = async (labelId) => {
+            if (!selectedEmail.value || !emailDetail.value) return;
+            const folder = emailDetail.value.folder || 'inbox';
+            const fileName = selectedEmail.value.fileName;
+            const hasLabel = emailDetail.value.labels?.includes(labelId);
+            try {
+                const url = `/web/userdata/labels/email/${folder}/${encodeURIComponent(fileName)}/${labelId}`;
+                const res = hasLabel ? await fetch(url, { method: 'DELETE', headers: { 'X-Session-Token': token.value } }) : await apiPost(url);
+                if (res.ok) {
+                    if (hasLabel) emailDetail.value.labels = emailDetail.value.labels.filter(l => l !== labelId);
+                    else emailDetail.value.labels = [...(emailDetail.value.labels || []), labelId];
+                    const e = emails.value.find(x => x.fileName === fileName);
+                    if (e) e.labels = emailDetail.value.labels;
+                }
+            } catch (e) { showToast('操作失败', 'error'); }
+            showLabelMenu.value = false;
+        };
+
+        const confirmDeleteEmail = () => { showDeleteDialog.value = true; };
+
+        const deleteEmail = async () => {
+            showDeleteDialog.value = false; if (!selectedEmail.value) return;
+            const folder = emailDetail.value?.folder || (currentFolder.value === 'starred' ? 'inbox' : currentFolder.value);
+            try {
+                const res = await fetch(`/web/mail/${folder}/${encodeURIComponent(selectedEmail.value.fileName)}`, { method: 'DELETE', headers: { 'X-Session-Token': token.value } });
+                if (res.ok) { showToast('已删除', 'success'); emails.value = emails.value.filter(e => e.fileName !== selectedEmail.value.fileName); selectedEmail.value = null; }
+                else showToast('删除失败', 'error');
+            } catch (e) { showToast('删除失败', 'error'); }
+        };
+
+        const getAttachmentUrl = (index) => {
+            const folder = emailDetail.value?.folder || 'inbox';
+            return `/web/mail/attachment/${folder}/${encodeURIComponent(selectedEmail.value.fileName)}/${index}`;
+        };
+
+        const SAFE_INLINE_IMAGE_TYPES = new Set([
+            'image/png',
+            'image/jpeg',
+            'image/gif',
+            'image/webp',
+            'image/avif',
+            'image/bmp',
+            'image/x-icon',
+            'image/vnd.microsoft.icon'
+        ]);
+        let inlineAttachmentUrls = [];
+        let inlineAttachmentGeneration = 0;
+
+        const clearInlineAttachmentUrls = () => {
+            inlineAttachmentGeneration++;
+            inlineAttachmentUrls.forEach(url => URL.revokeObjectURL(url));
+            inlineAttachmentUrls = [];
+        };
+
+        const normalizeContentId = (value) => {
+            if (!value) return '';
+            let id = String(value).trim().replace(/^cid:/i, '');
+            try { id = decodeURIComponent(id); } catch (_) {}
+            if (id.startsWith('<') && id.endsWith('>')) {
+                id = id.slice(1, -1);
+            }
+            return id.trim().toLowerCase();
+        };
+
+        const hydrateInlineAttachments = async (detail) => {
+            const generation = inlineAttachmentGeneration;
+            await nextTick();
+            if (generation !== inlineAttachmentGeneration || emailDetail.value !== detail || !emailBody.value) {
+                return;
+            }
+
+            const attachments = detail.attachments || [];
+            const images = emailBody.value.querySelectorAll('img[src]');
+            for (const image of images) {
+                const source = image.getAttribute('src') || '';
+                if (!/^cid:/i.test(source)) continue;
+                const contentId = normalizeContentId(source);
+                if (!contentId) {
+                    image.removeAttribute('src');
+                    continue;
+                }
+                const index = attachments.findIndex(att =>
+                    normalizeContentId(att.contentId) === contentId
+                    && SAFE_INLINE_IMAGE_TYPES.has(String(att.contentType || '').split(';', 1)[0].trim().toLowerCase()));
+                if (index < 0) {
+                    image.removeAttribute('src');
+                    continue;
+                }
+
+                try {
+                    const response = await fetch(getAttachmentUrl(index), {
+                        headers: { 'X-Session-Token': token.value }
+                    });
+                    if (!response.ok || generation !== inlineAttachmentGeneration) continue;
+
+                    const blob = await response.blob();
+                    const responseType = String(blob.type || '').split(';', 1)[0].trim().toLowerCase();
+                    if (!SAFE_INLINE_IMAGE_TYPES.has(responseType)) continue;
+
+                    const objectUrl = URL.createObjectURL(blob);
+                    if (generation !== inlineAttachmentGeneration) {
+                        URL.revokeObjectURL(objectUrl);
+                        continue;
+                    }
+                    inlineAttachmentUrls.push(objectUrl);
+                    image.src = objectUrl;
+                } catch (_) {
+                    image.removeAttribute('src');
+                }
+            }
+        };
+
+        const downloadAttachment = async (index, attachment) => {
+            try {
+                const response = await fetch(getAttachmentUrl(index), {
+                    headers: { 'X-Session-Token': token.value }
+                });
+                if (!response.ok) {
+                    showToast('附件下载失败', 'error');
+                    return;
+                }
+
+                const blob = await response.blob();
+                const objectUrl = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = objectUrl;
+                link.download = attachment?.filename || 'attachment';
+                link.rel = 'noopener';
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+            } catch (_) {
+                showToast('附件下载失败', 'error');
+            }
+        };
+
+        const copyRawHeaders = () => {
+            if (rawHeadersContent.value) {
+                navigator.clipboard.writeText(rawHeadersContent.value);
+                showToast('已复制', 'success');
+            }
+        };
+
+        // Compose
+        const openCompose = (mode = 'new', data = null) => {
+            composeMode.value = mode; composeMinimized.value = false; composeOpen.value = true; showCc.value = false;
+            composeForm.value = { to: '', cc: '', bcc: '', subject: '', html: '', attachments: [], attachmentFiles: [] };
+            // 重置发送状态
+            resetSendStatus();
+            
+            if (mode === 'reply' && data) {
+                // 优先使用 Reply-To，否则使用 From
+                const replyAddress = data.replyTo || data.from;
+                const replyTo = extractPureEmail(replyAddress) || replyAddress || '';
+                composeForm.value.to = replyTo;
+                composeForm.value.subject = `Re: ${data.subject || ''}`;
+                
+                // 设置 In-Reply-To 和 References 用于邮件线程
+                if (data.messageId) {
+                    composeForm.value.inReplyTo = data.messageId;
+                    // References = 原 References + 原 Message-ID
+                    const refs = data.references ? `${data.references} ${data.messageId}` : data.messageId;
+                    composeForm.value.references = refs;
+                }
+                
+                nextTick(() => { 
+                    if (editor.value) { 
+                        setQuotedMessage(editor.value, 'reply', data);
+                        editor.value.focus(); 
+                    } 
+                });
+            } else if (mode === 'forward' && data) {
+                composeForm.value.subject = `Fwd: ${data.subject || ''}`;
+                nextTick(() => { 
+                    if (editor.value) {
+                        setQuotedMessage(editor.value, 'forward', data);
+                    }
+                });
+            } else {
+                nextTick(() => { if (editor.value) { editor.value.innerHTML = ''; editor.value.focus(); } });
+            }
+        };
+
+        const replyToEmail = () => { if (emailDetail.value) openCompose('reply', emailDetail.value); };
+        const forwardEmail = () => { if (emailDetail.value) openCompose('forward', emailDetail.value); };
+
+        const appendTextParagraph = (parent, text) => {
+            const paragraph = document.createElement('p');
+            paragraph.textContent = text || '';
+            parent.appendChild(paragraph);
+        };
+
+        const setQuotedMessage = (targetEditor, mode, data) => {
+            const quote = document.createElement('div');
+            quote.style.borderLeft = '2px solid #ccc';
+            quote.style.paddingLeft = '12px';
+            if (mode === 'reply') {
+                quote.style.color = '#666';
+                appendTextParagraph(quote, `在 ${data.date || ''}，${data.from || ''} 写道：`);
+            } else {
+                appendTextParagraph(quote, '---------- 转发的邮件 ----------');
+                appendTextParagraph(quote, `发件人: ${data.from || ''}`);
+                appendTextParagraph(quote, `日期: ${data.date || ''}`);
+                appendTextParagraph(quote, `主题: ${data.subject || ''}`);
+                quote.appendChild(document.createElement('br'));
+            }
+
+            const body = document.createElement('div');
+            if (data.html) {
+                // The server returns this field only after the OWASP HTML policy.
+                body.innerHTML = data.html;
+            } else {
+                body.textContent = data.text || '';
+                body.style.whiteSpace = 'pre-wrap';
+            }
+            quote.appendChild(body);
+
+            targetEditor.replaceChildren(
+                document.createElement('br'),
+                document.createElement('br'),
+                quote
+            );
+        };
+
+        const closeCompose = () => { 
+            composeOpen.value = false; 
+            // 清理轮询定时器
+            if (sendStatus.pollTimer) {
+                clearTimeout(sendStatus.pollTimer);
+                sendStatus.pollTimer = null;
+            }
+            resetSendStatus();
+        };
+        
+        const updateComposeContent = () => { if (editor.value) composeForm.value.html = editor.value.innerHTML; };
+        const execCommand = (cmd, val = null) => { document.execCommand(cmd, false, val); editor.value?.focus(); };
+        const insertLink = () => { const url = prompt('输入链接地址:'); if (url) execCommand('createLink', url); };
+        const insertHorizontalRule = () => { execCommand('insertHorizontalRule'); };
+        const triggerAttachment = () => { attachmentInput.value?.click(); };
+        const triggerImageUpload = () => { imageInput.value?.click(); };
+
+        const handleAttachment = (e) => {
+            const files = e.target.files; 
+            if (!files) return;
+            
+            for (const file of files) {
+                if (file.size > 50 * 1024 * 1024) { 
+                    showToast(`${file.name} 过大（最大50MB）`, 'error'); 
+                    continue; 
+                }
+                
+                // 保存原始 File 对象（用于 multipart 发送）
+                composeForm.value.attachmentFiles.push(file);
+                
+                // 保存元数据（用于 UI 显示）
+                composeForm.value.attachments.push({ 
+                    filename: file.name, 
+                    contentType: file.type || 'application/octet-stream', 
+                    size: file.size, 
+                    inline: false,
+                    // 不再预先读取 Base64，节省内存
+                    contentBase64: null
+                });
+            }
+            e.target.value = '';
+        };
+
+        const handleImageUpload = (e) => {
+            const file = e.target.files?.[0]; if (!file) return;
+            insertImageFile(file);
+            e.target.value = '';
+        };
+
+        const insertImageFile = (file) => {
+            if (file.size > 10 * 1024 * 1024) { showToast('图片过大', 'error'); return; }
+            const reader = new FileReader();
+            reader.onload = () => {
+                const dataUrl = reader.result;
+                const img = `<img src="${dataUrl}" style="max-width:100%;">`;
+                execCommand('insertHTML', img);
+            };
+            reader.readAsDataURL(file);
+        };
+
+        const handlePaste = (e) => {
+            const items = e.clipboardData?.items; if (!items) return;
+            for (const item of items) {
+                if (item.type.startsWith('image/')) {
+                    e.preventDefault();
+                    const file = item.getAsFile();
+                    if (file) insertImageFile(file);
+                    return;
+                }
+            }
+        };
+
+        const removeAttachment = (index) => { 
+            composeForm.value.attachments.splice(index, 1); 
+            composeForm.value.attachmentFiles.splice(index, 1);
+        };
+
+        // 重置发送状态
+        const resetSendStatus = () => {
+            sendStatus.show = false;
+            sendStatus.type = '';
+            sendStatus.message = '';
+            sendStatus.queueId = null;
+            if (sendStatus.pollTimer) {
+                clearTimeout(sendStatus.pollTimer);
+                sendStatus.pollTimer = null;
+            }
+        };
+
+        // 轮询发送状态
+        const pollSendStatus = async (queueId, attempt = 0) => {
+            const maxAttempts = 60; // 最多轮询60次（约2分钟）
+            const pollInterval = 2000; // 每2秒轮询一次
+
+            if (attempt >= maxAttempts) {
+                sendStatus.type = 'success';
+                sendStatus.message = '已提交发送，请稍后查看已发送邮件';
+                setTimeout(() => { resetSendStatus(); }, 3000);
+                return;
+            }
+
+            try {
+                const res = await apiGet(`/web/mail/send/status/${queueId}`);
+                if (!res.ok) {
+                    // 如果获取状态失败，继续轮询
+                    sendStatus.pollTimer = setTimeout(() => pollSendStatus(queueId, attempt + 1), pollInterval);
+                    return;
+                }
+
+                const data = await res.json();
+                
+                switch (data.status) {
+                    case 'SENT':
+                        sendStatus.type = 'success';
+                        sendStatus.message = '发送成功！';
+                        showToast('邮件发送成功', 'success');
+                        loadQuota(); // 刷新配额
+                        // 如果当前在已发送文件夹，刷新列表
+                        if (currentFolder.value === 'sent') {
+                            loadEmails();
+                        }
+                        setTimeout(() => { 
+                            resetSendStatus(); 
+                            closeCompose();
+                        }, 2000);
+                        break;
+                        
+                    case 'FAILED':
+                        sendStatus.type = 'error';
+                        sendStatus.message = data.lastError || '发送失败';
+                        showToast('邮件发送失败: ' + (data.lastError || '未知错误'), 'error');
+                        setTimeout(() => { resetSendStatus(); }, 5000);
+                        break;
+                        
+                    case 'CANCELLED':
+                        sendStatus.type = 'error';
+                        sendStatus.message = '发送已取消';
+                        setTimeout(() => { resetSendStatus(); }, 3000);
+                        break;
+                        
+                    case 'PENDING':
+                    case 'PROCESSING':
+                        // 更新状态显示
+                        if (data.retryCount > 0) {
+                            sendStatus.message = `发送中 (重试 ${data.retryCount}/${data.maxRetries})...`;
+                        } else {
+                            sendStatus.message = '发送中...';
+                        }
+                        // 继续轮询
+                        sendStatus.pollTimer = setTimeout(() => pollSendStatus(queueId, attempt + 1), pollInterval);
+                        break;
+                        
+                    default:
+                        // 未知状态，继续轮询
+                        sendStatus.pollTimer = setTimeout(() => pollSendStatus(queueId, attempt + 1), pollInterval);
+                }
+            } catch (e) {
+                console.error('Poll status error:', e);
+                // 网络错误，继续轮询
+                sendStatus.pollTimer = setTimeout(() => pollSendStatus(queueId, attempt + 1), pollInterval);
+            }
+        };
+
+        // 解析收件人列表（支持国际化邮箱）
+        const parseRecipients = (str) => {
+            if (!str) return [];
+            // 分割收件人（支持逗号、分号、中文逗号、中文分号）
+            return str.split(/[,;，；]/)
+                .map(s => s.trim())
+                .filter(s => s.length > 0);
+        };
+
+        // 验证收件人列表
+        const validateRecipients = (recipients) => {
+            for (const r of recipients) {
+                if (!isValidEmail(r)) {
+                    return { valid: false, invalid: r };
+                }
+            }
+            return { valid: true };
+        };
+
+        // 发送邮件（根据附件大小自动选择模式）
+        const sendEmail = async () => {
+            const toList = parseRecipients(composeForm.value.to);
+            const ccList = parseRecipients(composeForm.value.cc);
+            const bccList = parseRecipients(composeForm.value.bcc);
+            
+            // 验证收件人
+            if (toList.length === 0) { 
+                showToast('请输入收件人', 'error'); 
+                return; 
+            }
+            
+            // 验证所有收件人地址格式
+            const toValidation = validateRecipients(toList);
+            if (!toValidation.valid) {
+                showToast(`收件人地址无效: ${toValidation.invalid}`, 'error');
+                return;
+            }
+            
+            if (ccList.length > 0) {
+                const ccValidation = validateRecipients(ccList);
+                if (!ccValidation.valid) {
+                    showToast(`抄送地址无效: ${ccValidation.invalid}`, 'error');
+                    return;
+                }
+            }
+            
+            if (bccList.length > 0) {
+                const bccValidation = validateRecipients(bccList);
+                if (!bccValidation.valid) {
+                    showToast(`密送地址无效: ${bccValidation.invalid}`, 'error');
+                    return;
+                }
+            }
+            
+            if (!composeForm.value.subject.trim()) { showToast('请输入主题', 'error'); return; }
+            const content = editor.value?.innerHTML || '';
+            if (!content.trim()) { showToast('请输入内容', 'error'); return; }
+            if (composeSize.value > maxEmailSize.value) { showToast('邮件过大', 'error'); return; }
+
+            sending.value = true;
+            resetSendStatus();
+            
+            const tempDiv = document.createElement('div'); 
+            tempDiv.innerHTML = content;
+            const plainText = tempDiv.innerText || '';
+
+            try {
+                // 计算总附件大小
+                const totalAttachmentSize = composeForm.value.attachmentFiles.reduce((sum, f) => sum + f.size, 0);
+                const MULTIPART_THRESHOLD = 32 * 1024; // 32KB
+                
+                let res;
+                
+                if (totalAttachmentSize >= MULTIPART_THRESHOLD || composeSize.value >= MULTIPART_THRESHOLD) {
+                    // 大内容：使用 multipart/form-data（流式传输）
+                    res = await sendEmailMultipart(toList, ccList, bccList, plainText, content);
+                } else {
+                    // 小内容：使用 JSON（向后兼容）
+                    res = await sendEmailJson(toList, ccList, bccList, plainText, content);
+                }
+                
+                await handleSendResponse(res);
+                
+            } catch (e) { 
+                console.error('Send error:', e);
+                showToast('发送失败: 网络错误', 'error'); 
+                sendStatus.show = true;
+                sendStatus.type = 'error';
+                sendStatus.message = '网络错误';
+                setTimeout(() => { resetSendStatus(); }, 5000);
+            } finally { 
+                sending.value = false; 
+            }
+        };
+
+        // 使用 JSON 接口发送（小附件）
+        const sendEmailJson = async (toList, ccList, bccList, plainText, htmlContent) => {
+            // 读取附件为 Base64
+            const attachmentsWithContent = await Promise.all(
+                composeForm.value.attachmentFiles.map(file => {
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                            resolve({
+                                filename: file.name,
+                                contentType: file.type || 'application/octet-stream',
+                                contentBase64: reader.result.split(',')[1],
+                                size: file.size,
+                                inline: false
+                            });
+                        };
+                        reader.onerror = reject;
+                        reader.readAsDataURL(file);
+                    });
+                })
+            );
+            
+            return await apiPost('/web/mail/send', {
+                to: toList, 
+                cc: ccList.length ? ccList : undefined, 
+                bcc: bccList.length ? bccList : undefined,
+                subject: composeForm.value.subject, 
+                text: plainText, 
+                html: htmlContent,
+                attachments: attachmentsWithContent.length ? attachmentsWithContent : undefined
+            });
+        };
+
+        // 使用 multipart 接口发送（大附件，带进度）
+        const sendEmailMultipart = async (toList, ccList, bccList, plainText, htmlContent) => {
+            const formData = new FormData();
+            
+            const metadata = {
+                to: toList,
+                cc: ccList.length ? ccList : undefined,
+                bcc: bccList.length ? bccList : undefined,
+                subject: composeForm.value.subject,
+                text: plainText,
+                html: htmlContent
+            };
+            
+            formData.append('data', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+            
+            for (const file of composeForm.value.attachmentFiles) {
+                formData.append('attachments', file);
+            }
+            
+            // 显示上传提示
+            sendStatus.show = true;
+            sendStatus.type = 'pending';
+            sendStatus.message = '正在上传附件...';
+            
+            const res = await fetch('/web/mail/send/multipart', {
+                method: 'POST',
+                headers: { 'X-Session-Token': token.value },
+                body: formData
+            });
+            
+            sendStatus.message = '发送中...';
+            
+            return res;
+        };
+
+        // 处理发送响应
+        const handleSendResponse = async (res) => {
+            const data = await res.json();
+            
+            // 检查是否是异步响应（HTTP 202）
+            if (res.status === 202 && data.queued) {
+                // 异步模式：邮件已入队，开始轮询状态
+                sendStatus.show = true;
+                sendStatus.type = 'pending';
+                sendStatus.message = '发送中...';
+                sendStatus.queueId = data.queueId;
+                
+                showToast('邮件已提交发送', 'info');
+                
+                // 立即刷新已发送文件夹（如果当前在该文件夹）
+                if (currentFolder.value === 'sent') {
+                    // 延迟一小段时间后刷新，确保后端已处理
+                    setTimeout(() => loadEmails(), 500);
+                }
+                
+                // 开始轮询
+                sendStatus.pollTimer = setTimeout(() => pollSendStatus(data.queueId, 0), 1000);
+                
+            } else if (res.ok && data.success) {
+                // 同步模式成功（向后兼容）
+                showToast('发送成功', 'success');
+                closeCompose();
+                loadQuota();
+                if (currentFolder.value === 'sent') {
+                    loadEmails();
+                }
+                
+            } else {
+                // 发送失败
+                const errorMsg = data.error || '发送失败';
+                showToast(errorMsg, 'error');
+                
+                sendStatus.show = true;
+                sendStatus.type = 'error';
+                sendStatus.message = errorMsg;
+                setTimeout(() => { resetSendStatus(); }, 5000);
+            }
+        };
+
+        // Contacts
+        const openContactsPanel = () => { contactsPanelOpen.value = true; sidebarOpen.value = false; };
+        const loadContacts = async () => {
+            try { const res = await apiGet('/web/userdata/contacts'); if (res.ok) contacts.value = await res.json(); } catch (e) {}
+        };
+        const addContact = async () => {
+            const email = newContact.value.email.trim();
+            if (!email) return;
+            
+            // 验证邮箱格式（支持国际化邮箱）
+            if (!isValidEmail(email)) {
+                showToast('请输入有效的邮箱地址', 'error');
+                return;
+            }
+            
+            try {
+                const res = await apiPost('/web/userdata/contacts', { name: newContact.value.name.trim(), email: email });
+                if (res.ok) { contacts.value.push(await res.json()); newContact.value = { name: '', email: '' }; showToast('已添加', 'success'); }
+                else showToast((await res.json()).error || '添加失败', 'error');
+            } catch (e) { showToast('添加失败', 'error'); }
+        };
+        const deleteContact = async (id) => {
+            try {
+                const res = await fetch(`/web/userdata/contacts/${id}`, { method: 'DELETE', headers: { 'X-Session-Token': token.value } });
+                if (res.ok) { contacts.value = contacts.value.filter(c => c.id !== id); showToast('已删除', 'success'); }
+            } catch (e) { showToast('删除失败', 'error'); }
+        };
+        const composeToContact = (contact) => { contactsPanelOpen.value = false; openCompose('new'); composeForm.value.to = contact.email; };
+
+        // Labels
+        const openLabelsPanel = () => { labelsPanelOpen.value = true; sidebarOpen.value = false; };
+        const loadLabels = async () => {
+            try { const res = await apiGet('/web/userdata/labels'); if (res.ok) labels.value = await res.json(); } catch (e) {}
+        };
+        const addLabel = async () => {
+            if (!newLabel.value.name) return;
+            try {
+                const res = await apiPost('/web/userdata/labels', newLabel.value);
+                if (res.ok) { labels.value.push(await res.json()); newLabel.value = { name: '', color: '#1a73e8' }; showToast('已创建', 'success'); }
+                else showToast((await res.json()).error || '创建失败', 'error');
+            } catch (e) { showToast('创建失败', 'error'); }
+        };
+        const deleteLabel = async (id) => {
+            try {
+                const res = await fetch(`/web/userdata/labels/${id}`, { method: 'DELETE', headers: { 'X-Session-Token': token.value } });
+                if (res.ok) { labels.value = labels.value.filter(l => l.id !== id); if (currentLabel.value === id) currentLabel.value = null; showToast('已删除', 'success'); }
+            } catch (e) { showToast('删除失败', 'error'); }
+        };
+
+        const loadQuota = async () => {
+            try { const res = await apiGet('/web/mail/quota'); if (res.ok) quota.value = (await res.json()).remainingQuota; } catch (e) {}
+        };
+
+        onMounted(async () => {
+            await loadConfig();
+            if (token.value) await loadUserData();
+        });
+        onBeforeUnmount(clearInlineAttachmentUrls);
+
+        return {
+            token, userAddress, authMode, authError, authSuccess, authLoading, registrationEnabled, domains, loginForm, registerForm, login, register, logout,
+            sidebarOpen, currentFolder, currentLabel, searchQuery, loading, emails, filteredEmails, selectedEmail, emailDetail, emailBody, loadingDetail, quota, inboxCount, showBadge,
+            userInitial, currentFolderName, showRawHeaders, rawHeadersContent, showLabelMenu, showDomainDetails, refreshingStatus,
+            switchFolder, filterByLabel, refreshEmails, viewEmail, toggleStar, toggleDetailStar, toggleEmailLabel, confirmDeleteEmail, deleteEmail, showDeleteDialog,
+            replyToEmail, forwardEmail, getAttachmentUrl, downloadAttachment, copyRawHeaders, toggleRawHeaders,
+            composeOpen, composeMinimized, composeFullscreen, composeMode, composeTitle, showCc, sending, editor, attachmentInput, imageInput,
+            composeForm, composeSize, maxEmailSize, sendStatus,
+            openCompose, closeCompose, updateComposeContent, execCommand, insertLink, insertHorizontalRule, triggerAttachment, triggerImageUpload,
+            handleAttachment, handleImageUpload, handlePaste, removeAttachment, sendEmail, getSendStatusColor, refreshSendStatus,
+            contactsPanelOpen, labelsPanelOpen, contacts, labels, newContact, newLabel, labelColors,
+            openContactsPanel, addContact, deleteContact, composeToContact,
+            openLabelsPanel, addLabel, deleteLabel, getLabelColor, getLabelName,
+            formatDate, formatFullDate, formatRelativeTime, formatSize, getInitial, extractName, extractEmailDisplay, getFileIcon, getAggregatedStatusDescription,
+            isEmailSending, getEmailSendStatusClass,
+            toasts,
+            // 分页相关
+            currentPage, pageSize, totalElements, totalPages, hasNextPage, hasPrevPage,
+            prevPage, nextPage, goToPage, visiblePageNumbers
+        };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>

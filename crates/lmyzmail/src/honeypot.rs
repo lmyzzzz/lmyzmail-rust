@@ -12,7 +12,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
     task::{Context, Poll},
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
@@ -57,6 +57,7 @@ const DATABASE_TIMEOUT: Duration = Duration::from_secs(8);
 const DATABASE_CANCEL_DRAIN_TIMEOUT: Duration = Duration::from_secs(2);
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
 const ACCEPT_RETRY_DELAY: Duration = Duration::from_millis(50);
+const CERTIFICATE_VALIDITY_SECONDS: i64 = 3650 * 24 * 60 * 60;
 const MAX_CONSECUTIVE_ACCEPT_ERRORS: usize = 8;
 const READ_CHUNK_BYTES: usize = 4096;
 const TLS_READ_CHUNK_BYTES: usize = 8192;
@@ -287,8 +288,15 @@ impl HoneypotTls {
         builder.set_subject_name(&name).map_err(io::Error::other)?;
         builder.set_issuer_name(&name).map_err(io::Error::other)?;
         builder.set_pubkey(&private_key).map_err(io::Error::other)?;
-        let not_before = Asn1Time::days_from_now(0).map_err(io::Error::other)?;
-        let not_after = Asn1Time::days_from_now(3650).map_err(io::Error::other)?;
+        let now_unix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(io::Error::other)?;
+        let not_before_unix = i64::try_from(now_unix.as_secs()).map_err(io::Error::other)?;
+        let not_after_unix = not_before_unix
+            .checked_add(CERTIFICATE_VALIDITY_SECONDS)
+            .ok_or_else(|| io::Error::other("honeypot certificate expiry overflow"))?;
+        let not_before = Asn1Time::from_unix(not_before_unix).map_err(io::Error::other)?;
+        let not_after = Asn1Time::from_unix(not_after_unix).map_err(io::Error::other)?;
         builder
             .set_not_before(&not_before)
             .map_err(io::Error::other)?;
@@ -1192,6 +1200,11 @@ pub async fn serve_honeypots(
     pool: Pool,
     cancellation: CancellationToken,
 ) -> io::Result<()> {
+    let traps = bind_honeypot_traps(&config).await?;
+    serve_bound_honeypots(config, pool, cancellation, traps).await
+}
+
+async fn bind_honeypot_traps(config: &RuntimeConfig) -> io::Result<Vec<BoundTrap>> {
     if config.listen.honeypots.is_empty() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -1221,6 +1234,15 @@ pub async fn serve_honeypots(
             "none of the configured honeypot traps could bind",
         ));
     }
+    Ok(traps)
+}
+
+async fn serve_bound_honeypots(
+    config: Arc<RuntimeConfig>,
+    pool: Pool,
+    cancellation: CancellationToken,
+    traps: Vec<BoundTrap>,
+) -> io::Result<()> {
     let assets = Arc::new(HoneypotAssets::load()?);
     let tls = Arc::new(HoneypotTls::generate()?);
     let persistence = HoneypotPersistence::open(&config.maildir, pool).await?;
@@ -3688,9 +3710,6 @@ mod tests {
         let directory = TestDirectory::new();
         let occupied = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
         let occupied_port = occupied.local_addr().unwrap().port();
-        let available = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
-        let available_port = available.local_addr().unwrap().port();
-        drop(available);
 
         let properties = Properties::parse(
             format!(
@@ -3701,7 +3720,7 @@ mod tests {
                  lmyzmail.honeypot.traps[0].port={occupied_port}\n\
                  lmyzmail.honeypot.traps[0].protocol=SSH\n\
                  lmyzmail.honeypot.traps[0].bind-address=127.0.0.1\n\
-                 lmyzmail.honeypot.traps[1].port={available_port}\n\
+                 lmyzmail.honeypot.traps[1].port=1\n\
                  lmyzmail.honeypot.traps[1].protocol=SSH\n\
                  lmyzmail.honeypot.traps[1].bind-address=127.0.0.1\n",
                 directory.path().display()
@@ -3709,13 +3728,17 @@ mod tests {
             .as_bytes(),
         )
         .unwrap();
-        let config = Arc::new(RuntimeConfig::from_properties(properties).unwrap());
+        let mut config = RuntimeConfig::from_properties(properties).unwrap();
+        config.listen.honeypots[1].port = 0;
+        let config = Arc::new(config);
+        let traps = bind_honeypot_traps(&config).await.unwrap();
+        assert_eq!(traps.len(), 1);
+        let available_port = traps[0].listener.local_addr().unwrap().port();
         let cancellation = CancellationToken::new();
         let task_cancellation = cancellation.clone();
-        let task =
-            tokio::spawn(
-                async move { serve_honeypots(config, unused_pool(), task_cancellation).await },
-            );
+        let task = tokio::spawn(async move {
+            serve_bound_honeypots(config, unused_pool(), task_cancellation, traps).await
+        });
 
         let mut client = timeout(Duration::from_secs(1), async {
             loop {

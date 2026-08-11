@@ -38,6 +38,7 @@ use crate::{
     reporting::ReportingService,
     userdata::{ContactRecord, UserDataError, UserDataService},
     web_multipart::{self, WebMultipartError},
+    web_static::{self, StaticAsset},
     xdp::XdpService,
     xdp_sync::XdpSyncService,
 };
@@ -1322,6 +1323,7 @@ async fn handle_connection(
             Ok(Some(stats)) => write_json_response(stream, Status::Ok, &stats).await,
             Ok(None) | Err(_) => write_not_found(stream).await,
         },
+        ParsedRequest::Static(asset) => write_static_response(stream, asset).await,
         ParsedRequest::InvalidSession => write_invalid_session(stream).await,
         ParsedRequest::CorsPreflight(origin) => write_cors_preflight(stream, &origin).await,
         ParsedRequest::CorsRejected => {
@@ -2651,6 +2653,7 @@ fn is_trusted_proxy(config: &RuntimeConfig, address: IpAddr) -> bool {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 enum ParsedRequest {
+    Static(StaticAsset),
     Health,
     Skibidi,
     ApiStatus,
@@ -2804,6 +2807,11 @@ fn parse_request(
         } else {
             ParsedRequest::CorsRejected
         };
+    }
+    if method == "GET"
+        && let Some(asset) = web_static::resolve(routing_path)
+    {
+        return ParsedRequest::Static(asset);
     }
     match (method, routing_path) {
         ("GET", "/api/health") => ParsedRequest::Health,
@@ -3518,6 +3526,16 @@ async fn write_response(
 ) -> io::Result<()> {
     write_response_head(&mut stream, status, body.len(), content_type).await?;
     stream.write_all(body).await
+}
+
+async fn write_static_response(mut stream: TcpStream, asset: StaticAsset) -> io::Result<()> {
+    let head = format!(
+        "HTTP/1.1 200 OK\r\ncontent-length: {}\r\nContent-Type: {}\r\n\r\n",
+        asset.body.len(),
+        asset.content_type,
+    );
+    stream.write_all(head.as_bytes()).await?;
+    stream.write_all(asset.body).await
 }
 
 async fn write_response_head(

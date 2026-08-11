@@ -1,0 +1,43 @@
+{
+  "retrieved_at_utc": "2026-08-11T15:38:10Z",
+  "policy": "These resources are Playwright-only fixtures. Production HTML retains the frozen Java URLs and bytes.",
+  "request_user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/138.0.0.0 Safari/537.36",
+  "resources": [
+    {
+      "file": "vue.global.prod-3.5.41.js",
+      "source_url": "https://unpkg.com/vue@3.5.41/dist/vue.global.prod.js",
+      "original_redirect_url": "https://unpkg.com/vue@3/dist/vue.global.prod.js",
+      "license": "MIT",
+      "bytes": 166624,
+      "sha256": "45c5186437878319a4b86339f475e8e2f0b27e1752f9e6387ebb15854425847f"
+    },
+    {
+      "file": "inter-v20.css",
+      "source_url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+      "license": "OFL-1.1",
+      "bytes": 9884,
+      "sha256": "5682df055e3bc3420ab5065274d8b14caeee02857f0af6c07d0995b8d6271077"
+    },
+    {
+      "file": "inter-latin-v20.woff2",
+      "source_url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2",
+      "license": "OFL-1.1",
+      "bytes": 48256,
+      "sha256": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62"
+    },
+    {
+      "file": "material-icons-outlined-v110.css",
+      "source_url": "https://fonts.googleapis.com/icon?family=Material+Icons+Outlined",
+      "license": "Apache-2.0",
+      "bytes": 616,
+      "sha256": "9a0711b01d109e09c1aadea68743d41af4b56187351e96195ab9c1facf2aa334"
+    },
+    {
+      "file": "material-icons-outlined-v110.woff2",
+      "source_url": "https://fonts.gstatic.com/s/materialiconsoutlined/v110/gok-H7zzDkdnRel8-DQ6KAXJ69wP1tGnf4ZGhUce.woff2",
+      "license": "Apache-2.0",
+      "bytes": 155276,
+      "sha256": "35dca8a7145a17c8d1306f25a3ca091578e15396f0b22d61eb8e73262ac75577"
+    }
+  ]
+}
