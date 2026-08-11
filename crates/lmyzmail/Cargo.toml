@@ -18,6 +18,7 @@ xdp-test-hooks = []
 base64 = "0.22.1"
 ammonia = "4.1.4"
 bcrypt = "0.19.3"
+bytemuck = "1.25.2"
 cairo-rs = { version = "0.22.0", default-features = false, features = ["freetype"] }
 chrono = { version = "0.4.41", default-features = false, features = ["clock", "std"] }
 deadpool-postgres = "0.14.1"
@@ -35,12 +36,14 @@ mail-parser = "0.11.5"
 mail-auth = { version = "0.11.2", default-features = false, features = ["dns-hickory", "rust-crypto"] }
 mail-builder = { version = "0.4.4", default-features = false }
 md-5 = "0.11.0"
+memmap2 = "0.9.11"
 mime = "0.3.17"
 moka = { version = "0.12.15", features = ["future"] }
 percent-encoding = "2.3.1"
 openssl = "0.10.81"
 rustls = { version = "0.23.37", default-features = false, features = ["ring", "std", "tls12"] }
 rustls-native-certs = "0.8.4"
+safetensors = "0.8.0"
 reqwest = { version = "0.13.4", default-features = false, features = ["rustls-no-provider"] }
 regex = "1.11.1"
 resvg = { version = "0.45.1", default-features = false, features = ["raster-images"] }

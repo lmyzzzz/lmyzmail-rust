@@ -8,6 +8,7 @@ use lmyzmail::{
     outbound_worker::OutboundWorker,
     redis,
     reporting::{self, ReportingService},
+    skibidi_inferx::InferxService,
     smtp,
     xdp::XdpService,
     xdp_pps,
@@ -50,6 +51,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         database_pool.clone(),
         redis_pool.clone(),
     )?);
+    let inferx_service = Arc::new(InferxService::from_config(&config.skibidi_inferx));
+    let inferx_info = inferx_service.runtime_info();
+    if let Some(error) = &inferx_info.initialization_error {
+        eprintln!("lmyzmail SkibidiInferX unavailable; using frozen fallback pool: {error}");
+    } else if inferx_info.available {
+        eprintln!(
+            "lmyzmail SkibidiInferX ready: backend={}, timeout_ms={}, configured_max_tokens={}, effective_max_tokens={}",
+            inferx_info.backend.unwrap_or("unknown"),
+            inferx_info.timeout_ms,
+            inferx_info.configured_max_tokens,
+            inferx_info.effective_max_tokens,
+        );
+    }
     let cancellation = CancellationToken::new();
     let signal_cancellation = cancellation.clone();
     let signal_task = tokio::spawn(lifecycle::wait_for_shutdown(signal_cancellation));
@@ -263,6 +277,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let _ = task.await;
     }
     xdp_sync.shutdown().await;
+    if !inferx_service.shutdown().await && failure.is_none() {
+        failure = Some(io::Error::new(
+            io::ErrorKind::TimedOut,
+            "lmyzmail SkibidiInferX worker exceeded the shutdown deadline",
+        ));
+    }
     if let Err(error) = xdp_service.shutdown().await
         && failure.is_none()
     {

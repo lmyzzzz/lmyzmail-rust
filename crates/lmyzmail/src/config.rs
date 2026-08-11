@@ -70,6 +70,10 @@ const MAX_CRINGE_DECAY_DURATION: Duration = Duration::from_secs(100 * 366 * 24 *
 const MAX_FAIL2BAN_LOG_PATHS: usize = 16;
 const MAX_FAIL2BAN_TRACKED_IPS: u64 = 200_000;
 const MAX_FAIL2BAN_RETRIES: u64 = 4_096;
+const MAX_INFERX_TIMEOUT_MS: u64 = 60_000;
+const MAX_INFERX_CONCURRENCY: usize = 64;
+const MAX_INFERX_TOKENS: usize = 128;
+const MAX_INFERX_TOP_K: usize = 1_048_576;
 
 #[derive(Debug)]
 pub enum ConfigError {
@@ -333,6 +337,8 @@ struct JsonRuntimeConfig {
     #[serde(default)]
     features: JsonFeatureConfig,
     #[serde(default)]
+    skibidi_inferx: JsonSkibidiInferxConfig,
+    #[serde(default)]
     fail2ban: Option<JsonFail2BanConfig>,
     #[serde(default)]
     smtp: JsonSmtpConfig,
@@ -439,6 +445,33 @@ struct JsonFeatureConfig {
     report_delivery: bool,
     #[serde(default)]
     show_internet_nl_badge: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct JsonSkibidiInferxConfig {
+    #[serde(default = "default_true")]
+    enabled: bool,
+    #[serde(default = "default_inferx_model_path")]
+    model_path: String,
+    #[serde(default = "default_inferx_tokenizer_path")]
+    tokenizer_path: String,
+    #[serde(default = "default_inferx_temperature")]
+    temperature: f32,
+    #[serde(default = "default_inferx_top_k")]
+    top_k: usize,
+    #[serde(default = "default_inferx_top_p")]
+    top_p: f32,
+    #[serde(default = "default_inferx_configured_max_tokens")]
+    max_tokens: usize,
+    #[serde(default = "default_inferx_timeout_ms")]
+    timeout_ms: u64,
+    #[serde(default = "default_inferx_concurrency")]
+    max_concurrent_generations: usize,
+    #[serde(default = "default_true")]
+    fallback_on_error: bool,
+    #[serde(default = "default_inferx_simd_level")]
+    simd_level: String,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -1061,6 +1094,60 @@ impl Default for JsonFeatureConfig {
     }
 }
 
+impl Default for JsonSkibidiInferxConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            model_path: default_inferx_model_path(),
+            tokenizer_path: default_inferx_tokenizer_path(),
+            temperature: default_inferx_temperature(),
+            top_k: default_inferx_top_k(),
+            top_p: default_inferx_top_p(),
+            max_tokens: default_inferx_configured_max_tokens(),
+            timeout_ms: default_inferx_timeout_ms(),
+            max_concurrent_generations: default_inferx_concurrency(),
+            fallback_on_error: true,
+            simd_level: default_inferx_simd_level(),
+        }
+    }
+}
+
+fn default_inferx_model_path() -> String {
+    "/usr/share/lmyzmail/models/skibidi-inferx/skibidi_ai.safetensors".to_owned()
+}
+
+fn default_inferx_tokenizer_path() -> String {
+    "/usr/share/lmyzmail/models/skibidi-inferx/tokenizer.json".to_owned()
+}
+
+const fn default_inferx_temperature() -> f32 {
+    0.85
+}
+
+const fn default_inferx_top_k() -> usize {
+    50
+}
+
+const fn default_inferx_top_p() -> f32 {
+    0.92
+}
+
+const fn default_inferx_configured_max_tokens() -> usize {
+    80
+}
+
+const fn default_inferx_timeout_ms() -> u64 {
+    500
+}
+
+const fn default_inferx_concurrency() -> usize {
+    1
+}
+
+fn default_inferx_simd_level() -> String {
+    "auto".to_owned()
+}
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct JsonTlsConfig {
@@ -1443,6 +1530,7 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         asciiart: smtp_ascii,
     } = value.smtp;
     let content_filter = value.content_filter;
+    let skibidi_inferx = value.skibidi_inferx;
     let htcpcp_pots = pots.unwrap_or_else(default_json_htcpcp_pots);
     if htcpcp_pots.is_empty() {
         return Err(ConfigError::Invalid(
@@ -1933,6 +2021,50 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         value.features.smtp_skibidi_enable_simd_rng.to_string(),
     )?;
     properties.insert(
+        "lmyzmail.skibidi-inferx.enabled".to_owned(),
+        skibidi_inferx.enabled.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.skibidi-inferx.model-path".to_owned(),
+        skibidi_inferx.model_path,
+    )?;
+    properties.insert(
+        "lmyzmail.skibidi-inferx.tokenizer-path".to_owned(),
+        skibidi_inferx.tokenizer_path,
+    )?;
+    properties.insert(
+        "lmyzmail.skibidi-inferx.temperature".to_owned(),
+        skibidi_inferx.temperature.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.skibidi-inferx.top-k".to_owned(),
+        skibidi_inferx.top_k.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.skibidi-inferx.top-p".to_owned(),
+        skibidi_inferx.top_p.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.skibidi-inferx.max-tokens".to_owned(),
+        skibidi_inferx.max_tokens.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.skibidi-inferx.timeout-ms".to_owned(),
+        skibidi_inferx.timeout_ms.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.skibidi-inferx.max-concurrent-generations".to_owned(),
+        skibidi_inferx.max_concurrent_generations.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.skibidi-inferx.fallback-on-error".to_owned(),
+        skibidi_inferx.fallback_on_error.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.skibidi-inferx.simd-level".to_owned(),
+        skibidi_inferx.simd_level,
+    )?;
+    properties.insert(
         "lmyzmail.smtp-security.spamhaus-enabled".to_owned(),
         value.features.spamhaus.to_string(),
     )?;
@@ -2388,6 +2520,7 @@ pub struct RuntimeConfig {
     pub api_keys: Vec<ApiKeyConfig>,
     pub outbound_route: OutboundRouteConfig,
     pub features: FeatureConfig,
+    pub skibidi_inferx: SkibidiInferxConfig,
     pub smtp_skibidi: SmtpSkibidiConfig,
     pub content_filter: ContentFilterConfig,
     pub fail2ban: Fail2BanConfig,
@@ -2852,6 +2985,29 @@ pub struct MailRenderConfig {
     pub simd_mode: MailRenderSimdMode,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum InferxSimdMode {
+    Auto,
+    Scalar,
+    Avx2,
+    Avx512,
+}
+
+#[derive(Clone, Debug)]
+pub struct SkibidiInferxConfig {
+    pub enabled: bool,
+    pub model_path: PathBuf,
+    pub tokenizer_path: PathBuf,
+    pub temperature: f32,
+    pub top_k: usize,
+    pub top_p: f32,
+    pub configured_max_tokens: usize,
+    pub timeout_ms: u64,
+    pub max_concurrent_generations: usize,
+    pub fallback_on_error: bool,
+    pub simd_mode: InferxSimdMode,
+}
+
 #[derive(Clone, Debug)]
 pub struct TlsConfig {
     pub enabled: bool,
@@ -2924,6 +3080,7 @@ impl RuntimeConfig {
             )),
         };
         let smtp_skibidi = parse_smtp_skibidi_config(&properties)?;
+        let skibidi_inferx = parse_skibidi_inferx_config(&properties)?;
         let content_filter = parse_content_filter_config(&properties)?;
         let fail2ban = parse_fail2ban_config(&properties)?;
 
@@ -3401,6 +3558,7 @@ impl RuntimeConfig {
             api_keys,
             outbound_route,
             features,
+            skibidi_inferx,
             smtp_skibidi,
             content_filter,
             fail2ban,
@@ -3917,6 +4075,137 @@ fn parse_mail_render_simd_mode(value: Option<&str>) -> MailRenderSimdMode {
         Some("AVX512") => MailRenderSimdMode::Avx512,
         Some("AUTO") | Some(_) | None => MailRenderSimdMode::Auto,
     }
+}
+
+fn parse_skibidi_inferx_config(
+    properties: &Properties,
+) -> Result<SkibidiInferxConfig, ConfigError> {
+    let model_path = preferred(
+        properties,
+        &["lmyzmail.skibidi-inferx.model-path"],
+        &["botmail.skibidi-inferx.model-path"],
+    )
+    .map_or_else(default_inferx_model_path, str::to_owned);
+    let tokenizer_path = preferred(
+        properties,
+        &["lmyzmail.skibidi-inferx.tokenizer-path"],
+        &["botmail.skibidi-inferx.tokenizer-path"],
+    )
+    .map_or_else(default_inferx_tokenizer_path, str::to_owned);
+    validate_path(&model_path, "SkibidiInferX model-path")?;
+    validate_path(&tokenizer_path, "SkibidiInferX tokenizer-path")?;
+
+    let temperature = preferred_f32(
+        properties,
+        &["lmyzmail.skibidi-inferx.temperature"],
+        &["botmail.skibidi-inferx.temperature"],
+        default_inferx_temperature(),
+        "SkibidiInferX temperature",
+    )?;
+    let top_p = preferred_f32(
+        properties,
+        &["lmyzmail.skibidi-inferx.top-p"],
+        &["botmail.skibidi-inferx.top-p"],
+        default_inferx_top_p(),
+        "SkibidiInferX top-p",
+    )?;
+    if !temperature.is_finite() || !(0.0..=5.0).contains(&temperature) || temperature == 0.0 {
+        return Err(ConfigError::Invalid(
+            "SkibidiInferX temperature must be finite and in (0, 5]".into(),
+        ));
+    }
+    if !top_p.is_finite() || !(0.0..=1.0).contains(&top_p) || top_p == 0.0 {
+        return Err(ConfigError::Invalid(
+            "SkibidiInferX top-p must be finite and in (0, 1]".into(),
+        ));
+    }
+    let top_k = parse_number(
+        properties,
+        &["lmyzmail.skibidi-inferx.top-k"],
+        &["botmail.skibidi-inferx.top-k"],
+        default_inferx_top_k(),
+        "SkibidiInferX top-k",
+    )?;
+    if top_k > MAX_INFERX_TOP_K {
+        return Err(ConfigError::Invalid(format!(
+            "SkibidiInferX top-k exceeds {MAX_INFERX_TOP_K}"
+        )));
+    }
+    let configured_max_tokens = parse_number(
+        properties,
+        &["lmyzmail.skibidi-inferx.max-tokens"],
+        &["botmail.skibidi-inferx.max-tokens"],
+        default_inferx_configured_max_tokens(),
+        "SkibidiInferX max-tokens",
+    )?;
+    if !(1..=MAX_INFERX_TOKENS).contains(&configured_max_tokens) {
+        return Err(ConfigError::Invalid(format!(
+            "SkibidiInferX max-tokens must be in 1..={MAX_INFERX_TOKENS}"
+        )));
+    }
+    let timeout_ms = parse_number(
+        properties,
+        &["lmyzmail.skibidi-inferx.timeout-ms"],
+        &["botmail.skibidi-inferx.timeout-ms"],
+        default_inferx_timeout_ms(),
+        "SkibidiInferX timeout-ms",
+    )?;
+    if !(1..=MAX_INFERX_TIMEOUT_MS).contains(&timeout_ms) {
+        return Err(ConfigError::Invalid(format!(
+            "SkibidiInferX timeout-ms must be in 1..={MAX_INFERX_TIMEOUT_MS}"
+        )));
+    }
+    let max_concurrent_generations = parse_number(
+        properties,
+        &["lmyzmail.skibidi-inferx.max-concurrent-generations"],
+        &["botmail.skibidi-inferx.max-concurrent-generations"],
+        default_inferx_concurrency(),
+        "SkibidiInferX max-concurrent-generations",
+    )?;
+    if max_concurrent_generations > MAX_INFERX_CONCURRENCY {
+        return Err(ConfigError::Invalid(format!(
+            "SkibidiInferX max-concurrent-generations exceeds {MAX_INFERX_CONCURRENCY}"
+        )));
+    }
+    let simd_mode = match preferred(
+        properties,
+        &["lmyzmail.skibidi-inferx.simd-level"],
+        &["botmail.skibidi-inferx.simd-level"],
+    )
+    .unwrap_or("auto")
+    .trim()
+    .to_ascii_lowercase()
+    .as_str()
+    {
+        "scalar" | "none" | "0" => InferxSimdMode::Scalar,
+        "avx2" | "avx2+fma" | "fma" | "1" => InferxSimdMode::Avx2,
+        "avx512" | "avx512f" | "avx-512" | "avx-512f" | "2" => InferxSimdMode::Avx512,
+        _ => InferxSimdMode::Auto,
+    };
+
+    Ok(SkibidiInferxConfig {
+        enabled: preferred_bool(
+            properties,
+            &["lmyzmail.skibidi-inferx.enabled"],
+            &["botmail.skibidi-inferx.enabled"],
+            true,
+        )?,
+        model_path: PathBuf::from(model_path),
+        tokenizer_path: PathBuf::from(tokenizer_path),
+        temperature,
+        top_k,
+        top_p,
+        configured_max_tokens,
+        timeout_ms,
+        max_concurrent_generations,
+        fallback_on_error: preferred_bool(
+            properties,
+            &["lmyzmail.skibidi-inferx.fallback-on-error"],
+            &["botmail.skibidi-inferx.fallback-on-error"],
+            true,
+        )?,
+        simd_mode,
+    })
 }
 
 fn parse_smtp_skibidi_config(properties: &Properties) -> Result<SmtpSkibidiConfig, ConfigError> {
@@ -6177,6 +6466,110 @@ lmyzmail.htcpcp.pots[{index}].supported-additions=\n"
         assert_eq!(config.smtp_skibidi.ascii.default_fps, 10.0);
         assert_eq!(config.smtp_skibidi.ascii.default_contrast, 1.2);
         assert_eq!(config.smtp_skibidi.ascii.char_aspect, 2.0);
+    }
+
+    #[test]
+    fn skibidi_inferx_defaults_aliases_and_new_precedence_are_bounded() {
+        let defaults = RuntimeConfig::from_properties(Properties::default()).unwrap();
+        assert!(defaults.skibidi_inferx.enabled);
+        assert_eq!(defaults.skibidi_inferx.temperature, 0.85);
+        assert_eq!(defaults.skibidi_inferx.top_k, 50);
+        assert_eq!(defaults.skibidi_inferx.top_p, 0.92);
+        assert_eq!(defaults.skibidi_inferx.configured_max_tokens, 80);
+        assert_eq!(defaults.skibidi_inferx.timeout_ms, 500);
+        assert_eq!(defaults.skibidi_inferx.max_concurrent_generations, 1);
+        assert!(defaults.skibidi_inferx.fallback_on_error);
+        assert_eq!(defaults.skibidi_inferx.simd_mode, InferxSimdMode::Auto);
+
+        let config = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.skibidi-inferx.enabled=false\n\
+botmail.skibidi-inferx.model-path=/legacy/model.safetensors\n\
+botmail.skibidi-inferx.tokenizer-path=/legacy/tokenizer.json\n\
+botmail.skibidi-inferx.temperature=0.5\n\
+botmail.skibidi-inferx.top-k=12\n\
+botmail.skibidi-inferx.top-p=0.7\n\
+botmail.skibidi-inferx.max-tokens=70\n\
+botmail.skibidi-inferx.timeout-ms=900\n\
+botmail.skibidi-inferx.max-concurrent-generations=2\n\
+botmail.skibidi-inferx.fallback-on-error=false\n\
+botmail.skibidi-inferx.simd-level=scalar\n\
+lmyzmail.skibidi-inferx.enabled=true\n\
+lmyzmail.skibidi-inferx.temperature=0.9\n\
+lmyzmail.skibidi-inferx.timeout-ms=700\n\
+lmyzmail.skibidi-inferx.simd-level=avx2+fma\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(config.skibidi_inferx.enabled);
+        assert_eq!(
+            config.skibidi_inferx.model_path,
+            PathBuf::from("/legacy/model.safetensors")
+        );
+        assert_eq!(
+            config.skibidi_inferx.tokenizer_path,
+            PathBuf::from("/legacy/tokenizer.json")
+        );
+        assert_eq!(config.skibidi_inferx.temperature, 0.9);
+        assert_eq!(config.skibidi_inferx.top_k, 12);
+        assert_eq!(config.skibidi_inferx.top_p, 0.7);
+        assert_eq!(config.skibidi_inferx.configured_max_tokens, 70);
+        assert_eq!(config.skibidi_inferx.timeout_ms, 700);
+        assert_eq!(config.skibidi_inferx.max_concurrent_generations, 2);
+        assert!(!config.skibidi_inferx.fallback_on_error);
+        assert_eq!(config.skibidi_inferx.simd_mode, InferxSimdMode::Avx2);
+
+        for invalid in [
+            "lmyzmail.skibidi-inferx.temperature=NaN\n",
+            "lmyzmail.skibidi-inferx.temperature=0\n",
+            "lmyzmail.skibidi-inferx.top-p=1.1\n",
+            "lmyzmail.skibidi-inferx.top-k=1048577\n",
+            "lmyzmail.skibidi-inferx.max-tokens=129\n",
+            "lmyzmail.skibidi-inferx.timeout-ms=0\n",
+            "lmyzmail.skibidi-inferx.max-concurrent-generations=65\n",
+        ] {
+            assert!(
+                RuntimeConfig::from_properties(Properties::parse(invalid.as_bytes()).unwrap())
+                    .is_err(),
+                "accepted unsafe InferX configuration: {invalid}"
+            );
+        }
+    }
+
+    #[test]
+    fn skibidi_inferx_semantic_json_uses_the_same_property_path() {
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&semantic_json_with_htcpcp(serde_json::json!({
+                "enabled": false,
+                "default_brew_time_seconds": 30,
+                "pots": null
+            })))
+            .unwrap();
+        value["skibidi_inferx"] = serde_json::json!({
+            "enabled": false,
+            "model_path": "/models/custom.safetensors",
+            "tokenizer_path": "/models/custom.json",
+            "temperature": 0.6,
+            "top_k": 24,
+            "top_p": 0.8,
+            "max_tokens": 64,
+            "timeout_ms": 1200,
+            "max_concurrent_generations": 0,
+            "fallback_on_error": false,
+            "simd_level": "AVX-512F"
+        });
+        let config = RuntimeConfig::from_properties(
+            parse_semantic_json(&serde_json::to_vec(&value).unwrap()).unwrap(),
+        )
+        .unwrap();
+        assert!(!config.skibidi_inferx.enabled);
+        assert_eq!(config.skibidi_inferx.top_k, 24);
+        assert_eq!(config.skibidi_inferx.configured_max_tokens, 64);
+        assert_eq!(config.skibidi_inferx.timeout_ms, 1200);
+        assert_eq!(config.skibidi_inferx.max_concurrent_generations, 0);
+        assert!(!config.skibidi_inferx.fallback_on_error);
+        assert_eq!(config.skibidi_inferx.simd_mode, InferxSimdMode::Avx512);
     }
 
     #[test]

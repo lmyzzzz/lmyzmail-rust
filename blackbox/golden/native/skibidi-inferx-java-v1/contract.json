@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "profile": "skibidi-inferx-java-v1",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "probe_sha256": "bc671c51a41494327494268c4c299367992bbe084b73e00688b5d9db0e48a683",
+    "verified_backends": ["Scalar", "AVX2+FMA"],
+    "avx512_status": "unavailable on the WSL validation CPU; source remains hash-pinned"
+  },
+  "sources_sha256": {
+    "BpeTokenizer.java": "18ea3f8c164664c8bc50d33559ee9452c0c908e0af900f691a496543461ecbbf",
+    "InferenceEngine.java": "4dc40d9d07277b35c11bfd4c9d65c686a9450de82c7edf195deb6cfe7e6cf9a8",
+    "KvCache.java": "7745834738a833b05c05819c8120a0df704e50eaa3e5b869eb6b43ea1cd10102",
+    "ModelWeights.java": "ecad087fa8216b6f541b6fb0a92e14a3917e759302f6bd674229a3afc6d88611",
+    "NativeOps.java": "332f1d6d3576cad458346454e69621970b9fc77aeebb1e10cad690639b1d130",
+    "Sampler.java": "545d2c5f58d49cd4f0d995f0cd8d204017eccefbde56dc9e8d3f0e608774b5b9",
+    "SeedUtil.java": "36dc918e54617532574367aa20e140d0a83e002b5549bb0d2b4818b13a88bab0",
+    "TransformerRunner.java": "94242a0a0a53bd35e75ba95e0c0727cffb7d2ca3cc415deeb7b4f35d37db4088",
+    "SkibidiInferxService.java": "04a3ea4532de40f153cefc3fa7ba31cac764ba0749f79c4b392037f2977d0468",
+    "SkibidiInferxProperties.java": "1a37887b537e9a39e957aff621c022b8ec83b3a6c4b1c5bb39bc21a722b23bfe",
+    "kernels_scalar.c": "39551bbc5583b3d19b0a9d21b1c4dd819f453265c53bfdc409c1f838eeb7e671",
+    "kernels_avx2.c": "841effec45776c779987c6ab88b40a701013002ca6598c494de2f9fee340d890",
+    "kernels_avx512.c": "44dc7c00884c6f7f2b63e7a93d464f6fbc1f697c6c56929eaf3c2e7677dadd97",
+    "dispatch.c": "c085e068abe887313463ae4e23813593a8a9fb0482f16eaf28454140a04a1011"
+  },
+  "model": {
+    "safetensors_sha256": "343966cefa61b375b5e7ac8f82efffd1187dcc33e6f6122c7860ea05f1e1932c",
+    "tokenizer_sha256": "6624adb41b9274bf0cc73c62ebd26eb2bcf281d533f30607ba415105917d81f3",
+    "vocab_size": 6969,
+    "d_model": 384,
+    "n_layers": 8,
+    "n_heads": 6,
+    "d_k": 64,
+    "d_ff": 1536,
+    "max_seq_len": 128,
+    "tensor_count": 99,
+    "merges": 6882
+  },
+  "tokenizer": [
+    {
+      "input": "5.7.1 Go back to Ohio.",
+      "ids": [529, 110, 531, 110, 513, 40, 95, 1035, 143, 2149, 110],
+      "decoded": "5.7.1 Go back to Ohio."
+    },
+    {
+      "input": "ratio'd \"Skibidi\" [NO]",
+      "ids": [454, 3, 31, 52, 3628, 257, 3, 31, 3, 31, 47, 48, 31, 3, 31],
+      "decoded": "ratio'd Skibidi NO"
+    },
+    {
+      "input": "mail@example.test",
+      "ids": [380, 3, 31, 4941, 110, 3002],
+      "decoded": "mail example. test"
+    },
+    {
+      "input": "邮件:Ohio:💀",
+      "ids": [3, 3, 31, 4452, 2149, 4452, 3, 3, 31],
+      "decoded": ": Ohio:"
+    }
+  ],
+  "generation": [
+    {
+      "input": "203.0.113.7:<spoof@example.test>:1700000000000",
+      "seed_hex": "0x615fda6113601482",
+      "token_count": 31,
+      "text": "SPF exposed this mid NPC who tried to forge our goated domain identity catching them in 4k with a sigma fanum tax main character ratio L rejection cope harder ong."
+    },
+    {
+      "input": "",
+      "seed_hex": "0x141cfc9842c4b0e3",
+      "token_count": 29,
+      "text": "Imagine your mid forge getting fanum taxed by SPF while sigma admins griddy on your ohio NPC sus baby gronk skibidi mewing cope energy no cap fr fr."
+    },
+    {
+      "input": "邮件:Ohio:💀",
+      "seed_hex": "0x358d9ced6402fe14",
+      "token_count": 34,
+      "text": "The fanum tax claimed your sus fake sender as SPF confiscated it with alpha main character energy because impersonating us is ohio beta behavior and this sigma server stays based ong no cap."
+    }
+  ]
+}

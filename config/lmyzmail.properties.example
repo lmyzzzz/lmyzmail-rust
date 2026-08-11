@@ -106,6 +106,19 @@ lmyzmail.smtp.mta-sts-enabled=true
 lmyzmail.smtp.skibidi-generator-mode=AUTO_SAFE
 lmyzmail.smtp.skibidi-generator-enable-avx512=true
 lmyzmail.smtp.skibidi-generator-enable-simd-rng=true
+# SkibidiInferX is a Rust SafeTensors/BPE engine; it never starts a JVM.
+lmyzmail.skibidi-inferx.enabled=true
+lmyzmail.skibidi-inferx.model-path=/usr/share/lmyzmail/models/skibidi-inferx/skibidi_ai.safetensors
+lmyzmail.skibidi-inferx.tokenizer-path=/usr/share/lmyzmail/models/skibidi-inferx/tokenizer.json
+lmyzmail.skibidi-inferx.temperature=0.85
+lmyzmail.skibidi-inferx.top-k=50
+lmyzmail.skibidi-inferx.top-p=0.92
+# Parsed for legacy configuration parity; the frozen Java engine effectively uses 120.
+lmyzmail.skibidi-inferx.max-tokens=80
+lmyzmail.skibidi-inferx.timeout-ms=500
+lmyzmail.skibidi-inferx.max-concurrent-generations=1
+lmyzmail.skibidi-inferx.fallback-on-error=true
+lmyzmail.skibidi-inferx.simd-level=auto
 lmyzmail.smtp.skibidi-toilet-quiz-enabled=true
 lmyzmail.smtp.asciiart.simd-mode=AUTO
 lmyzmail.smtp.asciiart.max-width=450

@@ -29,6 +29,7 @@ pub mod outbound_worker;
 pub mod redis;
 pub mod reporting;
 pub(crate) mod skibidi;
+pub mod skibidi_inferx;
 pub mod smtp;
 pub(crate) mod smtp_ascii;
 pub(crate) mod smtp_content_filter;

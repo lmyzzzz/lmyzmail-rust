@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "profile": "skibidi-inferx-rust-v1",
+  "captured_at": "2026-08-11T10:59:24+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc",
+    "probe_sha256": "bc671c51a41494327494268c4c299367992bbe084b73e00688b5d9db0e48a683",
+    "contract_sha256": "a1609b496eae0c60c16c599f33e8b72c8af6be54bb345ec94059791e092861da",
+    "native_linux_resource_sha256": "3e7561e9058e5997fd2b24ee3d451bc74416146e224228d10da7770c7bfb208d"
+  },
+  "implementation": {
+    "runtime": "stable-rust",
+    "java_runtime_dependency": false,
+    "jni_dependency_for_linux_target": false,
+    "old_inferx_c_kernel_dependency": false,
+    "dedicated_workers": 1,
+    "pool_queue_capacity": 1,
+    "effective_parallel_generations": 1,
+    "effective_max_new_tokens": 120,
+    "max_seed_bytes": 4096,
+    "shutdown_deadline_ms": 2000,
+    "backends": ["Scalar", "AVX2+FMA", "AVX-512F"]
+  },
+  "resource_budgets": {
+    "max_model_bytes": 536870912,
+    "max_tensors": 4096,
+    "max_tokenizer_bytes": 8388608,
+    "max_vocab_size": 1048576,
+    "max_merges": 1048576,
+    "max_scratch_floats": 16777216,
+    "max_scratch_bytes": 67108864
+  },
+  "configuration": {
+    "new_prefix": "lmyzmail.skibidi-inferx.",
+    "legacy_prefix": "botmail.skibidi-inferx.",
+    "precedence": "new key wins independently for each field",
+    "legacy_classpath_without_jvm": true,
+    "configured_max_tokens_is_diagnostic_only": true,
+    "reason": "the frozen Java InferenceEngine hard-codes 120",
+    "fallback_on_error_false_still_falls_back": true,
+    "fallback_reason": "the frozen Java outer exceptionally handler converts every error and timeout to fallback"
+  },
+  "model": {
+    "safetensors_sha256": "343966cefa61b375b5e7ac8f82efffd1187dcc33e6f6122c7860ea05f1e1932c",
+    "tokenizer_sha256": "6624adb41b9274bf0cc73c62ebd26eb2bcf281d533f30607ba415105917d81f3",
+    "source_manifest_sha256": "881df6ea3d6553ef12d3a48694a48d6fcc215076ec1f15fa34395c72a0249911",
+    "bytes": 86593688,
+    "tensor_count": 99,
+    "vocab_size": 6969,
+    "d_model": 384,
+    "n_layers": 8,
+    "n_heads": 6,
+    "d_ff": 1536,
+    "max_seq_len": 128
+  },
+  "source_sha256": {
+    "crates/lmyzmail/src/skibidi_inferx/mod.rs": "b4963951b7df30aa7bb88303a2739569c1aa27a0d72152e506157d85bb9188d6",
+    "crates/lmyzmail/src/skibidi_inferx/model.rs": "44039c64b68de2d7bcb627e1148c9ae146b009dcab07b32b69eaad354dc03453",
+    "crates/lmyzmail/src/skibidi_inferx/tokenizer.rs": "a35f22e4b9275cc68573333f9f3ce761f6c924f4799db578dd6396fc55f3ed29",
+    "crates/lmyzmail/src/skibidi_inferx/sampler.rs": "22cc5a30ec142c892a323b1b3df36757ccc6965253f73a554dce45ead7bf1636",
+    "crates/lmyzmail/src/skibidi_inferx/kernels.rs": "8c524b4c4689cc50d1cdb018b0b8cd5d55dc3edaac1123dd0f526fcc2f6262fd",
+    "crates/lmyzmail/src/skibidi_inferx/engine.rs": "b4593799bb713e47ff918cf13f3b65937110975f58cfa66e764d6670e926b376",
+    "crates/lmyzmail/src/skibidi_inferx/service.rs": "8c9bffa747750a5aaa5add476a8cd55103774dee1e32fdb120654dcdb6e5b5f6",
+    "crates/lmyzmail/src/config.rs": "663e43b93798eb358b412a96d6f126d92abbdfb7b751f32137ede23a96ce9efa",
+    "crates/lmyzmail/src/main.rs": "2e83d0261439e7136fabfeec81bdb530f6c59a333a27fb0bc7a4775b1faa8c30",
+    "crates/lmyzmail/src/lib.rs": "05f1cc5b742766ad1b1b8f7e921578d541f17fc7a2679724ad5f8bcbaa19e85d",
+    "crates/lmyzmail/Cargo.toml": "3ea9ccec9d2b594f817c570625726601c2ac6c37b198c0bff334c9416adb4bf8",
+    "config/lmyzmail.properties.example": "0b538e8ea3c96e60768b536537dac04c71cdef5dc297b1598ad3926ca64c7773",
+    "Cargo.lock": "285269289ac7b8e70c0008dfcc8d8337e1b2a6719096dd604627d616c452abc5"
+  },
+  "host": {
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+    "logical_cpus_exposed": 24,
+    "kernel": "Linux 6.6.87.2-microsoft-standard-WSL2",
+    "rustc": "1.94.0 (4a4ef493e3a1488c6e321570238084b38948f6db)",
+    "cargo": "1.94.0 (85eff7c80277b57f78b11e28d14154ab12fcf643)",
+    "java_oracle": "Oracle JDK 22.0.2+9-70",
+    "available_simd": ["AVX2", "FMA"],
+    "unavailable_simd": ["AVX-512F"]
+  },
+  "cold_process_baseline": {
+    "kind": "single-sample end-to-end baseline, not a throughput benchmark",
+    "workload": "load the pinned model and tokenizer, generate all three frozen contract vectors, and verify full text, token count, and seed",
+    "java_scalar": {
+      "wall_seconds": 1.24,
+      "max_rss_kib": 389600
+    },
+    "rust_scalar_release_test": {
+      "wall_seconds": 1.07,
+      "test_body_seconds": 0.83,
+      "max_rss_kib": 107200
+    },
+    "java_avx2_fma": {
+      "wall_seconds": 0.83,
+      "max_rss_kib": 389772
+    },
+    "rust_avx2_fma_release_test": {
+      "wall_seconds": 0.68,
+      "test_body_seconds": 0.45,
+      "max_rss_kib": 107008
+    },
+    "measurement_tool": "/usr/bin/time -v",
+    "caveats": [
+      "Single cold-process samples include model and tokenizer initialization.",
+      "The Java probe also emits semantic JSON; the Rust probe performs golden assertions through the test harness.",
+      "No frequency pinning or multi-run statistics were used, so these values are a baseline only."
+    ]
+  },
+  "release": {
+    "command": "cargo build --release --locked -p lmyzmail --target x86_64-unknown-linux-gnu",
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "01b1d65b462d623861c7299330be9a19f56ad6a887067045649327ac17980df3",
+    "second_production_build_same_sha256": true,
+    "format": "ELF 64-bit LSB PIE x86-64, stripped",
+    "java_or_jvm_dynamic_dependency": false,
+    "linux_target_cargo_tree_contains_jni": false
+  },
+  "verification": [
+    {
+      "command": "cargo clippy -p lmyzmail --all-targets --target x86_64-unknown-linux-gnu -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "cargo test -p lmyzmail skibidi_inferx --target x86_64-unknown-linux-gnu",
+      "result": "21 passed, 0 failed, 0 ignored"
+    },
+    {
+      "command": "cargo test --workspace --all-targets --target x86_64-unknown-linux-gnu",
+      "result": "570 passed, 0 failed, 0 ignored"
+    },
+    {
+      "command": "frozen InferxOracleProbe, Scalar and AVX2+FMA",
+      "result": "all tokenizer IDs, decoded strings, seeds, token counts, and complete generated texts matched the frozen contract"
+    },
+    {
+      "command": "ldd and readelf -d target/x86_64-unknown-linux-gnu/release/lmyzmail",
+      "result": "no Java, JVM, or JNI dynamic dependency"
+    },
+    {
+      "command": "cargo tree -i jni -p lmyzmail --target x86_64-unknown-linux-gnu",
+      "result": "nothing to print"
+    }
+  ],
+  "verification_limits": [
+    {
+      "backend": "AVX-512F",
+      "compiled": true,
+      "executed": false,
+      "reason": "the current WSL CPU does not expose AVX-512F"
+    },
+    {
+      "surface": "SMTP self-spoofing wire integration",
+      "implemented": false,
+      "reason": "a raw-socket Java oracle golden must be frozen before connecting InferxService to the SMTP reply path"
+    }
+  ]
+}
