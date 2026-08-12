@@ -465,13 +465,26 @@ that invalid Redis policy and performs fresh TXT discovery, while valid
 positive policies remain reusable. Rust matches those semantics exactly. v2
 remains immutable pre-final-definition history.
 
-TLS-RPT aggregation, disconnect ambiguity, DSN restart recovery across
-injected process or storage loss, DSN suppression, backpressure, high
-concurrency, and soak remain separate external differential matrices. v36,
+Disconnect ambiguity, DSN restart recovery across injected process or storage
+loss, DSN suppression, backpressure, high concurrency, and soak remain
+separate external differential matrices. v36,
 5xx v4, 4xx v3, DSN v3, outbound TLS v5, negotiation v1, and MTA-STS discovery
 v3 do not claim those paths. TLS v1 through v4 remain immutable history; v5
 retains the header-only normalization and API-returned queue identity
 established by v3 under the current harness definition tree.
+
+The active `managed-tlsrpt-https-v8.json` profile separately freezes external
+TLS report HTTPS delivery through the real report API. It covers a successful
+204 POST, a 302 that is reported without following, an untrusted collector
+certificate, a private-address SSRF rejection before connect, and a stalled
+response under the shared two-second deadline. Java and Rust match on policy
+TXT discovery, exact target and Host bytes, SNI, TLS 1.3 cipher, complete gzip
+JSON body after only the UUIDv4 report id is normalized, API result, and
+unchanged source report row. Hickory's exact AAAA-before-A trace is asserted
+for Rust; Java collector resolution uses its isolated JDK hosts file. v1
+through v7 remain immutable pre-final-definition history. The only wire
+difference is the explicitly authorized `Botmail-TLSRPT/1.0` to
+`lmyzmail-TLSRPT/1.0` branding change.
 
 The active `managed-outbound-tls-validity-v3.json` profile separately freezes
 trusted-chain certificates that are expired or not yet valid. Opportunistic

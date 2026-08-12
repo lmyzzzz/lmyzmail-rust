@@ -39,11 +39,38 @@ addresses, the 16-address ceiling, exact request headers and raw path/query,
 2xx and `HTTP 302` outcomes, timeout/cancellation/admission, no response-body
 consumption, interim-response limits, and all response-header budgets.
 
+The active external `managed-tlsrpt-https-v8.json` profile drives both the
+frozen Java oracle and the Rust candidate through the real
+`POST /api/reports/domain/{domain}` API over independent PostgreSQL state. Its
+five-case matrix freezes a successful `204`, a non-followed `302`, an
+untrusted collector certificate, a private-address SSRF rejection, and a
+stalled response under one two-second delivery deadline. The fixture observes
+exact TXT/address queries, TLS SNI/protocol/cipher, Host and request-target
+bytes, complete bounded gzip body framing, normalized decompressed JSON, the
+API delivery result, and an unchanged source `outbound_tls_log` row. v1 through
+v7 remain immutable pre-final-definition history.
+
 The candidate deliberately emits `lmyzmail-TLSRPT/1.0` instead of the frozen
 Java `Botmail-TLSRPT/1.0` identifier. This is the explicitly authorized brand
 change; no other TLSRPT wire or security behavior is relaxed.
 
-## Milestone verification
+## TLS-RPT HTTPS v8 verification
+
+- Fresh Java recording, Rust candidate replay, and a second fresh Java replay:
+  passed.
+- HTTPS fixture tests: 9 passed; the TLS-RPT bounded decompression test also
+  passed.
+- Python non-integration suite: 161 passed, 154 deselected.
+- Ruff and strict mypy across the full black-box source and test tree: passed.
+- `cargo fmt --all -- --check`: passed.
+- `cargo test --workspace --locked`: 637 passed.
+- `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`:
+  passed.
+- Two locked release builds, including one cold build in an independent target
+  directory, were byte-identical. The Linux x86_64 binary SHA-256 is
+  `a57663cb11fad457c7cbad6c7aefef85f2856aee59b9ee3c5840bf3236eb5220`.
+
+## Earlier milestone verification
 
 - `cargo fmt --all -- --check`: passed.
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings`:

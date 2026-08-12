@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from .errors import HarnessError
 
 _MAX_HEADER_BYTES = 16 * 1024
+_MAX_REQUEST_BODY_BYTES = 4 * 1024 * 1024
 _MAX_RESPONSE_BYTES = 128 * 1024
 _MAX_CONNECTIONS = 32
 _MAX_CONCURRENT_CONNECTIONS = 8
@@ -66,6 +67,7 @@ class HttpsRequest:
     target: str
     version: str
     headers: tuple[tuple[str, str], ...]
+    body: bytes
     sni: str | None
     tls_protocol: str
     tls_cipher: str
@@ -82,6 +84,7 @@ class ScriptedHttpsServer:
         tls_context: ssl.SSLContext,
         bind_host: str = "127.0.0.1",
         bind_port: int = 0,
+        max_request_body_bytes: int = 0,
     ) -> None:
         try:
             parsed = ipaddress.ip_address(bind_host)
@@ -91,10 +94,17 @@ class ScriptedHttpsServer:
             raise ValueError("HTTPS fixture bind host must be a specific IPv4 address")
         if isinstance(bind_port, bool) or not 0 <= bind_port <= 65_535:
             raise ValueError("HTTPS fixture bind port must be between 0 and 65535")
+        if (
+            isinstance(max_request_body_bytes, bool)
+            or max_request_body_bytes < 0
+            or max_request_body_bytes > _MAX_REQUEST_BODY_BYTES
+        ):
+            raise ValueError("HTTPS fixture request body limit is out of range")
         self._scenario = scenario
         self._tls_context = tls_context
         self._bind_host = bind_host
         self._bind_port = bind_port
+        self._max_request_body_bytes = max_request_body_bytes
         self._state_lock = threading.RLock()
         self._stop_event = threading.Event()
         self._listener: socket.socket | None = None
@@ -278,8 +288,6 @@ class ScriptedHttpsServer:
                 raise ConnectionError("HTTPS peer disconnected before its request")
             value.extend(chunk)
         head, trailing = bytes(value).split(b"\r\n\r\n", 1)
-        if trailing:
-            raise ValueError("HTTPS fixture request unexpectedly contained a body")
         lines = head.split(b"\r\n")
         request_line = lines[0].decode("ascii", errors="strict").split(" ")
         if len(request_line) != 3 or any(not item for item in request_line):
@@ -296,6 +304,15 @@ class ScriptedHttpsServer:
                     raw_value.strip(b" \t").decode("latin-1", errors="strict"),
                 )
             )
+        body_length = self._request_body_length(headers)
+        if len(trailing) > body_length:
+            raise ValueError("HTTPS fixture request contained bytes after its body")
+        body = bytearray(trailing)
+        while len(body) < body_length:
+            chunk = connection.recv(min(64 * 1024, body_length - len(body)))
+            if not chunk:
+                raise ConnectionError("HTTPS peer disconnected before its request body")
+            body.extend(chunk)
         cipher = connection.cipher()
         if cipher is None:
             raise ValueError("HTTPS fixture TLS session did not negotiate a cipher")
@@ -307,11 +324,30 @@ class ScriptedHttpsServer:
             target=target,
             version=version,
             headers=tuple(headers),
+            body=bytes(body),
             sni=sni,
             tls_protocol=connection.version() or "",
             tls_cipher=cipher[0],
             tls_secret_bits=cipher[2],
         )
+
+    def _request_body_length(self, headers: list[tuple[str, str]]) -> int:
+        content_lengths = [
+            value for name, value in headers if name.casefold() == "content-length"
+        ]
+        if any(name.casefold() == "transfer-encoding" for name, _ in headers):
+            raise ValueError("HTTPS fixture does not accept Transfer-Encoding")
+        if len(content_lengths) > 1:
+            raise ValueError("HTTPS fixture request has multiple Content-Length headers")
+        if not content_lengths:
+            return 0
+        raw = content_lengths[0]
+        if not raw or not raw.isascii() or not raw.isdigit():
+            raise ValueError("HTTPS fixture request Content-Length is invalid")
+        length = int(raw, 10)
+        if length > self._max_request_body_bytes:
+            raise ValueError("HTTPS fixture request body exceeded its byte budget")
+        return length
 
     def _write_response(self, connection: ssl.SSLSocket) -> None:
         scenario = self._scenario
