@@ -427,10 +427,23 @@ the original headers, never the original body. Both implementations must leave
 their pre-existing Redis worklist baseline unchanged. v1 and v2 remain
 immutable pre-final-definition history and are not active.
 
-STARTTLS/MTA-STS, disconnect ambiguity, DSN restart recovery across injected
-process or storage loss, DSN suppression, backpressure, high concurrency, and
-soak remain separate external differential matrices; v36, 5xx v4, 4xx v3,
-and DSN v3 do not claim those paths.
+The active `managed-outbound-tls-v2.json` profile covers opportunistic
+STARTTLS success with a post-TLS EHLO, trust-chain failure and command
+rejection followed by a fresh plaintext connection, MTA-STS enforce success,
+and enforce rejection without downgrade when STARTTLS is absent. It also
+freezes the approved `outbound-starttls-hostname-verification` difference:
+Java accepts a trusted but hostname-mismatched certificate outside enforce
+mode, while Rust verifies the name and then follows the same fresh-connection
+opportunistic fallback. Enforce policy, certificate, and STARTTLS-rejection
+failures are permanent terminal queue failures with zero retries. TLS handshake
+timeouts and connection-class transport failures remain retryable on Java's
+30-second schedule, without a plaintext downgrade.
+
+Certificate expiry, protocol/cipher negotiation, policy discovery and fetch
+failure, TLS-RPT aggregation, disconnect ambiguity, DSN restart recovery
+across injected process or storage loss, DSN suppression, backpressure, high
+concurrency, and soak remain separate external differential matrices. v36,
+5xx v4, 4xx v3, DSN v3, and outbound TLS v2 do not claim those paths.
 
 ## Approved security differences
 
@@ -538,6 +551,12 @@ candidate test; it has the same review requirements as the primary allowlist.
 - A live legacy MTA-STS NONE value is reusable only for its remaining Redis TTL,
   capped at five minutes. This repairs the oracle's restart-only negative-cache
   expiry bug without changing bytes, keys, or post-expiry discovery.
+- Outbound STARTTLS always verifies the TLS server name. The frozen Java client
+  omits endpoint identification outside MTA-STS enforce mode; the candidate
+  rejects that certificate, closes the TLS attempt, and uses a fresh plaintext
+  connection only because the delivery is opportunistic. Trust-chain checks,
+  enforce-mode name verification, no-downgrade behavior, SMTP bytes, and queue
+  state remain exact requirements.
 - Outbound HTTP status reads have a bounded Redis deadline. The frozen oracle
   leaves known-ID and sent-file requests unanswered beyond the ten-second
   blackbox observation window after Redis disappears; lmyzmail returns a fixed

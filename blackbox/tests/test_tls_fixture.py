@@ -12,6 +12,7 @@ from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 from lmyzmail_blackbox.errors import HarnessError
 from lmyzmail_blackbox.tls_fixture import (
     create_server_ssl_context,
+    provision_ephemeral_outbound_tls_material,
     provision_ephemeral_tls_material,
 )
 
@@ -70,3 +71,58 @@ def test_server_context_loads_pkcs12_without_leaving_pem_keys(tmp_path: Path) ->
 
     assert context.minimum_version.name == "TLSv1_2"
     assert tuple(material.keystore_path.parent.iterdir()) == (material.keystore_path,)
+
+
+def test_outbound_tls_material_separates_identity_hostname_and_trust(tmp_path: Path) -> None:
+    material = provision_ephemeral_outbound_tls_material(
+        tmp_path,
+        mx_hostname="mx.outbound.fixture.test",
+    )
+
+    assert stat.S_IMODE(material.java_truststore_path.parent.stat().st_mode) == 0o700
+    assert stat.S_IMODE(material.java_truststore_path.stat().st_mode) == 0o600
+    assert stat.S_IMODE(material.ca_certificate_path.stat().st_mode) == 0o600
+    assert material.java_truststore_path.parent == material.ca_certificate_path.parent
+
+    trusted_ca = x509.load_pem_x509_certificate(material.ca_certificate_pem)
+    assert trusted_ca.extensions.get_extension_for_class(x509.BasicConstraints).value == (
+        x509.BasicConstraints(ca=True, path_length=0)
+    )
+    assert material.java_truststore_path.read_bytes().startswith(b"0")
+
+    identities = (
+        (material.matching_server, "mx.outbound.fixture.test", trusted_ca),
+        (material.mismatched_server, "mismatch.fixture.test", trusted_ca),
+    )
+    for identity, hostname, issuer in identities:
+        private_key, certificate, chain = pkcs12.load_key_and_certificates(
+            identity.keystore_path.read_bytes(),
+            identity.keystore_password.encode("ascii"),
+        )
+        assert isinstance(private_key, rsa.RSAPrivateKey)
+        assert certificate is not None
+        assert certificate.issuer == issuer.subject
+        names = certificate.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+        assert names.get_values_for_type(x509.DNSName) == [hostname]
+        assert chain == [issuer]
+
+    _, untrusted_certificate, untrusted_chain = pkcs12.load_key_and_certificates(
+        material.untrusted_server.keystore_path.read_bytes(),
+        material.untrusted_server.keystore_password.encode("ascii"),
+    )
+    assert untrusted_certificate is not None
+    assert untrusted_chain is not None and len(untrusted_chain) == 1
+    assert untrusted_chain[0] != trusted_ca
+    assert untrusted_certificate.issuer == untrusted_chain[0].subject
+
+
+def test_outbound_tls_material_rejects_reuse_and_invalid_names(tmp_path: Path) -> None:
+    provision_ephemeral_outbound_tls_material(tmp_path, mx_hostname="mx.fixture.test")
+    with pytest.raises(HarnessError, match="already contains material"):
+        provision_ephemeral_outbound_tls_material(tmp_path, mx_hostname="mx.fixture.test")
+
+    for hostname in ("", ".fixture.test", "fixture.test.", "bad_name.fixture.test"):
+        workspace = tmp_path / f"invalid-{len(list(tmp_path.iterdir()))}"
+        workspace.mkdir()
+        with pytest.raises(HarnessError, match="invalid outbound TLS hostname"):
+            provision_ephemeral_outbound_tls_material(workspace, mx_hostname=hostname)

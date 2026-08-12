@@ -51,7 +51,9 @@ class SmtpScenario:
     default_recipient_reply: bytes = b"250 2.1.5 recipient accepted\r\n"
     data_ready_reply: bytes = b"354 end data with <CRLF>.<CRLF>\r\n"
     data_result_reply: bytes = b"250 2.0.0 message accepted\r\n"
+    starttls_reply: bytes = b"220 2.0.0 ready to start TLS\r\n"
     tls_context: ssl.SSLContext | None = field(default=None, repr=False, compare=False)
+    tls_handshake_delay_seconds: float = 0.0
     disconnect_at: DisconnectPoint | None = None
     read_chunk_bytes: int = 4096
     read_delay_seconds: float = 0.0
@@ -90,6 +92,7 @@ class SmtpScenario:
             expected_prefix=b"354 ",
         )
         _validate_reply(self.data_result_reply, field_name="DATA result reply")
+        _validate_reply(self.starttls_reply, field_name="STARTTLS reply")
         normalized = [value.normalized_recipient for value in self.recipient_replies]
         if len(normalized) != len(set(normalized)):
             raise ValueError("recipient rules must be unique case-insensitively")
@@ -109,6 +112,11 @@ class SmtpScenario:
             raise ValueError("message limit exceeds session byte limit")
         if not math.isfinite(self.read_delay_seconds) or self.read_delay_seconds < 0:
             raise ValueError("read delay must be finite and non-negative")
+        if (
+            not math.isfinite(self.tls_handshake_delay_seconds)
+            or self.tls_handshake_delay_seconds < 0
+        ):
+            raise ValueError("TLS handshake delay must be finite and non-negative")
         if (
             not math.isfinite(self.connection_timeout_seconds)
             or self.connection_timeout_seconds <= 0
@@ -515,7 +523,11 @@ class ScriptedSmtpServer:
                     continue
                 if reader.buffer:
                     raise _PeerProtocolError("plaintext remained buffered before STARTTLS")
-                self._send(connection_id, connection, b"220 2.0.0 ready to start TLS\r\n")
+                self._send(connection_id, connection, self.scenario.starttls_reply)
+                if not self.scenario.starttls_reply.startswith(b"2"):
+                    continue
+                if self._stop_event.wait(self.scenario.tls_handshake_delay_seconds):
+                    raise _PeerClosed
                 connection.settimeout(max(0.001, deadline - time.monotonic()))
                 connection = self.scenario.tls_context.wrap_socket(connection, server_side=True)
                 owner.connection = connection

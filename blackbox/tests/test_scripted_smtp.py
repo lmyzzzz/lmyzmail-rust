@@ -146,6 +146,54 @@ def test_scripted_server_upgrades_starttls_and_resets_greeting_state(tmp_path: P
     assert tuple(material.keystore_path.parent.iterdir()) == (material.keystore_path,)
 
 
+def test_scripted_server_can_reject_starttls_without_upgrading(tmp_path: Path) -> None:
+    material = provision_ephemeral_tls_material(tmp_path)
+    server_context = create_server_ssl_context(material)
+    server = ScriptedSmtpServer(
+        SmtpScenario(
+            tls_context=server_context,
+            starttls_reply=b"454 4.7.0 fixture TLS rejection\r\n",
+        )
+    )
+
+    with server:
+        with RawSmtpClient.connect(server.host, server.port) as client:
+            assert b"250 STARTTLS\r\n" in client.command(b"EHLO outbound.example.test")
+            assert client.command(b"STARTTLS") == (b"454 4.7.0 fixture TLS rejection\r\n",)
+            _prepare_transaction(client)
+            assert client.data(b"Subject: plaintext fallback\r\n\r\nbody\r\n")[1][0].startswith(
+                b"250 "
+            )
+
+    assert not any(event.kind == "tls-established" for event in server.events())
+    assert len(server.messages()) == 1
+
+
+def test_delayed_tls_handshake_is_bounded_and_stop_cancellable(tmp_path: Path) -> None:
+    material = provision_ephemeral_tls_material(tmp_path)
+    server = ScriptedSmtpServer(
+        SmtpScenario(
+            tls_context=create_server_ssl_context(material),
+            tls_handshake_delay_seconds=30.0,
+            connection_timeout_seconds=60.0,
+        )
+    )
+    server.start()
+    connection = socket.create_connection((server.host, server.port), timeout=1.0)
+    try:
+        assert connection.recv(1024).startswith(b"220 ")
+        connection.sendall(b"EHLO outbound.example.test\r\n")
+        assert b"STARTTLS" in connection.recv(1024)
+        connection.sendall(b"STARTTLS\r\n")
+        assert connection.recv(1024).startswith(b"220 ")
+        started = time.monotonic()
+        server.stop(timeout=1.0)
+        assert time.monotonic() - started < 1.0
+    finally:
+        connection.close()
+    server.assert_no_errors()
+
+
 @pytest.mark.parametrize(
     ("point", "reply_received", "message_count", "accepted"),
     (
@@ -312,6 +360,8 @@ def test_invalid_scenarios_fail_before_listening() -> None:
         SmtpScenario(max_message_bytes=2, max_session_bytes=1)
     with pytest.raises(ValueError, match="finite and positive"):
         SmtpScenario(connection_timeout_seconds=float("inf"))
+    with pytest.raises(ValueError, match="TLS handshake delay"):
+        SmtpScenario(tls_handshake_delay_seconds=float("inf"))
 
 
 def test_scripted_server_rejects_ipv6_bind_host_before_listening() -> None:

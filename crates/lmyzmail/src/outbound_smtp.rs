@@ -18,6 +18,8 @@ use tokio::{
 use tokio_rustls::{TlsConnector, client::TlsStream};
 use tokio_util::sync::CancellationToken;
 
+use crate::config::RuntimeConfig;
+
 const MAX_REPLY_LINE_BYTES: usize = 2_048;
 const MAX_REPLY_BYTES: usize = 64 * 1024;
 const MAX_REPLY_LINES: usize = 100;
@@ -215,6 +217,20 @@ pub enum DeliveryStage {
     DataFinal,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+enum DeliveryFailureSource {
+    #[default]
+    Other,
+    Deadline {
+        operation: &'static str,
+        timeout: Duration,
+    },
+    Io {
+        operation: &'static str,
+        kind: std::io::ErrorKind,
+    },
+}
+
 #[derive(Debug)]
 pub struct DeliveryError {
     pub kind: DeliveryErrorKind,
@@ -222,6 +238,7 @@ pub struct DeliveryError {
     pub smtp_code: Option<u16>,
     pub message: String,
     pub recipients: Vec<RecipientResult>,
+    source: DeliveryFailureSource,
 }
 
 impl DeliveryError {
@@ -273,6 +290,30 @@ impl Default for OutboundSmtpClient {
 }
 
 impl OutboundSmtpClient {
+    pub fn from_config(config: &RuntimeConfig) -> Result<Self, DeliveryError> {
+        let connect_timeout = outbound_timeout(
+            config,
+            "lmyzmail.outbound.connection-timeout-ms",
+            "botmail.outbound.connection-timeout-ms",
+            30_000,
+        )?;
+        let command_timeout = outbound_timeout(
+            config,
+            "lmyzmail.outbound.read-timeout-ms",
+            "botmail.outbound.read-timeout-ms",
+            60_000,
+        )?;
+        let session_timeout = Duration::from_secs(90)
+            .max(connect_timeout)
+            .max(command_timeout);
+        Ok(Self {
+            connect_timeout,
+            command_timeout,
+            session_timeout,
+            ..Self::default()
+        })
+    }
+
     pub fn new(
         tls_config: Arc<ClientConfig>,
         connect_timeout: Duration,
@@ -338,6 +379,9 @@ impl OutboundSmtpClient {
             {
                 self.prepare_once(request, cancellation, false, session_deadline)
                     .await
+            }
+            Err(failure) if request.tls_mode == TlsMode::Required => {
+                Err(required_tls_failure(failure))
             }
             result => result,
         }
@@ -428,7 +472,7 @@ impl OutboundSmtpClient {
         } else if request.tls_mode == TlsMode::Required {
             return Err(error(
                 DeliveryErrorKind::Temporary,
-                "STARTTLS required but not advertised",
+                "MTA-STS policy requires TLS, but server does not support STARTTLS",
             )
             .at(DeliveryStage::StartTls));
         }
@@ -1384,7 +1428,109 @@ fn error(kind: DeliveryErrorKind, message: impl Into<String>) -> DeliveryError {
         smtp_code: None,
         message: message.into(),
         recipients: Vec::new(),
+        source: DeliveryFailureSource::Other,
     }
+}
+
+fn outbound_timeout(
+    config: &RuntimeConfig,
+    new_key: &str,
+    legacy_key: &str,
+    default_millis: u64,
+) -> Result<Duration, DeliveryError> {
+    let millis = config
+        .preferred_value(new_key, legacy_key)
+        .map(str::parse::<u64>)
+        .transpose()
+        .map_err(|_| {
+            error(
+                DeliveryErrorKind::Configuration,
+                "invalid outbound SMTP timeout",
+            )
+        })?
+        .unwrap_or(default_millis);
+    if millis == 0 || millis > 15 * 60 * 1_000 {
+        return Err(error(
+            DeliveryErrorKind::Configuration,
+            "invalid outbound SMTP timeout",
+        ));
+    }
+    Ok(Duration::from_millis(millis))
+}
+
+fn required_tls_failure(mut failure: DeliveryError) -> DeliveryError {
+    if failure.stage != DeliveryStage::StartTls
+        || matches!(
+            failure.kind,
+            DeliveryErrorKind::Cancelled
+                | DeliveryErrorKind::Ambiguous
+                | DeliveryErrorKind::Configuration
+        )
+    {
+        return failure;
+    }
+    let retryable_transport = matches!(
+        failure.source,
+        DeliveryFailureSource::Deadline { .. }
+            | DeliveryFailureSource::Io {
+                kind: std::io::ErrorKind::BrokenPipe
+                    | std::io::ErrorKind::ConnectionAborted
+                    | std::io::ErrorKind::ConnectionRefused
+                    | std::io::ErrorKind::ConnectionReset
+                    | std::io::ErrorKind::NotConnected
+                    | std::io::ErrorKind::TimedOut
+                    | std::io::ErrorKind::UnexpectedEof
+                    | std::io::ErrorKind::WouldBlock,
+                ..
+            }
+    );
+    if let DeliveryFailureSource::Deadline {
+        operation: "SMTP TLS handshake",
+        timeout,
+    } = failure.source
+    {
+        failure.message = format!(
+            "MTA-STS policy requires TLS, but TLS failed: MTA-STS requires TLS: \
+             MTA-STS enforced TLS handshake failed: TLS handshake timeout after {}ms",
+            timeout.as_millis()
+        );
+    } else if matches!(
+        failure.source,
+        DeliveryFailureSource::Io {
+            operation: "SMTP TLS handshake",
+            kind: std::io::ErrorKind::InvalidData,
+        }
+    ) {
+        failure.message = "MTA-STS policy requires TLS, but TLS failed: MTA-STS requires TLS: \
+             MTA-STS enforced TLS handshake failed: TLS handshake failed: \
+             General OpenSslEngine problem"
+            .to_owned();
+    } else if let Some(code) = failure.smtp_code {
+        let detail = failure
+            .message
+            .split_once(": ")
+            .map_or(failure.message.as_str(), |(_, detail)| detail);
+        let code_text = code.to_string();
+        let detail = detail
+            .strip_prefix(&code_text)
+            .map_or(detail, str::trim_start);
+        failure.message = format!(
+            "MTA-STS policy requires TLS, but TLS failed: MTA-STS requires TLS: \
+             STARTTLS failed: {code} {detail}"
+        );
+    } else if failure.message == "MTA-STS policy requires TLS, but server does not support STARTTLS"
+    {
+        // This policy error already uses the frozen queue detail verbatim.
+    } else if failure.message.contains("STARTTLS negotiation failed") {
+        failure.message = format!(
+            "MTA-STS policy requires TLS, but TLS failed: MTA-STS requires TLS: {}",
+            failure.message
+        );
+    }
+    if !retryable_transport {
+        failure.kind = DeliveryErrorKind::Permanent;
+    }
+    failure
 }
 
 fn file_error_kind(kind: std::io::ErrorKind) -> DeliveryErrorKind {
@@ -1408,17 +1554,16 @@ fn protocol_error(after_data: bool, message: &'static str) -> DeliveryError {
     )
 }
 
-async fn io_deadline<T, E, F>(
+async fn io_deadline<T, F>(
     cancellation: &CancellationToken,
     operation_timeout: Duration,
     session_deadline: Instant,
     future: F,
     failure_kind: DeliveryErrorKind,
-    operation: &str,
+    operation: &'static str,
 ) -> Result<T, DeliveryError>
 where
-    F: Future<Output = Result<T, E>>,
-    E: fmt::Display,
+    F: Future<Output = std::io::Result<T>>,
 {
     let operation_deadline = (Instant::now() + operation_timeout).min(session_deadline);
     tokio::select! {
@@ -1432,8 +1577,23 @@ where
         )),
         result = timeout_at(operation_deadline, future) => match result {
             Ok(Ok(value)) => Ok(value),
-            Ok(Err(failure)) => Err(error(failure_kind, format!("{operation} failed: {failure}"))),
-            Err(_) => Err(error(failure_kind, format!("{operation} deadline exceeded"))),
+            Ok(Err(failure)) => {
+                let source = DeliveryFailureSource::Io {
+                    operation,
+                    kind: failure.kind(),
+                };
+                let mut failure = error(failure_kind, format!("{operation} failed: {failure}"));
+                failure.source = source;
+                Err(failure)
+            }
+            Err(_) => {
+                let mut failure = error(failure_kind, format!("{operation} deadline exceeded"));
+                failure.source = DeliveryFailureSource::Deadline {
+                    operation,
+                    timeout: operation_timeout,
+                };
+                Err(failure)
+            }
         }
     }
 }
@@ -1629,6 +1789,112 @@ mod tests {
         }
         validate_address("user+tag@example.test").unwrap();
         validate_address("受信@example.test").unwrap();
+    }
+
+    #[test]
+    fn required_tls_policy_failures_distinguish_policy_from_transport_failures() {
+        let required = required_tls_failure(
+            error(
+                DeliveryErrorKind::Temporary,
+                "MTA-STS policy requires TLS, but server does not support STARTTLS",
+            )
+            .at(DeliveryStage::StartTls),
+        );
+        assert_eq!(required.kind, DeliveryErrorKind::Permanent);
+        assert_eq!(required.stage, DeliveryStage::StartTls);
+
+        let cancelled = required_tls_failure(
+            error(DeliveryErrorKind::Cancelled, "cancelled").at(DeliveryStage::StartTls),
+        );
+        assert_eq!(cancelled.kind, DeliveryErrorKind::Cancelled);
+
+        let mut deadline = error(
+            DeliveryErrorKind::Temporary,
+            "SMTP TLS handshake deadline exceeded",
+        )
+        .at(DeliveryStage::StartTls);
+        deadline.source = DeliveryFailureSource::Deadline {
+            operation: "SMTP TLS handshake",
+            timeout: Duration::from_secs(1),
+        };
+        assert_eq!(
+            required_tls_failure(deadline).kind,
+            DeliveryErrorKind::Temporary
+        );
+
+        let mut reset = error(
+            DeliveryErrorKind::Temporary,
+            "SMTP TLS handshake connection reset",
+        )
+        .at(DeliveryStage::StartTls);
+        reset.source = DeliveryFailureSource::Io {
+            operation: "SMTP TLS handshake",
+            kind: std::io::ErrorKind::ConnectionReset,
+        };
+        assert_eq!(
+            required_tls_failure(reset).kind,
+            DeliveryErrorKind::Temporary
+        );
+
+        let mut certificate = error(
+            DeliveryErrorKind::Temporary,
+            "SMTP TLS certificate validation failed",
+        )
+        .at(DeliveryStage::StartTls);
+        certificate.source = DeliveryFailureSource::Io {
+            operation: "SMTP TLS handshake",
+            kind: std::io::ErrorKind::InvalidData,
+        };
+        assert_eq!(
+            required_tls_failure(certificate).kind,
+            DeliveryErrorKind::Permanent
+        );
+
+        let connect = required_tls_failure(
+            error(DeliveryErrorKind::Temporary, "connect failed").at(DeliveryStage::Connect),
+        );
+        assert_eq!(connect.kind, DeliveryErrorKind::Temporary);
+    }
+
+    #[test]
+    fn outbound_smtp_timeouts_accept_legacy_aliases_with_new_precedence() {
+        use crate::config::Properties;
+
+        let legacy = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.outbound.connection-timeout-ms=1200\n\
+              botmail.outbound.read-timeout-ms=2300\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let client = OutboundSmtpClient::from_config(&legacy).unwrap();
+        assert_eq!(client.connect_timeout, Duration::from_millis(1_200));
+        assert_eq!(client.command_timeout, Duration::from_millis(2_300));
+
+        let both = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.outbound.connection-timeout-ms=1200\n\
+              lmyzmail.outbound.connection-timeout-ms=3400\n\
+              botmail.outbound.read-timeout-ms=2300\n\
+              lmyzmail.outbound.read-timeout-ms=4500\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let client = OutboundSmtpClient::from_config(&both).unwrap();
+        assert_eq!(client.connect_timeout, Duration::from_millis(3_400));
+        assert_eq!(client.command_timeout, Duration::from_millis(4_500));
+
+        let invalid = RuntimeConfig::from_properties(
+            Properties::parse(b"lmyzmail.outbound.read-timeout-ms=0\n").unwrap(),
+        )
+        .unwrap();
+        let failure = match OutboundSmtpClient::from_config(&invalid) {
+            Ok(_) => panic!("zero outbound SMTP timeout must be rejected"),
+            Err(failure) => failure,
+        };
+        assert_eq!(failure.kind, DeliveryErrorKind::Configuration);
     }
 
     #[test]

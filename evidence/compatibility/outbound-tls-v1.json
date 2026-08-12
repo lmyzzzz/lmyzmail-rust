@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "profile": "outbound-tls-v1",
+  "captured_at": "2026-08-12T12:20:00+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "contract": {
+    "cases": [
+      "opportunistic trusted STARTTLS with post-TLS EHLO",
+      "untrusted chain with fresh plaintext fallback",
+      "STARTTLS command rejection with fresh plaintext fallback",
+      "opportunistic hostname mismatch",
+      "MTA-STS enforce trusted STARTTLS",
+      "MTA-STS enforce missing STARTTLS without downgrade"
+    ],
+    "opportunistic_failure_connection_sequence": [
+      "connection 1: EHLO, STARTTLS, close",
+      "connection 2: EHLO, MAIL, RCPT, DATA, QUIT"
+    ],
+    "trusted_tls_connection_sequence": [
+      "EHLO",
+      "STARTTLS",
+      "post-TLS EHLO",
+      "MAIL",
+      "RCPT",
+      "DATA",
+      "QUIT"
+    ],
+    "enforce_missing_starttls": {
+      "smtp_commands": [
+        "EHLO blackbox.example"
+      ],
+      "message_attempts": 0,
+      "postgres_status": "FAILED",
+      "retry_count": 0,
+      "last_error": "All domains failed: {outbound.fixture.test=MTA-STS policy requires TLS, but server does not support STARTTLS}"
+    },
+    "normalizers": [
+      "outbound:queue-id",
+      "outbound:message-metadata"
+    ]
+  },
+  "fixture": {
+    "certificate_authority": "ephemeral RSA-2048 root CA",
+    "validity": "2020-01-01 through 2040-01-01",
+    "matching_san": "outbound.fixture.test",
+    "mismatched_san": "mismatch.fixture.test",
+    "untrusted_chain": "separate ephemeral root CA",
+    "java_truststore": "PKCS12 created by pinned JDK 22 keytool",
+    "candidate_trust_bundle": "isolated SSL_CERT_FILE PEM",
+    "private_path_modes": {
+      "directory": "0700",
+      "files": "0600"
+    },
+    "smtp_bounds": {
+      "max_connections": 8,
+      "max_concurrent_connections": 2,
+      "max_message_bytes": 2097152
+    }
+  },
+  "approved_difference": {
+    "id": "outbound-starttls-hostname-verification",
+    "java": "accepts a trusted hostname-mismatched certificate outside enforce mode on connection 1",
+    "rust": "rejects the mismatch and performs the permitted opportunistic plaintext fallback on connection 2",
+    "unchanged_requirements": [
+      "trust-chain validation",
+      "MTA-STS enforce hostname validation",
+      "no enforce downgrade",
+      "accepted SMTP message bytes",
+      "queue terminal state"
+    ]
+  },
+  "implementation": {
+    "runtime": "stable-rust-1.94.0",
+    "java_runtime_dependency": false,
+    "required_tls_failure_classification": "permanent",
+    "opportunistic_starttls_failure_classification": "temporary with one fresh plaintext attempt",
+    "cancellation_preserved": true,
+    "bug_fixed": "Rust previously scheduled retries for MTA-STS enforce missing STARTTLS instead of matching Java terminal failure"
+  },
+  "golden": {
+    "path": "blackbox/golden/java/managed-outbound-tls-v1.json",
+    "profile": "managed-outbound-tls",
+    "definition_tree_sha256": "0dba7cdf4edea37bb885006bafd6436233d0895f7e053b1a303370db118e0e13",
+    "file_sha256": "34348598771fffd55bbf586559bd2edd611077c5627b7309da40f7e3d9c23890",
+    "recording_semantics": "create-once; an existing artifact cannot be overwritten"
+  },
+  "source_sha256": {
+    "Cargo.lock": "952e6cec5696d1eab472fd481f6ce9f12c1bf364a291f67931a56dbcab9ae007",
+    "crates/lmyzmail/src/outbound_smtp.rs": "b47fc60233aa029403e5517004d763603e07f757261eb8a7a413555a250afe1b",
+    "blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py": "8f9ec2172136b80fed0b4dd0ab71021c94533dfae99f915ef3e528613e82ce93",
+    "blackbox/src/lmyzmail_blackbox/scripted_smtp.py": "fcb8d2db449d7bae342259aa40556bb18da185334456bb67676b07310df9f29a",
+    "blackbox/src/lmyzmail_blackbox/tls_fixture.py": "4de607b6437356809237b9f09772abd21c9955e5b46127f610022abcd435647e",
+    "blackbox/tests/test_oracle_outbound_tls.py": "eebc9c071e977fd2f592cc6a8b5f0ee963664745968f74cd8eac75a58c0cafc0",
+    "blackbox/tests/test_scripted_smtp.py": "112cbbd67c83e9344e6d1505cb527b534bca447ccd13edd9c8e407901fdfb677",
+    "blackbox/tests/test_tls_fixture.py": "bd1708cfc5c9ba8e1a830e51fc36ab8e4d6028ced0d15caf7918301987eb967e",
+    "docs/compatibility.md": "1693c6950e441d3a187d6a7d3d5374616fb2ba29215bfc536cacb3413d39fec5"
+  },
+  "release": {
+    "command": "cargo build --locked --release --target x86_64-unknown-linux-gnu -p lmyzmail",
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "41143cc5a7a141fdc7f59b910f3a4a90115f1613939dd4e215408da291a05c68"
+  },
+  "verification": [
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_outbound_tls.py -k managed_java --record-java-golden",
+      "result": "1 passed, 1 deselected in 45.73s; create-once Java v1 golden recorded"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_outbound_tls.py -k managed_java",
+      "result": "1 passed, 1 deselected in 45.99s; fresh JVM replayed v1"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_outbound_tls.py -k rust_candidate",
+      "result": "1 passed, 1 deselected in 20.71s"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_tls_fixture.py blackbox/tests/test_scripted_smtp.py",
+      "result": "20 passed in 3.55s"
+    },
+    {
+      "command": "cargo test -p lmyzmail outbound_smtp::tests::required_tls_policy_failures_are_permanent_without_hiding_cancellation",
+      "result": "1 passed"
+    },
+    {
+      "command": "cargo build --release --target x86_64-unknown-linux-gnu -p lmyzmail",
+      "result": "passed"
+    }
+  ],
+  "remaining_separate_matrices": [
+    "certificate expiry and not-yet-valid boundaries",
+    "TLS protocol and cipher negotiation",
+    "MTA-STS TXT and HTTPS policy discovery failures",
+    "TLS-RPT aggregation and delivery",
+    "outbound TLS disconnect ambiguity",
+    "outbound TLS backpressure, high concurrency, and soak"
+  ],
+  "old_repository_state": {
+    "java_oracle": "read-only; only known asciiart_linux/ffmpeg_src executable-bit noise",
+    "skibidi_1_8_0": "read-only and clean"
+  }
+}

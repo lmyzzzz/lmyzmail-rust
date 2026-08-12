@@ -30,6 +30,11 @@ from .scripted_smtp import (
     SmtpMessageAttempt,
     SmtpScenario,
 )
+from .tls_fixture import (
+    EphemeralOutboundTlsMaterial,
+    create_server_ssl_context,
+    provision_ephemeral_outbound_tls_material,
+)
 
 _REDIS_PREFIX = "botmail:mail:queue:"
 _DOMAIN_STATUS_PREFIX = _REDIS_PREFIX + "domains:"
@@ -37,6 +42,7 @@ _SENTINEL = b"-999999999"
 _DNS_HOST = "outbound.fixture.test"
 _FAKE_IP = "93.184.216.34"
 _RECIPIENT = f"recipient@{_DNS_HOST}"
+_TLS_MX_HOST = _DNS_HOST
 _DSN_RECIPIENT = f"recipient-rcpt-550-1@{_DNS_HOST}"
 _QA_DOMAIN = QA_ADDRESS.rsplit("@", 1)[1]
 _DSN_ABSENCE_WINDOW_SECONDS = 8
@@ -55,8 +61,16 @@ _DKIM_RE = re.compile(rb"(?ims)^DKIM-Signature:.*?(?=^[^ \t\r\n][^\r\n]*:|\Z)")
 class OutboundOracleRuntime(PersistentJavaOracleRuntime):
     _hosts_file: Path | None = None
 
-    def __init__(self, workspace_path: Path) -> None:
+    def __init__(
+        self,
+        workspace_path: Path,
+        *,
+        outbound_tls_material: EphemeralOutboundTlsMaterial | None = None,
+        mta_sts_enabled: bool = False,
+    ) -> None:
         super().__init__(workspace_path, index_migration_enabled=False)
+        self.outbound_tls_material = outbound_tls_material
+        self.mta_sts_enabled = mta_sts_enabled
 
     def _application_arguments(self) -> list[str]:
         workspace, _ = self._require_state()
@@ -66,6 +80,16 @@ class OutboundOracleRuntime(PersistentJavaOracleRuntime):
         arguments = super()._application_arguments()
         jar_index = arguments.index("-jar")
         arguments.insert(jar_index, f"-Djdk.net.hosts.file={hosts_file}")
+        if self.outbound_tls_material is not None:
+            arguments[jar_index:jar_index] = (
+                f"-Djavax.net.ssl.trustStore={self.outbound_tls_material.java_truststore_path}",
+                "-Djavax.net.ssl.trustStoreType=PKCS12",
+                "-Djavax.net.ssl.trustStorePassword="
+                f"{self.outbound_tls_material.java_truststore_password}",
+            )
+        if self.mta_sts_enabled:
+            disabled = "--botmail.smtp.mta-sts-enabled=false"
+            arguments[arguments.index(disabled)] = "--botmail.smtp.mta-sts-enabled=true"
         arguments.extend(
             (
                 "--botmail.queue.poll-interval-ms=3000",
@@ -76,6 +100,7 @@ class OutboundOracleRuntime(PersistentJavaOracleRuntime):
                 "--botmail.queue.persist.flush-size=1",
                 "--botmail.outbound.pool-enabled=false",
                 "--botmail.outbound.helo-hostname=blackbox.example",
+                "--botmail.outbound.read-timeout-ms=1000",
                 "--dns.cache.mx.query-timeout-seconds=1",
             )
         )
@@ -83,6 +108,34 @@ class OutboundOracleRuntime(PersistentJavaOracleRuntime):
 
 
 class OutboundCandidateRuntime(CandidateRuntime):
+    def __init__(
+        self,
+        *args: Any,
+        outbound_tls_material: EphemeralOutboundTlsMaterial | None = None,
+        mta_sts_enabled: bool = False,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.outbound_tls_material = outbound_tls_material
+        self.mta_sts_enabled = mta_sts_enabled
+
+    def _candidate_configuration(self) -> Path:
+        path = super()._candidate_configuration()
+        if self.mta_sts_enabled:
+            value = json.loads(path.read_text(encoding="utf-8"))
+            value["features"]["mta_sts"] = True
+            path.write_text(
+                json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+                encoding="utf-8",
+            )
+        return path
+
+    def _application_environment(self) -> dict[str, str]:
+        environment = super()._application_environment()
+        if self.outbound_tls_material is not None:
+            environment["SSL_CERT_FILE"] = str(self.outbound_tls_material.ca_certificate_path)
+        return environment
+
     def _application_arguments(self) -> list[str]:
         arguments = CandidateRuntime._application_arguments(self)
         arguments.extend(
@@ -92,6 +145,7 @@ class OutboundCandidateRuntime(CandidateRuntime):
                 "--lmyzmail.queue.max-concurrent-sends=1",
                 "--lmyzmail.outbound.pool-enabled=false",
                 "--lmyzmail.outbound.helo-hostname=blackbox.example",
+                "--lmyzmail.outbound.read-timeout-ms=1000",
                 "--lmyzmail.outbound.dns.query-timeout-seconds=1",
                 "--lmyzmail.maildir.max-files-per-directory=1",
             )
@@ -106,18 +160,28 @@ def _outbound_target() -> str:
     return target
 
 
-def _candidate_runtime(repository: Path) -> OutboundCandidateRuntime:
+def _candidate_runtime(
+    repository: Path,
+    *,
+    outbound_tls_material: EphemeralOutboundTlsMaterial | None = None,
+    mta_sts_enabled: bool = False,
+) -> OutboundCandidateRuntime:
     if os.environ.get("LMYZMAIL_CANDIDATE_COMMAND_JSON") is not None:
-        return cast(
+        runtime = cast(
             OutboundCandidateRuntime,
             OutboundCandidateRuntime.from_environment(),
         )
+        runtime.outbound_tls_material = outbound_tls_material
+        runtime.mta_sts_enabled = mta_sts_enabled
+        return runtime
     return OutboundCandidateRuntime(
         command_template=(
             str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
             "--config",
             "{config}",
-        )
+        ),
+        outbound_tls_material=outbound_tls_material,
+        mta_sts_enabled=mta_sts_enabled,
     )
 
 
@@ -839,6 +903,393 @@ def _smtp_transcript_snapshot(server: ScriptedSmtpServer) -> dict[str, Any]:
         "data_bytes": data_bytes,
         "attempts": [_attempt_snapshot(value) for value in server.messages()],
     }
+
+
+def _outbound_tls_transcript(server: ScriptedSmtpServer) -> dict[str, Any]:
+    commands = [
+        {
+            "connection": event.connection_id,
+            "value": event.payload.decode("ascii", errors="replace").rstrip("\r\n"),
+        }
+        for event in server.events()
+        if event.kind == "command"
+    ]
+    established = [
+        event.connection_id for event in server.events() if event.kind == "tls-established"
+    ]
+    return {
+        "connections": sorted({event.connection_id for event in server.events()}),
+        "commands": commands,
+        "tls_established_connections": established,
+        "attempts": [
+            {"connection_id": value.connection_id, **_attempt_snapshot(value)}
+            for value in server.messages()
+        ],
+        "fixture_terminal_events": [
+            {
+                "connection": event.connection_id,
+                "kind": event.kind,
+            }
+            for event in server.events()
+            if event.kind in {"peer-closed", "peer-disconnected", "protocol-error"}
+        ],
+    }
+
+
+def _tls_case_terminal(
+    runtime: JavaOracleRuntime,
+    task_id: int,
+    *,
+    expected_status: str,
+    description: str,
+) -> dict[str, Any]:
+    def terminal_row() -> dict[str, Any] | None:
+        return next((row for row in _db_rows(runtime) if row["id"] == task_id), None)
+
+    try:
+        _wait_until(
+            lambda: (row := terminal_row()) is not None and row["status"] == expected_status,
+            timeout=45.0,
+            description=description,
+        )
+    except AssertionError as error:
+        rows = _db_rows(runtime)
+        raise AssertionError(f"{error}; outbound_rows={rows!r}") from error
+    row = terminal_row()
+    if row is None:
+        raise AssertionError(f"outbound TLS task {task_id} disappeared")
+    return {
+        "status": row["status"],
+        "retry_count": row["retry_count"],
+        "last_error": row["last_error"],
+    }
+
+
+def _run_outbound_tls_case(
+    runtime: JavaOracleRuntime,
+    server: ScriptedSmtpServer,
+    *,
+    label: str,
+    expected_status: str,
+    mta_sts_policy: str | None = None,
+) -> dict[str, Any]:
+    if runtime.ports is None:
+        raise AssertionError("runtime ports are unavailable")
+    client: redis.Redis = redis.Redis(
+        host="127.0.0.1",
+        port=runtime.ports.redis,
+        decode_responses=False,
+    )
+    try:
+        client.set(f"dns:mx:{_DNS_HOST}", _DNS_HOST.encode("ascii"), ex=300)
+        if mta_sts_policy is not None:
+            client.set(f"mta-sts:{_DNS_HOST}", mta_sts_policy.encode("ascii"), ex=300)
+        response, task_id = _post_failure_message(
+            runtime,
+            recipient=_RECIPIENT,
+            subject=f"blackbox outbound TLS {label}",
+            text=f"outbound TLS body {label}",
+        )
+        terminal = _tls_case_terminal(
+            runtime,
+            task_id,
+            expected_status=expected_status,
+            description=f"outbound TLS {label} {expected_status}",
+        )
+        return {
+            "response": response,
+            "terminal": terminal,
+            "smtp": _outbound_tls_transcript(server),
+        }
+    finally:
+        client.close()
+
+
+def _starttls_server(
+    material: EphemeralOutboundTlsMaterial,
+    identity: str,
+    *,
+    starttls_reply: bytes = b"220 2.0.0 ready to start TLS\r\n",
+    tls_handshake_delay_seconds: float = 0.0,
+) -> ScriptedSmtpServer:
+    selected = getattr(material, identity)
+    return ScriptedSmtpServer(
+        SmtpScenario(
+            hostname=_TLS_MX_HOST,
+            tls_context=create_server_ssl_context(selected),
+            starttls_reply=starttls_reply,
+            tls_handshake_delay_seconds=tls_handshake_delay_seconds,
+            max_connections=8,
+            max_concurrent_connections=2,
+            max_message_bytes=2 * 1024 * 1024,
+        ),
+        bind_host=_FAKE_IP,
+        bind_port=25,
+    )
+
+
+def _plaintext_server() -> ScriptedSmtpServer:
+    return ScriptedSmtpServer(
+        SmtpScenario(
+            hostname=_TLS_MX_HOST,
+            max_connections=8,
+            max_concurrent_connections=2,
+            max_message_bytes=2 * 1024 * 1024,
+        ),
+        bind_host=_FAKE_IP,
+        bind_port=25,
+    )
+
+
+def run_tls_probe() -> dict[str, Any]:
+    if (
+        subprocess.run(  # noqa: S603
+            ["/usr/sbin/ip", "link", "show", "lo"], capture_output=True
+        ).returncode
+        != 0
+    ):
+        raise AssertionError("outbound probe must run inside a network namespace with loopback")
+
+    target = _outbound_target()
+    repository = Path(__file__).resolve().parents[3]
+    dns_server = _candidate_dns_server() if target == "candidate" else None
+    with tempfile.TemporaryDirectory(prefix="lmyzmail-outbound-tls-oracle-") as workspace:
+        workspace_path = Path(workspace)
+        material_workspace = workspace_path / "material"
+        material_workspace.mkdir(mode=0o700)
+        material = provision_ephemeral_outbound_tls_material(
+            material_workspace,
+            mx_hostname=_TLS_MX_HOST,
+        )
+        if dns_server is not None:
+            dns_server.start()
+        try:
+            cases: dict[str, Any] = {}
+
+            if target == "candidate":
+                opportunistic_runtime: JavaOracleRuntime = _candidate_runtime(
+                    repository,
+                    outbound_tls_material=material,
+                )
+            else:
+                opportunistic_runtime = OutboundOracleRuntime(
+                    workspace_path / "opportunistic-runtime",
+                    outbound_tls_material=material,
+                )
+            with opportunistic_runtime as runtime:
+                trusted = _starttls_server(material, "matching_server")
+                with trusted:
+                    cases["opportunistic_trusted"] = _run_outbound_tls_case(
+                        runtime,
+                        trusted,
+                        label="opportunistic trusted",
+                        expected_status="SENT",
+                    )
+
+                untrusted = _starttls_server(material, "untrusted_server")
+                with untrusted:
+                    _, task_id = _post_failure_message(
+                        runtime,
+                        recipient=_RECIPIENT,
+                        subject="blackbox outbound TLS untrusted fallback",
+                        text="outbound TLS untrusted fallback body",
+                    )
+                    _wait_until(
+                        lambda: len(untrusted.messages()) == 1,
+                        timeout=45.0,
+                        description="fresh plaintext fallback after TLS handshake failure",
+                    )
+                    cases["opportunistic_untrusted_fallback"] = {
+                        "terminal": _tls_case_terminal(
+                            runtime,
+                            task_id,
+                            expected_status="SENT",
+                            description="untrusted TLS plaintext fallback archive",
+                        ),
+                        "smtp": _outbound_tls_transcript(untrusted),
+                    }
+
+                rejected = _starttls_server(
+                    material,
+                    "matching_server",
+                    starttls_reply=b"454 4.7.0 fixture TLS rejection\r\n",
+                )
+                with rejected:
+                    _, task_id = _post_failure_message(
+                        runtime,
+                        recipient=_RECIPIENT,
+                        subject="blackbox outbound TLS rejected fallback",
+                        text="outbound TLS rejected fallback body",
+                    )
+                    _wait_until(
+                        lambda: len(rejected.messages()) == 1,
+                        timeout=45.0,
+                        description="fresh plaintext fallback after STARTTLS rejection",
+                    )
+                    cases["opportunistic_rejected_fallback"] = {
+                        "terminal": _tls_case_terminal(
+                            runtime,
+                            task_id,
+                            expected_status="SENT",
+                            description="rejected STARTTLS plaintext fallback archive",
+                        ),
+                        "smtp": _outbound_tls_transcript(rejected),
+                    }
+
+                mismatched = _starttls_server(material, "mismatched_server")
+                with mismatched:
+                    _, task_id = _post_failure_message(
+                        runtime,
+                        recipient=_RECIPIENT,
+                        subject="blackbox outbound TLS hostname mismatch",
+                        text="outbound TLS hostname mismatch body",
+                    )
+                    if target == "java":
+                        _wait_until(
+                            lambda: len(mismatched.messages()) == 1,
+                            timeout=45.0,
+                            description="Java opportunistic hostname mismatch acceptance",
+                        )
+                        task_id = max(int(row["id"]) for row in _db_rows(runtime))
+                        cases["opportunistic_hostname_mismatch"] = {
+                            "outcome": "tls-accepted-without-hostname-verification",
+                            "terminal": _tls_case_terminal(
+                                runtime,
+                                task_id,
+                                expected_status="SENT",
+                                description="Java hostname mismatch archive",
+                            ),
+                            "smtp": _outbound_tls_transcript(mismatched),
+                        }
+                    else:
+                        _wait_until(
+                            lambda: len(mismatched.messages()) == 1,
+                            timeout=45.0,
+                            description="Rust hostname mismatch plaintext fallback",
+                        )
+                        cases["opportunistic_hostname_mismatch"] = {
+                            "outcome": "hostname-verified-then-plaintext-fallback",
+                            "terminal": _tls_case_terminal(
+                                runtime,
+                                task_id,
+                                expected_status="SENT",
+                                description="Rust hostname mismatch fallback archive",
+                            ),
+                            "smtp": _outbound_tls_transcript(mismatched),
+                        }
+
+            if target == "candidate":
+                enforce_runtime: JavaOracleRuntime = _candidate_runtime(
+                    repository,
+                    outbound_tls_material=material,
+                    mta_sts_enabled=True,
+                )
+            else:
+                enforce_runtime = OutboundOracleRuntime(
+                    workspace_path / "enforce-runtime",
+                    outbound_tls_material=material,
+                    mta_sts_enabled=True,
+                )
+            with enforce_runtime as runtime:
+                policy = f"STSv1|ENFORCE|{_TLS_MX_HOST}|300|Policy1|{int(time.time() * 1000)}"
+                enforced = _starttls_server(material, "matching_server")
+                with enforced:
+                    cases["mta_sts_enforce_trusted"] = _run_outbound_tls_case(
+                        runtime,
+                        enforced,
+                        label="MTA-STS enforce trusted",
+                        expected_status="SENT",
+                        mta_sts_policy=policy,
+                    )
+
+                enforce_plaintext = _plaintext_server()
+                with enforce_plaintext:
+                    cases["mta_sts_enforce_missing_starttls"] = _run_outbound_tls_case(
+                        runtime,
+                        enforce_plaintext,
+                        label="MTA-STS enforce missing STARTTLS",
+                        expected_status="FAILED",
+                        mta_sts_policy=policy,
+                    )
+
+                enforce_untrusted = _starttls_server(material, "untrusted_server")
+                with enforce_untrusted:
+                    cases["mta_sts_enforce_untrusted"] = _run_outbound_tls_case(
+                        runtime,
+                        enforce_untrusted,
+                        label="MTA-STS enforce untrusted certificate",
+                        expected_status="FAILED",
+                        mta_sts_policy=policy,
+                    )
+
+                enforce_rejected = _starttls_server(
+                    material,
+                    "matching_server",
+                    starttls_reply=b"454 4.7.0 fixture TLS rejection\r\n",
+                )
+                with enforce_rejected:
+                    cases["mta_sts_enforce_rejected_starttls"] = _run_outbound_tls_case(
+                        runtime,
+                        enforce_rejected,
+                        label="MTA-STS enforce rejected STARTTLS",
+                        expected_status="FAILED",
+                        mta_sts_policy=policy,
+                    )
+
+                enforce_timeout = _starttls_server(
+                    material,
+                    "matching_server",
+                    tls_handshake_delay_seconds=20.0,
+                )
+                with enforce_timeout:
+                    if runtime.ports is None:
+                        raise AssertionError("runtime ports are unavailable")
+                    client: redis.Redis = redis.Redis(
+                        host="127.0.0.1",
+                        port=runtime.ports.redis,
+                        decode_responses=False,
+                    )
+                    try:
+                        client.set(
+                            f"dns:mx:{_DNS_HOST}",
+                            _DNS_HOST.encode("ascii"),
+                            ex=300,
+                        )
+                        client.set(
+                            f"mta-sts:{_DNS_HOST}",
+                            policy.encode("ascii"),
+                            ex=300,
+                        )
+                        response, task_id = _post_failure_message(
+                            runtime,
+                            recipient=_RECIPIENT,
+                            subject="blackbox outbound TLS enforce handshake timeout",
+                            text="outbound TLS enforce handshake timeout body",
+                        )
+                        _wait_until(
+                            lambda: _scheduled_retry_ready(client, task_id, 1),
+                            timeout=30.0,
+                            description="MTA-STS enforce handshake timeout retry scheduling",
+                        )
+                        retry = _capture_scheduled_retry(
+                            runtime,
+                            client,
+                            task_id,
+                            retry_count=1,
+                            expected_delay_seconds=_RETRY_DELAYS_SECONDS[0],
+                            failure_observed_at=time.time(),
+                        )
+                        cases["mta_sts_enforce_handshake_timeout"] = {
+                            "response": response,
+                            "retry": retry,
+                            "smtp": _outbound_tls_transcript(enforce_timeout),
+                        }
+                    finally:
+                        client.close()
+            return {"target": target, "cases": cases}
+        finally:
+            if dns_server is not None:
+                dns_server.stop()
 
 
 def _dsn_wire_snapshot(attempt: SmtpMessageAttempt) -> dict[str, Any]:
@@ -1622,6 +2073,8 @@ def main() -> int:
         observed = run_4xx_probe()
     elif mode == "dsn":
         observed = run_dsn_probe()
+    elif mode == "tls":
+        observed = run_tls_probe()
     elif mode == "5xx":
         observed = run_5xx_probe()
     elif mode == "success":

@@ -1,0 +1,186 @@
+{
+  "schema_version": 1,
+  "profile": "outbound-tls-v2",
+  "captured_at": "2026-08-12T10:35:13+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "contract": {
+    "cases": [
+      "opportunistic trusted STARTTLS with post-TLS EHLO",
+      "untrusted chain with fresh plaintext fallback",
+      "STARTTLS 454 rejection with fresh plaintext fallback",
+      "opportunistic hostname mismatch",
+      "MTA-STS enforce trusted STARTTLS",
+      "MTA-STS enforce missing STARTTLS without downgrade",
+      "MTA-STS enforce untrusted certificate without downgrade",
+      "MTA-STS enforce STARTTLS 454 rejection without downgrade",
+      "MTA-STS enforce TLS handshake timeout without downgrade"
+    ],
+    "enforce_terminal_failures": {
+      "missing_starttls": "FAILED with retry_count=0",
+      "untrusted_certificate": "FAILED with retry_count=0",
+      "starttls_454": "FAILED with retry_count=0"
+    },
+    "enforce_retryable_failures": {
+      "tls_handshake_timeout": "PENDING with retry_count=1 and a 30-second retry deadline",
+      "transport_scope": "deadline and connection-class I/O failures only"
+    },
+    "normalizers": [
+      "outbound:queue-id",
+      "outbound:message-metadata"
+    ]
+  },
+  "fixture": {
+    "certificate_authority": "ephemeral RSA-2048 root CA",
+    "validity": "2020-01-01 through 2040-01-01",
+    "matching_san": "outbound.fixture.test",
+    "mismatched_san": "mismatch.fixture.test",
+    "untrusted_chain": "separate ephemeral root CA",
+    "java_truststore": "PKCS12 created by pinned JDK 22 keytool",
+    "candidate_trust_bundle": "isolated SSL_CERT_FILE PEM",
+    "connection_timeout_ms": 1000,
+    "read_timeout_ms": 1000,
+    "tls_handshake_delay_seconds": 2.0,
+    "private_path_modes": {
+      "directory": "0700",
+      "files": "0600"
+    },
+    "smtp_bounds": {
+      "max_connections": 8,
+      "max_concurrent_connections": 2,
+      "max_message_bytes": 2097152
+    }
+  },
+  "approved_differences": [
+    {
+      "id": "outbound-starttls-hostname-verification",
+      "java": "accepts a trusted hostname-mismatched certificate outside enforce mode on connection 1",
+      "rust": "rejects the mismatch and performs the permitted opportunistic plaintext fallback on connection 2",
+      "scope": "only endpoint identification and the resulting connection number"
+    },
+    {
+      "id": "outbound-retry-postgres-checkpoint",
+      "java": "has no outbound_mail_queue row while the handshake-timeout retry is pending",
+      "rust": "persists a PENDING PostgreSQL checkpoint matching Redis retry_count, error, and deadline",
+      "scope": "only the intermediate PostgreSQL checkpoint; all Redis, SMTP, error, and retry behavior remains exact"
+    }
+  ],
+  "implementation": {
+    "runtime": "stable-rust-1.94.0",
+    "java_runtime_dependency": false,
+    "configuration": {
+      "connection_timeout": [
+        "lmyzmail.outbound.connection-timeout-ms",
+        "botmail.outbound.connection-timeout-ms"
+      ],
+      "read_timeout": [
+        "lmyzmail.outbound.read-timeout-ms",
+        "botmail.outbound.read-timeout-ms"
+      ],
+      "precedence": "lmyzmail key before botmail alias"
+    },
+    "required_tls_failure_classification": "policy, certificate, and SMTP rejection are permanent; deadline and connection-class transport failures remain retryable",
+    "opportunistic_starttls_failure_classification": "temporary with one fresh plaintext attempt",
+    "cancellation_preserved": true,
+    "production_coordinator_uses_runtime_timeouts": true
+  },
+  "golden": {
+    "path": "blackbox/golden/java/managed-outbound-tls-v2.json",
+    "profile": "managed-outbound-tls",
+    "definition_tree_sha256": "78bb1de3cfa9c29e4a459dfa86575f10dc8a158d91a64372cdf341821128c5c6",
+    "file_sha256": "42b5e993b3800cf92c6fec00c6e48fda04a48c78222f41a642dcb97e4956da77",
+    "recording_semantics": "create-once; historical v1 remains byte-for-byte unchanged"
+  },
+  "source_sha256": {
+    "Cargo.lock": "952e6cec5696d1eab472fd481f6ce9f12c1bf364a291f67931a56dbcab9ae007",
+    "blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py": "16fcf6283d550c607584e46964ec7afd5a8950c4012614537f301e755dec4703",
+    "blackbox/src/lmyzmail_blackbox/scripted_smtp.py": "adcf582d4eb1812c1bbb762f736eeef81cfa8e317d5651b74109374f2bf9e857",
+    "blackbox/src/lmyzmail_blackbox/tls_fixture.py": "bdbeba5c07a9d799115dbdcfcba7e1f1d46c5ae223632fb52a6ea02a8a968ec0",
+    "blackbox/tests/test_oracle_outbound_tls.py": "7ffa0842570bb1f68e3c803dcb46acdf64b26059a3c60f0fb3c9a4a7f86088d7",
+    "blackbox/tests/test_scripted_smtp.py": "d6fdd77cb746ca31960b7691105808fea6680221f9fdac6c37e19d41c54959e3",
+    "blackbox/tests/test_tls_fixture.py": "bd1708cfc5c9ba8e1a830e51fc36ab8e4d6028ced0d15caf7918301987eb967e",
+    "crates/lmyzmail/src/outbound_coordinator.rs": "ec6d6decbb186ac3172c258405b884e7c024dcae8551a7937ed0fb3b1496aa94",
+    "crates/lmyzmail/src/outbound_smtp.rs": "69523de516a62117ead16055c97d49714435bf6646e2a2bcb1f9cd5795fd1666",
+    "crates/lmyzmail/tests/outbound_smtp_protocol.rs": "8f3878eef6a435b39f493f3a83517a6008904c845dfcc4844dcf57bb2a78a3e5",
+    "docs/compatibility.md": "a3da86b7f0ec58fbae9518c4b5d900b980d265014124e36537e415f1185c670f"
+  },
+  "release": {
+    "command": "cargo build --locked --release --target x86_64-unknown-linux-gnu -p lmyzmail",
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "22c600dde455de45121a32631545b6cb7d7c980287900365dbe0f587f5e6364e"
+  },
+  "verification": [
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_outbound_tls.py::test_managed_java_outbound_starttls_and_mta_sts --record-java-golden",
+      "result": "1 passed in 56.00s; create-once Java v2 golden recorded"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_outbound_tls.py::test_managed_java_outbound_starttls_and_mta_sts",
+      "result": "1 passed in 56.24s; fresh JVM replayed v2"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_outbound_tls.py::test_rust_candidate_outbound_starttls_and_mta_sts",
+      "result": "1 passed in 30.94s"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_scripted_smtp.py blackbox/tests/test_tls_fixture.py blackbox/tests/test_oracle_outbound_tls.py",
+      "result": "21 fixture and unit tests passed; both integration tests reached their expected pre-recording gates"
+    },
+    {
+      "command": "cargo test --locked -p lmyzmail outbound_smtp::tests::",
+      "result": "10 passed"
+    },
+    {
+      "command": "cargo test --locked -p lmyzmail --test outbound_smtp_protocol",
+      "result": "17 passed"
+    },
+    {
+      "command": "ruff check and mypy on the six touched Python source/test files",
+      "result": "passed"
+    },
+    {
+      "command": "cargo build --locked --release --target x86_64-unknown-linux-gnu -p lmyzmail",
+      "result": "passed"
+    },
+    {
+      "command": "pytest -q blackbox/tests -m 'not integration'",
+      "result": "146 passed, 146 deselected in 9.02s"
+    },
+    {
+      "command": "ruff check blackbox/src blackbox/tests blackbox/tools",
+      "result": "passed"
+    },
+    {
+      "command": "mypy blackbox/src blackbox/tests",
+      "result": "Success: no issues found in 108 source files"
+    },
+    {
+      "command": "cargo test --workspace --locked",
+      "result": "636 passed; 0 failed"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --locked -- -D warnings",
+      "result": "passed"
+    }
+  ],
+  "not_yet_passing_gates": [
+    {
+      "command": "pytest -q",
+      "result": "did not complete within the 900-second command budget; the full external integration matrix remains open and is not claimed as passed"
+    }
+  ],
+  "remaining_separate_matrices": [
+    "certificate expiry and not-yet-valid boundaries",
+    "TLS protocol and cipher negotiation",
+    "MTA-STS TXT and HTTPS policy discovery failures",
+    "TLS-RPT aggregation and delivery",
+    "outbound TLS disconnect ambiguity",
+    "outbound TLS backpressure, high concurrency, and soak"
+  ],
+  "old_repository_state": {
+    "java_oracle": "read-only; only known asciiart_linux/ffmpeg_src executable-bit noise",
+    "skibidi_1_8_0": "read-only and clean"
+  }
+}

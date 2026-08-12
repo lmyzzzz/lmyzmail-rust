@@ -1061,8 +1061,11 @@ async fn required_tls_rejects_server_without_starttls() {
         .await
         .unwrap_err();
     server.await.unwrap();
-    assert_eq!(failure.kind, DeliveryErrorKind::Temporary);
-    assert!(failure.message.contains("not advertised"));
+    assert_eq!(failure.kind, DeliveryErrorKind::Permanent);
+    assert_eq!(
+        failure.message,
+        "MTA-STS policy requires TLS, but server does not support STARTTLS"
+    );
 }
 
 #[tokio::test]
@@ -1112,8 +1115,13 @@ async fn required_tls_validates_server_name() {
         .await
         .unwrap_err();
     server.await.unwrap();
-    assert_eq!(failure.kind, DeliveryErrorKind::Temporary);
-    assert!(failure.message.contains("STARTTLS negotiation failed"));
+    assert_eq!(failure.kind, DeliveryErrorKind::Permanent);
+    assert_eq!(
+        failure.message,
+        "MTA-STS policy requires TLS, but TLS failed: MTA-STS requires TLS: \
+         MTA-STS enforced TLS handshake failed: TLS handshake failed: \
+         General OpenSslEngine problem"
+    );
 }
 
 #[tokio::test]

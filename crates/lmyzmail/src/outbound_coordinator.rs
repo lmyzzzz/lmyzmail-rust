@@ -306,7 +306,9 @@ impl OutboundCoordinator {
             LegacyOutboundQueue::new(redis_pool),
             PostgresDeliveryState::new(postgres_pool),
             Arc::new(routes),
-            Arc::new(OutboundSmtpClient::default()),
+            Arc::new(OutboundSmtpClient::from_config(config).map_err(|_| {
+                CoordinatorError::Configuration("outbound SMTP configuration failed")
+            })?),
         )
     }
 
