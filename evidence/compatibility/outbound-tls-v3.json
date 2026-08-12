@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "profile": "outbound-tls-v3",
+  "captured_at": "2026-08-12T11:12:00+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "hardening": {
+    "message_normalization": "Date, Message-ID, and DKIM-Signature are normalized only in the first RFC message header block; the first separator and all body or attachment bytes remain exact",
+    "task_identity": "the Java hostname-mismatch case follows the queueId returned by the send API and never substitutes the maximum PostgreSQL row ID",
+    "behavior_contract": "the nine outbound TLS v2 cases and the two narrowly approved differences remain unchanged"
+  },
+  "historical_goldens": {
+    "blackbox/golden/java/managed-outbound-tls-v1.json": "34348598771fffd55bbf586559bd2edd611077c5627b7309da40f7e3d9c23890",
+    "blackbox/golden/java/managed-outbound-tls-v2.json": "42b5e993b3800cf92c6fec00c6e48fda04a48c78222f41a642dcb97e4956da77"
+  },
+  "golden": {
+    "path": "blackbox/golden/java/managed-outbound-tls-v3.json",
+    "profile": "managed-outbound-tls",
+    "definition_tree_sha256": "580becc824a0db1f3bd7cc3909ed00633d61a66ea890b1d268f0a4966190013e",
+    "file_sha256": "f31d37784e27ba128d65fe426a05158f52c218da4ee9e3cc5d8ea39ca2ce3d3f",
+    "recording_semantics": "create-once; v1 and v2 remain byte-for-byte unchanged"
+  },
+  "source_sha256": {
+    "blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py": "153f40984f87fccdb3b7fb674c82b244c48b3c68a039ce6a3e7ad9c6276769be",
+    "blackbox/tests/test_oracle_outbound_tls.py": "2aa27fa0e8ba0d55dc2eac3ca379569952cd8eab589a1b93aa4b863810347a7c",
+    "blackbox/tests/test_outbound_oracle_probe.py": "7cf780f50e68d77145fe29f8a68223acc9f8ecca3e013a68de1b00df230aff2f",
+    "docs/compatibility.md": "c1c8e9ec6a5d39389954fa236de403aedfea056173f68c3f88e11fb110a43c9c"
+  },
+  "verification": [
+    {
+      "command": "pytest -q blackbox/tests/test_outbound_oracle_probe.py",
+      "result": "16 passed in 0.19s"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_outbound_tls.py::test_managed_java_outbound_starttls_and_mta_sts --record-java-golden",
+      "result": "1 passed in 55.55s; create-once Java v3 golden recorded"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_outbound_tls.py::test_managed_java_outbound_starttls_and_mta_sts",
+      "result": "1 passed in 56.24s; fresh JVM replayed v3"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_outbound_tls.py::test_rust_candidate_outbound_starttls_and_mta_sts",
+      "result": "1 passed in 31.12s"
+    },
+    {
+      "command": "ruff check and mypy on the three touched Python files",
+      "result": "passed"
+    },
+    {
+      "command": "pytest -q blackbox/tests -m 'not integration'",
+      "result": "150 passed, 146 deselected in 9.39s"
+    },
+    {
+      "command": "ruff check blackbox/src blackbox/tests blackbox/tools",
+      "result": "passed"
+    },
+    {
+      "command": "mypy blackbox/src blackbox/tests",
+      "result": "Success: no issues found in 108 source files"
+    },
+    {
+      "command": "cargo test --workspace --locked",
+      "result": "636 passed; 0 failed"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --locked -- -D warnings",
+      "result": "passed"
+    }
+  ],
+  "old_repository_state": {
+    "java_oracle": "read-only; only known asciiart_linux/ffmpeg_src executable-bit noise",
+    "skibidi_1_8_0": "read-only and clean"
+  }
+}

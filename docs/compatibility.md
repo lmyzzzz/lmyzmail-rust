@@ -427,7 +427,7 @@ the original headers, never the original body. Both implementations must leave
 their pre-existing Redis worklist baseline unchanged. v1 and v2 remain
 immutable pre-final-definition history and are not active.
 
-The active `managed-outbound-tls-v2.json` profile covers opportunistic
+The active `managed-outbound-tls-v3.json` profile covers opportunistic
 STARTTLS success with a post-TLS EHLO, trust-chain failure and command
 rejection followed by a fresh plaintext connection, MTA-STS enforce success,
 and enforce rejection without downgrade when STARTTLS is absent. It also
@@ -443,7 +443,9 @@ Certificate expiry, protocol/cipher negotiation, policy discovery and fetch
 failure, TLS-RPT aggregation, disconnect ambiguity, DSN restart recovery
 across injected process or storage loss, DSN suppression, backpressure, high
 concurrency, and soak remain separate external differential matrices. v36,
-5xx v4, 4xx v3, DSN v3, and outbound TLS v2 do not claim those paths.
+5xx v4, 4xx v3, DSN v3, and outbound TLS v3 do not claim those paths. TLS v1
+and v2 remain immutable history; v3 confines generated-header normalization to
+the first RFC message header block and follows the API-returned queue ID.
 
 ## Approved security differences
 

@@ -56,6 +56,7 @@ _OUTBOUND_TARGET_ENV = "LMYZMAIL_OUTBOUND_TARGET"
 _MESSAGE_ID_RE = re.compile(rb"(?im)^(Message-ID:\s*)<[^>\r\n]+>")
 _DATE_RE = re.compile(rb"(?im)^Date:\s*[^\r\n]+")
 _DKIM_RE = re.compile(rb"(?ims)^DKIM-Signature:.*?(?=^[^ \t\r\n][^\r\n]*:|\Z)")
+_HEADER_BODY_SEPARATOR_RE = re.compile(rb"\r\n\r\n|\n\n|\r\r")
 
 
 class OutboundOracleRuntime(PersistentJavaOracleRuntime):
@@ -241,9 +242,14 @@ def _candidate_dsn_dns_server() -> ScriptedDnsServer:
 
 
 def _normalize_message(value: bytes) -> bytes:
-    value = _DATE_RE.sub(rb"Date: <NORMALIZED>", value)
-    value = _MESSAGE_ID_RE.sub(rb"\1<MESSAGE_ID>", value)
-    return _DKIM_RE.sub(b"DKIM-Signature: <NORMALIZED>\r\n", value)
+    separator = _HEADER_BODY_SEPARATOR_RE.search(value)
+    header_end = separator.start() if separator is not None else len(value)
+    headers = value[:header_end]
+    body = value[header_end:]
+    headers = _DATE_RE.sub(rb"Date: <NORMALIZED>", headers)
+    headers = _MESSAGE_ID_RE.sub(rb"\1<MESSAGE_ID>", headers)
+    headers = _DKIM_RE.sub(b"DKIM-Signature: <NORMALIZED>\r\n", headers)
+    return headers + body
 
 
 def _digest(value: bytes) -> str:
@@ -1150,7 +1156,6 @@ def run_tls_probe() -> dict[str, Any]:
                             timeout=45.0,
                             description="Java opportunistic hostname mismatch acceptance",
                         )
-                        task_id = max(int(row["id"]) for row in _db_rows(runtime))
                         cases["opportunistic_hostname_mismatch"] = {
                             "outcome": "tls-accepted-without-hostname-verification",
                             "terminal": _tls_case_terminal(
