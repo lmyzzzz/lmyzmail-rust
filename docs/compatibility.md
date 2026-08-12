@@ -143,6 +143,23 @@ The four base golden observations are recorded under
 malformed, deep embedded-message, and UTF-8 parser-chunk observations are
 recorded under `managed-smtp-content-filter-body-edge-v1`.
 
+The active `managed-smtp-content-filter-default-v2` profile composes the real
+defaults while disabling only the separately frozen `RBL_CHECK` and
+`NEW_DOMAIN` DNS rules. A complete From/Date message scores 9.5 in exact BODY
+order: `SPAM_KEYWORDS=8.0, SUSPICIOUS_URL=1.5`. Omitting both headers prepends
+the HEADER hit `MISSING_HEADERS=3.5`, yields 13.0, and indexes a SQL NULL
+`from_address`. Both messages carry exactly one ordered
+`X-Spam-Status`/`X-Spam-Score`/`X-Spam-Rules` block, route to the spam Maildir,
+insert one PostgreSQL row, and increment the corresponding no-TTL Redis counter
+exactly once. One isolated Java runtime created v2, a fresh JVM replayed it,
+and the locked Rust release matched both observations.
+
+`FROM_REPLYTO_MISMATCH`, `SUSPICIOUS_DATE`, `HTML_TEXT_RATIO`,
+`PHISHING_PATTERN`, and `INVISIBLE_TEXT` are not missing candidate features.
+Their frozen Java classes unconditionally return `false` from `isEnabled()` and
+return null/no-op evaluators. The candidate therefore does not invent behavior
+for those placeholders.
+
 ## SMTP sender-domain rejection
 
 `MAIL FROM` validates the extracted sender domain before local-domain SPF or
@@ -818,11 +835,14 @@ rule weighting, loopback skip, and the exact Maildir/PostgreSQL/Redis effects.
 New `lmyzmail.contentfilter.rbl.*` and `rules.RBL_CHECK.*` keys take precedence
 per field over their `botmail.*` aliases.
 
-This is an incremental content-filter milestone, not a claim that the whole
-scanner is complete. The default-enabled `SPAM_KEYWORDS` and `SUSPICIOUS_URL`
-rules remain separate required migration slices. Evidence for the completed
-reputation rules is recorded in
-`evidence/compatibility/smtp-content-filter-new-domain-v1.json` and
+This remains an incremental content-filter milestone, not a claim that every
+combination, malformed MIME case, failure injection, concurrency path, or soak
+case is complete. The default-enabled `SPAM_KEYWORDS` and `SUSPICIOUS_URL`
+implementation and their normal composition with `MISSING_HEADERS` are now
+externally differential. Evidence is recorded in
+`evidence/compatibility/smtp-content-filter-default-v1.json`,
+`evidence/compatibility/smtp-content-filter-body-v1.json`,
+`evidence/compatibility/smtp-content-filter-new-domain-v1.json`, and
 `evidence/compatibility/smtp-content-filter-rbl-v1.json`.
 
 ## SMTP command contract

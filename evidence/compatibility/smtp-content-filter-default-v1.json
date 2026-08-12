@@ -1,0 +1,187 @@
+{
+  "schema_version": 1,
+  "profile": "smtp-content-filter-default-v1",
+  "captured_at": "2026-08-12T08:47:00+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "contract": {
+    "fixture_rules_disabled": [
+      "RBL_CHECK",
+      "NEW_DOMAIN"
+    ],
+    "implemented_defaults_enabled": [
+      "MISSING_HEADERS",
+      "SUBJECT_ENCODING_TRICK",
+      "EXCESSIVE_RECIPIENTS",
+      "SPAM_KEYWORDS",
+      "SUSPICIOUS_URL",
+      "DANGEROUS_EXTENSION",
+      "DOUBLE_EXTENSION",
+      "MIME_TYPE_MISMATCH"
+    ],
+    "cases": {
+      "default-body-composition": {
+        "from_and_date_present": true,
+        "score": 9.5,
+        "status": "Yes",
+        "rules_in_header_order": [
+          "SPAM_KEYWORDS=8.0",
+          "SUSPICIOUS_URL=1.5"
+        ],
+        "postgres_from_address": "sender@external.test"
+      },
+      "default-header-body-composition": {
+        "from_and_date_present": false,
+        "score": 13.0,
+        "status": "Yes",
+        "rules_in_header_order": [
+          "MISSING_HEADERS=3.5",
+          "SPAM_KEYWORDS=8.0",
+          "SUSPICIOUS_URL=1.5"
+        ],
+        "postgres_from_address": null
+      }
+    },
+    "storage": {
+      "folder": "spam",
+      "maildir_new_regular_files_per_case": 1,
+      "maildir_orphan_files": 0,
+      "maildir_residual_temp_files": 0,
+      "maildir_symlinks": 0,
+      "postgres_matching_rows_per_case": 1,
+      "redis_key": "mail:count:qa@example.test:spam",
+      "redis_delta_per_case": 1,
+      "redis_type": "string",
+      "redis_pttl": -1,
+      "delivery_cardinality": "exactly-once"
+    },
+    "maildir_header_order": [
+      "X-Spam-Status",
+      "X-Spam-Score",
+      "X-Spam-Rules"
+    ]
+  },
+  "oracle_placeholders": {
+    "candidate_implementation_required": false,
+    "reason": "Every frozen class is unconditionally disabled and returns a null or no-op evaluator.",
+    "sources": [
+      {
+        "rule": "FROM_REPLYTO_MISMATCH",
+        "path": "src/main/java/net/lmyz/lmyzmail/contentfilter/rules/header/FromReplyToMismatchRule.java",
+        "sha256": "6a175a940b52a403ec6039301c57e3d8b05e1e4e25e82be02eef00edf651bba5"
+      },
+      {
+        "rule": "SUSPICIOUS_DATE",
+        "path": "src/main/java/net/lmyz/lmyzmail/contentfilter/rules/header/SuspiciousDateRule.java",
+        "sha256": "d763d3d6734ee7692c8f7381bea656fe4f553dadcb466f692027c21fcd00b7de"
+      },
+      {
+        "rule": "HTML_TEXT_RATIO",
+        "path": "src/main/java/net/lmyz/lmyzmail/contentfilter/rules/body/HtmlTextRatioRule.java",
+        "sha256": "79a1d2665ff13e72cacbb6c828fd5a50a1a74d9b92eab375150809a5660cd5b0"
+      },
+      {
+        "rule": "PHISHING_PATTERN",
+        "path": "src/main/java/net/lmyz/lmyzmail/contentfilter/rules/body/PhishingPatternRule.java",
+        "sha256": "dc7ae7329591a80218c2c77bd7b39a2ff17c47cba085cb85be76781bccecb365"
+      },
+      {
+        "rule": "INVISIBLE_TEXT",
+        "path": "src/main/java/net/lmyz/lmyzmail/contentfilter/rules/body/InvisibleTextRule.java",
+        "sha256": "5d5a60a4592c965705df7f9e29a068f6e04f05ab5852b8d0d4f417cb11639c74"
+      }
+    ]
+  },
+  "golden": {
+    "active": {
+      "generation": "managed-smtp-content-filter-default-v2",
+      "profile": "managed-smtp-content-filter-default",
+      "definition_tree_sha256": "9dc365b04f701bb3f42fb53caaffeb313cbe418b8c0fb3c57cbd2fdc3bbea245",
+      "artifacts": {
+        "suite.json": "535d0ee780be8a42ec7737f48f7e1bd6fa35e4cc9394a7fcc5483c53498c296a",
+        "observations/smtp/content-filter/default-body-composition.json": "ca9df6eeb3a512d073104a55b0b3d264c2c8e842be3ebd88e1fd762513e92937",
+        "observations/smtp/content-filter/default-header-body-composition.json": "ab39f69f2d743434fbf982d5daaef31080a4794a50cf859917de56167077bea3"
+      }
+    },
+    "recording_semantics": "create-once; an existing artifact cannot be overwritten"
+  },
+  "implementation": {
+    "runtime": "stable-rust-1.94.0",
+    "java_runtime_dependency": false,
+    "rust_core_changed_in_milestone": false,
+    "existing_default_filter_externally_verified": true,
+    "streaming_and_budgeted_body_pipeline": true
+  },
+  "source_sha256": {
+    "Cargo.lock": "952e6cec5696d1eab472fd481f6ce9f12c1bf364a291f67931a56dbcab9ae007",
+    "crates/lmyzmail/src/smtp_content_filter.rs": "99b5ed4627cf591aa4190831901360328d20be9c9e4a28f2fae94c340a600439",
+    "crates/lmyzmail/src/config.rs": "bb1dffe3a9e97c9c19802a41d223df74915f7cc9a391135d6e5dc30c147bee6b",
+    "crates/lmyzmail/resources/java-oracle/application-keywords.properties": "cee5be2e215eaab7f1808850506164aa2aad4c7ba0dccbf0a9b0900657de8363",
+    "blackbox/tests/test_oracle_smtp_content_filter_default.py": "137f6f2649c2f031ab95215a5d63e102fdff1b97fdafc8f71d3ca6f9826dda5a",
+    "README.md": "c2e4e3095453c3dfd785ed7e0213e232b3d4cfaa483653b6193e69773b10faac",
+    "docs/compatibility.md": "b7f3b2fc4752d972d472cb794d99414a1757fc4f7b62e7dae7e8de76100542fd"
+  },
+  "release": {
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "da7de099968638253709412a14077a81830e298595793fc196aa60ad151057d1"
+  },
+  "verification": [
+    {
+      "command": "pytest -q --record-java-golden blackbox/tests/test_oracle_smtp_content_filter_default.py -m oracle",
+      "result": "1 passed, 1 deselected in 13.58s; create-once Java v2 recorded"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_smtp_content_filter_default.py -m oracle",
+      "result": "1 passed, 1 deselected in 13.61s; fresh JVM replayed v2"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_oracle_smtp_content_filter_default.py -m candidate",
+      "result": "1 passed, 1 deselected in 1.61s"
+    },
+    {
+      "command": "cargo test --locked --workspace --all-features --all-targets",
+      "result": "passed in 49.8s; 543 lmyzmail library tests plus every binary and integration target"
+    },
+    {
+      "command": "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
+      "result": "passed; only upstream vendored C compiler warnings were emitted"
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "result": "passed"
+    },
+    {
+      "command": "cargo build --locked --release --target x86_64-unknown-linux-gnu -p lmyzmail",
+      "result": "passed; release SHA-256 unchanged"
+    },
+    {
+      "command": "blackbox/.venv/bin/python -m pytest -q blackbox/tests -m 'not integration'",
+      "result": "142 passed, 144 deselected in 7.81s"
+    },
+    {
+      "command": "blackbox/.venv/bin/ruff check blackbox/src blackbox/tests blackbox/tools",
+      "result": "passed"
+    },
+    {
+      "command": "blackbox/.venv/bin/ruff format --check blackbox/tests/test_oracle_smtp_content_filter_default.py",
+      "result": "passed"
+    },
+    {
+      "command": "cd blackbox && PYTHONPATH=src .venv/bin/mypy src tests tools",
+      "result": "Success: no issues found in 142 source files"
+    }
+  ],
+  "remaining_separate_matrices": [
+    "default rule combinations beyond the two frozen compositions",
+    "malformed and over-budget content-filter input",
+    "content-filter storage and DNS failure injection",
+    "content-filter backpressure and high concurrency",
+    "content-filter long-duration soak"
+  ],
+  "old_repository_state": {
+    "java_oracle": "read-only; only known asciiart_linux/ffmpeg_src executable-bit noise",
+    "skibidi_1_8_0": "read-only and clean"
+  }
+}
