@@ -35,13 +35,13 @@ Only genuine nondeterminism such as wall-clock time, random identifiers, and
 ephemeral ports may be normalized. Each normalizer is field-scoped and tested;
 there is no whole-response masking or assertion weakening.
 
-## Native Skibidi banner
+## Rust Skibidi banner
 
-SMTP banner generation always calls the frozen Skibidi 1.8.0 C library. The C
-implementation is the sole authority for grammar, every probability threshold,
-seed behavior, batch behavior, ABI, and memory ownership. lmyzmail does not
-reproduce the Java 26.85% outer fast path and does not maintain a Rust or Java
-probability implementation. This banner boundary has no JVM dependency.
+SMTP banner generation runs entirely in the Rust implementation. The frozen
+Skibidi 1.8.0 C source is retained only as the probability-threshold, grammar,
+seed, batch, ABI, and memory-ownership authority, plus a separate provenance
+and compatibility test oracle. It is not linked into or loaded by the
+production binary, and no JVM or Java fast path is simulated.
 
 The frozen source commit is `4bc484c15b780d578ee8e53cab968f2819958215`.
 `skibidi_avx.c` has SHA-256
@@ -50,16 +50,17 @@ and `skibidi_avx.h` has SHA-256
 `bde8e9d19d6668c644aba1cdd81fb9f56c2236ff827ddd16fb366369bc68bbea`.
 The build rejects either source if its digest changes.
 
-Legacy `JAVA` mode is retained only as a configuration alias for the scalar C
-backend; it never starts a JVM. `SCALAR` is the explicit spelling. `AVX2` and
-`AVX512` require OS-aware runtime support, while `AUTO`, `AUTO_SAFE`, and
-`NATIVE` choose the best permitted C backend. The AVX-512 object is called only
-when both AVX2 and AVX-512F extended state are available to the process.
+Legacy `JAVA` mode is retained only as a configuration alias for the Rust
+scalar backend; it never starts a JVM or calls C. `SCALAR` is the explicit
+spelling. `AVX2` and `AVX512` require OS-aware runtime support, while `AUTO`,
+`AUTO_SAFE`, and `NATIVE` choose the best permitted Rust backend. AVX-512 code
+is called only when both AVX2 and AVX-512F extended state are available to the
+process.
 
 The managed Java oracle runs in `JAVA` mode in WSL because its historical
-bundled native library can execute an unsupported instruction. It therefore
-remains the banner wire-grammar oracle, while frozen C tests and external Rust
-candidate sampling are the probability authorities.
+bundled native library can execute an unsupported instruction. It remains the
+banner wire-grammar oracle only; frozen C tests establish the probability
+authority and the Rust candidate exercises the production implementation.
 
 ## Java parity edge cases
 
