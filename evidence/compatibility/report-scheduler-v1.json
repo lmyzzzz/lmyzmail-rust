@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "profile": "report-scheduler-v1",
+  "captured_at": "2026-08-12T15:27:00+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "active_golden": {
+    "path": "blackbox/golden/java/managed-reports-scheduler-v1/observation.json",
+    "sha256": "d35b55d21296c9db7723c19e925d5ac7b06b641005ad5e41fda347b935d35e5e",
+    "definition_tree_sha256": "f8113d9ba532a2b0e2183912e35ae5411c011cc383446322c51e6546babc03ac",
+    "normalizers": [
+      "report-id:uuid-v4",
+      "rfc5322:parsed-message",
+      "report-body:wall-clock-period",
+      "redis-domain-status:updated-at",
+      "maildir:generated-filename"
+    ]
+  },
+  "contract": {
+    "fake_boundary": "2024-01-02T01:00:00Z",
+    "report_date": "2024-01-01",
+    "publication_count": 2,
+    "protocols": ["DMARC XML gzip", "TLSRPT JSON gzip"],
+    "dns_order": [
+      "_dmarc.sender.example",
+      "sender.example._report._dmarc.example.test",
+      "_smtp._tls.recipient.example"
+    ],
+    "state_surfaces": [
+      "Redis pending order and task TTLs",
+      "atomic Sent Maildir files with no temporary residue",
+      "MIME headers, parsed attachments and bounded gzip contents",
+      "unchanged PostgreSQL source rows",
+      "single publication at one cron boundary",
+      "joined runtime shutdown"
+    ],
+    "clock_boundary_method": "LD_PRELOAD shim offsets only CLOCK_REALTIME/gettimeofday/time in the application process; monotonic deadlines and PostgreSQL/Redis processes retain real clocks.",
+    "new_behavior_difference_ids": [],
+    "explicitly_not_claimed": [
+      "missed-run restart behavior",
+      "concurrent trigger admission",
+      "storage fault injection",
+      "scheduler high-concurrency or long-running soak"
+    ]
+  },
+  "source_sha256": {
+    "blackbox/fixtures/fake_realtime.c": "1fa7e0435356845871fba0dcdb6db3e0babb41465a681dc773126432b79b53e2",
+    "blackbox/tests/test_oracle_report_scheduler.py": "dbd48201a103f6536a68372c6e663ce5e201aa35074db235b106d12aeefb030e",
+    "docs/compatibility.md": "32650ba1cef0ed771a42036d1c38cb5c7de2c466bf963ad2269e84ac89faee2e",
+    "docs/reporting-trigger-contract.md": "fffac47b97714b3f8e4591bf4528551526899d992752b8e808fe375928e48b5a"
+  },
+  "verification": [
+    {"command": "Java scheduler golden recording plus fresh Java replay", "result": "1 passed in 71.51s"},
+    {"command": "Rust scheduler golden replay", "result": "1 passed in 32.03s"},
+    {"command": "strict C shim compile with -Wall -Wextra -Werror and ASLR-independent shared FFI", "result": "passed"},
+    {"command": "Ruff and strict mypy for scheduler test", "result": "passed"}
+  ],
+  "frozen_repositories": {
+    "java_oracle": "read-only at 5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "skibidi_1_8_0": "read-only at 4bc484c15b780d578ee8e53cab968f2819958215"
+  }
+}

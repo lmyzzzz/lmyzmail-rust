@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "profile": "tlsrpt-https-v2",
+  "captured_at": "2026-08-12T15:27:00+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "active_golden": {
+    "path": "blackbox/golden/java/managed-tlsrpt-https-v10.json",
+    "sha256": "d9c3bba4ff6360e12c22ed66b4cc4c16e68fe635bd53c87683d53ba3c351d8c0",
+    "definition_tree_sha256": "f8113d9ba532a2b0e2183912e35ae5411c011cc383446322c51e6546babc03ac",
+    "case_count": 5,
+    "normalizers": [
+      "report-id:uuid-v4",
+      "json-object-order:reports-contract",
+      "http:header-order",
+      "tlsrpt:uuid-derived-content-length"
+    ]
+  },
+  "contract": {
+    "cases": [
+      "HTTPS 204 success",
+      "HTTP 302 reported without redirect following",
+      "untrusted collector certificate",
+      "private-address SSRF rejection before connect",
+      "stalled collector response under one two-second absolute deadline"
+    ],
+    "new_behavior_difference_ids": [],
+    "authorized_branding": {
+      "java_user_agent": "Botmail-TLSRPT/1.0",
+      "rust_user_agent": "lmyzmail-TLSRPT/1.0"
+    },
+    "explicitly_not_claimed": [
+      "scheduled aggregation",
+      "restart recovery",
+      "disconnect ambiguity",
+      "backpressure or high-concurrency stress",
+      "long-running soak"
+    ]
+  },
+  "verification": [
+    {"command": "fresh Java v10 recording", "result": "1 passed in 16.57s"},
+    {"command": "Rust v10 candidate replay", "result": "1 passed in 4.94s"},
+    {"command": "fresh Java v10 replay without recording", "result": "1 passed in 15.79s"},
+    {"command": "pytest -q blackbox/tests -m 'not integration'", "result": "161 passed, 158 deselected in 9.99s"},
+    {"command": "Ruff and strict mypy across blackbox", "result": "passed"},
+    {"command": "cargo fmt, locked workspace tests, clippy, and reproducible release", "result": "passed; prior cold release builds byte-identical"}
+  ],
+  "release": {
+    "toolchain": "rustc 1.94.0 (4a4ef493e 2026-03-02)",
+    "sha256": "a57663cb11fad457c7cbad6c7aefef85f2856aee59b9ee3c5840bf3236eb5220",
+    "java_runtime_dependency": false
+  }
+}

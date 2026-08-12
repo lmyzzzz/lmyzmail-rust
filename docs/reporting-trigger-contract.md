@@ -25,19 +25,23 @@ The scheduling contract is traced to frozen Java commit
 `ReportGenerationScheduler.java`, SHA-256
 `7fff9bf0d8bdd157e1afcad4fa163a6de51ee828e426a1fd14a43b48d567e3cb`.
 
-The active `managed-reports-v21` profile exercises a full seeded trigger after
+The active `managed-reports-v22` profile exercises a full seeded trigger after
 single-domain delivery has warmed the resolver. It compares the HTTP result,
 zero additional DNS traffic, Redis tasks and TTLs, Sent Maildir MIME and gzip
 payloads, unchanged source rows, and exact fixture restoration across fresh
 Java and Rust workspaces. All eight report scenarios now run from the normal
 `blackbox/tests` collection for both targets; the earlier tools-only candidate
-entry point has been removed. v1 through v20 remain immutable historical
+entry point has been removed. v1 through v21 remain immutable historical
 profiles.
 
-The v21 recording plus an independent fresh-Java replay passed in 27.36
+The v22 recording plus an independent fresh-Java replay passed in 27.26
 seconds. Rust replayed the eight scenarios and separately started and stopped
-with automatic sending enabled in 3.02 seconds. This proves scheduler
-construction, status exposure, root-cancellation shutdown, and the shared
-manual generation path. It does not yet claim an externally clock-driven
-01:00 UTC firing, missed-run restart behavior, concurrent trigger admission,
-storage fault injection, or scheduler soak; those remain separate matrices.
+with automatic sending enabled in 2.70 seconds. The dedicated
+`managed-reports-scheduler-v1` profile then crossed a real 01:00 UTC cron
+boundary under an application-only wall-clock shim: Java recording plus fresh
+Java replay passed in 71.51 seconds, and Rust replay passed in 32.03 seconds.
+That matrix proves prior-date selection, one publication at the boundary,
+exact DNS order, Redis/Maildir/MIME/gzip side effects, unchanged source rows,
+and bounded shutdown. Missed-run restart behavior, concurrent trigger
+admission, storage fault injection, and scheduler soak remain separate
+matrices.
