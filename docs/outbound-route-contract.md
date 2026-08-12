@@ -73,8 +73,9 @@ The approved differences are recorded in
 Crate-internal tests inject deterministic DNS and HTTPS backends for ordering,
 fallback, policy modes, malformed responses, budgets, singleflight, deadline,
 and cancellation. A real isolated Redis process verifies legacy keys,
-serialization, TTL preservation, corrupt-entry handling, and negative-cache
-reuse across resolver reconstruction.
+serialization, TTL preservation, corrupt-entry handling, same-process negative
+caching, restart rediscovery for invalid/NONE entries, and restart reuse of
+valid positive policies.
 
 This component is production route logic consumed by the internal outbound
 coordinator. `main` now owns the bounded delivery worker and supervises it under

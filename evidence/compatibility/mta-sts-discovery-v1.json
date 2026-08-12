@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "profile": "mta-sts-discovery-v1",
+  "captured_at": "2026-08-12T13:49:21+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "active_golden": {
+    "path": "blackbox/golden/java/managed-mta-sts-discovery-v3.json",
+    "sha256": "2e7e8bea64292f2cfef2f6f3390cd208acf66038f9cc01eed0d97b172caadd1e",
+    "definition_tree_sha256": "d0406db5c25e41ab4786dc3c3c62a85f2884d7df6a689ee2b6d2e2a3af0a1c4e",
+    "case_count": 21,
+    "normalizers": [
+      "outbound:queue-id",
+      "outbound:message-metadata",
+      "mta-sts:fetched-at-presence",
+      "mta-sts:ttl-observation-window"
+    ]
+  },
+  "contract": {
+    "cases": [
+      "no TXT record",
+      "malformed TXT record",
+      "multiple valid TXT records",
+      "policy-host address failure",
+      "untrusted policy certificate",
+      "HTTP 404",
+      "HTTP 500",
+      "HTTP 302 without redirect following",
+      "missing Content-Type",
+      "wrong Content-Type",
+      "invalid UTF-8 policy",
+      "malformed policy",
+      "oversized policy",
+      "stalled policy response",
+      "testing policy",
+      "none policy",
+      "enforce policy",
+      "max_age zero",
+      "positive same-process cache",
+      "negative cache after restart",
+      "positive cache after restart"
+    ],
+    "negative_cache_restart_correction": "Invalid or NONE results retain the frozen six-field Redis serialization and 300-second TTL and are reused by the same process through L1. After process reconstruction, both Java and Rust reject an invalid Redis policy and perform fresh TXT discovery. Valid positive policies remain reusable after restart.",
+    "redis_compatibility": "The legacy mta-sts:{domain} key, six-field bytes, positive max_age TTL, 300-second NONE TTL, and max_age=0 non-caching remain exact.",
+    "https_compatibility": "HTTPS uses exact policy path, SNI and hostname verification, no redirects, strict text/plain, bounded response handling, and the observed TLS 1.3 cipher.",
+    "authorized_branding": {
+      "java_user_agent": "Botmail-MTA-STS/1.0",
+      "rust_user_agent": "lmyzmail-MTA-STS/1.0"
+    },
+    "implementation_specific_trace": "The fixture asserts each target's exact DNS trace: dnsjava TXT plus the isolated JDK hosts file for Java; Hickory TXT, policy A/AAAA, and MX A/AAAA for Rust.",
+    "new_behavior_difference_ids": []
+  },
+  "source_sha256": {
+    "blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py": "f61df22f2767dce7bb5fcf5d17a141bbfcc8868869aa8f23766378bfa69c0f6c",
+    "blackbox/src/lmyzmail_blackbox/scripted_https.py": "2a9881b0aeb0c3a1ac766cc9a496d20cf224ceb0c9c476abbbf22584f612dc0d",
+    "blackbox/src/lmyzmail_blackbox/tls_fixture.py": "025644731c89d68b7218582b33e28ec6085a5b68e892df6556d53120304edae2",
+    "blackbox/tests/test_oracle_mta_sts_discovery.py": "65132c8f9c27fb03b22448b44aad3ef1c4e70163f923204171cc7d04abbb037e",
+    "blackbox/tests/test_scripted_https.py": "8a57183cb5d576afd27a44d9cff72e60f945b2484ade1d49222fb6df704b82a8",
+    "blackbox/tests/test_tls_fixture.py": "8b2907ca5c65a6f2898f1035f312e1ed3c1dd1989e9547b34f50078a41d20493",
+    "blackbox/tests/test_legacy_storage.py": "6401dc980e4438965d0abeccf6a9410a83b5757dd4a3ce22d50b6fbdbb6b3401",
+    "blackbox/manifests/behavior-differences.json": "6a9f9f8e291faa5d813b6915bca80629d4d77785e70b6ba201a9c4809852b696",
+    "crates/lmyzmail/src/outbound_route.rs": "14747007a95a8670e614156f0bc25d7c126da6053849ea8f6e661bbd8ee73597",
+    "crates/lmyzmail/src/outbound_route_tests.rs": "7b2ec0ea75a6e2f0cbd7389349ef9db51b96816e5634645f2646cf1fc4718a86",
+    "docs/compatibility.md": "cf44f43f894432cfe7936a2faef5311786f1ab384e5356584cd0143ba60123a0",
+    "docs/outbound-route-contract.md": "aeae1cc286f7f23b3f695c455aa6c124d2f29615751c7426159ab7787b40e2be"
+  },
+  "verification": [
+    {
+      "command": "record fresh Java managed-mta-sts-discovery-v3 golden",
+      "result": "1 passed in 104.10s"
+    },
+    {
+      "command": "fresh Java v3 replay without recording",
+      "result": "1 passed in 104.53s"
+    },
+    {
+      "command": "Rust candidate v3 replay",
+      "result": "1 passed in 80.50s"
+    },
+    {
+      "command": "pytest -q blackbox/tests -m 'not integration'",
+      "result": "158 passed, 152 deselected in 9.54s"
+    },
+    {
+      "command": "ruff check blackbox/src blackbox/tests blackbox/tools",
+      "result": "passed"
+    },
+    {
+      "command": "mypy --strict blackbox/src blackbox/tests",
+      "result": "Success: no issues found in 113 source files"
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "result": "passed"
+    },
+    {
+      "command": "cargo test --locked outbound_route::tests::redis_legacy_keys_serialization_ttls_and_restart_semantics_are_compatible -- --exact",
+      "result": "1 passed"
+    },
+    {
+      "command": "cargo test --workspace --locked",
+      "result": "637 passed; 0 failed"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --locked -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "cargo build --workspace --all-targets --release --locked --target x86_64-unknown-linux-gnu",
+      "result": "passed in 147.5s"
+    }
+  ],
+  "release": {
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "11663eab02eb4344d94efd62fcf2ac0cf8b5f11f8bb3d9a10905fe5a5609f326",
+    "format": "ELF 64-bit LSB PIE executable, x86-64",
+    "java_runtime_dependency": false
+  },
+  "frozen_repositories": {
+    "java_oracle": {
+      "branch": "codex/java-oracle-freeze",
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "state": "read-only; only known asciiart_linux/ffmpeg_src executable-bit noise"
+    },
+    "skibidi_1_8_0": {
+      "branch": "codex/skibidi-1.8.0-freeze",
+      "commit": "4bc484c15b780d578ee8e53cab968f2819958215",
+      "state": "read-only and clean",
+      "skibidi_avx_c_sha256": "7e8e7f3ee5bea0ac8d0857bd5bc8d806b44e5142c17ec8b5b6583db7c62fc613",
+      "skibidi_avx_h_sha256": "bde8e9d19d6668c644aba1cdd81fb9f56c2236ff827ddd16fb366369bc68bbea"
+    }
+  }
+}

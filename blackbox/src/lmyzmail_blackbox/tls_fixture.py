@@ -37,6 +37,8 @@ class EphemeralTlsMaterial:
 @dataclass(frozen=True, slots=True)
 class EphemeralOutboundTlsMaterial:
     matching_server: EphemeralTlsMaterial
+    policy_server: EphemeralTlsMaterial | None
+    untrusted_policy_server: EphemeralTlsMaterial | None
     mismatched_server: EphemeralTlsMaterial
     untrusted_server: EphemeralTlsMaterial
     expired_server: EphemeralTlsMaterial
@@ -197,11 +199,17 @@ def provision_ephemeral_outbound_tls_material(
     workspace: Path,
     *,
     mx_hostname: str,
+    policy_hostnames: tuple[str, ...] = (),
     mismatched_hostname: str = "mismatch.fixture.test",
 ) -> EphemeralOutboundTlsMaterial:
     if workspace.is_symlink() or not workspace.is_dir():
         raise HarnessError(f"TLS workspace must be a real directory: {workspace}")
     _validate_dns_name(mx_hostname)
+    normalized_policy_hostnames = {value.casefold() for value in policy_hostnames}
+    if len(policy_hostnames) > 32 or len(normalized_policy_hostnames) != len(policy_hostnames):
+        raise HarnessError("outbound TLS policy hostnames must be unique and bounded")
+    for policy_hostname in policy_hostnames:
+        _validate_dns_name(policy_hostname)
     _validate_dns_name(mismatched_hostname)
     if mx_hostname.casefold() == mismatched_hostname.casefold():
         raise HarnessError("outbound TLS mismatch hostname must differ from the MX hostname")
@@ -223,6 +231,30 @@ def provision_ephemeral_outbound_tls_material(
         hostname=mx_hostname,
         issuer_key=trusted_ca_key,
         issuer_certificate=trusted_ca,
+    )
+    policy_server = (
+        _provision_signed_server_identity(
+            tls_directory,
+            filename="policy-server.p12",
+            hostname=policy_hostnames[0],
+            additional_hostnames=policy_hostnames[1:],
+            issuer_key=trusted_ca_key,
+            issuer_certificate=trusted_ca,
+        )
+        if policy_hostnames
+        else None
+    )
+    untrusted_policy_server = (
+        _provision_signed_server_identity(
+            tls_directory,
+            filename="untrusted-policy-server.p12",
+            hostname=policy_hostnames[0],
+            additional_hostnames=policy_hostnames[1:],
+            issuer_key=untrusted_ca_key,
+            issuer_certificate=untrusted_ca,
+        )
+        if policy_hostnames
+        else None
     )
     mismatched_server = _provision_signed_server_identity(
         tls_directory,
@@ -276,6 +308,8 @@ def provision_ephemeral_outbound_tls_material(
 
     return EphemeralOutboundTlsMaterial(
         matching_server=matching_server,
+        policy_server=policy_server,
+        untrusted_policy_server=untrusted_policy_server,
         mismatched_server=mismatched_server,
         untrusted_server=untrusted_server,
         expired_server=expired_server,
@@ -396,6 +430,7 @@ def _provision_signed_server_identity(
     *,
     filename: str,
     hostname: str,
+    additional_hostnames: tuple[str, ...] = (),
     issuer_key: rsa.RSAPrivateKey,
     issuer_certificate: x509.Certificate,
     not_valid_before: datetime = _NOT_VALID_BEFORE,
@@ -419,7 +454,9 @@ def _provision_signed_server_identity(
         .not_valid_before(not_valid_before)
         .not_valid_after(not_valid_after)
         .add_extension(
-            x509.SubjectAlternativeName((x509.DNSName(hostname),)),
+            x509.SubjectAlternativeName(
+                tuple(x509.DNSName(value) for value in (hostname, *additional_hostnames))
+            ),
             critical=False,
         )
         .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)

@@ -24,7 +24,8 @@ import redis
 
 from .persistent_runtime import PersistentJavaOracleRuntime
 from .runtime import API_KEY, QA_ADDRESS, QA_PASSWORD, CandidateRuntime, JavaOracleRuntime
-from .scripted_dns import AAnswer, DnsAnswer, ScriptedDnsServer
+from .scripted_dns import AAnswer, DnsAnswer, DnsQuery, ScriptedDnsServer, TxtAnswer
+from .scripted_https import HttpsScenario, ScriptedHttpsServer
 from .scripted_smtp import (
     RecipientReply,
     ScriptedSmtpServer,
@@ -44,6 +45,35 @@ _DNS_HOST = "outbound.fixture.test"
 _FAKE_IP = "93.184.216.34"
 _RECIPIENT = f"recipient@{_DNS_HOST}"
 _TLS_MX_HOST = _DNS_HOST
+_MTA_STS_CASE_DOMAINS = {
+    "no_txt": "no-txt.sts.fixture.test",
+    "malformed_txt": "malformed-txt.sts.fixture.test",
+    "multiple_txt": "multiple-txt.sts.fixture.test",
+    "a_failure": "a-failure.sts.fixture.test",
+    "certificate_failure": "certificate-failure.sts.fixture.test",
+    "status_404": "status-404.sts.fixture.test",
+    "status_500": "status-500.sts.fixture.test",
+    "redirect": "redirect.sts.fixture.test",
+    "missing_content_type": "missing-content-type.sts.fixture.test",
+    "wrong_content_type": "wrong-content-type.sts.fixture.test",
+    "invalid_utf8": "invalid-utf8.sts.fixture.test",
+    "malformed_policy": "malformed-policy.sts.fixture.test",
+    "oversized_policy": "oversized-policy.sts.fixture.test",
+    "timeout": "timeout.sts.fixture.test",
+    "testing": "testing.sts.fixture.test",
+    "none": "none.sts.fixture.test",
+    "enforce": "enforce.sts.fixture.test",
+    "zero": "zero.sts.fixture.test",
+    "positive": "positive.sts.fixture.test",
+}
+_MTA_STS_POLICY_HOSTS = tuple(
+    f"mta-sts.{domain}" for domain in _MTA_STS_CASE_DOMAINS.values()
+)
+_MTA_STS_JAVA_HOSTS = tuple(
+    host
+    for host in _MTA_STS_POLICY_HOSTS
+    if host != f"mta-sts.{_MTA_STS_CASE_DOMAINS['a_failure']}"
+)
 _DSN_RECIPIENT = f"recipient-rcpt-550-1@{_DNS_HOST}"
 _QA_DOMAIN = QA_ADDRESS.rsplit("@", 1)[1]
 _DSN_ABSENCE_WINDOW_SECONDS = 8
@@ -77,7 +107,10 @@ class OutboundOracleRuntime(PersistentJavaOracleRuntime):
     def _application_arguments(self) -> list[str]:
         workspace, _ = self._require_state()
         hosts_file = workspace / "outbound-hosts"
-        hosts_file.write_text(f"{_FAKE_IP} {_DNS_HOST}\n", encoding="ascii")
+        hosts_file.write_text(
+            f"{_FAKE_IP} {_DNS_HOST} {' '.join(_MTA_STS_JAVA_HOSTS)}\n",
+            encoding="ascii",
+        )
         self._hosts_file = hosts_file
         arguments = super()._application_arguments()
         jar_index = arguments.index("-jar")
@@ -154,6 +187,19 @@ class OutboundCandidateRuntime(CandidateRuntime):
         )
         return arguments
 
+    def restart_application(self) -> None:
+        if self._application is None or self._port_allocator is None:
+            raise RuntimeError("candidate application is not running")
+        self._application.stop(
+            timeout=self.shutdown_timeout,
+            kill_timeout=self.shutdown_kill_timeout,
+        )
+        self._application = None
+        for port in self._application_service_ports():
+            self._port_allocator.reserve_port(port)
+        self._application_ports_released = False
+        self._start_application()
+
 
 def _outbound_target() -> str:
     target = os.environ.get(_OUTBOUND_TARGET_ENV, "java").casefold()
@@ -218,6 +264,23 @@ def _candidate_dns_server() -> ScriptedDnsServer:
         bind_host=nameserver,
         bind_port=53,
     )
+
+
+def _outbound_dns_server(
+    answers: dict[tuple[str, int], DnsAnswer],
+) -> ScriptedDnsServer:
+    nameserver = _ipv4_nameserver()
+    result = subprocess.run(  # noqa: S603
+        ["/usr/sbin/ip", "address", "add", f"{nameserver}/32", "dev", "lo"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0 and "File exists" not in result.stderr:
+        raise AssertionError(
+            f"failed to pin outbound DNS fixture address: {result.stderr.strip()}"
+        )
+    return ScriptedDnsServer(answers, bind_host=nameserver, bind_port=53)
 
 
 def _candidate_dsn_dns_server() -> ScriptedDnsServer:
@@ -1012,6 +1075,401 @@ def _run_outbound_tls_case(
         client.close()
 
 
+def _mta_sts_policy_body(*, mode: str, max_age: int, mx: str = _DNS_HOST) -> bytes:
+    return (
+        f"version: STSv1\r\nmode: {mode}\r\nmx: {mx}\r\nmax_age: {max_age}\r\n"
+    ).encode("ascii")
+
+
+def _mta_sts_dns_answers() -> dict[tuple[str, int], DnsAnswer]:
+    answers: dict[tuple[str, int], DnsAnswer] = {
+        (_DNS_HOST, 1): DnsAnswer(a=(AAnswer(_FAKE_IP, ttl=0),)),
+    }
+    for label, domain in _MTA_STS_CASE_DOMAINS.items():
+        if label == "no_txt":
+            continue
+        txt = (
+            (
+                TxtAnswer(("v=STSv1; id=First1;",), ttl=0),
+                TxtAnswer(("v=STSv1; id=Second2;",), ttl=0),
+            )
+            if label == "multiple_txt"
+            else (TxtAnswer(("v=STSv1; id=bad-id;",), ttl=0),)
+            if label == "malformed_txt"
+            else (
+                TxtAnswer(
+                    (f"v=STSv1; id={label.title().replace('_', '')}1;",), ttl=0
+                ),
+            )
+        )
+        answers[(f"_mta-sts.{domain}", 16)] = DnsAnswer(txt=txt)
+        if label != "a_failure":
+            answers[(f"mta-sts.{domain}", 1)] = DnsAnswer(
+                a=(AAnswer(_FAKE_IP, ttl=0),)
+            )
+            answers[(f"mta-sts.{domain}", 28)] = DnsAnswer()
+    return answers
+
+
+def _mta_sts_dns_snapshot(queries: tuple[DnsQuery, ...]) -> list[dict[str, Any]]:
+    relevant_suffixes = tuple(f".{domain}" for domain in _MTA_STS_CASE_DOMAINS.values())
+    return [
+        {"name": query.qname, "type": query.qtype, "class": query.qclass}
+        for query in queries
+        if query.qname == _DNS_HOST
+        or any(query.qname.endswith(suffix) for suffix in relevant_suffixes)
+    ]
+
+
+def _mta_sts_https_snapshot(server: ScriptedHttpsServer | None) -> dict[str, Any]:
+    if server is None:
+        return {"handshake_failures": 0, "requests": []}
+    requests: list[dict[str, Any]] = []
+    for request in server.requests():
+        headers = {name.casefold(): value for name, value in request.headers}
+        requests.append(
+            {
+                "connection": request.connection_id,
+                "method": request.method,
+                "target": request.target,
+                "version": request.version,
+                "host": headers.get("host"),
+                "user_agent": headers.get("user-agent"),
+                "sni": request.sni,
+                "tls_protocol": request.tls_protocol,
+                "tls_cipher": request.tls_cipher,
+                "tls_secret_bits": request.tls_secret_bits,
+            }
+        )
+    return {"handshake_failures": server.handshake_failures(), "requests": requests}
+
+
+def _mta_sts_scenario_snapshot(scenario: HttpsScenario | None) -> dict[str, Any] | None:
+    if scenario is None:
+        return None
+    content_type = next(
+        (value for name, value in scenario.headers if name.casefold() == "content-type"),
+        None,
+    )
+    return {
+        "status": scenario.status,
+        "content_type": content_type,
+        "body_bytes": len(scenario.body),
+        "body_sha256": _digest(scenario.body),
+        "response_delay_seconds": scenario.response_delay_seconds,
+    }
+
+
+def _mta_sts_cache_snapshot(
+    client: redis.Redis,
+    domain: str,
+    *,
+    expected_ttl: int | None,
+) -> dict[str, Any]:
+    key = f"mta-sts:{domain}"
+    value = client.get(key)
+    ttl_millis = cast(int, client.pttl(key))
+    if expected_ttl is None:
+        if value is not None or ttl_millis != -2:
+            raise AssertionError(f"unexpected MTA-STS cache entry for {domain}: {value!r}")
+        return {"present": False, "ttl_seconds": None, "value": None}
+    if not isinstance(value, bytes):
+        raise AssertionError(f"MTA-STS cache entry is missing for {domain}")
+    if not (expected_ttl * 1000 - 30_000 <= ttl_millis <= expected_ttl * 1000):
+        raise AssertionError(
+            f"MTA-STS cache TTL for {domain} is outside its observation window: {ttl_millis}"
+        )
+    fields = value.decode("utf-8", errors="strict").split("|")
+    if len(fields) != 6 or not fields[5].isdigit() or int(fields[5]) <= 0:
+        raise AssertionError(f"MTA-STS cache serialization is invalid for {domain}: {value!r}")
+    return {
+        "present": True,
+        "ttl_seconds": expected_ttl,
+        "value": {
+            "version": fields[0],
+            "mode": fields[1],
+            "mx": fields[2],
+            "max_age": fields[3],
+            "policy_id": fields[4],
+            "fetched_at_present": True,
+        },
+    }
+
+
+def _mta_sts_case(
+    runtime: JavaOracleRuntime,
+    dns: ScriptedDnsServer,
+    smtp: ScriptedSmtpServer,
+    *,
+    label: str,
+    expected_status: str,
+    expected_ttl: int | None,
+    https_server: ScriptedHttpsServer | None,
+    https_scenario: HttpsScenario | None = None,
+    deliveries: int = 1,
+) -> dict[str, Any]:
+    if runtime.ports is None:
+        raise AssertionError("runtime ports are unavailable")
+    domain = _MTA_STS_CASE_DOMAINS[label]
+    client: redis.Redis = redis.Redis(
+        host="127.0.0.1", port=runtime.ports.redis, decode_responses=False
+    )
+    dns.drain_queries()
+    before_smtp_attempts = len(smtp.messages())
+    try:
+        client.set(f"dns:mx:{domain}", _DNS_HOST.encode("ascii"), ex=300)
+        observations: list[dict[str, Any]] = []
+        for index in range(deliveries):
+            response, task_id = _post_failure_message(
+                runtime,
+                recipient=f"recipient-{label}-{index}@{domain}",
+                subject=f"blackbox MTA-STS discovery {label} {index}",
+                text=f"MTA-STS discovery body {label} {index}",
+            )
+            observations.append(
+                {
+                    "response": response,
+                    "terminal": _tls_case_terminal(
+                        runtime,
+                        task_id,
+                        expected_status=expected_status,
+                        description=f"MTA-STS discovery {label} {index}",
+                    ),
+                }
+            )
+        return {
+            "deliveries": observations,
+            "dns": _mta_sts_dns_snapshot(dns.drain_queries()),
+            "https": _mta_sts_https_snapshot(https_server),
+            "https_scenario": _mta_sts_scenario_snapshot(https_scenario),
+            "redis": _mta_sts_cache_snapshot(client, domain, expected_ttl=expected_ttl),
+            "smtp_attempt_count": len(smtp.messages()) - before_smtp_attempts,
+        }
+    finally:
+        client.close()
+
+
+def _mta_sts_https_server(
+    material: EphemeralOutboundTlsMaterial,
+    scenario: HttpsScenario,
+) -> ScriptedHttpsServer:
+    if material.policy_server is None:
+        raise AssertionError("MTA-STS policy TLS identity was not provisioned")
+    return ScriptedHttpsServer(
+        scenario,
+        tls_context=create_server_ssl_context(material.policy_server),
+        bind_host=_FAKE_IP,
+        bind_port=443,
+    )
+
+
+def _mta_sts_scenario(label: str) -> tuple[HttpsScenario, int | None]:
+    if label == "certificate_failure":
+        return (
+            HttpsScenario(body=_mta_sts_policy_body(mode="testing", max_age=600)),
+            300,
+        )
+    if label == "status_404":
+        return HttpsScenario(status=404, reason="Not Found"), 300
+    if label == "status_500":
+        return HttpsScenario(status=500, reason="Internal Server Error"), 300
+    if label == "redirect":
+        return (
+            HttpsScenario(
+                status=302,
+                reason="Found",
+                headers=(
+                    ("Content-Type", "text/plain"),
+                    ("Location", "https://redirect.invalid/policy"),
+                ),
+            ),
+            300,
+        )
+    if label == "missing_content_type":
+        return (
+            HttpsScenario(
+                headers=(), body=_mta_sts_policy_body(mode="enforce", max_age=600)
+            ),
+            300,
+        )
+    if label == "wrong_content_type":
+        return (
+            HttpsScenario(
+                headers=(("Content-Type", "text/html"),),
+                body=_mta_sts_policy_body(mode="enforce", max_age=600),
+            ),
+            300,
+        )
+    if label == "invalid_utf8":
+        return HttpsScenario(body=b"version: STSv1\r\nmode: testing\r\nmx: \xff\r\n"), 300
+    if label == "malformed_policy":
+        return (
+            HttpsScenario(
+                body=b"version: STSv1\r\nmode: enforce\r\nmx: outbound.fixture.test\r\n"
+            ),
+            300,
+        )
+    if label == "oversized_policy":
+        return (
+            HttpsScenario(
+                body=_mta_sts_policy_body(mode="testing", max_age=600)
+                + b"#"
+                + b"x" * (64 * 1024),
+                response_chunk_bytes=16 * 1024,
+            ),
+            300,
+        )
+    if label == "timeout":
+        return (
+            HttpsScenario(
+                body=_mta_sts_policy_body(mode="testing", max_age=600),
+                response_delay_seconds=15.0,
+            ),
+            300,
+        )
+    if label == "testing":
+        return (
+            HttpsScenario(body=_mta_sts_policy_body(mode="testing", max_age=600)),
+            600,
+        )
+    if label == "none":
+        return (
+            HttpsScenario(body=_mta_sts_policy_body(mode="none", max_age=600)),
+            300,
+        )
+    if label == "enforce":
+        return (
+            HttpsScenario(body=_mta_sts_policy_body(mode="enforce", max_age=600)),
+            600,
+        )
+    if label == "zero":
+        return (
+            HttpsScenario(body=_mta_sts_policy_body(mode="testing", max_age=0)),
+            None,
+        )
+    if label == "positive":
+        return (
+            HttpsScenario(body=_mta_sts_policy_body(mode="testing", max_age=600)),
+            600,
+        )
+    raise AssertionError(f"MTA-STS HTTPS scenario is unsupported: {label}")
+
+
+def run_mta_sts_discovery_probe() -> dict[str, Any]:
+    if (
+        subprocess.run(  # noqa: S603
+            ["/usr/sbin/ip", "link", "show", "lo"], capture_output=True
+        ).returncode
+        != 0
+    ):
+        raise AssertionError("outbound probe must run inside a network namespace with loopback")
+
+    target = _outbound_target()
+    repository = Path(__file__).resolve().parents[3]
+    dns = _outbound_dns_server(_mta_sts_dns_answers())
+    with tempfile.TemporaryDirectory(prefix="lmyzmail-mta-sts-discovery-") as workspace:
+        workspace_path = Path(workspace)
+        material_workspace = workspace_path / "material"
+        material_workspace.mkdir(mode=0o700)
+        material = provision_ephemeral_outbound_tls_material(
+            material_workspace,
+            mx_hostname=_TLS_MX_HOST,
+            policy_hostnames=_MTA_STS_POLICY_HOSTS,
+        )
+        runtime: OutboundOracleRuntime | OutboundCandidateRuntime
+        if target == "candidate":
+            runtime = _candidate_runtime(
+                repository,
+                outbound_tls_material=material,
+                mta_sts_enabled=True,
+            )
+        else:
+            runtime = OutboundOracleRuntime(
+                workspace_path / "runtime",
+                outbound_tls_material=material,
+                mta_sts_enabled=True,
+            )
+        smtp = _mta_sts_plaintext_server()
+        cases: dict[str, Any] = {}
+        with dns, smtp, runtime:
+            for label in ("no_txt", "malformed_txt", "multiple_txt", "a_failure"):
+                cases[label] = _mta_sts_case(
+                    runtime,
+                    dns,
+                    smtp,
+                    label=label,
+                    expected_status="SENT",
+                    expected_ttl=300,
+                    https_server=None,
+                )
+            for label in (
+                "certificate_failure",
+                "status_404",
+                "status_500",
+                "redirect",
+                "missing_content_type",
+                "wrong_content_type",
+                "invalid_utf8",
+                "malformed_policy",
+                "oversized_policy",
+                "timeout",
+                "testing",
+                "none",
+                "enforce",
+                "zero",
+                "positive",
+            ):
+                scenario, expected_ttl = _mta_sts_scenario(label)
+                if label == "certificate_failure":
+                    if material.untrusted_policy_server is None:
+                        raise AssertionError("untrusted policy TLS identity was not provisioned")
+                    server = ScriptedHttpsServer(
+                        HttpsScenario(
+                            body=_mta_sts_policy_body(mode="testing", max_age=600)
+                        ),
+                        tls_context=create_server_ssl_context(
+                            material.untrusted_policy_server
+                        ),
+                        bind_host=_FAKE_IP,
+                        bind_port=443,
+                    )
+                else:
+                    server = _mta_sts_https_server(material, scenario)
+                with server:
+                    cases[label] = _mta_sts_case(
+                        runtime,
+                        dns,
+                        smtp,
+                        label=label,
+                        expected_status="FAILED" if label == "enforce" else "SENT",
+                        expected_ttl=expected_ttl,
+                        https_server=server,
+                        https_scenario=scenario,
+                        deliveries=2 if label in {"zero", "positive"} else 1,
+                    )
+
+            runtime.restart_application()
+            cases["no_txt_restart"] = _mta_sts_case(
+                runtime,
+                dns,
+                smtp,
+                label="no_txt",
+                expected_status="SENT",
+                expected_ttl=300,
+                https_server=None,
+            )
+            cases["positive_restart"] = _mta_sts_case(
+                runtime,
+                dns,
+                smtp,
+                label="positive",
+                expected_status="SENT",
+                expected_ttl=600,
+                https_server=None,
+            )
+        return {"target": target, "cases": cases}
+
+
 def _starttls_server(
     material: EphemeralOutboundTlsMaterial,
     identity: str,
@@ -1065,6 +1523,19 @@ def _plaintext_server() -> ScriptedSmtpServer:
         SmtpScenario(
             hostname=_TLS_MX_HOST,
             max_connections=8,
+            max_concurrent_connections=2,
+            max_message_bytes=2 * 1024 * 1024,
+        ),
+        bind_host=_FAKE_IP,
+        bind_port=25,
+    )
+
+
+def _mta_sts_plaintext_server() -> ScriptedSmtpServer:
+    return ScriptedSmtpServer(
+        SmtpScenario(
+            hostname=_TLS_MX_HOST,
+            max_connections=32,
             max_concurrent_connections=2,
             max_message_bytes=2 * 1024 * 1024,
         ),
@@ -2410,6 +2881,8 @@ def main() -> int:
         observed = run_tls_validity_probe()
     elif mode == "tls_negotiation":
         observed = run_tls_negotiation_probe()
+    elif mode == "mta_sts_discovery":
+        observed = run_mta_sts_discovery_probe()
     elif mode == "5xx":
         observed = run_5xx_probe()
     elif mode == "success":

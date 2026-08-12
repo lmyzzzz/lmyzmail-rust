@@ -96,6 +96,10 @@ def test_outbound_tls_material_separates_identity_hostname_and_trust(tmp_path: P
     material = provision_ephemeral_outbound_tls_material(
         tmp_path,
         mx_hostname="mx.outbound.fixture.test",
+        policy_hostnames=(
+            "mta-sts.outbound.fixture.test",
+            "mta-sts.cache.fixture.test",
+        ),
     )
 
     assert stat.S_IMODE(material.java_truststore_path.parent.stat().st_mode) == 0o700
@@ -110,10 +114,16 @@ def test_outbound_tls_material_separates_identity_hostname_and_trust(tmp_path: P
     assert material.java_truststore_path.read_bytes().startswith(b"0")
 
     identities = (
-        (material.matching_server, "mx.outbound.fixture.test", trusted_ca),
-        (material.mismatched_server, "mismatch.fixture.test", trusted_ca),
+        (material.matching_server, ("mx.outbound.fixture.test",), trusted_ca),
+        (
+            material.policy_server,
+            ("mta-sts.outbound.fixture.test", "mta-sts.cache.fixture.test"),
+            trusted_ca,
+        ),
+        (material.mismatched_server, ("mismatch.fixture.test",), trusted_ca),
     )
-    for identity, hostname, issuer in identities:
+    for identity, hostnames, issuer in identities:
+        assert identity is not None
         private_key, certificate, chain = pkcs12.load_key_and_certificates(
             identity.keystore_path.read_bytes(),
             identity.keystore_password.encode("ascii"),
@@ -122,7 +132,7 @@ def test_outbound_tls_material_separates_identity_hostname_and_trust(tmp_path: P
         assert certificate is not None
         assert certificate.issuer == issuer.subject
         names = certificate.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
-        assert names.get_values_for_type(x509.DNSName) == [hostname]
+        assert names.get_values_for_type(x509.DNSName) == list(hostnames)
         assert chain == [issuer]
 
     _, untrusted_certificate, untrusted_chain = pkcs12.load_key_and_certificates(
@@ -133,6 +143,24 @@ def test_outbound_tls_material_separates_identity_hostname_and_trust(tmp_path: P
     assert untrusted_chain is not None and len(untrusted_chain) == 1
     assert untrusted_chain[0] != trusted_ca
     assert untrusted_certificate.issuer == untrusted_chain[0].subject
+
+    assert material.untrusted_policy_server is not None
+    _, untrusted_policy_certificate, untrusted_policy_chain = (
+        pkcs12.load_key_and_certificates(
+            material.untrusted_policy_server.keystore_path.read_bytes(),
+            material.untrusted_policy_server.keystore_password.encode("ascii"),
+        )
+    )
+    assert untrusted_policy_certificate is not None
+    policy_names = untrusted_policy_certificate.extensions.get_extension_for_class(
+        x509.SubjectAlternativeName
+    ).value
+    assert policy_names.get_values_for_type(x509.DNSName) == [
+        "mta-sts.outbound.fixture.test",
+        "mta-sts.cache.fixture.test",
+    ]
+    assert untrusted_policy_chain is not None and len(untrusted_policy_chain) == 1
+    assert untrusted_policy_chain[0] != trusted_ca
 
     expected_validity = {
         material.expired_server: (
@@ -165,3 +193,21 @@ def test_outbound_tls_material_rejects_reuse_and_invalid_names(tmp_path: Path) -
         workspace.mkdir()
         with pytest.raises(HarnessError, match="invalid outbound TLS hostname"):
             provision_ephemeral_outbound_tls_material(workspace, mx_hostname=hostname)
+
+    invalid_policy_workspace = tmp_path / "invalid-policy-host"
+    invalid_policy_workspace.mkdir()
+    with pytest.raises(HarnessError, match="invalid outbound TLS hostname"):
+        provision_ephemeral_outbound_tls_material(
+            invalid_policy_workspace,
+            mx_hostname="mx.fixture.test",
+            policy_hostnames=("bad_policy.fixture.test",),
+        )
+
+    duplicate_policy_workspace = tmp_path / "duplicate-policy-host"
+    duplicate_policy_workspace.mkdir()
+    with pytest.raises(HarnessError, match="unique and bounded"):
+        provision_ephemeral_outbound_tls_material(
+            duplicate_policy_workspace,
+            mx_hostname="mx.fixture.test",
+            policy_hostnames=("mta-sts.fixture.test", "MTA-STS.fixture.test"),
+        )

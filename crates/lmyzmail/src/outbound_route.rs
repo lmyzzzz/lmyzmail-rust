@@ -824,14 +824,11 @@ impl OutboundRouteResolver {
         let key = format!("{MTA_STS_CACHE_PREFIX}{domain}");
         if let Some((value, ttl_millis)) = self.read_cache(&key, deadline, cancellation).await
             && let Some(policy) = MtaStsPolicy::deserialize_legacy(&value)
+            && policy.is_valid()
         {
-            let semantic_expiry = if policy.is_valid() {
-                policy.fetched_at_epoch_millis.saturating_add(
-                    (policy.max_age_seconds.min(MAX_MTA_STS_CACHE_SECONDS) * 1_000) as i64,
-                )
-            } else {
-                now.saturating_add(ttl_millis)
-            };
+            let semantic_expiry = policy.fetched_at_epoch_millis.saturating_add(
+                (policy.max_age_seconds.min(MAX_MTA_STS_CACHE_SECONDS) * 1_000) as i64,
+            );
             let redis_expiry = now.saturating_add(ttl_millis);
             let expires_at_epoch_millis = semantic_expiry.min(redis_expiry);
             if expires_at_epoch_millis > now {

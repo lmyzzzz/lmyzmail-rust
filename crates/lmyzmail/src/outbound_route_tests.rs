@@ -934,7 +934,7 @@ impl Drop for RedisProcess {
 }
 
 #[tokio::test]
-async fn redis_legacy_keys_serialization_ttls_and_negative_restart_cache_are_compatible() {
+async fn redis_legacy_keys_serialization_ttls_and_restart_semantics_are_compatible() {
     let process = RedisProcess::start();
     let pool = pool_at(process.port);
     let mut connection = pool.get().await.unwrap();
@@ -1119,6 +1119,7 @@ async fn redis_legacy_keys_serialization_ttls_and_negative_restart_cache_are_com
     drop(connection);
 
     let restart_dns = FakeDns::new(Duration::ZERO);
+    restart_dns.set_txt("_mta-sts.negative.cache.test", Err(DnsFailure::NoRecords));
     restart_dns.set_addresses("mx.negative.cache.test", Ok(vec![ip("8.8.4.4")]));
     let restart_http = FakeHttp::new(Duration::ZERO);
     let restart_resolver = resolver(
@@ -1134,6 +1135,6 @@ async fn redis_legacy_keys_serialization_ttls_and_negative_restart_cache_are_com
         .unwrap();
     assert_eq!(restarted.policy.mode, MtaStsMode::None);
     assert_eq!(restart_dns.mx_calls(), 0);
-    assert_eq!(restart_dns.txt_calls(), 0);
+    assert_eq!(restart_dns.txt_calls(), 1);
     assert_eq!(restart_http.calls(), 0);
 }

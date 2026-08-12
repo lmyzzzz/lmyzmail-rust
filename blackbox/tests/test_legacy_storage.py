@@ -83,7 +83,6 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "outbound-route-dns-answer-budgets",
         "reporting-dns-input-and-answer-budgets",
         "reporting-aggregate-render-budgets",
-        "mta-sts-negative-cache-restart",
         "outbound-http-redis-outage-deadline",
         "http-multipart-error-detail-redaction",
         "http-multipart-request-owned-upload-cleanup",
@@ -210,9 +209,6 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
     assert by_id["reporting-dns-input-and-answer-budgets"]["evidence"][
         "source_sha256"
     ] == "5430c390a10dcd642ae8b6414c0bb448e05582b48b5c0805ab47677fdfeb2fad"
-    assert by_id["mta-sts-negative-cache-restart"]["evidence"]["source_sha256"] == (
-        "31f8a4d250152c4626bea26f6a5e3fea6f3359fc5ac42daaa205b55a46200d46"
-    )
     assert by_id["outbound-http-redis-outage-deadline"]["evidence"]["source_sha256"] == (
         "f9abffe3fbc98e314db34fcf38d894fd200d93ad74ff933f2c0f57e2717f1bf4"
     )

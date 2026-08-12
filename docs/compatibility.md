@@ -453,14 +453,25 @@ fallback in opportunistic mode and permanently fails without downgrade in
 enforce mode. No other version, cipher, certificate, alert, SMTP byte, or
 queue-state difference is allowed.
 
-Policy discovery and fetch failure, TLS-RPT aggregation, disconnect ambiguity,
-DSN restart recovery
-across injected process or storage loss, DSN suppression, backpressure, high
+The active `managed-mta-sts-discovery-v3.json` profile freezes 21 external
+policy-discovery cases: absent, malformed, and multiple TXT records; policy
+host address failure; untrusted HTTPS certificates; 404, 500, and redirect
+responses; missing or wrong content type; invalid UTF-8; malformed, oversized,
+and stalled policies; testing, none, enforce, and `max_age=0` modes; positive
+same-process caching; and positive and negative cache behavior across restart.
+Negative results retain the frozen six-field NONE value and five-minute Redis
+TTL and are reused by the same process through L1. After restart, Java rejects
+that invalid Redis policy and performs fresh TXT discovery, while valid
+positive policies remain reusable. Rust matches those semantics exactly. v2
+remains immutable pre-final-definition history.
+
+TLS-RPT aggregation, disconnect ambiguity, DSN restart recovery across
+injected process or storage loss, DSN suppression, backpressure, high
 concurrency, and soak remain separate external differential matrices. v36,
-5xx v4, 4xx v3, DSN v3, outbound TLS v5, and negotiation v1 do not claim those
-paths. TLS v1 through v4 remain immutable history; v5 retains the header-only
-normalization and API-returned queue identity established by v3 under the
-current harness definition tree.
+5xx v4, 4xx v3, DSN v3, outbound TLS v5, negotiation v1, and MTA-STS discovery
+v3 do not claim those paths. TLS v1 through v4 remain immutable history; v5
+retains the header-only normalization and API-returned queue identity
+established by v3 under the current harness definition tree.
 
 The active `managed-outbound-tls-validity-v3.json` profile separately freezes
 trusted-chain certificates that are expired or not yet valid. Opportunistic
@@ -572,9 +583,6 @@ candidate test; it has the same review requirements as the primary allowlist.
   already-bounded TLSRPT gzip stream, and only the final HTTP status is read.
   DNS, connection, TLS, write, response-header, and admission work share the
   configured absolute deadline and cancellation token.
-- A live legacy MTA-STS NONE value is reusable only for its remaining Redis TTL,
-  capped at five minutes. This repairs the oracle's restart-only negative-cache
-  expiry bug without changing bytes, keys, or post-expiry discovery.
 - Outbound STARTTLS always verifies the TLS server name. The frozen Java client
   omits endpoint identification outside MTA-STS enforce mode; the candidate
   rejects that certificate, closes the TLS attempt, and uses a fresh plaintext

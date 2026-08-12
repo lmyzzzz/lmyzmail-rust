@@ -279,18 +279,6 @@
       "scope": "Only reportable-domain sets, aggregate inputs, counts, outputs, rendering admission, or rendering time that exceed the stated ceilings. Every in-budget SQL grouping semantic, XML/JSON byte, gzip attachment type and filename, report count, MIME message, outbound queue publication, Redis state, Maildir write, and HTTP result remains an exact differential requirement."
     },
     {
-      "candidate_requirement": "When an intact legacy `mta-sts:{domain}` NONE value has a positive Redis TTL, reuse it only for that remaining TTL, never longer than 300 seconds. Preserve the exact Java serialization, do not extend the TTL on read, and perform fresh DNS discovery after expiry.",
-      "evidence": {
-        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
-        "source": "src/main/java/net/lmyz/lmyzmail/inbound/MtaStsService.java",
-        "source_sha256": "31f8a4d250152c4626bea26f6a5e3fea6f3359fc5ac42daaa205b55a46200d46"
-      },
-      "id": "mta-sts-negative-cache-restart",
-      "oracle_behavior": "The frozen Java service writes invalid/NONE policies to Redis with a five-minute TTL, but after a process restart its Redis loader computes semantic expiry from `max_age=0` and immediately discards the still-live negative entry. Repeated restarts or workers therefore repeat DNS discovery during the intended negative-cache window.",
-      "reason": "Honoring the already-persisted bounded TTL restores the oracle's explicit five-minute negative-cache contract and prevents restart-driven DNS/HTTPS amplification without extending policy staleness.",
-      "scope": "Only intact NONE entries with a positive remaining Redis TTL. Positive policy max-age, Redis bytes and key names, live-process L1 behavior, TXT selection, HTTPS validation, and post-expiry discovery remain compatibility requirements."
-    },
-    {
       "candidate_requirement": "Reject malformed or non-object preferences JSON, non-numeric contact ids, missing or empty required contact names and emails, and contact names or emails longer than 255 Unicode scalar values with a bounded 400 JSON response. Perform all validation before any PostgreSQL mutation; a rejected request must leave preferences and contacts unchanged.",
       "evidence": {
         "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
