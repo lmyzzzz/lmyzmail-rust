@@ -519,6 +519,15 @@ DNS, Redis, or Maildir work, then publish exactly one DMARC/TLSRPT pair after
 the lock is released. Source rows and threshold fixtures remain unchanged.
 Storage fault injection, higher fan-in, and soak remain separate evidence.
 
+The supplemental `report-trigger-fanin-v1` profile extends that shared guard
+contract to a synchronized 32-request overlap. The admitted request is held at
+the same real PostgreSQL domain query while every overlap must finish within a
+five-second budget before the table lock is released. Java and Rust return the
+same byte-exact zero-count `Already running` response for all 32 requests,
+without queuing another generation or changing DNS, Redis, Maildir, or source
+rows. Releasing the lock completes the sole admitted no-data request with
+`error=none`. Fan-in beyond 32 and long-running soak remain separate evidence.
+
 The supplemental `report-trigger-disconnect-v1` profile sends a complete
 authenticated trigger, proves its real PostgreSQL domain query is blocked, and
 then closes the client with TCP RST. The frozen Java process retains the query

@@ -1,0 +1,72 @@
+{
+  "admittedResponse": {
+    "body_json": {
+      "date": "2024-01-02",
+      "dmarcFailed": 0,
+      "dmarcSent": 0,
+      "error": "none",
+      "tlsFailed": 0,
+      "tlsSent": 0
+    },
+    "headers": [
+      [
+        "content-type",
+        "application/json; charset=UTF-8"
+      ],
+      [
+        "content-length",
+        "92"
+      ]
+    ],
+    "normalized_body_wire": {
+      "base64": "eyJkYXRlIjoiMjAyNC0wMS0wMiIsImRtYXJjRmFpbGVkIjowLCJkbWFyY1NlbnQiOjAsImVycm9yIjoibm9uZSIsInRsc0ZhaWxlZCI6MCwidGxzU2VudCI6MH0=",
+      "length": 92,
+      "sha256": "dcc9c11f2f36e175fad47ece818cfb6cfeec80d2d7bf34d5e1b3481de6de7823"
+    },
+    "status_code": 200,
+    "status_line": "HTTP/1.1 200 OK"
+  },
+  "blockedFirstRequest": {
+    "queryClass": "DMARC domain discovery",
+    "waitEvent": "relation",
+    "waitEventType": "Lock"
+  },
+  "fanIn": {
+    "allCompletedWhileLockHeld": true,
+    "completionBudgetSeconds": 5.0,
+    "count": 32,
+    "uniformResponse": {
+      "body_json": {
+        "date": "2024-01-02",
+        "dmarcFailed": 0,
+        "dmarcSent": 0,
+        "error": "Already running",
+        "tlsFailed": 0,
+        "tlsSent": 0
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "103"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJkYXRlIjoiMjAyNC0wMS0wMiIsImRtYXJjRmFpbGVkIjowLCJkbWFyY1NlbnQiOjAsImVycm9yIjoiQWxyZWFkeSBydW5uaW5nIiwidGxzRmFpbGVkIjowLCJ0bHNTZW50IjowfQ==",
+        "length": 103,
+        "sha256": "04b33aa9ee67d22978134ba39fdb53ff10b6da015d8619712215ac00c01d7564"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    }
+  },
+  "state": {
+    "dnsQueries": [],
+    "maildirUnchanged": true,
+    "redisQueueUnchanged": true,
+    "sourceDatabaseUnchanged": true
+  }
+}

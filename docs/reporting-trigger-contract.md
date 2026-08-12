@@ -60,6 +60,17 @@ fresh Java replay, and Rust replay match under the unchanged active definition
 tree. Disconnect cancellation, storage faults, higher fan-in, and soak remain
 unclaimed by that concurrency profile.
 
+The supplemental `report-trigger-fanin-v1` profile reuses the real blocked
+domain query and releases 32 overlapping raw HTTP triggers from one barrier.
+Every overlap must complete while the PostgreSQL table lock remains held and
+inside a five-second aggregate observation window. Both implementations return
+one byte-identical HTTP 200 zero-count `error=Already running` representation
+for all 32 requests, perform no DNS work, and leave Redis, Maildir, and source
+rows unchanged. Once the lock is released, only the original admitted request
+completes with `error=none`. This proves bounded rejection without serialized
+generation or hidden queueing at that fan-in; larger and sustained soak loads
+remain unclaimed.
+
 The supplemental `report-trigger-disconnect-v1` profile isolates peer-lifetime
 cancellation. It sends a complete authenticated request, blocks the real DMARC
 domain query with a PostgreSQL table lock, confirms the waiting lock through

@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "profile": "report-trigger-fanin-v1",
+  "captured_at": "2026-08-12T19:42:00+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "candidate_parent": "9d3b7eb186ea5311cf12650ca7f854b259075fd6",
+  "frozen_harness": {
+    "definition_tree_sha256": "f4747bee86575a8f59725e02829a459ceb88961dadfbf858113b63a517b99d4c",
+    "behavior_differences_manifest_sha256": "6a9f9f8e291faa5d813b6915bca80629d4d77785e70b6ba201a9c4809852b696",
+    "active_reports_profile": "blackbox/golden/java/managed-reports-v23",
+    "supplemental_test": "evidence/compatibility/report-trigger-fanin-v1/test_report_trigger_fanin.py",
+    "supplemental_test_sha256": "e734948e49c336da0c9d882ac3b68ec6142ae03180c6badc7144f0d3fe8c72d5"
+  },
+  "observations": {
+    "java": {
+      "path": "evidence/compatibility/report-trigger-fanin-v1/java-observation.json",
+      "sha256": "e588c49f8fa8dad3ee52ac304f35be2d572b2997ce400b9a952c6c815d45467f"
+    },
+    "rust": {
+      "path": "evidence/compatibility/report-trigger-fanin-v1/candidate-observation.json",
+      "sha256": "e588c49f8fa8dad3ee52ac304f35be2d572b2997ce400b9a952c6c815d45467f"
+    }
+  },
+  "source_sha256": {
+    "crates/lmyzmail/src/http.rs": "f73a78567787e397224430da1fe840ce20ecd408cd3e5f846282bc6d7d4a9a3d",
+    "crates/lmyzmail/src/reporting.rs": "d4025a82019661fd44b41300a123f5974b30129527dd10ef8c880849fd3a37c4",
+    "docs/compatibility.md": "84b673f2cb7a56afca860152df8ae2c4ec3f421f54422f268fe5f6e46b8ca266",
+    "docs/reporting-trigger-contract.md": "1d083769a8f727b31f0733992390937bc44d00d511e32f1b74be2c56933d25a8"
+  },
+  "release": {
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "e8663099260085f649c47ed8dac377323e716a8a79e805ab15daa6b67ddcb7dc"
+  },
+  "contract": {
+    "admission_point": "The first authenticated trigger holds the process-local generation guard while pg_locks proves that its real inbound_dmarc_log AccessShareLock is blocked behind ACCESS EXCLUSIVE.",
+    "fan_in": {
+      "overlap_count": 32,
+      "start": "one threading barrier releases all overlapping requests after the admitted request is blocked",
+      "completion_budget_seconds": 5.0,
+      "lock_invariant": "all overlapping responses complete before the PostgreSQL table lock is released"
+    },
+    "shared_overlap_response": {
+      "status": 200,
+      "counts": [0, 0, 0, 0],
+      "error": "Already running",
+      "normalized_body_sha256": "04b33aa9ee67d22978134ba39fdb53ff10b6da015d8619712215ac00c01d7564"
+    },
+    "shared_admitted_response": {
+      "status": 200,
+      "counts": [0, 0, 0, 0],
+      "error": "none",
+      "normalized_body_sha256": "dcc9c11f2f36e175fad47ece818cfb6cfeec80d2d7bf34d5e1b3481de6de7823"
+    },
+    "shared_side_effects": [
+      "no DNS query",
+      "unchanged Redis pending queue",
+      "unchanged Sent Maildir",
+      "unchanged PostgreSQL source rows",
+      "no queued or serialized second generation"
+    ],
+    "new_behavior_difference_ids": [],
+    "explicitly_not_claimed": [
+      "fan-in above 32 overlapping requests",
+      "scheduler/manual mixed concurrency",
+      "long-running or repeated fan-in soak",
+      "Redis or Maildir outage"
+    ]
+  },
+  "verification": [
+    {
+      "command": "ruff check evidence/compatibility/report-trigger-fanin-v1/test_report_trigger_fanin.py",
+      "result": "passed"
+    },
+    {
+      "command": "mypy --strict evidence/compatibility/report-trigger-fanin-v1/test_report_trigger_fanin.py",
+      "result": "passed"
+    },
+    {
+      "command": "pytest -q -s evidence/compatibility/report-trigger-fanin-v1/test_report_trigger_fanin.py before freezing observations",
+      "result": "2 passed in 12.78s"
+    },
+    {
+      "command": "pytest -q -s evidence/compatibility/report-trigger-fanin-v1/test_report_trigger_fanin.py with frozen-observation self-validation",
+      "result": "2 passed in 12.78s"
+    }
+  ],
+  "frozen_repositories": {
+    "java_oracle": "read-only at 5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "skibidi_1_8_0": "read-only at 4bc484c15b780d578ee8e53cab968f2819958215"
+  }
+}
