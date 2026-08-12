@@ -429,6 +429,10 @@ impl OutboundMessageBuilder {
         check_cancelled(cancelled)
     }
 
+    /// Legacy primary-domain helper retained for deterministic recovery tests
+    /// and callers that already materialized system messages before the
+    /// sender-domain policy path was introduced.
+    #[allow(dead_code)]
     pub(crate) fn prepare_system_bytes(
         &self,
         created_at: DateTime<Utc>,
@@ -2007,6 +2011,51 @@ mod tests {
         assert!(text.contains("aGVsbG8=\r\n"));
         assert!(!text.contains("hidden@remote.test"));
         assert!(!text.contains("Bcc:"));
+    }
+
+    #[test]
+    fn mime_headers_select_unsubscribe_policy_by_sender_domain_with_fallback() {
+        let mut policies = HashMap::new();
+        policies.insert(
+            "secondary.test".into(),
+            MessagePolicy {
+                list_unsubscribe_mailto: Some("secondary-list@example.test".into()),
+                list_unsubscribe_url: Some("https://secondary.example.test/unsubscribe".into()),
+                dkim_signer: None,
+            },
+        );
+        let builder = OutboundMessageBuilder {
+            maildir: PathBuf::from("/mail"),
+            spool_dir: PathBuf::from("/spool"),
+            max_files_per_directory: 10,
+            max_email_size: 1024 * 1024,
+            list_unsubscribe_mailto: Some("primary-list@example.test".into()),
+            list_unsubscribe_url: Some("https://example.test/unsubscribe".into()),
+            dkim_signer: None,
+            domain_policies: Arc::new(policies),
+        };
+        let mut secondary = message();
+        secondary.sender = "qa@SECONDARY.TEST".into();
+        let mut secondary_wire = Vec::new();
+        builder
+            .write_message(&secondary, &mut secondary_wire, &AtomicBool::new(false))
+            .unwrap();
+        let secondary_text = String::from_utf8(secondary_wire).unwrap();
+        assert!(secondary_text.contains(
+            "List-Unsubscribe-Post: List-Unsubscribe=One-Click\r\nList-Unsubscribe: <https://secondary.example.test/unsubscribe>, <mailto:secondary-list@example.test>\r\n"
+        ));
+        assert!(!secondary_text.contains("primary-list@example.test"));
+
+        let mut unknown = message();
+        unknown.sender = "qa@unknown.test".into();
+        let mut unknown_wire = Vec::new();
+        builder
+            .write_message(&unknown, &mut unknown_wire, &AtomicBool::new(false))
+            .unwrap();
+        let unknown_text = String::from_utf8(unknown_wire).unwrap();
+        assert!(unknown_text.contains(
+            "List-Unsubscribe-Post: List-Unsubscribe=One-Click\r\nList-Unsubscribe: <https://example.test/unsubscribe>, <mailto:primary-list@example.test>\r\n"
+        ));
     }
 
     #[test]
