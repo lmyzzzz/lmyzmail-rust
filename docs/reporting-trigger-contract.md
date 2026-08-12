@@ -46,5 +46,15 @@ The independent `managed-reports-scheduler-restart-v1` profile stops the
 application at 00:59:20 UTC and restarts it at 01:00:20 UTC while PostgreSQL
 and Redis remain running. A fresh Java process performs no missed-run catch-up,
 and the Rust candidate matches its zero DNS, Redis, Maildir, and source-row
-side effects. Concurrent trigger admission, storage fault injection, and
-scheduler high-concurrency or long-running soak remain separate matrices.
+side effects. Storage fault injection and scheduler high-concurrency or
+long-running soak remain separate matrices.
+
+The supplemental `report-trigger-concurrency-v1` profile holds an admitted
+trigger at the real DMARC domain-discovery query with a PostgreSQL table lock.
+After `pg_locks` confirms the waiting `AccessShareLock`, a concurrent raw HTTP
+trigger receives status 200 with zero counts and `error=Already running`; it
+adds no DNS query, Redis task, or Maildir file. Releasing the lock lets only
+the admitted request publish one DMARC and one TLSRPT report. Java recording,
+fresh Java replay, and Rust replay match under the unchanged active definition
+tree. Disconnect cancellation, storage faults, higher fan-in, and soak remain
+unclaimed.

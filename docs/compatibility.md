@@ -491,8 +491,8 @@ test suite for both frozen Java and Rust. Its eight scenarios cover report
 status, domain/address discovery, date errors, empty generation, seeded DMARC
 and TLSRPT delivery, and the combined trigger across PostgreSQL, DNS, Redis,
 Maildir, MIME, and gzip artifacts. A separate Rust test enables automatic
-sending and verifies bounded startup and shutdown. Concurrent trigger
-admission, scheduler fault injection, and soak remain separate matrices.
+sending and verifies bounded startup and shutdown. Scheduler fault injection
+and soak remain separate matrices.
 
 The active `managed-reports-scheduler-v2` profile separately freezes an
 externally clock-driven 01:00 UTC boundary in isolated Java and Rust
@@ -506,7 +506,18 @@ process stopped at 00:59:20 UTC and restarted at 01:00:20 UTC. Java performs
 no catch-up publication, DNS work, Redis mutation, Maildir write, or source-row
 mutation; Rust matches that behavior. Concurrent trigger admission, storage
 fault injection, scheduler high-concurrency, and long-running soak remain
-unclaimed.
+unclaimed by that restart profile.
+
+The supplemental `report-trigger-concurrency-v1` profile freezes the shared
+process-local trigger guard without changing the active golden definition
+tree. A PostgreSQL `ACCESS EXCLUSIVE` fixture blocks the admitted request at
+its real DMARC domain query, and `pg_locks` proves its `AccessShareLock` is
+waiting before a second raw HTTP request is sent. Java and Rust return the
+exact zero-count `Already running` summary for that overlap, perform no early
+DNS, Redis, or Maildir work, then publish exactly one DMARC/TLSRPT pair after
+the lock is released. Source rows and threshold fixtures remain unchanged.
+Client disconnect, storage fault injection, high concurrency, and soak remain
+separate evidence.
 
 The active `managed-outbound-tls-validity-v3.json` profile separately freezes
 trusted-chain certificates that are expired or not yet valid. Opportunistic
