@@ -624,8 +624,8 @@ async fn handle_connection(
                 timestamp: Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
                 version: "2.8.0",
                 domains: ApiDomains {
-                    receivable: [&config.domain],
-                    sendable: [&config.domain],
+                    receivable: config.receivable_domains(),
+                    sendable: config.sendable_domains(),
                 },
             })
             .map_err(io::Error::other)?;
@@ -717,9 +717,9 @@ async fn handle_connection(
         },
         ParsedRequest::WebDomains => {
             let body = serde_json::to_vec(&WebDomainsResponse {
-                receivable: [&config.domain],
+                receivable: config.receivable_domains(),
                 registration_enabled: config.features.public_registration,
-                sendable: [&config.domain],
+                sendable: config.sendable_domains(),
             })
             .map_err(io::Error::other)?;
             write_response(
@@ -733,13 +733,13 @@ async fn handle_connection(
         ParsedRequest::WebConfig => {
             let limits = &config.limits;
             let body = serde_json::to_vec(&WebConfigResponse {
-                domains: [&config.domain],
+                domains: config.receivable_domains(),
                 max_attachment_size_bytes: limits.max_attachment_size_bytes,
                 max_attachment_size_mb: limits.max_attachment_size_bytes / (1024 * 1024),
                 max_email_size_bytes: limits.max_email_size_bytes,
                 max_email_size_mb: limits.max_email_size_bytes / (1024 * 1024),
                 max_total_attachments_size_bytes: limits.max_total_attachments_size_bytes,
-                sendable_domains: [&config.domain],
+                sendable_domains: config.sendable_domains(),
                 show_internet_nl_badge: config.features.show_internet_nl_badge,
             })
             .map_err(io::Error::other)?;
@@ -3468,22 +3468,22 @@ struct XdpClearResponse {
 
 #[derive(Serialize)]
 struct ApiDomains<'a> {
-    receivable: [&'a str; 1],
-    sendable: [&'a str; 1],
+    receivable: Vec<&'a str>,
+    sendable: Vec<&'a str>,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct WebDomainsResponse<'a> {
-    receivable: [&'a str; 1],
+    receivable: Vec<&'a str>,
     registration_enabled: bool,
-    sendable: [&'a str; 1],
+    sendable: Vec<&'a str>,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct WebConfigResponse<'a> {
-    domains: [&'a str; 1],
+    domains: Vec<&'a str>,
     max_attachment_size_bytes: u64,
     #[serde(rename = "maxAttachmentSizeMB")]
     max_attachment_size_mb: u64,
@@ -3491,7 +3491,7 @@ struct WebConfigResponse<'a> {
     #[serde(rename = "maxEmailSizeMB")]
     max_email_size_mb: u64,
     max_total_attachments_size_bytes: u64,
-    sendable_domains: [&'a str; 1],
+    sendable_domains: Vec<&'a str>,
     show_internet_nl_badge: bool,
 }
 

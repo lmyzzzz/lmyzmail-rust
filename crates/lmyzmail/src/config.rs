@@ -29,6 +29,8 @@ const MAX_ORIGIN_BYTES: usize = 2_048;
 const MAX_POOL_SIZE: u32 = 4_096;
 const MAX_HONEYPOT_DELAY_MS: u64 = 3_600_000;
 const MAX_HONEYPOTS: usize = 256;
+const MAX_DOMAINS: usize = 256;
+const MAX_DOMAIN_ENTRY_BYTES: usize = 128;
 const MAX_HTCPCP_POTS: usize = 64;
 const MAX_HTCPCP_LIST_ITEMS: usize = 64;
 const MAX_HTCPCP_BREW_SECONDS: u64 = 86_400;
@@ -122,6 +124,7 @@ impl From<str::Utf8Error> for ConfigError {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Properties {
     values: BTreeMap<String, String>,
+    order: Vec<String>,
 }
 
 impl Properties {
@@ -248,6 +251,9 @@ impl Properties {
                 "configuration contains more than {MAX_PROPERTY_COUNT} properties"
             )));
         }
+        if !self.values.contains_key(&key) {
+            self.order.push(key.clone());
+        }
         self.values.insert(key, value);
         Ok(())
     }
@@ -337,6 +343,8 @@ struct JsonRuntimeConfig {
     maildir: String,
     domain: String,
     #[serde(default)]
+    domains: Vec<JsonDomainConfig>,
+    #[serde(default)]
     allowed_origins: Vec<String>,
     #[serde(default)]
     trusted_proxies: Vec<String>,
@@ -370,6 +378,26 @@ struct JsonRuntimeConfig {
     tls: JsonTlsConfig,
     #[serde(default)]
     limits: JsonLimitConfig,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct JsonDomainConfig {
+    domain: String,
+    #[serde(default = "default_true")]
+    receive_enabled: bool,
+    #[serde(default)]
+    send_enabled: bool,
+    #[serde(default = "default_true")]
+    require_existing_mailbox: bool,
+    #[serde(default)]
+    dkim_selector: Option<String>,
+    #[serde(default)]
+    dkim_private_key_path: Option<String>,
+    #[serde(default)]
+    list_unsubscribe_mailto: Option<String>,
+    #[serde(default)]
+    list_unsubscribe_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2060,6 +2088,42 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
     )?;
     properties.insert("lmyzmail.maildir.base".to_owned(), value.maildir)?;
     properties.insert("lmyzmail.domain".to_owned(), value.domain)?;
+    for (index, domain) in value.domains.into_iter().enumerate() {
+        let prefix = format!("lmyzmail.domains.json{index}");
+        properties.insert(format!("{prefix}.domain"), domain.domain)?;
+        properties.insert(
+            format!("{prefix}.receive-enabled"),
+            domain.receive_enabled.to_string(),
+        )?;
+        properties.insert(
+            format!("{prefix}.send-enabled"),
+            domain.send_enabled.to_string(),
+        )?;
+        properties.insert(
+            format!("{prefix}.require-existing-mailbox"),
+            domain.require_existing_mailbox.to_string(),
+        )?;
+        insert_optional_property(
+            &mut properties,
+            &format!("{prefix}.dkim-selector"),
+            domain.dkim_selector,
+        )?;
+        insert_optional_property(
+            &mut properties,
+            &format!("{prefix}.dkim-private-key-path"),
+            domain.dkim_private_key_path,
+        )?;
+        insert_optional_property(
+            &mut properties,
+            &format!("{prefix}.list-unsubscribe-mailto"),
+            domain.list_unsubscribe_mailto,
+        )?;
+        insert_optional_property(
+            &mut properties,
+            &format!("{prefix}.list-unsubscribe-url"),
+            domain.list_unsubscribe_url,
+        )?;
+    }
     for (index, origin) in value.allowed_origins.into_iter().enumerate() {
         properties.insert(format!("lmyzmail.allowed-origins[{index}]"), origin)?;
     }
@@ -2683,6 +2747,9 @@ pub struct RuntimeConfig {
     pub redis: RedisConfig,
     pub maildir: PathBuf,
     pub domain: String,
+    /// Normalized domain configurations. `domain` remains the primary-domain
+    /// compatibility fallback for modules that have not migrated yet.
+    pub domains: Vec<DomainConfig>,
     pub allowed_origins: Vec<String>,
     pub trusted_proxies: Vec<IpNet>,
     pub api_keys: Vec<ApiKeyConfig>,
@@ -2702,6 +2769,18 @@ pub struct RuntimeConfig {
     pub mail_render: MailRenderConfig,
     pub tls: TlsConfig,
     pub limits: LimitConfig,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DomainConfig {
+    pub domain: String,
+    pub receive_enabled: bool,
+    pub send_enabled: bool,
+    pub require_existing_mailbox: bool,
+    pub dkim_selector: Option<String>,
+    pub dkim_private_key_path: Option<PathBuf>,
+    pub list_unsubscribe_mailto: Option<String>,
+    pub list_unsubscribe_url: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -3396,6 +3475,7 @@ impl RuntimeConfig {
         .unwrap_or("lmyz.net")
         .to_owned();
         validate_host(&domain, "domain")?;
+        let domains = parse_domain_configs(&properties, &domain)?;
         let allowed_origins = parse_allowed_origins(&properties)?;
         let trusted_proxies = parse_trusted_proxies(&properties)?;
 
@@ -3777,6 +3857,7 @@ impl RuntimeConfig {
             redis,
             maildir: PathBuf::from(maildir),
             domain,
+            domains,
             allowed_origins,
             trusted_proxies,
             api_keys,
@@ -3802,6 +3883,71 @@ impl RuntimeConfig {
     pub fn preferred_value(&self, new_key: &str, legacy_key: &str) -> Option<&str> {
         preferred(&self.properties, &[new_key], &[legacy_key])
     }
+
+    pub fn domain_config(&self, domain: &str) -> Option<&DomainConfig> {
+        let normalized = normalize_domain_lookup(domain)?;
+        self.domains
+            .iter()
+            .rev()
+            .find(|entry| entry.domain == normalized)
+    }
+
+    pub fn receivable_domains(&self) -> Vec<&str> {
+        java_hashmap_domain_order(&self.domains)
+            .into_iter()
+            .filter(|entry| entry.receive_enabled)
+            .map(|entry| entry.domain.as_str())
+            .collect()
+    }
+
+    pub fn sendable_domains(&self) -> Vec<&str> {
+        java_hashmap_domain_order(&self.domains)
+            .into_iter()
+            .filter(|entry| entry.send_enabled)
+            .map(|entry| entry.domain.as_str())
+            .collect()
+    }
+}
+
+/// Java's `BotmailProperties` copies the insertion-ordered binding map into a
+/// default `HashMap`, then exposes `entrySet()` iteration order. Keep that
+/// externally visible order stable without relying on Rust's hash iteration.
+fn java_hashmap_domain_order(domains: &[DomainConfig]) -> Vec<&DomainConfig> {
+    let mut capacity = 16_usize;
+    let mut buckets: Vec<Vec<usize>> = (0..capacity).map(|_| Vec::new()).collect();
+    for (position, entry) in domains.iter().enumerate() {
+        if position + 1 > capacity.saturating_mul(3) / 4 {
+            let old_capacity = capacity;
+            capacity = capacity.saturating_mul(2);
+            let mut resized: Vec<Vec<usize>> = (0..capacity).map(|_| Vec::new()).collect();
+            for (old_index, bucket) in buckets.into_iter().enumerate() {
+                for position in bucket {
+                    let hash = java_hashmap_hash(&domains[position].domain);
+                    let index = if hash as usize & old_capacity == 0 {
+                        old_index
+                    } else {
+                        old_index + old_capacity
+                    };
+                    resized[index].push(position);
+                }
+            }
+            buckets = resized;
+        }
+        let hash = java_hashmap_hash(&entry.domain);
+        buckets[hash as usize & (capacity - 1)].insert(0, position);
+    }
+    buckets
+        .into_iter()
+        .flat_map(|bucket| bucket.into_iter().map(|position| &domains[position]))
+        .collect()
+}
+
+fn java_hashmap_hash(value: &str) -> u32 {
+    let mut hash = 0_u32;
+    for unit in value.encode_utf16() {
+        hash = hash.wrapping_mul(31).wrapping_add(u32::from(unit));
+    }
+    hash ^ (hash >> 16)
 }
 
 fn parse_stress_config(properties: &Properties) -> Result<StressConfig, ConfigError> {
@@ -5928,6 +6074,185 @@ fn parse_api_keys(properties: &Properties) -> Result<Vec<ApiKeyConfig>, ConfigEr
     Ok(keys)
 }
 
+fn parse_domain_configs(
+    properties: &Properties,
+    primary_domain: &str,
+) -> Result<Vec<DomainConfig>, ConfigError> {
+    let mut names = Vec::<String>::new();
+    for key in &properties.order {
+        for prefix in ["lmyzmail.domains.", "botmail.domains."] {
+            let Some(rest) = key.strip_prefix(prefix) else {
+                continue;
+            };
+            let Some((entry, _field)) = rest.split_once('.') else {
+                continue;
+            };
+            if entry.is_empty() || entry.len() > MAX_DOMAIN_ENTRY_BYTES {
+                return Err(ConfigError::Invalid(
+                    "domain configuration entry is empty or too long".into(),
+                ));
+            }
+            if !entry
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+            {
+                return Err(ConfigError::Invalid(format!(
+                    "invalid domain configuration entry: {entry}"
+                )));
+            }
+            if !names.iter().any(|name| name == entry) {
+                names.push(entry.to_owned());
+            }
+        }
+    }
+    // Spring Boot binds the domain map by property name before Java copies it
+    // into the HashMap-backed lookup. Sorting entry names reproduces that
+    // deterministic binding order for duplicate normalized domains.
+    names.sort_unstable();
+    let mut result = Vec::new();
+    let mut positions = HashMap::<String, usize>::new();
+    for entry in names {
+        let new_prefix = format!("lmyzmail.domains.{entry}.");
+        let old_prefix = format!("botmail.domains.{entry}.");
+        let Some(raw_domain) = preferred(
+            properties,
+            &[&format!("{new_prefix}domain")],
+            &[&format!("{old_prefix}domain")],
+        ) else {
+            continue;
+        };
+        if raw_domain.trim().is_empty() {
+            continue;
+        }
+        let Some(normalized) = normalize_domain_lookup(raw_domain) else {
+            continue;
+        };
+        let config = DomainConfig {
+            domain: normalized.clone(),
+            receive_enabled: preferred_bool(
+                properties,
+                &[
+                    &format!("{new_prefix}receive-enabled"),
+                    &format!("{new_prefix}receiveEnabled"),
+                ],
+                &[
+                    &format!("{old_prefix}receiveEnabled"),
+                    &format!("{old_prefix}receive-enabled"),
+                ],
+                true,
+            )?,
+            send_enabled: preferred_bool(
+                properties,
+                &[
+                    &format!("{new_prefix}send-enabled"),
+                    &format!("{new_prefix}sendEnabled"),
+                ],
+                &[
+                    &format!("{old_prefix}sendEnabled"),
+                    &format!("{old_prefix}send-enabled"),
+                ],
+                false,
+            )?,
+            require_existing_mailbox: preferred_bool(
+                properties,
+                &[
+                    &format!("{new_prefix}require-existing-mailbox"),
+                    &format!("{new_prefix}requireExistingMailbox"),
+                ],
+                &[
+                    &format!("{old_prefix}requireExistingMailbox"),
+                    &format!("{old_prefix}require-existing-mailbox"),
+                ],
+                true,
+            )?,
+            dkim_selector: preferred(
+                properties,
+                &[
+                    &format!("{new_prefix}dkim-selector"),
+                    &format!("{new_prefix}dkimSelector"),
+                ],
+                &[
+                    &format!("{old_prefix}dkimSelector"),
+                    &format!("{old_prefix}dkim-selector"),
+                ],
+            )
+            .filter(|value| !value.trim().is_empty())
+            .map(str::to_owned),
+            dkim_private_key_path: preferred(
+                properties,
+                &[
+                    &format!("{new_prefix}dkim-private-key-path"),
+                    &format!("{new_prefix}dkimPrivateKeyPath"),
+                ],
+                &[
+                    &format!("{old_prefix}dkimPrivateKeyPath"),
+                    &format!("{old_prefix}dkim-private-key-path"),
+                ],
+            )
+            .filter(|value| !value.trim().is_empty())
+            .map(PathBuf::from),
+            list_unsubscribe_mailto: preferred(
+                properties,
+                &[
+                    &format!("{new_prefix}list-unsubscribe-mailto"),
+                    &format!("{new_prefix}listUnsubscribeMailto"),
+                ],
+                &[
+                    &format!("{old_prefix}listUnsubscribeMailto"),
+                    &format!("{old_prefix}list-unsubscribe-mailto"),
+                ],
+            )
+            .filter(|value| !value.trim().is_empty())
+            .map(str::to_owned),
+            list_unsubscribe_url: preferred(
+                properties,
+                &[
+                    &format!("{new_prefix}list-unsubscribe-url"),
+                    &format!("{new_prefix}listUnsubscribeUrl"),
+                ],
+                &[
+                    &format!("{old_prefix}listUnsubscribeUrl"),
+                    &format!("{old_prefix}list-unsubscribe-url"),
+                ],
+            )
+            .filter(|value| !value.trim().is_empty())
+            .map(str::to_owned),
+        };
+        if let Some(index) = positions.get(&normalized).copied() {
+            result[index] = config;
+        } else {
+            positions.insert(normalized, result.len());
+            result.push(config);
+        }
+        if result.len() > MAX_DOMAINS {
+            return Err(ConfigError::Invalid(format!(
+                "more than {MAX_DOMAINS} domains configured"
+            )));
+        }
+    }
+    if result.is_empty() {
+        result.push(DomainConfig {
+            domain: primary_domain.to_ascii_lowercase(),
+            receive_enabled: true,
+            send_enabled: true,
+            require_existing_mailbox: true,
+            dkim_selector: None,
+            dkim_private_key_path: None,
+            list_unsubscribe_mailto: None,
+            list_unsubscribe_url: None,
+        });
+    }
+    Ok(result)
+}
+
+fn normalize_domain_lookup(value: &str) -> Option<String> {
+    let domain = value.trim().trim_end_matches('.');
+    if domain.is_empty() || domain.len() > MAX_HOST_BYTES {
+        return None;
+    }
+    Some(domain.to_ascii_lowercase())
+}
+
 fn parse_honeypots(
     properties: &Properties,
     default_bind_address: &str,
@@ -6942,6 +7267,89 @@ lmyzmail.htcpcp.pots[{index}].supported-additions=\n"
         let config = RuntimeConfig::from_properties(properties).unwrap();
         assert_eq!(config.listen.http, 18080);
         assert_eq!(config.listen.smtp, 2525);
+    }
+
+    #[test]
+    fn multi_domain_configuration_matches_java_normalization_and_filters() {
+        let properties = Properties::parse(
+            b"lmyzmail.domain=primary.example\n\
+botmail.domains.main.domain=PRIMARY.example\n\
+botmail.domains.main.receiveEnabled=true\n\
+botmail.domains.main.sendEnabled=true\n\
+botmail.domains.secondary.domain=SECOND.example\n\
+botmail.domains.secondary.receiveEnabled=false\n\
+botmail.domains.secondary.sendEnabled=false\n\
+botmail.domains.duplicate.domain=second.example\n\
+botmail.domains.duplicate.receiveEnabled=true\n\
+botmail.domains.duplicate.sendEnabled=true\n\
+botmail.domains.send.domain=send.example\n\
+botmail.domains.send.receiveEnabled=false\n\
+botmail.domains.send.sendEnabled=true\n",
+        )
+        .unwrap();
+        let config = RuntimeConfig::from_properties(properties).unwrap();
+        assert_eq!(
+            config.domain_config("SECOND.EXAMPLE.").unwrap().domain,
+            "second.example"
+        );
+        assert!(
+            !config
+                .domain_config("second.example")
+                .unwrap()
+                .receive_enabled
+        );
+        assert_eq!(config.receivable_domains(), vec!["primary.example"]);
+        assert_eq!(
+            config.sendable_domains(),
+            vec!["send.example", "primary.example"]
+        );
+    }
+
+    #[test]
+    fn multi_domain_new_fields_override_legacy_aliases() {
+        let properties = Properties::parse(
+            b"botmail.domains.main.domain=legacy.example\n\
+botmail.domains.main.receiveEnabled=false\n\
+botmail.domains.main.sendEnabled=false\n\
+lmyzmail.domains.main.domain=preferred.example\n\
+lmyzmail.domains.main.receive-enabled=true\n\
+lmyzmail.domains.main.send-enabled=true\n",
+        )
+        .unwrap();
+        let config = RuntimeConfig::from_properties(properties).unwrap();
+        assert_eq!(config.domains[0].domain, "preferred.example");
+        assert!(config.domains[0].receive_enabled);
+        assert!(config.domains[0].send_enabled);
+    }
+
+    #[test]
+    fn multi_domain_lists_match_java_hash_map_bucket_order() {
+        let properties = Properties::parse(
+            b"lmyzmail.domain=primary.example\n\
+botmail.domains.primary.domain=example.test\n\
+botmail.domains.primary.receiveEnabled=true\n\
+botmail.domains.primary.sendEnabled=true\n\
+botmail.domains.second.domain=second.example.test\n\
+botmail.domains.second.receiveEnabled=true\n\
+botmail.domains.second.sendEnabled=true\n\
+botmail.domains.send.domain=send-only.example.test\n\
+botmail.domains.send.receiveEnabled=false\n\
+botmail.domains.send.sendEnabled=true\n",
+        )
+        .unwrap();
+        let config = RuntimeConfig::from_properties(properties).unwrap();
+        assert_eq!(
+            config.receivable_domains(),
+            vec!["second.example.test", "example.test"]
+        );
+        assert_eq!(
+            config.sendable_domains(),
+            vec![
+                "send-only.example.test",
+                "second.example.test",
+                "example.test"
+            ]
+        );
     }
 
     #[test]

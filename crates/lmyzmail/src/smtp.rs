@@ -331,10 +331,15 @@ impl SmtpService {
         cancellation: &CancellationToken,
     ) -> Option<String> {
         let sender_domain = sender.rsplit_once('@').map(|(_, domain)| domain)?;
-        if !sender_domain
-            .trim_end_matches('.')
-            .eq_ignore_ascii_case(&self.config.domain)
-        {
+        let own_domain = sender_domain.trim_end_matches('.');
+        let is_local_domain = self.config.domains.iter().any(|domain| {
+            let configured = domain.domain.as_str();
+            own_domain.eq_ignore_ascii_case(configured)
+                || own_domain
+                    .strip_suffix(configured)
+                    .is_some_and(|prefix| prefix.ends_with('.'))
+        });
+        if !is_local_domain {
             return None;
         }
 
@@ -1586,18 +1591,26 @@ async fn handle_connection(
                     continue;
                 }
                 match parse_recipient(argument) {
-                    Some(recipient) if recipient.ends_with(&format!("@{}", service.config.domain)) => {
-                        if envelope.recipients.len() >= MAX_RECIPIENTS {
+                    Some(recipient) => {
+                        let Some((_, recipient_domain)) = recipient.rsplit_once('@') else {
+                            io.write_all(b"501 5.5.4 Syntax error in parameters\r\n").await?;
+                            continue;
+                        };
+                        let normalized_domain = recipient_domain.trim_end_matches('.').to_ascii_lowercase();
+                        let Some(domain_config) = service.config.domain_config(&normalized_domain) else {
+                            io.write_all(format!("550 5.1.2 Domain not accepted: {normalized_domain}\r\n").as_bytes()).await?;
+                            continue;
+                        };
+                        if !domain_config.receive_enabled {
+                            io.write_all(format!("550 5.1.2 Domain does not accept mail: {normalized_domain}\r\n").as_bytes()).await?;
+                        } else if envelope.recipients.len() >= MAX_RECIPIENTS {
                             io.write_all(b"452 4.5.3 Too many recipients\r\n").await?;
-                        } else if service.mailbox_exists(&recipient).await? {
+                        } else if !domain_config.require_existing_mailbox || service.mailbox_exists(&recipient).await? {
                             envelope.recipients.push(recipient);
                             io.write_all(b"250 2.1.5 Recipient OK\r\n").await?;
                         } else {
                             io.write_all(format!("550 5.1.1 Mailbox not found: {recipient}\r\n").as_bytes()).await?;
                         }
-                    }
-                    Some(recipient) => {
-                        io.write_all(format!("550 5.1.2 Domain not accepted: {}\r\n", recipient.rsplit_once('@').map_or("", |(_, domain)| domain)).as_bytes()).await?;
                     }
                     None => io.write_all(b"501 5.5.4 Syntax error in parameters\r\n").await?,
                 }
