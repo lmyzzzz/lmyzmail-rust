@@ -63,6 +63,7 @@ const OUTBOUND_ID_ALLOCATION_LOCK: i64 = 0x4c4d_595a_4f49_4441;
 #[derive(Debug)]
 pub enum OutboundError {
     Database(String),
+    SendingNotAllowed(String),
     InvalidInput(&'static str),
     InvalidCredentials,
     AttachmentTooLarge(String),
@@ -78,6 +79,9 @@ impl fmt::Display for OutboundError {
         match self {
             Self::Database(_) | Self::Unavailable => {
                 formatter.write_str("outbound queue unavailable")
+            }
+            Self::SendingNotAllowed(domain) => {
+                write!(formatter, "Sending not allowed for domain: {domain}")
             }
             Self::InvalidInput(message) => formatter.write_str(message),
             Self::InvalidCredentials => formatter.write_str("Invalid credentials"),
@@ -109,7 +113,7 @@ pub struct OutboundService {
     queue: LegacyOutboundQueue,
     message_builder: OutboundMessageBuilder,
     blocking_permits: Arc<Semaphore>,
-    domain: Arc<str>,
+    send_domains: Arc<BTreeSet<String>>,
     max_pending_tasks: i64,
     max_retries: i32,
     max_emails_per_account: i64,
@@ -365,7 +369,14 @@ impl OutboundService {
             queue: LegacyOutboundQueue::new(redis_pool),
             message_builder,
             blocking_permits: Arc::new(Semaphore::new(OUTBOUND_BLOCKING_TASKS)),
-            domain: Arc::from(config.domain.as_str()),
+            send_domains: Arc::new(
+                config
+                    .domains
+                    .iter()
+                    .filter(|domain| domain.send_enabled)
+                    .map(|domain| domain.domain.clone())
+                    .collect(),
+            ),
             max_pending_tasks,
             max_retries,
             max_emails_per_account,
@@ -523,8 +534,12 @@ impl OutboundService {
             from.as_deref()
                 .ok_or(OutboundError::InvalidInput("from_required"))?,
         )?;
-        if sender.rsplit_once('@').map(|(_, value)| value) != Some(self.domain.as_ref()) {
-            return Err(OutboundError::InvalidInput("sending_not_allowed"));
+        let sender_domain = sender
+            .rsplit_once('@')
+            .map(|(_, value)| value)
+            .unwrap_or_default();
+        if !self.send_domains.contains(sender_domain) {
+            return Err(OutboundError::SendingNotAllowed(sender_domain.to_owned()));
         }
         if credentials.is_some()
             && password
@@ -576,7 +591,7 @@ impl OutboundService {
             }
         }
         let now = postgres_timestamp(Utc::now());
-        let message_id = new_message_id(self.domain.as_ref())?;
+        let message_id = new_message_id(sender_domain)?;
         let queue_id = self.reserve_task_id().await?;
         let input = MessageInput {
             task_id: queue_id,

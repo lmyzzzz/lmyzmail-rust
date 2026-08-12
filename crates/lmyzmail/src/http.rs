@@ -3919,6 +3919,10 @@ async fn write_outbound_error(
         OutboundError::InvalidInput(code) => {
             write_json_error(stream, Status::BadRequest, code).await
         }
+        OutboundError::SendingNotAllowed(domain) => {
+            write_web_queue_failure(stream, format!("Sending not allowed for domain: {domain}"))
+                .await
+        }
         OutboundError::InvalidCredentials => {
             write_json_response(
                 stream,
