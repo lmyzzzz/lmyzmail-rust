@@ -2087,13 +2087,14 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         value.redis.tls.to_string(),
     )?;
     properties.insert("lmyzmail.maildir.base".to_owned(), value.maildir)?;
+    let primary_domain = value.domain.to_ascii_lowercase();
     properties.insert("lmyzmail.domain".to_owned(), value.domain)?;
     for (index, domain) in value.domains.into_iter().enumerate() {
         // Java's primary domain is bound under `domains.main`. Keep that
         // stable entry name when converting semantic JSON so legacy
         // `botmail.domains.main.*` CLI overlays still target the primary
         // domain instead of being silently ignored beside `json0`.
-        let prefix = if index == 0 {
+        let prefix = if domain.domain.trim().trim_end_matches('.').eq_ignore_ascii_case(&primary_domain) {
             "lmyzmail.domains.main".to_owned()
         } else {
             format!("lmyzmail.domains.json{index}")
