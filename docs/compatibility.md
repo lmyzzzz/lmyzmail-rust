@@ -395,10 +395,25 @@ The candidate reads `lmyzmail.outbound.helo-hostname` with
 `botmail.outbound.helo-hostname` fallback and new-key precedence. Empty,
 non-ASCII, whitespace/control-bearing, or over-253-byte values are rejected at
 startup. The differential fixtures use `blackbox.example` through the legacy
-key for Java and the new key for Rust. STARTTLS/MTA-STS, disconnect ambiguity,
-DSN, restart recovery across injected process or storage loss, backpressure,
-high concurrency, and soak remain separate external differential matrices;
-v36, 5xx v4, and 4xx v3 do not claim those paths.
+key for Java and the new key for Rust.
+
+The active `managed-outbound-dsn-oracle-evidence-v3.json` recording freezes a
+real RCPT 550 followed by an eight-second bounded Java observation. The oracle
+archives the original local-sender task as `FAILED`, leaves its original Sent
+Maildir copy and domain projection intact, and emits no DSN. Rust preserves all
+of those effects and exercises the approved
+`outbound-permanent-failure-dsn` difference: exactly one durable generated
+queue row, one `ADMITTED` PostgreSQL DSN outbox row, one accepted remote SMTP
+transaction with null reverse-path, and one bounded RFC 3464
+`multipart/report`. The report includes `message/delivery-status` plus only
+the original headers, never the original body. Both implementations must leave
+their pre-existing Redis worklist baseline unchanged. v1 and v2 remain
+immutable pre-final-definition history and are not active.
+
+STARTTLS/MTA-STS, disconnect ambiguity, DSN restart recovery across injected
+process or storage loss, DSN suppression, backpressure, high concurrency, and
+soak remain separate external differential matrices; v36, 5xx v4, 4xx v3,
+and DSN v3 do not claim those paths.
 
 ## Approved security differences
 

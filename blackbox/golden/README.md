@@ -1211,6 +1211,38 @@ failure observations as `managed-outbound-queue-v36.json` and
 fresh Java runtime, and matched by the Rust candidate. All earlier generations
 remain immutable.
 
+The retained DSN-gap recordings are:
+
+- `managed-outbound-dsn-oracle-evidence-v1.json`, captured before the
+  candidate diagnostic assertion was corrected; definition tree
+  `f4662005f7e489e08e7cf9f420cdd277bc3fbcb45c053535e4e219a75d8be032`
+- `managed-outbound-dsn-oracle-evidence-v2.json`, captured before unrelated
+  formatter churn was removed from the manifest test; definition tree
+  `f4654c9a807aa23201cbe9a2dcfca1ef4ca9e661be467f6d181bf1c8d4de9a0e`
+
+Both remain immutable history and are not active candidate evidence.
+
+The active DSN-gap recording is
+`managed-outbound-dsn-oracle-evidence-v3.json`. It binds the final scoped
+definition tree
+`bd7f6173655faa57d3efbe61b084844f387cea8829e7d40fe4adc863af487182`.
+One isolated Java runtime created v3 and a fresh JVM replayed it. After a real
+RCPT 550, Java archives the original task as `FAILED`; during the following
+eight-second bounded observation it creates no second SMTP transaction, null
+reverse-path, generated queue row, or DSN Maildir file. The legacy fixture's
+single pre-existing retry ZSET member is frozen before and after so it cannot
+be mistaken for a leak.
+
+The Rust candidate retains every original Java failure observation, then
+proves the allowlisted `outbound-permanent-failure-dsn` requirement. It admits
+exactly one PostgreSQL-backed DSN, transmits it with the SMTP null
+reverse-path, publishes a `multipart/report` with `message/delivery-status`
+and bounded original headers, omits the original body, archives the generated
+queue row as `SENT`, and leaves all Redis worklists at their candidate
+baseline. The queue and Maildir owner remains `mailer-daemon@example.test`;
+only the SMTP reverse-path is empty. Restart/fault recovery and overload remain
+separate matrices.
+
 The active stress-test sets are:
 
 - `managed-stress-disabled-v5/`

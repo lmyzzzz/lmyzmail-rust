@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import email.policy
 import hashlib
 import ipaddress
 import json
@@ -12,6 +13,7 @@ import tempfile
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
+from email.parser import BytesParser
 from pathlib import Path
 from typing import Any, cast
 
@@ -35,6 +37,9 @@ _SENTINEL = b"-999999999"
 _DNS_HOST = "outbound.fixture.test"
 _FAKE_IP = "93.184.216.34"
 _RECIPIENT = f"recipient@{_DNS_HOST}"
+_DSN_RECIPIENT = f"recipient-rcpt-550-1@{_DNS_HOST}"
+_QA_DOMAIN = QA_ADDRESS.rsplit("@", 1)[1]
+_DSN_ABSENCE_WINDOW_SECONDS = 8
 _TASK_TTL_SECONDS = 7 * 24 * 60 * 60
 _TASK_TTL_OBSERVATION_WINDOW_SECONDS = 30
 _FOURXX_CODES = (400, 421, 450, 451, 452, 499)
@@ -144,6 +149,28 @@ def _candidate_dns_server() -> ScriptedDnsServer:
         )
     return ScriptedDnsServer(
         {(_DNS_HOST, 1): DnsAnswer(a=(AAnswer(_FAKE_IP, ttl=0),))},
+        bind_host=nameserver,
+        bind_port=53,
+    )
+
+
+def _candidate_dsn_dns_server() -> ScriptedDnsServer:
+    nameserver = _ipv4_nameserver()
+    result = subprocess.run(  # noqa: S603
+        ["/usr/sbin/ip", "address", "add", f"{nameserver}/32", "dev", "lo"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0 and "File exists" not in result.stderr:
+        raise AssertionError(
+            f"failed to pin candidate DNS fixture address: {result.stderr.strip()}"
+        )
+    return ScriptedDnsServer(
+        {
+            (_DNS_HOST, 1): DnsAnswer(a=(AAnswer(_FAKE_IP, ttl=0),)),
+            (_QA_DOMAIN, 1): DnsAnswer(a=(AAnswer(_FAKE_IP, ttl=0),)),
+        },
         bind_host=nameserver,
         bind_port=53,
     )
@@ -334,6 +361,42 @@ def _maildir_snapshot(runtime: JavaOracleRuntime) -> dict[str, Any]:
     sent = runtime.workspace / "maildir" / QA_ADDRESS / "sent"
     files = sorted(path for path in sent.rglob("*") if path.is_file()) if sent.exists() else []
     return {"count": len(files), "bytes": sum(path.stat().st_size for path in files)}
+
+
+def _sent_maildir_owner_counts(runtime: JavaOracleRuntime) -> dict[str, int]:
+    if runtime.workspace is None:
+        raise AssertionError("runtime workspace is unavailable")
+    root = runtime.workspace / "maildir"
+    counts: dict[str, int] = {}
+    if root.exists():
+        for owner in root.iterdir():
+            sent = owner / "sent"
+            if not owner.is_dir() or not sent.is_dir():
+                continue
+            count = sum(1 for path in sent.rglob("*.eml") if path.is_file())
+            if count:
+                counts[owner.name] = count
+    return dict(sorted(counts.items()))
+
+
+def _outbound_worklist_lengths(runtime: JavaOracleRuntime) -> dict[str, int]:
+    if runtime.ports is None:
+        raise AssertionError("runtime ports are unavailable")
+    client: redis.Redis = redis.Redis(
+        host="127.0.0.1",
+        port=runtime.ports.redis,
+        decode_responses=False,
+    )
+    try:
+        return {
+            "pending": cast(int, client.llen(_REDIS_PREFIX + "pending")),
+            "processing": cast(int, client.scard(_REDIS_PREFIX + "processing")),
+            "retry": cast(int, client.zcard(_REDIS_PREFIX + "retry")),
+            "archive": cast(int, client.llen(_REDIS_PREFIX + "archive")),
+            "status_updates": cast(int, client.llen(_REDIS_PREFIX + "status_updates")),
+        }
+    finally:
+        client.close()
 
 
 def _attempt_snapshot(attempt: SmtpMessageAttempt) -> dict[str, Any]:
@@ -651,14 +714,10 @@ def _capture_scheduled_retry(
     if raw is None:
         raise AssertionError(f"retry task {task_id} disappeared after scheduling")
     detail = cast(dict[str, Any], json.loads(raw))
-    zset_deadline = cast(
-        float | None, client.zscore(_REDIS_PREFIX + "retry", task_id)
-    )
+    zset_deadline = cast(float | None, client.zscore(_REDIS_PREFIX + "retry", task_id))
     if zset_deadline is None:
         raise AssertionError(f"retry task {task_id} has no retry ZSET deadline")
-    task_deadline = _parse_retry_instant(
-        detail.get("nextRetryAt"), source="Redis task"
-    )
+    task_deadline = _parse_retry_instant(detail.get("nextRetryAt"), source="Redis task")
     normalized_delay = _normalize_retry_deadlines(
         failure_observed_at,
         expected_delay_seconds,
@@ -670,9 +729,7 @@ def _capture_scheduled_retry(
     database = _retry_database_snapshot(runtime, task_id)
     database_deadline_matches: bool | None = None
     if database["present"]:
-        database_deadline_matches = (
-            abs(float(database["next_retry_epoch"]) - task_deadline) <= 1.0
-        )
+        database_deadline_matches = abs(float(database["next_retry_epoch"]) - task_deadline) <= 1.0
         del database["next_retry_epoch"]
     database["deadline_matches_retry"] = database_deadline_matches
     return {
@@ -703,9 +760,7 @@ def _force_retry_due(
         raise AssertionError(f"retry task {task_id} disappeared before time advancement")
     detail = cast(dict[str, Any], json.loads(raw))
     if detail.get("status") != "PENDING" or detail.get("retryCount") != current_retry_count:
-        raise AssertionError(
-            f"retry task {task_id} changed before time advancement: {detail!r}"
-        )
+        raise AssertionError(f"retry task {task_id} changed before time advancement: {detail!r}")
     max_retries = detail.get("maxRetries")
     if not isinstance(max_retries, int) or not (
         current_retry_count <= due_retry_count <= max_retries
@@ -751,8 +806,7 @@ def _force_retry_due(
 def _failure_reply_count(server: ScriptedSmtpServer, code: int) -> int:
     prefix = f"{code} ".encode("ascii")
     return sum(
-        event.kind == "reply" and event.payload.startswith(prefix)
-        for event in server.events()
+        event.kind == "reply" and event.payload.startswith(prefix) for event in server.events()
     )
 
 
@@ -784,6 +838,123 @@ def _smtp_transcript_snapshot(server: ScriptedSmtpServer) -> dict[str, Any]:
         "data_event_count": data_event_count,
         "data_bytes": data_bytes,
         "attempts": [_attempt_snapshot(value) for value in server.messages()],
+    }
+
+
+def _dsn_wire_snapshot(attempt: SmtpMessageAttempt) -> dict[str, Any]:
+    message = BytesParser(policy=email.policy.default).parsebytes(attempt.data)
+    parts = list(message.iter_parts())
+    delivery_blocks: list[dict[str, str | bool | None]] = []
+    if len(parts) >= 2:
+        payload = parts[1].get_payload()
+        if isinstance(payload, list):
+            for block in cast(list[Any], payload):
+                delivery_blocks.append(
+                    {
+                        "reporting_mta": block.get("Reporting-MTA"),
+                        "arrival_date_present": block.get("Arrival-Date") is not None,
+                        "final_recipient": block.get("Final-Recipient"),
+                        "action": block.get("Action"),
+                        "status": block.get("Status"),
+                        "diagnostic_code": block.get("Diagnostic-Code"),
+                    }
+                )
+
+    returned_headers: dict[str, str | bool | None] = {
+        "message_id_present": False,
+        "subject": None,
+        "from": None,
+    }
+    if len(parts) >= 3:
+        returned_content = cast(bytes | None, parts[2].get_payload(decode=True))
+        if returned_content is not None:
+            returned = BytesParser(policy=email.policy.default).parsebytes(returned_content)
+            returned_headers = {
+                "message_id_present": returned.get("Message-ID") is not None,
+                "subject": returned.get("Subject"),
+                "from": returned.get("From"),
+            }
+
+    return {
+        "envelope_from": attempt.sender.decode("ascii"),
+        "recipients": [value.decode("ascii") for value in attempt.recipients],
+        "accepted": attempt.accepted,
+        "crlf_only": b"\n" not in attempt.data.replace(b"\r\n", b""),
+        "content_type": message.get_content_type(),
+        "report_type": message.get_param("report-type"),
+        "headers": {
+            "from": str(message.get("From")),
+            "to": str(message.get("To")),
+            "subject": str(message.get("Subject")),
+            "auto_submitted": str(message.get("Auto-Submitted")),
+            "message_id_present": message.get("Message-ID") is not None,
+        },
+        "part_types": [part.get_content_type() for part in parts],
+        "delivery_blocks": delivery_blocks,
+        "returned_headers": returned_headers,
+        "original_body_returned": b"5xx RCPT body 550 1" in attempt.data,
+        "bytes": len(attempt.data),
+    }
+
+
+def _candidate_dsn_database_snapshot(
+    runtime: JavaOracleRuntime,
+    source_task_id: int,
+) -> dict[str, Any] | None:
+    if runtime.ports is None:
+        raise AssertionError("runtime ports are unavailable")
+    with psycopg.connect(
+        host="127.0.0.1",
+        port=runtime.ports.postgres,
+        dbname="lmyzmail",
+        user="lmyzmail_test",
+        password="",
+    ) as connection:
+        row = connection.execute(
+            """
+            SELECT d.dsn_task_id,d.state,d.payload_json,d.expected_sha256,
+                   d.prepared_bytes,d.suppress_reason,
+                   q.status,q.sender_address,q.recipients_json,q.subject,
+                   q.message_id,q.retry_count,q.last_error
+            FROM lmyzmail_outbound_dsn d
+            LEFT JOIN outbound_mail_queue q ON q.id=d.dsn_task_id
+            WHERE d.original_task_id=%s
+            """,
+            (source_task_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    payload = cast(dict[str, Any], json.loads(row[2]))
+    recipients = cast(list[dict[str, Any]], payload["recipients"])
+    return {
+        "dsn_task_id_present": isinstance(row[0], int),
+        "state": row[1],
+        "payload": {
+            "sender_address": payload.get("sender_address"),
+            "subject": payload.get("subject"),
+            "message_id_present": isinstance(payload.get("message_id"), str),
+            "recipients": [
+                {
+                    "recipient": recipient.get("recipient"),
+                    "state": recipient.get("state"),
+                    "smtp_code": recipient.get("smtp_code"),
+                    "detail": recipient.get("detail"),
+                }
+                for recipient in recipients
+            ],
+        },
+        "expected_sha256_present": isinstance(row[3], bytes) and len(row[3]) == 32,
+        "prepared_bytes_present": row[4] is not None,
+        "suppress_reason": row[5],
+        "queue": {
+            "status": row[6],
+            "sender_address": row[7],
+            "recipients_json": row[8],
+            "subject": row[9],
+            "message_id_present": isinstance(row[10], str),
+            "retry_count": row[11],
+            "last_error": row[12],
+        },
     }
 
 
@@ -830,13 +1001,13 @@ def _capture_5xx_case(
 
         _wait_until(
             lambda: any(
-                event.kind == "reply"
-                and event.payload.startswith(f"{code} ".encode("ascii"))
+                event.kind == "reply" and event.payload.startswith(f"{code} ".encode("ascii"))
                 for event in server.events()
             ),
             timeout=30.0,
             description=f"5xx {phase} {code} SMTP reply",
         )
+
         def final_row() -> dict[str, Any] | None:
             return next((row for row in _db_rows(runtime) if row["id"] == task_id), None)
 
@@ -1144,12 +1315,8 @@ def run_4xx_probe() -> dict[str, Any]:
                 for phase in ("RCPT", "DATA"):
                     for code in _FOURXX_CODES:
                         case_index += 1
-                        recipient = (
-                            f"recipient-{phase.lower()}-{code}-{case_index}@{_DNS_HOST}"
-                        )
-                        reply = f"{code} fixture scripted {phase.lower()} retry\r\n".encode(
-                            "ascii"
-                        )
+                        recipient = f"recipient-{phase.lower()}-{code}-{case_index}@{_DNS_HOST}"
+                        reply = f"{code} fixture scripted {phase.lower()} retry\r\n".encode("ascii")
                         if phase == "RCPT":
                             scenario = SmtpScenario(
                                 recipient_replies=(RecipientReply(recipient, reply),),
@@ -1164,9 +1331,7 @@ def run_4xx_probe() -> dict[str, Any]:
                                 max_concurrent_connections=2,
                                 max_message_bytes=2 * 1024 * 1024,
                             )
-                        server = ScriptedSmtpServer(
-                            scenario, bind_host=_FAKE_IP, bind_port=25
-                        )
+                        server = ScriptedSmtpServer(scenario, bind_host=_FAKE_IP, bind_port=25)
                         with server:
                             cases.append(
                                 _capture_4xx_case(
@@ -1206,6 +1371,137 @@ def run_4xx_probe() -> dict[str, Any]:
             "observed_deadline_before_each_advance": True,
         },
     }
+
+
+def run_dsn_probe() -> dict[str, Any]:
+    if (
+        subprocess.run(  # noqa: S603
+            ["/usr/sbin/ip", "link", "show", "lo"], capture_output=True
+        ).returncode
+        != 0
+    ):
+        raise AssertionError("outbound probe must run inside a network namespace with loopback")
+
+    target = _outbound_target()
+    dns_server = _candidate_dsn_dns_server() if target == "candidate" else None
+    scenario = SmtpScenario(
+        recipient_replies=(
+            RecipientReply(
+                _DSN_RECIPIENT,
+                b"550 5.1.1 fixture scripted recipient failure\r\n",
+            ),
+        ),
+        max_connections=8,
+        max_concurrent_connections=2,
+        max_message_bytes=2 * 1024 * 1024,
+    )
+    server = ScriptedSmtpServer(scenario, bind_host=_FAKE_IP, bind_port=25)
+    with tempfile.TemporaryDirectory(prefix="lmyzmail-outbound-dsn-oracle-") as workspace:
+        runtime: JavaOracleRuntime
+        if target == "candidate":
+            repository = Path(__file__).resolve().parents[3]
+            runtime = _candidate_runtime(repository)
+        else:
+            runtime = OutboundOracleRuntime(Path(workspace))
+        if dns_server is not None:
+            dns_server.start()
+        try:
+            with server:
+                with runtime:
+                    if runtime.ports is None:
+                        raise AssertionError("runtime ports are unavailable")
+                    baseline_worklists = _outbound_worklist_lengths(runtime)
+                    redis_client: redis.Redis = redis.Redis(
+                        host="127.0.0.1",
+                        port=runtime.ports.redis,
+                        decode_responses=False,
+                    )
+                    try:
+                        redis_client.set(
+                            f"dns:mx:{_QA_DOMAIN}",
+                            _QA_DOMAIN.encode("ascii"),
+                            ex=300,
+                        )
+                    finally:
+                        redis_client.close()
+                    failure = _capture_5xx_case(
+                        server,
+                        runtime,
+                        phase="RCPT",
+                        code=550,
+                        case_index=1,
+                    )
+                    source_task_id = cast(
+                        int,
+                        next(
+                            row["id"]
+                            for row in _db_rows(runtime)
+                            if row["status"] == "FAILED" and "550" in str(row["last_error"])
+                        ),
+                    )
+                    database: dict[str, Any] | None = None
+                    if target == "candidate":
+                        _wait_until(
+                            lambda: any(
+                                attempt.sender == b""
+                                and attempt.recipients == (QA_ADDRESS.encode("ascii"),)
+                                and attempt.accepted
+                                for attempt in server.messages()
+                            ),
+                            timeout=45.0,
+                            description="candidate RFC 3464 DSN SMTP acceptance",
+                        )
+
+                        def candidate_dsn_sent() -> bool:
+                            nonlocal database
+                            database = _candidate_dsn_database_snapshot(runtime, source_task_id)
+                            return (
+                                database is not None
+                                and database["state"] == "ADMITTED"
+                                and database["queue"]["status"] == "SENT"
+                            )
+
+                        _wait_until(
+                            candidate_dsn_sent,
+                            timeout=30.0,
+                            description="candidate durable DSN completion",
+                        )
+                    else:
+                        time.sleep(_DSN_ABSENCE_WINDOW_SECONDS)
+
+                    dsn_attempts = [
+                        attempt
+                        for attempt in server.messages()
+                        if attempt.sender == b"" or QA_ADDRESS.encode("ascii") in attempt.recipients
+                    ]
+                    null_reverse_path_commands = sum(
+                        1
+                        for event in server.events()
+                        if event.kind == "command"
+                        and event.payload.upper().startswith(b"MAIL FROM:<>")
+                    )
+                    return {
+                        "failure": failure,
+                        "dsn": {
+                            "absence_observation_seconds": (
+                                _DSN_ABSENCE_WINDOW_SECONDS if target == "java" else None
+                            ),
+                            "wire_message_count": len(dsn_attempts),
+                            "null_reverse_path_command_count": null_reverse_path_commands,
+                            "wire": (
+                                _dsn_wire_snapshot(dsn_attempts[0])
+                                if len(dsn_attempts) == 1
+                                else None
+                            ),
+                            "database": database,
+                            "maildir_owner_counts": _sent_maildir_owner_counts(runtime),
+                            "redis_worklists_before": baseline_worklists,
+                            "redis_worklists_after": _outbound_worklist_lengths(runtime),
+                        },
+                    }
+        finally:
+            if dns_server is not None:
+                dns_server.stop()
 
 
 def run_5xx_probe() -> dict[str, Any]:
@@ -1324,6 +1620,8 @@ def main() -> int:
     mode = os.environ.get("LMYZMAIL_OUTBOUND_ORACLE_MODE", "success").lower()
     if mode == "4xx":
         observed = run_4xx_probe()
+    elif mode == "dsn":
+        observed = run_dsn_probe()
     elif mode == "5xx":
         observed = run_5xx_probe()
     elif mode == "success":

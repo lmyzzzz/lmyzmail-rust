@@ -75,6 +75,7 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "smtp-fragmented-overlong-double-error",
         "smtp-dkim-auid-domain-validation",
         "outbound-starttls-hostname-verification",
+        "outbound-permanent-failure-dsn",
         "outbound-smtp-commit-ambiguity-no-retry",
         "outbound-retry-postgres-checkpoint",
         "outbound-null-mx-rejection",
@@ -126,6 +127,16 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
     assert starttls["evidence"]["commit"] == "5dac2ab2922c30c726c4a83d7626c95ad4e231c8"
     assert starttls["candidate_requirement"].startswith("After sending the 220 STARTTLS")
     by_id = {entry["id"]: entry for entry in differences["differences"]}
+    outbound_dsn = by_id["outbound-permanent-failure-dsn"]
+    assert outbound_dsn["evidence"]["source_sha256"] == (
+        "c7f10f2416ae308335e9f6f77ffe00140b64904b0b2e8dc7eb04ed74394c603e"
+    )
+    assert outbound_dsn["candidate_requirement"].startswith(
+        "After a proven permanent recipient failure"
+    )
+    assert outbound_dsn["evidence"]["oracle_golden"].endswith(
+        "managed-outbound-dsn-oracle-evidence-v3.json"
+    )
     data_tail = by_id["smtp-data-terminator-command-loss"]
     assert data_tail["evidence"]["source_sha256"] == (
         "bccb53816f461a247df9072cfe1e75c383e37291529e478ea43c242fa15e735a"

@@ -13,6 +13,20 @@
       "scope": "Only outbound STARTTLS hostname mismatch in non-enforce modes. Trust-chain validation, MTA-STS enforce behavior, STARTTLS advertisement and response handling, fresh-connection opportunistic fallback, and successful SMTP bytes remain compatibility requirements."
     },
     {
+      "candidate_requirement": "After a proven permanent recipient failure, durably admit exactly one bounded RFC 3464 DSN when the original sender is a valid local mailbox and no recipient outcome is ambiguous. Send it with the SMTP null reverse-path, include only bounded original headers, and retain the frozen original queue, Redis, Maildir, and status effects. The PostgreSQL DSN outbox, generated queue row, spool, index, Redis publication, and remote SMTP result must remain crash-recoverable and duplicate-safe.",
+      "evidence": {
+        "candidate_test": "blackbox/tests/test_oracle_outbound_dsn.py::test_rust_candidate_emits_durable_rfc3464_dsn",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "oracle_golden": "blackbox/golden/java/managed-outbound-dsn-oracle-evidence-v3.json",
+        "source": "src/main/java/net/lmyz/lmyzmail/outbound/AsyncMailSender.java",
+        "source_sha256": "c7f10f2416ae308335e9f6f77ffe00140b64904b0b2e8dc7eb04ed74394c603e"
+      },
+      "id": "outbound-permanent-failure-dsn",
+      "oracle_behavior": "After a local sender's message receives a permanent remote SMTP failure, the frozen Java sender archives the original task as FAILED, acknowledges the Redis work item, and removes temporary signed content, but creates no DSN queue row and makes no bounce SMTP attempt.",
+      "reason": "Silently omitting a required delivery-status notification leaves a local sender unable to distinguish accepted delivery from permanent recipient failure. The durable DSN path is an explicit production queue requirement and the omission is a reliability defect, not a compatibility behavior to preserve.",
+      "scope": "Only generation, durable admission, and delivery of a DSN after a proven permanent outcome for a valid local sender. The original HTTP response, remote SMTP failure transcript, legacy PostgreSQL status, Redis cleanup, sent Maildir copy, domain projection, retry classification, suppression for non-local or invalid senders, and suppression for ambiguous outcomes remain exact requirements."
+    },
+    {
       "candidate_requirement": "Write to a same-filesystem temporary file, flush data, atomically rename to the final .eml path, and fsync the containing directory before publication is acknowledged.",
       "evidence": {
         "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
