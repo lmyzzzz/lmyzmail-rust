@@ -2089,7 +2089,15 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
     properties.insert("lmyzmail.maildir.base".to_owned(), value.maildir)?;
     properties.insert("lmyzmail.domain".to_owned(), value.domain)?;
     for (index, domain) in value.domains.into_iter().enumerate() {
-        let prefix = format!("lmyzmail.domains.json{index}");
+        // Java's primary domain is bound under `domains.main`. Keep that
+        // stable entry name when converting semantic JSON so legacy
+        // `botmail.domains.main.*` CLI overlays still target the primary
+        // domain instead of being silently ignored beside `json0`.
+        let prefix = if index == 0 {
+            "lmyzmail.domains.main".to_owned()
+        } else {
+            format!("lmyzmail.domains.json{index}")
+        };
         properties.insert(format!("{prefix}.domain"), domain.domain)?;
         properties.insert(
             format!("{prefix}.receive-enabled"),
@@ -6105,6 +6113,12 @@ fn parse_domain_configs(
             }
         }
     }
+    if !names.iter().any(|name| name == "main")
+        && (properties.get("lmyzmail.domain").is_some()
+            || properties.get("botmail.domain").is_some())
+    {
+        names.push("main".to_owned());
+    }
     // Spring Boot binds the domain map by property name before Java copies it
     // into the HashMap-backed lookup. Sorting entry names reproduces that
     // deterministic binding order for duplicate normalized domains.
@@ -6114,13 +6128,13 @@ fn parse_domain_configs(
     for entry in names {
         let new_prefix = format!("lmyzmail.domains.{entry}.");
         let old_prefix = format!("botmail.domains.{entry}.");
-        let Some(raw_domain) = preferred(
+        let raw_domain = preferred(
             properties,
             &[&format!("{new_prefix}domain")],
             &[&format!("{old_prefix}domain")],
-        ) else {
-            continue;
-        };
+        )
+        .or_else(|| (entry == "main").then_some(primary_domain));
+        let Some(raw_domain) = raw_domain else { continue };
         if raw_domain.trim().is_empty() {
             continue;
         }
@@ -7320,6 +7334,19 @@ lmyzmail.domains.main.send-enabled=true\n",
         assert_eq!(config.domains[0].domain, "preferred.example");
         assert!(config.domains[0].receive_enabled);
         assert!(config.domains[0].send_enabled);
+    }
+
+    #[test]
+    fn semantic_json_primary_domain_accepts_legacy_main_overlay() {
+        let mut properties = parse_semantic_json(&semantic_json_with_htcpcp(
+            serde_json::json!({"enabled": true, "default_brew_time_seconds": 1}),
+        ))
+        .unwrap();
+        properties
+            .insert("botmail.domains.main.receiveEnabled".into(), "false".into())
+            .unwrap();
+        let config = RuntimeConfig::from_properties(properties).unwrap();
+        assert!(!config.domains[0].receive_enabled);
     }
 
     #[test]
