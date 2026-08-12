@@ -37,10 +37,11 @@ there is no whole-response masking or assertion weakening.
 
 ## Native Skibidi banner
 
-SMTP banner generation always calls the frozen Skibidi 1.8.0 C library. Its
-grammar, probability thresholds, seed behavior, batch behavior, ABI, and memory
-ownership are authoritative; lmyzmail does not reproduce the Java 26.85% outer
-fast path or maintain a second probability implementation.
+SMTP banner generation always calls the frozen Skibidi 1.8.0 C library. The C
+implementation is the sole authority for grammar, every probability threshold,
+seed behavior, batch behavior, ABI, and memory ownership. lmyzmail does not
+reproduce the Java 26.85% outer fast path and does not maintain a Rust or Java
+probability implementation. This banner boundary has no JVM dependency.
 
 The frozen source commit is `4bc484c15b780d578ee8e53cab968f2819958215`.
 `skibidi_avx.c` has SHA-256
@@ -516,8 +517,24 @@ waiting before a second raw HTTP request is sent. Java and Rust return the
 exact zero-count `Already running` summary for that overlap, perform no early
 DNS, Redis, or Maildir work, then publish exactly one DMARC/TLSRPT pair after
 the lock is released. Source rows and threshold fixtures remain unchanged.
-Client disconnect, storage fault injection, high concurrency, and soak remain
-separate evidence.
+Storage fault injection, higher fan-in, and soak remain separate evidence.
+
+The supplemental `report-trigger-disconnect-v1` profile sends a complete
+authenticated trigger, proves its real PostgreSQL domain query is blocked, and
+then closes the client with TCP RST. The frozen Java process retains the query
+and guard, so an overlap returns `Already running`. Rust cancels the blocked
+query, joins the request task, releases the guard, and admits a retry, with no
+DNS, Redis, Maildir, or source-table mutation on either path. This bounded
+lifecycle correction is approved by the immutable supplemental difference
+manifest as
+`http-report-trigger-client-disconnect-cancellation`. The Java observation has
+SHA-256 `0b8ceeb22e472d852233029692906de1972f183b4993367b4e71aa145b5b1255`,
+the candidate observation has SHA-256
+`ab628fa4b165a58470c582bbe5aa92445bc4a711630ea4c8b08831b70970168a`,
+and the verified Linux x86_64 release has SHA-256
+`618dfa5140196fee54f908d2e71f63eb67d4a454324f9b263dd32135f3e47e53`.
+The supplemental manifest has SHA-256
+`e2719d43d55cdda8558b12297ba429eea537db7ba20edd653d1bbd69b772842a`.
 
 The active `managed-outbound-tls-validity-v3.json` profile separately freezes
 trusted-chain certificates that are expired or not yet valid. Opportunistic

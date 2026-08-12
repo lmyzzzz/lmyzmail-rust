@@ -3,7 +3,8 @@
 `POST /api/reports/trigger` preserves the frozen Java scheduler's process-local
 single-run admission, DMARC-before-TLS execution order, per-delivery summary
 counts, no-RUA zero-count behavior, durable outbound publication, and
-`Already running` result. Cancellation exits the active request and releases
+`Already running` result. Candidate-side deadline, root shutdown, and peer
+disconnect cancellation exit the active request, join its work, and release
 the admission guard.
 
 The Rust implementation selects at most 10,000 reportable domains for each
@@ -57,4 +58,30 @@ adds no DNS query, Redis task, or Maildir file. Releasing the lock lets only
 the admitted request publish one DMARC and one TLSRPT report. Java recording,
 fresh Java replay, and Rust replay match under the unchanged active definition
 tree. Disconnect cancellation, storage faults, higher fan-in, and soak remain
-unclaimed.
+unclaimed by that concurrency profile.
+
+The supplemental `report-trigger-disconnect-v1` profile isolates peer-lifetime
+cancellation. It sends a complete authenticated request, blocks the real DMARC
+domain query with a PostgreSQL table lock, confirms the waiting lock through
+`pg_locks`, and closes the client with TCP RST. Java retains the blocked query
+and guard, and a later request receives `Already running`. Rust observes the
+closed peer, cancels the PostgreSQL wait, releases the guard, and admits a retry
+before the table lock is released. Neither path may perform DNS, Redis,
+Maildir, or source-table mutations.
+
+The Java behavior is frozen in
+`evidence/compatibility/report-trigger-disconnect-v1/java-golden/observation.json`
+with SHA-256
+`0b8ceeb22e472d852233029692906de1972f183b4993367b4e71aa145b5b1255`.
+The Rust expectation is frozen in `candidate-observation.json` with SHA-256
+`ab628fa4b165a58470c582bbe5aa92445bc4a711630ea4c8b08831b70970168a`.
+The external test's SHA-256 is recorded in the supplemental manifest,
+the candidate HTTP source has SHA-256
+`6c63f11ac277433682f5c550f7b4431f7394aeaab3b7b6fb2389ea7051c9795f`,
+and the tested Linux x86_64 release has SHA-256
+`618dfa5140196fee54f908d2e71f63eb67d4a454324f9b263dd32135f3e47e53`.
+The immutable supplemental manifest has SHA-256
+`e2719d43d55cdda8558b12297ba429eea537db7ba20edd653d1bbd69b772842a`.
+The exact difference is approved as the supplemental
+`http-report-trigger-client-disconnect-cancellation` entry; connected requests
+and all surrounding report semantics remain frozen compatibility requirements.

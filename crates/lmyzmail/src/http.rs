@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use subtle::ConstantTimeEq;
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{AsyncReadExt, AsyncWriteExt, Interest},
     net::{TcpListener, TcpStream},
     sync::{OwnedSemaphorePermit, Semaphore, mpsc, oneshot},
     task::{JoinHandle, JoinSet, spawn_blocking},
@@ -47,9 +47,10 @@ use crate::{
 const DEFAULT_MAX_REQUEST_BYTES: usize = 16 * 1024;
 const DEFAULT_MAX_CONNECTIONS: usize = 256;
 const MAX_HTTP_HEADER_BYTES: usize = 64 * 1024;
-const HTTP_FDS_PER_CONNECTION: u32 = 2;
+const HTTP_FDS_PER_CONNECTION: u32 = 3;
 const ACCEPT_RETRY_MIN_DELAY: Duration = Duration::from_millis(25);
 const ACCEPT_RETRY_MAX_DELAY: Duration = Duration::from_secs(1);
+const PEER_CLOSE_POLL_DELAY: Duration = Duration::from_millis(25);
 const SHUTDOWN_DEADLINE: Duration = Duration::from_secs(20);
 const CONTACT_RESPONSE_CONCURRENCY: usize = 4;
 const JSON_STREAM_CHUNK_BYTES: usize = 16 * 1024;
@@ -132,6 +133,14 @@ struct ConnectionContext<'a> {
 #[derive(Debug, Clone, Copy)]
 struct AcceptBackoff {
     next_delay: Duration,
+}
+
+struct AbortTaskOnDrop(JoinHandle<()>);
+
+impl Drop for AbortTaskOnDrop {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
 }
 
 impl Default for AcceptBackoff {
@@ -272,9 +281,9 @@ pub async fn serve_http(
             }
             continue;
         };
-        let (stream, shutdown_stream) =
+        let (stream, shutdown_stream, peer_monitor) =
             match prepare_connection(&mut accept_backoff, &cancellation, || {
-                socket_with_shutdown_handle(stream)
+                socket_with_shutdown_handles(stream)
             })
             .await
             {
@@ -298,6 +307,7 @@ pub async fn serve_http(
             let result = run_request_until_joined(
                 handle_connection(
                     stream,
+                    peer_monitor,
                     peer.ip(),
                     limits.max_request_bytes,
                     limits.max_multipart_request_bytes,
@@ -452,10 +462,38 @@ where
     }
 }
 
-fn socket_with_shutdown_handle(stream: TcpStream) -> io::Result<(TcpStream, std::net::TcpStream)> {
+fn socket_with_shutdown_handles(
+    stream: TcpStream,
+) -> io::Result<(TcpStream, std::net::TcpStream, TcpStream)> {
     let stream = stream.into_std()?;
     let shutdown_stream = stream.try_clone()?;
-    Ok((TcpStream::from_std(stream)?, shutdown_stream))
+    let peer_monitor = TcpStream::from_std(stream.try_clone()?)?;
+    Ok((TcpStream::from_std(stream)?, shutdown_stream, peer_monitor))
+}
+
+async fn cancel_on_peer_close(stream: TcpStream, cancellation: CancellationToken) {
+    loop {
+        let result = tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => return,
+            result = stream.ready(Interest::READABLE) => result,
+        };
+        match result {
+            Ok(ready) if ready.is_read_closed() => {
+                cancellation.cancel();
+                return;
+            }
+            Ok(_) => {
+                if !wait_for_accept_retry(&cancellation, PEER_CLOSE_POLL_DELAY).await {
+                    return;
+                }
+            }
+            Err(_) => {
+                cancellation.cancel();
+                return;
+            }
+        }
+    }
 }
 
 async fn run_request_until_joined<F, S>(
@@ -494,6 +532,7 @@ fn reap_finished(tasks: &mut JoinSet<Result<(), io::Error>>) {
 
 async fn handle_connection(
     mut stream: TcpStream,
+    peer_monitor: TcpStream,
     peer_ip: IpAddr,
     max_request_bytes: usize,
     max_multipart_request_bytes: usize,
@@ -527,6 +566,10 @@ async fn handle_connection(
         .await;
     }
     complete_request(&mut stream, &mut request, max_request_bytes).await?;
+    let _peer_monitor = AbortTaskOnDrop(tokio::spawn(cancel_on_peer_close(
+        peer_monitor,
+        cancellation.clone(),
+    )));
     let client_ip = extract_client_ip(&request, peer_ip, config);
     let response = parse_request(&request, max_request_bytes, config);
     if let Some(expires_at) = auth.ban_expiry(&client_ip).await {
@@ -4379,6 +4422,56 @@ lmyzmail.public-registration-enabled=true\n",
     }
 
     #[tokio::test]
+    async fn peer_close_monitor_cancels_the_request_token() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let client = TcpStream::connect(address).await.unwrap();
+        let (server, _) = listener.accept().await.unwrap();
+        let cancellation = CancellationToken::new();
+        let monitor = tokio::spawn(cancel_on_peer_close(server, cancellation.clone()));
+
+        drop(client);
+        timeout(Duration::from_secs(1), cancellation.cancelled())
+            .await
+            .expect("peer FIN must cancel the request token");
+        monitor.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn peer_close_monitor_does_not_cancel_an_active_connection() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let mut client = TcpStream::connect(address).await.unwrap();
+        let (server, _) = listener.accept().await.unwrap();
+        let cancellation = CancellationToken::new();
+        let monitor = tokio::spawn(cancel_on_peer_close(server, cancellation.clone()));
+
+        client.write_all(b"x").await.unwrap();
+        tokio::time::sleep(Duration::from_millis(75)).await;
+        assert!(!cancellation.is_cancelled());
+
+        cancellation.cancel();
+        monitor.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn peer_close_monitor_observes_fin_behind_unread_bytes() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let mut client = TcpStream::connect(address).await.unwrap();
+        let (server, _) = listener.accept().await.unwrap();
+        let cancellation = CancellationToken::new();
+        let monitor = tokio::spawn(cancel_on_peer_close(server, cancellation.clone()));
+
+        client.write_all(b"unread").await.unwrap();
+        drop(client);
+        timeout(Duration::from_secs(1), cancellation.cancelled())
+            .await
+            .expect("peer FIN behind unread bytes must cancel the request token");
+        monitor.await.unwrap();
+    }
+
+    #[tokio::test]
     async fn request_deadline_shutdown_interrupts_partial_socket_read() {
         let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
         let address = listener.local_addr().unwrap();
@@ -4388,7 +4481,9 @@ lmyzmail.public-registration-enabled=true\n",
             .write_all(b"POST /web/userdata/preferences HTTP/1.1\r\nContent-Length: 100\r\n\r\n{")
             .await
             .unwrap();
-        let (mut server, shutdown_stream) = socket_with_shutdown_handle(server).unwrap();
+        let (mut server, shutdown_stream, peer_monitor) =
+            socket_with_shutdown_handles(server).unwrap();
+        drop(peer_monitor);
         let cancellation = CancellationToken::new();
         let result = run_request_until_joined(
             async move {

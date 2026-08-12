@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "profile": "report-trigger-disconnect-v1",
+  "captured_at": "2026-08-12T17:15:35+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "candidate_parent": "d8257575",
+  "frozen_harness": {
+    "definition_tree_sha256": "f4747bee86575a8f59725e02829a459ceb88961dadfbf858113b63a517b99d4c",
+    "active_reports_profile": "blackbox/golden/java/managed-reports-v23",
+    "supplemental_test": "evidence/compatibility/report-trigger-disconnect-v1/test_report_trigger_disconnect.py",
+    "supplemental_test_sha256": "08bda55195cc7d65a52e78012ee0f990e5967d59fc77bd8ba7b26d6a9517be4d"
+  },
+  "source_sha256": {
+    "java_report_controller": "2a13a791d67e3d24e9d7cf285044432fa2c96ab9e3a9084d87fdae64c7b81379",
+    "rust_http": "6c63f11ac277433682f5c550f7b4431f7394aeaab3b7b6fb2389ea7051c9795f"
+  },
+  "observations": {
+    "java": {
+      "path": "evidence/compatibility/report-trigger-disconnect-v1/java-golden/observation.json",
+      "sha256": "0b8ceeb22e472d852233029692906de1972f183b4993367b4e71aa145b5b1255",
+      "normalizers": [
+        "header:date:http-date",
+        "json-object-order:reports-contract"
+      ]
+    },
+    "rust": {
+      "path": "evidence/compatibility/report-trigger-disconnect-v1/candidate-observation.json",
+      "sha256": "ab628fa4b165a58470c582bbe5aa92445bc4a711630ea4c8b08831b70970168a"
+    }
+  },
+  "release": {
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "618dfa5140196fee54f908d2e71f63eb67d4a454324f9b263dd32135f3e47e53"
+  },
+  "difference": {
+    "id": "http-report-trigger-client-disconnect-cancellation",
+    "candidate_requirement": "After a complete authenticated HTTP request has been read, monitor the peer connection for FIN or RST and cancel the connection-scoped request token promptly. Cancellation must interrupt an in-flight PostgreSQL report query, release the process-local generation guard, join request work, and produce no DNS, Redis, Maildir, or source-database side effect.",
+    "oracle_behavior": "After receiving a complete authenticated POST /api/reports/trigger, the frozen Java controller keeps the generation future and process-local guard alive after TCP RST. A later trigger returns the normal zero-count Already running response until the retained database query completes.",
+    "reason": "Retaining connection-owned work after the client is gone can indefinitely occupy the only report-generation permit when a dependency is slow or half-open. The rewrite requires deadlines and cancellation to propagate through database work and release bounded admission promptly.",
+    "scope": "Only peer FIN or RST after a complete authenticated report-trigger request while its generation is still in flight. A connected request, ordinary concurrent admission, report ordering and bytes, all successful side effects, error summaries, scheduler ownership, and non-disconnect database behavior remain exact compatibility requirements.",
+    "evidence": {
+      "candidate_source": "crates/lmyzmail/src/http.rs",
+      "candidate_source_sha256": "6c63f11ac277433682f5c550f7b4431f7394aeaab3b7b6fb2389ea7051c9795f",
+      "candidate_test": "evidence/compatibility/report-trigger-disconnect-v1/test_report_trigger_disconnect.py::test_rust_report_trigger_cancels_work_after_disconnect",
+      "candidate_unit_tests": "crates/lmyzmail/src/http.rs::tests::peer_close_monitor_*",
+      "oracle_controller_source": "src/main/java/net/lmyz/lmyzmail/web/ReportController.java",
+      "oracle_controller_source_sha256": "2a13a791d67e3d24e9d7cf285044432fa2c96ab9e3a9084d87fdae64c7b81379",
+      "oracle_guard_source": "src/main/java/net/lmyz/lmyzmail/report/service/ReportGenerationScheduler.java",
+      "oracle_guard_source_sha256": "7fff9bf0d8bdd157e1afcad4fa163a6de51ee828e426a1fd14a43b48d567e3cb"
+    }
+  },
+  "contract": {
+    "transport": "TCP RST after a complete authenticated POST /api/reports/trigger request",
+    "oracle_behavior": "The blocked PostgreSQL query and process-local generation guard remain active; an overlapping trigger returns Already running.",
+    "candidate_behavior": "Peer close cancels the blocked PostgreSQL query, joins connection-owned work, releases the guard, and allows a retry to reach PostgreSQL before the lock is released.",
+    "shared_side_effects": [
+      "no DNS query",
+      "unchanged Redis pending queue",
+      "unchanged Sent Maildir",
+      "unchanged PostgreSQL source rows"
+    ],
+    "behavior_difference_id": "http-report-trigger-client-disconnect-cancellation",
+    "explicitly_not_claimed": [
+      "storage fault injection",
+      "higher fan-in or scheduler/manual overlap",
+      "long-running soak"
+    ]
+  },
+  "verification": [
+    {
+      "command": "cargo fmt --all -- --check",
+      "result": "passed"
+    },
+    {
+      "command": "cargo test -p lmyzmail http::tests --lib --locked",
+      "result": "32 passed"
+    },
+    {
+      "command": "cargo test -p lmyzmail --lib --locked",
+      "result": "549 passed"
+    },
+    {
+      "command": "cargo clippy -p lmyzmail --lib --locked -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "cargo build --release --locked --target x86_64-unknown-linux-gnu",
+      "result": "passed"
+    },
+    {
+      "command": "pytest -q evidence/compatibility/report-trigger-disconnect-v1/test_report_trigger_disconnect.py",
+      "result": "2 passed in 13.19s"
+    }
+  ],
+  "frozen_repositories": {
+    "java_oracle": "read-only at 5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "skibidi_1_8_0": "read-only at 4bc484c15b780d578ee8e53cab968f2819958215"
+  }
+}
