@@ -1,0 +1,64 @@
+{
+  "applicationPidUnchanged": true,
+  "completedWhileRedisPaused": false,
+  "outageDnsQueries": [
+    "_dmarc.sender.example",
+    "sender.example._report._dmarc.example.test"
+  ],
+  "outageResponse": null,
+  "outboundDatabaseAddedAfterRecovery": [],
+  "pausedObservationSeconds": 12.0,
+  "publication": {
+    "activeGoldenDmarcMatched": true,
+    "activeGoldenPath": "blackbox/golden/java/managed-reports-v23/observations/http/reports/seeded-delivery.json",
+    "activeGoldenSha256": "887abea00d415a4b283b5611f6902b125c6928c67c94226f8a2ef45239d4e366",
+    "maildirAddedCount": 1,
+    "noTemporaryFiles": true,
+    "pendingOrder": [
+      "dmarc"
+    ],
+    "redisMaildirByteEquivalent": true
+  },
+  "recoveryDnsQueries": [],
+  "recoveryResponse": {
+    "body_json": {
+      "date": "2024-01-01",
+      "dmarc": {
+        "error": "none",
+        "results": [
+          {
+            "method": "email",
+            "success": true,
+            "target": "qa@example.test"
+          }
+        ]
+      },
+      "domain": "sender.example",
+      "tls": {
+        "error": "No TLS data for this domain/date",
+        "results": []
+      }
+    },
+    "headers": [
+      [
+        "content-type",
+        "application/json; charset=UTF-8"
+      ],
+      [
+        "content-length",
+        "209"
+      ]
+    ],
+    "normalized_body_wire": {
+      "base64": "eyJkYXRlIjoiMjAyNC0wMS0wMSIsImRtYXJjIjp7ImVycm9yIjoibm9uZSIsInJlc3VsdHMiOlt7Im1ldGhvZCI6ImVtYWlsIiwic3VjY2VzcyI6dHJ1ZSwidGFyZ2V0IjoicWFAZXhhbXBsZS50ZXN0In1dfSwiZG9tYWluIjoic2VuZGVyLmV4YW1wbGUiLCJ0bHMiOnsiZXJyb3IiOiJObyBUTFMgZGF0YSBmb3IgdGhpcyBkb21haW4vZGF0ZSIsInJlc3VsdHMiOltdfX0=",
+      "length": 209,
+      "sha256": "f6f1f4e14f4afd608b44a897870108c7278a2b98d7c23dc90c0e372a4c616ea5"
+    },
+    "status_code": 200,
+    "status_line": "HTTP/1.1 200 OK"
+  },
+  "redisFault": "SIGSTOP process group with existing connections retained",
+  "redisPidUnchanged": true,
+  "sourceDatabaseUnchanged": true,
+  "stateWhilePausedUnchanged": true
+}

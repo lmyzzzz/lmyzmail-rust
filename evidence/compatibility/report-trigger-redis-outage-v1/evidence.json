@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "profile": "report-trigger-redis-outage-v1",
+  "captured_at": "2026-08-12T20:04:20+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "candidate_parent": "b566d6f712203154ddfe05f37d5bbcb10955d443",
+  "frozen_harness": {
+    "definition_tree_sha256": "f4747bee86575a8f59725e02829a459ceb88961dadfbf858113b63a517b99d4c",
+    "behavior_differences_manifest_sha256": "6a9f9f8e291faa5d813b6915bca80629d4d77785e70b6ba201a9c4809852b696",
+    "active_reports_profile": "blackbox/golden/java/managed-reports-v23",
+    "active_seeded_delivery_golden": "blackbox/golden/java/managed-reports-v23/observations/http/reports/seeded-delivery.json",
+    "active_seeded_delivery_golden_sha256": "887abea00d415a4b283b5611f6902b125c6928c67c94226f8a2ef45239d4e366",
+    "supplemental_test": "evidence/compatibility/report-trigger-redis-outage-v1/test_report_trigger_redis_outage.py",
+    "supplemental_test_sha256": "3815d2b2aa220d70f19c8885552e5083bf67b8ab4e408455915634940e3705df"
+  },
+  "source_sha256": {
+    "java_report_delivery": "c100081c5cb094d7f53bdd68b4af6e68864a4e95dc2ab107e98fe0a74fcee310",
+    "java_outbound": "1cb67b124f7997b298563da163771dbc29901b0e8ef20d92d8c40dc9312d68a2",
+    "java_redis_queue": "f9abffe3fbc98e314db34fcf38d894fd200d93ad74ff933f2c0f57e2717f1bf4",
+    "rust_outbound": "c77131243d1fb773f019d0a73319c43655098a46a504a87382c95c5296a47afe",
+    "rust_outbound_queue": "84d7bfb55bcf6e8764c5f5818fd9a4f73f7c90d1646dcf57d71749230cd25b58",
+    "rust_reporting": "d4025a82019661fd44b41300a123f5974b30129527dd10ef8c880849fd3a37c4",
+    "docs_compatibility": "70c79723aea57c1a8859b99740281cefd4410c440198e34947c4994c0c0ffcb1",
+    "docs_reporting_trigger_contract": "3e06a2dc9fe6f75e6373d25d17c9427ffb8ff8d6002caf62813b5908a7c809a3"
+  },
+  "observations": {
+    "java": {
+      "path": "evidence/compatibility/report-trigger-redis-outage-v1/java-observation.json",
+      "sha256": "e075d7350512e31868ce156eced8f109116274102d8fa047a59e590de4f08aa1"
+    },
+    "rust": {
+      "path": "evidence/compatibility/report-trigger-redis-outage-v1/candidate-observation.json",
+      "sha256": "8cd8d0892d4ac73e9b51a821585d4086f475f0df244351a9c44cf1768cbd9ba8"
+    }
+  },
+  "release": {
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "e8663099260085f649c47ed8dac377323e716a8a79e805ab15daa6b67ddcb7dc"
+  },
+  "difference": {
+    "id": "report-trigger-redis-outage-deadline",
+    "candidate_requirement": "Every report-trigger outbound queue operation must obey the bounded Redis command and HTTP request deadlines. If Redis remains half-open or stopped through the queue budget, return HTTP 200 with the exact per-delivery failure error=outbound queue unavailable, leave PostgreSQL, Redis, and Maildir unchanged, and permit an explicit retry after recovery without restarting the application or Redis process.",
+    "oracle_behavior": "After the real DMARC DNS discovery completes, frozen Java blocks the report request for the full twelve-second Redis SIGSTOP observation. It returns no response and commits no durable state until Redis resumes, then continues the original request and publishes successfully.",
+    "candidate_behavior": "Rust returns HTTP 200 with one failed DMARC email result and error=outbound queue unavailable while Redis remains stopped. It leaves source rows, outbound rows, Redis state, and Maildir unchanged, then accepts an explicit post-recovery retry whose publication matches the active seeded-delivery golden.",
+    "reason": "A half-open cache connection must not occupy an HTTP request or application task indefinitely. The rewrite requires hard dependency deadlines and bounded recovery, while preserving a retryable, non-partial outcome.",
+    "scope": "Only report email queue admission when Redis remains unavailable through the bounded queue deadline. Healthy queue admission, DNS order, generated DMARC bytes, successful HTTP bytes, Redis keys and TTL, Maildir MIME, source rows, application lifecycle, and short outages that recover inside the deadline remain strict compatibility requirements.",
+    "evidence": {
+      "fault": "SIGSTOP the isolated Redis process group after the exact two-query DMARC DNS trace; retain existing TCP connections for twelve seconds",
+      "oracle_source_order": "Frozen Java obtains the Redis task ID before message construction and Maildir persistence, then initializes Redis domain/task/index/pending state after writing the Sent file.",
+      "candidate_source_order": "Rust obtains the Redis task ID before materialization, durably persists transactional queue/index/spool state plus an atomic Maildir write, and only then publishes the Redis projection; pre-admission Redis timeout therefore leaves no durable increment.",
+      "candidate_outage_response_sha256": "2aeff97158e57decab3c2648935242203cb76a8a21265faab84141e0e45c7159",
+      "shared_recovery_response_sha256": "f6f1f4e14f4afd608b44a897870108c7278a2b98d7c23dc90c0e372a4c616ea5"
+    }
+  },
+  "contract": {
+    "fault": "Redis SIGSTOP with process and connections retained",
+    "admission": "the exact _dmarc.sender.example and external authorization DNS queries complete before the outage observation begins",
+    "oracle_outage": "no response during twelve seconds; original request succeeds after Redis resumes",
+    "candidate_outage": "bounded HTTP 200 failed delivery with error=outbound queue unavailable and zero partial durable state",
+    "shared_recovery": "same application and Redis PIDs; one successful DMARC publication matching the active seeded-delivery golden; this fixture observed no additional DNS query during recovery",
+    "shared_side_effects": [
+      "unchanged source DMARC/TLS rows",
+      "exactly one Redis pending DMARC task after recovery",
+      "exactly one atomic Sent Maildir message after recovery",
+      "Redis task and Maildir MIME byte equivalence",
+      "no temporary Maildir file"
+    ],
+    "supplemental_behavior_difference_id": "report-trigger-redis-outage-deadline",
+    "existing_behavior_difference_id": "outbound-retry-postgres-checkpoint",
+    "explicitly_not_claimed": [
+      "Redis SIGKILL or data-loss restart",
+      "Redis outage after PostgreSQL/Maildir admission commit",
+      "Maildir write failure",
+      "TLSRPT dual-report partial failure",
+      "repeated failure or long-running soak"
+    ]
+  },
+  "verification": [
+    {
+      "command": "ruff check and mypy --strict for test_report_trigger_redis_outage.py",
+      "result": "passed"
+    },
+    {
+      "command": "pytest -q -s evidence/compatibility/report-trigger-redis-outage-v1/test_report_trigger_redis_outage.py with frozen observation and active-golden self-validation",
+      "result": "2 passed in 26.76s"
+    },
+    {
+      "command": "cargo test -p lmyzmail --lib outbound_queue::tests --locked; cargo test -p lmyzmail --lib outbound::tests --locked",
+      "result": "6 passed; 11 passed"
+    },
+    {
+      "command": "cargo fmt --all -- --check; cargo test -p lmyzmail --lib --locked; cargo clippy -p lmyzmail --lib --locked -- -D warnings",
+      "result": "passed; 552 passed; passed"
+    }
+  ],
+  "frozen_repositories": {
+    "java_oracle": "read-only at 5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "skibidi_1_8_0": "read-only at 4bc484c15b780d578ee8e53cab968f2819958215"
+  }
+}

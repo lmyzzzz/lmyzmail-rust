@@ -574,6 +574,19 @@ I/O exception in the public `error` field. Rust instead returns the fixed
 difference is `report-trigger-postgres-error-redaction`; it does not relax any
 status, recovery, byte, or side-effect assertion.
 
+The supplemental `report-trigger-redis-outage-v1` profile stops the isolated
+Redis process group after the report request has completed its exact DMARC DNS
+discovery. Frozen Java does not respond during a twelve-second observation and
+continues the original request after Redis resumes. Rust applies its bounded
+queue deadline, returns HTTP 200 with the exact failed delivery result
+`error=outbound queue unavailable`, and leaves PostgreSQL, Redis, and Maildir
+unchanged before accepting an explicit retry. Both recover without an
+application or Redis restart and then publish one Redis/Maildir DMARC message
+that matches the active seeded-delivery golden byte for byte. The bounded wait
+is the supplemental `report-trigger-redis-outage-deadline` difference. Rust's
+additional PostgreSQL `PENDING` checkpoint after successful recovery remains
+within the existing `outbound-retry-postgres-checkpoint` difference.
+
 The active `managed-outbound-tls-validity-v3.json` profile separately freezes
 trusted-chain certificates that are expired or not yet valid. Opportunistic
 mode closes the failed TLS connection and delivers over a fresh plaintext

@@ -1,0 +1,119 @@
+{
+  "applicationPidUnchanged": true,
+  "completedWhileRedisPaused": true,
+  "outageDnsQueries": [
+    "_dmarc.sender.example",
+    "sender.example._report._dmarc.example.test"
+  ],
+  "outageResponse": {
+    "body_json": {
+      "date": "2024-01-01",
+      "dmarc": {
+        "error": "none",
+        "results": [
+          {
+            "error": "outbound queue unavailable",
+            "method": "email",
+            "success": false,
+            "target": "qa@example.test"
+          }
+        ]
+      },
+      "domain": "sender.example",
+      "tls": {
+        "error": "No TLS data for this domain/date",
+        "results": []
+      }
+    },
+    "headers": [
+      [
+        "content-type",
+        "application/json; charset=UTF-8"
+      ],
+      [
+        "content-length",
+        "247"
+      ]
+    ],
+    "normalized_body_wire": {
+      "base64": "eyJkYXRlIjoiMjAyNC0wMS0wMSIsImRtYXJjIjp7ImVycm9yIjoibm9uZSIsInJlc3VsdHMiOlt7ImVycm9yIjoib3V0Ym91bmQgcXVldWUgdW5hdmFpbGFibGUiLCJtZXRob2QiOiJlbWFpbCIsInN1Y2Nlc3MiOmZhbHNlLCJ0YXJnZXQiOiJxYUBleGFtcGxlLnRlc3QifV19LCJkb21haW4iOiJzZW5kZXIuZXhhbXBsZSIsInRscyI6eyJlcnJvciI6Ik5vIFRMUyBkYXRhIGZvciB0aGlzIGRvbWFpbi9kYXRlIiwicmVzdWx0cyI6W119fQ==",
+      "length": 247,
+      "sha256": "2aeff97158e57decab3c2648935242203cb76a8a21265faab84141e0e45c7159"
+    },
+    "status_code": 200,
+    "status_line": "HTTP/1.1 200 OK"
+  },
+  "outboundDatabaseAddedAfterRecovery": [
+    {
+      "lastError": null,
+      "maxRetries": 5,
+      "messageIdPresent": true,
+      "recipientsJson": {
+        "bcc": [],
+        "cc": [],
+        "to": [
+          "qa@example.test"
+        ]
+      },
+      "retryCount": 0,
+      "senderAddress": "qa@example.test",
+      "sentFilePresent": true,
+      "sentSubdirectory": 1,
+      "status": "PENDING"
+    }
+  ],
+  "pausedObservationSeconds": 12.0,
+  "publication": {
+    "activeGoldenDmarcMatched": true,
+    "activeGoldenPath": "blackbox/golden/java/managed-reports-v23/observations/http/reports/seeded-delivery.json",
+    "activeGoldenSha256": "887abea00d415a4b283b5611f6902b125c6928c67c94226f8a2ef45239d4e366",
+    "maildirAddedCount": 1,
+    "noTemporaryFiles": true,
+    "pendingOrder": [
+      "dmarc"
+    ],
+    "redisMaildirByteEquivalent": true
+  },
+  "recoveryDnsQueries": [],
+  "recoveryResponse": {
+    "body_json": {
+      "date": "2024-01-01",
+      "dmarc": {
+        "error": "none",
+        "results": [
+          {
+            "method": "email",
+            "success": true,
+            "target": "qa@example.test"
+          }
+        ]
+      },
+      "domain": "sender.example",
+      "tls": {
+        "error": "No TLS data for this domain/date",
+        "results": []
+      }
+    },
+    "headers": [
+      [
+        "content-type",
+        "application/json; charset=UTF-8"
+      ],
+      [
+        "content-length",
+        "209"
+      ]
+    ],
+    "normalized_body_wire": {
+      "base64": "eyJkYXRlIjoiMjAyNC0wMS0wMSIsImRtYXJjIjp7ImVycm9yIjoibm9uZSIsInJlc3VsdHMiOlt7Im1ldGhvZCI6ImVtYWlsIiwic3VjY2VzcyI6dHJ1ZSwidGFyZ2V0IjoicWFAZXhhbXBsZS50ZXN0In1dfSwiZG9tYWluIjoic2VuZGVyLmV4YW1wbGUiLCJ0bHMiOnsiZXJyb3IiOiJObyBUTFMgZGF0YSBmb3IgdGhpcyBkb21haW4vZGF0ZSIsInJlc3VsdHMiOltdfX0=",
+      "length": 209,
+      "sha256": "f6f1f4e14f4afd608b44a897870108c7278a2b98d7c23dc90c0e372a4c616ea5"
+    },
+    "status_code": 200,
+    "status_line": "HTTP/1.1 200 OK"
+  },
+  "redisFault": "SIGSTOP process group with existing connections retained",
+  "redisPidUnchanged": true,
+  "sourceDatabaseUnchanged": true,
+  "stateWhilePausedUnchanged": true
+}

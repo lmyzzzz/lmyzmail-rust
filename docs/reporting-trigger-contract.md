@@ -132,3 +132,21 @@ and JDBC/backend I/O exception. Rust returns the stable
 difference is `report-trigger-postgres-error-redaction`; SQL/driver disclosure
 is intentionally removed, while every surrounding wire, lifecycle, recovery,
 and storage assertion remains strict.
+
+The supplemental `report-trigger-redis-outage-v1` profile sends a real DMARC
+domain trigger, waits for its exact scripted DNS trace, and then observes an
+isolated Redis `SIGSTOP` while existing connections remain open. Frozen Java
+keeps the request pending for twelve seconds and completes it only after Redis
+resumes. Rust finishes within its bounded queue deadline with HTTP 200 and one
+failed email result whose fixed error is `outbound queue unavailable`; no
+source row, outbound row, Redis key, or Maildir file is partially committed.
+After recovery an explicit retry succeeds, and both implementations produce
+the active `managed-reports-v23` DMARC queue/Maildir golden exactly without
+restarting the application or Redis process.
+
+The Redis wait difference is approved only in supplemental evidence as
+`report-trigger-redis-outage-deadline`. The candidate's successful retry also
+retains one durable PostgreSQL `PENDING` admission row under the existing
+`outbound-retry-postgres-checkpoint` rule; Redis bytes, TTL, Maildir MIME,
+successful HTTP bytes, and source report rows remain strict compatibility
+requirements.
