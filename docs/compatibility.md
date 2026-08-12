@@ -427,7 +427,7 @@ the original headers, never the original body. Both implementations must leave
 their pre-existing Redis worklist baseline unchanged. v1 and v2 remain
 immutable pre-final-definition history and are not active.
 
-The active `managed-outbound-tls-v4.json` profile covers opportunistic
+The active `managed-outbound-tls-v5.json` profile covers opportunistic
 STARTTLS success with a post-TLS EHLO, trust-chain failure and command
 rejection followed by a fresh plaintext connection, MTA-STS enforce success,
 and enforce rejection without downgrade when STARTTLS is absent. It also
@@ -439,21 +439,35 @@ failures are permanent terminal queue failures with zero retries. TLS handshake
 timeouts and connection-class transport failures remain retryable on Java's
 30-second schedule, without a plaintext downgrade.
 
-Protocol/cipher negotiation, policy discovery and fetch failure, TLS-RPT
-aggregation, disconnect ambiguity, DSN restart recovery
+The independent active `managed-outbound-tls-negotiation-v1.json` profile
+freezes TLS 1.3 with `TLS_AES_256_GCM_SHA384`, TLS 1.2 with
+`ECDHE-RSA-AES128-GCM-SHA256`, TLS 1.1 rejection, an RSA-certificate/no-shared-
+cipher rejection, and the exact protocol-version and handshake-failure queue
+errors. Opportunistic failures must create a new plaintext connection;
+MTA-STS enforce failures must not downgrade and must terminate with zero
+retries. The only approved difference is
+`outbound-starttls-static-rsa-cbc-rejection`: Java accepts TLS 1.2
+`TLS_RSA_WITH_AES_128_CBC_SHA` (`AES128-SHA`), while Rust retains rustls ring's
+modern AEAD/ECDHE policy. Rust therefore uses the ordinary fresh-connection
+fallback in opportunistic mode and permanently fails without downgrade in
+enforce mode. No other version, cipher, certificate, alert, SMTP byte, or
+queue-state difference is allowed.
+
+Policy discovery and fetch failure, TLS-RPT aggregation, disconnect ambiguity,
+DSN restart recovery
 across injected process or storage loss, DSN suppression, backpressure, high
 concurrency, and soak remain separate external differential matrices. v36,
-5xx v4, 4xx v3, DSN v3, and outbound TLS v4 do not claim those paths. TLS v1
-through v3 remain immutable history; v4 retains the header-only normalization
-and API-returned queue identity established by v3 under the current harness
-definition tree.
+5xx v4, 4xx v3, DSN v3, outbound TLS v5, and negotiation v1 do not claim those
+paths. TLS v1 through v4 remain immutable history; v5 retains the header-only
+normalization and API-returned queue identity established by v3 under the
+current harness definition tree.
 
-The active `managed-outbound-tls-validity-v2.json` profile separately freezes
+The active `managed-outbound-tls-validity-v3.json` profile separately freezes
 trusted-chain certificates that are expired or not yet valid. Opportunistic
 mode closes the failed TLS connection and delivers over a fresh plaintext
 connection. MTA-STS enforce mode never downgrades and archives both failures as
-`FAILED` with zero retries. Validity v1 remains immutable pre-final-definition
-history.
+`FAILED` with zero retries. Validity v1 and v2 remain immutable
+pre-final-definition history.
 
 ## Approved security differences
 

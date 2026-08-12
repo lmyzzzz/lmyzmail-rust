@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ssl
 import stat
 from datetime import UTC, datetime
 from pathlib import Path
@@ -71,6 +72,23 @@ def test_server_context_loads_pkcs12_without_leaving_pem_keys(tmp_path: Path) ->
     context = create_server_ssl_context(material)
 
     assert context.minimum_version.name == "TLSv1_2"
+    assert tuple(material.keystore_path.parent.iterdir()) == (material.keystore_path,)
+
+
+def test_server_context_can_pin_protocol_and_cipher_without_leaking_keys(tmp_path: Path) -> None:
+    material = provision_ephemeral_tls_material(tmp_path)
+    context = create_server_ssl_context(
+        material,
+        minimum_version=ssl.TLSVersion.TLSv1_2,
+        maximum_version=ssl.TLSVersion.TLSv1_2,
+        ciphers="ECDHE-RSA-AES128-GCM-SHA256",
+    )
+
+    assert context.minimum_version is ssl.TLSVersion.TLSv1_2
+    assert context.maximum_version is ssl.TLSVersion.TLSv1_2
+    assert {value["name"] for value in context.get_ciphers()} >= {
+        "ECDHE-RSA-AES128-GCM-SHA256"
+    }
     assert tuple(material.keystore_path.parent.iterdir()) == (material.keystore_path,)
 
 

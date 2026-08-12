@@ -1,6 +1,20 @@
 {
   "differences": [
     {
+      "candidate_requirement": "Keep the rustls ring-provider cipher policy: TLS 1.3 AEAD suites and TLS 1.2 ECDHE AEAD suites only. Reject TLS 1.2 static-RSA CBC suites, use a fresh plaintext connection only in opportunistic mode, and fail permanently without downgrade under MTA-STS enforce.",
+      "evidence": {
+        "candidate_test": "blackbox/tests/test_oracle_outbound_tls_negotiation.py::test_rust_candidate_outbound_tls_negotiation",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "oracle_golden": "blackbox/golden/java/managed-outbound-tls-negotiation-v1.json",
+        "source": "src/main/java/net/lmyz/lmyzmail/outbound/SmtpClient.java",
+        "source_sha256": "49b380ceee47c23f70cd2bcd953507378ba70f457c22d0bccb2c62b9fd0c7754"
+      },
+      "id": "outbound-starttls-static-rsa-cbc-rejection",
+      "oracle_behavior": "The frozen Java outbound client accepts a trusted RSA certificate with TLS 1.2 static-RSA AES128-CBC-SHA (OpenSSL AES128-SHA / IANA TLS_RSA_WITH_AES_128_CBC_SHA). It sends over that TLS session in both opportunistic and MTA-STS enforce modes.",
+      "reason": "Static RSA has no forward secrecy and CBC/SHA-1 is a legacy construction outside rustls ring's production cipher policy. Enabling an obsolete suite solely for bug-for-bug compatibility would deliberately weaken the replacement.",
+      "scope": "Only TLS 1.2 TLS_RSA_WITH_AES_128_CBC_SHA negotiation and its direct opportunistic-fallback or MTA-STS-enforce queue outcome. TLS 1.2 ECDHE-RSA AEAD, TLS 1.3, certificate and hostname validation, TLS alert text, STARTTLS bytes, fresh-connection fallback, retry count, and every other queue or SMTP behavior remain exact compatibility requirements."
+    },
+    {
       "candidate_requirement": "Validate both the certificate chain and the configured MX TLS name on every outbound STARTTLS handshake, regardless of MTA-STS mode. Preserve the separately specified opportunistic retry policy only after the validated handshake fails.",
       "evidence": {
         "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",

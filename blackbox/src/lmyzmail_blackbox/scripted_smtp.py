@@ -539,7 +539,15 @@ class ScriptedSmtpServer:
                 greeted = False
                 sender = None
                 recipients.clear()
-                self._record(connection_id, "fixture", "tls-established")
+                cipher = connection.cipher()
+                if cipher is None or connection.version() is None:
+                    raise _PeerProtocolError("TLS session metadata is unavailable")
+                self._record(
+                    connection_id,
+                    "fixture",
+                    "tls-established",
+                    f"{connection.version()}|{cipher[0]}|{cipher[2]}".encode("ascii"),
+                )
             elif verb == b"MAIL":
                 match = _MAIL_FROM.fullmatch(command)
                 if not greeted:

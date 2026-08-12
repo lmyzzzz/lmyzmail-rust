@@ -142,7 +142,12 @@ def test_scripted_server_upgrades_starttls_and_resets_greeting_state(tmp_path: P
             assert all(b"STARTTLS" not in line for line in tls_ehlo)
             client.quit()
 
-    assert len([event for event in server.events() if event.kind == "tls-established"]) == 1
+    established = [event for event in server.events() if event.kind == "tls-established"]
+    assert len(established) == 1
+    protocol, cipher, secret_bits = established[0].payload.decode("ascii").split("|")
+    assert protocol in {"TLSv1.2", "TLSv1.3"}
+    assert cipher
+    assert int(secret_bits) >= 128
     assert tuple(material.keystore_path.parent.iterdir()) == (material.keystore_path,)
 
 

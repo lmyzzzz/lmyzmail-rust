@@ -47,7 +47,13 @@ class EphemeralOutboundTlsMaterial:
     ca_certificate_pem: bytes
 
 
-def create_server_ssl_context(material: EphemeralTlsMaterial) -> ssl.SSLContext:
+def create_server_ssl_context(
+    material: EphemeralTlsMaterial,
+    *,
+    minimum_version: ssl.TLSVersion = ssl.TLSVersion.TLSv1_2,
+    maximum_version: ssl.TLSVersion = ssl.TLSVersion.MAXIMUM_SUPPORTED,
+    ciphers: str | None = None,
+) -> ssl.SSLContext:
     """Load the ephemeral PKCS#12 identity without leaving PEM key material behind."""
     keystore = material.keystore_path
     if keystore.is_symlink() or not keystore.is_file():
@@ -77,7 +83,10 @@ def create_server_ssl_context(material: EphemeralTlsMaterial) -> ssl.SSLContext:
         _write_private_file(certificate_path, certificate_bytes)
         _write_private_file(private_key_path, private_key_bytes)
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        context.minimum_version = minimum_version
+        context.maximum_version = maximum_version
+        if ciphers is not None:
+            context.set_ciphers(ciphers)
         context.load_cert_chain(certificate_path, private_key_path)
         return context
     finally:

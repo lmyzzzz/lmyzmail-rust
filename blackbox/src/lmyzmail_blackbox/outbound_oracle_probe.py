@@ -7,6 +7,7 @@ import ipaddress
 import json
 import os
 import re
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -1017,12 +1018,20 @@ def _starttls_server(
     *,
     starttls_reply: bytes = b"220 2.0.0 ready to start TLS\r\n",
     tls_handshake_delay_seconds: float = 0.0,
+    minimum_version: ssl.TLSVersion = ssl.TLSVersion.TLSv1_2,
+    maximum_version: ssl.TLSVersion = ssl.TLSVersion.MAXIMUM_SUPPORTED,
+    ciphers: str | None = None,
 ) -> ScriptedSmtpServer:
     selected = getattr(material, identity)
     return ScriptedSmtpServer(
         SmtpScenario(
             hostname=_TLS_MX_HOST,
-            tls_context=create_server_ssl_context(selected),
+            tls_context=create_server_ssl_context(
+                selected,
+                minimum_version=minimum_version,
+                maximum_version=maximum_version,
+                ciphers=ciphers,
+            ),
             starttls_reply=starttls_reply,
             tls_handshake_delay_seconds=tls_handshake_delay_seconds,
             max_connections=8,
@@ -1032,6 +1041,23 @@ def _starttls_server(
         bind_host=_FAKE_IP,
         bind_port=25,
     )
+
+
+def _tls_sessions(server: ScriptedSmtpServer) -> list[dict[str, Any]]:
+    sessions: list[dict[str, Any]] = []
+    for event in server.events():
+        if event.kind != "tls-established":
+            continue
+        protocol, cipher, secret_bits = event.payload.decode("ascii").split("|")
+        sessions.append(
+            {
+                "connection": event.connection_id,
+                "protocol": protocol,
+                "cipher": cipher,
+                "secret_bits": int(secret_bits),
+            }
+        )
+    return sessions
 
 
 def _plaintext_server() -> ScriptedSmtpServer:
@@ -1405,6 +1431,191 @@ def run_tls_validity_probe() -> dict[str, Any]:
                                 expected_status="FAILED",
                                 mta_sts_policy=policy,
                             )
+                        )
+            return {"target": target, "cases": cases}
+        finally:
+            if dns_server is not None:
+                dns_server.stop()
+
+
+def _run_tls_negotiation_case(
+    runtime: JavaOracleRuntime,
+    server: ScriptedSmtpServer,
+    *,
+    label: str,
+    expected_status: str,
+    mta_sts_policy: str | None = None,
+) -> dict[str, Any]:
+    if runtime.ports is None:
+        raise AssertionError("runtime ports are unavailable")
+    client: redis.Redis = redis.Redis(
+        host="127.0.0.1",
+        port=runtime.ports.redis,
+        decode_responses=False,
+    )
+    try:
+        client.set(f"dns:mx:{_DNS_HOST}", _DNS_HOST.encode("ascii"), ex=300)
+        if mta_sts_policy is not None:
+            client.set(f"mta-sts:{_DNS_HOST}", mta_sts_policy.encode("ascii"), ex=300)
+        response, task_id = _post_failure_message(
+            runtime,
+            recipient=_RECIPIENT,
+            subject=f"blackbox outbound TLS negotiation {label}",
+            text=f"outbound TLS negotiation {label} body",
+        )
+        terminal = _tls_case_terminal(
+            runtime,
+            task_id,
+            expected_status=expected_status,
+            description=f"outbound TLS negotiation {label} terminal state",
+        )
+        if expected_status == "SENT":
+            _wait_until(
+                lambda: len(server.messages()) == 1,
+                timeout=45.0,
+                description=f"outbound TLS negotiation {label} delivery",
+            )
+        return {
+            "response": response,
+            "terminal": terminal,
+            "smtp": _outbound_tls_transcript(server),
+            "tls_sessions": _tls_sessions(server),
+        }
+    finally:
+        client.close()
+
+
+def run_tls_negotiation_probe() -> dict[str, Any]:
+    if (
+        subprocess.run(  # noqa: S603
+            ["/usr/sbin/ip", "link", "show", "lo"], capture_output=True
+        ).returncode
+        != 0
+    ):
+        raise AssertionError("outbound probe must run inside a network namespace with loopback")
+
+    target = _outbound_target()
+    repository = Path(__file__).resolve().parents[3]
+    dns_server = _candidate_dns_server() if target == "candidate" else None
+    with tempfile.TemporaryDirectory(prefix="lmyzmail-outbound-tls-negotiation-") as workspace:
+        workspace_path = Path(workspace)
+        material_workspace = workspace_path / "material"
+        material_workspace.mkdir(mode=0o700)
+        material = provision_ephemeral_outbound_tls_material(
+            material_workspace,
+            mx_hostname=_TLS_MX_HOST,
+        )
+        if dns_server is not None:
+            dns_server.start()
+        try:
+            cases: dict[str, Any] = {}
+            if target == "candidate":
+                opportunistic_runtime: JavaOracleRuntime = _candidate_runtime(
+                    repository,
+                    outbound_tls_material=material,
+                )
+            else:
+                opportunistic_runtime = OutboundOracleRuntime(
+                    workspace_path / "opportunistic-runtime",
+                    outbound_tls_material=material,
+                )
+            with opportunistic_runtime as runtime:
+                opportunistic_servers = {
+                    "tls11_only": _starttls_server(
+                        material,
+                        "matching_server",
+                        minimum_version=ssl.TLSVersion.TLSv1_1,
+                        maximum_version=ssl.TLSVersion.TLSv1_1,
+                        ciphers="DEFAULT:@SECLEVEL=0",
+                    ),
+                    "no_shared_cipher": _starttls_server(
+                        material,
+                        "matching_server",
+                        minimum_version=ssl.TLSVersion.TLSv1_2,
+                        maximum_version=ssl.TLSVersion.TLSv1_2,
+                        ciphers="ECDHE-ECDSA-AES128-GCM-SHA256",
+                    ),
+                    "legacy_rsa_cbc": _starttls_server(
+                        material,
+                        "matching_server",
+                        minimum_version=ssl.TLSVersion.TLSv1_2,
+                        maximum_version=ssl.TLSVersion.TLSv1_2,
+                        ciphers="AES128-SHA:@SECLEVEL=0",
+                    ),
+                }
+                for label, server in opportunistic_servers.items():
+                    with server:
+                        cases[f"opportunistic_{label}"] = _run_tls_negotiation_case(
+                            runtime,
+                            server,
+                            label=f"opportunistic {label}",
+                            expected_status="SENT",
+                        )
+
+            if target == "candidate":
+                enforce_runtime: JavaOracleRuntime = _candidate_runtime(
+                    repository,
+                    outbound_tls_material=material,
+                    mta_sts_enabled=True,
+                )
+            else:
+                enforce_runtime = OutboundOracleRuntime(
+                    workspace_path / "enforce-runtime",
+                    outbound_tls_material=material,
+                    mta_sts_enabled=True,
+                )
+            with enforce_runtime as runtime:
+                policy = f"STSv1|ENFORCE|{_TLS_MX_HOST}|300|Policy1|{int(time.time() * 1000)}"
+                enforce_servers = {
+                    "tls13_only": _starttls_server(
+                        material,
+                        "matching_server",
+                        minimum_version=ssl.TLSVersion.TLSv1_3,
+                        maximum_version=ssl.TLSVersion.TLSv1_3,
+                    ),
+                    "tls12_strong": _starttls_server(
+                        material,
+                        "matching_server",
+                        minimum_version=ssl.TLSVersion.TLSv1_2,
+                        maximum_version=ssl.TLSVersion.TLSv1_2,
+                        ciphers="ECDHE-RSA-AES128-GCM-SHA256",
+                    ),
+                    "tls11_only": _starttls_server(
+                        material,
+                        "matching_server",
+                        minimum_version=ssl.TLSVersion.TLSv1_1,
+                        maximum_version=ssl.TLSVersion.TLSv1_1,
+                        ciphers="DEFAULT:@SECLEVEL=0",
+                    ),
+                    "no_shared_cipher": _starttls_server(
+                        material,
+                        "matching_server",
+                        minimum_version=ssl.TLSVersion.TLSv1_2,
+                        maximum_version=ssl.TLSVersion.TLSv1_2,
+                        ciphers="ECDHE-ECDSA-AES128-GCM-SHA256",
+                    ),
+                    "legacy_rsa_cbc": _starttls_server(
+                        material,
+                        "matching_server",
+                        minimum_version=ssl.TLSVersion.TLSv1_2,
+                        maximum_version=ssl.TLSVersion.TLSv1_2,
+                        ciphers="AES128-SHA:@SECLEVEL=0",
+                    ),
+                }
+                for label, server in enforce_servers.items():
+                    with server:
+                        expected_status = (
+                            "SENT"
+                            if label in {"tls13_only", "tls12_strong"}
+                            or (label == "legacy_rsa_cbc" and target == "java")
+                            else "FAILED"
+                        )
+                        cases[f"mta_sts_enforce_{label}"] = _run_tls_negotiation_case(
+                            runtime,
+                            server,
+                            label=f"MTA-STS enforce {label}",
+                            expected_status=expected_status,
+                            mta_sts_policy=policy,
                         )
             return {"target": target, "cases": cases}
         finally:
@@ -2197,6 +2408,8 @@ def main() -> int:
         observed = run_tls_probe()
     elif mode == "tls_validity":
         observed = run_tls_validity_probe()
+    elif mode == "tls_negotiation":
+        observed = run_tls_negotiation_probe()
     elif mode == "5xx":
         observed = run_5xx_probe()
     elif mode == "success":

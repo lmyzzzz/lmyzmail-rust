@@ -8,7 +8,9 @@ use std::{
 };
 
 use idna::domain_to_ascii_strict;
-use rustls::{ClientConfig, RootCertStore, pki_types::ServerName};
+use rustls::{
+    AlertDescription, ClientConfig, Error as RustlsError, RootCertStore, pki_types::ServerName,
+};
 use tokio::{
     fs::File,
     io::{AsyncReadExt, AsyncWriteExt},
@@ -228,6 +230,10 @@ enum DeliveryFailureSource {
     Io {
         operation: &'static str,
         kind: std::io::ErrorKind,
+    },
+    TlsAlert {
+        operation: &'static str,
+        alert: AlertDescription,
     },
 }
 
@@ -1494,6 +1500,24 @@ fn required_tls_failure(mut failure: DeliveryError) -> DeliveryError {
              MTA-STS enforced TLS handshake failed: TLS handshake timeout after {}ms",
             timeout.as_millis()
         );
+    } else if let DeliveryFailureSource::TlsAlert {
+        operation: "SMTP TLS handshake",
+        alert,
+    } = failure.source
+    {
+        let detail = match alert {
+            AlertDescription::ProtocolVersion => {
+                "error:1000042e:SSL routines:OPENSSL_internal:TLSV1_ALERT_PROTOCOL_VERSION"
+            }
+            AlertDescription::HandshakeFailure => {
+                "error:10000410:SSL routines:OPENSSL_internal:SSLV3_ALERT_HANDSHAKE_FAILURE"
+            }
+            _ => "General OpenSslEngine problem",
+        };
+        failure.message = format!(
+            "MTA-STS policy requires TLS, but TLS failed: MTA-STS requires TLS: \
+             MTA-STS enforced TLS handshake failed: TLS handshake failed: {detail}"
+        );
     } else if matches!(
         failure.source,
         DeliveryFailureSource::Io {
@@ -1554,6 +1578,23 @@ fn protocol_error(after_data: bool, message: &'static str) -> DeliveryError {
     )
 }
 
+fn io_failure_source(operation: &'static str, failure: &std::io::Error) -> DeliveryFailureSource {
+    if operation == "SMTP TLS handshake"
+        && let Some(RustlsError::AlertReceived(alert)) = failure
+            .get_ref()
+            .and_then(|source| source.downcast_ref::<RustlsError>())
+    {
+        return DeliveryFailureSource::TlsAlert {
+            operation,
+            alert: *alert,
+        };
+    }
+    DeliveryFailureSource::Io {
+        operation,
+        kind: failure.kind(),
+    }
+}
+
 async fn io_deadline<T, F>(
     cancellation: &CancellationToken,
     operation_timeout: Duration,
@@ -1578,10 +1619,7 @@ where
         result = timeout_at(operation_deadline, future) => match result {
             Ok(Ok(value)) => Ok(value),
             Ok(Err(failure)) => {
-                let source = DeliveryFailureSource::Io {
-                    operation,
-                    kind: failure.kind(),
-                };
+                let source = io_failure_source(operation, &failure);
                 let mut failure = error(failure_kind, format!("{operation} failed: {failure}"));
                 failure.source = source;
                 Err(failure)
@@ -1850,10 +1888,76 @@ mod tests {
             DeliveryErrorKind::Permanent
         );
 
+        for (alert, expected) in [
+            (
+                AlertDescription::ProtocolVersion,
+                "error:1000042e:SSL routines:OPENSSL_internal:TLSV1_ALERT_PROTOCOL_VERSION",
+            ),
+            (
+                AlertDescription::HandshakeFailure,
+                "error:10000410:SSL routines:OPENSSL_internal:SSLV3_ALERT_HANDSHAKE_FAILURE",
+            ),
+        ] {
+            let mut failure =
+                error(DeliveryErrorKind::Temporary, "rustls alert").at(DeliveryStage::StartTls);
+            failure.source = DeliveryFailureSource::TlsAlert {
+                operation: "SMTP TLS handshake",
+                alert,
+            };
+            let failure = required_tls_failure(failure);
+            assert_eq!(failure.kind, DeliveryErrorKind::Permanent);
+            assert_eq!(
+                failure.message,
+                format!(
+                    "MTA-STS policy requires TLS, but TLS failed: MTA-STS requires TLS: \
+                     MTA-STS enforced TLS handshake failed: TLS handshake failed: {expected}"
+                )
+            );
+        }
+
         let connect = required_tls_failure(
             error(DeliveryErrorKind::Temporary, "connect failed").at(DeliveryStage::Connect),
         );
         assert_eq!(connect.kind, DeliveryErrorKind::Temporary);
+    }
+
+    #[test]
+    fn tls_alerts_are_extracted_from_the_typed_io_error_source() {
+        for alert in [
+            AlertDescription::ProtocolVersion,
+            AlertDescription::HandshakeFailure,
+        ] {
+            let failure = std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                RustlsError::AlertReceived(alert),
+            );
+            assert_eq!(
+                io_failure_source("SMTP TLS handshake", &failure),
+                DeliveryFailureSource::TlsAlert {
+                    operation: "SMTP TLS handshake",
+                    alert,
+                }
+            );
+        }
+
+        let certificate = std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            RustlsError::InvalidCertificate(rustls::CertificateError::Expired),
+        );
+        assert_eq!(
+            io_failure_source("SMTP TLS handshake", &certificate),
+            DeliveryFailureSource::Io {
+                operation: "SMTP TLS handshake",
+                kind: std::io::ErrorKind::InvalidData,
+            }
+        );
+        assert_eq!(
+            io_failure_source("SMTP read", &certificate),
+            DeliveryFailureSource::Io {
+                operation: "SMTP read",
+                kind: std::io::ErrorKind::InvalidData,
+            }
+        );
     }
 
     #[test]

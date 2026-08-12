@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "profile": "outbound-tls-negotiation-v1",
+  "captured_at": "2026-08-12T12:25:47+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "contract": {
+    "shared_success": [
+      "TLSv1.3 TLS_AES_256_GCM_SHA384 256 bits",
+      "TLSv1.2 ECDHE-RSA-AES128-GCM-SHA256 128 bits"
+    ],
+    "shared_rejection": [
+      "TLSv1.1-only server",
+      "TLSv1.2 RSA certificate with ECDHE-ECDSA-AES128-GCM-SHA256 only"
+    ],
+    "opportunistic_failure": "fresh connection 2 completes plaintext delivery; SENT with retry_count=0",
+    "enforce_failure": "connection 1 stops after STARTTLS; FAILED with retry_count=0 and no downgrade",
+    "approved_difference": "outbound-starttls-static-rsa-cbc-rejection",
+    "difference_scope": "Java accepts TLSv1.2 AES128-SHA on connection 1; Rust rejects it, falls back only in opportunistic mode, and permanently fails without downgrade in enforce mode",
+    "normalizers": [
+      "outbound:queue-id",
+      "outbound:message-metadata"
+    ]
+  },
+  "active_goldens": {
+    "definition_tree_sha256": "e1572f5661f2b88837aba08432bbc0e3bfcb083b7cc14d53a50c147a31b20f1b",
+    "blackbox/golden/java/managed-outbound-tls-v5.json": "2d983911ecdc3a4d2f5fa3011519af37a768d8ac1a019d7e75ec1200229a17f8",
+    "blackbox/golden/java/managed-outbound-tls-validity-v3.json": "4274200d47e6a57d761cc2c7a7c4c65d0f6a0bc9d92b3b3b4fbeaa3b7e3b9d48",
+    "blackbox/golden/java/managed-outbound-tls-negotiation-v1.json": "5a5affa0beb8f7424b1f3a0a19e0fff2a51eeb41c080a73b06f90d053a6c8029"
+  },
+  "source_sha256": {
+    "blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py": "96d0edfbf8f286ca341667090335d233ae3fe440aa0c24d7a8bcc7e9106fe849",
+    "blackbox/src/lmyzmail_blackbox/scripted_smtp.py": "61f7b43d1dd9a061eaccded1ca754e634f8b29971739bd20cb5db11c9b7069f5",
+    "blackbox/src/lmyzmail_blackbox/tls_fixture.py": "3dd4cd095ccf81b22b434d476d64f3a776ff4ee03cbecadd3350be223d22580b",
+    "blackbox/tests/test_oracle_outbound_tls.py": "9ca90f54bd2cb9c9f3b90d593fa157b4d30b57964d54bf3262bc7c39d94659db",
+    "blackbox/tests/test_oracle_outbound_tls_validity.py": "143abd65478343c08db3f946ebbe4683d19e346aa7e3a6440e80b79d2b15d3d7",
+    "blackbox/tests/test_oracle_outbound_tls_negotiation.py": "1075be92f82ece8cbda0c15b2ffc5b074bb6197e017a45a8493ad37d95c95495",
+    "blackbox/tests/test_legacy_storage.py": "d6d1865e45ef8a4ca912d5880dad53a454dc88da13e97435dc8d2bed4f96101f",
+    "blackbox/manifests/behavior-differences.json": "fcdcb15e5e24ff85e00d565ef2ca861bf591335ce8c61f20daea05389cab18b3",
+    "crates/lmyzmail/src/outbound_smtp.rs": "68f503dbeecc0f2b4f2dbf951e76a1fdfd527d7cba8ffa7f181de25878569cf1",
+    "docs/compatibility.md": "b774e7458729513b96d987a00c7c269a94c8c01ab5a30b372d924f611c426840"
+  },
+  "verification": [
+    {
+      "command": "record Java TLS v5, validity v3, and negotiation v1",
+      "result": "3 passed"
+    },
+    {
+      "command": "fresh Java replay of all three active TLS profiles",
+      "result": "3 passed in 147.65s"
+    },
+    {
+      "command": "Rust candidate replay of all three active TLS profiles",
+      "result": "3 passed in 72.97s"
+    },
+    {
+      "command": "pytest -q blackbox/tests -m 'not integration'",
+      "result": "151 passed, 150 deselected in 9.42s"
+    },
+    {
+      "command": "ruff check blackbox/src blackbox/tests blackbox/tools",
+      "result": "passed"
+    },
+    {
+      "command": "mypy blackbox/src blackbox/tests",
+      "result": "Success: no issues found in 110 source files"
+    },
+    {
+      "command": "cargo test --workspace --locked",
+      "result": "637 passed; 0 failed"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --locked -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "cargo build --workspace --all-targets --release --locked --target x86_64-unknown-linux-gnu",
+      "result": "passed"
+    }
+  ],
+  "release_binary_sha256": "5ce6eb3ebb0b12ce03a801ca393e045c4f795464f1402e5a313db3dafefdb273",
+  "old_repository_state": {
+    "java_oracle": "read-only at frozen commit; only known asciiart_linux/ffmpeg_src executable-bit noise",
+    "skibidi_1_8_0": "read-only and clean"
+  }
+}
