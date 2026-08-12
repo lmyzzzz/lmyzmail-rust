@@ -151,6 +151,19 @@ retains one durable PostgreSQL `PENDING` admission row under the existing
 successful HTTP bytes, and source report rows remain strict compatibility
 requirements.
 
+The supplemental `report-trigger-redis-crash-recovery-v1` profile enables Redis
+AOF with `appendfsync=always`, performs `SAVE`, then SIGKILLs only Redis after
+the exact DMARC DNS trace and restarts the same data directory on the same port.
+Frozen Java keeps the original request pending and completes it after recovery.
+Rust applies its bounded queue deadline, returns HTTP 200 with the exact
+`error=outbound queue unavailable` delivery result while Redis is down, and
+accepts an explicit retry after recovery. Both keep the application PID,
+observe a changed Redis PID, preserve the pending prefix and source rows, issue
+no extra DNS query in this fixture, and publish one DMARC Redis/Maildir message
+matching the active `managed-reports-v23` golden. Redis data-loss recovery,
+post-commit crash windows, Maildir failure, dual-report partial failure, and
+repeated soak remain unclaimed.
+
 The supplemental `report-trigger-maildir-failure-v1` profile replaces the empty
 `qa@example.test/sent` directory with a regular marker file immediately before
 DMARC report email admission. Frozen Java allocates its Redis sequence, swallows

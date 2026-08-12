@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "profile": "report-trigger-redis-crash-recovery-v1",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "candidate_parent": "03f7a47c",
+  "frozen_harness": {
+    "definition_tree_sha256": "f4747bee86575a8f59725e02829a459ceb88961dadfbf858113b63a517b99d4c",
+    "behavior_differences_manifest_sha256": "6a9f9f8e291faa5d813b6915bca80629d4d77785e70b6ba201a9c4809852b696",
+    "active_reports_profile": "blackbox/golden/java/managed-reports-v23",
+    "active_seeded_delivery_golden": "blackbox/golden/java/managed-reports-v23/observations/http/reports/seeded-delivery.json",
+    "active_seeded_delivery_golden_sha256": "887abea00d415a4b283b5611f6902b125c6928c67c94226f8a2ef45239d4e366",
+    "supplemental_test": "evidence/compatibility/report-trigger-redis-crash-recovery-v1/test_report_trigger_redis_crash_recovery.py",
+    "supplemental_test_sha256": "1f2e82f7f9c9bdaf2cdbe702f8c7a55edc2a0238eedd8e132707547858bf2b9c"
+  },
+  "source_sha256": {
+    "java_report_delivery": "c100081c5cb094d7f53bdd68b4af6e68864a4e95dc2ab107e98fe0a74fcee310",
+    "java_outbound": "1cb67b124f7997b298563da163771dbc29901b0e8ef20d92d8c40dc9312d68a2",
+    "java_redis_queue": "f9abffe3fbc98e314db34fcf38d894fd200d93ad74ff933f2c0f57e2717f1bf4",
+    "rust_outbound": "c77131243d1fb773f019d0a73319c43655098a46a504a87382c95c5296a47afe",
+    "rust_outbound_queue": "84d7bfb55bcf6e8764c5f5818fd9a4f73f7c90d1646dcf57d71749230cd25b58",
+    "rust_reporting": "d4025a82019661fd44b41300a123f5974b30129527dd10ef8c880849fd3a37c4"
+  },
+  "observations": {
+    "java": {
+      "path": "evidence/compatibility/report-trigger-redis-crash-recovery-v1/java-observation.json",
+      "sha256": "885dd2276c68e8216949c5e5dd8574c8a4c0a6e5384ecf098b183c6ff5b30b55"
+    },
+    "rust": {
+      "path": "evidence/compatibility/report-trigger-redis-crash-recovery-v1/candidate-observation.json",
+      "sha256": "1364f017d757353ef7ad3d85d51aa8ddd372fc113f4a82da8e01db2011063ef9"
+    }
+  },
+  "release": {
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "e8663099260085f649c47ed8dac377323e716a8a79e805ab15daa6b67ddcb7dc"
+  },
+  "difference": {
+    "id": "report-trigger-redis-crash-recovery",
+    "candidate_requirement": "After a durable Redis checkpoint, a Redis process crash must not restart the application or duplicate a report. If Redis is unavailable through the bounded queue deadline, return the fixed outbound queue unavailable result with no partial publication; after the same data directory is recovered, an explicit retry must publish exactly one DMARC task and Sent message matching the active golden.",
+    "oracle_behavior": "Frozen Java keeps the original report request pending while Redis is SIGKILLed and resumes it after Redis restarts from the same RDB/AOF data directory.",
+    "candidate_behavior": "Rust completes the bounded report queue operation with outbound queue unavailable while Redis is down, preserves the source and pre-existing durable state, and succeeds on an explicit retry after Redis recovers without restarting the application.",
+    "reason": "Redis process failure must be bounded and recoverable. An application request or worker cannot wait indefinitely on a dead cache, and a retry must not duplicate a publication or lose its durable checkpoint.",
+    "scope": "Only Redis SIGKILL after exact DMARC DNS discovery, with AOF enabled and SAVE completed before the fault. Healthy queue bytes, TTLs, report MIME/gzip, source rows, Maildir layout, application continuity, and successful recovery publication remain strict.",
+    "evidence": {
+      "fault": "Enable Redis appendonly/appendfsync always, issue SAVE, SIGKILL only the Redis process group, then restart the same ManagedProcess and data directory on the same port.",
+      "oracle_outage": "no response during the twelve-second observation; original request succeeds after Redis PID changes",
+      "candidate_outage": "HTTP 200 with one failed DMARC email result and error=outbound queue unavailable while Redis is down",
+      "shared_recovery": "application PID unchanged, Redis PID changed, pending prefix preserved, no additional recovery DNS query, one DMARC publication matching managed-reports-v23",
+      "candidate_outage_response_sha256": "2aeff97158e57decab3c2648935242203cb76a8a21265faab84141e0e45c7159",
+      "shared_recovery_response_sha256": "f6f1f4e14f4afd608b44a897870108c7278a2b98d7c23dc90c0e372a4c616ea5"
+    }
+  },
+  "contract": {
+    "fault": "Redis SIGKILL after exact _dmarc.sender.example and external authorization TXT queries; durable RDB/AOF SAVE completed",
+    "oracle_outage": "no response during twelve seconds, then original request succeeds",
+    "candidate_outage": "bounded HTTP 200 failed DMARC result with outbound queue unavailable",
+    "shared_recovery": "same application PID, changed Redis PID, no source-row mutation, one byte-equivalent DMARC Redis/Maildir publication",
+    "supplemental_behavior_difference_id": "report-trigger-redis-crash-recovery",
+    "explicitly_not_claimed": [
+      "Redis data loss after deleting RDB/AOF",
+      "crash after PostgreSQL/Maildir commit but before Redis publication",
+      "Maildir write failure",
+      "TLSRPT dual-report partial failure",
+      "repeated crash or long-running soak"
+    ]
+  },
+  "verification": [
+    {
+      "command": "ruff check and mypy --strict for the supplemental test",
+      "result": "passed"
+    },
+    {
+      "command": "pytest -q -s evidence/compatibility/report-trigger-redis-crash-recovery-v1/test_report_trigger_redis_crash_recovery.py",
+      "result": "2 passed; Java 29.74s, Rust 1.26s"
+    },
+    {
+      "command": "active managed-reports-v23 DMARC response, queue task, Sent MIME and gzip self-validation",
+      "result": "passed for Java and Rust"
+    }
+  ],
+  "frozen_repositories": {
+    "java_oracle": "read-only at 5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "skibidi_1_8_0": "read-only at 4bc484c15b780d578ee8e53cab968f2819958215"
+  }
+}

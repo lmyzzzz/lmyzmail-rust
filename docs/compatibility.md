@@ -601,6 +601,17 @@ This evidence-bound safety difference is `report-trigger-maildir-write-failure`;
 it does not relax successful Maildir byte, Redis TTL, PostgreSQL, or report
 response requirements.
 
+The supplemental `report-trigger-redis-crash-recovery-v1` profile enables Redis
+AOF and an explicit SAVE, SIGKILLs only Redis after DMARC DNS discovery, and
+restarts the same data directory. Java resumes the original request after the
+Redis PID changes. Rust returns its bounded `outbound queue unavailable` result
+while Redis is down, keeps the application PID unchanged, preserves the
+pre-existing pending prefix, and succeeds on one explicit retry. Both produce
+one DMARC Redis/Maildir publication matching the active v23 golden with no
+additional recovery DNS query or source-row mutation. This evidence-bound
+crash-recovery difference does not claim Redis data-loss, post-commit crash,
+Maildir-failure, dual-report failure, or repeated-soak behavior.
+
 The active `managed-outbound-tls-validity-v3.json` profile separately freezes
 trusted-chain certificates that are expired or not yet valid. Opportunistic
 mode closes the failed TLS connection and delivers over a fresh plaintext
