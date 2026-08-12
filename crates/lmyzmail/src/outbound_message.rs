@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs::{self, File, OpenOptions},
     io::{self, BufReader, BufWriter, Read, Write},
     path::{Path, PathBuf},
@@ -32,6 +33,13 @@ const MAX_DKIM_KEY_BYTES: u64 = 1024 * 1024;
 const COPY_BUFFER_BYTES: usize = 32 * 1024;
 
 type RsaDkimSigner = DkimSigner<RsaKey<Sha256>, Done>;
+
+#[derive(Clone, Default)]
+struct MessagePolicy {
+    list_unsubscribe_mailto: Option<String>,
+    list_unsubscribe_url: Option<String>,
+    dkim_signer: Option<Arc<RsaDkimSigner>>,
+}
 
 struct DkimHeaderStream<'a> {
     message: &'a [u8],
@@ -113,6 +121,7 @@ pub struct OutboundMessageBuilder {
     list_unsubscribe_mailto: Option<String>,
     list_unsubscribe_url: Option<String>,
     dkim_signer: Option<Arc<RsaDkimSigner>>,
+    domain_policies: Arc<HashMap<String, MessagePolicy>>,
 }
 
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
@@ -259,6 +268,51 @@ impl OutboundMessageBuilder {
                 ));
             }
         };
+        let default_policy = MessagePolicy {
+            list_unsubscribe_mailto: config
+                .preferred_value(
+                    "lmyzmail.domains.main.list-unsubscribe-mailto",
+                    "botmail.domains.main.listUnsubscribeMailto",
+                )
+                .filter(|value| !value.is_empty())
+                .map(str::to_owned),
+            list_unsubscribe_url: config
+                .preferred_value(
+                    "lmyzmail.domains.main.list-unsubscribe-url",
+                    "botmail.domains.main.listUnsubscribeUrl",
+                )
+                .filter(|value| !value.is_empty())
+                .map(str::to_owned),
+            dkim_signer: dkim_signer.clone(),
+        };
+        let mut domain_policies = HashMap::new();
+        for domain in &config.domains {
+            let policy = if domain.domain == config.domain.to_ascii_lowercase() {
+                default_policy.clone()
+            } else {
+                let signer = match (&domain.dkim_private_key_path, &domain.dkim_selector) {
+                    (None, None) => None,
+                    (Some(path), Some(selector)) => Some(Arc::new(load_dkim_signer(
+                        path.to_str().ok_or_else(|| {
+                            MessageBuildError::Configuration("DKIM key path is not UTF-8".into())
+                        })?,
+                        &domain.domain,
+                        selector,
+                    )?)),
+                    _ => {
+                        return Err(MessageBuildError::Configuration(
+                            "DKIM private key and selector must be configured together".into(),
+                        ));
+                    }
+                };
+                MessagePolicy {
+                    list_unsubscribe_mailto: domain.list_unsubscribe_mailto.clone(),
+                    list_unsubscribe_url: domain.list_unsubscribe_url.clone(),
+                    dkim_signer: signer,
+                }
+            };
+            domain_policies.insert(domain.domain.clone(), policy);
+        }
         Ok(Self {
             maildir: config.maildir.clone(),
             spool_dir,
@@ -279,7 +333,25 @@ impl OutboundMessageBuilder {
                 .filter(|value| !value.is_empty())
                 .map(str::to_owned),
             dkim_signer,
+            domain_policies: Arc::new(domain_policies),
         })
+    }
+
+    fn policy_for_sender(&self, sender: &str) -> MessagePolicy {
+        let domain = sender
+            .rsplit_once('@')
+            .map(|(_, value)| value)
+            .unwrap_or_default()
+            .trim()
+            .to_ascii_lowercase();
+        self.domain_policies
+            .get(&domain)
+            .cloned()
+            .unwrap_or_else(|| MessagePolicy {
+                list_unsubscribe_mailto: self.list_unsubscribe_mailto.clone(),
+                list_unsubscribe_url: self.list_unsubscribe_url.clone(),
+                dkim_signer: self.dkim_signer.clone(),
+            })
     }
 
     pub fn materialize(
@@ -364,6 +436,45 @@ impl OutboundMessageBuilder {
         expected_sha256: &[u8; 32],
         cancelled: &AtomicBool,
     ) -> Result<Vec<u8>, MessageBuildError> {
+        self.prepare_system_bytes_with_policy(
+            &MessagePolicy {
+                list_unsubscribe_mailto: None,
+                list_unsubscribe_url: None,
+                dkim_signer: self.dkim_signer.clone(),
+            },
+            created_at,
+            bytes,
+            expected_sha256,
+            cancelled,
+        )
+    }
+
+    pub(crate) fn prepare_system_bytes_for_sender(
+        &self,
+        sender: &str,
+        created_at: DateTime<Utc>,
+        bytes: &[u8],
+        expected_sha256: &[u8; 32],
+        cancelled: &AtomicBool,
+    ) -> Result<Vec<u8>, MessageBuildError> {
+        let policy = self.policy_for_sender(sender);
+        self.prepare_system_bytes_with_policy(
+            &policy,
+            created_at,
+            bytes,
+            expected_sha256,
+            cancelled,
+        )
+    }
+
+    fn prepare_system_bytes_with_policy(
+        &self,
+        policy: &MessagePolicy,
+        created_at: DateTime<Utc>,
+        bytes: &[u8],
+        expected_sha256: &[u8; 32],
+        cancelled: &AtomicBool,
+    ) -> Result<Vec<u8>, MessageBuildError> {
         check_cancelled(cancelled)?;
         if bytes.is_empty() || bytes.len() as u64 > self.max_email_size {
             return Err(MessageBuildError::InvalidInput(
@@ -376,7 +487,7 @@ impl OutboundMessageBuilder {
             ));
         }
         let prepared =
-            if let Some(signer) = self.dkim_signer.as_deref() {
+            if let Some(signer) = policy.dkim_signer.as_deref() {
                 let timestamp = u64::try_from(created_at.timestamp()).map_err(|_| {
                     MessageBuildError::InvalidInput("invalid_outbound_system_message_time")
                 })?;
@@ -647,7 +758,7 @@ impl OutboundMessageBuilder {
             unsigned.get_ref().sync_all()?;
             check_cancelled(cancelled)?;
 
-            if let Some(signer) = self.dkim_signer.as_deref() {
+            if let Some(signer) = self.policy_for_sender(&input.sender).dkim_signer.as_deref() {
                 let mut signing_stream = signer.sign_streaming();
                 let mut input_file =
                     BufReader::with_capacity(COPY_BUFFER_BYTES, File::open(&unsigned_path)?);
@@ -759,12 +870,13 @@ impl OutboundMessageBuilder {
         writeln_crlf(output, &format!("Date: {}", java_date(input.created_at)))?;
         writeln_crlf(output, &format!("Message-ID: {}", input.message_id))?;
         writeln_crlf(output, "MIME-Version: 1.0")?;
+        let policy = self.policy_for_sender(&input.sender);
         let mut unsubscribe = Vec::new();
-        if let Some(url) = self.list_unsubscribe_url.as_deref() {
+        if let Some(url) = policy.list_unsubscribe_url.as_deref() {
             unsubscribe.push(format!("<{url}>"));
             writeln_crlf(output, "List-Unsubscribe-Post: List-Unsubscribe=One-Click")?;
         }
-        if let Some(mailto) = self.list_unsubscribe_mailto.as_deref() {
+        if let Some(mailto) = policy.list_unsubscribe_mailto.as_deref() {
             unsubscribe.push(format!("<mailto:{mailto}>"));
         }
         if !unsubscribe.is_empty() {
@@ -1878,6 +1990,7 @@ mod tests {
             list_unsubscribe_mailto: None,
             list_unsubscribe_url: None,
             dkim_signer: None,
+            domain_policies: Arc::new(HashMap::new()),
         };
         let mut first = Vec::new();
         builder
@@ -2083,6 +2196,7 @@ mod tests {
             list_unsubscribe_mailto: None,
             list_unsubscribe_url: None,
             dkim_signer: None,
+            domain_policies: Arc::new(HashMap::new()),
         };
         let cancelled = AtomicBool::new(false);
         let mut below = message();
@@ -2125,6 +2239,7 @@ mod tests {
             list_unsubscribe_mailto: None,
             list_unsubscribe_url: None,
             dkim_signer: None,
+            domain_policies: Arc::new(HashMap::new()),
         };
         let cancelled = AtomicBool::new(false);
 
@@ -2231,6 +2346,7 @@ mod tests {
             list_unsubscribe_mailto: None,
             list_unsubscribe_url: None,
             dkim_signer: None,
+            domain_policies: Arc::new(HashMap::new()),
         };
         fs::create_dir_all(&builder.spool_dir).unwrap();
         fs::write(builder.spool_dir.join("message-42.eml"), b"stale message").unwrap();
@@ -2267,6 +2383,7 @@ Delivery failed.\r\n"
             list_unsubscribe_mailto: None,
             list_unsubscribe_url: None,
             dkim_signer,
+            domain_policies: Arc::new(HashMap::new()),
         }
     }
 
@@ -2288,11 +2405,82 @@ Delivery failed.\r\n"
     }
 
     fn generated_dkim_signer(root: &Path) -> RsaDkimSigner {
+        generated_dkim_signer_for_domain(root, "example.test", "test")
+    }
+
+    fn generated_dkim_signer_for_domain(
+        root: &Path,
+        domain: &str,
+        selector: &str,
+    ) -> RsaDkimSigner {
         let key = openssl::rsa::Rsa::generate(2_048).unwrap();
         let key = PKey::from_rsa(key).unwrap();
-        let path = root.join("dkim-private.pem");
+        let path = root.join(format!("dkim-{domain}-{selector}.pem"));
         fs::write(&path, key.private_key_to_pem_pkcs8().unwrap()).unwrap();
-        load_dkim_signer(path.to_str().unwrap(), "example.test", "test").unwrap()
+        load_dkim_signer(path.to_str().unwrap(), domain, selector).unwrap()
+    }
+
+    #[test]
+    fn system_bytes_select_dkim_signer_by_sender_domain_with_primary_fallback() {
+        let root = TestDirectory::new();
+        let primary = Arc::new(generated_dkim_signer_for_domain(
+            &root.0,
+            "example.test",
+            "primary",
+        ));
+        let secondary = Arc::new(generated_dkim_signer_for_domain(
+            &root.0,
+            "secondary.test",
+            "secondary",
+        ));
+        let mut policies = HashMap::new();
+        policies.insert(
+            "secondary.test".into(),
+            MessagePolicy {
+                list_unsubscribe_mailto: None,
+                list_unsubscribe_url: None,
+                dkim_signer: Some(secondary),
+            },
+        );
+        let builder = OutboundMessageBuilder {
+            maildir: root.0.join("maildir"),
+            spool_dir: root.0.join("spool"),
+            max_files_per_directory: 10,
+            max_email_size: 1024 * 1024,
+            list_unsubscribe_mailto: None,
+            list_unsubscribe_url: None,
+            dkim_signer: Some(primary),
+            domain_policies: Arc::new(policies),
+        };
+        let bytes = system_message_bytes();
+        let digest = system_digest(bytes);
+        let cancelled = AtomicBool::new(false);
+        let secondary_bytes = builder
+            .prepare_system_bytes_for_sender(
+                "mailer-daemon@SECONDARY.TEST",
+                Utc.with_ymd_and_hms(2026, 8, 6, 1, 2, 3).unwrap(),
+                bytes,
+                &digest,
+                &cancelled,
+            )
+            .unwrap();
+        let secondary_header = String::from_utf8_lossy(&secondary_bytes);
+        assert!(secondary_header.starts_with("DKIM-Signature: "));
+        assert!(secondary_header.contains("d=secondary.test"));
+        assert!(secondary_header.contains("s=secondary"));
+
+        let fallback_bytes = builder
+            .prepare_system_bytes_for_sender(
+                "mailer-daemon@unknown.test",
+                Utc.with_ymd_and_hms(2026, 8, 6, 1, 2, 3).unwrap(),
+                bytes,
+                &digest,
+                &cancelled,
+            )
+            .unwrap();
+        let fallback_header = String::from_utf8_lossy(&fallback_bytes);
+        assert!(fallback_header.contains("d=example.test"));
+        assert!(fallback_header.contains("s=primary"));
     }
 
     #[test]

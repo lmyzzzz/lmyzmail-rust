@@ -723,10 +723,12 @@ impl OutboundService {
         let storage_mode =
             java_storage_mode(Some(&body), None, &[]).map_err(map_message_build_error)?;
         let prepare_builder = self.message_builder.clone();
+        let sender_for_signing = sender.clone();
         let body_for_signing = body.clone();
         let prepared_bytes = self
             .run_dsn_blocking(cancellation, move |cancelled| {
-                prepare_builder.prepare_system_bytes(
+                prepare_builder.prepare_system_bytes_for_sender(
+                    &sender_for_signing,
                     created_at,
                     body_for_signing.as_bytes(),
                     &unsigned_sha256,
