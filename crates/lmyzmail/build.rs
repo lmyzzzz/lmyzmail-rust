@@ -118,28 +118,6 @@ const SKIBIDI_FROZEN_SOURCES: &[(&str, &str)] = &[
         "bde8e9d19d6668c644aba1cdd81fb9f56c2236ff827ddd16fb366369bc68bbea",
     ),
 ];
-const SKIBIDI_PUBLIC_SYMBOLS: &[&str] = &[
-    "skibidi_init",
-    "skibidi_configure",
-    "skibidi_get_config",
-    "skibidi_generate",
-    "skibidi_generate_variant",
-    "skibidi_generate_batch",
-    "skibidi_destroy",
-    "skibidi_alloc_context",
-    "skibidi_alloc_context_array",
-    "skibidi_free_context",
-    "skibidi_version",
-    "skibidi_has_avx2",
-    "skibidi_has_avx512",
-    "skibidi_get_capabilities",
-    "skibidi_get_active_simd",
-    "skibidi_is_avx512_enabled",
-    "skibidi_get_rng_state_size",
-    "skibidi_get_context_size",
-    "skibidi_get_context_alignment",
-];
-
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     let target_os = env::var("CARGO_CFG_TARGET_OS").expect("Cargo did not set target OS");
@@ -161,7 +139,10 @@ fn main() {
     let out_dir = PathBuf::from(env::var_os("OUT_DIR").expect("Cargo did not set OUT_DIR"));
     let (ffmpeg_include, ffmpeg_lib) = build_ffmpeg(&ffmpeg_source, &out_dir);
     build_xdp(&xdp_source, &native_dir, &out_dir);
-    build_skibidi(&skibidi_source);
+    // The frozen Skibidi C source remains an independently tested oracle and
+    // ABI reference. The production generator is implemented in Rust, so the
+    // C library is deliberately not linked into the lmyzmail binary.
+    verify_frozen_sources("Skibidi", &skibidi_source, SKIBIDI_FROZEN_SOURCES);
     let litehtml_dir = manifest_dir.join("../../vendor/litehtml");
     let litehtml_src = litehtml_dir.join("src");
     let litehtml_include = litehtml_dir.join("include");
@@ -241,9 +222,6 @@ fn main() {
     println!("cargo:rustc-link-lib=static=lmyzmail_mail_html");
     println!("cargo:rustc-link-lib=static=lmyzmail_gumbo");
     println!("cargo:rustc-link-lib=static=lmyzmail_xdp");
-    println!("cargo:rustc-link-lib=static=lmyzmail_skibidi_scalar");
-    println!("cargo:rustc-link-lib=static=lmyzmail_skibidi_avx2");
-    println!("cargo:rustc-link-lib=static=lmyzmail_skibidi_avx512");
     println!("cargo:rustc-link-arg=-Wl,--wrap=bpf_xdp_attach");
     println!("cargo:rustc-link-arg=-Wl,--wrap=bpf_xdp_detach");
     println!("cargo:rustc-link-lib=dylib=stdc++");
@@ -260,113 +238,6 @@ fn main() {
     println!("cargo:rustc-link-arg=-Wl,--end-group");
     for library in ["bpf", "elf", "cap", "z", "m", "dl", "pthread"] {
         println!("cargo:rustc-link-lib=dylib={library}");
-    }
-}
-
-fn build_skibidi(source: &Path) {
-    verify_frozen_sources("Skibidi", source, SKIBIDI_FROZEN_SOURCES);
-    reject_external_skibidi_isa_flags();
-
-    let mut scalar = cc::Build::new();
-    scalar
-        .cargo_metadata(false)
-        .inherit_rustflags(false)
-        .include(source)
-        .file(source.join("skibidi_avx.c"))
-        .flag("-std=c11")
-        .flag("-fPIC")
-        .flag("-march=x86-64")
-        .flag("-mtune=generic")
-        .flag("-mno-avx")
-        .flag("-mno-avx2")
-        .flag("-mno-fma")
-        .flag("-mno-avx512f")
-        .warnings(true)
-        .warnings_into_errors(true)
-        .compile("lmyzmail_skibidi_scalar");
-
-    build_skibidi_vector(
-        source,
-        "avx2",
-        &[
-            "-march=x86-64",
-            "-mtune=generic",
-            "-mavx2",
-            "-mno-fma",
-            "-mno-avx512f",
-        ],
-    );
-    build_skibidi_vector(
-        source,
-        "avx512",
-        &[
-            "-march=x86-64",
-            "-mtune=generic",
-            "-mavx2",
-            "-mno-fma",
-            "-mavx512f",
-        ],
-    );
-}
-
-fn build_skibidi_vector(source: &Path, suffix: &str, flags: &[&str]) {
-    let mut build = cc::Build::new();
-    build
-        .cargo_metadata(false)
-        .inherit_rustflags(false)
-        .include(source)
-        .file(source.join("skibidi_avx.c"))
-        .flag("-std=c11")
-        .flag("-fPIC")
-        .warnings(true)
-        .warnings_into_errors(true);
-    for flag in flags {
-        build.flag(flag);
-    }
-    for symbol in SKIBIDI_PUBLIC_SYMBOLS {
-        build.define(
-            symbol,
-            Some(format!("lmyzmail_skibidi_{suffix}_{symbol}").as_str()),
-        );
-    }
-    build.compile(&format!("lmyzmail_skibidi_{suffix}"));
-}
-
-fn reject_external_skibidi_isa_flags() {
-    let target = env::var("TARGET").expect("Cargo did not set TARGET");
-    let host = env::var("HOST").expect("Cargo did not set HOST");
-    let target_underscored = target.replace(['-', '.'], "_");
-    let build_kind = if target == host { "HOST" } else { "TARGET" };
-    let keys = [
-        format!("CFLAGS_{target}"),
-        format!("CFLAGS_{target_underscored}"),
-        format!("{build_kind}_CFLAGS"),
-        "CFLAGS".to_owned(),
-        format!("CC_{target}"),
-        format!("CC_{target_underscored}"),
-        format!("{build_kind}_CC"),
-        "CC".to_owned(),
-    ];
-
-    for key in keys {
-        println!("cargo:rerun-if-env-changed={key}");
-        let Some(value) = env::var_os(&key) else {
-            continue;
-        };
-        let value = value.to_string_lossy();
-        let unsafe_override = value.split_ascii_whitespace().any(|token| {
-            let token = token.trim_matches(['\'', '"']).to_ascii_lowercase();
-            token.starts_with("-m")
-                || token.starts_with("/arch:")
-                || token == "-xclang"
-                || token.starts_with("-target-feature")
-                || token.starts_with("-target-cpu")
-                || token.starts_with('@')
-        });
-        assert!(
-            !unsafe_override,
-            "{key} contains an external ISA override; frozen Skibidi backends pin their own instruction-set ceilings"
-        );
     }
 }
 
