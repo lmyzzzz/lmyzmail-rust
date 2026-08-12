@@ -105,3 +105,19 @@ This bounded safety difference is recorded only in the supplemental evidence
 as `report-trigger-postgres-total-deadline`; the main definition tree and its
 SHA-256 `f4747bee86575a8f59725e02829a459ceb88961dadfbf858113b63a517b99d4c`
 remain unchanged.
+
+The supplemental `report-trigger-postgres-crash-recovery-v1` profile runs
+both databases with `fsync=on`, `synchronous_commit=on`, and
+`full_page_writes=on`, blocks the real domain query, then sends `SIGKILL` only
+to PostgreSQL. PostgreSQL restarts with a new PID from the same data directory
+and port while the application PID remains unchanged. Both implementations
+return HTTP 200 with zero counts during the failure, recover their connection
+pools without an application restart, return `error=none` on retry, and leave
+DNS, Redis, Maildir, and source rows unchanged.
+
+Frozen Java's outage `error` includes its Hibernate SELECT, generated alias,
+and JDBC/backend I/O exception. Rust returns the stable
+`reporting database unavailable` value. The only approved supplemental
+difference is `report-trigger-postgres-error-redaction`; SQL/driver disclosure
+is intentionally removed, while every surrounding wire, lifecycle, recovery,
+and storage assertion remains strict.

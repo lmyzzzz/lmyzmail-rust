@@ -1,0 +1,55 @@
+{
+  "applicationPidUnchanged": true,
+  "outageResponse": {
+    "body_json": {
+      "date": "2024-01-02",
+      "dmarcFailed": 0,
+      "dmarcSent": 0,
+      "error": "JDBC exception executing SQL [select distinct idl1_0.header_from_domain from inbound_dmarc_log idl1_0 where idl1_0.report_date=? and idl1_0.header_from_domain is not null] [An I/O error occurred while sending to the backend.] [n/a]",
+      "tlsFailed": 0,
+      "tlsSent": 0
+    },
+    "headers": [
+      ["content-type", "application/json; charset=UTF-8"],
+      ["content-length", "319"]
+    ],
+    "normalized_body_wire": {
+      "base64": "eyJkYXRlIjoiMjAyNC0wMS0wMiIsImRtYXJjRmFpbGVkIjowLCJkbWFyY1NlbnQiOjAsImVycm9yIjoiSkRCQyBleGNlcHRpb24gZXhlY3V0aW5nIFNRTCBbc2VsZWN0IGRpc3RpbmN0IGlkbDFfMC5oZWFkZXJfZnJvbV9kb21haW4gZnJvbSBpbmJvdW5kX2RtYXJjX2xvZyBpZGwxXzAgd2hlcmUgaWRsMV8wLnJlcG9ydF9kYXRlPT8gYW5kIGlkbDFfMC5oZWFkZXJfZnJvbV9kb21haW4gaXMgbm90IG51bGxdIFtBbiBJL08gZXJyb3Igb2NjdXJyZWQgd2hpbGUgc2VuZGluZyB0byB0aGUgYmFja2VuZC5dIFtuL2FdIiwidGxzRmFpbGVkIjowLCJ0bHNTZW50IjowfQ==",
+      "length": 319,
+      "sha256": "6dc6824384707c5a8896ee2d78afb0c37491a678d538478ed7968c2e80306627"
+    },
+    "status_code": 200,
+    "status_line": "HTTP/1.1 200 OK"
+  },
+  "postgresFault": "SIGKILL process group after blocked domain query",
+  "postgresPidChanged": true,
+  "retryResponse": {
+    "body_json": {
+      "date": "2024-01-02",
+      "dmarcFailed": 0,
+      "dmarcSent": 0,
+      "error": "none",
+      "tlsFailed": 0,
+      "tlsSent": 0
+    },
+    "headers": [
+      ["content-type", "application/json; charset=UTF-8"],
+      ["content-length", "92"]
+    ],
+    "normalized_body_wire": {
+      "base64": "eyJkYXRlIjoiMjAyNC0wMS0wMiIsImRtYXJjRmFpbGVkIjowLCJkbWFyY1NlbnQiOjAsImVycm9yIjoibm9uZSIsInRsc0ZhaWxlZCI6MCwidGxzU2VudCI6MH0=",
+      "length": 92,
+      "sha256": "dcc9c11f2f36e175fad47ece818cfb6cfeec80d2d7bf34d5e1b3481de6de7823"
+    },
+    "status_code": 200,
+    "status_line": "HTTP/1.1 200 OK"
+  },
+  "state": {
+    "dnsQueries": [],
+    "maildirUnchangedAfterRecovery": true,
+    "maildirUnchangedWhileDown": true,
+    "redisQueueUnchangedAfterRecovery": true,
+    "redisQueueUnchangedWhileDown": true,
+    "sourceDatabaseUnchangedAfterRecovery": true
+  }
+}

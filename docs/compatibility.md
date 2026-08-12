@@ -553,6 +553,18 @@ mutation. This evidence-bound safety difference is
 `report-trigger-postgres-total-deadline`; it is supplemental and does not
 change the frozen main black-box definition tree.
 
+The supplemental `report-trigger-postgres-crash-recovery-v1` profile kills
+only the isolated PostgreSQL process group after a real report query is
+blocked, then restarts PostgreSQL from the same durable data directory on the
+same port while the application PID remains unchanged. Both Java and Rust
+return HTTP 200 with zero counts, recover their existing connection pools,
+return `error=none` on retry, and preserve DNS, Redis, Maildir, and source-row
+state. Frozen Java exposes its Hibernate SQL, generated alias, and JDBC driver
+I/O exception in the public `error` field. Rust instead returns the fixed
+`reporting database unavailable` value. This narrowly approved supplemental
+difference is `report-trigger-postgres-error-redaction`; it does not relax any
+status, recovery, byte, or side-effect assertion.
+
 The active `managed-outbound-tls-validity-v3.json` profile separately freezes
 trusted-chain certificates that are expired or not yet valid. Opportunistic
 mode closes the failed TLS connection and delivers over a fresh plaintext

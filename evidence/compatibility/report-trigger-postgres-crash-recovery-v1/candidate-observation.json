@@ -1,0 +1,55 @@
+{
+  "applicationPidUnchanged": true,
+  "outageResponse": {
+    "body_json": {
+      "date": "2024-01-02",
+      "dmarcFailed": 0,
+      "dmarcSent": 0,
+      "error": "reporting database unavailable",
+      "tlsFailed": 0,
+      "tlsSent": 0
+    },
+    "headers": [
+      ["content-type", "application/json; charset=UTF-8"],
+      ["content-length", "118"]
+    ],
+    "normalized_body_wire": {
+      "base64": "eyJkYXRlIjoiMjAyNC0wMS0wMiIsImRtYXJjRmFpbGVkIjowLCJkbWFyY1NlbnQiOjAsImVycm9yIjoicmVwb3J0aW5nIGRhdGFiYXNlIHVuYXZhaWxhYmxlIiwidGxzRmFpbGVkIjowLCJ0bHNTZW50IjowfQ==",
+      "length": 118,
+      "sha256": "3dbe8ac2713390b610ecd46bc56acef52ede36cbcf5d235282c39e1031b1de1b"
+    },
+    "status_code": 200,
+    "status_line": "HTTP/1.1 200 OK"
+  },
+  "postgresFault": "SIGKILL process group after blocked domain query",
+  "postgresPidChanged": true,
+  "retryResponse": {
+    "body_json": {
+      "date": "2024-01-02",
+      "dmarcFailed": 0,
+      "dmarcSent": 0,
+      "error": "none",
+      "tlsFailed": 0,
+      "tlsSent": 0
+    },
+    "headers": [
+      ["content-type", "application/json; charset=UTF-8"],
+      ["content-length", "92"]
+    ],
+    "normalized_body_wire": {
+      "base64": "eyJkYXRlIjoiMjAyNC0wMS0wMiIsImRtYXJjRmFpbGVkIjowLCJkbWFyY1NlbnQiOjAsImVycm9yIjoibm9uZSIsInRsc0ZhaWxlZCI6MCwidGxzU2VudCI6MH0=",
+      "length": 92,
+      "sha256": "dcc9c11f2f36e175fad47ece818cfb6cfeec80d2d7bf34d5e1b3481de6de7823"
+    },
+    "status_code": 200,
+    "status_line": "HTTP/1.1 200 OK"
+  },
+  "state": {
+    "dnsQueries": [],
+    "maildirUnchangedAfterRecovery": true,
+    "maildirUnchangedWhileDown": true,
+    "redisQueueUnchangedAfterRecovery": true,
+    "redisQueueUnchangedWhileDown": true,
+    "sourceDatabaseUnchangedAfterRecovery": true
+  }
+}
