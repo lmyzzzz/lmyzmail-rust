@@ -39,7 +39,7 @@ addresses, the 16-address ceiling, exact request headers and raw path/query,
 2xx and `HTTP 302` outcomes, timeout/cancellation/admission, no response-body
 consumption, interim-response limits, and all response-header budgets.
 
-The active external `managed-tlsrpt-https-v10.json` profile drives both the
+The active external `managed-tlsrpt-https-v11.json` profile drives both the
 frozen Java oracle and the Rust candidate through the real
 `POST /api/reports/domain/{domain}` API over independent PostgreSQL state. Its
 five-case matrix freezes a successful `204`, a non-followed `302`, an
@@ -48,20 +48,20 @@ stalled response under one two-second delivery deadline. The fixture observes
 exact TXT/address queries, TLS SNI/protocol/cipher, Host and request-target
 bytes, complete bounded gzip body framing, normalized decompressed JSON, the
 API delivery result, and an unchanged source `outbound_tls_log` row. v1 through
-v9 remain immutable pre-final-definition history.
+v10 remain immutable pre-final-definition history.
 
 The candidate deliberately emits `lmyzmail-TLSRPT/1.0` instead of the frozen
 Java `Botmail-TLSRPT/1.0` identifier. This is the explicitly authorized brand
 change; no other TLSRPT wire or security behavior is relaxed.
 
-## TLS-RPT HTTPS v10 verification
+## TLS-RPT HTTPS v11 verification
 
-- Fresh Java recording, Rust candidate replay, and a second fresh Java replay:
-  passed for v10.
+- v11 retains the independently replayed v10 observations under the final
+  scheduler-restart definition tree; fresh Java and Rust v11 replay pass.
 - HTTPS fixture tests: 9 passed; the TLS-RPT bounded decompression test also
   passed.
-- Python non-integration suite: 161 passed, 158 deselected.
-- Ruff and strict mypy across the full black-box source and test tree: passed.
+- Python non-integration suite: 161 passed, 160 deselected.
+- Ruff and strict mypy across 150 black-box source and test files: passed.
 - `cargo fmt --all -- --check`: passed.
 - `cargo test --workspace --locked`: 637 passed.
 - `cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`:

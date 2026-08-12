@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "profile": "reports-differential-v3",
+  "captured_at": "2026-08-12T15:57:58+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "active_golden": {
+    "path": "blackbox/golden/java/managed-reports-v23",
+    "suite_sha256": "53dbbc8c2ab2f7f357437b53e48ed7c9989e7ceed0aa00b47873c80e91e3c0a2",
+    "definition_tree_sha256": "f4747bee86575a8f59725e02829a459ceb88961dadfbf858113b63a517b99d4c",
+    "scenario_count": 8,
+    "formal_candidate_collection": true,
+    "observation_sha256": {
+      "addresses.json": "f42b154e7cd9c9d46d11389ef3e8fae8b1d1e61a307d288213a2cb373532eac8",
+      "invalid-dates.json": "f02a9ec54b120f2368a498badbd77cf0f15d0e5d604d10b12eb78ab3c3821131",
+      "no-data-domain.json": "f7289cb73343e572a7d3d764d35562d3d5189125a26ba84c196b30c69b68448b",
+      "no-data-trigger.json": "bd04e4d32431e9ceb9e5e33009dd561517135d3204a988b4a9b960cb1625fe4b",
+      "seeded-delivery.json": "887abea00d415a4b283b5611f6902b125c6928c67c94226f8a2ef45239d4e366",
+      "seeded-domains.json": "23e49f709ace63da2c7c96ffd0bbdffd6fdfc350e085c1691f82f9d1a5355cad",
+      "seeded-trigger.json": "ae50a28dd44e9127f91ea999982aff9676a7d2008c812d0d4b1d143f016732fc",
+      "status.json": "39b18370b4931c5120f28b8570cd86a3831aa55c5dd568ed78ed609ab0ce0f9b"
+    }
+  },
+  "contract": {
+    "scenarios": [
+      "report status",
+      "seeded domain discovery",
+      "invalid date errors",
+      "no-data full trigger",
+      "no-data single-domain generation",
+      "DMARC and TLSRPT destination discovery",
+      "seeded DMARC XML and TLSRPT JSON publication",
+      "combined seeded full trigger"
+    ],
+    "state_surfaces": [
+      "HTTP status, headers and canonical JSON",
+      "DNS query order and warm-cache behavior",
+      "PostgreSQL source rows and fixture restoration",
+      "Redis pending order, tasks, domain status and TTL",
+      "atomic Sent Maildir files without temporary residue",
+      "parsed MIME and bounded gzip attachments"
+    ],
+    "new_behavior_difference_ids": [],
+    "explicitly_not_claimed": [
+      "concurrent trigger admission",
+      "storage fault injection",
+      "scheduler high-concurrency or long-running soak"
+    ]
+  },
+  "source_sha256": {
+    "blackbox/tests/test_oracle_reports.py": "52b79e8e7a5dbb919edbdb4c52151e2b13be8f7920e30d2cd5aadb5ea95caac8",
+    "docs/compatibility.md": "435405be6a35a08eaa3fa2db4659e4cce3cf2bc9b105a158d603bb0f51c519bb",
+    "docs/reporting-trigger-contract.md": "e98d11cf18e8c20aa9cd35c6e2b41dbc3a33cc1d0185ae020541600e98e6385f"
+  },
+  "verification": [
+    {"command": "reports, TLSRPT HTTPS, and scheduler formal integration collection", "result": "10 passed in 140.96s"},
+    {"command": "fresh Java and Rust v23 report replay", "result": "passed in formal integration collection"},
+    {"command": "pytest -q tests -m 'not integration'", "result": "161 passed, 160 deselected in 9.99s"},
+    {"command": "Ruff and strict mypy across blackbox", "result": "passed; mypy checked 150 source files"}
+  ]
+}

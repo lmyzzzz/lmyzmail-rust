@@ -473,7 +473,7 @@ v3 do not claim those paths. TLS v1 through v4 remain immutable history; v5
 retains the header-only normalization and API-returned queue identity
 established by v3 under the current harness definition tree.
 
-The active `managed-tlsrpt-https-v10.json` profile separately freezes external
+The active `managed-tlsrpt-https-v11.json` profile separately freezes external
 TLS report HTTPS delivery through the real report API. It covers a successful
 204 POST, a 302 that is reported without following, an untrusted collector
 certificate, a private-address SSRF rejection before connect, and a stalled
@@ -482,25 +482,31 @@ TXT discovery, exact target and Host bytes, SNI, TLS 1.3 cipher, complete gzip
 JSON body after only the UUIDv4 report id is normalized, API result, and
 unchanged source report row. Hickory's exact AAAA-before-A trace is asserted
 for Rust; Java collector resolution uses its isolated JDK hosts file. v1
-through v9 remain immutable pre-final-definition history. The only wire
+through v10 remain immutable pre-final-definition history. The only wire
 difference is the explicitly authorized `Botmail-TLSRPT/1.0` to
 `lmyzmail-TLSRPT/1.0` branding change.
 
-The active `managed-reports-v22` profile is collected by the normal black-box
+The active `managed-reports-v23` profile is collected by the normal black-box
 test suite for both frozen Java and Rust. Its eight scenarios cover report
 status, domain/address discovery, date errors, empty generation, seeded DMARC
 and TLSRPT delivery, and the combined trigger across PostgreSQL, DNS, Redis,
 Maildir, MIME, and gzip artifacts. A separate Rust test enables automatic
-sending and verifies bounded startup and shutdown. Actual 01:00 UTC firing,
-missed-run restart behavior, concurrent trigger admission, scheduler fault
-injection, and soak remain separate matrices.
+sending and verifies bounded startup and shutdown. Concurrent trigger
+admission, scheduler fault injection, and soak remain separate matrices.
 
-The active `managed-reports-scheduler-v1` profile separately freezes an
+The active `managed-reports-scheduler-v2` profile separately freezes an
 externally clock-driven 01:00 UTC boundary in isolated Java and Rust
 processes. It compares the prior-date report publication, exact DNS order,
 Redis task and Maildir side effects, unchanged source rows, single-run
 admission at the boundary, and bounded shutdown. The fixture advances only
 `CLOCK_REALTIME`; monotonic deadlines and database/Redis clocks remain real.
+
+The independent `managed-reports-scheduler-restart-v1` profile freezes a
+process stopped at 00:59:20 UTC and restarted at 01:00:20 UTC. Java performs
+no catch-up publication, DNS work, Redis mutation, Maildir write, or source-row
+mutation; Rust matches that behavior. Concurrent trigger admission, storage
+fault injection, scheduler high-concurrency, and long-running soak remain
+unclaimed.
 
 The active `managed-outbound-tls-validity-v3.json` profile separately freezes
 trusted-chain certificates that are expired or not yet valid. Opportunistic

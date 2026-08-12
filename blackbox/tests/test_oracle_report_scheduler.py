@@ -27,6 +27,8 @@ from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.scripted_dns import DnsQuery, ScriptedDnsServer
 
 _FAKE_START_EPOCH = 1704157170  # 2024-01-02T00:59:30Z
+_FAKE_BEFORE_MISSED_EPOCH = 1704157160  # 2024-01-02T00:59:20Z
+_FAKE_AFTER_MISSED_EPOCH = 1704157220  # 2024-01-02T01:00:20Z
 _REDIS_HOST = "127.0.0.1"
 _NORMALIZERS = (
     "report-id:uuid-v4",
@@ -38,10 +40,18 @@ _NORMALIZERS = (
 
 
 class _SchedulerJavaRuntime(PersistentJavaOracleRuntime):
-    def __init__(self, workspace: Path, dns: ScriptedDnsServer, shim: Path) -> None:
+    def __init__(
+        self,
+        workspace: Path,
+        dns: ScriptedDnsServer,
+        shim: Path,
+        *,
+        fake_epoch: int = _FAKE_START_EPOCH,
+    ) -> None:
         super().__init__(workspace)
         self.report_dns = dns
         self.shim = shim
+        self.fake_epoch = fake_epoch
 
     def drain_report_dns_queries(self) -> tuple[DnsQuery, ...]:
         return self.report_dns.drain_queries()
@@ -70,7 +80,7 @@ class _SchedulerJavaRuntime(PersistentJavaOracleRuntime):
     def _application_environment(self) -> dict[str, str]:
         environment = super()._application_environment()
         environment["LD_PRELOAD"] = str(self.shim)
-        environment["LMYZMAIL_FAKE_REALTIME_EPOCH"] = str(_FAKE_START_EPOCH)
+        environment["LMYZMAIL_FAKE_REALTIME_EPOCH"] = str(self.fake_epoch)
         return environment
 
 
@@ -81,10 +91,12 @@ class _SchedulerCandidateRuntime(CandidateRuntime):
         command_template: tuple[str, ...],
         dns: ScriptedDnsServer,
         shim: Path,
+        fake_epoch: int = _FAKE_START_EPOCH,
     ) -> None:
         super().__init__(command_template=command_template)
         self.report_dns = dns
         self.shim = shim
+        self.fake_epoch = fake_epoch
 
     @property
     def requires_qa_account(self) -> bool:
@@ -124,8 +136,18 @@ class _SchedulerCandidateRuntime(CandidateRuntime):
     def _application_environment(self) -> dict[str, str]:
         environment = super()._application_environment()
         environment["LD_PRELOAD"] = str(self.shim)
-        environment["LMYZMAIL_FAKE_REALTIME_EPOCH"] = str(_FAKE_START_EPOCH)
+        environment["LMYZMAIL_FAKE_REALTIME_EPOCH"] = str(self.fake_epoch)
         return environment
+
+    def restart_application(self) -> None:
+        if self._application is None:
+            raise RuntimeError("candidate application is not running")
+        self._application.stop(
+            timeout=self.shutdown_timeout,
+            kill_timeout=self.shutdown_kill_timeout,
+        )
+        self._application = None
+        CandidateRuntime._start_application(self)
 
     def _start_postgres(self) -> None:
         super()._start_postgres()
@@ -176,7 +198,13 @@ def _compile_shim(repository: Path, output: Path) -> None:
         raise AssertionError(f"fake realtime shim compilation failed: {result.stderr}")
 
 
-def _candidate(repository: Path, dns: ScriptedDnsServer, shim: Path) -> CandidateRuntime:
+def _candidate(
+    repository: Path,
+    dns: ScriptedDnsServer,
+    shim: Path,
+    *,
+    fake_epoch: int = _FAKE_START_EPOCH,
+) -> _SchedulerCandidateRuntime:
     configured = os.environ.get("LMYZMAIL_CANDIDATE_COMMAND_JSON")
     command_template = (
         CandidateRuntime.from_environment().command_template
@@ -191,6 +219,7 @@ def _candidate(repository: Path, dns: ScriptedDnsServer, shim: Path) -> Candidat
         command_template=command_template,
         dns=dns,
         shim=shim,
+        fake_epoch=fake_epoch,
     )
 
 
@@ -274,7 +303,25 @@ def _assert_golden(repository: Path, observed: dict[str, Any], *, record: bool) 
         normalizers=_NORMALIZERS,
     )
     GoldenStore(
-        repository / "blackbox/golden/java/managed-reports-scheduler-v1",
+        repository / "blackbox/golden/java/managed-reports-scheduler-v2",
+        attestation,
+        record=record,
+    ).assert_observation("observation.json", observed)
+
+
+def _assert_restart_golden(
+    repository: Path,
+    observed: dict[str, Any],
+    *,
+    record: bool,
+) -> None:
+    attestation = GoldenAttestation.from_repository(
+        repository,
+        profile="managed-reports-scheduler-restart",
+        normalizers=(),
+    )
+    GoldenStore(
+        repository / "blackbox/golden/java/managed-reports-scheduler-restart-v1",
         attestation,
         record=record,
     ).assert_observation("observation.json", observed)
@@ -284,6 +331,69 @@ def _run_java_scheduler(repository: Path, workspace: Path, shim: Path) -> dict[s
     with report_dns_server() as dns:
         with _SchedulerJavaRuntime(workspace, dns, shim) as runtime:
             return _capture_scheduler(runtime)
+
+
+def _capture_missed_restart(
+    runtime: _SchedulerJavaRuntime | _SchedulerCandidateRuntime,
+) -> dict[str, Any]:
+    if runtime.ports is None:
+        raise AssertionError("scheduler restart runtime ports are unavailable")
+    if _drain_report_dns_queries(runtime):
+        raise AssertionError("scheduler restart DNS trace was not initially empty")
+    original = _seed_volume_threshold(runtime)
+    client: redis.Redis = redis.Redis(
+        host=_REDIS_HOST,
+        port=runtime.ports.redis,
+        decode_responses=False,
+    )
+    try:
+        before_database = _report_database_state(runtime)
+        before_pending = _redis_pending(client)
+        before_files = _sent_files(runtime)
+        time.sleep(1.0)
+        if _redis_pending(client) != before_pending or _sent_files(runtime) != before_files:
+            raise AssertionError("report scheduler published before the missed boundary")
+
+        runtime.fake_epoch = _FAKE_AFTER_MISSED_EPOCH
+        runtime.restart_application()
+        time.sleep(5.0)
+        if _redis_pending(client) != before_pending:
+            raise AssertionError("report scheduler caught up a missed run after restart")
+        if _sent_files(runtime) != before_files:
+            raise AssertionError("report scheduler wrote Maildir state for a missed run")
+        if _report_database_state(runtime) != before_database:
+            raise AssertionError("missed scheduler restart mutated source report rows")
+        queries = _drain_report_dns_queries(runtime)
+        if queries:
+            raise AssertionError(f"missed scheduler restart performed DNS work: {queries!r}")
+        return {
+            "stoppedBeforeBoundary": "2024-01-02T00:59:20Z",
+            "restartedAfterBoundary": "2024-01-02T01:00:20Z",
+            "missedReportDate": "2024-01-01",
+            "redisQueueUnchanged": True,
+            "maildirUnchanged": True,
+            "sourceDatabaseUnchanged": True,
+            "dnsQueries": [],
+            "catchUpPublicationCount": 0,
+        }
+    finally:
+        client.close()
+        _restore_volume_threshold(runtime, original)
+
+
+def _run_java_missed_restart(
+    repository: Path,
+    workspace: Path,
+    shim: Path,
+) -> dict[str, Any]:
+    with report_dns_server() as dns:
+        with _SchedulerJavaRuntime(
+            workspace,
+            dns,
+            shim,
+            fake_epoch=_FAKE_BEFORE_MISSED_EPOCH,
+        ) as runtime:
+            return _capture_missed_restart(runtime)
 
 
 @pytest.mark.integration
@@ -314,3 +424,38 @@ def test_rust_report_scheduler_crosses_real_cron_boundary(tmp_path: Path) -> Non
         with _candidate(repository, dns, shim) as runtime:
             observed = _capture_scheduler(runtime)
     _assert_golden(repository, observed, record=False)
+
+
+@pytest.mark.integration
+@pytest.mark.oracle
+@pytest.mark.timeout(120)
+def test_java_report_scheduler_does_not_catch_up_after_restart(
+    tmp_path: Path,
+    record_java_golden: bool,
+) -> None:
+    repository = Path(__file__).resolve().parents[2]
+    shim = tmp_path / "fake-realtime.so"
+    _compile_shim(repository, shim)
+    if record_java_golden:
+        observed = _run_java_missed_restart(repository, tmp_path / "java-record", shim)
+        _assert_restart_golden(repository, observed, record=True)
+    observed = _run_java_missed_restart(repository, tmp_path / "java-verify", shim)
+    _assert_restart_golden(repository, observed, record=False)
+
+
+@pytest.mark.integration
+@pytest.mark.candidate
+@pytest.mark.timeout(120)
+def test_rust_report_scheduler_does_not_catch_up_after_restart(tmp_path: Path) -> None:
+    repository = Path(__file__).resolve().parents[2]
+    shim = tmp_path / "fake-realtime.so"
+    _compile_shim(repository, shim)
+    with report_dns_server() as dns:
+        with _candidate(
+            repository,
+            dns,
+            shim,
+            fake_epoch=_FAKE_BEFORE_MISSED_EPOCH,
+        ) as runtime:
+            observed = _capture_missed_restart(runtime)
+    _assert_restart_golden(repository, observed, record=False)

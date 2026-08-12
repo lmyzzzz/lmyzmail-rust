@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "profile": "tlsrpt-https-v3",
+  "captured_at": "2026-08-12T15:57:58+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "active_golden": {
+    "path": "blackbox/golden/java/managed-tlsrpt-https-v11.json",
+    "sha256": "8215919c377615b9c01afac23abe29bffb54c63e05894dcdf76bab4fb360d964",
+    "definition_tree_sha256": "f4747bee86575a8f59725e02829a459ceb88961dadfbf858113b63a517b99d4c",
+    "case_count": 5,
+    "normalizers": [
+      "report-id:uuid-v4",
+      "json-object-order:reports-contract",
+      "http:header-order",
+      "tlsrpt:uuid-derived-content-length"
+    ]
+  },
+  "contract": {
+    "cases": [
+      "HTTPS 204 success",
+      "HTTP 302 reported without redirect following",
+      "untrusted collector certificate",
+      "private-address SSRF rejection before connect",
+      "stalled collector response under one two-second absolute deadline"
+    ],
+    "new_behavior_difference_ids": [],
+    "authorized_branding": {
+      "java_user_agent": "Botmail-TLSRPT/1.0",
+      "rust_user_agent": "lmyzmail-TLSRPT/1.0"
+    },
+    "explicitly_not_claimed": [
+      "disconnect ambiguity",
+      "backpressure or high-concurrency stress",
+      "long-running soak"
+    ]
+  },
+  "source_sha256": {
+    "blackbox/tests/test_oracle_tlsrpt_https.py": "618cc7c1ed9edbed48fed8b611727837815e958b5dc6ec043d60ffd31dc618b6",
+    "docs/compatibility.md": "435405be6a35a08eaa3fa2db4659e4cce3cf2bc9b105a158d603bb0f51c519bb",
+    "docs/reporting-https-contract.md": "ea91c79688953e0c1cd79212ce7c77dd5757725193a068c6152f0e4b2c1e04c1"
+  },
+  "verification": [
+    {"command": "reports, TLSRPT HTTPS, and scheduler formal integration collection", "result": "10 passed in 140.96s"},
+    {"command": "fresh Java and Rust v11 TLSRPT HTTPS replay", "result": "passed in formal integration collection"},
+    {"command": "pytest -q tests -m 'not integration'", "result": "161 passed, 160 deselected in 9.99s"},
+    {"command": "Ruff and strict mypy across blackbox", "result": "passed; mypy checked 150 source files"}
+  ],
+  "release": {
+    "toolchain": "rustc 1.94.0 (4a4ef493e 2026-03-02)",
+    "sha256": "a57663cb11fad457c7cbad6c7aefef85f2856aee59b9ee3c5840bf3236eb5220",
+    "java_runtime_dependency": false
+  }
+}

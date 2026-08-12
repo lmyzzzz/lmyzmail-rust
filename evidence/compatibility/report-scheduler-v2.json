@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "profile": "report-scheduler-v2",
+  "captured_at": "2026-08-12T15:57:58+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "active_goldens": {
+    "boundary": {
+      "path": "blackbox/golden/java/managed-reports-scheduler-v2/observation.json",
+      "sha256": "5f85ab6fec0530404df3cf91bcf7d48be53f894613b9c3bae1a9e6fc4e5c8d4d"
+    },
+    "missed_restart": {
+      "path": "blackbox/golden/java/managed-reports-scheduler-restart-v1/observation.json",
+      "sha256": "dc989f301ae5cf75fd962cf6ef2558e5184c3bf0ec525e8269effd24114af3da"
+    },
+    "definition_tree_sha256": "f4747bee86575a8f59725e02829a459ceb88961dadfbf858113b63a517b99d4c",
+    "normalizers": [
+      "report-id:uuid-v4",
+      "rfc5322:parsed-message",
+      "report-body:wall-clock-period",
+      "redis-domain-status:updated-at",
+      "maildir:generated-filename"
+    ],
+    "restart_normalizers": []
+  },
+  "contract": {
+    "boundary": {
+      "fake_boundary": "2024-01-02T01:00:00Z",
+      "report_date": "2024-01-01",
+      "publication_count": 2,
+      "protocols": ["DMARC XML gzip", "TLSRPT JSON gzip"]
+    },
+    "missed_restart": {
+      "stopped_at": "2024-01-02T00:59:20Z",
+      "restarted_at": "2024-01-02T01:00:20Z",
+      "catch_up_publication_count": 0,
+      "unchanged_surfaces": [
+        "DNS trace",
+        "Redis pending queue",
+        "Sent Maildir",
+        "PostgreSQL source report rows"
+      ]
+    },
+    "clock_boundary_method": "LD_PRELOAD shim offsets only CLOCK_REALTIME/gettimeofday/time in the application process; monotonic deadlines and PostgreSQL/Redis processes retain real clocks.",
+    "new_behavior_difference_ids": [],
+    "explicitly_not_claimed": [
+      "concurrent trigger admission",
+      "storage fault injection",
+      "scheduler high-concurrency or long-running soak"
+    ]
+  },
+  "source_sha256": {
+    "blackbox/fixtures/fake_realtime.c": "1fa7e0435356845871fba0dcdb6db3e0babb41465a681dc773126432b79b53e2",
+    "blackbox/tests/test_oracle_report_scheduler.py": "011027d3b7e6acc87c15ca83296aff5c5b1ab9bbbd5683afdfb83d8504236b66",
+    "docs/compatibility.md": "435405be6a35a08eaa3fa2db4659e4cce3cf2bc9b105a158d603bb0f51c519bb",
+    "docs/reporting-trigger-contract.md": "e98d11cf18e8c20aa9cd35c6e2b41dbc3a33cc1d0185ae020541600e98e6385f"
+  },
+  "verification": [
+    {"command": "fresh Java missed-restart golden replay", "result": "1 passed in 30.99s"},
+    {"command": "Rust missed-restart golden replay", "result": "1 passed in 7.56s"},
+    {"command": "reports, TLSRPT HTTPS, and scheduler formal integration collection", "result": "10 passed in 140.96s"},
+    {"command": "strict C shim compile with -Wall -Wextra -Werror", "result": "passed"},
+    {"command": "pytest -q tests -m 'not integration'", "result": "161 passed, 160 deselected in 9.99s"},
+    {"command": "Ruff and strict mypy across blackbox", "result": "passed; mypy checked 150 source files"}
+  ],
+  "frozen_repositories": {
+    "java_oracle": "read-only at 5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "skibidi_1_8_0": "read-only at 4bc484c15b780d578ee8e53cab968f2819958215"
+  }
+}
