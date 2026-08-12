@@ -3,8 +3,8 @@
   "profile": "skibidi-rust-v2",
   "implementation": {
     "path": "crates/lmyzmail/src/skibidi.rs",
-    "runtime": "frozen-c-ffi",
-    "c_library_linked": true,
+    "runtime": "rust-only",
+    "c_library_linked": false,
     "jvm_dependency": false,
     "fixed_expression_capacity": 64,
     "max_batch_expressions": 4096,
@@ -24,7 +24,7 @@
     "canonical_probability": 0.4000000000606502
   },
   "configuration": {
-    "legacy_java_alias": "scalar-c-backend",
+    "legacy_java_alias": "rust-scalar-backend",
     "java_fast_path": false,
     "modes": ["JAVA", "SCALAR", "AUTO", "AUTO_SAFE", "NATIVE", "AVX2", "AVX512", "AVX-512"]
   },
@@ -39,7 +39,7 @@
     },
     {
       "command": "cargo build --release --locked",
-      "result": "passed; sha256=a8e404930cf9e46dad89b9e6eb384eb1c1b04d503f3e3e5f5fda4e609cca8591"
+      "result": "passed; sha256=ac04c6b740afd86e1f8938a922b149d793b5678b0cd16d54b46bcfd10104f1d6"
     },
     {
       "command": "./.blackbox-venv-wsl/bin/pytest -q blackbox/tests/test_smtp_greeting_distribution.py -m=candidate",
@@ -51,8 +51,8 @@
     }
   ],
   "notes": [
-    "All modes use the frozen C probability implementation through the checked Rust FFI wrapper.",
-    "JAVA is a legacy configuration alias only; no JVM or Java fast path is started.",
+    "All modes are implemented by Rust; the frozen C source remains the probability and byte-level authority only.",
+    "JAVA is a legacy configuration alias for the Rust Scalar backend; no JVM, C generator, or Java fast path is started.",
     "AVX-labelled objects are ISA-capped and selected only after OS-aware runtime feature checks."
   ]
 }
