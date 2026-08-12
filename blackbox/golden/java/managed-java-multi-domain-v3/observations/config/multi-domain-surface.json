@@ -1,0 +1,431 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "f4747bee86575a8f59725e02829a459ceb88961dadfbf858113b63a517b99d4c",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "header:date:http-date",
+      "smtp:server-hostname",
+      "smtp:explicit-java-msi-to-lmyzmail-brand-difference"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-java-multi-domain"
+  },
+  "observation": {
+    "api_status": {
+      "body_json": {
+        "domains": {
+          "receivable": [
+            "example.test"
+          ],
+          "sendable": [
+            "send-only.example.test",
+            "example.test"
+          ]
+        },
+        "message": "API connection successful",
+        "status": "ok",
+        "timestamp": "<timestamp>",
+        "version": "2.8.0"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "<normalized-json>"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJkb21haW5zIjp7InJlY2VpdmFibGUiOlsiZXhhbXBsZS50ZXN0Il0sInNlbmRhYmxlIjpbInNlbmQtb25seS5leGFtcGxlLnRlc3QiLCJleGFtcGxlLnRlc3QiXX0sIm1lc3NhZ2UiOiJBUEkgY29ubmVjdGlvbiBzdWNjZXNzZnVsIiwic3RhdHVzIjoib2siLCJ0aW1lc3RhbXAiOiI8dGltZXN0YW1wPiIsInZlcnNpb24iOiIyLjguMCJ9",
+        "length": 192,
+        "sha256": "09f9f0cfeee7f808dee081a90edcdbd41b4a1d64035abdcef7b6c5a4dbcd4cae"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "outbound_admission": {
+      "primary": {
+        "body_json": {
+          "messageId": "<message-id>",
+          "queueId": "<queue-id>",
+          "queued": true,
+          "status": "PENDING"
+        },
+        "headers": [
+          [
+            "content-type",
+            "application/json; charset=UTF-8"
+          ],
+          [
+            "content-length",
+            "<normalized-json>"
+          ]
+        ],
+        "normalized_body_wire": {
+          "base64": "eyJtZXNzYWdlSWQiOiI8bWVzc2FnZS1pZD4iLCJxdWV1ZUlkIjoiPHF1ZXVlLWlkPiIsInF1ZXVlZCI6dHJ1ZSwic3RhdHVzIjoiUEVORElORyJ9",
+          "length": 84,
+          "sha256": "734e6530b790fbad7197d0d98e2515aa10d0b73892c2f2ceb38343e77e0434d8"
+        },
+        "status_code": 202,
+        "status_line": "HTTP/1.1 202 Accepted"
+      },
+      "second": {
+        "body_json": {
+          "error": "Sending not allowed for domain: second.example.test",
+          "queued": false,
+          "status": "REJECTED"
+        },
+        "headers": [
+          [
+            "content-type",
+            "application/json; charset=UTF-8"
+          ],
+          [
+            "content-length",
+            "<normalized-json>"
+          ]
+        ],
+        "normalized_body_wire": {
+          "base64": "eyJlcnJvciI6IlNlbmRpbmcgbm90IGFsbG93ZWQgZm9yIGRvbWFpbjogc2Vjb25kLmV4YW1wbGUudGVzdCIsInF1ZXVlZCI6ZmFsc2UsInN0YXR1cyI6IlJFSkVDVEVEIn0=",
+          "length": 98,
+          "sha256": "69d4eb7148c5b945691d7844128d8cd7f8fe29b2d630ff3f879c559c55bbafb4"
+        },
+        "status_code": 400,
+        "status_line": "HTTP/1.1 400 Bad Request"
+      },
+      "send_only": {
+        "body_json": {
+          "messageId": "<message-id>",
+          "queueId": "<queue-id>",
+          "queued": true,
+          "status": "PENDING"
+        },
+        "headers": [
+          [
+            "content-type",
+            "application/json; charset=UTF-8"
+          ],
+          [
+            "content-length",
+            "<normalized-json>"
+          ]
+        ],
+        "normalized_body_wire": {
+          "base64": "eyJtZXNzYWdlSWQiOiI8bWVzc2FnZS1pZD4iLCJxdWV1ZUlkIjoiPHF1ZXVlLWlkPiIsInF1ZXVlZCI6dHJ1ZSwic3RhdHVzIjoiUEVORElORyJ9",
+          "length": 84,
+          "sha256": "734e6530b790fbad7197d0d98e2515aa10d0b73892c2f2ceb38343e77e0434d8"
+        },
+        "status_code": 202,
+        "status_line": "HTTP/1.1 202 Accepted"
+      },
+      "unknown": {
+        "body_json": {
+          "error": "Sending not allowed for domain: unknown.example.test",
+          "queued": false,
+          "status": "REJECTED"
+        },
+        "headers": [
+          [
+            "content-type",
+            "application/json; charset=UTF-8"
+          ],
+          [
+            "content-length",
+            "<normalized-json>"
+          ]
+        ],
+        "normalized_body_wire": {
+          "base64": "eyJlcnJvciI6IlNlbmRpbmcgbm90IGFsbG93ZWQgZm9yIGRvbWFpbjogdW5rbm93bi5leGFtcGxlLnRlc3QiLCJxdWV1ZWQiOmZhbHNlLCJzdGF0dXMiOiJSRUpFQ1RFRCJ9",
+          "length": 99,
+          "sha256": "6b608de7f5d9323086c66a53c7ecffe603c2a2b431a9e875c65f3b86985c9b34"
+        },
+        "status_code": 400,
+        "status_line": "HTTP/1.1 400 Bad Request"
+      }
+    },
+    "registration": {
+      "primary": {
+        "body_json": {
+          "address": "multi-primary@example.test",
+          "id": "<id>",
+          "message": "Registration successful. You can now log in."
+        },
+        "headers": [
+          [
+            "content-type",
+            "application/json; charset=UTF-8"
+          ],
+          [
+            "content-length",
+            "<normalized-json>"
+          ]
+        ],
+        "normalized_body_wire": {
+          "base64": "eyJhZGRyZXNzIjoibXVsdGktcHJpbWFyeUBleGFtcGxlLnRlc3QiLCJpZCI6IjxpZD4iLCJtZXNzYWdlIjoiUmVnaXN0cmF0aW9uIHN1Y2Nlc3NmdWwuIFlvdSBjYW4gbm93IGxvZyBpbi4ifQ==",
+          "length": 109,
+          "sha256": "acd32abdae55f41573a9dd623adb1a638dbdee4ece45f554c98248a07bfe4793"
+        },
+        "status_code": 201,
+        "status_line": "HTTP/1.1 201 Created"
+      },
+      "second": {
+        "body_json": {
+          "error": "registration_failed",
+          "message": "Domain does not accept mail: second.example.test"
+        },
+        "headers": [
+          [
+            "content-type",
+            "application/json; charset=UTF-8"
+          ],
+          [
+            "content-length",
+            "<normalized-json>"
+          ]
+        ],
+        "normalized_body_wire": {
+          "base64": "eyJlcnJvciI6InJlZ2lzdHJhdGlvbl9mYWlsZWQiLCJtZXNzYWdlIjoiRG9tYWluIGRvZXMgbm90IGFjY2VwdCBtYWlsOiBzZWNvbmQuZXhhbXBsZS50ZXN0In0=",
+          "length": 92,
+          "sha256": "529176e055a82065daa3481559e56c037d26354b287823ee34078e6b5a963175"
+        },
+        "status_code": 400,
+        "status_line": "HTTP/1.1 400 Bad Request"
+      },
+      "send_only": {
+        "body_json": {
+          "error": "registration_failed",
+          "message": "Domain does not accept mail: send-only.example.test"
+        },
+        "headers": [
+          [
+            "content-type",
+            "application/json; charset=UTF-8"
+          ],
+          [
+            "content-length",
+            "<normalized-json>"
+          ]
+        ],
+        "normalized_body_wire": {
+          "base64": "eyJlcnJvciI6InJlZ2lzdHJhdGlvbl9mYWlsZWQiLCJtZXNzYWdlIjoiRG9tYWluIGRvZXMgbm90IGFjY2VwdCBtYWlsOiBzZW5kLW9ubHkuZXhhbXBsZS50ZXN0In0=",
+          "length": 95,
+          "sha256": "112903455a292798e710df6da2d35b5283dafea4bacaf07b1654848f1f4a8941"
+        },
+        "status_code": 400,
+        "status_line": "HTTP/1.1 400 Bad Request"
+      },
+      "unknown": {
+        "body_json": {
+          "error": "registration_failed",
+          "message": "Domain not configured: unknown.example.test"
+        },
+        "headers": [
+          [
+            "content-type",
+            "application/json; charset=UTF-8"
+          ],
+          [
+            "content-length",
+            "<normalized-json>"
+          ]
+        ],
+        "normalized_body_wire": {
+          "base64": "eyJlcnJvciI6InJlZ2lzdHJhdGlvbl9mYWlsZWQiLCJtZXNzYWdlIjoiRG9tYWluIG5vdCBjb25maWd1cmVkOiB1bmtub3duLmV4YW1wbGUudGVzdCJ9",
+          "length": 87,
+          "sha256": "917127eeb1e5a0be9922a4f221a2dec7a1733d617e8d2620d792ced48f394941"
+        },
+        "status_code": 400,
+        "status_line": "HTTP/1.1 400 Bad Request"
+      }
+    },
+    "smtp": {
+      "primary": {
+        "ehlo": [
+          "250-<brand> Hello blackbox.example\r\n",
+          "250-PIPELINING\r\n",
+          "250-SIZE 15728640\r\n",
+          "250-8BITMIME\r\n",
+          "250-CHUNKING\r\n",
+          "250-ENHANCEDSTATUSCODES\r\n",
+          "250-SMTPUTF8\r\n",
+          "250 SKIBIDITOILET\r\n"
+        ],
+        "mail_from": [
+          "250 2.1.0 Sender OK\r\n"
+        ],
+        "quit": [
+          "221 2.0.0 <hostname> closing connection\r\n"
+        ],
+        "rcpt": [
+          "250 2.1.5 Recipient OK\r\n"
+        ]
+      },
+      "second": {
+        "ehlo": [
+          "250-<brand> Hello blackbox.example\r\n",
+          "250-PIPELINING\r\n",
+          "250-SIZE 15728640\r\n",
+          "250-8BITMIME\r\n",
+          "250-CHUNKING\r\n",
+          "250-ENHANCEDSTATUSCODES\r\n",
+          "250-SMTPUTF8\r\n",
+          "250 SKIBIDITOILET\r\n"
+        ],
+        "mail_from": [
+          "250 2.1.0 Sender OK\r\n"
+        ],
+        "quit": [
+          "221 2.0.0 <hostname> closing connection\r\n"
+        ],
+        "rcpt": [
+          "550 5.1.2 Domain does not accept mail: second.example.test\r\n"
+        ]
+      },
+      "second_case": {
+        "ehlo": [
+          "250-<brand> Hello blackbox.example\r\n",
+          "250-PIPELINING\r\n",
+          "250-SIZE 15728640\r\n",
+          "250-8BITMIME\r\n",
+          "250-CHUNKING\r\n",
+          "250-ENHANCEDSTATUSCODES\r\n",
+          "250-SMTPUTF8\r\n",
+          "250 SKIBIDITOILET\r\n"
+        ],
+        "mail_from": [
+          "250 2.1.0 Sender OK\r\n"
+        ],
+        "quit": [
+          "221 2.0.0 <hostname> closing connection\r\n"
+        ],
+        "rcpt": [
+          "550 5.1.2 Domain does not accept mail: second.example.test\r\n"
+        ]
+      },
+      "send_only": {
+        "ehlo": [
+          "250-<brand> Hello blackbox.example\r\n",
+          "250-PIPELINING\r\n",
+          "250-SIZE 15728640\r\n",
+          "250-8BITMIME\r\n",
+          "250-CHUNKING\r\n",
+          "250-ENHANCEDSTATUSCODES\r\n",
+          "250-SMTPUTF8\r\n",
+          "250 SKIBIDITOILET\r\n"
+        ],
+        "mail_from": [
+          "250 2.1.0 Sender OK\r\n"
+        ],
+        "quit": [
+          "221 2.0.0 <hostname> closing connection\r\n"
+        ],
+        "rcpt": [
+          "550 5.1.2 Domain does not accept mail: send-only.example.test\r\n"
+        ]
+      },
+      "unknown": {
+        "ehlo": [
+          "250-<brand> Hello blackbox.example\r\n",
+          "250-PIPELINING\r\n",
+          "250-SIZE 15728640\r\n",
+          "250-8BITMIME\r\n",
+          "250-CHUNKING\r\n",
+          "250-ENHANCEDSTATUSCODES\r\n",
+          "250-SMTPUTF8\r\n",
+          "250 SKIBIDITOILET\r\n"
+        ],
+        "mail_from": [
+          "250 2.1.0 Sender OK\r\n"
+        ],
+        "quit": [
+          "221 2.0.0 <hostname> closing connection\r\n"
+        ],
+        "rcpt": [
+          "550 5.1.2 Domain not accepted: unknown.example.test\r\n"
+        ]
+      }
+    },
+    "web_config": {
+      "body_json": {
+        "domains": [
+          "example.test"
+        ],
+        "maxAttachmentSizeBytes": 10485760,
+        "maxAttachmentSizeMB": 10,
+        "maxEmailSizeBytes": 15728640,
+        "maxEmailSizeMB": 15,
+        "maxTotalAttachmentsSizeBytes": 15728640,
+        "sendableDomains": [
+          "send-only.example.test",
+          "example.test"
+        ],
+        "showInternetNlBadge": false
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "<normalized-json>"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJkb21haW5zIjpbImV4YW1wbGUudGVzdCJdLCJtYXhBdHRhY2htZW50U2l6ZUJ5dGVzIjoxMDQ4NTc2MCwibWF4QXR0YWNobWVudFNpemVNQiI6MTAsIm1heEVtYWlsU2l6ZUJ5dGVzIjoxNTcyODY0MCwibWF4RW1haWxTaXplTUIiOjE1LCJtYXhUb3RhbEF0dGFjaG1lbnRzU2l6ZUJ5dGVzIjoxNTcyODY0MCwic2VuZGFibGVEb21haW5zIjpbInNlbmQtb25seS5leGFtcGxlLnRlc3QiLCJleGFtcGxlLnRlc3QiXSwic2hvd0ludGVybmV0TmxCYWRnZSI6ZmFsc2V9",
+        "length": 264,
+        "sha256": "d8fb1b798f88fed120a9e918029b2daeeefad3425f8dbe16873016dbe60fa3d9"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "web_domains": {
+      "body_json": {
+        "receivable": [
+          "example.test"
+        ],
+        "registrationEnabled": true,
+        "sendable": [
+          "send-only.example.test",
+          "example.test"
+        ]
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "<normalized-json>"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJyZWNlaXZhYmxlIjpbImV4YW1wbGUudGVzdCJdLCJyZWdpc3RyYXRpb25FbmFibGVkIjp0cnVlLCJzZW5kYWJsZSI6WyJzZW5kLW9ubHkuZXhhbXBsZS50ZXN0IiwiZXhhbXBsZS50ZXN0Il19",
+        "length": 111,
+        "sha256": "3549ccf9e39ca4b46b08738780e72a4dbec52c87d8be3a9e4a07e2c5c42bddfd"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    }
+  },
+  "schema_version": 2
+}
