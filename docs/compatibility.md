@@ -473,7 +473,7 @@ v3 do not claim those paths. TLS v1 through v4 remain immutable history; v5
 retains the header-only normalization and API-returned queue identity
 established by v3 under the current harness definition tree.
 
-The active `managed-tlsrpt-https-v8.json` profile separately freezes external
+The active `managed-tlsrpt-https-v9.json` profile separately freezes external
 TLS report HTTPS delivery through the real report API. It covers a successful
 204 POST, a 302 that is reported without following, an untrusted collector
 certificate, a private-address SSRF rejection before connect, and a stalled
@@ -482,9 +482,18 @@ TXT discovery, exact target and Host bytes, SNI, TLS 1.3 cipher, complete gzip
 JSON body after only the UUIDv4 report id is normalized, API result, and
 unchanged source report row. Hickory's exact AAAA-before-A trace is asserted
 for Rust; Java collector resolution uses its isolated JDK hosts file. v1
-through v7 remain immutable pre-final-definition history. The only wire
+through v8 remain immutable pre-final-definition history. The only wire
 difference is the explicitly authorized `Botmail-TLSRPT/1.0` to
 `lmyzmail-TLSRPT/1.0` branding change.
+
+The active `managed-reports-v21` profile is collected by the normal black-box
+test suite for both frozen Java and Rust. Its eight scenarios cover report
+status, domain/address discovery, date errors, empty generation, seeded DMARC
+and TLSRPT delivery, and the combined trigger across PostgreSQL, DNS, Redis,
+Maildir, MIME, and gzip artifacts. A separate Rust test enables automatic
+sending and verifies bounded startup and shutdown. Actual 01:00 UTC firing,
+missed-run restart behavior, concurrent trigger admission, scheduler fault
+injection, and soak remain separate matrices.
 
 The active `managed-outbound-tls-validity-v3.json` profile separately freezes
 trusted-chain certificates that are expired or not yet valid. Opportunistic

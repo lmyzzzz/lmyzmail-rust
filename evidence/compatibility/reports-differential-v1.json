@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "profile": "reports-differential-v1",
+  "captured_at": "2026-08-12T15:06:13+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "active_golden": {
+    "path": "blackbox/golden/java/managed-reports-v21",
+    "suite_sha256": "b2c2a0a94d6d86f5a2d4c6ea70da282a42b18039406eaafc5a5f8c0f0fc3dd7b",
+    "definition_tree_sha256": "ae9c0d13d21472f70c8d8387742779442bd4facda2c4b85da796029e2bd471cf",
+    "scenario_count": 8,
+    "normalizers": [
+      "header:date:http-date",
+      "json-object-order:reports-contract",
+      "maildir:generated-filename",
+      "redis-domain-status:updated-at",
+      "report-body:wall-clock-period",
+      "report-id:uuid-v4",
+      "rfc5322:parsed-message"
+    ],
+    "observations_sha256": {
+      "http/reports/addresses": "a7d353c2a74e3299182fe70e5fe25176c8c26603cc107cd1653b4d921a15a336",
+      "http/reports/invalid-dates": "c0abf37828c9b5f03c10e4b3a66355d973f57d405f0b9faa1172eaff20f81802",
+      "http/reports/no-data-domain": "66cd123168df4f533e2d93e13e9df1c3b6b69489d37332c8daed8e28c4f4c2fa",
+      "http/reports/no-data-trigger": "2d156372ac6aecd5e7011fa37e20308a19e3e92c6799d3b7a37519383b80bed9",
+      "http/reports/seeded-delivery": "57c8a5748d5854a1ae29b4801d63ec9bd10eb3c3ff1df078ae5d1ca93c3d609a",
+      "http/reports/seeded-domains": "d109cc77e3bcec9da9f66aca4d2a120b88ba69e339a6037398228a2f9b65db02",
+      "http/reports/seeded-trigger": "16de2766fd533b25ed1a8ba43e845904bf8ad35a0fe847f937206057435a1f42",
+      "http/reports/status": "c62d092f2a014c6eba4dd36eeb871c53998cc3abbffb5be436bb23e4e92c0d5c"
+    }
+  },
+  "historical_goldens": {
+    "policy": "v1 through v20 remain immutable history; v20 captured the intermediate tree before candidate collection became a formal test",
+    "managed-reports-v20/suite.json": "d1175375a1c51ad17096cbd3dc572afb08f34ceb3c78dd1e4e808406830b2fda",
+    "managed-reports-v20/observations/http/reports/addresses.json": "52df45dcd655cb45ef75ac114220336176859f84dbb45005e34649657b3a49ff",
+    "managed-reports-v20/observations/http/reports/invalid-dates.json": "6b1d5ee5f7604f33a25ef8dab84bc326ca0a94e611433fc2a7ff04512dc4127b",
+    "managed-reports-v20/observations/http/reports/no-data-domain.json": "945aa2d6caa7cee1f20257a06efa6131ea493c60ca00767e137626e3eb392f0f",
+    "managed-reports-v20/observations/http/reports/no-data-trigger.json": "aa4e63ed105bdc88553476fa8c19b16f1a40a522c4ca45c95a6128311ecce237",
+    "managed-reports-v20/observations/http/reports/seeded-delivery.json": "c6f64c30d0132eb45b8dab3f2e49e698c5014b6102fdb377c4b9e5256991a449",
+    "managed-reports-v20/observations/http/reports/seeded-domains.json": "7a6c728ac60bac30a1dbbaa3e11890085ca829416b7661535028ff7051931e53",
+    "managed-reports-v20/observations/http/reports/seeded-trigger.json": "fde25be8146ed71af60ced541a4435463c35b6f1671567e9dcb7146560f773c1",
+    "managed-reports-v20/observations/http/reports/status.json": "dd7dfa921c19a48ca0579361552cdca112813ab130df76697092fae701754242"
+  },
+  "contract": {
+    "scenarios": [
+      "report status",
+      "seeded domain discovery",
+      "invalid date errors",
+      "no-data full trigger",
+      "no-data single-domain generation",
+      "DMARC and TLSRPT destination discovery",
+      "seeded DMARC XML and TLSRPT JSON publication",
+      "combined seeded full trigger"
+    ],
+    "state_surfaces": [
+      "raw HTTP status, headers and canonical JSON",
+      "scripted DNS query order and cache behavior",
+      "PostgreSQL source rows and exact fixture restoration",
+      "Redis pending order, tasks, domain state and TTL semantics",
+      "Sent Maildir atomic files without temporary residue",
+      "parsed MIME metadata and bounded gzip attachment payloads"
+    ],
+    "formal_collection_change": "The Rust candidate differential and scheduler lifecycle tests moved from blackbox/tools into blackbox/tests/test_oracle_reports.py; the duplicate tools-only entry point was removed.",
+    "scheduler_lifecycle": "Rust starts with automatic sending enabled, exposes autoSendEnabled=true, and joins on runtime shutdown.",
+    "new_behavior_difference_ids": [],
+    "explicitly_not_claimed": [
+      "externally clock-driven 01:00 UTC firing",
+      "missed-run restart behavior",
+      "concurrent trigger admission",
+      "scheduler storage fault injection",
+      "scheduler high-concurrency or long-running soak"
+    ]
+  },
+  "source_sha256": {
+    "blackbox/src/lmyzmail_blackbox/report_contract.py": "13acfcc462200edcca8c6ff16ffd0ce12ddc8713841da95e9e5a73356ef7393a",
+    "blackbox/tests/test_oracle_reports.py": "aafc4de73d08c942b97044c14622dd69f4e292ad9a00d8ff800763793afaeffc",
+    "docs/compatibility.md": "4028c214c10ef8ef93c54e8fd7423a2ead2e14abeed583bb14d6115984be1175",
+    "docs/reporting-trigger-contract.md": "a2517630c41fed48b3e398b4ac37c29d67960effd96f09012248fa33dbefc854"
+  },
+  "verification": [
+    {
+      "command": "record managed-reports-v21 and replay in an independent fresh Java workspace",
+      "result": "1 passed in 27.36s"
+    },
+    {
+      "command": "Rust candidate replay of eight scenarios plus scheduler lifecycle",
+      "result": "2 passed in 3.02s"
+    },
+    {
+      "command": "pytest -q blackbox/tests -m 'not integration'",
+      "result": "161 passed, 156 deselected in 10.22s"
+    },
+    {
+      "command": "ruff check blackbox/src blackbox/tests blackbox/tools",
+      "result": "passed"
+    },
+    {
+      "command": "mypy --strict blackbox/src blackbox/tests",
+      "result": "Success: no issues found in 115 source files"
+    }
+  ],
+  "frozen_repositories": {
+    "java_oracle": {
+      "branch": "codex/java-oracle-freeze",
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "state": "read-only; only known asciiart_linux/ffmpeg_src executable-bit noise"
+    },
+    "skibidi_1_8_0": {
+      "branch": "codex/skibidi-1.8.0-freeze",
+      "commit": "4bc484c15b780d578ee8e53cab968f2819958215",
+      "state": "read-only and clean"
+    }
+  }
+}

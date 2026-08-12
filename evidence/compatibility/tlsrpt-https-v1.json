@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
   "profile": "tlsrpt-https-v1",
-  "captured_at": "2026-08-12T14:48:23+08:00",
+  "captured_at": "2026-08-12T15:06:13+08:00",
   "oracle": {
     "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
     "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
   },
   "active_golden": {
-    "path": "blackbox/golden/java/managed-tlsrpt-https-v8.json",
-    "sha256": "347aa0ffd3796b89f5aaee7861312b89c18a83009061a426360e4f829f6a213f",
-    "definition_tree_sha256": "07dcb43eb59f4e55397f928462fcdebc8a27a141ec31434f755fe6e639166370",
+    "path": "blackbox/golden/java/managed-tlsrpt-https-v9.json",
+    "sha256": "3d183ef9865e798493c0770cf492844c4a8caee383299205676a186498d5c1c0",
+    "definition_tree_sha256": "ae9c0d13d21472f70c8d8387742779442bd4facda2c4b85da796029e2bd471cf",
     "case_count": 5,
     "normalizers": [
       "report-id:uuid-v4",
@@ -19,14 +19,15 @@
     ]
   },
   "historical_goldens": {
-    "policy": "v1 through v7 are retained as immutable pre-final-definition history and are not active acceptance inputs",
+    "policy": "v1 through v8 are retained as immutable pre-final-definition history and are not active acceptance inputs",
     "blackbox/golden/java/managed-tlsrpt-https-v1.json": "3686240e48721c5b479b2d5f02ae7a597105167aa44eaefd717d8e226d16ef9d",
     "blackbox/golden/java/managed-tlsrpt-https-v2.json": "cc13cfbd8d4c8b80e78d83c51f22f34ca0cb7f80fdc91a778b0dec5c44af4e77",
     "blackbox/golden/java/managed-tlsrpt-https-v3.json": "24fe30346813599c692c19350cc04a10d5bf51c1d88590e54580cbfe2bd30f85",
     "blackbox/golden/java/managed-tlsrpt-https-v4.json": "ba237c0148d210c16d4442143b9d29785caac3fd12183d1d66d5c567ba014417",
     "blackbox/golden/java/managed-tlsrpt-https-v5.json": "90db29590a4c96b5f4b2f27064450f85b6dfe86b2c7cb54350314dd3de2f20c0",
     "blackbox/golden/java/managed-tlsrpt-https-v6.json": "d86100f350580322b990015709162c02a43c9ed534ae27ad61b079d33bfcafcd",
-    "blackbox/golden/java/managed-tlsrpt-https-v7.json": "94a79ed27a14339f868737e93a197090bd19209685e773ad6fc2804afae946b2"
+    "blackbox/golden/java/managed-tlsrpt-https-v7.json": "94a79ed27a14339f868737e93a197090bd19209685e773ad6fc2804afae946b2",
+    "blackbox/golden/java/managed-tlsrpt-https-v8.json": "347aa0ffd3796b89f5aaee7861312b89c18a83009061a426360e4f829f6a213f"
   },
   "contract": {
     "cases": [
@@ -65,22 +66,22 @@
     "blackbox/src/lmyzmail_blackbox/scripted_https.py": "17ab93b211d1785b387be6998d2cfcc7be4071c6d9d71f31ee572a4bfa1a1b28",
     "blackbox/src/lmyzmail_blackbox/tlsrpt_https_probe.py": "53e6a1fda86bf30e05dfc413dc70844f087d9d7ace3c9e5653dc361242eec995",
     "blackbox/tests/test_scripted_https.py": "7bfb2d13f3a04e511d5f932d68a5d8270a0d3754c9342ed4deb019c07ac968bb",
-    "blackbox/tests/test_oracle_tlsrpt_https.py": "d89a1693d603a1f5e911dc59761dc9ea9751db636ca0776fbdb38d35e9253480",
-    "docs/compatibility.md": "8c990e2a5eabdcf8d7d17338a3bcf2715643cda6d6c094a5835cf5f5fad2320e",
-    "docs/reporting-https-contract.md": "c4f8a781a7d77abca70c3ab002bb6ccb6b6236baeb2e9b7f52f29e2e4b3564c5"
+    "blackbox/tests/test_oracle_tlsrpt_https.py": "b7e0c29cae5d8c3ff58010af4c14151bcf1432632a0c391cdffe924581e82f24",
+    "docs/compatibility.md": "4028c214c10ef8ef93c54e8fd7423a2ead2e14abeed583bb14d6115984be1175",
+    "docs/reporting-https-contract.md": "2d0ed1ecdb67bbb823d73ba5c39bd6605532c76e6cc19ed7b9d50c29764e84a4"
   },
   "verification": [
     {
-      "command": "record fresh Java managed-tlsrpt-https-v8 golden",
-      "result": "1 passed in 16.72s"
+      "command": "record fresh Java managed-tlsrpt-https-v9 golden",
+      "result": "1 passed in 16.37s"
     },
     {
-      "command": "Rust candidate v8 replay",
-      "result": "1 passed in 5.00s"
+      "command": "Rust candidate v9 replay",
+      "result": "1 passed in 5.13s"
     },
     {
-      "command": "fresh Java v8 replay without recording",
-      "result": "1 passed in 16.47s"
+      "command": "fresh Java v9 replay without recording",
+      "result": "1 passed in 16.40s"
     },
     {
       "command": "pytest -q blackbox/tests/test_scripted_https.py",
@@ -92,7 +93,7 @@
     },
     {
       "command": "pytest -q blackbox/tests -m 'not integration'",
-      "result": "161 passed, 154 deselected in 10.08s"
+      "result": "161 passed, 156 deselected in 10.22s"
     },
     {
       "command": "ruff check blackbox/src blackbox/tests blackbox/tools",
