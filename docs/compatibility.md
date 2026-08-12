@@ -587,6 +587,20 @@ is the supplemental `report-trigger-redis-outage-deadline` difference. Rust's
 additional PostgreSQL `PENDING` checkpoint after successful recovery remains
 within the existing `outbound-retry-postgres-checkpoint` difference.
 
+The supplemental `report-trigger-maildir-failure-v1` profile replaces the empty
+`qa@example.test/sent` directory with a regular marker file during one DMARC
+report admission. Java advances its Redis task sequence and publishes a task,
+domain state, and pending reference despite the missing Sent file; the task has
+null Sent metadata while the HTTP result reports success. Rust intentionally
+fails closed with the exact `outbound queue unavailable` per-delivery result and
+advances only bounded task-ID allocators. No queue projection, PostgreSQL row,
+email index, Maildir file, spool, or temporary file is allowed. Restoring the
+directory and retrying produces one DMARC publication matching the active v23
+golden, with unchanged application PID and no extra DNS query in this fixture.
+This evidence-bound safety difference is `report-trigger-maildir-write-failure`;
+it does not relax successful Maildir byte, Redis TTL, PostgreSQL, or report
+response requirements.
+
 The active `managed-outbound-tls-validity-v3.json` profile separately freezes
 trusted-chain certificates that are expired or not yet valid. Opportunistic
 mode closes the failed TLS connection and delivers over a fresh plaintext

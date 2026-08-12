@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "profile": "report-trigger-maildir-failure-v1",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "candidate_parent": "5be86b0ecd44d5e5fa243ce27e66180698402a49",
+  "frozen_harness": {
+    "definition_tree_sha256": "f4747bee86575a8f59725e02829a459ceb88961dadfbf858113b63a517b99d4c",
+    "behavior_differences_manifest_sha256": "6a9f9f8e291faa5d813b6915bca80629d4d77785e70b6ba201a9c4809852b696",
+    "active_reports_profile": "blackbox/golden/java/managed-reports-v23",
+    "active_seeded_delivery_golden": "blackbox/golden/java/managed-reports-v23/observations/http/reports/seeded-delivery.json",
+    "active_seeded_delivery_golden_sha256": "887abea00d415a4b283b5611f6902b125c6928c67c94226f8a2ef45239d4e366",
+    "supplemental_test": "evidence/compatibility/report-trigger-maildir-failure-v1/test_report_trigger_maildir_failure.py",
+    "supplemental_test_sha256": "8cfc9bbe0e24862a5b4dd24646016bfe0fcb4612cb263fe6a30a3ce577f7a901"
+  },
+  "source_sha256": {
+    "java_mail_file_store": "17c3dafb3bc6283c5daf00e13aff441f51ef29347353da03ae44da8b653dbc3e",
+    "java_outbound_service": "4364488928d307a31e5bdabaa7355db3f0d146607cace085f8900faa364b99ba",
+    "rust_outbound_message": "42fa88d77dffc43b52517928653ba5cf8e09461bee3d5a81cf90d963ad8e9a73",
+    "rust_outbound": "c77131243d1fb773f019d0a73319c43655098a46a504a87382c95c5296a47afe",
+    "rust_reporting": "d4025a82019661fd44b41300a123f5974b30129527dd10ef8c880849fd3a37c4"
+  },
+  "observations": {
+    "java": {
+      "path": "evidence/compatibility/report-trigger-maildir-failure-v1/java-observation.json",
+      "sha256": "1f17aa881bde227b12205727c941c3f39b0cd91a2945c21ef99eccb5ec793ba5"
+    },
+    "rust": {
+      "path": "evidence/compatibility/report-trigger-maildir-failure-v1/candidate-observation.json",
+      "sha256": "969a896b770abf9df133f7f7586f3bae21a8d81f287c19803db28eed269fe30c"
+    }
+  },
+  "release": {
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "e8663099260085f649c47ed8dac377323e716a8a79e805ab15daa6b67ddcb7dc"
+  },
+  "difference": {
+    "id": "report-trigger-maildir-write-failure",
+    "candidate_requirement": "A report outbound admission must fail closed when the sender Sent Maildir path is not a real directory. Return HTTP 200 with the exact per-delivery error=outbound queue unavailable, consume only bounded task-ID allocators, leave PostgreSQL, Redis projections, email indexes, Maildir files, and temporary files unchanged, and allow one explicit retry after the path is restored.",
+    "oracle_behavior": "Frozen Java allocates a Redis task ID and then swallows the Maildir exception in the outbound service. It still initializes the domain hash, writes task metadata with sentFileName and sentSubdirectory absent, and appends the task ID to pending; the report route returns success even though no Sent file exists.",
+    "candidate_behavior": "Rust returns the bounded failed DMARC delivery result, advances only the Redis sequence and PostgreSQL identity allocator, publishes no Redis task/domain/pending state, creates no outbound or email-index row, leaves no spool or temporary file, and succeeds once after the Sent directory is restored.",
+    "reason": "Publishing a queue task without a durable Sent message makes later delivery and recovery unsafe and can lose or duplicate reports. The replacement must preserve atomic Maildir publication and fail closed rather than reproduce the Java partial-publication defect.",
+    "scope": "Only a deterministic regular-file replacement of the empty qa@example.test/sent directory during report email admission. Healthy Maildir publication, exact report MIME and gzip bytes, Redis keys and TTLs, PostgreSQL transaction semantics, source rows, DNS order, response status/content type, application continuity, recovery retry, and all non-faulted report behavior remain strict.",
+    "evidence": {
+      "fault": "Before the request, replace the absent or empty sender Sent directory with a regular marker file; restore the exact directory before the explicit retry.",
+      "java_partial_state": [
+        "botmail:mail:queue:seq advances",
+        "botmail:mail:queue:task:<id> is present with sentFileName=null and sentSubdirectory=null",
+        "botmail:mail:queue:domains:<id> and pending are published",
+        "PostgreSQL, email_index, Maildir and temporary files are unchanged"
+      ],
+      "rust_fail_closed_state": [
+        "only task-ID allocators advance",
+        "no botmail:mail:queue:task/domains/pending or sent-file index mutation",
+        "no outbound_mail_queue or email_index row",
+        "no Maildir or temporary file mutation"
+      ],
+      "java_response_sha256": "f6f1f4e14f4afd608b44a897870108c7278a2b98d7c23dc90c0e372a4c616ea5",
+      "rust_response_sha256": "2aeff97158e57decab3c2648935242203cb76a8a21265faab84141e0e45c7159",
+      "recovery_response_sha256": "f6f1f4e14f4afd608b44a897870108c7278a2b98d7c23dc90c0e372a4c616ea5"
+    }
+  },
+  "contract": {
+    "fault": "regular file at qa@example.test/sent",
+    "failure_dns_queries": [
+      "_dmarc.sender.example",
+      "sender.example._report._dmarc.example.test"
+    ],
+    "shared_recovery": "same application PID, zero additional recovery DNS queries, one DMARC Redis pending task and one atomic Sent Maildir file matching managed-reports-v23",
+    "supplemental_behavior_difference_id": "report-trigger-maildir-write-failure",
+    "explicitly_not_claimed": [
+      "Redis SIGKILL or data-loss restart",
+      "PostgreSQL crash during a committed Maildir transaction",
+      "partial disk-full writes after a final file is opened",
+      "TLSRPT dual-report partial failure",
+      "repeated fault or long-running soak"
+    ]
+  },
+  "verification": [
+    {
+      "command": "ruff check and mypy --strict for the supplemental test",
+      "result": "passed"
+    },
+    {
+      "command": "pytest -q -s evidence/compatibility/report-trigger-maildir-failure-v1/test_report_trigger_maildir_failure.py",
+      "result": "2 passed in 12.50s"
+    },
+    {
+      "command": "active managed-reports-v23 DMARC response, queue task, Sent MIME and gzip self-validation",
+      "result": "passed for Java and Rust"
+    }
+  ],
+  "frozen_repositories": {
+    "java_oracle": "read-only at 5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "skibidi_1_8_0": "read-only at 4bc484c15b780d578ee8e53cab968f2819958215"
+  }
+}

@@ -150,3 +150,18 @@ retains one durable PostgreSQL `PENDING` admission row under the existing
 `outbound-retry-postgres-checkpoint` rule; Redis bytes, TTL, Maildir MIME,
 successful HTTP bytes, and source report rows remain strict compatibility
 requirements.
+
+The supplemental `report-trigger-maildir-failure-v1` profile replaces the empty
+`qa@example.test/sent` directory with a regular marker file immediately before
+DMARC report email admission. Frozen Java allocates its Redis sequence, swallows
+the Maildir exception, and publishes task/domain/pending state with null Sent
+metadata while the report response still says success. This is recorded as the
+`report-trigger-maildir-write-failure` oracle defect and is not reproduced.
+
+Rust fails closed with the exact HTTP 200 per-delivery
+`error=outbound queue unavailable` result. Only bounded task-ID allocators may
+advance: no Redis task/domain/pending or sent-file-index key, PostgreSQL queue or
+email-index row, Maildir file, spool, or temporary file may be created. Restoring
+the directory and explicitly retrying must keep the application alive, issue no
+additional DNS query in this fixture, and publish one DMARC task and one atomic
+Sent message matching the active `managed-reports-v23` golden byte for byte.

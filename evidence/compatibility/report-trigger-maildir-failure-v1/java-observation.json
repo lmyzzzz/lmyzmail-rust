@@ -1,0 +1,174 @@
+{
+  "applicationPidUnchanged": true,
+  "failureDnsQueries": [
+    "_dmarc.sender.example",
+    "sender.example._report._dmarc.example.test"
+  ],
+  "failurePublication": {
+    "pendingAppended": true,
+    "sentFileMissing": true,
+    "sentSubdirectoryMissing": true,
+    "task": {
+      "domains": {
+        "example.test": {
+          "domain": "example.test",
+          "error": null,
+          "permanentFailure": false,
+          "recipients": [
+            "qa@example.test"
+          ],
+          "status": "PENDING",
+          "updatedAt": "<updated-at>"
+        }
+      },
+      "inMemory": true,
+      "maxRetries": 5,
+      "message": {
+        "attachment": {
+          "compressedBytesPositive": true,
+          "contentType": "application/gzip",
+          "decompressedText": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<feedback xmlns=\"urn:ietf:params:xml:ns:dmarc-xml-report-1.0\">\n  <report_metadata>\n    <org_name>Blackbox Reports</org_name>\n    <email>reports@example.test</email>\n    <report_id><report-id></report_id>\n    <date_range>\n      <begin>1704067200</begin>\n      <end>1704153599</end>\n    </date_range>\n  </report_metadata>\n  <policy_published>\n    <domain>sender.example</domain>\n    <adkim>r</adkim>\n    <aspf>r</aspf>\n    <p>reject</p>\n    <sp>reject</sp>\n    <pct>100</pct>\n  </policy_published>\n  <record>\n    <row>\n      <source_ip>192.0.2.10</source_ip>\n      <count>1</count>\n      <policy_evaluated>\n        <disposition>none</disposition>\n        <dkim>fail</dkim>\n        <spf>pass</spf>\n      </policy_evaluated>\n    </row>\n    <identifiers>\n      <header_from>sender.example</header_from>\n      <envelope_from>sender.example</envelope_from>\n    </identifiers>\n    <auth_results>\n      <dkim>\n        <domain>sender.example</domain>\n        <selector>legacy</selector>\n        <result>none</result>\n      </dkim>\n      <spf>\n        <domain>sender.example</domain>\n        <result>pass</result>\n      </spf>\n    </auth_results>\n  </record>\n</feedback>\n",
+          "filename": "example.test!sender.example!1704067200!1704153599.xml.gz",
+          "format": "dmarc-xml"
+        },
+        "body": "This is an aggregate DMARC report for domain: sender.example\r\n\r\nReport Period: <report-period>\r\nReport ID: <report-id>\r\nSubmitter: example.test\r\nRecords: 1\r\n\r\nThe report is attached as a gzip-compressed XML file.\r\n",
+        "from": "qa@example.test",
+        "subject": "Report Domain: sender.example Submitter: example.test Report-ID: <report-id>",
+        "to": "qa@example.test"
+      },
+      "messageIdPresent": true,
+      "recipients": {
+        "bcc": [],
+        "cc": [],
+        "to": [
+          "qa@example.test"
+        ]
+      },
+      "retryCount": 0,
+      "senderAddress": "qa@example.test",
+      "sentFilePresent": false,
+      "sentSubdirectory": null,
+      "status": "PENDING",
+      "taskTtlPositive": true
+    },
+    "taskIdPresent": true
+  },
+  "failureResponse": {
+    "body_json": {
+      "date": "2024-01-01",
+      "dmarc": {
+        "error": "none",
+        "results": [
+          {
+            "method": "email",
+            "success": true,
+            "target": "qa@example.test"
+          }
+        ]
+      },
+      "domain": "sender.example",
+      "tls": {
+        "error": "No TLS data for this domain/date",
+        "results": []
+      }
+    },
+    "headers": [
+      [
+        "content-type",
+        "application/json; charset=UTF-8"
+      ],
+      [
+        "content-length",
+        "209"
+      ]
+    ],
+    "normalized_body_wire": {
+      "base64": "eyJkYXRlIjoiMjAyNC0wMS0wMSIsImRtYXJjIjp7ImVycm9yIjoibm9uZSIsInJlc3VsdHMiOlt7Im1ldGhvZCI6ImVtYWlsIiwic3VjY2VzcyI6dHJ1ZSwidGFyZ2V0IjoicWFAZXhhbXBsZS50ZXN0In1dfSwiZG9tYWluIjoic2VuZGVyLmV4YW1wbGUiLCJ0bHMiOnsiZXJyb3IiOiJObyBUTFMgZGF0YSBmb3IgdGhpcyBkb21haW4vZGF0ZSIsInJlc3VsdHMiOltdfX0=",
+      "length": 209,
+      "sha256": "f6f1f4e14f4afd608b44a897870108c7278a2b98d7c23dc90c0e372a4c616ea5"
+    },
+    "status_code": 200,
+    "status_line": "HTTP/1.1 200 OK"
+  },
+  "failureState": {
+    "noOutboundRows": true,
+    "noResidualSpoolOrTemporaryFiles": true,
+    "noSentIndexRows": true,
+    "postgresSequenceAfter": {
+      "isCalled": true,
+      "lastValue": 2101
+    },
+    "postgresSequenceBefore": {
+      "isCalled": true,
+      "lastValue": 2101
+    },
+    "queuePublicationCount": 1,
+    "redisMutationScope": [
+      "sequence",
+      "pending",
+      "task",
+      "domains"
+    ],
+    "redisSequenceAfter": {
+      "ttl": -1,
+      "type": "string",
+      "value": "2102"
+    },
+    "redisSequenceBefore": {
+      "ttl": -1,
+      "type": "string",
+      "value": "2101"
+    }
+  },
+  "maildirFault": "replace absent or empty qa@example.test/sent directory with a regular file",
+  "outboundDatabaseAddedAfterRecovery": [],
+  "publication": {
+    "activeGoldenDmarcMatched": true,
+    "activeGoldenPath": "blackbox/golden/java/managed-reports-v23/observations/http/reports/seeded-delivery.json",
+    "activeGoldenSha256": "887abea00d415a4b283b5611f6902b125c6928c67c94226f8a2ef45239d4e366",
+    "maildirAddedCount": 1,
+    "pendingOrder": [
+      "dmarc"
+    ],
+    "redisMaildirByteEquivalent": true
+  },
+  "recoveryDnsQueries": [],
+  "recoveryResponse": {
+    "body_json": {
+      "date": "2024-01-01",
+      "dmarc": {
+        "error": "none",
+        "results": [
+          {
+            "method": "email",
+            "success": true,
+            "target": "qa@example.test"
+          }
+        ]
+      },
+      "domain": "sender.example",
+      "tls": {
+        "error": "No TLS data for this domain/date",
+        "results": []
+      }
+    },
+    "headers": [
+      [
+        "content-type",
+        "application/json; charset=UTF-8"
+      ],
+      [
+        "content-length",
+        "209"
+      ]
+    ],
+    "normalized_body_wire": {
+      "base64": "eyJkYXRlIjoiMjAyNC0wMS0wMSIsImRtYXJjIjp7ImVycm9yIjoibm9uZSIsInJlc3VsdHMiOlt7Im1ldGhvZCI6ImVtYWlsIiwic3VjY2VzcyI6dHJ1ZSwidGFyZ2V0IjoicWFAZXhhbXBsZS50ZXN0In1dfSwiZG9tYWluIjoic2VuZGVyLmV4YW1wbGUiLCJ0bHMiOnsiZXJyb3IiOiJObyBUTFMgZGF0YSBmb3IgdGhpcyBkb21haW4vZGF0ZSIsInJlc3VsdHMiOltdfX0=",
+      "length": 209,
+      "sha256": "f6f1f4e14f4afd608b44a897870108c7278a2b98d7c23dc90c0e372a4c616ea5"
+    },
+    "status_code": 200,
+    "status_line": "HTTP/1.1 200 OK"
+  },
+  "sourceDatabaseUnchanged": true
+}
