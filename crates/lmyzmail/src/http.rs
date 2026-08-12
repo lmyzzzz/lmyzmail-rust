@@ -480,7 +480,9 @@ async fn cancel_on_peer_close(stream: TcpStream, cancellation: CancellationToken
         };
         match result {
             Ok(ready) if ready.is_read_closed() => {
-                cancellation.cancel();
+                if stream.take_error().ok().flatten().is_some() {
+                    cancellation.cancel();
+                }
                 return;
             }
             Ok(_) => {
@@ -4422,7 +4424,7 @@ lmyzmail.public-registration-enabled=true\n",
     }
 
     #[tokio::test]
-    async fn peer_close_monitor_cancels_the_request_token() {
+    async fn peer_close_monitor_ignores_a_clean_fin() {
         let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
         let address = listener.local_addr().unwrap();
         let client = TcpStream::connect(address).await.unwrap();
@@ -4431,9 +4433,26 @@ lmyzmail.public-registration-enabled=true\n",
         let monitor = tokio::spawn(cancel_on_peer_close(server, cancellation.clone()));
 
         drop(client);
+        monitor.await.unwrap();
+        assert!(!cancellation.is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn peer_close_monitor_cancels_the_request_token_on_rst() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let client = TcpStream::connect(address).await.unwrap();
+        let (server, _) = listener.accept().await.unwrap();
+        let cancellation = CancellationToken::new();
+        let monitor = tokio::spawn(cancel_on_peer_close(server, cancellation.clone()));
+
+        socket2::SockRef::from(&client)
+            .set_linger(Some(Duration::ZERO))
+            .unwrap();
+        drop(client);
         timeout(Duration::from_secs(1), cancellation.cancelled())
             .await
-            .expect("peer FIN must cancel the request token");
+            .expect("peer RST must cancel the request token");
         monitor.await.unwrap();
     }
 
@@ -4455,7 +4474,7 @@ lmyzmail.public-registration-enabled=true\n",
     }
 
     #[tokio::test]
-    async fn peer_close_monitor_observes_fin_behind_unread_bytes() {
+    async fn peer_close_monitor_ignores_fin_behind_unread_bytes() {
         let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
         let address = listener.local_addr().unwrap();
         let mut client = TcpStream::connect(address).await.unwrap();
@@ -4465,10 +4484,22 @@ lmyzmail.public-registration-enabled=true\n",
 
         client.write_all(b"unread").await.unwrap();
         drop(client);
-        timeout(Duration::from_secs(1), cancellation.cancelled())
-            .await
-            .expect("peer FIN behind unread bytes must cancel the request token");
         monitor.await.unwrap();
+        assert!(!cancellation.is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn peer_close_monitor_ignores_request_write_half_close() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let mut client = TcpStream::connect(address).await.unwrap();
+        let (server, _) = listener.accept().await.unwrap();
+        let cancellation = CancellationToken::new();
+        let monitor = tokio::spawn(cancel_on_peer_close(server, cancellation.clone()));
+
+        client.shutdown().await.unwrap();
+        monitor.await.unwrap();
+        assert!(!cancellation.is_cancelled());
     }
 
     #[tokio::test]

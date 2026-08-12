@@ -65,9 +65,12 @@ cancellation. It sends a complete authenticated request, blocks the real DMARC
 domain query with a PostgreSQL table lock, confirms the waiting lock through
 `pg_locks`, and closes the client with TCP RST. Java retains the blocked query
 and guard, and a later request receives `Already running`. Rust observes the
-closed peer, cancels the PostgreSQL wait, releases the guard, and admits a retry
+RST or socket error, cancels the PostgreSQL wait, releases the guard, and admits a retry
 before the table lock is released. Neither path may perform DNS, Redis,
 Maildir, or source-table mutations.
+
+Clean FIN, unread data followed by FIN, and request write half-close are not
+abort signals. They must not cancel a valid request or suppress its response.
 
 The Java behavior is frozen in
 `evidence/compatibility/report-trigger-disconnect-v1/java-golden/observation.json`
@@ -77,11 +80,28 @@ The Rust expectation is frozen in `candidate-observation.json` with SHA-256
 `ab628fa4b165a58470c582bbe5aa92445bc4a711630ea4c8b08831b70970168a`.
 The external test's SHA-256 is recorded in the supplemental manifest,
 the candidate HTTP source has SHA-256
-`6c63f11ac277433682f5c550f7b4431f7394aeaab3b7b6fb2389ea7051c9795f`,
+`f73a78567787e397224430da1fe840ce20ecd408cd3e5f846282bc6d7d4a9a3d`,
 and the tested Linux x86_64 release has SHA-256
-`618dfa5140196fee54f908d2e71f63eb67d4a454324f9b263dd32135f3e47e53`.
+`e8663099260085f649c47ed8dac377323e716a8a79e805ab15daa6b67ddcb7dc`.
 The immutable supplemental manifest has SHA-256
-`e2719d43d55cdda8558b12297ba429eea537db7ba20edd653d1bbd69b772842a`.
+`de8fbdaa30e982e095a651ff4f87a228a5990a26c534d81cbc9ad1d591b7a6f2`.
 The exact difference is approved as the supplemental
 `http-report-trigger-client-disconnect-cancellation` entry; connected requests
 and all surrounding report semantics remain frozen compatibility requirements.
+
+The supplemental `report-trigger-postgres-outage-v1` profile applies an
+`ACCESS EXCLUSIVE` lock, confirms one waiting report query with `pg_locks`,
+and stops the isolated PostgreSQL process group without dropping existing
+connections. Frozen Java remains blocked for the full twelve-second paused
+observation and returns its normal zero-count `error=none` response only after
+recovery. Rust reserves cancellation/drain time inside the eight-second
+reporting database deadline and returns an exact HTTP 200 zero-count
+`error=reporting database deadline exceeded` response while PostgreSQL is
+still stopped. It then releases the guard and returns `error=none` on retry.
+Both paths preserve the overlap `Already running` response and make no DNS,
+Redis, Maildir, or source-row change. Empty EOF is not an accepted outcome.
+
+This bounded safety difference is recorded only in the supplemental evidence
+as `report-trigger-postgres-total-deadline`; the main definition tree and its
+SHA-256 `f4747bee86575a8f59725e02829a459ceb88961dadfbf858113b63a517b99d4c`
+remain unchanged.

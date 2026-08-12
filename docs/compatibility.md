@@ -532,9 +532,26 @@ SHA-256 `0b8ceeb22e472d852233029692906de1972f183b4993367b4e71aa145b5b1255`,
 the candidate observation has SHA-256
 `ab628fa4b165a58470c582bbe5aa92445bc4a711630ea4c8b08831b70970168a`,
 and the verified Linux x86_64 release has SHA-256
-`618dfa5140196fee54f908d2e71f63eb67d4a454324f9b263dd32135f3e47e53`.
+`e8663099260085f649c47ed8dac377323e716a8a79e805ab15daa6b67ddcb7dc`.
 The supplemental manifest has SHA-256
-`e2719d43d55cdda8558b12297ba429eea537db7ba20edd653d1bbd69b772842a`.
+`de8fbdaa30e982e095a651ff4f87a228a5990a26c534d81cbc9ad1d591b7a6f2`.
+Clean FIN, unread data followed by FIN,
+and request write half-close are not treated as aborts; valid responses must
+still complete.
+
+The supplemental `report-trigger-postgres-outage-v1` profile stops the
+isolated PostgreSQL process group only after `pg_locks` proves that the real
+DMARC domain query is waiting. Frozen Java remains blocked throughout a
+twelve-second observation and returns `error=none` only after PostgreSQL is
+resumed. Rust includes query cancellation and drain in one eight-second
+database budget, returns HTTP 200 with the exact
+`error=reporting database deadline exceeded` JSON while PostgreSQL is still
+stopped, discards the unconfirmed connection, releases the guard, and accepts
+a successful retry after recovery. Both paths preserve the exact overlap
+`Already running` response and perform no DNS, Redis, Maildir, or source-row
+mutation. This evidence-bound safety difference is
+`report-trigger-postgres-total-deadline`; it is supplemental and does not
+change the frozen main black-box definition tree.
 
 The active `managed-outbound-tls-validity-v3.json` profile separately freezes
 trusted-chain certificates that are expired or not yet valid. Opportunistic

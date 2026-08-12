@@ -2735,11 +2735,33 @@ async fn database_read<T, F>(
 where
     F: Future<Output = Result<T, ReportingError>>,
 {
+    database_read_with_cancel(
+        deadline,
+        cancellation,
+        cancel_token.cancel_query(NoTls),
+        future,
+    )
+    .await
+}
+
+async fn database_read_with_cancel<T, F, C, E>(
+    deadline: Instant,
+    cancellation: &CancellationToken,
+    cancel: C,
+    future: F,
+) -> DatabaseOutcome<T>
+where
+    F: Future<Output = Result<T, ReportingError>>,
+    C: Future<Output = Result<(), E>>,
+{
     tokio::pin!(future);
+    let query_deadline = deadline
+        .checked_sub(DATABASE_CANCEL_DRAIN_TIMEOUT)
+        .unwrap_or(deadline);
     let interruption = tokio::select! {
         biased;
         _ = cancellation.cancelled() => ReportingError::Cancelled,
-        result = timeout_at(deadline, future.as_mut()) => match result {
+        result = timeout_at(query_deadline, future.as_mut()) => match result {
             Ok(result) => return DatabaseOutcome {
                 result,
                 discard_connection: false,
@@ -2748,8 +2770,13 @@ where
         },
     };
 
-    let recovery = timeout_at(Instant::now() + DATABASE_CANCEL_DRAIN_TIMEOUT, async {
-        tokio::join!(cancel_token.cancel_query(NoTls), future.as_mut())
+    let recovery_deadline = if matches!(interruption, ReportingError::Timeout) {
+        deadline
+    } else {
+        Instant::now() + DATABASE_CANCEL_DRAIN_TIMEOUT
+    };
+    let recovery = timeout_at(recovery_deadline, async {
+        tokio::join!(cancel, future.as_mut())
     })
     .await;
     DatabaseOutcome {
@@ -2789,6 +2816,22 @@ mod tests {
             .and_hms_opt(hour, 0, 0)
             .expect("fixture time is valid")
             .and_utc()
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn database_timeout_includes_cancel_drain_in_the_total_deadline() {
+        let started = Instant::now();
+        let outcome = database_read_with_cancel(
+            started + DATABASE_DEADLINE,
+            &CancellationToken::new(),
+            std::future::pending::<Result<(), io::Error>>(),
+            std::future::pending::<Result<(), ReportingError>>(),
+        )
+        .await;
+
+        assert!(matches!(outcome.result, Err(ReportingError::Timeout)));
+        assert!(outcome.discard_connection);
+        assert_eq!(Instant::now() - started, DATABASE_DEADLINE);
     }
 
     #[test]
