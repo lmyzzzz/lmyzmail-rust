@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import stat
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -114,6 +115,26 @@ def test_outbound_tls_material_separates_identity_hostname_and_trust(tmp_path: P
     assert untrusted_chain is not None and len(untrusted_chain) == 1
     assert untrusted_chain[0] != trusted_ca
     assert untrusted_certificate.issuer == untrusted_chain[0].subject
+
+    expected_validity = {
+        material.expired_server: (
+            datetime(2020, 2, 1, tzinfo=UTC),
+            datetime(2021, 2, 1, tzinfo=UTC),
+        ),
+        material.future_server: (
+            datetime(2035, 2, 1, tzinfo=UTC),
+            datetime(2039, 2, 1, tzinfo=UTC),
+        ),
+    }
+    for identity, (not_before, not_after) in expected_validity.items():
+        _, certificate, chain = pkcs12.load_key_and_certificates(
+            identity.keystore_path.read_bytes(),
+            identity.keystore_password.encode("ascii"),
+        )
+        assert certificate is not None
+        assert certificate.not_valid_before_utc == not_before
+        assert certificate.not_valid_after_utc == not_after
+        assert chain == [trusted_ca]
 
 
 def test_outbound_tls_material_rejects_reuse_and_invalid_names(tmp_path: Path) -> None:

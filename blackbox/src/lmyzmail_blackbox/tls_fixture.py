@@ -21,6 +21,10 @@ _CERTIFICATE_NAME = "smtp.example.test"
 _CERTIFICATE_ORGANIZATION = "lmyzmail blackbox"
 _NOT_VALID_BEFORE = datetime(2020, 1, 1, tzinfo=UTC)
 _NOT_VALID_AFTER = datetime(2040, 1, 1, tzinfo=UTC)
+_EXPIRED_NOT_VALID_BEFORE = datetime(2020, 2, 1, tzinfo=UTC)
+_EXPIRED_NOT_VALID_AFTER = datetime(2021, 2, 1, tzinfo=UTC)
+_FUTURE_NOT_VALID_BEFORE = datetime(2035, 2, 1, tzinfo=UTC)
+_FUTURE_NOT_VALID_AFTER = datetime(2039, 2, 1, tzinfo=UTC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +39,8 @@ class EphemeralOutboundTlsMaterial:
     matching_server: EphemeralTlsMaterial
     mismatched_server: EphemeralTlsMaterial
     untrusted_server: EphemeralTlsMaterial
+    expired_server: EphemeralTlsMaterial
+    future_server: EphemeralTlsMaterial
     java_truststore_path: Path
     java_truststore_password: str
     ca_certificate_path: Path
@@ -223,6 +229,24 @@ def provision_ephemeral_outbound_tls_material(
         issuer_key=untrusted_ca_key,
         issuer_certificate=untrusted_ca,
     )
+    expired_server = _provision_signed_server_identity(
+        tls_directory,
+        filename="expired-server.p12",
+        hostname=mx_hostname,
+        issuer_key=trusted_ca_key,
+        issuer_certificate=trusted_ca,
+        not_valid_before=_EXPIRED_NOT_VALID_BEFORE,
+        not_valid_after=_EXPIRED_NOT_VALID_AFTER,
+    )
+    future_server = _provision_signed_server_identity(
+        tls_directory,
+        filename="future-server.p12",
+        hostname=mx_hostname,
+        issuer_key=trusted_ca_key,
+        issuer_certificate=trusted_ca,
+        not_valid_before=_FUTURE_NOT_VALID_BEFORE,
+        not_valid_after=_FUTURE_NOT_VALID_AFTER,
+    )
 
     truststore_password = secrets.token_urlsafe(32)
     truststore_path = tls_directory / "java-truststore.p12"
@@ -245,6 +269,8 @@ def provision_ephemeral_outbound_tls_material(
         matching_server=matching_server,
         mismatched_server=mismatched_server,
         untrusted_server=untrusted_server,
+        expired_server=expired_server,
+        future_server=future_server,
         java_truststore_path=truststore_path,
         java_truststore_password=truststore_password,
         ca_certificate_path=ca_certificate_path,
@@ -363,7 +389,11 @@ def _provision_signed_server_identity(
     hostname: str,
     issuer_key: rsa.RSAPrivateKey,
     issuer_certificate: x509.Certificate,
+    not_valid_before: datetime = _NOT_VALID_BEFORE,
+    not_valid_after: datetime = _NOT_VALID_AFTER,
 ) -> EphemeralTlsMaterial:
+    if not_valid_before >= not_valid_after:
+        raise HarnessError("TLS certificate validity interval must be increasing")
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     subject = x509.Name(
         (
@@ -377,8 +407,8 @@ def _provision_signed_server_identity(
         .issuer_name(issuer_certificate.subject)
         .public_key(private_key.public_key())
         .serial_number(x509.random_serial_number())
-        .not_valid_before(_NOT_VALID_BEFORE)
-        .not_valid_after(_NOT_VALID_AFTER)
+        .not_valid_before(not_valid_before)
+        .not_valid_after(not_valid_after)
         .add_extension(
             x509.SubjectAlternativeName((x509.DNSName(hostname),)),
             critical=False,

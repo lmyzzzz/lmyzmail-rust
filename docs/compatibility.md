@@ -427,7 +427,7 @@ the original headers, never the original body. Both implementations must leave
 their pre-existing Redis worklist baseline unchanged. v1 and v2 remain
 immutable pre-final-definition history and are not active.
 
-The active `managed-outbound-tls-v3.json` profile covers opportunistic
+The active `managed-outbound-tls-v4.json` profile covers opportunistic
 STARTTLS success with a post-TLS EHLO, trust-chain failure and command
 rejection followed by a fresh plaintext connection, MTA-STS enforce success,
 and enforce rejection without downgrade when STARTTLS is absent. It also
@@ -439,13 +439,21 @@ failures are permanent terminal queue failures with zero retries. TLS handshake
 timeouts and connection-class transport failures remain retryable on Java's
 30-second schedule, without a plaintext downgrade.
 
-Certificate expiry, protocol/cipher negotiation, policy discovery and fetch
-failure, TLS-RPT aggregation, disconnect ambiguity, DSN restart recovery
+Protocol/cipher negotiation, policy discovery and fetch failure, TLS-RPT
+aggregation, disconnect ambiguity, DSN restart recovery
 across injected process or storage loss, DSN suppression, backpressure, high
 concurrency, and soak remain separate external differential matrices. v36,
-5xx v4, 4xx v3, DSN v3, and outbound TLS v3 do not claim those paths. TLS v1
-and v2 remain immutable history; v3 confines generated-header normalization to
-the first RFC message header block and follows the API-returned queue ID.
+5xx v4, 4xx v3, DSN v3, and outbound TLS v4 do not claim those paths. TLS v1
+through v3 remain immutable history; v4 retains the header-only normalization
+and API-returned queue identity established by v3 under the current harness
+definition tree.
+
+The active `managed-outbound-tls-validity-v2.json` profile separately freezes
+trusted-chain certificates that are expired or not yet valid. Opportunistic
+mode closes the failed TLS connection and delivers over a fresh plaintext
+connection. MTA-STS enforce mode never downgrades and archives both failures as
+`FAILED` with zero retries. Validity v1 remains immutable pre-final-definition
+history.
 
 ## Approved security differences
 

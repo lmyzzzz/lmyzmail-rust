@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "profile": "outbound-tls-validity-v2",
+  "captured_at": "2026-08-12T11:50:00+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "contract": {
+    "cases": [
+      "opportunistic expired trusted-chain certificate",
+      "opportunistic not-yet-valid trusted-chain certificate",
+      "MTA-STS enforce expired trusted-chain certificate",
+      "MTA-STS enforce not-yet-valid trusted-chain certificate"
+    ],
+    "opportunistic": "connection 1 performs EHLO and STARTTLS, then a fresh connection 2 completes plaintext delivery; terminal SENT with retry_count=0",
+    "enforce": "connection 1 performs EHLO and STARTTLS only; no downgrade; terminal FAILED with retry_count=0",
+    "enforce_error": "All domains failed: {outbound.fixture.test=MTA-STS policy requires TLS, but TLS failed: MTA-STS requires TLS: MTA-STS enforced TLS handshake failed: TLS handshake failed: General OpenSslEngine problem}",
+    "normalizers": [
+      "outbound:queue-id",
+      "outbound:message-metadata"
+    ]
+  },
+  "fixture": {
+    "trusted_root_validity": "2020-01-01 through 2040-01-01",
+    "expired_leaf_validity": "2020-02-01 through 2021-02-01",
+    "future_leaf_validity": "2035-02-01 through 2039-02-01",
+    "leaf_san": "outbound.fixture.test",
+    "private_path_modes": {
+      "directory": "0700",
+      "files": "0600"
+    },
+    "java_truststore": "PKCS12 created by pinned JDK 22 keytool",
+    "candidate_trust_bundle": "isolated SSL_CERT_FILE PEM"
+  },
+  "active_goldens": {
+    "definition_tree_sha256": "9e283920738a895b10925e576018b1adfd8f6fb4050f07099e32bf85d335f93c",
+    "blackbox/golden/java/managed-outbound-tls-v4.json": "717a3fbb04d44feaa3e19de65607488cf8225f8dea57c813455c8d63be3dcec5",
+    "blackbox/golden/java/managed-outbound-tls-validity-v2.json": "f5dcf5ec884509bba1152117fc1dae19af996394c10fa04b83bda2e9cf5900b2"
+  },
+  "historical_goldens": {
+    "blackbox/golden/java/managed-outbound-tls-v1.json": "34348598771fffd55bbf586559bd2edd611077c5627b7309da40f7e3d9c23890",
+    "blackbox/golden/java/managed-outbound-tls-v2.json": "42b5e993b3800cf92c6fec00c6e48fda04a48c78222f41a642dcb97e4956da77",
+    "blackbox/golden/java/managed-outbound-tls-v3.json": "f31d37784e27ba128d65fe426a05158f52c218da4ee9e3cc5d8ea39ca2ce3d3f",
+    "blackbox/golden/java/managed-outbound-tls-validity-v1.json": "a54cede1964a231204dcec4b23e44620c00383ea190f397e62fc0da2bb875f42"
+  },
+  "source_sha256": {
+    "blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py": "e2d26d6c4a81631415c7ef8648eca9205284ddf54c4f1ddf02f288a254351816",
+    "blackbox/src/lmyzmail_blackbox/tls_fixture.py": "c96c6aa8a1e2dab32af71094c0c397eed1d81a42bd0da797fa9c3ecb7e4e9526",
+    "blackbox/tests/test_oracle_outbound_tls.py": "883ca8be4fe3f93644edadde2a3f47b56d47c0e15851d99e2f54bd01fcef9572",
+    "blackbox/tests/test_oracle_outbound_tls_validity.py": "5d103dff415aeb5588bb1bc217a27c8b85626afdd776ce823803232650802c20",
+    "blackbox/tests/test_tls_fixture.py": "b694befb282bb225a1f8c31a1728e56da413a89cc16cce2b7b16533d5ec001ef",
+    "docs/compatibility.md": "29ee1f8dce001d2c9f34e6e2b1ecae15a7792f197444837a27a99b01cf74d581"
+  },
+  "verification": [
+    {
+      "command": "pytest Java TLS v4 with --record-java-golden",
+      "result": "1 passed in 57.29s"
+    },
+    {
+      "command": "pytest Java TLS validity v2 with --record-java-golden",
+      "result": "1 passed in 40.82s"
+    },
+    {
+      "command": "fresh Java TLS v4 replay",
+      "result": "1 passed in 57.62s"
+    },
+    {
+      "command": "Rust candidate TLS v4 replay",
+      "result": "1 passed in 31.99s"
+    },
+    {
+      "command": "fresh Java TLS validity v2 replay",
+      "result": "1 passed in 41.50s"
+    },
+    {
+      "command": "Rust candidate TLS validity v2 replay",
+      "result": "1 passed in 16.17s"
+    },
+    {
+      "command": "pytest -q blackbox/tests/test_tls_fixture.py blackbox/tests/test_outbound_oracle_probe.py",
+      "result": "21 passed in 1.41s"
+    },
+    {
+      "command": "ruff check and mypy on the five touched Python files",
+      "result": "passed"
+    },
+    {
+      "command": "pytest -q blackbox/tests -m 'not integration'",
+      "result": "150 passed, 148 deselected in 9.67s"
+    },
+    {
+      "command": "ruff check blackbox/src blackbox/tests blackbox/tools",
+      "result": "passed"
+    },
+    {
+      "command": "mypy blackbox/src blackbox/tests",
+      "result": "Success: no issues found in 109 source files"
+    },
+    {
+      "command": "cargo test --workspace --locked",
+      "result": "636 passed; 0 failed"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --locked -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "cargo build --workspace --locked --release --target x86_64-unknown-linux-gnu",
+      "result": "passed"
+    }
+  ],
+  "production_change": "none; the existing structured rustls InvalidData classification already matches both frozen Java validity outcomes",
+  "old_repository_state": {
+    "java_oracle": "read-only; only known asciiart_linux/ffmpeg_src executable-bit noise",
+    "skibidi_1_8_0": "read-only and clean"
+  }
+}

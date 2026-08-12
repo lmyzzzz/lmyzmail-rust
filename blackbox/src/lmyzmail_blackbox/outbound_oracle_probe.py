@@ -1297,6 +1297,121 @@ def run_tls_probe() -> dict[str, Any]:
                 dns_server.stop()
 
 
+def _run_opportunistic_certificate_fallback(
+    runtime: JavaOracleRuntime,
+    material: EphemeralOutboundTlsMaterial,
+    *,
+    identity: str,
+    label: str,
+) -> dict[str, Any]:
+    server = _starttls_server(material, identity)
+    with server:
+        response, task_id = _post_failure_message(
+            runtime,
+            recipient=_RECIPIENT,
+            subject=f"blackbox outbound TLS {label}",
+            text=f"outbound TLS {label} body",
+        )
+        _wait_until(
+            lambda: len(server.messages()) == 1,
+            timeout=45.0,
+            description=f"fresh plaintext fallback after {label}",
+        )
+        return {
+            "response": response,
+            "terminal": _tls_case_terminal(
+                runtime,
+                task_id,
+                expected_status="SENT",
+                description=f"{label} plaintext fallback archive",
+            ),
+            "smtp": _outbound_tls_transcript(server),
+        }
+
+
+def run_tls_validity_probe() -> dict[str, Any]:
+    if (
+        subprocess.run(  # noqa: S603
+            ["/usr/sbin/ip", "link", "show", "lo"], capture_output=True
+        ).returncode
+        != 0
+    ):
+        raise AssertionError("outbound probe must run inside a network namespace with loopback")
+
+    target = _outbound_target()
+    repository = Path(__file__).resolve().parents[3]
+    dns_server = _candidate_dns_server() if target == "candidate" else None
+    with tempfile.TemporaryDirectory(prefix="lmyzmail-outbound-tls-validity-") as workspace:
+        workspace_path = Path(workspace)
+        material_workspace = workspace_path / "material"
+        material_workspace.mkdir(mode=0o700)
+        material = provision_ephemeral_outbound_tls_material(
+            material_workspace,
+            mx_hostname=_TLS_MX_HOST,
+        )
+        if dns_server is not None:
+            dns_server.start()
+        try:
+            cases: dict[str, Any] = {}
+            if target == "candidate":
+                opportunistic_runtime: JavaOracleRuntime = _candidate_runtime(
+                    repository,
+                    outbound_tls_material=material,
+                )
+            else:
+                opportunistic_runtime = OutboundOracleRuntime(
+                    workspace_path / "opportunistic-runtime",
+                    outbound_tls_material=material,
+                )
+            with opportunistic_runtime as runtime:
+                for label, identity in (
+                    ("expired certificate", "expired_server"),
+                    ("not-yet-valid certificate", "future_server"),
+                ):
+                    cases[f"opportunistic_{identity.removesuffix('_server')}"] = (
+                        _run_opportunistic_certificate_fallback(
+                            runtime,
+                            material,
+                            identity=identity,
+                            label=label,
+                        )
+                    )
+
+            if target == "candidate":
+                enforce_runtime: JavaOracleRuntime = _candidate_runtime(
+                    repository,
+                    outbound_tls_material=material,
+                    mta_sts_enabled=True,
+                )
+            else:
+                enforce_runtime = OutboundOracleRuntime(
+                    workspace_path / "enforce-runtime",
+                    outbound_tls_material=material,
+                    mta_sts_enabled=True,
+                )
+            with enforce_runtime as runtime:
+                policy = f"STSv1|ENFORCE|{_TLS_MX_HOST}|300|Policy1|{int(time.time() * 1000)}"
+                for label, identity in (
+                    ("expired certificate", "expired_server"),
+                    ("not-yet-valid certificate", "future_server"),
+                ):
+                    server = _starttls_server(material, identity)
+                    with server:
+                        cases[f"mta_sts_enforce_{identity.removesuffix('_server')}"] = (
+                            _run_outbound_tls_case(
+                                runtime,
+                                server,
+                                label=f"MTA-STS enforce {label}",
+                                expected_status="FAILED",
+                                mta_sts_policy=policy,
+                            )
+                        )
+            return {"target": target, "cases": cases}
+        finally:
+            if dns_server is not None:
+                dns_server.stop()
+
+
 def _dsn_wire_snapshot(attempt: SmtpMessageAttempt) -> dict[str, Any]:
     message = BytesParser(policy=email.policy.default).parsebytes(attempt.data)
     parts = list(message.iter_parts())
@@ -2080,6 +2195,8 @@ def main() -> int:
         observed = run_dsn_probe()
     elif mode == "tls":
         observed = run_tls_probe()
+    elif mode == "tls_validity":
+        observed = run_tls_validity_probe()
     elif mode == "5xx":
         observed = run_5xx_probe()
     elif mode == "success":
