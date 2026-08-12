@@ -148,8 +148,7 @@ enum TokenValidationCommit {
 #[derive(Clone)]
 pub struct AuthService {
     pool: Pool,
-    domain: Arc<str>,
-    mailbox_receive_enabled: bool,
+    registration_domains: Arc<HashMap<String, bool>>,
     public_registration: bool,
     session_expiry_days: i64,
     max_sessions_per_user: i64,
@@ -198,12 +197,6 @@ impl AuthService {
             "botmail.rate-limit.enabled",
             true,
         )?;
-        let mailbox_receive_enabled = parse_bool(
-            config,
-            "lmyzmail.domains.main.receive-enabled",
-            "botmail.domains.main.receiveEnabled",
-            true,
-        )?;
         let failed_login_limit = parse_u32(
             config,
             "lmyzmail.rate-limit.max-failed-login-attempts",
@@ -248,10 +241,15 @@ impl AuthService {
         let password_pool =
             BoundedBlockingPool::new("lmyzmail-auth-bcrypt", PASSWORD_WORKERS, PASSWORD_WORKERS)
                 .map_err(|error| AuthError::Database(format!("password worker pool: {error}")))?;
+        let registration_domains = config
+            .domains
+            .iter()
+            .map(|domain| (domain.domain.clone(), domain.receive_enabled))
+            .collect::<HashMap<_, _>>();
+        debug_assert!(!registration_domains.is_empty());
         Ok(Self {
             pool,
-            domain: Arc::from(config.domain.to_ascii_lowercase()),
-            mailbox_receive_enabled,
+            registration_domains: Arc::new(registration_domains),
             public_registration: config.features.public_registration,
             session_expiry_days,
             max_sessions_per_user,
@@ -605,12 +603,12 @@ impl AuthService {
             .rsplit_once('@')
             .map(|(_, domain)| domain)
             .unwrap_or_default();
-        if domain != self.domain.as_ref() {
+        let Some(receive_enabled) = self.registration_domains.get(domain) else {
             return Err(AuthError::InvalidInput(format!(
                 "Domain not configured: {domain}"
             )));
-        }
-        if !self.mailbox_receive_enabled {
+        };
+        if !receive_enabled {
             return Err(AuthError::InvalidInput(format!(
                 "Domain does not accept mail: {domain}"
             )));

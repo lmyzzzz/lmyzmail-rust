@@ -18,7 +18,7 @@ from lmyzmail_blackbox.runtime import API_KEY, CandidateRuntime
 from lmyzmail_blackbox.smtp_contract import open_smtp_client, smtp_ehlo, smtp_reply_snapshot
 from lmyzmail_blackbox.snapshots import HeaderRule, http_json_snapshot
 
-_GOLDEN = "managed-java-multi-domain-v1"
+_GOLDEN = "managed-java-multi-domain-v2"
 _PROFILE = "managed-java-multi-domain"
 
 
@@ -123,6 +123,28 @@ def _http_json(target: RuntimeTarget, method: str, path: str) -> dict[str, Any]:
     )
 
 
+def _register(target: RuntimeTarget, address: str) -> dict[str, Any]:
+    assert target.ports is not None
+    response = http_exchange(
+        "127.0.0.1",
+        target.ports.http,
+        "POST",
+        "/web/register",
+        headers=(("Content-Type", "application/json"),),
+        body=json.dumps(
+            {"address": address, "password": "BlackboxPass123!"},
+            separators=(",", ":"),
+        ).encode("utf-8"),
+    )
+    rules = (FieldRule(("id",), constant("<id>")),) if response.status_code == 201 else ()
+    return http_json_snapshot(
+        response,
+        rules=rules,
+        header_rules=(HeaderRule(b"content-length", lambda _: b"<normalized-json>"),),
+        canonicalize_object_order=True,
+    )
+
+
 def _smtp_rcpt(target: RuntimeTarget, recipient: bytes) -> dict[str, Any]:
     client, hostname = open_smtp_client(target)
     try:
@@ -148,6 +170,12 @@ def _capture(target: RuntimeTarget) -> dict[str, Any]:
         "api_status": _http_json(target, "POST", "/api/status"),
         "web_domains": _http_json(target, "GET", "/web/domains"),
         "web_config": _http_json(target, "GET", "/web/config"),
+        "registration": {
+            "primary": _register(target, "multi-primary@example.test"),
+            "second": _register(target, "multi-second@second.example.test"),
+            "send_only": _register(target, "multi-send@send-only.example.test"),
+            "unknown": _register(target, "multi-unknown@unknown.example.test"),
+        },
         "smtp": {
             "primary": _smtp_rcpt(target, b"qa@example.test"),
             "second": _smtp_rcpt(target, b"unknown@second.example.test"),
@@ -169,6 +197,7 @@ SCENARIOS = (
         ),
         contract={
             "protocols": ["http", "smtp"],
+            "http_operations": ["domain-discovery", "mailbox-registration"],
             "domains": [
                 "example.test",
                 "second.example.test",
