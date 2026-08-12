@@ -144,7 +144,7 @@ The four base golden observations are recorded under
 malformed, deep embedded-message, and UTF-8 parser-chunk observations are
 recorded under `managed-smtp-content-filter-body-edge-v1`.
 
-The active `managed-smtp-content-filter-default-v2` profile composes the real
+The active `managed-smtp-content-filter-default-v4` profile composes the real
 defaults while disabling only the separately frozen `RBL_CHECK` and
 `NEW_DOMAIN` DNS rules. A complete From/Date message scores 9.5 in exact BODY
 order: `SPAM_KEYWORDS=8.0, SUSPICIOUS_URL=1.5`. Omitting both headers prepends

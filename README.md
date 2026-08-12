@@ -81,7 +81,7 @@ Malformed explicit-DNS replies fail open after strict transaction, question,
 response-type, truncation, and 4 KiB checks.
 
 The active default content-filter composition is frozen under
-`managed-smtp-content-filter-default-v2`. With reputation rules isolated, the
+`managed-smtp-content-filter-default-v4`. With reputation rules isolated, the
 default body produces ordered `SPAM_KEYWORDS=8.0, SUSPICIOUS_URL=1.5`; omitting
 From and Date prepends `MISSING_HEADERS=3.5` for a total of 13.0. Both messages
 route exactly once to spam with matching Maildir bytes, PostgreSQL index state,
