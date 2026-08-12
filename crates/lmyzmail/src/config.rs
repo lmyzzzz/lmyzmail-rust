@@ -6114,10 +6114,11 @@ fn parse_domain_configs(
             }
         }
     }
-    if names.is_empty()
-        && (properties.get("lmyzmail.domain").is_some()
-            || properties.get("botmail.domain").is_some())
-    {
+    let has_primary_entry_overlay = properties.order.iter().any(|key| {
+        key.strip_prefix("lmyzmail.domains.main.").is_some()
+            || key.strip_prefix("botmail.domains.main.").is_some()
+    });
+    if names.is_empty() && has_primary_entry_overlay {
         names.push("main".to_owned());
     }
     // Spring Boot binds the domain map by property name before Java copies it
