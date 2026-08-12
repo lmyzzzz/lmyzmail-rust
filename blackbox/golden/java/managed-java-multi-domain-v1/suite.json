@@ -44,7 +44,8 @@
         "name": "config/multi-domain-surface",
         "normalizers": [
           "header:date:http-date",
-          "smtp:server-hostname"
+          "smtp:server-hostname",
+          "smtp:explicit-java-msi-to-lmyzmail-brand-difference"
         ]
       }
     ]

@@ -1,5 +1,7 @@
+# ruff: noqa: S101 - black-box probe assertions are test contract checks.
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,13 +10,13 @@ from typing import Any
 import pytest
 
 from lmyzmail_blackbox.differential import DifferentialRunner, RuntimeTarget, Scenario
+from lmyzmail_blackbox.normalize import FieldRule, constant
 from lmyzmail_blackbox.persistent_runtime import PersistentJavaOracleRuntime
 from lmyzmail_blackbox.ports import PortSet
 from lmyzmail_blackbox.protocols import http_exchange
-from lmyzmail_blackbox.runtime import API_KEY
-from lmyzmail_blackbox.snapshots import HeaderRule, http_json_snapshot
-from lmyzmail_blackbox.normalize import FieldRule, constant
+from lmyzmail_blackbox.runtime import API_KEY, CandidateRuntime
 from lmyzmail_blackbox.smtp_contract import open_smtp_client, smtp_ehlo, smtp_reply_snapshot
+from lmyzmail_blackbox.snapshots import HeaderRule, http_json_snapshot
 
 _GOLDEN = "managed-java-multi-domain-v1"
 _PROFILE = "managed-java-multi-domain"
@@ -65,6 +67,43 @@ class _Target:
         return self.runtime.ports
 
 
+class _MultiDomainCandidateRuntime(CandidateRuntime):
+    def _candidate_configuration(self) -> Path:
+        path = super()._candidate_configuration()
+        value = json.loads(path.read_text(encoding="utf-8"))
+        value["domains"] = [
+            {
+                "domain": "second.example.test",
+                "receive_enabled": True,
+                "send_enabled": True,
+                "require_existing_mailbox": False,
+            },
+            {
+                "domain": "example.test",
+                "receive_enabled": True,
+                "send_enabled": True,
+                "require_existing_mailbox": True,
+            },
+            {
+                "domain": "SECOND.example.test",
+                "receive_enabled": False,
+                "send_enabled": False,
+                "require_existing_mailbox": False,
+            },
+            {
+                "domain": "send-only.example.test",
+                "receive_enabled": False,
+                "send_enabled": True,
+                "require_existing_mailbox": False,
+            },
+        ]
+        path.write_text(
+            json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return path
+
+
 def _http_json(target: RuntimeTarget, method: str, path: str) -> dict[str, Any]:
     assert target.ports is not None
     response = http_exchange(
@@ -93,8 +132,11 @@ def _smtp_rcpt(target: RuntimeTarget, recipient: bytes) -> dict[str, Any]:
         quit_reply = client.quit()
     finally:
         client.close()
+    ehlo_lines = [line.decode("ascii", errors="strict") for line in ehlo]
+    if ehlo_lines:
+        ehlo_lines[0] = ehlo_lines[0].replace("MSI", "<brand>").replace("lmyzmail", "<brand>")
     return {
-        "ehlo": [line.decode("ascii", errors="strict") for line in ehlo],
+        "ehlo": ehlo_lines,
         "mail_from": smtp_reply_snapshot(mail_from, hostname),
         "rcpt": smtp_reply_snapshot(rcpt, hostname),
         "quit": smtp_reply_snapshot(quit_reply, hostname),
@@ -120,10 +162,19 @@ SCENARIOS = (
     Scenario(
         "config/multi-domain-surface",
         _capture,
-        normalizers=("header:date:http-date", "smtp:server-hostname"),
+        normalizers=(
+            "header:date:http-date",
+            "smtp:server-hostname",
+            "smtp:explicit-java-msi-to-lmyzmail-brand-difference",
+        ),
         contract={
             "protocols": ["http", "smtp"],
-            "domains": ["example.test", "second.example.test", "send-only.example.test", "unknown.example.test"],
+            "domains": [
+                "example.test",
+                "second.example.test",
+                "send-only.example.test",
+                "unknown.example.test",
+            ],
             "duplicate_normalized_domain": "second.example.test",
         },
     ),
@@ -146,3 +197,26 @@ def test_java_multi_domain_golden(tmp_path: Path) -> None:
             runner.record_from_java(SCENARIOS, _Target(oracle))
         else:
             runner.verify_java(SCENARIOS, _Target(oracle))
+
+
+@pytest.mark.integration
+@pytest.mark.candidate
+@pytest.mark.timeout(240)
+def test_rust_candidate_multi_domain_matches_java_golden() -> None:
+    repository = Path(__file__).resolve().parents[2]
+    if os.environ.get("LMYZMAIL_CANDIDATE_COMMAND_JSON") is not None:
+        candidate = _MultiDomainCandidateRuntime.from_environment()
+    else:
+        candidate = _MultiDomainCandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+            )
+        )
+    with candidate:
+        DifferentialRunner(
+            repository,
+            repository / "blackbox/golden/java" / _GOLDEN,
+            _PROFILE,
+        ).verify_candidate(SCENARIOS, candidate)

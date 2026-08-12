@@ -17,7 +17,8 @@
     },
     "normalizers": [
       "header:date:http-date",
-      "smtp:server-hostname"
+      "smtp:server-hostname",
+      "smtp:explicit-java-msi-to-lmyzmail-brand-difference"
     ],
     "oracle": {
       "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
@@ -63,7 +64,7 @@
     "smtp": {
       "primary": {
         "ehlo": [
-          "250-MSI Hello blackbox.example\r\n",
+          "250-<brand> Hello blackbox.example\r\n",
           "250-PIPELINING\r\n",
           "250-SIZE 15728640\r\n",
           "250-8BITMIME\r\n",
@@ -84,7 +85,7 @@
       },
       "second": {
         "ehlo": [
-          "250-MSI Hello blackbox.example\r\n",
+          "250-<brand> Hello blackbox.example\r\n",
           "250-PIPELINING\r\n",
           "250-SIZE 15728640\r\n",
           "250-8BITMIME\r\n",
@@ -105,7 +106,7 @@
       },
       "second_case": {
         "ehlo": [
-          "250-MSI Hello blackbox.example\r\n",
+          "250-<brand> Hello blackbox.example\r\n",
           "250-PIPELINING\r\n",
           "250-SIZE 15728640\r\n",
           "250-8BITMIME\r\n",
@@ -126,7 +127,7 @@
       },
       "send_only": {
         "ehlo": [
-          "250-MSI Hello blackbox.example\r\n",
+          "250-<brand> Hello blackbox.example\r\n",
           "250-PIPELINING\r\n",
           "250-SIZE 15728640\r\n",
           "250-8BITMIME\r\n",
@@ -147,7 +148,7 @@
       },
       "unknown": {
         "ehlo": [
-          "250-MSI Hello blackbox.example\r\n",
+          "250-<brand> Hello blackbox.example\r\n",
           "250-PIPELINING\r\n",
           "250-SIZE 15728640\r\n",
           "250-8BITMIME\r\n",
