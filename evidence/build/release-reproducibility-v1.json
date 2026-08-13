@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "workspace": ".",
+  "commit": "0efdf7c567684b8ff17f08fa167728b927e5225d",
+  "target": "x86_64-unknown-linux-gnu",
+  "rustc": "rustc 1.93.1 (01f6ddf75 2026-02-11)",
+  "cargo": "cargo 1.93.1 (083ac5135 2025-12-15)",
+  "cargo_lock_sha256": "52e44f581c1b264dd0a315f4527379fd121054c8abc5c2eaeebd05a8cd4b9d4c",
+  "artifact": {
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "f6ecda559e7d24aa6b18db33fecc5195047ea62009d70150570195d3d2f86b9c",
+    "build_id": "c05decd26797ab655ca5898153aa6557e1df5029"
+  },
+  "clean_builds": [
+    {
+      "command": "cargo clean && cargo build -p lmyzmail --release --locked",
+      "sha256": "f6ecda559e7d24aa6b18db33fecc5195047ea62009d70150570195d3d2f86b9c"
+    },
+    {
+      "command": "cargo clean && cargo build -p lmyzmail --release --locked",
+      "sha256": "f6ecda559e7d24aa6b18db33fecc5195047ea62009d70150570195d3d2f86b9c"
+    }
+  ],
+  "runtime_dependency_gate": {
+    "command": "pytest -q blackbox/tests/test_native_source_provenance.py",
+    "result": "2 passed",
+    "forbidden_dynamic_dependencies": ["libskibidi", "libjvm", "libjava"],
+    "forbidden_dynamic_symbols": ["skibidi", "jvm"]
+  }
+}
