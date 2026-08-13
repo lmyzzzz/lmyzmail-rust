@@ -42,6 +42,21 @@ with kernel-map or program-ownership evidence.
   using the new key namespace.
 - `deploy/lmyzmail.service`: bounded single-process systemd unit template.
 
+## Reproducible release verification
+
+Run the locked release verifier only from a clean commit:
+
+```bash
+tools/verify-release-reproducibility.sh evidence/build/release-reproducibility-v1.json
+```
+
+The verifier performs two complete `cargo --frozen` release builds in separate
+temporary target directories, with the commit timestamp, UTC, and the C locale
+fixed. It requires byte-identical stripped ELF files and Build IDs, rejects
+unresolved libraries and Java/JVM dependencies or dynamic symbols, and writes
+the machine-readable result atomically. It never cleans or reuses the normal
+workspace `target/` directory.
+
 ## Database upgrade and rollback
 
 On startup, `lmyzmail` acquires a PostgreSQL advisory transaction lock and
