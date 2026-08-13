@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "profile": "minecraft-draft-editing-v1",
+  "captured_at": "2026-08-13T21:05:00+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc",
+    "initial_pre_freeze_verified_jar_sha256": "040bfa648cd0b3a1826ca61811dd6c71c8f2bd906578392f914020eb766fb70e"
+  },
+  "contract": {
+    "protocol": "Minecraft 1.8.9 protocol 47",
+    "sign_coordinates": {
+      "to": [2, 161, 3],
+      "cc": [4, 161, 3],
+      "bcc": [6, 161, 3],
+      "subject": [8, 161, 3]
+    },
+    "book_channel": "MC|BEdit",
+    "book_item_id": 386,
+    "draft_identity": "offline player UUID",
+    "lifecycle": "same-process reconnect restore followed by /draft and /clear",
+    "store_limits": {
+      "identities": 4096,
+      "content_bytes": 67108864,
+      "pages_per_draft": 256,
+      "bytes_per_page": 32767,
+      "body_bytes_per_draft": 1048576
+    },
+    "eviction": "least-recently-used offline draft only",
+    "postgres_schema_changed": false,
+    "redis_key_or_ttl_changed": false,
+    "java_runtime_dependency": false,
+    "outbound_send_in_scope": false
+  },
+  "golden": {
+    "path": "blackbox/golden/java/managed-minecraft-draft-editing-v1",
+    "definition_tree_sha256": "5cd6286cc5f198506c9cb53168738be6571a323351c97fdcc9f03498323a0949",
+    "suite_sha256": "63e4368f4e19f395e55aedaa1f9fb0c897accdca878a1b4a920cf98e29609351",
+    "observation_sha256": {
+      "observations/minecraft/draft-editing.json": "5d49826b22731ab71941a0dd168ac2ae0cac454b3a7916a43bf322259929a261"
+    },
+    "normalization": "only independently frozen scheduled 0x03/0x18 PLAY packets are excluded",
+    "previous_generations_modified": false
+  },
+  "source_sha256": {
+    "Cargo.lock": "52e44f581c1b264dd0a315f4527379fd121054c8abc5c2eaeebd05a8cd4b9d4c",
+    "crates/lmyzmail/src/minecraft.rs": "8eaa1215398bda1ceaa49417af0b99abe36580428246e46e2192fd401302384c",
+    "crates/lmyzmail/src/minecraft_world.rs": "56e26849da51cb0a97772bc20f3496d902fe02deacb5d8a1167c348c1640dedc",
+    "blackbox/tools/test_minecraft_draft_editing.py": "1749a0dcd48e09fc495787b2d53613a2097feae078ecaef2569884537f66e1c3",
+    "docs/compatibility.md": "e873f9de78fd9b96547d05da5894a91dcae95291aa3129617bc3c4836dfa7acc",
+    "blackbox/golden/README.md": "26f5f953a639ad571e8419b809c5ca1e08b2149bbb97d2d4e692ed8f51117bd8"
+  },
+  "release": {
+    "command": "cargo build --release --locked",
+    "runtime": "stable-rust-1.94.0",
+    "target": "x86_64-unknown-linux-gnu",
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "7fa5dbf80e186d1d961d5cbdf6b7aca1219e5d7c54ba0d51e19133af483744b6"
+  },
+  "verification": [
+    {
+      "gate": "Java create-once recording",
+      "result": "1 passed in 20.12s"
+    },
+    {
+      "gate": "fresh-JVM Java replay",
+      "result": "1 passed in 19.79s"
+    },
+    {
+      "gate": "locked Rust release differential",
+      "result": "1 passed in 8.12s"
+    },
+    {
+      "gate": "cargo test -p lmyzmail --lib minecraft::tests --frozen",
+      "result": "66 passed"
+    },
+    {
+      "gate": "cargo check -p lmyzmail --all-features --frozen",
+      "result": "passed"
+    },
+    {
+      "gate": "cargo test --workspace --all-features --frozen",
+      "result": "passed; 569 library tests plus binary, all integration targets, and doc tests"
+    },
+    {
+      "gate": "cargo clippy --workspace --all-targets --all-features --frozen -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "gate": "Ruff check, Ruff format check, and pytest collection",
+      "result": "passed; two draft-editing tests collected"
+    },
+    {
+      "gate": "cargo build --release --locked",
+      "result": "passed in 1m 30s"
+    }
+  ],
+  "attestation_scope": {
+    "milestone_current": true,
+    "send_button_and_outbound_delivery_deferred": true,
+    "older_goldens_modified": false,
+    "frozen_repositories_modified": false,
+    "windows_delivery_tree_synced": false,
+    "full_project_goal_complete": false
+  }
+}

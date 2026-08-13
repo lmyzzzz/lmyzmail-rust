@@ -324,6 +324,12 @@ pub(crate) fn network_nbt_len(bytes: &[u8]) -> io::Result<usize> {
     Ok(reader.cursor)
 }
 
+pub(crate) fn read_network_nbt(bytes: &[u8]) -> io::Result<(NbtValue, usize)> {
+    let mut reader = NbtReader::new(bytes);
+    let value = reader.read_root()?;
+    Ok((value, reader.cursor))
+}
+
 fn write_nbt_payload(value: &NbtValue, output: &mut Vec<u8>, depth: usize) -> io::Result<()> {
     if depth > MAX_NBT_DEPTH {
         return Err(io::Error::new(

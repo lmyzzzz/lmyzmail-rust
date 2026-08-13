@@ -1293,6 +1293,25 @@ mailbox as legacy state and records the full external queue contract. V8 and
 all other earlier multi-domain generations remain unchanged historical
 evidence.
 
+The Minecraft draft-editing milestone adds:
+
+- `managed-minecraft-draft-editing-v1/`
+
+It freezes four protocol-47 Update Sign edits at the mailroom To, CC, BCC, and
+Subject coordinates, a standard `MC|BEdit` Book & Quill with two UTF-8 pages,
+the populated `/draft` summary, and same-process restoration after reconnecting
+with the same offline-mode username and UUID. The restored authentication flow
+preserves both recovery chats, all four populated signs, and the edited book
+NBT before `/draft`, `/clear`, and the final empty summary prove the shared
+state transition. Scheduled `0x03` time and `0x18` hologram packets are the only
+excluded traffic; their exact behavior remains independently frozen. One
+isolated Java runtime created the set, a fresh JVM replayed it unchanged, and
+the locked Linux x86_64 Rust release matched every captured business frame.
+The suite and observation hashes are respectively
+`63e4368f4e19f395e55aedaa1f9fb0c897accdca878a1b4a920cf98e29609351`
+and
+`5d49826b22731ab71941a0dd168ac2ae0cac454b3a7916a43bf322259929a261`.
+
 The active external-sender DKIM sets are:
 
 - `managed-smtp-dkim-v5/`

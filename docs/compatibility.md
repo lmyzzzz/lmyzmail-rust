@@ -901,6 +901,28 @@ integer division by zero. This difference is limited to the invalid/disabled
 configuration boundary; positive amounts remain governed by
 `managed-cringe-decay-v2`.
 
+## Minecraft draft contract
+
+Authenticated protocol-47 clients edit To, CC, BCC, and Subject through the
+mailroom signs at `(2,161,3)`, `(4,161,3)`, `(6,161,3)`, and `(8,161,3)`.
+Each of the four 384-UTF-16-unit input lines follows the frozen chat-component,
+format-code, label, control-character, and Java trim rules before the field is
+replaced atomically. Other sign coordinates are echoed without changing the
+draft. `MC|BEdit` accepts only item 386 and a string-list `pages` tag through
+the shared bounded network-NBT reader: at most 256 pages, 32,767 UTF-8 bytes per
+page, and 1 MiB of body content.
+
+Drafts are process-local and keyed by the player's offline UUID, matching the
+oracle's same-process reconnect lifecycle. Successful authentication restores
+non-empty recipient/subject state, both recovery chats, four populated signs,
+and the edited Book & Quill. `/draft` reads the shared state and `/clear`
+atomically clears it before emitting the exact sign and book refresh. The
+store holds at most 4,096 identities and 64 MiB of counted field/page content;
+capacity pressure evicts the least recently used offline draft only. Active
+players are never evicted, and an update that cannot fit rolls back without
+changing content accounting or recency. This milestone does not yet claim the
+send-button, outbound-queue, or delivery-polling flow.
+
 ## Minecraft mail-view contract
 
 Opening a folder item resolves the same indexed Maildir message as the frozen

@@ -76,6 +76,11 @@ const RENDER_FONT_SIZE_DEFAULT: i32 = 20;
 const RENDER_FONT_SIZE_MIN: i32 = 8;
 const RENDER_FONT_SIZE_MAX: i32 = 48;
 const UPDATE_SIGN_LINE_MAX_UTF16_UNITS: usize = 384;
+const MAX_MINECRAFT_DRAFTS: usize = 4_096;
+const MAX_DRAFT_STORE_CONTENT_BYTES: usize = 64 * 1024 * 1024;
+const MAX_DRAFT_PAGES: usize = 256;
+const MAX_DRAFT_PAGE_BYTES: usize = 32_767;
+const MAX_DRAFT_BODY_BYTES: usize = 1024 * 1024;
 const FOLDER_PAGE_SIZE: i32 = 36;
 const FOLDER_LOAD_TIMEOUT: Duration = Duration::from_secs(8);
 const MAIL_RENDER_TIMEOUT: Duration = Duration::from_secs(60);
@@ -134,13 +139,25 @@ struct MinecraftAuthAttempt {
     locked_until: Option<StdInstant>,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct MinecraftDraft {
     to: String,
     cc: String,
     bcc: String,
     subject: String,
     body_pages: Vec<String>,
+}
+
+struct StoredMinecraftDraft {
+    draft: MinecraftDraft,
+    sequence: u64,
+}
+
+#[derive(Default)]
+struct MinecraftDraftStore {
+    drafts: HashMap<String, StoredMinecraftDraft>,
+    next_sequence: u64,
+    content_bytes: usize,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -151,7 +168,11 @@ struct WindowClick {
     mode: u8,
 }
 
+#[derive(Clone)]
 struct UpdateSign {
+    x: i32,
+    y: i32,
+    z: i32,
     lines: [String; 4],
 }
 
@@ -560,6 +581,138 @@ impl MinecraftDraft {
         self.subject.clear();
         self.body_pages.clear();
     }
+}
+
+impl MinecraftDraftStore {
+    fn get_or_create(
+        &mut self,
+        uuid: &str,
+        active_players: &HashSet<String>,
+    ) -> Option<MinecraftDraft> {
+        self.next_sequence = self.next_sequence.wrapping_add(1);
+        let sequence = self.next_sequence;
+        if let Some(stored) = self.drafts.get_mut(uuid) {
+            stored.sequence = sequence;
+            return Some(stored.draft.clone());
+        }
+        if self.drafts.len() >= MAX_MINECRAFT_DRAFTS {
+            let evicted = self
+                .drafts
+                .iter()
+                .filter(|(player, _)| !active_players.contains(*player))
+                .min_by_key(|(_, stored)| stored.sequence)
+                .map(|(player, _)| player.clone())?;
+            if let Some(removed) = self.drafts.remove(&evicted) {
+                self.content_bytes = self
+                    .content_bytes
+                    .saturating_sub(draft_content_bytes(&removed.draft));
+            }
+        }
+        self.drafts.insert(
+            uuid.to_owned(),
+            StoredMinecraftDraft {
+                draft: MinecraftDraft::default(),
+                sequence,
+            },
+        );
+        Some(MinecraftDraft::default())
+    }
+
+    fn update(
+        &mut self,
+        uuid: &str,
+        active_players: &HashSet<String>,
+        apply: impl FnOnce(&mut MinecraftDraft),
+    ) -> Option<MinecraftDraft> {
+        self.update_with_budget(uuid, active_players, MAX_DRAFT_STORE_CONTENT_BYTES, apply)
+    }
+
+    fn update_with_budget(
+        &mut self,
+        uuid: &str,
+        active_players: &HashSet<String>,
+        content_budget: usize,
+        apply: impl FnOnce(&mut MinecraftDraft),
+    ) -> Option<MinecraftDraft> {
+        let (previous, previous_bytes, updated_bytes) = {
+            let stored = self.drafts.get_mut(uuid)?;
+            let previous = stored.draft.clone();
+            let previous_bytes = draft_content_bytes(&previous);
+            apply(&mut stored.draft);
+            let updated_bytes = draft_content_bytes(&stored.draft);
+            (previous, previous_bytes, updated_bytes)
+        };
+        let Some(base_bytes) = self.content_bytes.checked_sub(previous_bytes) else {
+            self.drafts.get_mut(uuid)?.draft = previous;
+            return None;
+        };
+        let Some(required_bytes) = base_bytes.checked_add(updated_bytes) else {
+            self.drafts.get_mut(uuid)?.draft = previous;
+            return None;
+        };
+
+        if required_bytes > content_budget {
+            let mut candidates = self
+                .drafts
+                .iter()
+                .filter(|(player, _)| player.as_str() != uuid && !active_players.contains(*player))
+                .map(|(player, stored)| {
+                    (
+                        stored.sequence,
+                        player.clone(),
+                        draft_content_bytes(&stored.draft),
+                    )
+                })
+                .collect::<Vec<_>>();
+            candidates.sort_unstable_by_key(|candidate| candidate.0);
+            let mut reclaimed = 0_usize;
+            let mut victim_count = 0_usize;
+            for (_, _, bytes) in &candidates {
+                let Some(next_reclaimed) = reclaimed.checked_add(*bytes) else {
+                    self.drafts.get_mut(uuid)?.draft = previous;
+                    return None;
+                };
+                reclaimed = next_reclaimed;
+                victim_count += 1;
+                if required_bytes.saturating_sub(reclaimed) <= content_budget {
+                    break;
+                }
+            }
+            if required_bytes.saturating_sub(reclaimed) > content_budget {
+                self.drafts.get_mut(uuid)?.draft = previous;
+                return None;
+            }
+            for (_, victim, expected_bytes) in candidates.iter().take(victim_count) {
+                let removed = self
+                    .drafts
+                    .remove(victim)
+                    .expect("draft eviction candidate must still exist");
+                debug_assert_eq!(draft_content_bytes(&removed.draft), *expected_bytes);
+            }
+            self.content_bytes = required_bytes - reclaimed;
+        } else {
+            self.content_bytes = required_bytes;
+        }
+        self.next_sequence = self.next_sequence.wrapping_add(1);
+        let sequence = self.next_sequence;
+        let stored = self.drafts.get_mut(uuid)?;
+        stored.sequence = sequence;
+        Some(stored.draft.clone())
+    }
+}
+
+fn draft_content_bytes(draft: &MinecraftDraft) -> usize {
+    draft
+        .to
+        .len()
+        .saturating_add(draft.cc.len())
+        .saturating_add(draft.bcc.len())
+        .saturating_add(draft.subject.len())
+        .saturating_add(draft.body_pages.iter().fold(0_usize, |total, page| {
+            total
+                .saturating_add(page.len())
+                .saturating_add(std::mem::size_of::<String>())
+        }))
 }
 
 #[derive(Clone)]
@@ -1081,6 +1234,7 @@ struct StatusService {
     next_window_id: AtomicI32,
     next_connection_id: AtomicU64,
     online_sessions: Arc<Mutex<HashMap<String, u64>>>,
+    drafts: Mutex<MinecraftDraftStore>,
     world: Arc<WorldTemplate>,
     connection_timeout: Duration,
     auth: Option<Arc<AuthService>>,
@@ -1135,6 +1289,7 @@ impl StatusService {
             next_window_id: AtomicI32::new(1),
             next_connection_id: AtomicU64::new(1),
             online_sessions: Arc::new(Mutex::new(HashMap::with_capacity(MAX_CONNECTIONS))),
+            drafts: Mutex::new(MinecraftDraftStore::default()),
             world,
             connection_timeout: Duration::from_secs(config.read_timeout_seconds),
             auth: None,
@@ -1225,6 +1380,34 @@ impl StatusService {
             uuid,
             connection_id,
         }
+    }
+
+    fn draft_snapshot(&self, uuid: &str) -> Option<MinecraftDraft> {
+        self.with_draft_store(|drafts, active_players| drafts.get_or_create(uuid, active_players))
+    }
+
+    fn update_draft(
+        &self,
+        uuid: &str,
+        apply: impl FnOnce(&mut MinecraftDraft),
+    ) -> Option<MinecraftDraft> {
+        self.with_draft_store(|drafts, active_players| drafts.update(uuid, active_players, apply))
+    }
+
+    fn with_draft_store<T>(
+        &self,
+        apply: impl FnOnce(&mut MinecraftDraftStore, &HashSet<String>) -> T,
+    ) -> T {
+        let online_sessions = self
+            .online_sessions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let active_players = online_sessions.keys().cloned().collect::<HashSet<_>>();
+        let mut drafts = self
+            .drafts
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        apply(&mut drafts, &active_players)
     }
 }
 
@@ -2260,6 +2443,7 @@ async fn handle_connection(
     let mut pending_email = None;
     let mut authenticated: Option<(String, Zeroizing<String>)> = None;
     let mut player_username = String::new();
+    let mut player_uuid = String::new();
     let mut draft = MinecraftDraft::default();
     let mut open_menu_window_id = None;
     let mut open_video_menu_window_id = None;
@@ -2740,10 +2924,11 @@ async fn handle_connection(
                         });
                         continue;
                     }
+                    let uuid = offline_uuid(&username)?;
                     match complete_login(
                         &mut writer,
                         &service,
-                        offline_uuid(&username)?,
+                        uuid.clone(),
                         &username,
                         None,
                         deadline,
@@ -2756,6 +2941,7 @@ async fn handle_connection(
                             _online_guard = Some(online_guard);
                             hologram_entity_base = entity_base;
                             player_username = username;
+                            player_uuid = uuid;
                             let now = Instant::now();
                             next_position_check = Some(now + POSITION_CHECK_INTERVAL);
                             next_hologram_teleport = Some(now + HOLOGRAM_TELEPORT_INTERVAL);
@@ -2839,6 +3025,7 @@ async fn handle_connection(
                             return Ok(());
                         }
                     };
+                    let profile_uuid = profile.uuid.clone();
                     match complete_login(
                         &mut writer,
                         &service,
@@ -2856,6 +3043,7 @@ async fn handle_connection(
                             _online_guard = Some(online_guard);
                             hologram_entity_base = entity_base;
                             player_username = profile.name;
+                            player_uuid = profile_uuid;
                             let now = Instant::now();
                             next_position_check = Some(now + POSITION_CHECK_INTERVAL);
                             next_hologram_teleport = Some(now + HOLOGRAM_TELEPORT_INTERVAL);
@@ -3132,7 +3320,17 @@ async fn handle_connection(
                                 service.auth_limiter.clear(&client_ip);
                                 pending_email = None;
                                 authenticated = Some((email.clone(), Zeroizing::new(login.token)));
-                                authenticated_packets(&player_username, &email, render_settings)?
+                                let Some(restored_draft) = service.draft_snapshot(&player_uuid)
+                                else {
+                                    return Ok(());
+                                };
+                                draft = restored_draft;
+                                authenticated_packets_with_draft(
+                                    &player_username,
+                                    &email,
+                                    render_settings,
+                                    &draft,
+                                )?
                             }
                             Ok((LoginOutcome::Success, None))
                             | Err(AuthError::Cancelled)
@@ -3370,6 +3568,11 @@ async fn handle_connection(
                             render_settings_pending |= opens_render_settings;
                             responses.extend(command_packets);
                         } else {
+                            let command_name = java_trim(&message)
+                                .split(java_regex_space)
+                                .next()
+                                .unwrap_or_default()
+                                .to_ascii_lowercase();
                             responses.extend(authenticated_command_packets(
                                 &message,
                                 &service.config,
@@ -3377,6 +3580,14 @@ async fn handle_connection(
                                 menu_window_id,
                                 render_settings,
                             )?);
+                            if command_name == "/clear" {
+                                let Some(updated) = service.update_draft(&player_uuid, |stored| {
+                                    stored.clear();
+                                }) else {
+                                    return Ok(());
+                                };
+                                draft = updated;
+                            }
                         }
                         message.zeroize();
                         if let Some(window_id) = menu_window_id {
@@ -3727,6 +3938,65 @@ async fn handle_connection(
                         {
                             return finish_write_error(error);
                         }
+                    } else if authenticated.is_some() {
+                        let store_update = update.clone();
+                        let Some(updated) = service.update_draft(&player_uuid, |stored| {
+                            apply_draft_update(&store_update, stored);
+                        }) else {
+                            return Ok(());
+                        };
+                        draft = updated;
+                        let responses = draft_update_packets(update, &mut draft)?;
+                        if let Err(error) = write_packet_list(
+                            &mut writer,
+                            &service,
+                            responses,
+                            compression,
+                            cipher.as_mut(),
+                            deadline,
+                            &cancellation,
+                        )
+                        .await
+                        {
+                            return finish_write_error(error);
+                        }
+                    }
+                }
+                0x17 => {
+                    if authenticated.is_none() {
+                        continue;
+                    }
+                    let Ok(channel) = packet.read_string(20) else {
+                        return Ok(());
+                    };
+                    if channel != "MC|BEdit" {
+                        continue;
+                    }
+                    let Some(pages) = read_book_edit(&mut packet) else {
+                        continue;
+                    };
+                    let Some(updated) = service.update_draft(&player_uuid, |stored| {
+                        stored.body_pages = pages;
+                    }) else {
+                        return Ok(());
+                    };
+                    draft = updated;
+                    let response = vec![chat_packet(
+                        &format!("\u{00a7}7Book saved: {} page(s)", draft.body_pages.len()),
+                        Some("gray"),
+                    )?];
+                    if let Err(error) = write_packet_list(
+                        &mut writer,
+                        &service,
+                        response,
+                        compression,
+                        cipher.as_mut(),
+                        deadline,
+                        &cancellation,
+                    )
+                    .await
+                    {
+                        return finish_write_error(error);
                     }
                 }
                 0x04 | 0x06 => match read_player_position(&mut packet, packet_id) {
@@ -3855,8 +4125,11 @@ fn read_window_click(packet: &mut PacketReader<'_>) -> Result<WindowClick, ()> {
 }
 
 fn read_update_sign(packet: &mut PacketReader<'_>) -> Result<UpdateSign, ()> {
-    packet.read_i64()?;
+    let packed = packet.read_i64()? as u64;
     Ok(UpdateSign {
+        x: ((packed >> 38) as i32) << 6 >> 6,
+        y: ((packed >> 26) & 0xfff) as i32,
+        z: (packed as i32) << 6 >> 6,
         lines: [
             packet.read_string(UPDATE_SIGN_LINE_MAX_UTF16_UNITS)?,
             packet.read_string(UPDATE_SIGN_LINE_MAX_UTF16_UNITS)?,
@@ -3864,6 +4137,48 @@ fn read_update_sign(packet: &mut PacketReader<'_>) -> Result<UpdateSign, ()> {
             packet.read_string(UPDATE_SIGN_LINE_MAX_UTF16_UNITS)?,
         ],
     })
+}
+
+fn read_book_edit(packet: &mut PacketReader<'_>) -> Option<Vec<String>> {
+    if packet.read_i16().ok()? != 386 {
+        return None;
+    }
+    packet.read_u8().ok()?;
+    packet.read_i16().ok()?;
+    let (nbt, consumed) = minecraft_world::read_network_nbt(packet.remaining()).ok()?;
+    packet.advance(consumed).ok()?;
+    let NbtValue::Compound(entries) = nbt else {
+        return None;
+    };
+    let NbtValue::List {
+        element_type: 8,
+        values,
+    } = entries
+        .into_iter()
+        .find_map(|(name, value)| (name == "pages").then_some(value))?
+    else {
+        return None;
+    };
+    if values.len() > MAX_DRAFT_PAGES {
+        return None;
+    }
+    let mut total = 0_usize;
+    let mut pages = Vec::new();
+    pages.try_reserve_exact(values.len()).ok()?;
+    for value in values {
+        let NbtValue::String(page) = value else {
+            return None;
+        };
+        if page.len() > MAX_DRAFT_PAGE_BYTES {
+            return None;
+        }
+        total = total.checked_add(page.len())?;
+        if total > MAX_DRAFT_BODY_BYTES {
+            return None;
+        }
+        pages.push(page);
+    }
+    Some(pages)
 }
 
 fn encryption_request_frame(
@@ -4529,10 +4844,11 @@ fn disconnect_play_packet(reason: &str) -> io::Result<Vec<u8>> {
     Ok(packet)
 }
 
-fn authenticated_packets(
+fn authenticated_packets_with_draft(
     username: &str,
     email: &str,
     render_settings: RenderSettings,
+    draft: &MinecraftDraft,
 ) -> io::Result<Vec<Vec<u8>>> {
     let mut packets = vec![
         chat_packet(
@@ -4543,14 +4859,37 @@ fn authenticated_packets(
         chat_packet("", None)?,
     ];
     packets.extend(email_instruction_packets()?);
-    packets.extend(empty_draft_sign_packets()?);
-    packets.push(draft_book_packet()?);
+    if !draft.to.chars().all(char::is_whitespace) || !draft.subject.chars().all(char::is_whitespace)
+    {
+        packets.push(chat_packet(
+            "\u{00a7}6Restored your previous draft!",
+            Some("gold"),
+        )?);
+        packets.push(chat_packet(
+            &format!(
+                "\u{00a7}7To: {}, Subject: {}, Body: {} page(s)",
+                draft_display(&draft.to),
+                draft_display(&draft.subject),
+                draft.body_pages.len()
+            ),
+            Some("gray"),
+        )?);
+    }
+    packets.extend(draft_sign_packets(draft)?);
+    packets.push(draft_book_packet_for(draft)?);
     packets.extend(authenticated_scoreboard_packets(
         username,
         email,
         render_settings,
     )?);
-    debug_assert_eq!(packets.len(), 29);
+    debug_assert_eq!(
+        packets.len(),
+        if draft.to.is_empty() && draft.subject.is_empty() {
+            29
+        } else {
+            31
+        }
+    );
     Ok(packets)
 }
 
@@ -6720,6 +7059,56 @@ fn clean_sign_text(value: &str) -> String {
     java_trim(&without_formatting).to_owned()
 }
 
+fn draft_update_packets(
+    update: UpdateSign,
+    draft: &mut MinecraftDraft,
+) -> io::Result<Vec<Vec<u8>>> {
+    let (label, combined) = apply_draft_update(&update, draft);
+
+    let mut packets = Vec::with_capacity(2);
+    if !label.is_empty() {
+        packets.push(chat_packet(
+            &format!("\u{00a7}7{label} set to: \u{00a7}f{combined}"),
+            None,
+        )?);
+    }
+    let mut sign = vec![0x33];
+    write_block_position(&mut sign, update.x, update.y, update.z);
+    for line in update.lines {
+        write_string(&mut sign, &chat_json(&strip_chat_json(&line), None))?;
+    }
+    packets.push(sign);
+    Ok(packets)
+}
+
+fn apply_draft_update(update: &UpdateSign, draft: &mut MinecraftDraft) -> (&'static str, String) {
+    let mut combined = String::new();
+    for line in &update.lines {
+        combined.push_str(&clean_sign_text(&strip_chat_json(line)));
+    }
+    let combined = java_trim(&combined).to_owned();
+    let label = match (update.x, update.y, update.z) {
+        (2, 161, 3) => {
+            draft.to.clone_from(&combined);
+            "To"
+        }
+        (4, 161, 3) => {
+            draft.cc.clone_from(&combined);
+            "CC"
+        }
+        (6, 161, 3) => {
+            draft.bcc.clone_from(&combined);
+            "BCC"
+        }
+        (8, 161, 3) => {
+            draft.subject.clone_from(&combined);
+            "Subject"
+        }
+        _ => "",
+    };
+    (label, combined)
+}
+
 fn logout_confirmation_packets(window_id: u8) -> io::Result<Vec<Vec<u8>>> {
     let mut open = vec![0x2d, window_id];
     write_string(&mut open, "minecraft:chest")?;
@@ -6947,12 +7336,16 @@ fn java_utf16_slice_to_string(units: &[u16]) -> String {
 }
 
 fn draft_book_packet() -> io::Result<Vec<u8>> {
+    draft_book_packet_for(&MinecraftDraft::default())
+}
+
+fn draft_book_packet_for(draft: &MinecraftDraft) -> io::Result<Vec<u8>> {
     let mut packet = vec![0x2f, 0];
     packet.extend_from_slice(&36_i16.to_be_bytes());
     packet.extend_from_slice(&386_i16.to_be_bytes());
     packet.push(1);
     packet.extend_from_slice(&0_i16.to_be_bytes());
-    minecraft_world::write_nbt(Some(&book_item_nbt()), &mut packet)?;
+    minecraft_world::write_nbt(Some(&draft_book_nbt(draft)), &mut packet)?;
     Ok(packet)
 }
 
@@ -7076,11 +7469,25 @@ fn hex_nibble(byte: u8) -> Option<u8> {
 }
 
 fn book_item_nbt() -> NbtValue {
+    draft_book_nbt(&MinecraftDraft::default())
+}
+
+fn draft_book_nbt(draft: &MinecraftDraft) -> NbtValue {
+    let values = if draft.body_pages.is_empty() {
+        vec![NbtValue::String(String::new())]
+    } else {
+        draft
+            .body_pages
+            .iter()
+            .cloned()
+            .map(NbtValue::String)
+            .collect()
+    };
     NbtValue::Compound(vec![(
         "pages".to_owned(),
         NbtValue::List {
             element_type: 8,
-            values: vec![NbtValue::String(String::new())],
+            values,
         },
     )])
 }
@@ -7834,6 +8241,19 @@ impl<'a> PacketReader<'a> {
         Self { bytes, cursor: 0 }
     }
 
+    fn remaining(&self) -> &'a [u8] {
+        self.bytes.get(self.cursor..).unwrap_or_default()
+    }
+
+    fn advance(&mut self, length: usize) -> Result<(), ()> {
+        let end = self.cursor.checked_add(length).ok_or(())?;
+        if end > self.bytes.len() {
+            return Err(());
+        }
+        self.cursor = end;
+        Ok(())
+    }
+
     fn read_varint(&mut self) -> Result<i32, ()> {
         let mut value = 0_u32;
         for index in 0..5 {
@@ -8369,6 +8789,284 @@ mod tests {
                 "truncated placement of length {length} was accepted"
             );
         }
+    }
+
+    #[test]
+    fn draft_sign_updates_match_java_cleaning_assignment_and_echo() {
+        let mut draft = MinecraftDraft::default();
+        for (position, lines, expected_field, expected_value) in [
+            (
+                (2, 161, 3),
+                [r#"{"text":" to@"}"#, r#"{"text":"example.test "}"#, "", ""],
+                "to",
+                "to@example.test",
+            ),
+            (
+                (4, 161, 3),
+                [r#"{"text":"[CC] cc@"}"#, "example.test", "", ""],
+                "cc",
+                "cc@example.test",
+            ),
+            (
+                (6, 161, 3),
+                ["\u{00a7}4bcc@", "example.test", "", ""],
+                "bcc",
+                "bcc@example.test",
+            ),
+            (
+                (8, 161, 3),
+                [r#"{"text":" Subject "}"#, "two", " lines ", ""],
+                "subject",
+                "Subjecttwolines",
+            ),
+        ] {
+            let update = UpdateSign {
+                x: position.0,
+                y: position.1,
+                z: position.2,
+                lines: lines.map(str::to_owned),
+            };
+            let packets = draft_update_packets(update, &mut draft).unwrap();
+            assert_eq!(
+                packets.iter().map(|packet| packet[0]).collect::<Vec<_>>(),
+                [0x02, 0x33]
+            );
+            assert_eq!(
+                &packets[1][1..9],
+                &pack_block_position(position.0, position.1, position.2).to_be_bytes()
+            );
+            assert_eq!(
+                match expected_field {
+                    "to" => &draft.to,
+                    "cc" => &draft.cc,
+                    "bcc" => &draft.bcc,
+                    "subject" => &draft.subject,
+                    _ => unreachable!(),
+                },
+                expected_value
+            );
+        }
+
+        let packets = draft_update_packets(
+            UpdateSign {
+                x: 100,
+                y: 64,
+                z: -100,
+                lines: ["ignored", "", "", ""].map(str::to_owned),
+            },
+            &mut draft,
+        )
+        .unwrap();
+        assert_eq!(
+            packets.iter().map(|packet| packet[0]).collect::<Vec<_>>(),
+            [0x33]
+        );
+    }
+
+    #[test]
+    fn book_edit_parser_accepts_string_pages_and_rejects_bounded_invalid_slots() {
+        fn encoded_book(item_id: i16, pages: NbtValue) -> Vec<u8> {
+            let mut encoded = Vec::new();
+            encoded.extend_from_slice(&item_id.to_be_bytes());
+            encoded.push(1);
+            encoded.extend_from_slice(&0_i16.to_be_bytes());
+            minecraft_world::write_nbt(
+                Some(&NbtValue::Compound(vec![("pages".to_owned(), pages)])),
+                &mut encoded,
+            )
+            .unwrap();
+            encoded
+        }
+
+        let pages = NbtValue::List {
+            element_type: 8,
+            values: vec![
+                NbtValue::String("First page".to_owned()),
+                NbtValue::String("Second page \u{2603}".to_owned()),
+            ],
+        };
+        let encoded = encoded_book(386, pages.clone());
+        let mut reader = PacketReader::new(&encoded);
+        assert_eq!(
+            read_book_edit(&mut reader),
+            Some(vec![
+                "First page".to_owned(),
+                "Second page \u{2603}".to_owned()
+            ])
+        );
+        assert_eq!(reader.cursor, encoded.len());
+
+        assert!(read_book_edit(&mut PacketReader::new(&encoded_book(387, pages))).is_none());
+        assert!(
+            read_book_edit(&mut PacketReader::new(&encoded_book(
+                386,
+                NbtValue::List {
+                    element_type: 3,
+                    values: vec![NbtValue::Int(1)],
+                },
+            )))
+            .is_none()
+        );
+        assert!(
+            read_book_edit(&mut PacketReader::new(&encoded_book(
+                386,
+                NbtValue::List {
+                    element_type: 8,
+                    values: (0..=MAX_DRAFT_PAGES)
+                        .map(|_| NbtValue::String(String::new()))
+                        .collect(),
+                },
+            )))
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn draft_store_is_bounded_and_only_evicts_the_oldest_offline_player() {
+        let mut store = MinecraftDraftStore::default();
+        let active = HashSet::new();
+        for index in 0..MAX_MINECRAFT_DRAFTS {
+            let player = format!("player-{index}");
+            assert!(store.get_or_create(&player, &active).is_some());
+        }
+        assert_eq!(store.drafts.len(), MAX_MINECRAFT_DRAFTS);
+
+        let all_active = store.drafts.keys().cloned().collect::<HashSet<_>>();
+        assert!(
+            store
+                .get_or_create("capacity-rejected", &all_active)
+                .is_none()
+        );
+        assert_eq!(store.drafts.len(), MAX_MINECRAFT_DRAFTS);
+
+        let active = HashSet::from(["player-0".to_owned()]);
+        assert!(store.get_or_create("replacement", &active).is_some());
+        assert!(store.drafts.contains_key("player-0"));
+        assert!(!store.drafts.contains_key("player-1"));
+        assert!(store.drafts.contains_key("replacement"));
+        assert_eq!(store.drafts.len(), MAX_MINECRAFT_DRAFTS);
+    }
+
+    #[test]
+    fn draft_store_rejects_over_budget_updates_atomically() {
+        let mut store = MinecraftDraftStore::default();
+        let active = HashSet::new();
+        store.get_or_create("current", &active).unwrap();
+        store
+            .update_with_budget("current", &active, 4, |draft| {
+                draft.to = "1234".to_owned();
+            })
+            .unwrap();
+        let sequence = store.drafts["current"].sequence;
+        let next_sequence = store.next_sequence;
+
+        assert!(
+            store
+                .update_with_budget("current", &active, 4, |draft| {
+                    draft.subject = "x".to_owned();
+                })
+                .is_none()
+        );
+        assert_eq!(store.drafts["current"].draft.to, "1234");
+        assert!(store.drafts["current"].draft.subject.is_empty());
+        assert_eq!(store.drafts["current"].sequence, sequence);
+        assert_eq!(store.next_sequence, next_sequence);
+        assert_eq!(store.content_bytes, 4);
+    }
+
+    #[test]
+    fn draft_store_reclaims_the_oldest_offline_content_for_an_update() {
+        let mut store = MinecraftDraftStore::default();
+        let active = HashSet::new();
+        for (player, value) in [("old", "aaaa"), ("newer", "bbbb")] {
+            store.get_or_create(player, &active).unwrap();
+            store
+                .update_with_budget(player, &active, 16, |draft| {
+                    draft.to = value.to_owned();
+                })
+                .unwrap();
+        }
+        store.get_or_create("current", &active).unwrap();
+
+        store
+            .update_with_budget("current", &active, 12, |draft| {
+                draft.to = "12345678".to_owned();
+            })
+            .unwrap();
+
+        assert!(!store.drafts.contains_key("old"));
+        assert!(store.drafts.contains_key("newer"));
+        assert_eq!(store.drafts["current"].draft.to, "12345678");
+        assert_eq!(store.content_bytes, 12);
+    }
+
+    #[test]
+    fn draft_store_never_reclaims_online_player_content() {
+        let mut store = MinecraftDraftStore::default();
+        let no_active_players = HashSet::new();
+        for (player, value) in [("protected", "aaaa"), ("offline", "bbbb")] {
+            store.get_or_create(player, &no_active_players).unwrap();
+            store
+                .update_with_budget(player, &no_active_players, 16, |draft| {
+                    draft.to = value.to_owned();
+                })
+                .unwrap();
+        }
+        store.get_or_create("current", &no_active_players).unwrap();
+        let active = HashSet::from(["protected".to_owned(), "current".to_owned()]);
+
+        store
+            .update_with_budget("current", &active, 12, |draft| {
+                draft.to = "12345678".to_owned();
+            })
+            .unwrap();
+
+        assert!(store.drafts.contains_key("protected"));
+        assert!(!store.drafts.contains_key("offline"));
+        assert!(store.drafts.contains_key("current"));
+        assert_eq!(store.content_bytes, 12);
+    }
+
+    #[test]
+    fn draft_store_content_accounting_matches_all_stored_drafts() {
+        fn actual_content_bytes(store: &MinecraftDraftStore) -> usize {
+            store
+                .drafts
+                .values()
+                .map(|stored| draft_content_bytes(&stored.draft))
+                .sum()
+        }
+
+        let mut store = MinecraftDraftStore::default();
+        let active = HashSet::new();
+        for player in ["first", "second", "current"] {
+            store.get_or_create(player, &active).unwrap();
+        }
+        store
+            .update_with_budget("first", &active, 128, |draft| {
+                draft.to = "first@example.test".to_owned();
+                draft.body_pages = vec!["one".to_owned(), "two".to_owned()];
+            })
+            .unwrap();
+        store
+            .update_with_budget("second", &active, 128, |draft| {
+                draft.subject = "subject".to_owned();
+            })
+            .unwrap();
+        assert_eq!(store.content_bytes, actual_content_bytes(&store));
+
+        store
+            .update_with_budget("first", &active, 128, MinecraftDraft::clear)
+            .unwrap();
+        assert_eq!(store.content_bytes, actual_content_bytes(&store));
+
+        store
+            .update_with_budget("current", &active, 8, |draft| {
+                draft.to = "12345678".to_owned();
+            })
+            .unwrap();
+        assert_eq!(store.content_bytes, actual_content_bytes(&store));
+        assert_eq!(store.content_bytes, 8);
     }
 
     #[test]
@@ -9063,6 +9761,9 @@ mod tests {
         let draft = MinecraftDraft::default();
         let mut settings = RenderSettings::default();
         let update = |lines: [&str; 4]| UpdateSign {
+            x: 0,
+            y: 0,
+            z: 0,
             lines: lines.map(str::to_owned),
         };
 
