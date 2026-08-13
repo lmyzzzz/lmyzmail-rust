@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "profile": "smtp-content-filter-rbl-replay-v1",
+  "status": "passed",
+  "isolated_runner": "blackbox/tools/run_smtp_rbl.py",
+  "oracle": {
+    "command": ".blackbox/venv/bin/python blackbox/tools/run_smtp_rbl.py -m oracle -s",
+    "exit_code": 0,
+    "result": "1 passed, 1 deselected in 13.66s"
+  },
+  "candidate": {
+    "command": ".blackbox/venv/bin/python blackbox/tools/run_smtp_rbl.py -m candidate -s",
+    "exit_code": 0,
+    "result": "1 passed, 1 deselected in 6.36s"
+  },
+  "assertions": {
+    "namespace_dns_fixture": true,
+    "java_golden_unchanged": true,
+    "candidate_matches_golden": true,
+    "residual_processes": false
+  }
+}

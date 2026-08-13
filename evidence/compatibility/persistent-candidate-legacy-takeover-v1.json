@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "profile": "persistent-candidate-legacy-takeover-v1",
+  "status": "passed",
+  "command": ".blackbox/venv/bin/python evidence/compatibility/persistent_candidate_takeover.py /tmp/lmyzmail-persist-evidence-fixed",
+  "generations": [1, 2, 3, 4],
+  "assertions": {
+    "candidate_only_attestation": true,
+    "legacy_postgres_tables_preserved": true,
+    "legacy_redis_rdb_aof_preserved": true,
+    "legacy_maildir_preserved": true,
+    "application_restart_recovery": true,
+    "runtime_reopen_recovery": true,
+    "java_dependency": false
+  },
+  "release": {
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "ebc91b78f14a00b3059240f28410926918ff6e7683ee0fcbbf37d383fe741d82"
+  },
+  "verification": [
+    {
+      "command": ".blackbox/venv/bin/pytest -q blackbox/tests/test_candidate_runtime.py blackbox/tests/test_runtime.py --disable-warnings",
+      "result": "11 passed"
+    },
+    {
+      "command": ".blackbox/venv/bin/ruff check evidence/compatibility/persistent_candidate_takeover.py",
+      "result": "passed"
+    }
+  }
+}

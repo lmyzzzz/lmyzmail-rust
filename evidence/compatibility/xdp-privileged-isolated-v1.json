@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "profile": "privileged-xdp-isolated-gate-v1",
+  "status": "passed",
+  "command": "tools/lmyzmail-xdp-check/run-isolated.sh tools/lmyzmail-xdp-check/target/x86_64-unknown-linux-gnu/debug/lmyzmail-xdp-check",
+  "runner": {
+    "uid": 0,
+    "private_mount_namespace": true,
+    "private_network_namespace": true,
+    "interface": "lmyz-xdp0",
+    "pin_path": "/sys/fs/bpf/lmyzmail",
+    "legacy_pin_path": "/sys/fs/bpf/botmail"
+  },
+  "result": {
+    "firstProgramId": 65,
+    "secondProgramId": 71,
+    "refusedExistingProgramId": 59,
+    "recoveredProgramId": 65,
+    "legacyRecoveredProgramId": 50,
+    "legacyPinsAdopted": true,
+    "legacyPinsRetained": true,
+    "legacyPartialStateRejected": true,
+    "legacyIncompatibleStateRejected": true,
+    "newPinsPrioritized": true,
+    "incompatiblePinRejected": true,
+    "lockSymlinkRejected": true,
+    "attachGuardVerified": true,
+    "detachFailureRetried": true,
+    "initializationCancellationCleaned": true,
+    "recordToCringeDisabled": true,
+    "recordDisabledNoDatabaseConnection": true,
+    "recordDisabledNoAutomaticBan": true,
+    "recordDisabledCompletedPolls": 3,
+    "recordDisabledObservedEvents": 4,
+    "packetsPassed": 8,
+    "packetsDropped": 3,
+    "ipv4": "pass-ban-drop-restart-drop-unban-pass",
+    "ipv6": "pass-ban-drop-restart-drop-unban-pass"
+  }
+}

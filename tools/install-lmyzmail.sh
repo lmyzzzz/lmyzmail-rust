@@ -184,8 +184,8 @@ import pathlib
 import sys
 
 evidence = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
-if evidence.get("schema_version") != 2 or not evidence.get("verification", {}).get("byte_identical"):
-    raise SystemExit("release evidence is not a successful schema-v2 reproducibility record")
+if evidence.get("schema_version") not in (2, 3) or not evidence.get("verification", {}).get("byte_identical"):
+    raise SystemExit("release evidence is not a successful reproducibility record")
 value = evidence.get("artifact", {}).get("sha256", "")
 if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
     raise SystemExit("release evidence contains an invalid artifact SHA-256")
