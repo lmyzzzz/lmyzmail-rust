@@ -1,0 +1,89 @@
+{
+  "artifact": {
+    "build_id": "8a42301ee75114258502c6acc37b1de7c3502d6b",
+    "sha256": "888e06d4910873e0ceeb919e8c903e58ef8074e42565a07beb3311fad7b3f4b8"
+  },
+  "commit": "0e2621f7a7f77b9b0998a017b938e6087828ab9f",
+  "environment": {
+    "architecture": "x86_64",
+    "init": "systemd",
+    "platform": "WSL2 Ubuntu 24.04"
+  },
+  "live_install": {
+    "account": {
+      "gid": 989,
+      "home": "/var/lib/lmyzmail",
+      "locked": true,
+      "shell": "/usr/sbin/nologin",
+      "supplementary_groups": [],
+      "uid": 999
+    },
+    "config_check_as_service_user": true,
+    "file_hashes_verified": true,
+    "file_modes_and_ownership_verified": true,
+    "service_active_state": "inactive",
+    "service_main_pid": 0,
+    "service_result": "success",
+    "service_unit_state": "disabled",
+    "systemd_analyze_verify": true,
+    "xdp_enabled": false,
+    "xdp_profile_installed": false
+  },
+  "live_uninstall": {
+    "account_retained": true,
+    "assets_retained": true,
+    "bpf_pins_policy": "preserve",
+    "configuration_retained": true,
+    "generated_path_grant_removed": true,
+    "packaged_binary_removed": true,
+    "packaged_example_removed": true,
+    "service_unit_load_state": "not-found",
+    "service_unit_removed": true,
+    "state_retained": true,
+    "failure_rollback_restored_service_state": true,
+    "failure_rollback_verified": "loaded/active/enabled with nonzero MainPID",
+    "failure_injection": {
+      "command": "LMYZMAIL_TEST_UNINSTALL_FAIL_AFTER=2 tools/uninstall-lmyzmail.sh",
+      "expected_nonzero": true,
+      "managed_files_restored": true,
+      "service_state_after": "loaded/active/enabled"
+    }
+  },
+  "live_upgrade": {
+    "configuration_inode_after": 57310,
+    "configuration_inode_before": 57310,
+    "configuration_mode_after": "0640",
+    "configuration_mode_before": "0640",
+    "configuration_owner_after": "root:lmyzmail",
+    "configuration_owner_before": "root:lmyzmail",
+    "configuration_preserved": true,
+    "state_preserved": true
+  },
+  "release_reproducibility": {
+    "build_1_elapsed_seconds": 180,
+    "build_2_elapsed_seconds": 189,
+    "build_id_identical": true,
+    "byte_identical": true,
+    "evidence": "evidence/build/release-reproducibility-v1.json",
+    "java_jvm_dependencies": false
+  },
+  "schema_version": 1,
+  "staged_install": {
+    "command": "tools/test-installation.sh",
+    "configuration_hardlink_inode_preserved": true,
+    "configuration_metadata_preserved": true,
+    "injected_partial_upgrade_rolled_back": true,
+    "legacy_adoption_rejected_with_destdir": true,
+    "managed_path_symlinks_rejected": true,
+    "stale_path_grants_cleared": true,
+    "systemd_analyze_verify": true,
+    "unmanaged_path_grants_preserved": true,
+    "maintenance_lock_contention_rejected": true,
+    "maintenance_lock_mode_and_symlink_rejected": true
+  },
+  "verification": {
+    "bash_syntax": true,
+    "clippy_all_targets_all_features_deny_warnings": true,
+    "workspace_all_features_tests": true
+  }
+}
