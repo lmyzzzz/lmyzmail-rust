@@ -369,14 +369,15 @@ fn default_config_path() -> PathBuf {
 
 fn print_config_summary(config: &RuntimeConfig, path: &std::path::Path) {
     println!(
-        "config={} http={} smtp={} htcpcp={} minecraft={} maildir={} api_keys={}",
+        "config={} http={} smtp={} htcpcp={} minecraft={} maildir={} api_keys={} xdp={}",
         path.display(),
         config.listen.http,
         config.listen.smtp,
         config.listen.htcpcp,
         config.listen.minecraft,
         config.maildir.display(),
-        config.api_keys.len()
+        config.api_keys.len(),
+        config.xdp.enabled
     );
 }
 

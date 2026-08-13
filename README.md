@@ -57,6 +57,58 @@ unresolved libraries and Java/JVM dependencies or dynamic symbols, and writes
 the machine-readable result atomically. It never cleans or reuses the normal
 workspace `target/` directory.
 
+## Installation and rollback
+
+Stage an installation without changing the host:
+
+```bash
+tools/install-lmyzmail.sh --destdir /absolute/staging/root
+tools/test-installation.sh
+```
+
+For a live installation, run the installer as root. It creates the locked
+`lmyzmail` system account, installs the release binary, systemd unit, default
+configuration, InferX model, tokenizer, and video asset, then leaves the unit
+stopped unless `--enable` is specified. Existing
+`/etc/lmyzmail/application.properties` is never overwritten. Re-running the
+installer atomically upgrades packaged files while preserving configuration,
+Maildir, spool, and state. `--enable` is accepted only for a fresh install;
+after an upgrade, inspect the preserved configuration and start the unit
+explicitly.
+
+`ProtectHome=true` remains enabled. To adopt existing storage outside the
+default directories during a live install, pass each canonical path explicitly,
+for example `--legacy-rw /srv/legacy-mail/data/mail` for Maildir or
+`--legacy-ro /srv/legacy-mail/certs` for certificates and model assets. Every
+ancestor must be root-owned and not group/other writable so the bind source
+cannot be replaced between validation and service start. The installer does not
+change ownership of adopted paths and rejects paths the `lmyzmail` user cannot
+access. It generates only exact-path systemd bind allowances; broad filesystem
+roots and symlinks are rejected. Adoption flags are intentionally unavailable
+with `--destdir`, because host staging paths cannot encode relocatable binds.
+
+```bash
+sudo tools/uninstall-lmyzmail.sh
+```
+
+The conservative uninstall requires a successful, verified systemd shutdown,
+then disables lmyzmail and removes the binary, unit, packaged example, and
+generated legacy-path grant. It fails without removing those files when the
+service manager is unavailable,
+the process does not stop, or the unit records an unsuccessful result. This is
+important because an unsuccessful shutdown may also mean that conditional XDP
+detach failed. It deliberately retains PostgreSQL, Redis, configuration,
+Maildir, spool, logs, model/video assets, the service account, and BPF pins so
+the frozen Java service or a later lmyzmail install can adopt the same state.
+Never run the Java and Rust outbound workers concurrently.
+
+The base unit grants only `CAP_NET_BIND_SERVICE` for SMTP port 25. It grants no
+XDP capability and the default configuration keeps XDP disabled. Privileged
+XDP deployment remains gated on a dedicated active/legacy bpffs ownership
+model and a verified conditional-detach maintenance command; do not add
+`CAP_BPF`, `CAP_NET_ADMIN`, `CAP_DAC_OVERRIDE`, or run the monolith as root to
+bypass that gate.
+
 ## Database upgrade and rollback
 
 On startup, `lmyzmail` acquires a PostgreSQL advisory transaction lock and
