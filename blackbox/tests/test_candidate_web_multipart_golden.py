@@ -347,7 +347,9 @@ def _message_snapshot(raw: bytes) -> dict[str, Any]:
                 "disposition": part.get_content_disposition(),
                 "filename": part.get_filename(),
                 "content_id": part.get("Content-ID"),
-                "transfer_encoding": part.get("Content-Transfer-Encoding"),
+                "transfer_encoding": str(part.get("Content-Transfer-Encoding"))
+                if part.get("Content-Transfer-Encoding") is not None
+                else None,
                 "bytes": len(payload),
                 "sha256": hashlib.sha256(payload).hexdigest(),
             }
@@ -356,7 +358,7 @@ def _message_snapshot(raw: bytes) -> dict[str, Any]:
     return {
         "content_type": message.get_content_type(),
         "parts": parts,
-        "raw_bytes": len(raw),
+        "normalized_bytes": len(normalized),
         "normalized_sha256": hashlib.sha256(normalized).hexdigest(),
     }
 
@@ -570,12 +572,14 @@ def _capture_oracle_defects(target: RuntimeTarget) -> dict[str, Any]:
     assert target.workspace is not None
     decoder_files = list((target.workspace / "java-tmp" / "netty-http-upload").glob("upload-*.tmp"))
     owned_files = list((target.workspace / "java-tmp" / "botmail-web-upload").glob("upload-*.tmp"))
+    owned_sizes = sorted(path.stat().st_size for path in owned_files)
     return {
         "malformed": {name: _snapshot(response) for name, response in cases.items()},
         "async_success": {
             "status_code": leak_response.status_code,
-            "decoder_temp_sizes": sorted(path.stat().st_size for path in decoder_files),
-            "owned_temp_sizes": sorted(path.stat().st_size for path in owned_files),
+            "decoder_temp_files_present": bool(decoder_files),
+            "owned_temp_files_present": bool(owned_files),
+            "owned_temp_files_nonempty": all(size > 0 for size in owned_sizes),
         },
     }
 
@@ -631,7 +635,7 @@ def test_frozen_java_web_multipart_golden(
     record_java_golden: bool,
 ) -> None:
     repository = Path(__file__).resolve().parents[2]
-    golden = repository / "blackbox/golden/java/managed-web-multipart-v9"
+    golden = repository / "blackbox/golden/java/managed-web-multipart-v14"
     runner = DifferentialRunner(
         repository,
         golden,
@@ -654,7 +658,7 @@ def test_frozen_java_web_multipart_oracle_evidence(
     record_java_golden: bool,
 ) -> None:
     repository = Path(__file__).resolve().parents[2]
-    golden = repository / "blackbox/golden/java/managed-web-multipart-oracle-evidence-v5"
+    golden = repository / "blackbox/golden/java/managed-web-multipart-oracle-evidence-v10"
     runner = DifferentialRunner(
         repository,
         golden,
@@ -677,7 +681,7 @@ def test_rust_candidate_web_multipart_matches_frozen_java_golden() -> None:
     with _candidate(repository) as candidate:
         DifferentialRunner(
             repository,
-            repository / "blackbox/golden/java/managed-web-multipart-v9",
+            repository / "blackbox/golden/java/managed-web-multipart-v14",
             "managed-web-multipart",
         ).verify_candidate(WEB_MULTIPART_SCENARIOS, candidate)
 
