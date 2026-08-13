@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "profile": "candidate-http-smtp-soak-v1",
+  "status": "passed",
+  "command": "PYTHONPATH=blackbox/src .blackbox/venv/bin/python evidence/compatibility/candidate-soak-v1.py",
+  "duration_seconds": 45.045,
+  "workers": 8,
+  "http_successes": 2424,
+  "smtp_successes": 303,
+  "failures": 0,
+  "resource": {
+    "rss_min_kib": 29856,
+    "rss_max_kib": 30432,
+    "fd_min": 24,
+    "fd_max": 26,
+    "unbounded_growth_observed": false
+  },
+  "assertions": {
+    "candidate_process_stopped": true,
+    "postgres_and_redis_stopped": true,
+    "temporary_workspace_cleaned": true
+  },
+  "release_sha256": "ebc91b78f14a00b3059240f28410926918ff6e7683ee0fcbbf37d383fe741d82"
+}
