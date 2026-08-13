@@ -1,9 +1,9 @@
 {
   "artifact": {
-    "build_id": "8a42301ee75114258502c6acc37b1de7c3502d6b",
-    "sha256": "888e06d4910873e0ceeb919e8c903e58ef8074e42565a07beb3311fad7b3f4b8"
+    "build_id": "0b49254284df2bb8634f5009df1632d4446a9df8",
+    "sha256": "085c132d1c3e9c1066c6f1c2e83498011472c57fcdce4cceb08ce5aa957de81d"
   },
-  "commit": "0e2621f7a7f77b9b0998a017b938e6087828ab9f",
+  "commit": "3a151813",
   "environment": {
     "architecture": "x86_64",
     "init": "systemd",

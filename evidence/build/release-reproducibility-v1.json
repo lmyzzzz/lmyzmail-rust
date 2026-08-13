@@ -1,30 +1,30 @@
 {
   "artifact": {
-    "build_id": "8a42301ee75114258502c6acc37b1de7c3502d6b",
+    "build_id": "0b49254284df2bb8634f5009df1632d4446a9df8",
     "bytes": 49426616,
     "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
-    "sha256": "888e06d4910873e0ceeb919e8c903e58ef8074e42565a07beb3311fad7b3f4b8"
+    "sha256": "085c132d1c3e9c1066c6f1c2e83498011472c57fcdce4cceb08ce5aa957de81d"
   },
   "cargo_lock_sha256": "52e44f581c1b264dd0a315f4527379fd121054c8abc5c2eaeebd05a8cd4b9d4c",
   "clean_builds": [
     {
-      "build_id": "8a42301ee75114258502c6acc37b1de7c3502d6b",
+      "build_id": "0b49254284df2bb8634f5009df1632d4446a9df8",
       "bytes": 49426616,
       "command": "cargo build --frozen --release -p lmyzmail",
       "elapsed_seconds": 180,
       "label": "build-1",
-      "sha256": "888e06d4910873e0ceeb919e8c903e58ef8074e42565a07beb3311fad7b3f4b8"
+      "sha256": "085c132d1c3e9c1066c6f1c2e83498011472c57fcdce4cceb08ce5aa957de81d"
     },
     {
-      "build_id": "8a42301ee75114258502c6acc37b1de7c3502d6b",
+      "build_id": "0b49254284df2bb8634f5009df1632d4446a9df8",
       "bytes": 49426616,
       "command": "cargo build --frozen --release -p lmyzmail",
       "elapsed_seconds": 189,
       "label": "build-2",
-      "sha256": "888e06d4910873e0ceeb919e8c903e58ef8074e42565a07beb3311fad7b3f4b8"
+      "sha256": "085c132d1c3e9c1066c6f1c2e83498011472c57fcdce4cceb08ce5aa957de81d"
     }
   ],
-  "commit": "41a8e7956bbd7b590e42a8fe4537d3eb73acac14",
+  "commit": "3a151813",
   "environment": {
     "cargo_network": "frozen",
     "independent_target_directories": true,
