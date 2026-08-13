@@ -32,7 +32,7 @@ from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-logout-confirmation-v4"
+_GOLDEN = "managed-minecraft-logout-confirmation-v5"
 _EMAIL_IDS = (0x02, 0x02, 0x02)
 _OPEN_CONFIRM_IDS = (0x32, 0x2F, 0x30, 0x2F, 0x2F, 0x2D, 0x30)
 _CANCEL_IDS = (0x32, 0x2F, 0x30, 0x2E, 0x2F, 0x2F, 0x2D, 0x30)
