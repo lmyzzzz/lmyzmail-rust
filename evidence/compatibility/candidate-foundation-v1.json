@@ -4,7 +4,7 @@
   "candidate": {
     "binary": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
     "branch": "codex/blackbox-foundation",
-    "commit": "eaa53682"
+    "commit": "37774df5"
   },
   "scope": [
     "isolated runtime startup with PostgreSQL, Redis, Maildir, and ephemeral ports",
