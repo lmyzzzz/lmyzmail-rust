@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "profile": "candidate-regression-v1",
+  "candidate_commit": "148a2b68",
+  "release": {
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "ebc91b78f14a00b3059240f28410926918ff6e7683ee0fcbbf37d383fe741d82",
+    "build_id": "3936702b0188d89508d497910d7cb1fae411b6d2",
+    "bytes": 49608376
+  },
+  "verification": [
+    {
+      "command": "cargo test --workspace --all-targets --locked",
+      "result": "666 tests across workspace targets passed; 0 failed"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "grep source for libasciiart, JNI/JVM calls, Java launch, TODO/FIXME/stub/unimplemented",
+      "result": "no production references; release-script forbidden-symbol checks are intentional"
+    }
+  ],
+  "remaining_acceptance_gaps": [
+    "SMTP RBL candidate netns test is blocked by a WSL unshare child that did not exit within five minutes; no pass was claimed",
+    "actual privileged eBPF/XDP attach evidence is still outstanding",
+    "candidate PostgreSQL/Redis/Maildir takeover, restart recovery, and rollback acceptance is not yet a complete end-to-end proof",
+    "full soak, fault-injection, rendering frame matrix, and zero-Java release installation acceptance remain outstanding"
+  ]
+}
