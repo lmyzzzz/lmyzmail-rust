@@ -1,0 +1,690 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "7b038df3aea9442923dd787ede5f9d6eba3952d9c49ed8d63b9f6bd401a2a00b",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "outbound:queue-id"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-outbound-5xx"
+  },
+  "observation": {
+    "case_count": 10,
+    "cases": [
+      {
+        "code": 500,
+        "db": {
+          "id_present": true,
+          "last_error": "All domains failed: {outbound.fixture.test=RCPT TO failed: 500 fixture scripted rcpt failure}",
+          "max_retries": 5,
+          "message_id_present": true,
+          "retry_count": 0,
+          "sent_file_present": true,
+          "sent_subdirectory": 1,
+          "status": "FAILED"
+        },
+        "phase": "RCPT",
+        "recipient": "recipient-rcpt-500-1@outbound.fixture.test",
+        "redis": {
+          "aggregate_status": "PROCESSING",
+          "domains": {
+            "outbound.fixture.test": {
+              "error": "RCPT TO failed: 500 fixture scripted rcpt failure",
+              "recipients": [
+                "recipient-rcpt-500-1@outbound.fixture.test"
+              ],
+              "status": "FAILED"
+            }
+          },
+          "task": null,
+          "task_present_after_archive": false
+        },
+        "response": {
+          "error": null,
+          "message_id_present": true,
+          "queue_id_present": true,
+          "queued": true,
+          "status": "PENDING",
+          "status_code": 202
+        },
+        "smtp": {
+          "attempts": [],
+          "commands": [
+            "EHLO blackbox.example",
+            "MAIL FROM:<qa@example.test>",
+            "RCPT TO:<recipient-rcpt-500-1@outbound.fixture.test>"
+          ],
+          "data_bytes": 0,
+          "data_event_count": 0,
+          "replies": [
+            "220 smtp.example.test ESMTP lmyzmail fixture",
+            "250-smtp.example.test\r\n250-PIPELINING\r\n250-8BITMIME\r\n250 SIZE 8388608",
+            "250 2.1.0 sender accepted",
+            "500 fixture scripted rcpt failure"
+          ]
+        },
+        "wire": {
+          "data_bytes": 0,
+          "data_event_count": 0,
+          "data_observed": false
+        }
+      },
+      {
+        "code": 501,
+        "db": {
+          "id_present": true,
+          "last_error": "All domains failed: {outbound.fixture.test=RCPT TO failed: 501 fixture scripted rcpt failure}",
+          "max_retries": 5,
+          "message_id_present": true,
+          "retry_count": 0,
+          "sent_file_present": true,
+          "sent_subdirectory": 2,
+          "status": "FAILED"
+        },
+        "phase": "RCPT",
+        "recipient": "recipient-rcpt-501-2@outbound.fixture.test",
+        "redis": {
+          "aggregate_status": "PROCESSING",
+          "domains": {
+            "outbound.fixture.test": {
+              "error": "RCPT TO failed: 501 fixture scripted rcpt failure",
+              "recipients": [
+                "recipient-rcpt-501-2@outbound.fixture.test"
+              ],
+              "status": "FAILED"
+            }
+          },
+          "task": null,
+          "task_present_after_archive": false
+        },
+        "response": {
+          "error": null,
+          "message_id_present": true,
+          "queue_id_present": true,
+          "queued": true,
+          "status": "PENDING",
+          "status_code": 202
+        },
+        "smtp": {
+          "attempts": [],
+          "commands": [
+            "EHLO blackbox.example",
+            "MAIL FROM:<qa@example.test>",
+            "RCPT TO:<recipient-rcpt-501-2@outbound.fixture.test>"
+          ],
+          "data_bytes": 0,
+          "data_event_count": 0,
+          "replies": [
+            "220 smtp.example.test ESMTP lmyzmail fixture",
+            "250-smtp.example.test\r\n250-PIPELINING\r\n250-8BITMIME\r\n250 SIZE 8388608",
+            "250 2.1.0 sender accepted",
+            "501 fixture scripted rcpt failure"
+          ]
+        },
+        "wire": {
+          "data_bytes": 0,
+          "data_event_count": 0,
+          "data_observed": false
+        }
+      },
+      {
+        "code": 549,
+        "db": {
+          "id_present": true,
+          "last_error": "All domains failed: {outbound.fixture.test=RCPT TO failed: 549 fixture scripted rcpt failure}",
+          "max_retries": 5,
+          "message_id_present": true,
+          "retry_count": 0,
+          "sent_file_present": true,
+          "sent_subdirectory": 3,
+          "status": "FAILED"
+        },
+        "phase": "RCPT",
+        "recipient": "recipient-rcpt-549-3@outbound.fixture.test",
+        "redis": {
+          "aggregate_status": "PROCESSING",
+          "domains": {
+            "outbound.fixture.test": {
+              "error": "RCPT TO failed: 549 fixture scripted rcpt failure",
+              "recipients": [
+                "recipient-rcpt-549-3@outbound.fixture.test"
+              ],
+              "status": "FAILED"
+            }
+          },
+          "task": null,
+          "task_present_after_archive": false
+        },
+        "response": {
+          "error": null,
+          "message_id_present": true,
+          "queue_id_present": true,
+          "queued": true,
+          "status": "PENDING",
+          "status_code": 202
+        },
+        "smtp": {
+          "attempts": [],
+          "commands": [
+            "EHLO blackbox.example",
+            "MAIL FROM:<qa@example.test>",
+            "RCPT TO:<recipient-rcpt-549-3@outbound.fixture.test>"
+          ],
+          "data_bytes": 0,
+          "data_event_count": 0,
+          "replies": [
+            "220 smtp.example.test ESMTP lmyzmail fixture",
+            "250-smtp.example.test\r\n250-PIPELINING\r\n250-8BITMIME\r\n250 SIZE 8388608",
+            "250 2.1.0 sender accepted",
+            "549 fixture scripted rcpt failure"
+          ]
+        },
+        "wire": {
+          "data_bytes": 0,
+          "data_event_count": 0,
+          "data_observed": false
+        }
+      },
+      {
+        "code": 550,
+        "db": {
+          "id_present": true,
+          "last_error": "All domains failed: {outbound.fixture.test=RCPT TO failed: 550 fixture scripted rcpt failure}",
+          "max_retries": 5,
+          "message_id_present": true,
+          "retry_count": 0,
+          "sent_file_present": true,
+          "sent_subdirectory": 4,
+          "status": "FAILED"
+        },
+        "phase": "RCPT",
+        "recipient": "recipient-rcpt-550-4@outbound.fixture.test",
+        "redis": {
+          "aggregate_status": "FAILED",
+          "domains": {
+            "outbound.fixture.test": {
+              "error": "RCPT TO failed: 550 fixture scripted rcpt failure",
+              "recipients": [
+                "recipient-rcpt-550-4@outbound.fixture.test"
+              ],
+              "status": "FAILED"
+            }
+          },
+          "task": null,
+          "task_present_after_archive": false
+        },
+        "response": {
+          "error": null,
+          "message_id_present": true,
+          "queue_id_present": true,
+          "queued": true,
+          "status": "PENDING",
+          "status_code": 202
+        },
+        "smtp": {
+          "attempts": [],
+          "commands": [
+            "EHLO blackbox.example",
+            "MAIL FROM:<qa@example.test>",
+            "RCPT TO:<recipient-rcpt-550-4@outbound.fixture.test>"
+          ],
+          "data_bytes": 0,
+          "data_event_count": 0,
+          "replies": [
+            "220 smtp.example.test ESMTP lmyzmail fixture",
+            "250-smtp.example.test\r\n250-PIPELINING\r\n250-8BITMIME\r\n250 SIZE 8388608",
+            "250 2.1.0 sender accepted",
+            "550 fixture scripted rcpt failure"
+          ]
+        },
+        "wire": {
+          "data_bytes": 0,
+          "data_event_count": 0,
+          "data_observed": false
+        }
+      },
+      {
+        "code": 554,
+        "db": {
+          "id_present": true,
+          "last_error": "All domains failed: {outbound.fixture.test=RCPT TO failed: 554 fixture scripted rcpt failure}",
+          "max_retries": 5,
+          "message_id_present": true,
+          "retry_count": 0,
+          "sent_file_present": true,
+          "sent_subdirectory": 5,
+          "status": "FAILED"
+        },
+        "phase": "RCPT",
+        "recipient": "recipient-rcpt-554-5@outbound.fixture.test",
+        "redis": {
+          "aggregate_status": "FAILED",
+          "domains": {
+            "outbound.fixture.test": {
+              "error": "RCPT TO failed: 554 fixture scripted rcpt failure",
+              "recipients": [
+                "recipient-rcpt-554-5@outbound.fixture.test"
+              ],
+              "status": "FAILED"
+            }
+          },
+          "task": null,
+          "task_present_after_archive": false
+        },
+        "response": {
+          "error": null,
+          "message_id_present": true,
+          "queue_id_present": true,
+          "queued": true,
+          "status": "PENDING",
+          "status_code": 202
+        },
+        "smtp": {
+          "attempts": [],
+          "commands": [
+            "EHLO blackbox.example",
+            "MAIL FROM:<qa@example.test>",
+            "RCPT TO:<recipient-rcpt-554-5@outbound.fixture.test>"
+          ],
+          "data_bytes": 0,
+          "data_event_count": 0,
+          "replies": [
+            "220 smtp.example.test ESMTP lmyzmail fixture",
+            "250-smtp.example.test\r\n250-PIPELINING\r\n250-8BITMIME\r\n250 SIZE 8388608",
+            "250 2.1.0 sender accepted",
+            "554 fixture scripted rcpt failure"
+          ]
+        },
+        "wire": {
+          "data_bytes": 0,
+          "data_event_count": 0,
+          "data_observed": false
+        }
+      },
+      {
+        "code": 500,
+        "db": {
+          "id_present": true,
+          "last_error": "All domains failed: {outbound.fixture.test=Message not accepted: 500 fixture scripted data failure}",
+          "max_retries": 5,
+          "message_id_present": true,
+          "retry_count": 0,
+          "sent_file_present": true,
+          "sent_subdirectory": 6,
+          "status": "FAILED"
+        },
+        "phase": "DATA",
+        "recipient": "recipient-data-500-6@outbound.fixture.test",
+        "redis": {
+          "aggregate_status": "PROCESSING",
+          "domains": {
+            "outbound.fixture.test": {
+              "error": "Message not accepted: 500 fixture scripted data failure",
+              "recipients": [
+                "recipient-data-500-6@outbound.fixture.test"
+              ],
+              "status": "FAILED"
+            }
+          },
+          "task": null,
+          "task_present_after_archive": false
+        },
+        "response": {
+          "error": null,
+          "message_id_present": true,
+          "queue_id_present": true,
+          "queued": true,
+          "status": "PENDING",
+          "status_code": 202
+        },
+        "smtp": {
+          "attempts": [
+            {
+              "accepted": false,
+              "bytes": 337,
+              "normalized_sha256": "a6c27cd2e76da1c73f9ee02cf7e470a630e51253e35af58118f121d179f24f09",
+              "recipients": [
+                "recipient-data-500-6@outbound.fixture.test"
+              ],
+              "sender": "qa@example.test",
+              "wire_bytes": 340
+            }
+          ],
+          "commands": [
+            "EHLO blackbox.example",
+            "MAIL FROM:<qa@example.test>",
+            "RCPT TO:<recipient-data-500-6@outbound.fixture.test>",
+            "DATA"
+          ],
+          "data_bytes": 340,
+          "data_event_count": 11,
+          "replies": [
+            "220 smtp.example.test ESMTP lmyzmail fixture",
+            "250-smtp.example.test\r\n250-PIPELINING\r\n250-8BITMIME\r\n250 SIZE 8388608",
+            "250 2.1.0 sender accepted",
+            "250 2.1.5 recipient accepted",
+            "354 end data with <CRLF>.<CRLF>",
+            "500 fixture scripted data failure"
+          ]
+        },
+        "wire": {
+          "data_bytes": 340,
+          "data_event_count": 11,
+          "data_observed": true
+        }
+      },
+      {
+        "code": 501,
+        "db": {
+          "id_present": true,
+          "last_error": "All domains failed: {outbound.fixture.test=Message not accepted: 501 fixture scripted data failure}",
+          "max_retries": 5,
+          "message_id_present": true,
+          "retry_count": 0,
+          "sent_file_present": true,
+          "sent_subdirectory": 7,
+          "status": "FAILED"
+        },
+        "phase": "DATA",
+        "recipient": "recipient-data-501-7@outbound.fixture.test",
+        "redis": {
+          "aggregate_status": "PROCESSING",
+          "domains": {
+            "outbound.fixture.test": {
+              "error": "Message not accepted: 501 fixture scripted data failure",
+              "recipients": [
+                "recipient-data-501-7@outbound.fixture.test"
+              ],
+              "status": "FAILED"
+            }
+          },
+          "task": null,
+          "task_present_after_archive": false
+        },
+        "response": {
+          "error": null,
+          "message_id_present": true,
+          "queue_id_present": true,
+          "queued": true,
+          "status": "PENDING",
+          "status_code": 202
+        },
+        "smtp": {
+          "attempts": [
+            {
+              "accepted": false,
+              "bytes": 337,
+              "normalized_sha256": "7c816489623c821bc5b23bbdf7ea891e793a1ba3d4c767e43a5c0d8676361088",
+              "recipients": [
+                "recipient-data-501-7@outbound.fixture.test"
+              ],
+              "sender": "qa@example.test",
+              "wire_bytes": 340
+            }
+          ],
+          "commands": [
+            "EHLO blackbox.example",
+            "MAIL FROM:<qa@example.test>",
+            "RCPT TO:<recipient-data-501-7@outbound.fixture.test>",
+            "DATA"
+          ],
+          "data_bytes": 340,
+          "data_event_count": 11,
+          "replies": [
+            "220 smtp.example.test ESMTP lmyzmail fixture",
+            "250-smtp.example.test\r\n250-PIPELINING\r\n250-8BITMIME\r\n250 SIZE 8388608",
+            "250 2.1.0 sender accepted",
+            "250 2.1.5 recipient accepted",
+            "354 end data with <CRLF>.<CRLF>",
+            "501 fixture scripted data failure"
+          ]
+        },
+        "wire": {
+          "data_bytes": 340,
+          "data_event_count": 11,
+          "data_observed": true
+        }
+      },
+      {
+        "code": 549,
+        "db": {
+          "id_present": true,
+          "last_error": "All domains failed: {outbound.fixture.test=Message not accepted: 549 fixture scripted data failure}",
+          "max_retries": 5,
+          "message_id_present": true,
+          "retry_count": 0,
+          "sent_file_present": true,
+          "sent_subdirectory": 8,
+          "status": "FAILED"
+        },
+        "phase": "DATA",
+        "recipient": "recipient-data-549-8@outbound.fixture.test",
+        "redis": {
+          "aggregate_status": "PROCESSING",
+          "domains": {
+            "outbound.fixture.test": {
+              "error": "Message not accepted: 549 fixture scripted data failure",
+              "recipients": [
+                "recipient-data-549-8@outbound.fixture.test"
+              ],
+              "status": "FAILED"
+            }
+          },
+          "task": null,
+          "task_present_after_archive": false
+        },
+        "response": {
+          "error": null,
+          "message_id_present": true,
+          "queue_id_present": true,
+          "queued": true,
+          "status": "PENDING",
+          "status_code": 202
+        },
+        "smtp": {
+          "attempts": [
+            {
+              "accepted": false,
+              "bytes": 337,
+              "normalized_sha256": "e6ba59b1dd7a0a658e73e8cbb509feb4d94a64204fd427d8065cfb155e80789e",
+              "recipients": [
+                "recipient-data-549-8@outbound.fixture.test"
+              ],
+              "sender": "qa@example.test",
+              "wire_bytes": 340
+            }
+          ],
+          "commands": [
+            "EHLO blackbox.example",
+            "MAIL FROM:<qa@example.test>",
+            "RCPT TO:<recipient-data-549-8@outbound.fixture.test>",
+            "DATA"
+          ],
+          "data_bytes": 340,
+          "data_event_count": 11,
+          "replies": [
+            "220 smtp.example.test ESMTP lmyzmail fixture",
+            "250-smtp.example.test\r\n250-PIPELINING\r\n250-8BITMIME\r\n250 SIZE 8388608",
+            "250 2.1.0 sender accepted",
+            "250 2.1.5 recipient accepted",
+            "354 end data with <CRLF>.<CRLF>",
+            "549 fixture scripted data failure"
+          ]
+        },
+        "wire": {
+          "data_bytes": 340,
+          "data_event_count": 11,
+          "data_observed": true
+        }
+      },
+      {
+        "code": 550,
+        "db": {
+          "id_present": true,
+          "last_error": "All domains failed: {outbound.fixture.test=Message not accepted: 550 fixture scripted data failure}",
+          "max_retries": 5,
+          "message_id_present": true,
+          "retry_count": 0,
+          "sent_file_present": true,
+          "sent_subdirectory": 9,
+          "status": "FAILED"
+        },
+        "phase": "DATA",
+        "recipient": "recipient-data-550-9@outbound.fixture.test",
+        "redis": {
+          "aggregate_status": "FAILED",
+          "domains": {
+            "outbound.fixture.test": {
+              "error": "Message not accepted: 550 fixture scripted data failure",
+              "recipients": [
+                "recipient-data-550-9@outbound.fixture.test"
+              ],
+              "status": "FAILED"
+            }
+          },
+          "task": null,
+          "task_present_after_archive": false
+        },
+        "response": {
+          "error": null,
+          "message_id_present": true,
+          "queue_id_present": true,
+          "queued": true,
+          "status": "PENDING",
+          "status_code": 202
+        },
+        "smtp": {
+          "attempts": [
+            {
+              "accepted": false,
+              "bytes": 337,
+              "normalized_sha256": "53c0355bbae24cbd29b8a0912a263dd043e082ce4efb833a81eb013d226673b0",
+              "recipients": [
+                "recipient-data-550-9@outbound.fixture.test"
+              ],
+              "sender": "qa@example.test",
+              "wire_bytes": 340
+            }
+          ],
+          "commands": [
+            "EHLO blackbox.example",
+            "MAIL FROM:<qa@example.test>",
+            "RCPT TO:<recipient-data-550-9@outbound.fixture.test>",
+            "DATA"
+          ],
+          "data_bytes": 340,
+          "data_event_count": 11,
+          "replies": [
+            "220 smtp.example.test ESMTP lmyzmail fixture",
+            "250-smtp.example.test\r\n250-PIPELINING\r\n250-8BITMIME\r\n250 SIZE 8388608",
+            "250 2.1.0 sender accepted",
+            "250 2.1.5 recipient accepted",
+            "354 end data with <CRLF>.<CRLF>",
+            "550 fixture scripted data failure"
+          ]
+        },
+        "wire": {
+          "data_bytes": 340,
+          "data_event_count": 11,
+          "data_observed": true
+        }
+      },
+      {
+        "code": 554,
+        "db": {
+          "id_present": true,
+          "last_error": "All domains failed: {outbound.fixture.test=Message not accepted: 554 fixture scripted data failure}",
+          "max_retries": 5,
+          "message_id_present": true,
+          "retry_count": 0,
+          "sent_file_present": true,
+          "sent_subdirectory": 10,
+          "status": "FAILED"
+        },
+        "phase": "DATA",
+        "recipient": "recipient-data-554-10@outbound.fixture.test",
+        "redis": {
+          "aggregate_status": "FAILED",
+          "domains": {
+            "outbound.fixture.test": {
+              "error": "Message not accepted: 554 fixture scripted data failure",
+              "recipients": [
+                "recipient-data-554-10@outbound.fixture.test"
+              ],
+              "status": "FAILED"
+            }
+          },
+          "task": null,
+          "task_present_after_archive": false
+        },
+        "response": {
+          "error": null,
+          "message_id_present": true,
+          "queue_id_present": true,
+          "queued": true,
+          "status": "PENDING",
+          "status_code": 202
+        },
+        "smtp": {
+          "attempts": [
+            {
+              "accepted": false,
+              "bytes": 340,
+              "normalized_sha256": "9245189738be2d6c8c1147c768982a5a9238afa6dd678de69e95be59b6d61575",
+              "recipients": [
+                "recipient-data-554-10@outbound.fixture.test"
+              ],
+              "sender": "qa@example.test",
+              "wire_bytes": 343
+            }
+          ],
+          "commands": [
+            "EHLO blackbox.example",
+            "MAIL FROM:<qa@example.test>",
+            "RCPT TO:<recipient-data-554-10@outbound.fixture.test>",
+            "DATA"
+          ],
+          "data_bytes": 343,
+          "data_event_count": 11,
+          "replies": [
+            "220 smtp.example.test ESMTP lmyzmail fixture",
+            "250-smtp.example.test\r\n250-PIPELINING\r\n250-8BITMIME\r\n250 SIZE 8388608",
+            "250 2.1.0 sender accepted",
+            "250 2.1.5 recipient accepted",
+            "354 end data with <CRLF>.<CRLF>",
+            "554 fixture scripted data failure"
+          ]
+        },
+        "wire": {
+          "data_bytes": 343,
+          "data_event_count": 11,
+          "data_observed": true
+        }
+      }
+    ],
+    "codes": [
+      500,
+      501,
+      549,
+      550,
+      554
+    ]
+  },
+  "schema_version": 2
+}

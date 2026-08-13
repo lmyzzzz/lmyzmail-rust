@@ -204,7 +204,7 @@ def _assert_contract(observed: dict[str, Any], *, target: str) -> None:
 
 
 def _golden(repository: Path, observed: dict[str, Any], *, record_java: bool) -> None:
-    path = repository / "blackbox/golden/java/managed-tlsrpt-https-v11.json"
+    path = repository / "blackbox/golden/java/managed-tlsrpt-https-v12.json"
     attestation = GoldenAttestation.from_repository(
         repository,
         profile="managed-tlsrpt-https",
