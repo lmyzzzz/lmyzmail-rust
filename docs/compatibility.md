@@ -37,9 +37,11 @@ there is no whole-response masking or assertion weakening.
 
 ## Native Skibidi banner
 
-SMTP banner generation always calls the frozen Skibidi 1.8.0 C library. Its
+SMTP banner generation is implemented entirely in Rust. The frozen Skibidi
+1.8.0 C library is retained as a read-only probability, table, and behavior
+oracle; it is not compiled, linked, or loaded by the production binary. Its
 grammar, probability thresholds, seed behavior, batch behavior, ABI, and memory
-ownership are authoritative; lmyzmail does not reproduce the Java 26.85% outer
+ownership are authoritative. lmyzmail does not reproduce the Java 26.85% outer
 fast path or maintain a second probability implementation.
 
 The frozen source commit is `4bc484c15b780d578ee8e53cab968f2819958215`.
@@ -49,16 +51,18 @@ and `skibidi_avx.h` has SHA-256
 `bde8e9d19d6668c644aba1cdd81fb9f56c2236ff827ddd16fb366369bc68bbea`.
 The build rejects either source if its digest changes.
 
-Legacy `JAVA` mode is retained only as a configuration alias for the scalar C
-backend; it never starts a JVM. `SCALAR` is the explicit spelling. `AVX2` and
-`AVX512` require OS-aware runtime support, while `AUTO`, `AUTO_SAFE`, and
-`NATIVE` choose the best permitted C backend. The AVX-512 object is called only
-when both AVX2 and AVX-512F extended state are available to the process.
+Legacy `JAVA` mode is retained only as a configuration alias for the Rust
+scalar backend; it never starts a JVM or selects a C implementation. `SCALAR`
+is the explicit spelling. `AVX2` and `AVX512` require OS-aware runtime
+support, while `AUTO`, `AUTO_SAFE`, and `NATIVE` choose the best permitted
+Rust backend. The AVX-labelled modes retain capability reporting and are
+selected only when the process has the required OS-managed extended state.
 
 The managed Java oracle runs in `JAVA` mode in WSL because its historical
 bundled native library can execute an unsupported instruction. It therefore
 remains the banner wire-grammar oracle, while frozen C tests and external Rust
-candidate sampling are the probability authorities.
+candidate sampling verify that the Rust implementation follows those
+probability authorities.
 
 ## Java parity edge cases
 

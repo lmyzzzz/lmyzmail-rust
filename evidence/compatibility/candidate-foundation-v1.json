@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "profile": "candidate-foundation-v1",
+  "candidate": {
+    "binary": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "branch": "codex/blackbox-foundation",
+    "commit": "eaa53682"
+  },
+  "scope": [
+    "isolated runtime startup with PostgreSQL, Redis, Maildir, and ephemeral ports",
+    "HTTP foundation and authentication",
+    "mailbox API and persisted session-token hash",
+    "outbound HTTP status projections",
+    "multipart upload limits and cleanup",
+    "SMTP command sequencing and DATA",
+    "SMTP AUTH",
+    "SMTP MIME",
+    "SMTP DKIM",
+    "SMTP SPF",
+    "SMTP DMARC"
+  ],
+  "verification": [
+    {
+      "command": "blackbox/.venv/bin/python -m pytest -q blackbox/tests/test_candidate_runtime.py",
+      "result": "3 passed"
+    },
+    {
+      "command": "blackbox/.venv/bin/python -m pytest -q -m candidate blackbox/tests/test_candidate_http_golden.py::test_rust_candidate_foundation_http_matches_frozen_java_golden",
+      "result": "1 passed"
+    },
+    {
+      "command": "blackbox/.venv/bin/python -m pytest -q -m candidate blackbox/tests/test_candidate_auth_golden.py::test_rust_candidate_auth_http_matches_frozen_java_golden",
+      "result": "1 passed"
+    },
+    {
+      "command": "blackbox/.venv/bin/python -m pytest -q -m candidate blackbox/tests/test_candidate_mailbox_api_golden.py",
+      "result": "6 passed, 1 deselected"
+    },
+    {
+      "command": "blackbox/.venv/bin/python -m pytest -q -m candidate blackbox/tests/test_candidate_outbound_http_golden.py",
+      "result": "4 passed, 2 deselected"
+    },
+    {
+      "command": "blackbox/.venv/bin/python -m pytest -q -m candidate blackbox/tests/test_candidate_web_multipart_golden.py",
+      "result": "4 passed, 2 deselected"
+    },
+    {
+      "command": "blackbox/.venv/bin/python -m pytest -q -m candidate blackbox/tests/test_oracle_smtp_commands.py::test_rust_candidate_smtp_commands_match_frozen_java_golden",
+      "result": "1 passed"
+    },
+    {
+      "command": "blackbox/.venv/bin/python -m pytest -q -m candidate blackbox/tests/test_oracle_smtp_data.py::test_rust_candidate_smtp_data_matches_frozen_java_golden",
+      "result": "1 passed"
+    },
+    {
+      "command": "blackbox/.venv/bin/python -m pytest -q -m candidate blackbox/tests/test_oracle_smtp_auth.py blackbox/tests/test_oracle_smtp_mime.py blackbox/tests/test_oracle_smtp_dkim.py blackbox/tests/test_oracle_smtp_spf.py blackbox/tests/test_oracle_smtp_dmarc.py",
+      "result": "8 passed, 7 deselected"
+    }
+  ],
+  "goldens": "Frozen Java goldens were read-only; no recording or normalization changes were made."
+}
