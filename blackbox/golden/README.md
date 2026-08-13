@@ -3,6 +3,37 @@
 Golden observations are create-once, attested to the frozen oracle JAR and runtime
 inputs, and must never be overwritten in place.
 
+## Minecraft outbound generations
+
+- `managed-minecraft-outbound-v1.json` is the first retained recording. Its
+  queue cleanup assertion compared global worklist lengths and mistook legacy
+  Redis retry task 2101 for the newly submitted Minecraft task.
+- `managed-minecraft-outbound-v2.json` is retained after strengthening the
+  observation with queue-ID-specific membership and a frozen worklist baseline.
+- `managed-minecraft-outbound-v3.json` is the independently replayed normal
+  success/permanent-failure profile before the repeated-click probe changed the
+  attested definition tree.
+- `managed-minecraft-outbound-v4.json` is retained after its candidate fixture
+  omitted DNS for the allowlisted durable DSN recipient domain.
+- `managed-minecraft-outbound-v5.json` is retained after the reviewed behavior
+  difference was added to the harness's strict manifest-ID assertion.
+- `managed-minecraft-outbound-v6.json` is the active normal profile under the
+  repeated-click and complete DSN-DNS harness definition. It retains exact validation, SMTP, queue,
+  terminal payload clearing, Redis, Maildir, and draft lifecycle requirements.
+- `managed-minecraft-outbound-duplicate-oracle-evidence-v1.json` is the first
+  immutable Java-only recording of the duplicate-send race. It is retained after
+  the candidate's exact worklist-key assertion changed the tool definition.
+- `managed-minecraft-outbound-duplicate-oracle-evidence-v2.json` is retained
+  after the same candidate DSN-DNS fixture correction changed the definition tree.
+- `managed-minecraft-outbound-duplicate-oracle-evidence-v3.json` is retained
+  after the reviewed behavior difference was added to the strict manifest-ID
+  assertion.
+- `managed-minecraft-outbound-duplicate-oracle-evidence-v4.json` is the active
+  Java-only evidence profile. Two coalesced C08 packets must produce two queue
+  rows, two SMTP attempts, and two sent files in the oracle. Candidate tests do
+  not consume that behavior as an expectation; they require one admitted send
+  and one exact `§cEmail send already in progress.` response instead.
+
 - `managed-basic/` is the rejected first repeatability probe. A second JVM run proved
   that `Map.of` JSON key iteration order changes between processes. It is retained as
   evidence and is not consumed by tests.

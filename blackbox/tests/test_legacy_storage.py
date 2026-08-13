@@ -74,8 +74,8 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "smtp-cringe-queue-overflow-bound",
         "smtp-fragmented-overlong-double-error",
         "smtp-dkim-auid-domain-validation",
-            "outbound-starttls-hostname-verification",
-            "outbound-starttls-static-rsa-cbc-rejection",
+        "outbound-starttls-hostname-verification",
+        "outbound-starttls-static-rsa-cbc-rejection",
         "outbound-permanent-failure-dsn",
         "outbound-smtp-commit-ambiguity-no-retry",
         "outbound-retry-postgres-checkpoint",
@@ -109,6 +109,7 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "minecraft-strict-compression-envelope",
         "minecraft-logout-flush-before-close",
         "minecraft-map-video-permit-lifetime",
+        "minecraft-outbound-overlapping-send-admission",
         "xdp-management-failure-reporting",
         "xdp-pps-consecutive-counter-saturation",
         "xdp-pps-database-deadline-and-commit-reconciliation",
@@ -163,9 +164,7 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
     assert dkim_auid["evidence"]["source_sha256"] == (
         "38fe01423b22ace4166cec34803fe71bd6a9a3461b5416bc85d685ecfa00792d"
     )
-    assert dkim_auid["candidate_requirement"].startswith(
-        "Reject an explicit DKIM AUID"
-    )
+    assert dkim_auid["candidate_requirement"].startswith("Reject an explicit DKIM AUID")
     commit_ambiguity = by_id["outbound-smtp-commit-ambiguity-no-retry"]
     assert commit_ambiguity["evidence"]["sender_source_sha256"] == (
         "c7f10f2416ae308335e9f6f77ffe00140b64904b0b2e8dc7eb04ed74394c603e"
@@ -206,9 +205,10 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         by_id["outbound-route-dns-answer-budgets"]["evidence"]["network_source_sha256"]
         == "1a46e5938bdfdc4b0f7cd6d8e2377ea157b7181768a392c954e037f04442e063"
     )
-    assert by_id["reporting-dns-input-and-answer-budgets"]["evidence"][
-        "source_sha256"
-    ] == "5430c390a10dcd642ae8b6414c0bb448e05582b48b5c0805ab47677fdfeb2fad"
+    assert (
+        by_id["reporting-dns-input-and-answer-budgets"]["evidence"]["source_sha256"]
+        == "5430c390a10dcd642ae8b6414c0bb448e05582b48b5c0805ab47677fdfeb2fad"
+    )
     assert by_id["outbound-http-redis-outage-deadline"]["evidence"]["source_sha256"] == (
         "f9abffe3fbc98e314db34fcf38d894fd200d93ad74ff933f2c0f57e2717f1bf4"
     )
@@ -228,15 +228,18 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
     assert auth_cancellation["evidence"]["session_source_sha256"] == (
         "a68edfb3beab48e8b43fa8951f56cf266d43540aa6fe13d3dd4b9df6b24e49b8"
     )
-    assert by_id["cringe-pagination-input-validation"]["evidence"][
-        "controller_source_sha256"
-    ] == "59fa65284de9f2820956aed0bc5fe19b69114d21951962986b867822302ad621"
-    assert by_id["cringe-score-query-row-cap"]["evidence"][
-        "repository_source_sha256"
-    ] == "0922f48caf76cff11474d7882952e21df10351881a4cbf5f446fe26af7210e01"
-    assert by_id["cringe-postgres-cancellation-and-pool-health"]["evidence"][
-        "service_source_sha256"
-    ] == "392c021dcc834005d6e08188d1aed03ca68399ceb665755c4f445ddd19644675"
+    assert (
+        by_id["cringe-pagination-input-validation"]["evidence"]["controller_source_sha256"]
+        == "59fa65284de9f2820956aed0bc5fe19b69114d21951962986b867822302ad621"
+    )
+    assert (
+        by_id["cringe-score-query-row-cap"]["evidence"]["repository_source_sha256"]
+        == "0922f48caf76cff11474d7882952e21df10351881a4cbf5f446fe26af7210e01"
+    )
+    assert (
+        by_id["cringe-postgres-cancellation-and-pool-health"]["evidence"]["service_source_sha256"]
+        == "392c021dcc834005d6e08188d1aed03ca68399ceb665755c4f445ddd19644675"
+    )
     pps_monitor = by_id["xdp-pps-monitor-bounded-state"]
     assert pps_monitor["evidence"]["source_sha256"] == (
         "9f6f6855c4163a38000543951554dde69b7f6febce2f696f34aa040c2e0fd23e"
@@ -244,12 +247,10 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
     pps_attestation = json.loads(
         (repository / pps_monitor["evidence"]["attestation"]).read_text(encoding="utf-8")
     )
-    assert pps_attestation["source"]["working_tree_sha256"] == pps_monitor["evidence"][
-        "source_sha256"
-    ]
-    assert pps_attestation["frozen_behavior"]["cooldown_comparison"] == (
-        "strictly greater than"
+    assert (
+        pps_attestation["source"]["working_tree_sha256"] == pps_monitor["evidence"]["source_sha256"]
     )
+    assert pps_attestation["frozen_behavior"]["cooldown_comparison"] == ("strictly greater than")
     assert pps_attestation["frozen_behavior"]["poll_schedule"] == (
         "Spring fixedRate; delayed non-overlapping executions catch up without skipping"
     )
@@ -264,12 +265,9 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         assert evidence["source_sha256"] == (
             "0922f48caf76cff11474d7882952e21df10351881a4cbf5f446fe26af7210e01"
         )
-    deadline_evidence = by_id[
-        "xdp-pps-database-deadline-and-commit-reconciliation"
-    ]["evidence"]
+    deadline_evidence = by_id["xdp-pps-database-deadline-and-commit-reconciliation"]["evidence"]
     assert deadline_evidence["source"] == (
-        "src/main/java/net/lmyz/lmyzmail/cringe/service/"
-        "SkibidiCringeIPTransactionalHelper.java"
+        "src/main/java/net/lmyz/lmyzmail/cringe/service/SkibidiCringeIPTransactionalHelper.java"
     )
     assert deadline_evidence["source_sha256"] == (
         "4eb48d930e923840d5fde506d4e7ab53b28ae4fd57b5a5fe45d9273526a941ef"
@@ -282,24 +280,30 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         by_id["minecraft-bounded-connection-admission"]["evidence"]["source_sha256"]
         == "3c997b4d378a6f1b57935ec1f2138b7bd770fb5d84daa0cdbc69f9d71b5f30d3"
     )
-    assert by_id["minecraft-strict-compression-envelope"]["evidence"][
-        "source_sha256"
-    ] == "57ded840303dba8df6356246d8ad30f5ee98b6cce6a258d0883bc652d3e652f0"
-    assert by_id["minecraft-duplicate-session-removal-fencing"]["evidence"][
-        "source_sha256"
-    ] == "422f57ef731635adcce19f1162dbb9bada1a2a8bc1373a4b6ef91c71023fec5a"
-    assert by_id["minecraft-online-verify-token-hardening"]["evidence"][
-        "source_sha256"
-    ] == "4325f6517ccffa9b94ee1b8fa274b1a9cf51d94c32a0e4ac9976003dd8c1d52c"
-    assert by_id["minecraft-sessionserver-query-encoding"]["evidence"][
-        "source_sha256"
-    ] == "c6077c703f848f5b357325dbde62b491d81cf09550289a7dedf98d78e0f3f00a"
-    assert by_id["minecraft-sessionserver-response-validation"]["evidence"][
-        "source_sha256"
-    ] == "c6077c703f848f5b357325dbde62b491d81cf09550289a7dedf98d78e0f3f00a"
-    assert by_id["minecraft-sessionserver-bounded-lifecycle"]["evidence"][
-        "server_source_sha256"
-    ] == "3c997b4d378a6f1b57935ec1f2138b7bd770fb5d84daa0cdbc69f9d71b5f30d3"
+    assert (
+        by_id["minecraft-strict-compression-envelope"]["evidence"]["source_sha256"]
+        == "57ded840303dba8df6356246d8ad30f5ee98b6cce6a258d0883bc652d3e652f0"
+    )
+    assert (
+        by_id["minecraft-duplicate-session-removal-fencing"]["evidence"]["source_sha256"]
+        == "422f57ef731635adcce19f1162dbb9bada1a2a8bc1373a4b6ef91c71023fec5a"
+    )
+    assert (
+        by_id["minecraft-online-verify-token-hardening"]["evidence"]["source_sha256"]
+        == "4325f6517ccffa9b94ee1b8fa274b1a9cf51d94c32a0e4ac9976003dd8c1d52c"
+    )
+    assert (
+        by_id["minecraft-sessionserver-query-encoding"]["evidence"]["source_sha256"]
+        == "c6077c703f848f5b357325dbde62b491d81cf09550289a7dedf98d78e0f3f00a"
+    )
+    assert (
+        by_id["minecraft-sessionserver-response-validation"]["evidence"]["source_sha256"]
+        == "c6077c703f848f5b357325dbde62b491d81cf09550289a7dedf98d78e0f3f00a"
+    )
+    assert (
+        by_id["minecraft-sessionserver-bounded-lifecycle"]["evidence"]["server_source_sha256"]
+        == "3c997b4d378a6f1b57935ec1f2138b7bd770fb5d84daa0cdbc69f9d71b5f30d3"
+    )
 
 
 def test_postgres_seed_is_structurally_valid_postgres_sql() -> None:

@@ -1400,7 +1400,8 @@ impl PostgresDeliveryState {
                          SET retry_count=GREATEST(retry_count,$2),next_retry_at=$3,
                              last_error=$4,status=$5,sent_at=$6,sent_domains_json=$7,
                              failed_domains_json=$8,updated_at=GREATEST(updated_at,$9),
-                             processor_id=NULL,processing_started_at=NULL
+                             processor_id=NULL,processing_started_at=NULL,
+                             body_text=NULL,body_html=NULL,attachments_json=NULL
                          WHERE id=$1",
                         &[
                             &archive.task_id,
@@ -1510,11 +1511,17 @@ impl PostgresDeliveryState {
             transaction
                 .execute(
                     "UPDATE outbound_mail_queue
-                     SET status=$2,sent_at=$3,last_error=$4,
+                     SET status=$2::varchar(20),sent_at=$3,last_error=$4,
                          retry_count=GREATEST(retry_count,$5),
                          sent_domains_json=$6,failed_domains_json=$7,
                          updated_at=GREATEST(updated_at,$8),processor_id=NULL,
-                         processing_started_at=NULL
+                         processing_started_at=NULL,
+                         body_text=CASE WHEN $2::varchar(20) IN ('SENT','PARTIAL_SUCCESS','FAILED','CANCELLED')
+                                        THEN NULL ELSE body_text END,
+                         body_html=CASE WHEN $2::varchar(20) IN ('SENT','PARTIAL_SUCCESS','FAILED','CANCELLED')
+                                        THEN NULL ELSE body_html END,
+                         attachments_json=CASE WHEN $2::varchar(20) IN ('SENT','PARTIAL_SUCCESS','FAILED','CANCELLED')
+                                               THEN NULL ELSE attachments_json END
                      WHERE id=$1",
                     &[
                         &update.task_id,
@@ -2237,7 +2244,8 @@ impl PostgresDeliveryState {
                     "UPDATE outbound_mail_queue
                      SET status=$3,sent_at=$4,last_error=$5,sent_domains_json=$6,
                          failed_domains_json=$7,processor_id=NULL,
-                         processing_started_at=NULL,updated_at=$8
+                         processing_started_at=NULL,updated_at=$8,
+                         body_text=NULL,body_html=NULL,attachments_json=NULL
                      WHERE id=$1 AND status='PROCESSING' AND processor_id=$2",
                     &[
                         &claim.task_id,
@@ -2495,7 +2503,8 @@ impl PostgresDeliveryState {
                          SET status='FAILED',sent_at=NULL,
                              last_error='Ambiguous SMTP commit; automatic retry and DSN are forbidden',
                              failed_domains_json=NULL,processor_id=NULL,
-                             processing_started_at=NULL,updated_at=$3
+                             processing_started_at=NULL,updated_at=$3,
+                             body_text=NULL,body_html=NULL,attachments_json=NULL
                          WHERE id=$1 AND status='PROCESSING' AND processor_id=$2",
                         &[&claim.task_id, &claim.owner_token, &now],
                     )
@@ -2616,7 +2625,7 @@ impl PostgresDeliveryState {
                     "UPDATE outbound_mail_queue
                  SET status=$3, sent_at=$4, last_error=$5, sent_domains_json=$6,
                      failed_domains_json=$7, processor_id=NULL, processing_started_at=NULL,
-                     updated_at=$8
+                     updated_at=$8, body_text=NULL, body_html=NULL, attachments_json=NULL
                  WHERE id=$1 AND status='PROCESSING' AND processor_id=$2
                    AND NOT EXISTS (
                        SELECT 1 FROM lmyzmail_outbound_delivery_attempt
@@ -2740,7 +2749,8 @@ impl PostgresDeliveryState {
                          SET status='FAILED',sent_at=NULL,
                              last_error='Ambiguous SMTP commit; automatic retry and DSN are forbidden',
                              sent_domains_json=NULL,failed_domains_json=NULL,
-                             processor_id=NULL,processing_started_at=NULL,updated_at=$2
+                             processor_id=NULL,processing_started_at=NULL,updated_at=$2,
+                             body_text=NULL,body_html=NULL,attachments_json=NULL
                          WHERE id=$1 AND status='PROCESSING' AND processor_id=$3",
                         &[&task_id, &now, &processor_id],
                     )
@@ -2844,7 +2854,8 @@ impl PostgresDeliveryState {
                         "UPDATE outbound_mail_queue
                          SET status=$3,sent_at=$4,last_error=$5,sent_domains_json=$6,
                              failed_domains_json=$7,processor_id=NULL,
-                             processing_started_at=NULL,updated_at=$8
+                             processing_started_at=NULL,updated_at=$8,
+                             body_text=NULL,body_html=NULL,attachments_json=NULL
                          WHERE id=$1 AND status='PROCESSING' AND processor_id=$2",
                         &[
                             &task_id,

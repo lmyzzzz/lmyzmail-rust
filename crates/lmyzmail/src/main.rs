@@ -205,6 +205,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if config.minecraft.enabled {
         let minecraft_config = Arc::clone(&config);
         let minecraft_pool = database_pool.clone();
+        let minecraft_outbound = Arc::clone(&outbound_service);
         let minecraft_cancellation = cancellation.clone();
         services.spawn(async move {
             (
@@ -212,6 +213,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 minecraft::serve_minecraft(
                     minecraft_config,
                     minecraft_pool,
+                    minecraft_outbound,
                     minecraft_cancellation,
                 )
                 .await,

@@ -1,0 +1,192 @@
+{
+  "schema_version": 1,
+  "profile": "minecraft-outbound-v1",
+  "captured_at": "2026-08-14T00:26:04+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc",
+    "initial_pre_freeze_verified_jar_sha256": "040bfa648cd0b3a1826ca61811dd6c71c8f2bd906578392f914020eb766fb70e",
+    "minecraft_session_handler_sha256": "4325f6517ccffa9b94ee1b8fa274b1a9cf51d94c32a0e4ac9976003dd8c1d52c"
+  },
+  "contract": {
+    "protocol": "Minecraft 1.8.9 protocol 47",
+    "send_button": [5, 161, 6],
+    "recipient_splitting": "comma-or-semicolon, trim, and discard empty values",
+    "footer": "--- Sent with lmyzmail from Minecraft 1.8.9 ---",
+    "enqueue_timeout_seconds": 30,
+    "status_timeout_seconds": 8,
+    "fast_poll": {
+      "count": 30,
+      "interval_seconds": 1
+    },
+    "background_poll": {
+      "count": 60,
+      "interval_seconds": 10
+    },
+    "draft_terminal_semantics": {
+      "SENT": "clear",
+      "PARTIAL_SUCCESS": "clear",
+      "FAILED": "preserve"
+    },
+    "terminal_postgres_payload": "body_text, body_html, and attachments_json are cleared",
+    "deadline_semantics": "PLAY refreshes its idle deadline only after a complete frame or owned response write; login remains absolute",
+    "cancellation_semantics": "the connection owns and cancels its one pending outbound operation",
+    "postgres_schema_changed": false,
+    "redis_key_or_ttl_changed": false,
+    "java_runtime_dependency": false
+  },
+  "golden": {
+    "definition_tree_sha256": "7e2f3c00024828c36967add1a185b778b2d1f39d0dc12d88b7f4fb36a0801c6e",
+    "normal": {
+      "active_profile": "managed-minecraft-outbound-v6",
+      "path": "blackbox/golden/java/managed-minecraft-outbound-v6.json",
+      "sha256": "3f6ac3ef72dd168fd91e6da01cea60bb0a1f45e36ff1491a52c42c6e00b90617",
+      "immutable_predecessors": [
+        "managed-minecraft-outbound-v1",
+        "managed-minecraft-outbound-v2",
+        "managed-minecraft-outbound-v3",
+        "managed-minecraft-outbound-v4",
+        "managed-minecraft-outbound-v5"
+      ]
+    },
+    "overlap_oracle_evidence": {
+      "active_profile": "managed-minecraft-outbound-duplicate-oracle-evidence-v4",
+      "path": "blackbox/golden/java/managed-minecraft-outbound-duplicate-oracle-evidence-v4.json",
+      "sha256": "b1e676cc80a04e40263c5ab164cb8d06d60290b91c393c8ee95cd5e868894339",
+      "immutable_predecessors": [
+        "managed-minecraft-outbound-duplicate-oracle-evidence-v1",
+        "managed-minecraft-outbound-duplicate-oracle-evidence-v2",
+        "managed-minecraft-outbound-duplicate-oracle-evidence-v3"
+      ]
+    },
+    "normalization": [
+      "queue ID",
+      "message ID",
+      "SMTP Date and DKIM excluded by semantic projection",
+      "concurrent completion projected only as counts for overlap evidence"
+    ],
+    "previous_generations_modified": false
+  },
+  "reviewed_difference": {
+    "id": "minecraft-outbound-overlapping-send-admission",
+    "oracle_behavior": "two coalesced C08 packets create two queue rows, two SMTP attempts, and two sent Maildir files",
+    "candidate_requirement": "one admitted send, one terminal response, and one exact \u00a7cEmail send already in progress. response",
+    "candidate_observed": "one queue row, one SMTP attempt, and one sent Maildir file",
+    "reason": "replaying the Java race would duplicate externally delivered email and violate bounded per-connection concurrency"
+  },
+  "source_sha256": {
+    "Cargo.lock": "52e44f581c1b264dd0a315f4527379fd121054c8abc5c2eaeebd05a8cd4b9d4c",
+    "crates/lmyzmail/src/main.rs": "5e59bd33726ba51274196cba264d4258e6028a9fdec38c85fcc24daa593b7552",
+    "crates/lmyzmail/src/minecraft.rs": "c95b95d3c899147d5b00b2cd46020b2981b215d8a35aef538cd76679074e2844",
+    "crates/lmyzmail/src/outbound_delivery.rs": "1e8939abbb2e92874d79d9ca1828820d1cc299feb79d94b479f053490e139c64",
+    "blackbox/tools/test_minecraft_outbound_delivery.py": "c332b4f1f2dd5ed6c759d76eec8a762b53da4a0c0208a3a66ec08289ab91a69a",
+    "blackbox/tools/test_minecraft_outbound_duplicate.py": "47f623d06e737e1b2d335b0f3157e468acd8b27c2048e663d2339e813f30a7d0",
+    "blackbox/tests/test_legacy_storage.py": "ef600b1097cc16ddb8e53736a5d04aa6ce37c4e208ebd21044f1ef0f9b0a2445",
+    "blackbox/bin/run-minecraft-outbound-probe.sh": "8d2d809db5f206e4cddf5ae91114b804f558c1ccf7a43d36d81e421d16e90a61",
+    "blackbox/bin/run-minecraft-outbound-duplicate-probe.sh": "59573bb0f0764b1866756407f8e97ed83bfe0edaf31bda48b0b5702e1329efa7",
+    "blackbox/manifests/behavior-differences.json": "c2b1de6e7e990c1fa64c54e41b469ba1bc8773d5b16b32f6f2528af14f399402",
+    "blackbox/golden/README.md": "3b1b29b4b0197a0713997a24629b69744a6d255b8084c8a9d4c854c27a637ee6",
+    "docs/compatibility.md": "2f945a60ee6fb21c0c43f88391e817ba973a78df45dfa323411e6d374e03d508"
+  },
+  "release": {
+    "command": "cargo build --release --locked --all-features",
+    "runtime": "rustc 1.94.0 (4a4ef493e 2026-03-02)",
+    "target": "x86_64-unknown-linux-gnu",
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "49b436da6ad09cab2912400f76899113403075e62162939b6c8e8fbabb590f1d"
+  },
+  "verification": [
+    {
+      "gate": "Java normal create-once recording",
+      "result": "1 passed in 47.43s"
+    },
+    {
+      "gate": "fresh-JVM Java normal replay",
+      "result": "1 passed in 45.51s"
+    },
+    {
+      "gate": "Java overlap create-once recording",
+      "result": "1 passed in 26.22s"
+    },
+    {
+      "gate": "fresh-JVM Java overlap replay",
+      "result": "1 passed in 25.80s"
+    },
+    {
+      "gate": "locked Rust release normal-v6 and overlap-v4 candidate profiles",
+      "result": "2 passed in 29.09s"
+    },
+    {
+      "gate": "cargo test -p lmyzmail --lib minecraft::tests --frozen",
+      "result": "73 passed"
+    },
+    {
+      "gate": "cargo test --workspace --all-features --frozen",
+      "result": "passed in 60.2s; 667 tests across library and integration targets plus doc tests"
+    },
+    {
+      "gate": "outbound_delivery_postgres::legacy_archive_and_status_migration_is_idempotent_and_monotonic",
+      "result": "passed after explicit varchar(20) parameter typing"
+    },
+    {
+      "gate": "outbound_coordinator_integration",
+      "result": "15 passed"
+    },
+    {
+      "gate": "cargo clippy --workspace --all-targets --all-features --frozen -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "gate": "cargo fmt --all -- --check",
+      "result": "passed"
+    },
+    {
+      "gate": "Ruff lint",
+      "result": "all blackbox Python passed"
+    },
+    {
+      "gate": "Ruff formatter for milestone probe sources",
+      "result": "3 touched harness files already formatted"
+    },
+    {
+      "gate": "blackbox non-integration harness tests",
+      "result": "167 passed, 160 deselected"
+    },
+    {
+      "gate": "first-party shell syntax",
+      "result": "passed; vendored FFmpeg shell snapshots excluded from this first-party gate"
+    },
+    {
+      "gate": "JSON parsing",
+      "result": "all tracked and unignored JSON passed"
+    },
+    {
+      "gate": "pytest collection",
+      "result": "327 tests collected"
+    },
+    {
+      "gate": "cargo build --release --locked --all-features",
+      "result": "passed in 3m 03s"
+    }
+  ],
+  "known_repository_baseline": {
+    "ruff_format_check": "full blackbox tree reports 48 pre-existing files that would be reformatted; none is part of this milestone, and bulk formatting would change attested harness definitions",
+    "vendored_ffmpeg_shell": "upstream snapshot contains CRLF or non-Bash .sh files; first-party scripts pass bash -n",
+    "frozen_checkout_read_only_audit": {
+      "java_commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "java_observed_untracked_file": ".outbound.rs.edit",
+      "java_observed_untracked_file_sha256": "c01d786f3e3cec9401a758e5ea0a721a1e99a75d36006985a7060404fdfefd3b",
+      "java_ffmpeg_src_status": "known Windows executable-bit noise",
+      "skibidi_commit": "4bc484c15b780d578ee8e53cab968f2819958215",
+      "skibidi_status": "clean",
+      "milestone_writes_to_frozen_checkouts": false
+    }
+  },
+  "attestation_scope": {
+    "milestone_current": true,
+    "older_goldens_modified": false,
+    "frozen_repository_commits_modified": false,
+    "windows_delivery_tree_synced": false,
+    "full_project_goal_complete": false
+  }
+}

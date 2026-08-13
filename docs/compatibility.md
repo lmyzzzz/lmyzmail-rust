@@ -946,6 +946,44 @@ prefix reads have a separate bounded 60-second allowance so cold Java world
 bootstrap cannot consume the renderer's unchanged 90-second phase budget or
 5-second per-read budget.
 
+## Minecraft outbound contract
+
+Minecraft protocol 47 sends the authenticated account's draft when the player
+interacts with C08 at `(5, 161, 6)`. To, CC, and BCC use Java's comma-or-semicolon
+split and trim rules. Book pages are joined with one LF and the fixed Minecraft
+footer is appended once. Queue admission has a 30-second bound, each status lookup
+has an 8-second bound, and all work is owned by the connection cancellation token.
+The first 30 nonterminal observations use one-second polling; the next 60 use
+ten-second polling and then return the queue ID. These exact phase boundaries are
+covered by a pure state-machine test without real-time sleeps.
+
+`SENT` and `PARTIAL_SUCCESS` clear and re-echo the connection draft; `FAILED`
+preserves it. Every terminal delivery path clears the legacy PostgreSQL
+`body_text`, `body_html`, and `attachments_json` payload columns while retaining
+status metadata. PLAY uses an idle deadline refreshed only by a complete successful
+frame or an owned asynchronous response write; handshake and login retain one
+absolute deadline. Disconnect and shutdown drop and cancel every pending outbound
+future and drain it within the listener's fixed bound.
+
+The active normal profile is `managed-minecraft-outbound-v6`; v1 through v5 are
+immutable history. It proves validation, address and MIME bytes, success and
+permanent failure chat, draft clearing/preservation, reconnect restoration,
+PostgreSQL terminal archive semantics, Redis worklist acknowledgement, Maildir,
+and exactly one SMTP attempt.
+
+The frozen Java handler has no overlapping-send admission gate. Two C08 packets in
+one raw socket write launch two executor jobs, persist two rows, deliver two SMTP
+messages, and create two sent files. Rust intentionally permits only one pending
+send per connection and answers the second click with
+`§cEmail send already in progress.` The Java-only evidence profile
+`managed-minecraft-outbound-duplicate-oracle-evidence-v4` and candidate assertions
+bind this difference to `minecraft-outbound-overlapping-send-admission` in the
+reviewed behavior-difference manifest. The initial v1 evidence recording is
+retained unchanged after the candidate worklist assertion changed the attested
+harness definition. The v2 evidence profile and normal v4 profile are also
+retained unchanged after the candidate fixture added explicit DNS for the durable
+DSN recipient domain.
+
 ## Minecraft video contract
 
 The frozen 15,048,248-byte MP4 is accepted only at its attested SHA-256 and is

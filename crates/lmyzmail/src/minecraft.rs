@@ -45,6 +45,7 @@ use crate::{
     mail_render,
     mailbox::{EmailListItem, EmailListPage, MailboxService},
     minecraft_world::{self, NbtValue, WorldTemplate},
+    outbound::{OutboundService, QueueResponse, SendRequest, WebStatusResponse},
 };
 
 const MAX_FRAME_LENGTH: usize = 2 * 1024 * 1024;
@@ -81,6 +82,14 @@ const MAX_DRAFT_STORE_CONTENT_BYTES: usize = 64 * 1024 * 1024;
 const MAX_DRAFT_PAGES: usize = 256;
 const MAX_DRAFT_PAGE_BYTES: usize = 32_767;
 const MAX_DRAFT_BODY_BYTES: usize = 1024 * 1024;
+const OUTBOUND_SEND_BUTTON: (i32, i32, i32) = (5, 161, 6);
+const OUTBOUND_FAST_POLLS: u8 = 30;
+const OUTBOUND_BACKGROUND_POLLS: u8 = 60;
+const OUTBOUND_FAST_POLL_INTERVAL: Duration = Duration::from_secs(1);
+const OUTBOUND_BACKGROUND_POLL_INTERVAL: Duration = Duration::from_secs(10);
+const OUTBOUND_ENQUEUE_TIMEOUT: Duration = Duration::from_secs(30);
+const OUTBOUND_STATUS_OPERATION_TIMEOUT: Duration = Duration::from_secs(8);
+const OUTBOUND_MINECRAFT_FOOTER: &str = "--- Sent with lmyzmail from Minecraft 1.8.9 ---";
 const FOLDER_PAGE_SIZE: i32 = 36;
 const FOLDER_LOAD_TIMEOUT: Duration = Duration::from_secs(8);
 const MAIL_RENDER_TIMEOUT: Duration = Duration::from_secs(60);
@@ -263,6 +272,123 @@ type MailRenderFuture = Pin<
 struct PendingMailRender {
     cancellation: CancellationToken,
     future: MailRenderFuture,
+}
+
+type OutboundStepFuture = Pin<Box<dyn Future<Output = OutboundStepResult> + Send + 'static>>;
+
+enum OutboundStepResult {
+    Enqueued(Result<QueueResponse, String>),
+    Status(Result<Option<WebStatusResponse>, String>),
+    Cancelled,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum OutboundPollTransition {
+    ContinueFast,
+    EnterBackground,
+    ContinueBackground,
+    Exhausted,
+}
+
+fn advance_outbound_poll(fast_polls: &mut u8, background_polls: &mut u8) -> OutboundPollTransition {
+    if *fast_polls < OUTBOUND_FAST_POLLS {
+        *fast_polls = fast_polls.saturating_add(1);
+        return if *fast_polls < OUTBOUND_FAST_POLLS {
+            OutboundPollTransition::ContinueFast
+        } else {
+            OutboundPollTransition::EnterBackground
+        };
+    }
+
+    *background_polls = background_polls.saturating_add(1);
+    if *background_polls < OUTBOUND_BACKGROUND_POLLS {
+        OutboundPollTransition::ContinueBackground
+    } else {
+        OutboundPollTransition::Exhausted
+    }
+}
+
+struct PendingOutboundSend {
+    cancellation: CancellationToken,
+    sender: String,
+    queue_id: Option<i64>,
+    message_id: Option<String>,
+    fast_polls: u8,
+    background_polls: u8,
+    future: OutboundStepFuture,
+}
+
+impl Drop for PendingOutboundSend {
+    fn drop(&mut self) {
+        self.cancellation.cancel();
+    }
+}
+
+impl PendingOutboundSend {
+    fn start(
+        outbound: Arc<OutboundService>,
+        sender: String,
+        request: SendRequest,
+        parent_cancellation: &CancellationToken,
+    ) -> Self {
+        let cancellation = parent_cancellation.child_token();
+        let future_cancellation = cancellation.clone();
+        let future = Box::pin(async move {
+            tokio::select! {
+                biased;
+                _ = future_cancellation.cancelled() => OutboundStepResult::Cancelled,
+                result = timeout(
+                    OUTBOUND_ENQUEUE_TIMEOUT,
+                    outbound.enqueue_with_cancellation(
+                        request,
+                        None,
+                        &future_cancellation,
+                    ),
+                ) => OutboundStepResult::Enqueued(match result {
+                    Ok(result) => result.map_err(|error| error.to_string()),
+                    Err(_) => Err("outbound queue unavailable".to_owned()),
+                }),
+            }
+        });
+        Self {
+            cancellation,
+            sender,
+            queue_id: None,
+            message_id: None,
+            fast_polls: 0,
+            background_polls: 0,
+            future,
+        }
+    }
+
+    fn schedule_status(&mut self, outbound: Arc<OutboundService>, delay: Duration) {
+        let cancellation = self.cancellation.clone();
+        let sender = self.sender.clone();
+        let queue_id = self
+            .queue_id
+            .expect("status polling requires an assigned queue ID");
+        self.future = Box::pin(async move {
+            let cancelled = tokio::select! {
+                biased;
+                _ = cancellation.cancelled() => true,
+                _ = tokio::time::sleep(delay) => false,
+            };
+            if cancelled {
+                return OutboundStepResult::Cancelled;
+            }
+            tokio::select! {
+                biased;
+                _ = cancellation.cancelled() => OutboundStepResult::Cancelled,
+                result = timeout(
+                    OUTBOUND_STATUS_OPERATION_TIMEOUT,
+                    outbound.web_status_by_id(queue_id, &sender),
+                ) => OutboundStepResult::Status(match result {
+                    Ok(result) => result.map_err(|error| error.to_string()),
+                    Err(_) => Err("outbound queue unavailable".to_owned()),
+                }),
+            }
+        });
+    }
 }
 
 impl Drop for PendingMailRender {
@@ -1239,6 +1365,7 @@ struct StatusService {
     connection_timeout: Duration,
     auth: Option<Arc<AuthService>>,
     mailbox: Option<Arc<MailboxService>>,
+    outbound: Option<Arc<OutboundService>>,
     auth_limiter: Arc<MinecraftAuthLimiter>,
 }
 
@@ -1294,6 +1421,7 @@ impl StatusService {
             connection_timeout: Duration::from_secs(config.read_timeout_seconds),
             auth: None,
             mailbox: None,
+            outbound: None,
             auth_limiter: Arc::new(MinecraftAuthLimiter::new(config)),
         })
     }
@@ -1302,10 +1430,12 @@ impl StatusService {
         config: &MinecraftConfig,
         auth: Arc<AuthService>,
         mailbox: Arc<MailboxService>,
+        outbound: Arc<OutboundService>,
     ) -> io::Result<Self> {
         let mut service = Self::new(config)?;
         service.auth = Some(auth);
         service.mailbox = Some(mailbox);
+        service.outbound = Some(outbound);
         Ok(service)
     }
 
@@ -2326,6 +2456,7 @@ impl Drop for OnlineCountGuard {
 pub async fn serve_minecraft(
     config: Arc<RuntimeConfig>,
     database_pool: deadpool_postgres::Pool,
+    outbound: Arc<OutboundService>,
     cancellation: CancellationToken,
 ) -> io::Result<()> {
     let listener =
@@ -2337,6 +2468,7 @@ pub async fn serve_minecraft(
         &config.minecraft,
         Arc::new(auth),
         Arc::new(mailbox),
+        outbound,
     )?);
     serve_listener(listener, service, cancellation, MAX_CONNECTIONS).await
 }
@@ -2418,7 +2550,7 @@ async fn handle_connection(
     service: Arc<StatusService>,
     cancellation: CancellationToken,
     _permit: OwnedSemaphorePermit,
-    deadline: Instant,
+    mut deadline: Instant,
 ) -> io::Result<()> {
     stream.set_nodelay(true)?;
     let client_ip = stream
@@ -2451,6 +2583,7 @@ async fn handle_connection(
     let mut open_folder_gui: Option<FolderGui> = None;
     let mut pending_folder_load: Option<PendingFolderLoad> = None;
     let mut pending_mail_render: Option<PendingMailRender> = None;
+    let mut pending_outbound_send: Option<PendingOutboundSend> = None;
     let mut pending_map_video: Option<PendingMapVideo> = None;
     let mut pending_block_video: Option<PendingBlockVideo> = None;
     let mut active_mail_view: Option<ActiveMailView> = None;
@@ -2460,13 +2593,54 @@ async fn handle_connection(
     let mut last_hotbar_click = None;
 
     loop {
-        let raw_frame_result = if state == ConnectionState::Play {
+        let (raw_frame_result, next_deadline) = if state == ConnectionState::Play {
             let position_at = next_position_check.expect("PLAY position timer was not armed");
             let hologram_at = next_hologram_teleport.expect("PLAY hologram timer was not armed");
             let time_update_at = next_time_update.expect("PLAY time timer was not armed");
             tokio::select! {
                 biased;
                 _ = cancellation.cancelled() => return Ok(()),
+                outbound_result = async {
+                    pending_outbound_send
+                        .as_mut()
+                        .expect("guarded outbound send was missing")
+                        .future
+                        .as_mut()
+                        .await
+                }, if pending_outbound_send.is_some() => {
+                    let mut pending = pending_outbound_send
+                        .take()
+                        .expect("completed outbound send was missing");
+                    let (responses, keep_pending) = outbound_step_packets(
+                        &service,
+                        &mut pending,
+                        outbound_result,
+                        &player_uuid,
+                        &mut draft,
+                    )?;
+                    if keep_pending {
+                        pending_outbound_send = Some(pending);
+                    }
+                    if responses.is_empty() {
+                        continue;
+                    }
+                    let write_deadline = Instant::now() + service.connection_timeout;
+                    if let Err(error) = write_packet_list(
+                        &mut writer,
+                        &service,
+                        responses,
+                        compression,
+                        cipher.as_mut(),
+                        write_deadline,
+                        &cancellation,
+                    )
+                    .await
+                    {
+                        return finish_write_error(error);
+                    }
+                    deadline = write_deadline;
+                    continue;
+                }
                 folder_result = async {
                     pending_folder_load
                         .as_mut()
@@ -2804,11 +2978,27 @@ async fn handle_connection(
                     }
                     continue;
                 }
-                result = read_frame(&mut reader, cipher.as_mut(), deadline, &cancellation) => result,
+                result = read_connection_frame(
+                    &mut reader,
+                    cipher.as_mut(),
+                    state,
+                    deadline,
+                    service.connection_timeout,
+                    &cancellation,
+                ) => result,
             }
         } else {
-            read_frame(&mut reader, cipher.as_mut(), deadline, &cancellation).await
+            read_connection_frame(
+                &mut reader,
+                cipher.as_mut(),
+                state,
+                deadline,
+                service.connection_timeout,
+                &cancellation,
+            )
+            .await
         };
+        deadline = next_deadline;
         let raw_frame = match raw_frame_result {
             Ok(Some(frame)) => frame,
             Ok(None)
@@ -3065,17 +3255,53 @@ async fn handle_connection(
             },
             ConnectionState::Play => match packet_id {
                 0x02 | 0x08 => {
+                    let mut block_position = None;
                     let primary_interaction = if packet_id == 0x02 {
                         let Ok((_target_id, action)) = read_use_entity(&mut packet) else {
                             return Ok(());
                         };
                         action == 0
                     } else {
-                        if read_player_block_placement(&mut packet).is_err() {
+                        let Ok((x, y, z, _face)) = read_player_block_placement(&mut packet) else {
                             return Ok(());
-                        }
+                        };
+                        block_position = Some((x, y, z));
                         true
                     };
+                    if block_position == Some(OUTBOUND_SEND_BUTTON) {
+                        let responses = if let Some((email, _)) = authenticated.as_ref() {
+                            if pending_outbound_send.is_some() {
+                                vec![chat_packet(
+                                    "§cEmail send already in progress.",
+                                    Some("red"),
+                                )?]
+                            } else {
+                                let (responses, pending) =
+                                    start_outbound_send(&service, email, &draft, &cancellation)?;
+                                pending_outbound_send = pending;
+                                responses
+                            }
+                        } else {
+                            vec![chat_packet(
+                                "§cYou must be logged in to send email!",
+                                Some("red"),
+                            )?]
+                        };
+                        if let Err(error) = write_packet_list(
+                            &mut writer,
+                            &service,
+                            responses,
+                            compression,
+                            cipher.as_mut(),
+                            deadline,
+                            &cancellation,
+                        )
+                        .await
+                        {
+                            return finish_write_error(error);
+                        }
+                        continue;
+                    }
                     if primary_interaction && matches!(held_slot, 3 | 4) {
                         let responses = if let Some(video) = pending_map_video.as_ref() {
                             if held_slot == 3 {
@@ -5229,6 +5455,217 @@ fn start_block_video_packets(
     )?);
     *pending_block = Some(video);
     Ok(packets)
+}
+
+fn start_outbound_send(
+    service: &StatusService,
+    sender: &str,
+    draft: &MinecraftDraft,
+    cancellation: &CancellationToken,
+) -> io::Result<(Vec<Vec<u8>>, Option<PendingOutboundSend>)> {
+    if draft.to.chars().all(char::is_whitespace) {
+        return Ok((
+            vec![chat_packet(
+                "§cPlease set a recipient (To) first!",
+                Some("red"),
+            )?],
+            None,
+        ));
+    }
+    if draft.subject.chars().all(char::is_whitespace) {
+        return Ok((
+            vec![chat_packet("§cPlease set a subject first!", Some("red"))?],
+            None,
+        ));
+    }
+    let body = draft.body_pages.join("\n");
+    if draft.body_pages.is_empty() || body.chars().all(char::is_whitespace) {
+        return Ok((
+            vec![chat_packet(
+                "§cPlease write something in the book first!",
+                Some("red"),
+            )?],
+            None,
+        ));
+    }
+    let Some(outbound) = service.outbound.as_ref().cloned() else {
+        return Ok((
+            vec![chat_packet(
+                "§cError sending email: outbound queue unavailable",
+                Some("red"),
+            )?],
+            None,
+        ));
+    };
+    let body = minecraft_outbound_body(draft);
+    let request = SendRequest {
+        from: Some(sender.to_owned()),
+        password: None,
+        to: parse_outbound_addresses(&draft.to),
+        cc: parse_outbound_addresses(&draft.cc),
+        bcc: parse_outbound_addresses(&draft.bcc),
+        subject: Some(draft.subject.clone()),
+        text: Some(body),
+        html: None,
+        attachments: Vec::new(),
+        in_reply_to: None,
+        references: None,
+        asynchronous: None,
+    };
+    Ok((
+        vec![chat_packet("§6Sending email...", Some("gold"))?],
+        Some(PendingOutboundSend::start(
+            outbound,
+            sender.to_owned(),
+            request,
+            cancellation,
+        )),
+    ))
+}
+
+fn parse_outbound_addresses(value: &str) -> Vec<String> {
+    value
+        .split([',', ';'])
+        .map(java_trim)
+        .filter(|address| !address.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+fn minecraft_outbound_body(draft: &MinecraftDraft) -> String {
+    format!(
+        "{}\n\n\n\n\n\n\n\n{OUTBOUND_MINECRAFT_FOOTER}",
+        draft.body_pages.join("\n")
+    )
+}
+
+fn outbound_step_packets(
+    service: &StatusService,
+    pending: &mut PendingOutboundSend,
+    result: OutboundStepResult,
+    player_uuid: &str,
+    draft: &mut MinecraftDraft,
+) -> io::Result<(Vec<Vec<u8>>, bool)> {
+    if matches!(&result, OutboundStepResult::Cancelled) {
+        return Ok((Vec::new(), false));
+    }
+    let Some(outbound) = service.outbound.as_ref().cloned() else {
+        return Ok((
+            vec![chat_packet(
+                "§cError sending email: outbound queue unavailable",
+                Some("red"),
+            )?],
+            false,
+        ));
+    };
+    match result {
+        OutboundStepResult::Cancelled => unreachable!("cancelled outbound steps return early"),
+        OutboundStepResult::Enqueued(Err(error)) => Ok((
+            vec![chat_packet(
+                &format!("§cFailed to queue email: {error}"),
+                Some("red"),
+            )?],
+            false,
+        )),
+        OutboundStepResult::Enqueued(Ok(response)) => {
+            pending.queue_id = Some(response.queue_id);
+            pending.message_id = Some(response.message_id);
+            pending.schedule_status(outbound, OUTBOUND_FAST_POLL_INTERVAL);
+            Ok((
+                vec![chat_packet(
+                    &format!(
+                        "§7Email queued (ID: {}), waiting for delivery...",
+                        response.queue_id
+                    ),
+                    None,
+                )?],
+                true,
+            ))
+        }
+        OutboundStepResult::Status(status) => {
+            if let Ok(Some(status)) = status {
+                let aggregate = status.aggregated_status.as_str();
+                if aggregate == "SENT" {
+                    let Some(updated) = service.update_draft(player_uuid, MinecraftDraft::clear)
+                    else {
+                        return Ok((Vec::new(), false));
+                    };
+                    *draft = updated;
+                    let mut packets = vec![
+                        chat_packet("§a§l✓ Email sent successfully!", Some("green"))?,
+                        chat_packet(
+                            &format!(
+                                "§7Message ID: {}",
+                                pending.message_id.as_deref().unwrap_or_default()
+                            ),
+                            Some("gray"),
+                        )?,
+                    ];
+                    packets.extend(draft_sign_packets(draft)?);
+                    packets.push(draft_book_packet_for(draft)?);
+                    return Ok((packets, false));
+                }
+                if aggregate == "FAILED" {
+                    let mut packets =
+                        vec![chat_packet("§c§l✗ Email delivery failed!", Some("red"))?];
+                    if let Some(error) = status.last_error {
+                        packets.push(chat_packet(&format!("§c{error}"), Some("red"))?);
+                    }
+                    packets.push(chat_packet(
+                        "§7Your draft is preserved. Fix and retry.",
+                        Some("gray"),
+                    )?);
+                    return Ok((packets, false));
+                }
+                if aggregate == "PARTIAL_SUCCESS" {
+                    let Some(updated) = service.update_draft(player_uuid, MinecraftDraft::clear)
+                    else {
+                        return Ok((Vec::new(), false));
+                    };
+                    *draft = updated;
+                    let mut packets =
+                        vec![chat_packet("§6⚠ Email partially delivered", Some("gold"))?];
+                    packets.extend(draft_sign_packets(draft)?);
+                    packets.push(draft_book_packet_for(draft)?);
+                    return Ok((packets, false));
+                }
+            }
+
+            match advance_outbound_poll(&mut pending.fast_polls, &mut pending.background_polls) {
+                OutboundPollTransition::ContinueFast => {
+                    pending.schedule_status(outbound, OUTBOUND_FAST_POLL_INTERVAL);
+                    Ok((Vec::new(), true))
+                }
+                OutboundPollTransition::EnterBackground => {
+                    pending.schedule_status(outbound, OUTBOUND_BACKGROUND_POLL_INTERVAL);
+                    Ok((
+                        vec![
+                            chat_packet(
+                                "§6Email is still being delivered (greylisting/retry)...",
+                                Some("gold"),
+                            )?,
+                            chat_packet("§7You'll be notified when it completes.", Some("gray"))?,
+                        ],
+                        true,
+                    ))
+                }
+                OutboundPollTransition::ContinueBackground => {
+                    pending.schedule_status(outbound, OUTBOUND_BACKGROUND_POLL_INTERVAL);
+                    Ok((Vec::new(), true))
+                }
+                OutboundPollTransition::Exhausted => Ok((
+                    vec![chat_packet(
+                        &format!(
+                            "§6Email delivery taking long. Queue ID: {}",
+                            pending.queue_id.unwrap_or_default()
+                        ),
+                        Some("gold"),
+                    )?],
+                    false,
+                )),
+            }
+        }
+    }
 }
 
 fn authenticated_command_packets(
@@ -7844,6 +8281,23 @@ fn initial_play_packets(entity_id: i32, config: &MinecraftConfig) -> io::Result<
     ])
 }
 
+async fn read_connection_frame<R: AsyncRead + Unpin>(
+    stream: &mut R,
+    cipher: Option<&mut MinecraftCipher>,
+    state: ConnectionState,
+    deadline: Instant,
+    idle_timeout: Duration,
+    cancellation: &CancellationToken,
+) -> (Result<Option<Vec<u8>>, ProtocolError>, Instant) {
+    let result = read_frame(stream, cipher, deadline, cancellation).await;
+    let next_deadline = if state == ConnectionState::Play && matches!(result, Ok(Some(_))) {
+        Instant::now() + idle_timeout
+    } else {
+        deadline
+    };
+    (result, next_deadline)
+}
+
 async fn read_frame<R: AsyncRead + Unpin>(
     stream: &mut R,
     mut cipher: Option<&mut MinecraftCipher>,
@@ -8391,8 +8845,9 @@ mod tests {
     use super::*;
     use proptest::prelude::*;
     use sha2::Sha256;
+    use std::future::pending;
     use tokio::sync::oneshot;
-    use tokio::time::sleep;
+    use tokio::time::{advance, sleep};
 
     const FROZEN_STATUS_FRAME: &str = "nAEAmQF7InZlcnNpb24iOnsibmFtZSI6IjEuOC45IiwicHJvdG9jb2wiOjQ3fSwicGxheWVycyI6eyJtYXgiOjIwLCJvbmxpbmUiOjAsInNhbXBsZSI6W119LCJkZXNjcmlwdGlvbiI6eyJ0ZXh0Ijoiwqc2TE1ZWk1BSUwgwqc3LSBTZW5kIGVtYWlscyBpbiBNaW5lY3JhZnQifX0=";
 
@@ -10534,6 +10989,207 @@ mod tests {
         server.await.unwrap().unwrap();
     }
 
+    #[tokio::test(start_paused = true)]
+    async fn play_complete_frames_refresh_the_idle_deadline() {
+        let (mut client, mut server) = tokio::io::duplex(64);
+        let cancellation = CancellationToken::new();
+        let idle_timeout = Duration::from_millis(100);
+        let initial_deadline = Instant::now() + idle_timeout;
+        client
+            .write_all(&encode_frame(&[0]).unwrap())
+            .await
+            .unwrap();
+
+        advance(Duration::from_millis(90)).await;
+        let (first, refreshed_deadline) = read_connection_frame(
+            &mut server,
+            None,
+            ConnectionState::Play,
+            initial_deadline,
+            idle_timeout,
+            &cancellation,
+        )
+        .await;
+        assert_eq!(first.unwrap(), Some(vec![0]));
+        assert_eq!(refreshed_deadline, Instant::now() + idle_timeout);
+        assert!(refreshed_deadline > initial_deadline);
+
+        client
+            .write_all(&encode_frame(&[1]).unwrap())
+            .await
+            .unwrap();
+        advance(Duration::from_millis(90)).await;
+        let (second, second_deadline) = read_connection_frame(
+            &mut server,
+            None,
+            ConnectionState::Play,
+            refreshed_deadline,
+            idle_timeout,
+            &cancellation,
+        )
+        .await;
+        assert_eq!(second.unwrap(), Some(vec![1]));
+        assert_eq!(second_deadline, Instant::now() + idle_timeout);
+
+        let (idle_result, unchanged_deadline) = read_connection_frame(
+            &mut server,
+            None,
+            ConnectionState::Play,
+            second_deadline,
+            idle_timeout,
+            &cancellation,
+        )
+        .await;
+        assert!(matches!(idle_result, Err(ProtocolError::TimedOut)));
+        assert_eq!(unchanged_deadline, second_deadline);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn complete_login_frames_do_not_extend_the_absolute_deadline() {
+        let (mut client, mut server) = tokio::io::duplex(64);
+        let cancellation = CancellationToken::new();
+        let initial_deadline = Instant::now() + Duration::from_millis(100);
+        client
+            .write_all(&encode_frame(&[0]).unwrap())
+            .await
+            .unwrap();
+        advance(Duration::from_millis(90)).await;
+
+        let (result, next_deadline) = read_connection_frame(
+            &mut server,
+            None,
+            ConnectionState::Login,
+            initial_deadline,
+            Duration::from_millis(100),
+            &cancellation,
+        )
+        .await;
+        assert_eq!(result.unwrap(), Some(vec![0]));
+        assert_eq!(next_deadline, initial_deadline);
+
+        let (timed_out, unchanged_deadline) = read_connection_frame(
+            &mut server,
+            None,
+            ConnectionState::Login,
+            next_deadline,
+            Duration::from_millis(100),
+            &cancellation,
+        )
+        .await;
+        assert!(matches!(timed_out, Err(ProtocolError::TimedOut)));
+        assert_eq!(unchanged_deadline, initial_deadline);
+    }
+
+    #[test]
+    fn outbound_poll_state_has_exact_fast_and_background_limits() {
+        let mut fast_polls = 0;
+        let mut background_polls = 0;
+        for completed in 1..OUTBOUND_FAST_POLLS {
+            assert_eq!(
+                advance_outbound_poll(&mut fast_polls, &mut background_polls),
+                OutboundPollTransition::ContinueFast,
+                "fast poll {completed} changed phase early",
+            );
+        }
+        assert_eq!(fast_polls, OUTBOUND_FAST_POLLS - 1);
+        assert_eq!(
+            advance_outbound_poll(&mut fast_polls, &mut background_polls),
+            OutboundPollTransition::EnterBackground,
+        );
+        assert_eq!(fast_polls, OUTBOUND_FAST_POLLS);
+        assert_eq!(background_polls, 0);
+
+        for completed in 1..OUTBOUND_BACKGROUND_POLLS {
+            assert_eq!(
+                advance_outbound_poll(&mut fast_polls, &mut background_polls),
+                OutboundPollTransition::ContinueBackground,
+                "background poll {completed} stopped early",
+            );
+        }
+        assert_eq!(background_polls, OUTBOUND_BACKGROUND_POLLS - 1);
+        assert_eq!(
+            advance_outbound_poll(&mut fast_polls, &mut background_polls),
+            OutboundPollTransition::Exhausted,
+        );
+        assert_eq!(background_polls, OUTBOUND_BACKGROUND_POLLS);
+    }
+
+    #[tokio::test]
+    async fn pending_outbound_drop_cancels_immediately_and_cancelled_step_stops() {
+        let cancellation = CancellationToken::new();
+        let observed = cancellation.clone();
+        let pending_send = PendingOutboundSend {
+            cancellation,
+            sender: "qa@example.test".to_owned(),
+            queue_id: Some(42),
+            message_id: Some("message-id".to_owned()),
+            fast_polls: 0,
+            background_polls: 0,
+            future: Box::pin(pending()),
+        };
+        assert!(!observed.is_cancelled());
+        drop(pending_send);
+        assert!(observed.is_cancelled());
+        timeout(Duration::from_millis(50), observed.cancelled())
+            .await
+            .expect("outbound cancellation did not wake its waiter");
+
+        let mut pending_send = PendingOutboundSend {
+            cancellation: CancellationToken::new(),
+            sender: "qa@example.test".to_owned(),
+            queue_id: Some(42),
+            message_id: Some("message-id".to_owned()),
+            fast_polls: 7,
+            background_polls: 11,
+            future: Box::pin(pending()),
+        };
+        let service = StatusService::new(&config(Duration::from_secs(1))).unwrap();
+        let mut draft = MinecraftDraft::default();
+        let (packets, keep_pending) = outbound_step_packets(
+            &service,
+            &mut pending_send,
+            OutboundStepResult::Cancelled,
+            "player-uuid",
+            &mut draft,
+        )
+        .unwrap();
+        assert!(packets.is_empty());
+        assert!(!keep_pending);
+        assert_eq!(
+            (pending_send.fast_polls, pending_send.background_polls),
+            (7, 11)
+        );
+    }
+
+    #[tokio::test]
+    async fn disconnected_connection_owner_cancels_pending_outbound_and_drains() {
+        let (client, mut server) = tokio::io::duplex(8);
+        let cancellation = CancellationToken::new();
+        let observed = cancellation.clone();
+        let owner = tokio::spawn(async move {
+            let _pending_send = PendingOutboundSend {
+                cancellation,
+                sender: "qa@example.test".to_owned(),
+                queue_id: Some(42),
+                message_id: Some("message-id".to_owned()),
+                fast_polls: 0,
+                background_polls: 0,
+                future: Box::pin(pending()),
+            };
+            let mut byte = [0_u8; 1];
+            assert_eq!(server.read(&mut byte).await.unwrap(), 0);
+        });
+        drop(client);
+
+        timeout(Duration::from_millis(100), owner)
+            .await
+            .expect("connection owner did not drain after peer disconnect")
+            .unwrap();
+        timeout(Duration::from_millis(100), observed.cancelled())
+            .await
+            .expect("pending outbound token survived its connection owner");
+    }
+
     #[test]
     fn offline_uuid_matches_frozen_java_name_uuid() {
         assert_eq!(
@@ -11061,6 +11717,31 @@ mod tests {
         frame[65 * 128 + 17] = 42;
         let changed = video_frame_packets(&wall, &frame, &mut previous).unwrap();
         assert_eq!(changed, vec![vec![0x34, 10, 0, 0, 1, 1, 17, 65, 1, 42]]);
+    }
+
+    #[test]
+    fn outbound_addresses_match_java_comma_semicolon_trim_and_empty_filtering() {
+        assert_eq!(
+            parse_outbound_addresses(" a@example.test, ; b@example.test;; c@example.test "),
+            vec![
+                "a@example.test".to_owned(),
+                "b@example.test".to_owned(),
+                "c@example.test".to_owned(),
+            ]
+        );
+        assert!(parse_outbound_addresses(" , ; \t").is_empty());
+    }
+
+    #[test]
+    fn outbound_body_joins_pages_and_appends_the_frozen_footer_once() {
+        let draft = MinecraftDraft {
+            body_pages: vec!["first".to_owned(), "second".to_owned()],
+            ..MinecraftDraft::default()
+        };
+        assert_eq!(
+            minecraft_outbound_body(&draft),
+            "first\nsecond\n\n\n\n\n\n\n\n--- Sent with lmyzmail from Minecraft 1.8.9 ---"
+        );
     }
 
     proptest! {

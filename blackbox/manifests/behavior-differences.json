@@ -748,6 +748,20 @@
       "oracle_behavior": "The frozen Java cleanup endpoint can recursively delete the sender and receiver index and Maildir trees while an accepted run is concurrently queueing or waiting for delivery against those same mailboxes.",
       "reason": "Deleting a mailbox namespace concurrently with delivery creates a file/database race that can leave mismatched indexes and files, fail delivery, or let cleanup report success before new state reappears. This explicit race is excluded from bug-for-bug replication.",
       "scope": "Only manual cleanup requests made while a stress run is active. Cleanup while idle, automatic finally cleanup, the first accepted start, round state, generated messages, queue effects, disabled behavior, permissions, reset, and status remain compatibility requirements."
+    },
+    {
+      "candidate_requirement": "Own at most one pending outbound send per Minecraft connection. For every overlapping C08 send-button interaction, enqueue no additional message and reply exactly `§cEmail send already in progress.`. Cancellation and disconnect must release the connection-owned operation within the normal bounded drain deadline.",
+      "evidence": {
+        "candidate_test": "blackbox/tools/test_minecraft_outbound_duplicate.py::test_rust_candidate_rejects_overlapping_minecraft_send",
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "oracle_golden": "blackbox/golden/java/managed-minecraft-outbound-duplicate-oracle-evidence-v4.json",
+        "source": "src/main/java/net/lmyz/lmyzmail/netty/minecraft/handler/MinecraftSessionHandler.java",
+        "source_sha256": "4325f6517ccffa9b94ee1b8fa274b1a9cf51d94c32a0e4ac9976003dd8c1d52c"
+      },
+      "id": "minecraft-outbound-overlapping-send-admission",
+      "oracle_behavior": "The frozen Java C08 handler has no per-session pending-send admission state. Two button packets coalesced in one socket write each emit `Sending email...`, launch independent executor work, persist two queue rows, make two SMTP attempts, archive two sent messages, and independently clear and echo the shared draft after success.",
+      "reason": "Repeated interaction or packet replay can duplicate externally delivered email and consume queue, SMTP, Maildir, and rate-limit resources without a distinct user confirmation. Reproducing that race would violate the required bounded concurrency and obvious-race exception.",
+      "scope": "Only an additional send-button interaction while the same Minecraft connection already owns a nonterminal enqueue or delivery-status operation. The first click, validation order, request bytes, recipient parsing, queue semantics, delivery polling, terminal draft handling, and later sends after the operation terminates remain exact compatibility requirements."
     }
   ],
   "schema_version": 1
