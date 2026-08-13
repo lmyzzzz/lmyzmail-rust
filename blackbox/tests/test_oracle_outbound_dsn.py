@@ -188,7 +188,7 @@ def _assert_golden(
     *,
     record_java: bool,
 ) -> None:
-    path = repository / "blackbox/golden/java/managed-outbound-dsn-oracle-evidence-v4.json"
+    path = repository / "blackbox/golden/java/managed-outbound-dsn-oracle-evidence-v5.json"
     attestation = GoldenAttestation.from_repository(
         repository,
         profile="managed-outbound-dsn-oracle-evidence",
@@ -215,7 +215,7 @@ def test_rust_candidate_emits_durable_rfc3464_dsn() -> None:
     repository = _repository()
     frozen = json.loads(
         (
-            repository / "blackbox/golden/java/managed-outbound-dsn-oracle-evidence-v4.json"
+            repository / "blackbox/golden/java/managed-outbound-dsn-oracle-evidence-v5.json"
         ).read_text(encoding="utf-8")
     )
     _assert_java_gap(frozen["observation"])

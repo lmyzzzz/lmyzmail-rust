@@ -13,14 +13,14 @@ from lmyzmail_blackbox.persistent_runtime import PersistentJavaOracleRuntime
 from lmyzmail_blackbox.protocols import json_http_exchange
 from lmyzmail_blackbox.snapshots import http_bytes_snapshot, http_json_snapshot
 
-# Reuse the attested legacy fixture installer and candidate lifecycle without
-# adding this exploratory surface to the historical definition-tree hash.
+# Reuse the attested legacy fixture installer and candidate lifecycle. This
+# module is itself part of the frozen harness definition tree.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
 from test_candidate_mail_read_golden import LegacyCandidateRuntime, _OracleTarget
 
 _API_HEADERS = (("X-API-Key", "blackbox-admin-key"),)
 _CREDENTIALS = {"address": "qa@example.test", "password": "BlackboxPass123!"}
-_GOLDEN = "managed-mail-api-poll-v10"
+_GOLDEN = "managed-mail-api-poll-v11"
 
 
 def _capture_json(path: str, value: object) -> Callable[[RuntimeTarget], dict[str, Any]]:

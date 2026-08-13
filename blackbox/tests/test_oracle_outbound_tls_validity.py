@@ -98,7 +98,7 @@ def _assert_contract(observed: dict[str, Any], *, target: str) -> None:
 
 
 def _golden(repository: Path, observed: dict[str, Any], *, record_java: bool) -> None:
-    path = repository / "blackbox/golden/java/managed-outbound-tls-validity-v4.json"
+    path = repository / "blackbox/golden/java/managed-outbound-tls-validity-v5.json"
     attestation = GoldenAttestation.from_repository(
         repository,
         profile="managed-outbound-tls-validity",
@@ -115,7 +115,7 @@ def _assert_candidate_matches(repository: Path, observed: dict[str, Any]) -> Non
         json.loads(
             (
                 repository
-                / "blackbox/golden/java/managed-outbound-tls-validity-v4.json"
+                / "blackbox/golden/java/managed-outbound-tls-validity-v5.json"
             ).read_text(encoding="utf-8")
         ),
     )

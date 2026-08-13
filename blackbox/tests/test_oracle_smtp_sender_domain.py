@@ -101,7 +101,7 @@ def _candidate(repository: Path) -> CandidateRuntime:
 def _runner(repository: Path, *, record_java: bool = False) -> DifferentialRunner:
     return DifferentialRunner(
         repository,
-        repository / "blackbox/golden/java/managed-smtp-sender-domain-v1",
+        repository / "blackbox/golden/java/managed-smtp-sender-domain-v2",
         "managed-smtp-sender-domain",
         record_java=record_java,
     )

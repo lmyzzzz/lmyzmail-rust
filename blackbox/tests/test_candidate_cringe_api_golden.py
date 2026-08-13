@@ -24,11 +24,11 @@ from lmyzmail_blackbox.runtime import (
 from lmyzmail_blackbox.snapshots import http_bytes_snapshot, http_json_snapshot
 
 _PROFILE = "managed-cringe-api"
-_GOLDEN = "blackbox/golden/java/managed-cringe-api-v10"
+_GOLDEN = "blackbox/golden/java/managed-cringe-api-v11"
 _BOUNDARY_PROFILE = "managed-cringe-api-oracle-boundaries"
-_BOUNDARY_GOLDEN = "blackbox/golden/java/managed-cringe-api-oracle-boundaries-v9"
+_BOUNDARY_GOLDEN = "blackbox/golden/java/managed-cringe-api-oracle-boundaries-v10"
 _DECAY_PROFILE = "managed-cringe-decay"
-_DECAY_GOLDEN = "blackbox/golden/java/managed-cringe-decay-v6"
+_DECAY_GOLDEN = "blackbox/golden/java/managed-cringe-decay-v7"
 _ADMIN_HEADERS = (("X-API-Key", API_KEY),)
 _READ_ONLY_HEADERS = (("X-API-Key", READ_ONLY_API_KEY),)
 _WRITE_ONLY_HEADERS = (("X-API-Key", WRITE_ONLY_API_KEY),)

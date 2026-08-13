@@ -15,9 +15,9 @@ from lmyzmail_blackbox.ports import PortSet
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.smtp_contract import capture_delivery
 
-_GOLDEN = "managed-smtp-content-filter-body-v2"
+_GOLDEN = "managed-smtp-content-filter-body-v3"
 _PROFILE = "managed-smtp-content-filter-body"
-_EDGE_GOLDEN = "managed-smtp-content-filter-body-edge-v2"
+_EDGE_GOLDEN = "managed-smtp-content-filter-body-edge-v3"
 _EDGE_PROFILE = "managed-smtp-content-filter-body-edge"
 _FROM = "sender@external.test"
 _DATE = "Tue, 5 Aug 2025 12:00:00 GMT"

@@ -1,4 +1,4 @@
-# ruff: noqa: S101 - external pytest module outside the frozen definition tree.
+# ruff: noqa: S101 - assertions are the contract in this frozen external pytest module.
 from __future__ import annotations
 
 import os

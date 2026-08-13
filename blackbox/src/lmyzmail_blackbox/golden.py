@@ -28,6 +28,7 @@ _DEFINITION_ROOTS = (
     "blackbox/bin",
     "blackbox/src",
     "blackbox/tests",
+    "blackbox/tools",
     "blackbox/manifests",
     "blackbox/fixtures",
 )

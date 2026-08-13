@@ -26,8 +26,8 @@ from lmyzmail_blackbox.snapshots import http_json_snapshot
 
 _SESSION_HEADERS = (("X-Session-Token", LEGACY_SESSION_TOKEN),)
 _PROFILE = "managed-userdata"
-_GOLDEN = "blackbox/golden/java/managed-userdata-v18"
-_ORACLE_EVIDENCE_GOLDEN = "blackbox/golden/java/managed-userdata-oracle-evidence-v17"
+_GOLDEN = "blackbox/golden/java/managed-userdata-v19"
+_ORACLE_EVIDENCE_GOLDEN = "blackbox/golden/java/managed-userdata-oracle-evidence-v18"
 
 
 @dataclass(frozen=True, slots=True)
@@ -331,7 +331,11 @@ def _capture_malformed_oracle_userdata(target: RuntimeTarget) -> dict[str, Any]:
             **contacts_after_missing_fields,
             "body_json": normalized_contacts,
             "headers": [
-                [name, str(len(normalized_wire))] if name.lower() == "content-length" else [name, value]
+                (
+                    [name, str(len(normalized_wire))]
+                    if name.lower() == "content-length"
+                    else [name, value]
+                )
                 for name, value in contacts_after_missing_fields["headers"]
             ],
         }

@@ -17,8 +17,8 @@ from lmyzmail_blackbox.ports import PortSet
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-status-v10"
-_CUSTOM_GOLDEN = "managed-minecraft-status-config-v7"
+_GOLDEN = "managed-minecraft-status-v11"
+_CUSTOM_GOLDEN = "managed-minecraft-status-config-v8"
 _MAX_FRAME = 2 * 1024 * 1024
 _PING_PAYLOAD = 0x0123456789ABCDEF
 _CUSTOM_MOTD = "Custom status"

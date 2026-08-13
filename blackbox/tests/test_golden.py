@@ -8,6 +8,7 @@ import pytest
 from lmyzmail_blackbox.errors import GoldenMismatch
 from lmyzmail_blackbox.golden import (
     _ATTESTED_INPUTS,
+    _DEFINITION_ROOTS,
     GoldenAttestation,
     GoldenStore,
 )
@@ -71,7 +72,11 @@ def test_golden_path_cannot_escape_root(tmp_path: Path) -> None:
         GoldenStore(tmp_path, _attestation(), record=True).assert_observation("../outside.json", {})
 
 
-def test_repository_attestation_binds_every_lock_and_definition_file(tmp_path: Path) -> None:
+@pytest.mark.parametrize("relative_root", _DEFINITION_ROOTS)
+def test_repository_attestation_binds_every_lock_and_definition_file(
+    tmp_path: Path,
+    relative_root: str,
+) -> None:
     repository = tmp_path / "repository"
     manifest = repository / "evidence/freeze/java-oracle/baseline.json"
     manifest.parent.mkdir(parents=True)
@@ -83,7 +88,7 @@ def test_repository_attestation_binds_every_lock_and_definition_file(tmp_path: P
         path = repository / relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"fixture:{relative_path}\n", encoding="utf-8")
-    definition = repository / "blackbox/bin/probe.sh"
+    definition = repository / relative_root / "definition.txt"
     definition.parent.mkdir(parents=True, exist_ok=True)
     definition.write_text("version=one\n", encoding="utf-8")
 
