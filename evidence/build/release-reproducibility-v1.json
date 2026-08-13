@@ -19,12 +19,12 @@
       "build_id": "8a42301ee75114258502c6acc37b1de7c3502d6b",
       "bytes": 49426616,
       "command": "cargo build --frozen --release -p lmyzmail",
-      "elapsed_seconds": 188,
+      "elapsed_seconds": 189,
       "label": "build-2",
       "sha256": "888e06d4910873e0ceeb919e8c903e58ef8074e42565a07beb3311fad7b3f4b8"
     }
   ],
-  "commit": "4c702dcdf1cf0f19da71b90add2428242d894f5b",
+  "commit": "41a8e7956bbd7b590e42a8fe4537d3eb73acac14",
   "environment": {
     "cargo_network": "frozen",
     "independent_target_directories": true,
@@ -32,7 +32,7 @@
     "timezone": "UTC"
   },
   "schema_version": 2,
-  "source_date_epoch": 1786611503,
+  "source_date_epoch": 1786612217,
   "target": "x86_64-unknown-linux-gnu",
   "toolchain": {
     "cargo": "cargo 1.94.0 (85eff7c80 2026-01-15)",
