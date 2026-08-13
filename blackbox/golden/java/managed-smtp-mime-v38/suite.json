@@ -1,0 +1,165 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "141e1828ab97be8d814267968b204414954f25c45653d0d7b0b130fdcc129246",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "suite-manifest-v1"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-smtp-mime"
+  },
+  "observation": {
+    "profile": "managed-smtp-mime",
+    "scenarios": [
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "envelope_from": "<>",
+          "indexed_from": "sender@external.test",
+          "indexed_has_attachments": true,
+          "indexed_to_addresses": [
+            "qa@example.test",
+            "other@example.test"
+          ],
+          "message_id": "<bb-mime-data-001@example.test>",
+          "message_sha256": "875fe99b9624e5aa61047e5161f05e6c94c86db5dbf713dc9b23748106864afc",
+          "mime": {
+            "attachment_decoded_sha256": "1f825aa2f0020ef7cf91dfa30da4668d791c5d4824fc8e41354b89ec05795ab3",
+            "attachment_filename": "payload.bin",
+            "attachment_first": true,
+            "boundary": "bb-mime-boundary-001",
+            "content_type": "multipart/mixed"
+          },
+          "mode": "DATA",
+          "operation": "inbound-mime-storage",
+          "protocol": "smtp",
+          "recipient": "qa@example.test",
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ],
+          "storage_visibility": "joint-15-second-absolute-deadline"
+        },
+        "name": "smtp/mime/data-multipart-storage",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:data-dot-unstuff",
+          "mime:base64-attachment-index"
+        ]
+      },
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "envelope_from": "<>",
+          "indexed_from": "sender@external.test",
+          "indexed_has_attachments": true,
+          "indexed_to_addresses": [
+            "qa@example.test",
+            "other@example.test"
+          ],
+          "message_id": "<bb-mime-bdat-001@example.test>",
+          "message_sha256": "4d53e664f5d34f78742bbb38e88d2f3f374e3fea647592e886403ab4ff687407",
+          "mime": {
+            "attachment_decoded_sha256": "1f825aa2f0020ef7cf91dfa30da4668d791c5d4824fc8e41354b89ec05795ab3",
+            "attachment_filename": "payload.bin",
+            "attachment_first": true,
+            "boundary": "bb-mime-boundary-001",
+            "content_type": "multipart/mixed"
+          },
+          "mode": "BDAT",
+          "operation": "inbound-mime-storage",
+          "protocol": "smtp",
+          "recipient": "qa@example.test",
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ],
+          "storage_visibility": "joint-15-second-absolute-deadline"
+        },
+        "name": "smtp/mime/bdat-multipart-storage",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:bdat-chunk-framing",
+          "mime:base64-attachment-index"
+        ]
+      },
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "envelope_from": "<>",
+          "indexed_from": "sender@external.test",
+          "indexed_has_attachments": false,
+          "indexed_to_addresses": [
+            "qa@example.test",
+            "other@example.test"
+          ],
+          "message_id": "<bb-mime-body-first-001@example.test>",
+          "message_sha256": "ab23779a4e2e840613515dd0f93c9005a50241d30a135b77c9ea21f152cb9b62",
+          "mime": {
+            "attachment_decoded_sha256": "1f825aa2f0020ef7cf91dfa30da4668d791c5d4824fc8e41354b89ec05795ab3",
+            "attachment_filename": "payload.bin",
+            "attachment_first": false,
+            "boundary": "bb-mime-boundary-001",
+            "content_type": "multipart/mixed"
+          },
+          "mode": "DATA",
+          "operation": "inbound-mime-storage",
+          "protocol": "smtp",
+          "recipient": "qa@example.test",
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ],
+          "storage_visibility": "joint-15-second-absolute-deadline"
+        },
+        "name": "smtp/mime/data-body-first-indexing",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:data-dot-unstuff",
+          "mime:oracle-first-body-indexing"
+        ]
+      }
+    ]
+  },
+  "schema_version": 2
+}

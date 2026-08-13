@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "profile": "blackbox-test-reattestation-141e-v1",
+  "definition_tree_sha256": "141e1828ab97be8d814267968b204414954f25c45653d0d7b0b130fdcc129246",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "targets": {
+    "pytest_expression": "-m oracle tests",
+    "tests_passed": 71,
+    "tests_deselected": 258,
+    "generation_roots": 64,
+    "files_created": 225,
+    "all_active_targets_unique": true,
+    "all_active_targets_absent_before_recording": true
+  },
+  "create_once_recording": {
+    "result": "71 passed, 258 deselected",
+    "elapsed_seconds": 1742.71,
+    "log_sha256": "63af1430df93aab0725b0834deb32a4672c014609cee3671db13cdfa599de42f"
+  },
+  "fresh_jvm_replay": {
+    "record_environment_unset": true,
+    "result": "71 passed, 258 deselected",
+    "elapsed_seconds": 1431.04,
+    "log_sha256": "9c2f29b477a5eedb050da0b13da72f4b347c4a4c0b4e59a3f2c89e6068c8b8f2"
+  },
+  "outbound_terminal_cleanup": {
+    "active_generation": "managed-outbound-queue-v40.json",
+    "post_redis_sentfile_index": {},
+    "independent_probe_runs": 2,
+    "old_race_generation": "managed-outbound-queue-v39.json",
+    "old_race_generation_overwritten": false
+  },
+  "repository_guards": {
+    "java_oracle_read_only": true,
+    "skibidi_freeze_read_only": true,
+    "older_goldens_modified": false,
+    "definition_tree_unchanged_after_record_and_replay": true
+  }
+}

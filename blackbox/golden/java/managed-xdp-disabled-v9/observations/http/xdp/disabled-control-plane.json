@@ -1,0 +1,218 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "141e1828ab97be8d814267968b204414954f25c45653d0d7b0b130fdcc129246",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "header:date:http-date",
+      "json-object-order:jdk-map-of"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-xdp-disabled"
+  },
+  "observation": {
+    "ban": {
+      "body_json": {
+        "message": "XDP Firewall is not ready",
+        "success": false
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "55"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJtZXNzYWdlIjoiWERQIEZpcmV3YWxsIGlzIG5vdCByZWFkeSIsInN1Y2Nlc3MiOmZhbHNlfQ==",
+        "length": 55,
+        "sha256": "d0f3b43aa40ceb24e0395e48fcdddbfb5d5496b6a40296e7a6cee9b652374832"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "check": {
+      "body_json": {
+        "ip": "203.0.113.77",
+        "xdpBanned": false
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "39"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJpcCI6IjIwMy4wLjExMy43NyIsInhkcEJhbm5lZCI6ZmFsc2V9",
+        "length": 39,
+        "sha256": "03d8658d1ba71cfd4b9520699afa064e0fff9b62a903885815691a2e0933f767"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "clear": {
+      "body_json": {
+        "cleared": 0,
+        "message": "All XDP bans cleared"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "46"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjbGVhcmVkIjowLCJtZXNzYWdlIjoiQWxsIFhEUCBiYW5zIGNsZWFyZWQifQ==",
+        "length": 46,
+        "sha256": "4e57290bcca863144d79e8c9514256b02a43dca814d49a32273f51f3ac0bc760"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "stats": {
+      "body": {
+        "base64": "eyJlcnJvciI6Im5vdF9mb3VuZCJ9",
+        "length": 21,
+        "sha256": "d2dfdc9511fbeaa0701d1f8730f4989313b062ca1b61a2bd8bed8f4f5d654b5d"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "21"
+        ]
+      ],
+      "status_code": 404,
+      "status_line": "HTTP/1.1 404 Not Found"
+    },
+    "status": {
+      "body_json": {
+        "bannedCount": 0,
+        "packetsDropped": 0,
+        "packetsPassed": 0,
+        "ready": false,
+        "version": "1.1.0"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "86"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJiYW5uZWRDb3VudCI6MCwicGFja2V0c0Ryb3BwZWQiOjAsInBhY2tldHNQYXNzZWQiOjAsInJlYWR5IjpmYWxzZSwidmVyc2lvbiI6IjEuMS4wIn0=",
+        "length": 86,
+        "sha256": "e1355c080c90a960bf9902c361fbc88096ce409fca37deaae325b061fe240035"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sync": {
+      "body_json": {
+        "banned": 0,
+        "message": "XDP not ready",
+        "rebanned": 0,
+        "skippedWhitelist": 0,
+        "unbanned": 0,
+        "unchanged": 0
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "99"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJiYW5uZWQiOjAsIm1lc3NhZ2UiOiJYRFAgbm90IHJlYWR5IiwicmViYW5uZWQiOjAsInNraXBwZWRXaGl0ZWxpc3QiOjAsInVuYmFubmVkIjowLCJ1bmNoYW5nZWQiOjB9",
+        "length": 99,
+        "sha256": "a96a880c5cb76bcc3ce34d8847ff30111e91a8c4a592ac70944a463d7e212bbe"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "unban": {
+      "body_json": {
+        "message": "XDP Firewall is not ready",
+        "success": false
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "55"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJtZXNzYWdlIjoiWERQIEZpcmV3YWxsIGlzIG5vdCByZWFkeSIsInN1Y2Nlc3MiOmZhbHNlfQ==",
+        "length": 55,
+        "sha256": "d0f3b43aa40ceb24e0395e48fcdddbfb5d5496b6a40296e7a6cee9b652374832"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "whitelist": {
+      "body_json": {
+        "ip": "127.0.0.1",
+        "whitelisted": false
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "38"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJpcCI6IjEyNy4wLjAuMSIsIndoaXRlbGlzdGVkIjpmYWxzZX0=",
+        "length": 38,
+        "sha256": "49876e44e9821318ef6791a6a44e4b9e00680cccd57bcaaaf10a2d1f128cf7c4"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    }
+  },
+  "schema_version": 2
+}

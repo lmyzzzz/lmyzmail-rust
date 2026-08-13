@@ -1,0 +1,178 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "141e1828ab97be8d814267968b204414954f25c45653d0d7b0b130fdcc129246",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "smtp:quiz-random-question-order-and-selection"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-smtp-skibidi"
+  },
+  "observation": {
+    "active_state": {
+      "answer_after_forfeit": [
+        "503 5.5.1 No quiz in progress. Use SKIBIDITOILET START <LEVEL> to begin. Stop yapping and do something.\r\n"
+      ],
+      "duplicate_start": [
+        "503 5.5.1 Quiz already in progress. SKIBIDITOILET QUIT to forfeit, or SKIBIDITOILET ANSWER to keep coping.\r\n"
+      ],
+      "empty_answer": [
+        "501 5.5.4 Empty answer detected. Submitting nothing is peak NPC behavior. Type SKIBIDITOILET ANSWER <your answer>.\r\n"
+      ],
+      "first_question": "<random-valid-question>",
+      "forfeit": [
+        "250-Quiz forfeited. That is the most L take in recorded Brainrot history.\r\n",
+        "250-Progress: 0/0 correct before you rage-quit.\r\n",
+        "250-The Ohio final boss remains undefeated. You were not built different.\r\n",
+        "250 Use SKIBIDITOILET START <LEVEL> to try again and redeem your aura.\r\n"
+      ],
+      "helo_preserves_quiz": [
+        "503 5.5.1 Quiz already in progress. SKIBIDITOILET QUIT to forfeit, or SKIBIDITOILET ANSWER to keep coping.\r\n"
+      ],
+      "rset": [
+        "250 2.0.0 Reset OK\r\n"
+      ],
+      "rset_preserves_quiz": [
+        "503 5.5.1 Quiz already in progress. SKIBIDITOILET QUIT to forfeit, or SKIBIDITOILET ANSWER to keep coping.\r\n"
+      ]
+    },
+    "boundaries": {
+      "answer_without_quiz": [
+        "503 5.5.1 No quiz in progress. Use SKIBIDITOILET START <LEVEL> to begin. Stop yapping and do something.\r\n"
+      ],
+      "help": [
+        "214-SKIBIDITOILET - Brainrot Quiz & Video SMTP Extension\r\n",
+        "214-Tests your Gen Alpha / internet slang knowledge. Are you built different?\r\n",
+        "214-\r\n",
+        "214-Subcommands:\r\n",
+        "214-  SKIBIDITOILET HELP\r\n",
+        "214-    Prints this help message. You clearly needed it.\r\n",
+        "214-\r\n",
+        "214-  SKIBIDITOILET START <LEVEL>\r\n",
+        "214-    Starts a quiz. Available levels:\r\n",
+        "214-      BABYGRONK      - 15 questions, easy mode. For the NPC crowd.\r\n",
+        "214-      SKIBIDITOILET  - 30 questions, balanced. Mid-tier rizz required.\r\n",
+        "214-      OHIOFINALBOSS  - 60 questions, maximum aura drain. Only sigma males apply.\r\n",
+        "214-\r\n",
+        "214-  SKIBIDITOILET ANSWER <your answer>\r\n",
+        "214-    For multiple choice: reply with A, B, C, or D.\r\n",
+        "214-    For fill-in-the-blank: type your answer.\r\n",
+        "214-\r\n",
+        "214-  SKIBIDITOILET QUIT\r\n",
+        "214-    Forfeits the current quiz. Your aura will not recover from this.\r\n",
+        "214-\r\n",
+        "214-  SKIBIDITOILET WATCHSKIBIDITOILET [params...]\r\n",
+        "214-    Streams Skibidi Toilet Episode 1 as ASCII Art over SMTP.\r\n",
+        "214-    Your terminal must support ANSI escape codes.\r\n",
+        "214-\r\n",
+        "214-    Parameters (space-separated, all optional):\r\n",
+        "214-      WIDTH=<n>       Output width in characters    (default: 120, max: 450)\r\n",
+        "214-      FPS=<n>         Playback frame rate           (default: 10.0, max: 20)\r\n",
+        "214-      CONTRAST=<f>    Contrast multiplier           (default: 1.2)\r\n",
+        "214-      BRIGHTNESS=<f>  Brightness offset             (default: 0.0)\r\n",
+        "214-      GAMMA=<f>       Gamma correction              (default: 1.0)\r\n",
+        "214-      ASPECT=<f>      Character height/width ratio  (default: 2.0)\r\n",
+        "214-      INVERT          Invert brightness mapping\r\n",
+        "214-\r\n",
+        "214-    Example:\r\n",
+        "214-      SKIBIDITOILET WATCHSKIBIDITOILET WIDTH=160 FPS=12 CONTRAST=1.5\r\n",
+        "214-\r\n",
+        "214-    WARNING: Color mode is not supported (monochrome only).\r\n",
+        "214-    WARNING: Once playback starts, it CANNOT be stopped except by\r\n",
+        "214-             disconnecting. You have been warned. No cap.\r\n",
+        "214-    WARNING: Maximum 1 concurrent viewer globally.\r\n",
+        "214-    WARNING: Each line is prefixed with '250-' per SMTP multi-line\r\n",
+        "214-             response format. This is normal. Embrace the jank.\r\n",
+        "214-\r\n",
+        "214-Notes:\r\n",
+        "214-  - Quiz runs inline in the SMTP session. No MAIL transaction needed.\r\n",
+        "214-  - Commands are case-insensitive. Your excuses are not.\r\n",
+        "214 214 End of HELP. Skibidi dop dop yes yes.\r\n"
+      ],
+      "lowercase_help": [
+        "214-SKIBIDITOILET - Brainrot Quiz & Video SMTP Extension\r\n",
+        "214-Tests your Gen Alpha / internet slang knowledge. Are you built different?\r\n",
+        "214-\r\n",
+        "214-Subcommands:\r\n",
+        "214-  SKIBIDITOILET HELP\r\n",
+        "214-    Prints this help message. You clearly needed it.\r\n",
+        "214-\r\n",
+        "214-  SKIBIDITOILET START <LEVEL>\r\n",
+        "214-    Starts a quiz. Available levels:\r\n",
+        "214-      BABYGRONK      - 15 questions, easy mode. For the NPC crowd.\r\n",
+        "214-      SKIBIDITOILET  - 30 questions, balanced. Mid-tier rizz required.\r\n",
+        "214-      OHIOFINALBOSS  - 60 questions, maximum aura drain. Only sigma males apply.\r\n",
+        "214-\r\n",
+        "214-  SKIBIDITOILET ANSWER <your answer>\r\n",
+        "214-    For multiple choice: reply with A, B, C, or D.\r\n",
+        "214-    For fill-in-the-blank: type your answer.\r\n",
+        "214-\r\n",
+        "214-  SKIBIDITOILET QUIT\r\n",
+        "214-    Forfeits the current quiz. Your aura will not recover from this.\r\n",
+        "214-\r\n",
+        "214-  SKIBIDITOILET WATCHSKIBIDITOILET [params...]\r\n",
+        "214-    Streams Skibidi Toilet Episode 1 as ASCII Art over SMTP.\r\n",
+        "214-    Your terminal must support ANSI escape codes.\r\n",
+        "214-\r\n",
+        "214-    Parameters (space-separated, all optional):\r\n",
+        "214-      WIDTH=<n>       Output width in characters    (default: 120, max: 450)\r\n",
+        "214-      FPS=<n>         Playback frame rate           (default: 10.0, max: 20)\r\n",
+        "214-      CONTRAST=<f>    Contrast multiplier           (default: 1.2)\r\n",
+        "214-      BRIGHTNESS=<f>  Brightness offset             (default: 0.0)\r\n",
+        "214-      GAMMA=<f>       Gamma correction              (default: 1.0)\r\n",
+        "214-      ASPECT=<f>      Character height/width ratio  (default: 2.0)\r\n",
+        "214-      INVERT          Invert brightness mapping\r\n",
+        "214-\r\n",
+        "214-    Example:\r\n",
+        "214-      SKIBIDITOILET WATCHSKIBIDITOILET WIDTH=160 FPS=12 CONTRAST=1.5\r\n",
+        "214-\r\n",
+        "214-    WARNING: Color mode is not supported (monochrome only).\r\n",
+        "214-    WARNING: Once playback starts, it CANNOT be stopped except by\r\n",
+        "214-             disconnecting. You have been warned. No cap.\r\n",
+        "214-    WARNING: Maximum 1 concurrent viewer globally.\r\n",
+        "214-    WARNING: Each line is prefixed with '250-' per SMTP multi-line\r\n",
+        "214-             response format. This is normal. Embrace the jank.\r\n",
+        "214-\r\n",
+        "214-Notes:\r\n",
+        "214-  - Quiz runs inline in the SMTP session. No MAIL transaction needed.\r\n",
+        "214-  - Commands are case-insensitive. Your excuses are not.\r\n",
+        "214 214 End of HELP. Skibidi dop dop yes yes.\r\n"
+      ],
+      "missing_level": [
+        "501 5.5.4 Syntax: SKIBIDITOILET START <LEVEL>. Levels: BABYGRONK, SKIBIDITOILET, OHIOFINALBOSS\r\n"
+      ],
+      "missing_subcommand": [
+        "501 5.5.4 Unknown subcommand. Type SKIBIDITOILET HELP to git gud.\r\n"
+      ],
+      "quit_without_quiz": [
+        "503 5.5.1 No quiz in progress. There is nothing to quit from. Classic NPC move.\r\n"
+      ],
+      "unknown_level": [
+        "501 5.5.4 Unknown level 'INVALID'. Valid: BABYGRONK, SKIBIDITOILET, OHIOFINALBOSS. Cope harder and try again.\r\n"
+      ]
+    },
+    "greeting": [
+      "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+    ],
+    "quit": [
+      "221 2.0.0 <hostname> closing connection\r\n"
+    ]
+  },
+  "schema_version": 2
+}
