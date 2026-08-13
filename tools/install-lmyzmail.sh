@@ -174,6 +174,7 @@ require_sha256 "$VIDEO" 0e76229bb77ebcf471aec692fa34709cfbbe3dc192127a852a518e34
 STABLE_BINARY="$(mktemp --tmpdir="${TMPDIR:-/tmp}" lmyzmail-release.XXXXXXXX)"
 DROP_IN_SOURCE=""
 CONFIG_CHECK_SOURCE=""
+TEMP_CONFIG_CHECK=""
 TRANSACTION_BACKUP=""
 TRANSACTION_STARTED=0
 INSTALL_COMMITTED=0
@@ -222,8 +223,8 @@ cleanup_install_temporaries() {
     if [[ -n "$DROP_IN_SOURCE" ]]; then
         rm -f -- "$DROP_IN_SOURCE"
     fi
-    if [[ -n "$CONFIG_CHECK_SOURCE" ]]; then
-        rm -f -- "$CONFIG_CHECK_SOURCE"
+    if [[ -n "$TEMP_CONFIG_CHECK" ]]; then
+        rm -f -- "$TEMP_CONFIG_CHECK"
     fi
     if [[ -n "$TRANSACTION_BACKUP" ]]; then
         rm -rf -- "$TRANSACTION_BACKUP"
@@ -504,7 +505,8 @@ fi
 if [[ -z "$DESTDIR" ]]; then
     CONFIG_CHECK_SOURCE="$CONFIG_SOURCE"
     if [[ ! -e "$CONFIG_TARGET" ]]; then
-        CONFIG_CHECK_SOURCE="$(mktemp --tmpdir="${TMPDIR:-/tmp}" lmyzmail-config.XXXXXXXX)"
+        TEMP_CONFIG_CHECK="$(mktemp --tmpdir="${TMPDIR:-/tmp}" lmyzmail-config.XXXXXXXX)"
+        CONFIG_CHECK_SOURCE="$TEMP_CONFIG_CHECK"
         install -m 0644 -- "$CONFIG_EXAMPLE" "$CONFIG_CHECK_SOURCE"
     fi
     CONFIG_SUMMARY="$(runuser -u lmyzmail -- "$STABLE_BINARY" \

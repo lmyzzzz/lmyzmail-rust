@@ -163,6 +163,13 @@ grep -Fxq 'installation-smoke-state-marker' "$STAGE/var/lib/lmyzmail/state.marke
 [[ $(stat -c %i "$STAGE/etc/lmyzmail/application.properties") == "$CONFIG_INODE" ]]
 [[ $(sha256sum "$STAGE/usr/bin/lmyzmail" | awk '{print $1}') == "$EXPECTED_BINARY_SHA256" ]]
 
+grep -Fq 'TEMP_CONFIG_CHECK=""' "$REPOSITORY/tools/install-lmyzmail.sh"
+grep -Fq 'rm -f -- "$TEMP_CONFIG_CHECK"' "$REPOSITORY/tools/install-lmyzmail.sh"
+if grep -Fq 'rm -f -- "$CONFIG_CHECK_SOURCE"' "$REPOSITORY/tools/install-lmyzmail.sh"; then
+    printf '%s\n' 'installer cleanup can delete a preserved configuration source' >&2
+    exit 1
+fi
+
 "$REPOSITORY/tools/uninstall-lmyzmail.sh" --destdir "$STAGE"
 [[ ! -e "$STAGE/usr/bin/lmyzmail" ]]
 [[ ! -e "$STAGE/usr/lib/systemd/system/lmyzmail.service" ]]
