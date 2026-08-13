@@ -373,5 +373,9 @@ if grep -Eq 'systemctl .*\|\| true' "$REPOSITORY/tools/uninstall-lmyzmail.sh"; t
 fi
 grep -Fq 'SERVICE_RESULT="$(systemctl_value Result)"' \
     "$REPOSITORY/tools/uninstall-lmyzmail.sh"
+grep -Fq 'LOCK_OPEN_ID="$(stat -Lc' "$REPOSITORY/tools/install-lmyzmail.sh"
+grep -Fq 'LOCK_OPEN_ID="$(stat -Lc' "$REPOSITORY/tools/uninstall-lmyzmail.sh"
+grep -Fq 'systemctl stop lmyzmail.service' "$REPOSITORY/tools/uninstall-lmyzmail.sh"
+grep -Fq 'RESTORED_RESULT="$(systemctl_value Result' "$REPOSITORY/tools/uninstall-lmyzmail.sh"
 
 printf 'lmyzmail staged install/upgrade/uninstall smoke passed: binary_sha256=%s\n' "$EXPECTED_BINARY_SHA256"

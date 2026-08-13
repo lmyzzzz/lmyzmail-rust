@@ -111,6 +111,15 @@ flock -n 9 || {
     printf '%s\n' 'another lmyzmail installation or uninstallation is in progress' >&2
     exit 75
 }
+# Re-check the object that was actually opened.  This closes the common
+# check-then-open replacement window for staged destinations; live /run is
+# additionally protected by its root ownership and mode checks above.
+LOCK_OPEN_ID="$(stat -Lc '%d:%i' /proc/$$/fd/9 2>/dev/null || true)"
+LOCK_PATH_ID="$(stat -Lc '%d:%i' "$LOCK_PATH" 2>/dev/null || true)"
+[[ -n "$LOCK_OPEN_ID" && "$LOCK_OPEN_ID" == "$LOCK_PATH_ID" ]] || {
+    printf '%s\n' 'maintenance lock changed while it was being opened' >&2
+    exit 75
+}
 
 systemctl_value() {
     local property="$1"
@@ -339,6 +348,9 @@ rollback_uninstallation() {
         systemctl daemon-reload >/dev/null 2>&1 || rollback_failed=1
     fi
     if [[ -z "$DESTDIR" ]] && (( SERVICE_STATE_MUTATED == 1 )); then
+        # Restore enablement and runtime state independently, then verify the
+        # observable systemd state.  A successful command is not sufficient:
+        # systemd may accept a request while a unit is still transitioning.
         case "$ORIGINAL_UNIT_FILE_STATE" in
             enabled) systemctl enable lmyzmail.service >/dev/null 2>&1 || rollback_failed=1 ;;
             enabled-runtime) systemctl enable --runtime lmyzmail.service >/dev/null 2>&1 || rollback_failed=1 ;;
@@ -349,19 +361,20 @@ rollback_uninstallation() {
         if (( ORIGINAL_WAS_ACTIVE == 1 )); then
             systemctl start lmyzmail.service >/dev/null 2>&1 || rollback_failed=1
         else
+            systemctl stop lmyzmail.service >/dev/null 2>&1 || rollback_failed=1
             systemctl reset-failed lmyzmail.service >/dev/null 2>&1 || rollback_failed=1
         fi
         RESTORED_ACTIVE_STATE="$(systemctl_value ActiveState 2>/dev/null || true)"
         RESTORED_MAIN_PID="$(systemctl_value MainPID 2>/dev/null || true)"
         RESTORED_UNIT_FILE_STATE="$(systemctl_value UnitFileState 2>/dev/null || true)"
+        RESTORED_RESULT="$(systemctl_value Result 2>/dev/null || true)"
         if (( ORIGINAL_WAS_ACTIVE == 1 )); then
-            [[ "$RESTORED_ACTIVE_STATE" == active && "$RESTORED_MAIN_PID" != 0 ]] || rollback_failed=1
+            [[ "$RESTORED_ACTIVE_STATE" == active && "$RESTORED_MAIN_PID" =~ ^[1-9][0-9]*$ ]] || rollback_failed=1
         else
             [[ "$RESTORED_ACTIVE_STATE" == inactive && "$RESTORED_MAIN_PID" == 0 ]] || rollback_failed=1
+            [[ "$RESTORED_RESULT" == "$ORIGINAL_SERVICE_RESULT" ]] || rollback_failed=1
         fi
-        [[ "$RESTORED_UNIT_FILE_STATE" == "$ORIGINAL_UNIT_FILE_STATE" \
-            || ( "$ORIGINAL_UNIT_FILE_STATE" == enabled-runtime \
-                && "$RESTORED_UNIT_FILE_STATE" == enabled-runtime ) ]] || rollback_failed=1
+        [[ "$RESTORED_UNIT_FILE_STATE" == "$ORIGINAL_UNIT_FILE_STATE" ]] || rollback_failed=1
     fi
     if (( rollback_failed == 0 )); then
         printf '%s\n' 'uninstall failed; restored all previously managed package files' >&2

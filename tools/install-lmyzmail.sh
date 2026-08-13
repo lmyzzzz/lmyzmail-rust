@@ -148,6 +148,12 @@ flock -n 9 || {
     printf '%s\n' 'another lmyzmail installation or uninstallation is in progress' >&2
     exit 75
 }
+LOCK_OPEN_ID="$(stat -Lc '%d:%i' /proc/$$/fd/9 2>/dev/null || true)"
+LOCK_PATH_ID="$(stat -Lc '%d:%i' "$LOCK_PATH" 2>/dev/null || true)"
+[[ -n "$LOCK_OPEN_ID" && "$LOCK_OPEN_ID" == "$LOCK_PATH_ID" ]] || {
+    printf '%s\n' 'maintenance lock changed while it was being opened' >&2
+    exit 75
+}
 
 readonly MODEL="$REPOSITORY/models/skibidi-inferx/skibidi_ai.safetensors"
 readonly TOKENIZER="$REPOSITORY/models/skibidi-inferx/tokenizer.json"
