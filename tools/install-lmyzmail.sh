@@ -78,7 +78,7 @@ elif (( EUID != 0 )); then
     exit 1
 fi
 
-for command in awk cp file install ldconfig mkdir mktemp mv python3 readelf realpath sed sha256sum stat; do
+for command in awk cp file flock install ldconfig mkdir mktemp mv python3 readelf realpath sed sha256sum stat; do
     command -v "$command" >/dev/null 2>&1 || {
         printf 'required command is unavailable: %s\n' "$command" >&2
         exit 1
@@ -92,6 +92,62 @@ if [[ -z "$DESTDIR" ]]; then
         }
     done
 fi
+
+LOCK_PATH=""
+if [[ -z "$DESTDIR" ]]; then
+    [[ -d /run && ! -L /run && $(stat -c %u /run) == 0 && $(( 8#$(stat -c %a /run) & 0022 )) == 0 ]] || {
+        printf '%s\n' '/run must be a root-owned directory that is not group/other writable' >&2
+        exit 1
+    }
+    LOCK_PATH=/run/lmyzmail-maintenance.lock
+else
+    LOCK_PARENT="$DESTDIR/run"
+    if [[ -e "$LOCK_PARENT" || -L "$LOCK_PARENT" ]]; then
+        [[ -d "$LOCK_PARENT" && ! -L "$LOCK_PARENT" ]] || {
+            printf 'staged maintenance lock parent is not a directory: %s\n' "$LOCK_PARENT" >&2
+            exit 1
+        }
+        LOCK_PARENT_MODE="$(stat -c %a "$LOCK_PARENT")"
+        (( (8#$LOCK_PARENT_MODE & 0022) == 0 )) || {
+            printf 'staged maintenance lock parent is group/other writable: %s mode=%s\n' "$LOCK_PARENT" "$LOCK_PARENT_MODE" >&2
+            exit 1
+        }
+    else
+        install -d -m 0755 -- "$LOCK_PARENT"
+    fi
+    [[ "$(stat -c %u "$LOCK_PARENT")" == "$(stat -c %u "$DESTDIR")" ]] || {
+        printf 'staged maintenance lock parent owner differs from destination root: %s\n' "$LOCK_PARENT" >&2
+        exit 1
+    }
+    LOCK_PATH="$LOCK_PARENT/lmyzmail-maintenance.lock"
+fi
+if [[ -L "$LOCK_PATH" || ( -e "$LOCK_PATH" && ! -f "$LOCK_PATH" ) ]]; then
+    printf 'maintenance lock is not a regular file: %s\n' "$LOCK_PATH" >&2
+    exit 1
+fi
+if [[ -e "$LOCK_PATH" ]]; then
+    LOCK_MODE="$(stat -c %a "$LOCK_PATH")"
+    (( (8#$LOCK_MODE & 0077) == 0 )) || {
+        printf 'maintenance lock is accessible by group/other: %s mode=%s\n' "$LOCK_PATH" "$LOCK_MODE" >&2
+        exit 1
+    }
+    if [[ -z "$DESTDIR" && $(stat -c %u "$LOCK_PATH") != 0 ]]; then
+        printf 'live maintenance lock is not root-owned: %s owner=%s\n' "$LOCK_PATH" "$(stat -c %u "$LOCK_PATH")" >&2
+        exit 1
+    fi
+    if [[ -n "$DESTDIR" && $(stat -c %u "$LOCK_PATH") != $(stat -c %u "$LOCK_PARENT") ]]; then
+        printf 'staged maintenance lock owner differs from its parent: %s owner=%s\n' \
+            "$LOCK_PATH" "$(stat -c %u "$LOCK_PATH")" >&2
+        exit 1
+    fi
+else
+    install -m 0600 -- /dev/null "$LOCK_PATH"
+fi
+exec 9>"$LOCK_PATH"
+flock -n 9 || {
+    printf '%s\n' 'another lmyzmail installation or uninstallation is in progress' >&2
+    exit 75
+}
 
 readonly MODEL="$REPOSITORY/models/skibidi-inferx/skibidi_ai.safetensors"
 readonly TOKENIZER="$REPOSITORY/models/skibidi-inferx/tokenizer.json"
@@ -171,16 +227,55 @@ require_sha256 "$MODEL" 343966cefa61b375b5e7ac8f82efffd1187dcc33e6f6122c7860ea05
 require_sha256 "$TOKENIZER" 6624adb41b9274bf0cc73c62ebd26eb2bcf281d533f30607ba415105917d81f3
 require_sha256 "$VIDEO" 0e76229bb77ebcf471aec692fa34709cfbbe3dc192127a852a518e34bdd0ecc7
 
-STABLE_BINARY="$(mktemp --tmpdir="${TMPDIR:-/tmp}" lmyzmail-release.XXXXXXXX)"
+TRANSACTION_DIRECTORY=""
+TRANSACTION_PARENT=""
+cleanup_early_transaction() {
+    if [[ -z "$DESTDIR" && "$TRANSACTION_DIRECTORY" == /run/lmyzmail-install.* \
+        && -d "$TRANSACTION_DIRECTORY" && ! -L "$TRANSACTION_DIRECTORY" \
+        && $(stat -c %u "$TRANSACTION_DIRECTORY") == 0 \
+        && $(stat -c %a "$TRANSACTION_DIRECTORY") == 700 ]]
+    then
+        rm -rf -- "$TRANSACTION_DIRECTORY"
+    elif [[ -n "$DESTDIR" && -n "$TRANSACTION_DIRECTORY" \
+        && -d "$TRANSACTION_DIRECTORY" && ! -L "$TRANSACTION_DIRECTORY" \
+        && $(dirname "$TRANSACTION_DIRECTORY") == "$TRANSACTION_PARENT" \
+        && $(basename "$TRANSACTION_DIRECTORY") == lmyzmail-install.* ]]
+    then
+        rm -rf -- "$TRANSACTION_DIRECTORY"
+    fi
+}
+trap cleanup_early_transaction EXIT
+if [[ -z "$DESTDIR" ]]; then
+    [[ -d /run && ! -L /run && $(stat -c %u /run) == 0 \
+        && $(( 8#$(stat -c %a /run) & 0022 )) == 0 ]] || {
+        printf '%s\n' '/run must be a root-owned directory that is not group/other writable' >&2
+        exit 1
+    }
+    TRANSACTION_DIRECTORY="$(mktemp -d /run/lmyzmail-install.XXXXXXXX)"
+    chown root:root "$TRANSACTION_DIRECTORY"
+    chmod 0700 "$TRANSACTION_DIRECTORY"
+    [[ "$TRANSACTION_DIRECTORY" == /run/lmyzmail-install.* \
+        && -d "$TRANSACTION_DIRECTORY" && ! -L "$TRANSACTION_DIRECTORY" \
+        && $(stat -c %u "$TRANSACTION_DIRECTORY") == 0 \
+        && $(stat -c %a "$TRANSACTION_DIRECTORY") == 700 ]] || {
+        printf '%s\n' 'failed to establish a secure live installation transaction directory' >&2
+        exit 1
+    }
+else
+    TRANSACTION_PARENT="$(realpath -e "${TMPDIR:-/tmp}")"
+    TRANSACTION_DIRECTORY="$(mktemp -d --tmpdir="$TRANSACTION_PARENT" \
+        lmyzmail-install.XXXXXXXX)"
+    chmod 0700 "$TRANSACTION_DIRECTORY"
+fi
+STABLE_BINARY="$TRANSACTION_DIRECTORY/release"
 DROP_IN_SOURCE=""
-CONFIG_CHECK_SOURCE=""
-TEMP_CONFIG_CHECK=""
 TRANSACTION_BACKUP=""
 TRANSACTION_STARTED=0
 INSTALL_COMMITTED=0
 CONFIG_CREATED=0
 SERVICE_START_ATTEMPTED=0
 DAEMON_RELOAD_ATTEMPTED=0
+ROLLBACK_FAILED=0
 readonly DROP_IN_MARKER='# Managed by install-lmyzmail.sh; regenerated on every installation.'
 declare -a PACKAGE_FILES=(
     /usr/bin/lmyzmail
@@ -193,41 +288,103 @@ declare -a PACKAGE_FILES=(
 )
 rollback_installation() {
     local logical backup target
+    local failed=0
     (( TRANSACTION_STARTED == 1 && INSTALL_COMMITTED == 0 )) || return 0
-    set +e
     for logical in "${PACKAGE_FILES[@]}"; do
         backup="$TRANSACTION_BACKUP$logical"
         target="$DESTDIR$logical"
         if [[ -e "$backup" ]]; then
-            rm -f -- "$target"
-            cp -a -- "$backup" "$target"
+            rm -f -- "$target" || failed=1
+            cp -a -- "$backup" "$target" || failed=1
         else
-            rm -f -- "$target"
+            rm -f -- "$target" || failed=1
         fi
     done
     if (( CONFIG_CREATED == 1 )); then
-        rm -f -- "$DESTDIR/etc/lmyzmail/application.properties"
+        rm -f -- "$DESTDIR/etc/lmyzmail/application.properties" || failed=1
+    fi
+    if (( failed != 0 )); then
+        ROLLBACK_FAILED=1
+        printf 'installation rollback was incomplete; recovery backup retained at %s\n' \
+            "$TRANSACTION_BACKUP" >&2
+        return 1
     fi
     printf '%s\n' 'installation failed; restored all previously managed package files' >&2
 }
+stop_failed_fresh_service() {
+    local active_state main_pid stop_status=0
+    systemctl stop lmyzmail.service || stop_status=$?
+    systemctl reset-failed lmyzmail.service >/dev/null 2>&1 || true
+    active_state="$(systemctl show lmyzmail.service --property=ActiveState --value)" || {
+        printf '%s\n' 'cannot verify service inactivity after failed fresh installation' >&2
+        return 1
+    }
+    main_pid="$(systemctl show lmyzmail.service --property=MainPID --value)" || {
+        printf '%s\n' 'cannot verify MainPID after failed fresh installation' >&2
+        return 1
+    }
+    if [[ "$active_state" != inactive || "$main_pid" != 0 ]]; then
+        printf 'unsafe failed-install state: ActiveState=%s MainPID=%s\n' \
+            "${active_state:-unknown}" "${main_pid:-unknown}" >&2
+        return 1
+    fi
+    if pgrep -x lmyzmail >/dev/null; then
+        printf '%s\n' 'an lmyzmail process remains after the failed fresh installation was stopped' >&2
+        return 1
+    fi
+    if (( stop_status != 0 )); then
+        printf '%s\n' 'systemctl stop failed, but inactive state and MainPID=0 were verified' >&2
+    fi
+    if ! systemctl disable lmyzmail.service; then
+        printf '%s\n' 'failed to disable the unsuccessful fresh lmyzmail service' >&2
+        return 1
+    fi
+}
 cleanup_install_temporaries() {
+    local rollback_allowed=1
+    set +e
     if (( SERVICE_START_ATTEMPTED == 1 && INSTALL_COMMITTED == 0 )); then
-        systemctl stop lmyzmail.service >/dev/null 2>&1 || true
-        systemctl disable lmyzmail.service >/dev/null 2>&1 || true
+        if ! stop_failed_fresh_service; then
+            rollback_allowed=0
+            ROLLBACK_FAILED=1
+            printf 'installation rollback blocked: deployed recovery files and backup at %s were preserved\n' \
+                "$TRANSACTION_BACKUP" >&2
+        fi
     fi
-    rollback_installation
-    if (( DAEMON_RELOAD_ATTEMPTED == 1 && INSTALL_COMMITTED == 0 )); then
-        systemctl daemon-reload >/dev/null 2>&1 || true
+    if (( rollback_allowed == 1 )); then
+        rollback_installation || true
     fi
-    rm -f -- "$STABLE_BINARY"
-    if [[ -n "$DROP_IN_SOURCE" ]]; then
-        rm -f -- "$DROP_IN_SOURCE"
+    if (( rollback_allowed == 1 && ROLLBACK_FAILED == 0 \
+        && DAEMON_RELOAD_ATTEMPTED == 1 && INSTALL_COMMITTED == 0 )); then
+        if ! systemctl daemon-reload >/dev/null 2>&1; then
+            ROLLBACK_FAILED=1
+            printf 'restored files but systemd reload failed; recovery backup retained at %s\n' \
+                "$TRANSACTION_BACKUP" >&2
+        fi
     fi
-    if [[ -n "$TEMP_CONFIG_CHECK" ]]; then
-        rm -f -- "$TEMP_CONFIG_CHECK"
-    fi
-    if [[ -n "$TRANSACTION_BACKUP" ]]; then
-        rm -rf -- "$TRANSACTION_BACKUP"
+    if (( ROLLBACK_FAILED == 0 )); then
+        if [[ -n "$DESTDIR" ]]; then
+            if [[ -d "$TRANSACTION_DIRECTORY" && ! -L "$TRANSACTION_DIRECTORY" \
+                && $(dirname "$TRANSACTION_DIRECTORY") == "$TRANSACTION_PARENT" \
+                && $(basename "$TRANSACTION_DIRECTORY") == lmyzmail-install.* ]]
+            then
+                rm -rf -- "$TRANSACTION_DIRECTORY" || ROLLBACK_FAILED=1
+            else
+                ROLLBACK_FAILED=1
+                printf 'refusing to remove unexpected staged transaction path: %s\n' \
+                    "$TRANSACTION_DIRECTORY" >&2
+            fi
+        elif [[ "$TRANSACTION_DIRECTORY" == /run/lmyzmail-install.* \
+            && -d "$TRANSACTION_DIRECTORY" && ! -L "$TRANSACTION_DIRECTORY" \
+            && $(stat -c %u "$TRANSACTION_DIRECTORY") == 0 \
+            && $(stat -c %a "$TRANSACTION_DIRECTORY") == 700 ]]
+        then
+            rm -rf -- "$TRANSACTION_DIRECTORY" || ROLLBACK_FAILED=1
+        else
+            ROLLBACK_FAILED=1
+            printf 'refusing to remove unexpected installation transaction path: %s\n' \
+                "$TRANSACTION_DIRECTORY" >&2
+        fi
     fi
 }
 trap cleanup_install_temporaries EXIT
@@ -311,12 +468,48 @@ install_directory() {
             printf 'installation directory is not a real directory: %s\n' "$target" >&2
             exit 1
         }
+        validate_existing_install_directory "$path" "$owner"
         return
     fi
     if [[ -n "$DESTDIR" ]]; then
         install -d -m "$mode" -- "$target"
     else
         install -d -m "$mode" -o "$owner" -g "$group" -- "$path"
+    fi
+}
+
+validate_existing_install_directory() {
+    local path="$1"
+    local owner="$2"
+    local target actual_mode actual_uid expected_uid
+    target="$(root_path "$path")"
+    [[ -e "$target" || -L "$target" ]] || return 0
+    assert_no_symlink_components "$path"
+    [[ -d "$target" && ! -L "$target" ]] || {
+        printf 'installation directory is not a real directory: %s\n' "$target" >&2
+        exit 1
+    }
+    actual_mode="$(stat -c %a "$target")"
+    (( (8#$actual_mode & 0022) == 0 )) || {
+        printf 'installation directory is group/other writable: %s mode=%s\n' \
+            "$target" "$actual_mode" >&2
+        exit 1
+    }
+    if [[ -z "$DESTDIR" ]]; then
+        expected_uid="$(id -u "$owner")"
+        actual_uid="$(stat -c %u "$target")"
+        [[ "$actual_uid" == "$expected_uid" ]] || {
+            printf 'installation directory has unsafe owner: %s expected=%s actual=%s\n' \
+                "$target" "$expected_uid" "$actual_uid" >&2
+            exit 1
+        }
+    fi
+    if [[ "$owner" == lmyzmail ]]; then
+        (( (8#$actual_mode & 0300) == 0300 )) || {
+            printf 'service-owned directory lacks owner write/execute access: %s mode=%s\n' \
+                "$target" "$actual_mode" >&2
+            exit 1
+        }
     fi
 }
 
@@ -330,6 +523,7 @@ require_live_directory() {
         printf 'required system directory is missing or symlinked: %s\n' "$path" >&2
         exit 1
     }
+    validate_existing_install_directory "$path" root
 }
 
 install_file_atomic() {
@@ -342,6 +536,7 @@ install_file_atomic() {
     target="$(root_path "$destination")"
     assert_no_symlink_components "$destination"
     directory="$(dirname "$target")"
+    validate_existing_install_directory "$(dirname "$destination")" root
     [[ -d "$directory" && ! -L "$directory" ]] || {
         printf 'installation directory is missing or symlinked: %s\n' "$directory" >&2
         exit 1
@@ -463,6 +658,8 @@ declare -a MANAGED_PATHS=(
     /usr/lib/systemd/system/lmyzmail.service
     /usr/share/doc/lmyzmail
     /usr/share/doc/lmyzmail/application.properties.example
+    /usr/share/lmyzmail
+    /usr/share/lmyzmail/models
     /usr/share/lmyzmail/models/skibidi-inferx
     /usr/share/lmyzmail/models/skibidi-inferx/skibidi_ai.safetensors
     /usr/share/lmyzmail/models/skibidi-inferx/tokenizer.json
@@ -471,6 +668,7 @@ declare -a MANAGED_PATHS=(
     /etc/lmyzmail
     /etc/lmyzmail/application.properties
     /var/lib/lmyzmail
+    /var/lib/lmyzmail/data
     /var/lib/lmyzmail/data/mail
     /var/lib/lmyzmail/data/mail/.lmyzmail-outbound
     /var/log/lmyzmail
@@ -480,10 +678,38 @@ declare -a MANAGED_PATHS=(
 for path in "${MANAGED_PATHS[@]}"; do
     assert_no_symlink_components "$path"
 done
+validate_existing_install_directory /usr/bin root
+validate_existing_install_directory /usr/lib/systemd/system root
+validate_existing_install_directory /usr/share/doc/lmyzmail root
+validate_existing_install_directory /usr/share/lmyzmail root
+validate_existing_install_directory /usr/share/lmyzmail/models root
+validate_existing_install_directory /usr/share/lmyzmail/models/skibidi-inferx root
+validate_existing_install_directory /usr/share/lmyzmail/assets root
+validate_existing_install_directory /etc/lmyzmail root
+validate_existing_install_directory /var/lib/lmyzmail lmyzmail
+validate_existing_install_directory /var/lib/lmyzmail/data lmyzmail
+validate_existing_install_directory /var/lib/lmyzmail/data/mail lmyzmail
+validate_existing_install_directory /var/lib/lmyzmail/data/mail/.lmyzmail-outbound \
+    lmyzmail
+validate_existing_install_directory /var/log/lmyzmail lmyzmail
+validate_existing_install_directory /etc/systemd/system/lmyzmail.service.d root
 CONFIG_TARGET="$(root_path /etc/lmyzmail/application.properties)"
 if [[ -e "$CONFIG_TARGET" && ! -f "$CONFIG_TARGET" ]]; then
     printf 'refusing non-regular configuration: %s\n' "$CONFIG_TARGET" >&2
     exit 1
+fi
+if [[ -e "$CONFIG_TARGET" ]]; then
+    CONFIG_MODE="$(stat -c %a "$CONFIG_TARGET")"
+    (( (8#$CONFIG_MODE & 0022) == 0 )) || {
+        printf 'existing configuration is group/other writable: %s mode=%s\n' \
+            "$CONFIG_TARGET" "$CONFIG_MODE" >&2
+        exit 1
+    }
+    if [[ -z "$DESTDIR" && $(stat -c %u "$CONFIG_TARGET") != 0 ]]; then
+        printf 'existing configuration is not root-owned: %s owner=%s\n' \
+            "$CONFIG_TARGET" "$(stat -c %u "$CONFIG_TARGET")" >&2
+        exit 1
+    fi
 fi
 DROP_IN_TARGET="$(root_path /etc/systemd/system/lmyzmail.service.d/legacy-paths.conf)"
 if [[ -e "$DROP_IN_TARGET" ]]; then
@@ -503,17 +729,6 @@ if [[ -e "$CONFIG_TARGET" ]]; then
     CONFIG_SOURCE="$CONFIG_TARGET"
 fi
 if [[ -z "$DESTDIR" ]]; then
-    CONFIG_CHECK_SOURCE="$CONFIG_SOURCE"
-    if [[ ! -e "$CONFIG_TARGET" ]]; then
-        TEMP_CONFIG_CHECK="$(mktemp --tmpdir="${TMPDIR:-/tmp}" lmyzmail-config.XXXXXXXX)"
-        CONFIG_CHECK_SOURCE="$TEMP_CONFIG_CHECK"
-        install -m 0644 -- "$CONFIG_EXAMPLE" "$CONFIG_CHECK_SOURCE"
-    fi
-    CONFIG_SUMMARY="$(runuser -u lmyzmail -- "$STABLE_BINARY" \
-        --config "$CONFIG_CHECK_SOURCE" --check-config)" || {
-        printf '%s\n' 'lmyzmail configuration validation failed; no package files were replaced' >&2
-        exit 1
-    }
     LOAD_STATE="$(systemctl show lmyzmail.service --property=LoadState --value)" || {
         printf '%s\n' 'cannot query lmyzmail service state; no package files were replaced' >&2
         exit 1
@@ -543,7 +758,9 @@ if [[ -z "$DESTDIR" ]]; then
                 ;;
         esac
     fi
-    if (( ENABLE == 1 && PREEXISTING_UNIT == 1 )); then
+    if (( ENABLE == 1 )) && { (( PREEXISTING_UNIT == 1 )) \
+        || [[ -e /usr/bin/lmyzmail || -e /usr/lib/systemd/system/lmyzmail.service ]]; }
+    then
         printf '%s\n' '--enable is only allowed for a fresh installation; start an upgraded unit explicitly after inspection' >&2
         exit 1
     fi
@@ -557,10 +774,12 @@ else
         exit 1
     }
 fi
-[[ " $CONFIG_SUMMARY " == *" xdp=false "* ]] || {
-    printf '%s\n' 'installation requires XDP to be disabled until the privileged deployment profile is available' >&2
-    exit 1
-}
+if [[ -n "$DESTDIR" ]]; then
+    [[ " $CONFIG_SUMMARY " == *" xdp=false "* ]] || {
+        printf '%s\n' 'installation requires XDP to be disabled until the privileged deployment profile is available' >&2
+        exit 1
+    }
+fi
 
 INSTALL_FAIL_AFTER=0
 INSTALL_WRITE_COUNT=0
@@ -572,7 +791,8 @@ if [[ -n ${LMYZMAIL_TEST_INSTALL_FAIL_AFTER:-} ]]; then
     INSTALL_FAIL_AFTER="$LMYZMAIL_TEST_INSTALL_FAIL_AFTER"
 fi
 
-TRANSACTION_BACKUP="$(mktemp -d --tmpdir="${TMPDIR:-/tmp}" lmyzmail-install-backup.XXXXXXXX)"
+TRANSACTION_BACKUP="$TRANSACTION_DIRECTORY/backup"
+install -d -m 0700 -- "$TRANSACTION_BACKUP"
 for logical in "${PACKAGE_FILES[@]}"; do
     target="$DESTDIR$logical"
     if [[ -e "$target" ]]; then
@@ -585,10 +805,13 @@ TRANSACTION_STARTED=1
 require_live_directory /usr/bin
 require_live_directory /usr/lib/systemd/system
 install_directory /usr/share/doc/lmyzmail 0755 root root
+install_directory /usr/share/lmyzmail 0755 root root
+install_directory /usr/share/lmyzmail/models 0755 root root
 install_directory /usr/share/lmyzmail/models/skibidi-inferx 0755 root root
 install_directory /usr/share/lmyzmail/assets 0755 root root
 install_directory /etc/lmyzmail 0750 root lmyzmail
 install_directory /var/lib/lmyzmail 0750 lmyzmail lmyzmail
+install_directory /var/lib/lmyzmail/data 0750 lmyzmail lmyzmail
 install_directory /var/lib/lmyzmail/data/mail 0750 lmyzmail lmyzmail
 install_directory /var/lib/lmyzmail/data/mail/.lmyzmail-outbound 0750 lmyzmail lmyzmail
 install_directory /var/log/lmyzmail 0750 lmyzmail lmyzmail
@@ -609,7 +832,7 @@ fi
 
 LEGACY_DROP_IN_DIRECTORY=/etc/systemd/system/lmyzmail.service.d
 install_directory "$LEGACY_DROP_IN_DIRECTORY" 0755 root root
-DROP_IN_SOURCE="$(mktemp --tmpdir lmyzmail-legacy-paths.XXXXXXXX)"
+DROP_IN_SOURCE="$TRANSACTION_DIRECTORY/legacy-paths.conf"
 {
     printf '%s\n' "$DROP_IN_MARKER"
     printf '%s\n' '[Service]'
@@ -628,16 +851,25 @@ DROP_IN_SOURCE=""
 if [[ -n "$DESTDIR" ]]; then
     INSTALL_COMMITTED=1
     cleanup_install_temporaries
+    (( ROLLBACK_FAILED == 0 )) || exit 1
     trap - EXIT
     printf 'staged lmyzmail installation under %s\n' "$DESTDIR"
     exit 0
 fi
 
+CONFIG_SUMMARY="$(runuser -u lmyzmail -- /usr/bin/lmyzmail \
+    --config /etc/lmyzmail/application.properties --check-config)" || {
+    printf '%s\n' 'installed lmyzmail configuration validation failed; package files will be restored' >&2
+    exit 1
+}
+[[ " $CONFIG_SUMMARY " == *" xdp=false "* ]] || {
+    printf '%s\n' 'installation requires XDP to be disabled until the privileged deployment profile is available' >&2
+    exit 1
+}
+
 DAEMON_RELOAD_ATTEMPTED=1
 systemctl daemon-reload
 if (( ENABLE == 1 )); then
-    runuser -u lmyzmail -- /usr/bin/lmyzmail \
-        --config /etc/lmyzmail/application.properties --check-config
     SERVICE_START_ATTEMPTED=1
     systemctl enable --now lmyzmail.service
     systemctl is-active --quiet lmyzmail.service
@@ -651,5 +883,6 @@ else
 fi
 INSTALL_COMMITTED=1
 cleanup_install_temporaries
+(( ROLLBACK_FAILED == 0 )) || exit 1
 trap - EXIT
 printf '%s\n' 'installed lmyzmail; configuration and state are preserved on upgrades'
