@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "profile": "blackbox-tools-reattestation-141e-v1",
+  "definition_tree_sha256": "141e1828ab97be8d814267968b204414954f25c45653d0d7b0b130fdcc129246",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "targets": {
+    "ordinary_pytest_expression": "-m oracle blackbox/tools --ignore=blackbox/tools/test_smtp_content_filter_rbl.py",
+    "ordinary_tests": 36,
+    "ordinary_deselected": 44,
+    "rbl_wrapper_expression": "blackbox/tools/run_smtp_rbl.py -m oracle",
+    "rbl_tests": 1,
+    "rbl_deselected": 1,
+    "generation_roots": 37,
+    "files_created": 121,
+    "all_active_targets_unique": true,
+    "all_active_targets_absent_before_recording": true
+  },
+  "create_once_recording": {
+    "ordinary_result": "36 passed, 44 deselected",
+    "ordinary_elapsed_seconds": 658.14,
+    "ordinary_log_sha256": "00962a68d36abcabd705dbf84c482de52b6418fd91bdecfa2c822b674ecda764",
+    "rbl_result": "1 passed, 1 deselected",
+    "rbl_elapsed_seconds": 14.26,
+    "rbl_log_sha256": "21f8f4297bd15f99d85552e66f62483d8bad60dfab0a3de1263f5454278be696"
+  },
+  "fresh_replay": {
+    "record_environment_unset": true,
+    "ordinary_result": "36 passed, 44 deselected",
+    "ordinary_elapsed_seconds": 650.28,
+    "ordinary_log_sha256": "c41475d0a4e52f47da1e615924c25f7b4db217e98191dbfaad055b9d40cbb85d",
+    "rbl_result": "1 passed, 1 deselected",
+    "rbl_elapsed_seconds": 14.14,
+    "rbl_log_sha256": "605974ae0c8be1ca979db2fae4ce9fd596fd23d0d4802a8a0bcfd0352ec86011"
+  },
+  "repository_guards": {
+    "java_oracle_read_only": true,
+    "skibidi_freeze_read_only": true,
+    "older_goldens_modified": false,
+    "definition_tree_unchanged_after_record_and_replay": true
+  }
+}

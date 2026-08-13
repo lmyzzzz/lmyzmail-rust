@@ -1,0 +1,184 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "141e1828ab97be8d814267968b204414954f25c45653d0d7b0b130fdcc129246",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-minecraft-authenticated-commands-v8"
+  },
+  "observation": {
+    "commands": [
+      {
+        "command": "  /HeLp  ",
+        "name": "help",
+        "packets": [
+          {
+            "frame": {
+              "base64": "LgACKnsidGV4dCI6IsKnZcKnbD09PSBIb3cgdG8gU2VuZCBFbWFpbCA9PT0ifQA=",
+              "length": 47,
+              "sha256": "a1590798bf7c4e0801a1861a222f1c7c51fdc09d960a6ddb365f545cebb40dab"
+            },
+            "packet_id": 2
+          },
+          {
+            "frame": {
+              "base64": "PQACOXsidGV4dCI6IsKnNzEuIENsaWNrIHRoZSBidXR0b25zIG5leHQgdG8gc2lnbnMgdG8gZWRpdDoifQA=",
+              "length": 62,
+              "sha256": "abc6cf2735d472ee740a74d14be56e213f3385253e7ce34d6c1f898a96103c61"
+            },
+            "packet_id": 2
+          },
+          {
+            "frame": {
+              "base64": "PgACOnsidGV4dCI6IsKnNyAgIMKnZlRvwqc3LCDCp2ZDQ8KnNywgwqdmQkNDwqc3LCDCp2ZTdWJqZWN0In0A",
+              "length": 63,
+              "sha256": "0c1041c32bf881aa5c55aa7ee8fece00c463fb743761f956e72e64ae26ed2e80"
+            },
+            "packet_id": 2
+          },
+          {
+            "frame": {
+              "base64": "QQACPXsidGV4dCI6IsKnNzIuIFdyaXRlIHlvdXIgZW1haWwgYm9keSBpbiB0aGUgwqdmQm9vayAmIFF1aWxsIn0A",
+              "length": 66,
+              "sha256": "84cbf57dc949e7103eee96d1da2874f6f4a32ca0b0373f0031282b72c76bc84d"
+            },
+            "packet_id": 2
+          },
+          {
+            "frame": {
+              "base64": "OwACN3sidGV4dCI6IsKnNzMuIENsaWNrIHRoZSDCp2NTZW5kIMKnN2J1dHRvbiB3aGVuIHJlYWR5In0A",
+              "length": 60,
+              "sha256": "1cf3794dcc5bf9625a329caa5caafd2ae21545f56bb64020758406a92ea13ba3"
+            },
+            "packet_id": 2
+          },
+          {
+            "frame": {
+              "base64": "SwACR3sidGV4dCI6IsKnNzQuIEhvbGQgwqdm4piFIE5ldGhlciBTdGFyIMKnNysgcmlnaHQtY2xpY2sg4oaSIE1haWwgbWVudSJ9AA==",
+              "length": 76,
+              "sha256": "d89bd135be53118a78e1dff6461edfa64fe8e5d956bccb79bff7091ccc541ea3"
+            },
+            "packet_id": 2
+          },
+          {
+            "frame": {
+              "base64": "MAACLHsidGV4dCI6IsKnNyAgIE9yIHR5cGUgwqdmL21lbnUgwqc3dG8gb3BlbiJ9AA==",
+              "length": 49,
+              "sha256": "604b89660b2b6565f46ed6c6f8ff100601d284bc4b0b6619b9b8ac607b887723"
+            },
+            "packet_id": 2
+          },
+          {
+            "frame": {
+              "base64": "MgACLnsidGV4dCI6IsKnZT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09In0A",
+              "length": 51,
+              "sha256": "1e693dea03b57417f5a875e393a09cada89b319a46f98d168a2ceec970fce0f8"
+            },
+            "packet_id": 2
+          }
+        ]
+      },
+      {
+        "command": "/stuck",
+        "name": "stuck",
+        "packets": [
+          {
+            "frame": {
+              "base64": "IwAIwCmAAAAAAABAUbmZmZmZmkBBQAAAAAAAQjQAAMFwAAAA",
+              "length": 36,
+              "sha256": "9330625a77a49817a63366885321c085f0a35a132807f9273d19d2ae63a19b11"
+            },
+            "packet_id": 8
+          },
+          {
+            "frame": {
+              "base64": "NgACMnsidGV4dCI6IsKnYVRlbGVwb3J0ZWQgdG8gc3Bhd24hIiwiY29sb3IiOiJncmVlbiJ9AA==",
+              "length": 55,
+              "sha256": "56679e426e8bfdf56aeaeaccd943888937346b03cb3a35437e879f69a5f2828c"
+            },
+            "packet_id": 2
+          }
+        ]
+      },
+      {
+        "command": "/skibidi",
+        "name": "skibidi",
+        "packets": [
+          {
+            "frame": {
+              "base64": "MwACL3sidGV4dCI6IkJycnJycnIgU2tpYmlkaSBkb3AgZG9wIGRvcCB5ZXMgeWVzISJ9AA==",
+              "length": 52,
+              "sha256": "cd934b99c40ebc978418b6624c86924736b762b45c9067dc7c5e02c6a296f67e"
+            },
+            "packet_id": 2
+          }
+        ]
+      },
+      {
+        "command": "/video",
+        "name": "video-usage",
+        "packets": [
+          {
+            "frame": {
+              "base64": "VAACUHsidGV4dCI6IsKnY1VzYWdlOiAvdmlkZW8gcGxheSBtYXAgW3dpZHRoPTVdIFtmcHM9MTBdIFtkaXRoZXI9MV0iLCJjb2xvciI6InJlZCJ9AA==",
+              "length": 85,
+              "sha256": "318c2cadd7cb4a23239b08df696d03085cd82f278a9b86ce34c1b2dc33fe2dc6"
+            },
+            "packet_id": 2
+          },
+          {
+            "frame": {
+              "base64": "RQACQXsidGV4dCI6IsKnYyAgICAgICAvdmlkZW8gcGxheSBbd2lkdGg9NDhdIFtmcHM9Nl0iLCJjb2xvciI6InJlZCJ9AA==",
+              "length": 70,
+              "sha256": "80aba8a618c18514be9b6e2b571f73f065d76a275677285b4bd7dbbaf7e73051"
+            },
+            "packet_id": 2
+          },
+          {
+            "frame": {
+              "base64": "QQACPXsidGV4dCI6IsKnYyAgICAgICAvdmlkZW8gc3RvcCB8IC92aWRlbyBwYXVzZSIsImNvbG9yIjoicmVkIn0A",
+              "length": 66,
+              "sha256": "bd0e9654caa9bbbf518e2b987a425aef08ef1d789c4f50d19e8009eda64822c4"
+            },
+            "packet_id": 2
+          }
+        ]
+      },
+      {
+        "command": "/definitely-unknown",
+        "name": "unknown",
+        "packets": [
+          {
+            "frame": {
+              "base64": "OgACNnsidGV4dCI6IsKnY1Vua25vd24gY29tbWFuZC4gVXNlIC9oZWxwIiwiY29sb3IiOiJyZWQifQA=",
+              "length": 59,
+              "sha256": "addc00c537c4d66151e4bc8f829b580fb55e932fb80fa6cd6d0db853f9bb4ef5"
+            },
+            "packet_id": 2
+          }
+        ]
+      }
+    ],
+    "email": "qa@example.test",
+    "username": "PassAuthProbe",
+    "world_expanded_bytes_through_position": 356583182,
+    "world_packet_count_through_position": 3215
+  },
+  "schema_version": 2
+}
