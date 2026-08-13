@@ -1,30 +1,72 @@
 {
-  "schema_version": 1,
-  "workspace": ".",
-  "commit": "0efdf7c567684b8ff17f08fa167728b927e5225d",
-  "target": "x86_64-unknown-linux-gnu",
-  "rustc": "rustc 1.93.1 (01f6ddf75 2026-02-11)",
-  "cargo": "cargo 1.93.1 (083ac5135 2025-12-15)",
-  "cargo_lock_sha256": "52e44f581c1b264dd0a315f4527379fd121054c8abc5c2eaeebd05a8cd4b9d4c",
   "artifact": {
+    "build_id": "c9cd0bf4e765f317cf84eac72d3f3edf3c373137",
+    "bytes": 49426552,
     "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
-    "sha256": "f6ecda559e7d24aa6b18db33fecc5195047ea62009d70150570195d3d2f86b9c",
-    "build_id": "c05decd26797ab655ca5898153aa6557e1df5029"
+    "sha256": "a464d9c3f75e985f4acb153e2567a13f6f19c79231d590b853e97402d5f0e6de"
   },
+  "cargo_lock_sha256": "52e44f581c1b264dd0a315f4527379fd121054c8abc5c2eaeebd05a8cd4b9d4c",
   "clean_builds": [
     {
-      "command": "cargo clean && cargo build -p lmyzmail --release --locked",
-      "sha256": "f6ecda559e7d24aa6b18db33fecc5195047ea62009d70150570195d3d2f86b9c"
+      "build_id": "c9cd0bf4e765f317cf84eac72d3f3edf3c373137",
+      "bytes": 49426552,
+      "command": "cargo build --frozen --release -p lmyzmail",
+      "elapsed_seconds": 184,
+      "label": "build-1",
+      "sha256": "a464d9c3f75e985f4acb153e2567a13f6f19c79231d590b853e97402d5f0e6de"
     },
     {
-      "command": "cargo clean && cargo build -p lmyzmail --release --locked",
-      "sha256": "f6ecda559e7d24aa6b18db33fecc5195047ea62009d70150570195d3d2f86b9c"
+      "build_id": "c9cd0bf4e765f317cf84eac72d3f3edf3c373137",
+      "bytes": 49426552,
+      "command": "cargo build --frozen --release -p lmyzmail",
+      "elapsed_seconds": 189,
+      "label": "build-2",
+      "sha256": "a464d9c3f75e985f4acb153e2567a13f6f19c79231d590b853e97402d5f0e6de"
     }
   ],
-  "runtime_dependency_gate": {
-    "command": "pytest -q blackbox/tests/test_native_source_provenance.py",
-    "result": "2 passed",
-    "forbidden_dynamic_dependencies": ["libskibidi", "libjvm", "libjava"],
-    "forbidden_dynamic_symbols": ["skibidi", "jvm"]
+  "commit": "be597fed4e70a57fe009dafdfda25092971b4e97",
+  "environment": {
+    "cargo_network": "frozen",
+    "independent_target_directories": true,
+    "locale": "C",
+    "timezone": "UTC"
+  },
+  "schema_version": 2,
+  "source_date_epoch": 1786604041,
+  "target": "x86_64-unknown-linux-gnu",
+  "toolchain": {
+    "cargo": "cargo 1.94.0 (85eff7c80 2026-01-15)",
+    "cc": "cc (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0",
+    "clang": "Ubuntu clang version 18.1.3 (1ubuntu1)",
+    "rustc": "rustc 1.94.0 (4a4ef493e 2026-03-02)\nbinary: rustc\ncommit-hash: 4a4ef493e3a1488c6e321570238084b38948f6db\ncommit-date: 2026-03-02\nhost: x86_64-unknown-linux-gnu\nrelease: 1.94.0\nLLVM version: 21.1.8"
+  },
+  "verification": {
+    "build_id_identical": true,
+    "byte_identical": true,
+    "forbidden_dynamic_dependencies": [
+      "libjava",
+      "libjvm",
+      "libjli"
+    ],
+    "forbidden_dynamic_symbol_prefixes": [
+      "JNI_",
+      "Java_",
+      "JVM_"
+    ],
+    "needed_dynamic_libraries": [
+      "ld-linux-x86-64.so.2",
+      "libbpf.so.1",
+      "libc.so.6",
+      "libcairo.so.2",
+      "libcap.so.2",
+      "libcrypto.so.3",
+      "libfreetype.so.6",
+      "libgcc_s.so.1",
+      "libm.so.6",
+      "libssl.so.3",
+      "libstdc++.so.6",
+      "libz.so.1"
+    ],
+    "unresolved_dynamic_dependencies": []
   }
 }
