@@ -48,7 +48,7 @@ from lmyzmail_blackbox.differential import DifferentialRunner, RuntimeTarget, Sc
 from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 
-_GOLDEN = "managed-minecraft-mail-view-v6"
+_GOLDEN = "managed-minecraft-mail-view-v7"
 _FILE_NAME = "minecraft-mail-view-v2.eml"
 _FIXTURE_RELATIVE_PATH = Path("blackbox/fixtures/minecraft/mail-view-v2.eml")
 _FIXTURE_SOURCE_SHA256 = "e4f436c626cefe7c9a5a317ed646c99b9e37c3817bac3e8b0b3fa0ff2f875ba0"
