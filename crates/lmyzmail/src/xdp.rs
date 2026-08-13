@@ -548,14 +548,19 @@ impl XdpService {
             },
             Err(error) => Err(submit_error(error)),
         };
+        self.finish_shutdown(close_result).await
+    }
+
+    async fn finish_shutdown(&self, close_result: Result<(), XdpError>) -> Result<(), XdpError> {
+        if let Err(error) = close_result {
+            self.mark_unavailable(&error);
+            return Err(error);
+        }
         let workers_drained = self.pool.shutdown(XDP_OPERATION_DRAIN_DEADLINE).await;
         let result = if workers_drained {
-            close_result
+            Ok(())
         } else {
-            Err(match close_result {
-                Ok(()) => XdpError::Timeout,
-                Err(error) => cleanup_failure(error, XdpError::Timeout),
-            })
+            Err(XdpError::Timeout)
         };
         if let Err(error) = &result {
             self.mark_unavailable(error);
@@ -2088,8 +2093,27 @@ mod tests {
         assert_eq!(XDP_UNBAN_CHUNK_SIZE, 500);
     }
 
+    #[tokio::test]
+    async fn failed_native_shutdown_keeps_worker_available_for_retry() {
+        let service = XdpService::from_config(&test_xdp_config()).unwrap();
+        let error = service
+            .finish_shutdown(Err(XdpError::Native {
+                code: -5,
+                message: "injected detach failure".into(),
+            }))
+            .await
+            .unwrap_err();
+        assert!(matches!(error, XdpError::Native { code: -5, .. }));
+
+        let retry = service.pool.submit(|| 42_u8).unwrap();
+        assert_eq!(retry.await.unwrap(), 42);
+
+        service.finish_shutdown(Ok(())).await.unwrap();
+        assert_eq!(service.pool.submit(|| ()).unwrap_err(), SubmitError::Closed);
+    }
+
     #[tokio::test(start_paused = true)]
-    async fn stalled_dispatch_marks_xdp_unavailable_and_shutdown_detaches_worker() {
+    async fn stalled_dispatch_marks_xdp_unavailable_and_shutdown_times_out() {
         let service = Arc::new(XdpService::from_config(&test_xdp_config()).unwrap());
         service.shared.ready.store(true, Ordering::Release);
         let (started_sender, started_receiver) = std::sync::mpsc::channel();
@@ -2133,11 +2157,11 @@ mod tests {
         tokio::task::yield_now().await;
         tokio::time::advance(XDP_OPERATION_DEADLINE).await;
         tokio::task::yield_now().await;
-        assert!(!shutdown.is_finished());
-        tokio::time::advance(XDP_OPERATION_DRAIN_DEADLINE).await;
-        assert!(shutdown.await.unwrap().is_err());
+        assert!(matches!(shutdown.await.unwrap(), Err(XdpError::Timeout)));
 
+        let retry_probe = service.pool.submit(|| 42_u8).unwrap();
         release_sender.send(()).unwrap();
+        assert_eq!(retry_probe.await.unwrap(), 42);
     }
 
     #[test]
