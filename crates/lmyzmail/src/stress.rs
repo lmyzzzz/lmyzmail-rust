@@ -47,6 +47,7 @@ const FILLER: &str = "The quick brown fox jumps over the lazy dog. Lorem ipsum d
 pub(crate) enum StressError {
     Disabled,
     Busy,
+    NoDomain,
     Cancelled,
     Backend,
 }
@@ -56,6 +57,7 @@ impl fmt::Display for StressError {
         match self {
             Self::Disabled => formatter.write_str("stress test endpoint is disabled"),
             Self::Busy => formatter.write_str("stress test concurrency limit reached"),
+            Self::NoDomain => formatter.write_str("no stress test domain configured"),
             Self::Cancelled => formatter.write_str("stress test cancelled"),
             Self::Backend => formatter.write_str("stress test backend unavailable"),
         }
@@ -120,7 +122,8 @@ struct RunCounters {
 
 struct StressInner {
     config: StressConfig,
-    domain: Arc<str>,
+    send_domain: Option<Arc<str>>,
+    receive_domain: Option<Arc<str>>,
     temp_dir: PathBuf,
     auth: Arc<AuthService>,
     mailbox: Arc<MailboxService>,
@@ -152,10 +155,12 @@ impl StressService {
             BODY_WORKERS,
             BODY_QUEUE_CAPACITY,
         )?);
+        let (send_domain, receive_domain) = stress_domains(config);
         Ok(Self {
             inner: Arc::new(StressInner {
                 config: config.stress.clone(),
-                domain: Arc::from(config.domain.as_str()),
+                send_domain: send_domain.map(Arc::from),
+                receive_domain: receive_domain.map(Arc::from),
                 temp_dir: config.maildir.join(".lmyzmail-stress"),
                 auth,
                 mailbox,
@@ -195,13 +200,18 @@ impl StressService {
             }
             Err(error) => return Err(io::Error::other(error)),
         }
-        let (sender, receiver) = self.addresses();
-        self.cleanup_address_result(&sender, cancellation)
-            .await
-            .map_err(io::Error::other)?;
-        self.cleanup_address_result(&receiver, cancellation)
-            .await
-            .map_err(io::Error::other)
+        let (sender, receiver) = self.optional_addresses();
+        if let Some(sender) = sender {
+            self.cleanup_address_result(&sender, cancellation)
+                .await
+                .map_err(io::Error::other)?;
+        }
+        if let Some(receiver) = receiver {
+            self.cleanup_address_result(&receiver, cancellation)
+                .await
+                .map_err(io::Error::other)?;
+        }
+        Ok(())
     }
 
     pub(crate) fn status(&self) -> Result<StressStatusResponse, StressError> {
@@ -302,7 +312,7 @@ impl StressService {
             .clone()
             .try_acquire_owned()
             .map_err(|_| StressError::Busy)?;
-        let (sender, receiver) = self.addresses();
+        let (sender, receiver) = self.addresses().ok_or(StressError::NoDomain)?;
         self.cleanup_address(&sender, cancellation).await;
         self.cleanup_address(&receiver, cancellation).await;
         Ok(StressCleanupResponse {
@@ -346,13 +356,21 @@ impl StressService {
             <= IN_MEMORY_THRESHOLD_BYTES
     }
 
-    fn addresses(&self) -> (String, String) {
+    fn addresses(&self) -> Option<(String, String)> {
+        let (sender, receiver) = self.optional_addresses();
+        Some((sender?, receiver?))
+    }
+
+    fn optional_addresses(&self) -> (Option<String>, Option<String>) {
         (
-            format!("{}@{}", self.inner.config.sender_prefix, self.inner.domain),
-            format!(
-                "{}@{}",
-                self.inner.config.receiver_prefix, self.inner.domain
-            ),
+            self.inner
+                .send_domain
+                .as_deref()
+                .map(|domain| format!("{}@{domain}", self.inner.config.sender_prefix)),
+            self.inner
+                .receive_domain
+                .as_deref()
+                .map(|domain| format!("{}@{domain}", self.inner.config.receiver_prefix)),
         )
     }
 
@@ -408,7 +426,13 @@ async fn run_stress(
     let service = StressService {
         inner: Arc::clone(&inner),
     };
-    let (sender, receiver) = service.addresses();
+    let Some((sender, receiver)) = service.addresses() else {
+        eprintln!(
+            "lmyzmail stress round {} failed before completion: no stress test domain configured",
+            round.wrapping_add(1)
+        );
+        return;
+    };
     let cancellation = inner.cancellation.child_token();
     let mode = if warmup { "WARMUP" } else { "PRODUCTION" };
     let started = Instant::now();
@@ -599,6 +623,13 @@ async fn run_stress(
             round.wrapping_add(1)
         );
     }
+}
+
+fn stress_domains(config: &RuntimeConfig) -> (Option<&str>, Option<&str>) {
+    (
+        config.sendable_domains().first().copied(),
+        config.receivable_domains().first().copied(),
+    )
 }
 
 async fn ensure_mailbox(
@@ -1090,6 +1121,7 @@ impl From<OutboundError> for StressError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::Properties;
 
     #[test]
     fn concurrency_matches_frozen_thresholds() {
@@ -1099,6 +1131,57 @@ mod tests {
         assert_eq!(max_concurrency(1_000), 200);
         assert_eq!(max_concurrency(5_000), 120);
         assert_eq!(max_concurrency(10_000), 80);
+    }
+
+    #[test]
+    fn stress_uses_first_send_and_receive_domains_independently() {
+        let config = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"lmyzmail.domain=fallback.example.test\n\
+botmail.domains.primary.domain=example.test\n\
+botmail.domains.primary.receiveEnabled=false\n\
+botmail.domains.primary.sendEnabled=false\n\
+botmail.domains.second.domain=receive.example.test\n\
+botmail.domains.second.receiveEnabled=true\n\
+botmail.domains.second.sendEnabled=false\n\
+botmail.domains.send.domain=send.example.test\n\
+botmail.domains.send.receiveEnabled=false\n\
+botmail.domains.send.sendEnabled=true\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            stress_domains(&config),
+            (Some("send.example.test"), Some("receive.example.test"))
+        );
+    }
+
+    #[test]
+    fn stress_uses_primary_domain_when_no_domain_map_is_configured() {
+        let config = RuntimeConfig::from_properties(
+            Properties::parse(b"lmyzmail.domain=fallback.example.test\n").unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            stress_domains(&config),
+            (Some("fallback.example.test"), Some("fallback.example.test"))
+        );
+    }
+
+    #[test]
+    fn stress_does_not_fall_back_when_configured_domains_are_disabled() {
+        let config = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"lmyzmail.domain=fallback.example.test\n\
+botmail.domains.main.domain=disabled.example.test\n\
+botmail.domains.main.receiveEnabled=false\n\
+botmail.domains.main.sendEnabled=false\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(stress_domains(&config), (None, None),);
     }
 
     #[test]

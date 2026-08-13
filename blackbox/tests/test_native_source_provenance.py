@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-import subprocess
 import shutil
+import subprocess
 from pathlib import Path
 
 _FROZEN_COMMIT = "4bc484c15b780d578ee8e53cab968f2819958215"

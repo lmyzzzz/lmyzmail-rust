@@ -657,7 +657,7 @@ async fn handle_connection(
                 )
                 .await
             }
-            Err(StressError::Cancelled | StressError::Backend) => {
+            Err(StressError::NoDomain | StressError::Cancelled | StressError::Backend) => {
                 write_json_error(stream, Status::InternalServerError, "stress_unavailable").await
             }
         },
@@ -707,6 +707,15 @@ async fn handle_connection(
                     stream,
                     Status::ServiceUnavailable,
                     br#"{"error":"busy","message":"A stress test is already running."}"#,
+                    "application/json; charset=UTF-8",
+                )
+                .await
+            }
+            Err(StressError::NoDomain) => {
+                write_response(
+                    stream,
+                    Status::BadRequest,
+                    br#"{"error":"No domain configured"}"#,
                     "application/json; charset=UTF-8",
                 )
                 .await

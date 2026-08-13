@@ -812,13 +812,15 @@ incrementally into the durable spool. The frozen PostgreSQL `body_text` value
 still requires one bounded UTF-8 materialization at the database parameter
 boundary; no second full body copy is retained by the stress service.
 
-The active stress goldens attest only the managed singleton domain
-`example.test`. In a multi-domain Java configuration, the sender uses the
-first send-enabled domain and the receiver independently uses the first
+The managed multi-domain goldens cover stress selection as well as the HTTP and
+SMTP surfaces. In a multi-domain Java configuration, the sender uses the first
+send-enabled domain and the receiver independently uses the first
 receive-enabled domain in Java `HashMap` iteration order, so the two domains
-can differ. The current Rust runtime still exposes one scalar domain to stress
-and other subsystems. Full multi-domain configuration and selection parity is
-therefore unresolved goal scope, not an approved behavior difference.
+can differ. Rust reuses the same configuration order helper for stress and
+preserves the scalar primary-domain fallback only when no domain map is
+configured. If a configured domain map has no enabled sender or receiver,
+`/api/stress/start` is accepted and its background round fails, while manual
+`/api/stress/cleanup` returns Java's `400 {"error":"No domain configured"}`.
 
 The candidate clamps the same warmup and email-size inputs as Java. It also
 enforces the approved `stress-resource-and-input-bounds` difference: production

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -19,7 +20,7 @@ from lmyzmail_blackbox.runtime import API_KEY, CandidateRuntime
 from lmyzmail_blackbox.smtp_contract import open_smtp_client, smtp_ehlo, smtp_reply_snapshot
 from lmyzmail_blackbox.snapshots import HeaderRule, http_json_snapshot
 
-_GOLDEN = "managed-java-multi-domain-v8"
+_GOLDEN = "managed-java-multi-domain-v10"
 _PROFILE = "managed-java-multi-domain"
 
 _PASSWORD_HASH = (
@@ -30,6 +31,7 @@ _OUTBOUND_SENDERS = (
     "outbound-second@second.example.test",
     "outbound-send-only@send-only.example.test",
     "outbound-unknown@unknown.example.test",
+    "multi-stress-sender@send-only.example.test",
 )
 
 
@@ -140,6 +142,17 @@ class _MultiDomainCandidateRuntime(CandidateRuntime):
                 "require_existing_mailbox": False,
             },
         ]
+        value["stress"] = {
+            "enabled": True,
+            "sender_prefix": "multi-stress-sender",
+            "receiver_prefix": "multi-stress-receiver",
+            "password": "StressBlackboxPass123!",
+            "production_count": 1,
+            "warmup_count": 1,
+            "warmup_rounds": 1,
+            "email_size_kb": 1,
+        }
+        value["limits"]["outbound_poll_interval_ms"] = 60_000
         path.write_text(
             json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
             encoding="utf-8",
@@ -307,6 +320,77 @@ def _capture_outbound_admission(target: RuntimeTarget) -> dict[str, Any]:
     }
 
 
+def _capture_stress_multi_domain(target: RuntimeTarget) -> dict[str, Any]:
+    assert target.ports is not None
+    started = _http_json(target, "POST", "/api/stress/start")
+    deadline = time.monotonic() + 20.0
+    row: tuple[str, str] | None = None
+    with psycopg.connect(
+        host="127.0.0.1",
+        port=target.ports.postgres,
+        dbname="lmyzmail",
+        user="lmyzmail_test",
+        password="",
+        connect_timeout=3,
+        autocommit=True,
+    ) as connection:
+        while time.monotonic() < deadline:
+            result = connection.execute(
+                "SELECT sender_address,recipients_json FROM outbound_mail_queue "
+                "WHERE sender_address LIKE %s ORDER BY id DESC LIMIT 1",
+                ("multi-stress-sender@%",),
+            ).fetchone()
+            if result is not None:
+                row = (str(result[0]), str(result[1]))
+                break
+            time.sleep(0.05)
+    if row is None:
+        raise AssertionError("stress start did not publish a multi-domain queue row")
+    sender, recipients_json = row
+    return {
+        "started": started,
+        "queue": {
+            "sender": sender,
+            "recipients": json.loads(recipients_json),
+        },
+    }
+
+
+class _MultiDomainStressJavaRuntime(_MultiDomainJavaRuntime):
+    def _application_arguments(self) -> list[str]:
+        return [
+            *super()._application_arguments(),
+            "--botmail.stress-test-enabled=true",
+            "--botmail.stress-test-sender-prefix=multi-stress-sender",
+            "--botmail.stress-test-receiver-prefix=multi-stress-receiver",
+            "--botmail.stress-test-password=StressBlackboxPass123!",
+            "--botmail.stress-test-count=1",
+            "--botmail.stress-test-warmup-count=1",
+            "--botmail.stress-test-warmup-rounds=1",
+            "--botmail.stress-test-email-size-kb=1",
+            "--botmail.queue.poll-interval-ms=60000",
+        ]
+
+
+STRESS_SCENARIOS = (
+    Scenario(
+        "config/multi-domain-stress-selection",
+        _capture_stress_multi_domain,
+        contract={
+            "protocol": "HTTP/1.1 plus isolated PostgreSQL",
+            "coverage": [
+                "stress start route",
+                "first send-enabled Java HashMap domain",
+                "first receive-enabled Java HashMap domain",
+                "sender and receiver domains may differ",
+            ],
+            "expected_sender_domain": "send-only.example.test",
+            "expected_receiver_domain": "example.test",
+        },
+    ),
+)
+
+
 SCENARIOS = (
     Scenario(
         "config/multi-domain-surface",
@@ -332,6 +416,7 @@ SCENARIOS = (
             "duplicate_normalized_domain": "second.example.test",
         },
     ),
+    *STRESS_SCENARIOS,
 )
 
 
@@ -346,7 +431,7 @@ def test_java_multi_domain_golden(tmp_path: Path) -> None:
         _PROFILE,
         record_java=os.environ.get("LMYZMAIL_RECORD_JAVA_GOLDEN") == "1",
     )
-    with _MultiDomainJavaRuntime(tmp_path / "java-multi-domain") as oracle:
+    with _MultiDomainStressJavaRuntime(tmp_path / "java-multi-domain") as oracle:
         if runner.record_java:
             runner.record_from_java(SCENARIOS, _Target(oracle))
         else:

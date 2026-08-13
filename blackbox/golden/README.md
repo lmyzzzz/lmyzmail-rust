@@ -1274,12 +1274,24 @@ One fresh isolated Java run created all five sets and a further fresh-JVM run
 replayed them (`5 passed` each). The locked Linux x86_64 Rust release matched
 all three parity profiles and passed both intentional race differences
 (`5 passed`); the four grouped candidate fault tests also passed. The active
-goldens attest only the managed singleton domain `example.test`; Java's
-independent send-enabled and receive-enabled `HashMap` domain selection remains
-unresolved multi-domain goal scope rather than an approved difference. Every
-earlier stress recording remains immutable, including v4/v4/v2/v3/v2 under
+singleton-domain goldens are supplemented by
+`managed-java-multi-domain-v10/`. Its stress scenario freezes Java's
+independent `HashMap` selections as sender
+`multi-stress-sender@send-only.example.test` and receiver
+`multi-stress-receiver@example.test`, observed in the durable PostgreSQL queue.
+The same locked Rust release matched both the retained multi-domain surface and
+the new stress scenario, and a fresh JVM replayed v10. Every earlier stress
+recording remains immutable, including v4/v4/v2/v3/v2 under
 definition tree
 `490dbc14e23ebe77c057039f09447d67ec04fc69febae04a70a14f41ea1f17e9`.
+
+`managed-java-multi-domain-v9/` is an immutable, incomplete recording and is
+not active evidence. It discovered that Java selected the send-only stress
+sender correctly but then failed while trying to create that non-receivable
+mailbox, before publishing a queue row. V10 seeds the already-existing sender
+mailbox as legacy state and records the full external queue contract. V8 and
+all other earlier multi-domain generations remain unchanged historical
+evidence.
 
 The active external-sender DKIM sets are:
 

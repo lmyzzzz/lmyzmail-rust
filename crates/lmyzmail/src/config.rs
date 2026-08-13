@@ -2094,7 +2094,12 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         // stable entry name when converting semantic JSON so legacy
         // `botmail.domains.main.*` CLI overlays still target the primary
         // domain instead of being silently ignored beside `json0`.
-        let prefix = if domain.domain.trim().trim_end_matches('.').eq_ignore_ascii_case(&primary_domain) {
+        let prefix = if domain
+            .domain
+            .trim()
+            .trim_end_matches('.')
+            .eq_ignore_ascii_case(&primary_domain)
+        {
             "lmyzmail.domains.main".to_owned()
         } else {
             format!("lmyzmail.domains.json{index}")
@@ -6136,7 +6141,9 @@ fn parse_domain_configs(
             &[&format!("{old_prefix}domain")],
         )
         .or_else(|| (entry == "main").then_some(primary_domain));
-        let Some(raw_domain) = raw_domain else { continue };
+        let Some(raw_domain) = raw_domain else {
+            continue;
+        };
         if raw_domain.trim().is_empty() {
             continue;
         }

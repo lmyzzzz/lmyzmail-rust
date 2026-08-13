@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "profile": "stress-multi-domain-v1",
+  "captured_at": "2026-08-13T20:15:29+08:00",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc",
+    "initial_pre_freeze_verified_jar_sha256": "040bfa648cd0b3a1826ca61811dd6c71c8f2bd906578392f914020eb766fb70e"
+  },
+  "contract": {
+    "sender_selection": "first send-enabled domain in Java HashMap entrySet bucket order",
+    "receiver_selection": "first receive-enabled domain in Java HashMap entrySet bucket order",
+    "sender_address": "multi-stress-sender@send-only.example.test",
+    "receiver_address": "multi-stress-receiver@example.test",
+    "selection_is_independent": true,
+    "implicit_domain_fallback": "primary domain when no explicit domain map exists",
+    "all_explicit_domains_disabled": {
+      "start": "accepts and increments the round before the background run fails, matching Java timing",
+      "cleanup": "400 with exact JSON body {\"error\":\"No domain configured\"}"
+    },
+    "startup_recovery": "cleans known sender and receiver independently",
+    "postgres_schema_changed": false,
+    "redis_key_or_ttl_changed": false,
+    "java_runtime_dependency": false
+  },
+  "golden": {
+    "active": {
+      "path": "blackbox/golden/java/managed-java-multi-domain-v10",
+      "definition_tree_sha256": "aad798e9bb2644e60a02dcee189d7469de8cb46343669eed7b5c76354bf93190",
+      "suite_sha256": "506f8419b11133d5d9cf257a4046739b8aea2097eb5a4b5c60ae1cd63175399c",
+      "observation_sha256": {
+        "multi-domain-surface.json": "0f1483619819cb46c62042df30ff684fb1e05ed61390be8f6881643200b6f0b0",
+        "multi-domain-stress-selection.json": "8b17edc1d1ab13e8719ff8ba0f30ec1b00c28484261f6c8f9c99e455622672b4"
+      }
+    },
+    "inactive_discovery_generation": {
+      "path": "blackbox/golden/java/managed-java-multi-domain-v9",
+      "suite_sha256": "8565b5774be3562dff0cb35daffd4ceb579c2ae9148cb0d10c5b01231ac221ec",
+      "active": false,
+      "reason": "Java selected the send-only sender but attempted to create its non-receivable mailbox before publishing a queue row",
+      "resolution": "v10 seeds the legacy sender mailbox and records the complete durable queue contract"
+    },
+    "previous_generations_retained": true,
+    "previous_generations_modified": false
+  },
+  "source_sha256": {
+    "Cargo.lock": "52e44f581c1b264dd0a315f4527379fd121054c8abc5c2eaeebd05a8cd4b9d4c",
+    "crates/lmyzmail/src/config.rs": "61a31ff6a00145b81c74e9e87fa984cc7852f4e8fee5e2db497935b003b7099a",
+    "crates/lmyzmail/src/http.rs": "9a088d75476fdbde2db53aa0724c7cf0b7f6bfda125afe90f8a3e9646cf65c62",
+    "crates/lmyzmail/src/stress.rs": "3a8a70e0b43c85b22af6fee72bcb892b56a23904ca8e1c00714bc43c8f93807d",
+    "blackbox/tools/test_java_multi_domain.py": "e7081224703082423c31f422601a77e4a8a281ec1103c2a660d2415fb1448d73",
+    "docs/compatibility.md": "7a2e637a342130ac8201542623b23c6899b49b034e10eb906934b4b14b5f89ae",
+    "blackbox/golden/README.md": "403636f00f0ed2fe5d9e54ee613d4a8b530698ea5cf1f17950e24e0377480d22"
+  },
+  "release": {
+    "command": "cargo build --release --locked",
+    "runtime": "stable-rust-1.94.0",
+    "target": "x86_64-unknown-linux-gnu",
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "d28ca179765136fd6d053691329ddda926afc3c7c7af993edbfdfd163c212517"
+  },
+  "verification": [
+    {
+      "gate": "Java v10 create-once recording",
+      "result": "1 passed in 17.65s"
+    },
+    {
+      "gate": "fresh-JVM Java v10 replay",
+      "result": "1 passed in 17.85s"
+    },
+    {
+      "gate": "final locked Rust release against v10",
+      "result": "1 passed in 1.98s"
+    },
+    {
+      "gate": "targeted stress Rust tests",
+      "result": "14 passed"
+    },
+    {
+      "gate": "cargo test --workspace --all-features --frozen",
+      "result": "passed on the final source; 562 library tests plus binary and all integration targets"
+    },
+    {
+      "gate": "cargo clippy --workspace --all-targets --all-features --frozen -- -D warnings",
+      "result": "passed; only existing vendored Gumbo C compiler warnings were emitted"
+    },
+    {
+      "gate": "cargo fmt --all -- --check",
+      "result": "passed"
+    },
+    {
+      "gate": "cargo build --release --locked",
+      "result": "passed in 1m 29s"
+    }
+  ],
+  "failed_gate_history": [
+    {
+      "gate": "first multi-domain stress recording",
+      "failure": "the Java sender mailbox creation failed because the selected sender domain was send-only",
+      "outcome": "v9 was retained unchanged as inactive discovery evidence; v10 seeded the existing legacy mailbox"
+    },
+    {
+      "gate": "first full workspace test run",
+      "failure": "maintenance_retains_removed_sidecar_until_redis_ack_is_proven did not obtain its PostgreSQL fixture within ten seconds",
+      "outcome": "the unchanged targeted test passed twice and a subsequent unchanged full workspace run passed"
+    }
+  ],
+  "attestation_scope": {
+    "milestone_current": true,
+    "older_goldens_modified": false,
+    "frozen_repositories_modified": false,
+    "windows_delivery_tree_synced": false,
+    "full_project_goal_complete": false
+  }
+}
