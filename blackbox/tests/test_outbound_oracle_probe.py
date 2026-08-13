@@ -6,6 +6,7 @@ from lmyzmail_blackbox.outbound_oracle_probe import (
     _normalize_message,
     _normalize_retry_deadlines,
     _normalize_task_ttl,
+    _scoped_sent_index,
 )
 
 
@@ -55,6 +56,33 @@ def test_outbound_task_ttl_rejects_missing_unbounded_or_invalid_expiry(
 ) -> None:
     with pytest.raises(AssertionError, match="outside the seven-day observation window"):
         _normalize_task_ttl(ttl_seconds)
+
+
+def test_outbound_scoped_sent_index_ignores_unrelated_legacy_entries() -> None:
+    assert (
+        _scoped_sent_index(
+            {
+                b"legacy-sent.eml": b"2101",
+                b"malformed": b"not-a-task-id",
+            },
+            {3101: "small", 3102: "large"},
+        )
+        == {}
+    )
+
+
+def test_outbound_scoped_sent_index_retains_each_unsettled_task() -> None:
+    assert _scoped_sent_index(
+        {
+            b"generated-small.eml": b"3101",
+            b"generated-large.eml": b"3102",
+            b"legacy-sent.eml": b"2101",
+        },
+        {3101: "small", 3102: "large"},
+    ) == {
+        "generated:small": "small",
+        "generated:large": "large",
+    }
 
 
 def test_outbound_retry_deadlines_normalize_only_bounded_wall_clock_jitter() -> None:

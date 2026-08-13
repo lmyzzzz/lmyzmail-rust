@@ -20,7 +20,7 @@ from lmyzmail_blackbox.runtime import API_KEY, CandidateRuntime
 from lmyzmail_blackbox.smtp_contract import open_smtp_client, smtp_ehlo, smtp_reply_snapshot
 from lmyzmail_blackbox.snapshots import HeaderRule, http_json_snapshot
 
-_GOLDEN = "managed-java-multi-domain-v11"
+_GOLDEN = "managed-java-multi-domain-v12"
 _PROFILE = "managed-java-multi-domain"
 
 _PASSWORD_HASH = (

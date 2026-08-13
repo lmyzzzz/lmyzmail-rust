@@ -16,8 +16,8 @@ from lmyzmail_blackbox.protocols import build_http_request, connect_bounded, rea
 from lmyzmail_blackbox.runtime import CandidateRuntime, JavaOracleRuntime
 
 _PROFILE = "managed-htcpcp"
-_GOLDEN = "blackbox/golden/java/managed-htcpcp-v18"
-_ORACLE_EVIDENCE_GOLDEN = "blackbox/golden/java/managed-htcpcp-oracle-evidence-v15"
+_GOLDEN = "blackbox/golden/java/managed-htcpcp-v19"
+_ORACLE_EVIDENCE_GOLDEN = "blackbox/golden/java/managed-htcpcp-oracle-evidence-v16"
 
 
 class _RestartableJavaRuntime(JavaOracleRuntime):

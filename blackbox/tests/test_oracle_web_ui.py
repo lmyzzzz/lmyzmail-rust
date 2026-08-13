@@ -10,7 +10,7 @@ from lmyzmail_blackbox.runtime import CandidateRuntime, JavaOracleRuntime
 from lmyzmail_blackbox.web_ui_contract import WEB_UI_CONTRACT, WebUiCapture, capture_web_ui
 
 _PROFILE = "managed-web-ui"
-_GOLDEN_VERSION = "managed-web-ui-v8"
+_GOLDEN_VERSION = "managed-web-ui-v9"
 _NORMALIZERS = (
     "playwright:chromium-1181",
     "locale:zh-CN",

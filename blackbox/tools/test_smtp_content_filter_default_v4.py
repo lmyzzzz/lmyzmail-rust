@@ -11,7 +11,7 @@ from lmyzmail_blackbox.differential import DifferentialRunner
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
 import test_oracle_smtp_content_filter_default as base  # noqa: E402
 
-_GOLDEN = "managed-smtp-content-filter-default-v12"
+_GOLDEN = "managed-smtp-content-filter-default-v13"
 _PROFILE = "managed-smtp-content-filter-default-v4"
 
 

@@ -28,7 +28,7 @@ from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-main-menu-v7"
+_GOLDEN = "managed-minecraft-main-menu-v8"
 _MENU_IDS = (0x2D, 0x30)
 
 

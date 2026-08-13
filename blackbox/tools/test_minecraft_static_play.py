@@ -22,7 +22,7 @@ from lmyzmail_blackbox.ports import PortSet
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-static-play-v7"
+_GOLDEN = "managed-minecraft-static-play-v8"
 _USERNAME_TEXT = "StaticPlayProbe"
 _USERNAME = _USERNAME_TEXT.encode()
 _INITIAL_PLAY_IDS = (0x01, 0x41, 0x05, 0x39, 0x03, 0x06, 0x09)

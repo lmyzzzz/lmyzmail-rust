@@ -30,7 +30,7 @@ from lmyzmail_blackbox.differential import DifferentialRunner, RuntimeTarget, Sc
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-draft-editing-v2"
+_GOLDEN = "managed-minecraft-draft-editing-v3"
 _SIGN_POSITIONS = {
     "to": (2, 161, 3),
     "cc": (4, 161, 3),

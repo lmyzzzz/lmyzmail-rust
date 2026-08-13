@@ -303,7 +303,7 @@ def _assert_golden(repository: Path, observed: dict[str, Any], *, record: bool) 
         normalizers=_NORMALIZERS,
     )
     GoldenStore(
-        repository / "blackbox/golden/java/managed-reports-scheduler-v5",
+        repository / "blackbox/golden/java/managed-reports-scheduler-v6",
         attestation,
         record=record,
     ).assert_observation("observation.json", observed)
@@ -321,7 +321,7 @@ def _assert_restart_golden(
         normalizers=(),
     )
     GoldenStore(
-        repository / "blackbox/golden/java/managed-reports-scheduler-restart-v4",
+        repository / "blackbox/golden/java/managed-reports-scheduler-restart-v5",
         attestation,
         record=record,
     ).assert_observation("observation.json", observed)

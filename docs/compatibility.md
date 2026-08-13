@@ -965,7 +965,7 @@ frame or an owned asynchronous response write; handshake and login retain one
 absolute deadline. Disconnect and shutdown drop and cancel every pending outbound
 future and drain it within the listener's fixed bound.
 
-The active normal profile is `managed-minecraft-outbound-v7`; v1 through v6 are
+The active normal profile target is `managed-minecraft-outbound-v8`; v1 through v7 are
 immutable history. It proves validation, address and MIME bytes, success and
 permanent failure chat, draft clearing/preservation, reconnect restoration,
 PostgreSQL terminal archive semantics, Redis worklist acknowledgement, Maildir,
@@ -976,7 +976,7 @@ one raw socket write launch two executor jobs, persist two rows, deliver two SMT
 messages, and create two sent files. Rust intentionally permits only one pending
 send per connection and answers the second click with
 `§cEmail send already in progress.` The Java-only evidence profile
-`managed-minecraft-outbound-duplicate-oracle-evidence-v5` and candidate assertions
+`managed-minecraft-outbound-duplicate-oracle-evidence-v6` and candidate assertions
 bind this difference to `minecraft-outbound-overlapping-send-admission` in the
 reviewed behavior-difference manifest. The initial v1 evidence recording is
 retained unchanged after the candidate worklist assertion changed the attested

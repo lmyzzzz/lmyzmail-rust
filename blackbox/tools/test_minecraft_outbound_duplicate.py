@@ -43,7 +43,7 @@ from lmyzmail_blackbox.outbound_oracle_probe import (
 from lmyzmail_blackbox.runtime import QA_ADDRESS
 from lmyzmail_blackbox.scripted_smtp import ScriptedSmtpServer, SmtpScenario
 
-_PROFILE = "managed-minecraft-outbound-duplicate-oracle-evidence-v5"
+_PROFILE = "managed-minecraft-outbound-duplicate-oracle-evidence-v6"
 _USERNAME = b"DuplicateSender"
 _EXPECTED_ROWS = {"java": 2, "candidate": 1}
 

@@ -25,7 +25,7 @@ from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-time-update-v7"
+_GOLDEN = "managed-minecraft-time-update-v8"
 _USERNAME = b"TimeUpdateProbe"
 _TICKS = 7
 _HOLOGRAM_TICK_IDS = (0x18,) * 7

@@ -339,6 +339,26 @@ def _normalize_task_ttl(ttl_seconds: int) -> int:
     return _TASK_TTL_SECONDS
 
 
+def _scoped_sent_index(
+    sent_index_values: dict[bytes, bytes],
+    ids: dict[int, str],
+) -> dict[str, str]:
+    expected = frozenset(ids.values())
+    sent_index: dict[str, str] = {}
+    for _filename, value in sent_index_values.items():
+        if not value.decode("ascii", errors="ignore").isdigit():
+            continue
+        logical = _logical_id(int(value), ids)
+        if logical not in expected:
+            continue
+        # Java embeds wall-clock time and a process-local counter in generated
+        # sent filenames. The task-to-file relation is stable and is asserted
+        # through the normalized key.
+        normalized_key = f"generated:{logical}"
+        sent_index[normalized_key] = logical
+    return sent_index
+
+
 def _redis_snapshot(client: redis.Redis, ids: dict[int, str]) -> dict[str, Any]:
     expected = frozenset(ids.values())
     pending_values = cast(list[bytes], client.lrange(_REDIS_PREFIX + "pending", 0, -1))
@@ -372,18 +392,7 @@ def _redis_snapshot(client: redis.Redis, ids: dict[int, str]) -> dict[str, Any]:
     archive = client.llen(_REDIS_PREFIX + "archive")
     status_updates = client.llen(_REDIS_PREFIX + "status_updates")
     sent_index_values = cast(dict[bytes, bytes], client.hgetall(_REDIS_PREFIX + "sentfile_index"))
-    sent_index: dict[str, str] = {}
-    for _filename, value in sent_index_values.items():
-        if not value.decode("ascii", errors="ignore").isdigit():
-            continue
-        logical = _logical_id(int(value), ids)
-        if logical not in expected:
-            continue
-        # Java embeds wall-clock time and a process-local counter in generated
-        # sent filenames. The task-to-file relation is stable and is asserted
-        # through the normalized key.
-        normalized_key = f"generated:{logical}"
-        sent_index[normalized_key] = logical
+    sent_index = _scoped_sent_index(sent_index_values, ids)
     tasks: dict[str, Any] = {}
     for task_id, logical in ids.items():
         task_key = f"{_REDIS_PREFIX}task:{task_id}"
@@ -649,6 +658,17 @@ def _capture_runtime(
             and redis_client.scard(_REDIS_PREFIX + "processing") == 0,
             timeout=10.0,
             description="outbound Redis acknowledgement",
+        )
+        _wait_until(
+            lambda: not _scoped_sent_index(
+                cast(
+                    dict[bytes, bytes],
+                    redis_client.hgetall(_REDIS_PREFIX + "sentfile_index"),
+                ),
+                ids,
+            ),
+            timeout=10.0,
+            description="outbound sent-file-index cleanup",
         )
         post: dict[str, Any] = {
             "redis": _redis_snapshot(redis_client, ids),

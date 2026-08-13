@@ -29,6 +29,6 @@ def test_rust_candidate_xdp_disabled_matches_frozen_java() -> None:
     with candidate:
         DifferentialRunner(
             repository,
-            repository / "blackbox/golden/java/managed-xdp-disabled-v8",
+            repository / "blackbox/golden/java/managed-xdp-disabled-v9",
             "managed-xdp-disabled",
         ).verify_candidate(XDP_SCENARIOS, candidate)

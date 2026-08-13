@@ -19,8 +19,10 @@ inputs, and must never be overwritten in place.
   difference was added to the harness's strict manifest-ID assertion.
 - `managed-minecraft-outbound-v6.json` is retained after the complete
   definition tree advanced for the reviewed strict difference-ID assertion.
-- `managed-minecraft-outbound-v7.json` is the active normal profile under the
-  repeated-click and complete DSN-DNS harness definition. It retains exact validation, SMTP, queue,
+- `managed-minecraft-outbound-v7.json` is retained after the terminal outbound
+  snapshot race was removed from the complete definition tree.
+- `managed-minecraft-outbound-v8.json` is the active normal profile target under
+  the repeated-click and complete DSN-DNS harness definition. It retains exact validation, SMTP, queue,
   terminal payload clearing, Redis, Maildir, and draft lifecycle requirements.
 - `managed-minecraft-outbound-duplicate-oracle-evidence-v1.json` is the first
   immutable Java-only recording of the duplicate-send race. It is retained after
@@ -33,8 +35,11 @@ inputs, and must never be overwritten in place.
 - `managed-minecraft-outbound-duplicate-oracle-evidence-v4.json` is retained
   after the complete definition tree advanced for the reviewed strict
   difference-ID assertion.
-- `managed-minecraft-outbound-duplicate-oracle-evidence-v5.json` is the active
-  Java-only evidence profile. Two coalesced C08 packets must produce two queue
+- `managed-minecraft-outbound-duplicate-oracle-evidence-v5.json` is retained
+  after the terminal outbound snapshot race was removed from the complete
+  definition tree.
+- `managed-minecraft-outbound-duplicate-oracle-evidence-v6.json` is the active
+  Java-only evidence profile target. Two coalesced C08 packets must produce two queue
   rows, two SMTP attempts, and two sent files in the oracle. Candidate tests do
   not consume that behavior as an expectation; they require one admitted send
   and one exact `§cEmail send already in progress.` response instead.
@@ -1185,6 +1190,17 @@ TTL observation window are normalized. One isolated Java runtime created v35,
 a fresh Java runtime replayed it, and the locked Linux x86_64 Rust release
 matched it in a separate candidate environment. Versions v1 through v34
 remain immutable history.
+
+`managed-outbound-queue-v39.json` is an immutable partial re-attestation
+recording under definition tree
+`f084436dd6f57d919a7bc17b060bbb7287ced0c61305d39aaa280789d55dac68`.
+Its create-once run observed one scoped `sentfile_index` entry after PostgreSQL
+and the Redis worklists were terminal, while a fresh JVM replay and an
+independent third probe both observed that entry already removed. Every other
+field was identical. V39 therefore records a terminal-snapshot race and is not
+an active candidate expectation. The harness now waits for all four scoped
+sent-file-index entries to disappear; `managed-outbound-queue-v40.json` is the
+next active create-once target. V39 is not overwritten or deleted.
 
 The retained outbound permanent-failure generations are:
 

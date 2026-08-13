@@ -107,7 +107,7 @@ class _DkimCandidateRuntime(CandidateRuntime):
 def _runner(repository: Path, *, record_java: bool = False) -> DifferentialRunner:
     return DifferentialRunner(
         repository,
-        repository / "blackbox/golden/java/managed-smtp-dkim-v8",
+        repository / "blackbox/golden/java/managed-smtp-dkim-v9",
         "managed-smtp-dkim",
         record_java=record_java,
     )
@@ -118,7 +118,7 @@ def _identity_evidence_runner(
 ) -> DifferentialRunner:
     return DifferentialRunner(
         repository,
-        repository / "blackbox/golden/java/managed-smtp-dkim-identity-oracle-evidence-v4",
+        repository / "blackbox/golden/java/managed-smtp-dkim-identity-oracle-evidence-v5",
         "managed-smtp-dkim-identity-oracle-evidence",
         record_java=record_java,
     )
