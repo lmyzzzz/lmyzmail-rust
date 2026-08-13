@@ -98,7 +98,7 @@ class _DmarcCandidateRuntime(CandidateRuntime):
 def _runner(repository: Path, *, record_java: bool = False) -> DifferentialRunner:
     return DifferentialRunner(
         repository,
-        repository / "blackbox/golden/java/managed-smtp-dmarc-v3",
+        repository / "blackbox/golden/java/managed-smtp-dmarc-v4",
         "managed-smtp-dmarc",
         record_java=record_java,
     )

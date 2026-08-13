@@ -1,0 +1,403 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "cde740f7b8d13589b12c3a82bdf7a65fb4a0137026e87749137042f74823fccf",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "smtp:greeting-skibidi-grammar",
+      "smtp:server-hostname",
+      "smtp:session-id",
+      "maildir:generated-filename",
+      "maildir:server-hostname",
+      "maildir:received-id",
+      "maildir:received-at",
+      "postgres:identity-timestamps-and-hostname-derived-size",
+      "dns:nxdomain-retry-count"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-smtp-dmarc"
+  },
+  "observation": {
+    "cases": [
+      {
+        "authenticated_mechanism": "dkim",
+        "delivery": {
+          "mode": "data",
+          "storage": {
+            "maildir": {
+              "new_regular_files": 1,
+              "orphan_files": 0,
+              "path": "qa@example.test/inbox/1/<generated>.eml",
+              "preexisting_files_unchanged": true,
+              "raw": {
+                "base64": "UmVjZWl2ZWQ6IGZyb20gYmxhY2tib3guZXhhbXBsZSAodW52ZXJpZmllZCBbMTI3LjAuMC43MF0pDQoJYnkgPGhvc3RuYW1lPiB3aXRoIEVTTVRQIGlkIDxyZWNlaXZlZC1pZD4NCglmb3IgPHFhQGV4YW1wbGUudGVzdD47DQoJPHJlY2VpdmVkLWF0Pg0KQXV0aGVudGljYXRpb24tUmVzdWx0czogPGhvc3RuYW1lPjsNCglzcGY9bm9uZSAoTm8gTUFJTCBGUk9NIGFkZHJlc3MpIHNtdHAuY2xpZW50LWlwPTEyNy4wLjAuNzAgc210cC5tYWlsZnJvbT07DQoJZGtpbT1wYXNzIChES0lNIHNpZ25hdHVyZSB2ZXJpZmllZCBmb3IgZGtpbS5ibGFja2JveC1leGFtcGxlLmNvbSk7DQoJZG1hcmM9cGFzcyAocD1xdWFyYW50aW5lKSBETUFSQyBwYXNzZWQ6IERLSU0gYWxpZ25lZA0KWC1TcGFtLVN0YXR1czogTm8NClgtU3BhbS1TY29yZTogMC4wDQpES0lNLVNpZ25hdHVyZTogdj0xOyBhPXJzYS1zaGEyNTY7IGM9cmVsYXhlZC9zaW1wbGU7IGQ9ZGtpbS5ibGFja2JveC1leGFtcGxlLmNvbTsgcz1ibGFja2JveDsgaD1mcm9tOnRvOnN1YmplY3Q6ZGF0ZTptZXNzYWdlLWlkOm1pbWUtdmVyc2lvbjpjb250ZW50LXR5cGU7IGJoPXhWUXZZRWJZTGpyQjRsbGg2b2pDcmtickFxMkdQWElTZU9UMi96ZzZ4ekE9OyBiPXhERzMrZEM3aTN3c2t5ak4wRzMyVDJwMmNGM2g1UnYzUnZUL05YS0R6YzBWZXZFdlhVeEJmTWt3QXI3citQQTMyQXpCRTRIRE5mbmpSbk8vVkxoc3ExckhjNlhxTnRiVWdmODVqdUkyWHVSOUh3UnUyaVRLcTk0L3FJS01nVzRnNVlWdlF4ckJWbUxvUWlnakFocE1DR1g3VnNVRFZNK1ppWlNHRHh4TWN3bEZYQ01rRFlxamIwb0JzUjZqWlVINlVVSGdvSlhaN2pWTWcxcjBvNHJuS2FNVHl1WlBaV0dPVVZvWktTZUVlcHFib3diS0lrd0VaTEJTQVpDYlZ6bmtuUFFRMHlNZzY1REJMckVKOUhvcUpZZEpNWGJ0REN0c2RiRTF3RXFDcENhTGFXakVlb2tvNHV3SHBzMmxPR1o2Z045WEFnbzhqbGhOQnMwc0hMUXdyQT09DQpGcm9tOiBGaXh0dXJlIFNlbmRlciA8c2VuZGVyQGRraW0uYmxhY2tib3gtZXhhbXBsZS5jb20+DQpUbzogcWFAZXhhbXBsZS50ZXN0DQpTdWJqZWN0OiBiYi1ka2ltLXBhc3MNCkRhdGU6IFR1ZSwgMTEgQXVnIDIwMjYgMDA6MDA6MDAgKzAwMDANCk1lc3NhZ2UtSUQ6IDxiYi1ka2ltLXBhc3NAZXhhbXBsZS50ZXN0Pg0KTUlNRS1WZXJzaW9uOiAxLjANCkNvbnRlbnQtVHlwZTogdGV4dC9wbGFpbjsgY2hhcnNldD11cy1hc2NpaQ0KDQpES0lNIHBhc3MgZml4dHVyZS4NCg==",
+                "length": 1237,
+                "sha256": "c156421c3492438299bb85ef58beb42ee7f31d10b119eabdb77da63f5f810dc0"
+              },
+              "residual_temp_files": 0,
+              "symlinks": 0
+            },
+            "postgres": {
+              "file_name": "<generated>.eml",
+              "folder": "inbox",
+              "from_address": "Fixture Sender <sender@dkim.blackbox-example.com>",
+              "has_attachments": false,
+              "id": "<identity>",
+              "indexed_at": "<timestamp>",
+              "mailbox_address": "qa@example.test",
+              "matching_rows": 1,
+              "message_id": "<bb-dkim-pass@example.test>",
+              "received_at": "<timestamp>",
+              "size_bytes": "<maildir-byte-length>",
+              "subdirectory": 1,
+              "subject": "bb-dkim-pass",
+              "to_addresses": "[\"qa@example.test\"]"
+            },
+            "redis": {
+              "after": 1,
+              "before": null,
+              "delta": 1,
+              "key": "mail:count:qa@example.test:inbox",
+              "pttl": -1,
+              "type": "string"
+            },
+            "size_contract": "postgres-size_bytes-equals-maildir-byte-length"
+          },
+          "wire": {
+            "accepted": [
+              "250 2.0.0 Message accepted for delivery, id=<session-id>\r\n"
+            ],
+            "data_ready": [
+              "354 Start mail input; end with <CRLF>.<CRLF>\r\n"
+            ],
+            "ehlo": [
+              "250-<hostname> Hello blackbox.example\r\n",
+              "250-PIPELINING\r\n",
+              "250-SIZE 15728640\r\n",
+              "250-8BITMIME\r\n",
+              "250-CHUNKING\r\n",
+              "250-ENHANCEDSTATUSCODES\r\n",
+              "250-SMTPUTF8\r\n",
+              "250 SKIBIDITOILET\r\n"
+            ],
+            "greeting": [
+              "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+            ],
+            "mail_from": [
+              "250 2.1.0 Sender OK\r\n"
+            ],
+            "quit": [
+              "221 2.0.0 <hostname> closing connection\r\n"
+            ],
+            "rcpt_to": [
+              "250 2.1.5 Recipient OK\r\n"
+            ]
+          }
+        },
+        "dkim_txt_query_count": 1,
+        "dmarc_txt_query_count": 1,
+        "name": "dkim-aligned"
+      },
+      {
+        "authenticated_mechanism": "dkim",
+        "delivery": {
+          "mode": "data",
+          "storage": {
+            "maildir": {
+              "new_regular_files": 1,
+              "orphan_files": 0,
+              "path": "qa@example.test/spam/1/<generated>.eml",
+              "preexisting_files_unchanged": true,
+              "raw": {
+                "base64": "UmVjZWl2ZWQ6IGZyb20gYmxhY2tib3guZXhhbXBsZSAodW52ZXJpZmllZCBbMTI3LjAuMC43MF0pDQoJYnkgPGhvc3RuYW1lPiB3aXRoIEVTTVRQIGlkIDxyZWNlaXZlZC1pZD4NCglmb3IgPHFhQGV4YW1wbGUudGVzdD47DQoJPHJlY2VpdmVkLWF0Pg0KQXV0aGVudGljYXRpb24tUmVzdWx0czogPGhvc3RuYW1lPjsNCglzcGY9bm9uZSAoTm8gTUFJTCBGUk9NIGFkZHJlc3MpIHNtdHAuY2xpZW50LWlwPTEyNy4wLjAuNzAgc210cC5tYWlsZnJvbT07DQoJZGtpbT1mYWlsIChCb2R5IGhhc2ggbWlzbWF0Y2gpOw0KCWRtYXJjPWZhaWwgKHA9cXVhcmFudGluZSkgRE1BUkMgZmFpbGVkOiBhdXRoZW50aWNhdGVkIGlkZW50aWZpZXJzIGFyZSBub3QgYWxpZ25lZCB3aXRoIFJGQzUzMjIuRnJvbSBka2ltLmJsYWNrYm94LWV4YW1wbGUuY29tDQpYLVNwYW0tU3RhdHVzOiBZZXMNClgtU3BhbS1TY29yZTogNS4wDQpES0lNLVNpZ25hdHVyZTogdj0xOyBhPXJzYS1zaGEyNTY7IGM9cmVsYXhlZC9zaW1wbGU7IGQ9ZGtpbS5ibGFja2JveC1leGFtcGxlLmNvbTsgcz1ibGFja2JveDsgaD1mcm9tOnRvOnN1YmplY3Q6ZGF0ZTptZXNzYWdlLWlkOm1pbWUtdmVyc2lvbjpjb250ZW50LXR5cGU7IGJoPUwvR3NXSExqemNxMThzb1pyYzhFQUs5dE0yb0IwcGI4TmR1d1IwdE1sZG89OyBiPXRpUUdZSFN1bTF3ZGpTRmlnR1Fxa3FsMnlEZEtIY25sc1BvdHl2bFUwQm9neUNCMHZCejdMbnZuc2FhQjhmdUJvZ0l6R0FZazRXL2QrRFkwUE05NlNFUkRoOEV6dXVvQ2xYMGVycW1UMDIrcHkvRHZPcVNHR1pwRmMwenVXK3JGdUU0MWVDSHhsc3NMdHZpdks5QnMzdDZoSFJITlVFeEJvLzFKZ21LYmlRcytaQjRIQ3ZXYjJpa0R4TDkxRUhTcDRhM0hqQ2lKdHBQUU5TTUtzSTRoWWRtcFdZV2t4dFlrSlI2cHpzNVBNYmxGbmJOSmE2UkFvMmxlcHF4eUc5M2Zkc05jeTRmVlZDNnllb3VPcjdhZUd4ekpRUEtXSzc2aTFBS3ZKclFXeDlkQlUzTlU5eVQ3eFdFemEzc09FMnF3SEtOK3cxWDZBL0RTSDZKMjh1djhLdz09DQpGcm9tOiBGaXh0dXJlIFNlbmRlciA8c2VuZGVyQGRraW0uYmxhY2tib3gtZXhhbXBsZS5jb20+DQpUbzogcWFAZXhhbXBsZS50ZXN0DQpTdWJqZWN0OiBiYi1ka2ltLWJvZHktaGFzaC1mYWlsDQpEYXRlOiBUdWUsIDExIEF1ZyAyMDI2IDAwOjAwOjAwICswMDAwDQpNZXNzYWdlLUlEOiA8YmItZGtpbS1ib2R5LWhhc2gtZmFpbEBleGFtcGxlLnRlc3Q+DQpNSU1FLVZlcnNpb246IDEuMA0KQ29udGVudC1UeXBlOiB0ZXh0L3BsYWluOyBjaGFyc2V0PXVzLWFzY2lpDQoNCkRLSU0gdGFtcGVyZWQgYm9keS4NCg==",
+                "length": 1297,
+                "sha256": "e67d75c1adbc1539cd213ef0bbf89b48e4308ac337f4d176152c7e1885f12ef9"
+              },
+              "residual_temp_files": 0,
+              "symlinks": 0
+            },
+            "postgres": {
+              "file_name": "<generated>.eml",
+              "folder": "spam",
+              "from_address": "Fixture Sender <sender@dkim.blackbox-example.com>",
+              "has_attachments": false,
+              "id": "<identity>",
+              "indexed_at": "<timestamp>",
+              "mailbox_address": "qa@example.test",
+              "matching_rows": 1,
+              "message_id": "<bb-dkim-body-hash-fail@example.test>",
+              "received_at": "<timestamp>",
+              "size_bytes": "<maildir-byte-length>",
+              "subdirectory": 1,
+              "subject": "bb-dkim-body-hash-fail",
+              "to_addresses": "[\"qa@example.test\"]"
+            },
+            "redis": {
+              "after": 1,
+              "before": null,
+              "delta": 1,
+              "key": "mail:count:qa@example.test:spam",
+              "pttl": -1,
+              "type": "string"
+            },
+            "size_contract": "postgres-size_bytes-equals-maildir-byte-length"
+          },
+          "wire": {
+            "accepted": [
+              "250 2.0.0 Message accepted for delivery, id=<session-id>\r\n"
+            ],
+            "data_ready": [
+              "354 Start mail input; end with <CRLF>.<CRLF>\r\n"
+            ],
+            "ehlo": [
+              "250-<hostname> Hello blackbox.example\r\n",
+              "250-PIPELINING\r\n",
+              "250-SIZE 15728640\r\n",
+              "250-8BITMIME\r\n",
+              "250-CHUNKING\r\n",
+              "250-ENHANCEDSTATUSCODES\r\n",
+              "250-SMTPUTF8\r\n",
+              "250 SKIBIDITOILET\r\n"
+            ],
+            "greeting": [
+              "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+            ],
+            "mail_from": [
+              "250 2.1.0 Sender OK\r\n"
+            ],
+            "quit": [
+              "221 2.0.0 <hostname> closing connection\r\n"
+            ],
+            "rcpt_to": [
+              "250 2.1.5 Recipient OK\r\n"
+            ]
+          }
+        },
+        "dkim_txt_query_count": 1,
+        "dmarc_txt_query_count": 1,
+        "name": "dkim-fail-quarantine"
+      },
+      {
+        "authenticated_mechanism": "spf",
+        "delivery": {
+          "mode": "data",
+          "storage": {
+            "maildir": {
+              "new_regular_files": 1,
+              "orphan_files": 0,
+              "path": "qa@example.test/inbox/1/<generated>.eml",
+              "preexisting_files_unchanged": true,
+              "raw": {
+                "base64": "UmVjZWl2ZWQ6IGZyb20gYmxhY2tib3guZXhhbXBsZSAodW52ZXJpZmllZCBbMTI3LjAuMC43MV0pDQoJYnkgPGhvc3RuYW1lPiB3aXRoIEVTTVRQIGlkIDxyZWNlaXZlZC1pZD4NCglmb3IgPHFhQGV4YW1wbGUudGVzdD47DQoJPHJlY2VpdmVkLWF0Pg0KQXV0aGVudGljYXRpb24tUmVzdWx0czogPGhvc3RuYW1lPjsNCglzcGY9cGFzcyAoTWF0Y2hlZCBpcDQ6MTI3LjAuMC43MSkgc210cC5jbGllbnQtaXA9MTI3LjAuMC43MSBzbXRwLm1haWxmcm9tPXNlbmRlckBzcGYtYWxpZ25lZC5kbWFyYy1ibGFja2JveC1leGFtcGxlLmNvbTsNCglka2ltPW5vbmUgKE5vIERLSU0gc2lnbmF0dXJlIHByZXNlbnQpOw0KCWRtYXJjPXBhc3MgKHA9cmVqZWN0KSBETUFSQyBwYXNzZWQ6IFNQRiBhbGlnbmVkDQpYLVNwYW0tU3RhdHVzOiBObw0KWC1TcGFtLVNjb3JlOiAwLjANCkZyb206IEZpeHR1cmUgU2VuZGVyIDxzZW5kZXJAc3BmLWFsaWduZWQuZG1hcmMtYmxhY2tib3gtZXhhbXBsZS5jb20+DQpUbzogcWFAZXhhbXBsZS50ZXN0DQpTdWJqZWN0OiBiYi1kbWFyYy1zcGYtYWxpZ25lZA0KRGF0ZTogVHVlLCAxMSBBdWcgMjAyNiAwMDowMDowMCArMDAwMA0KTWVzc2FnZS1JRDogPGJiLWRtYXJjLXNwZi1hbGlnbmVkQGV4YW1wbGUudGVzdD4NCk1JTUUtVmVyc2lvbjogMS4wDQpDb250ZW50LVR5cGU6IHRleHQvcGxhaW47IGNoYXJzZXQ9dXMtYXNjaWkNCg0KRE1BUkMgc3BmLWFsaWduZWQgZml4dHVyZS4NCg==",
+                "length": 736,
+                "sha256": "07a24186f3d04a84082445110620b4307027059965ff361f3fe589178b6b2505"
+              },
+              "residual_temp_files": 0,
+              "symlinks": 0
+            },
+            "postgres": {
+              "file_name": "<generated>.eml",
+              "folder": "inbox",
+              "from_address": "Fixture Sender <sender@spf-aligned.dmarc-blackbox-example.com>",
+              "has_attachments": false,
+              "id": "<identity>",
+              "indexed_at": "<timestamp>",
+              "mailbox_address": "qa@example.test",
+              "matching_rows": 1,
+              "message_id": "<bb-dmarc-spf-aligned@example.test>",
+              "received_at": "<timestamp>",
+              "size_bytes": "<maildir-byte-length>",
+              "subdirectory": 1,
+              "subject": "bb-dmarc-spf-aligned",
+              "to_addresses": "[\"qa@example.test\"]"
+            },
+            "redis": {
+              "after": 2,
+              "before": 1,
+              "delta": 1,
+              "key": "mail:count:qa@example.test:inbox",
+              "pttl": -1,
+              "type": "string"
+            },
+            "size_contract": "postgres-size_bytes-equals-maildir-byte-length"
+          },
+          "wire": {
+            "accepted": [
+              "250 2.0.0 Message accepted for delivery, id=<session-id>\r\n"
+            ],
+            "data_ready": [
+              "354 Start mail input; end with <CRLF>.<CRLF>\r\n"
+            ],
+            "ehlo": [
+              "250-<hostname> Hello blackbox.example\r\n",
+              "250-PIPELINING\r\n",
+              "250-SIZE 15728640\r\n",
+              "250-8BITMIME\r\n",
+              "250-CHUNKING\r\n",
+              "250-ENHANCEDSTATUSCODES\r\n",
+              "250-SMTPUTF8\r\n",
+              "250 SKIBIDITOILET\r\n"
+            ],
+            "greeting": [
+              "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+            ],
+            "mail_from": [
+              "250 2.1.0 Sender OK\r\n"
+            ],
+            "quit": [
+              "221 2.0.0 <hostname> closing connection\r\n"
+            ],
+            "rcpt_to": [
+              "250 2.1.5 Recipient OK\r\n"
+            ]
+          }
+        },
+        "dmarc_txt_query_count": 1,
+        "name": "spf-aligned",
+        "spf_txt_query_count": 1
+      },
+      {
+        "authenticated_mechanism": "spf",
+        "delivery": {
+          "mode": "data",
+          "storage": {
+            "maildir": {
+              "new_regular_files": 1,
+              "orphan_files": 0,
+              "path": "qa@example.test/spam/1/<generated>.eml",
+              "preexisting_files_unchanged": true,
+              "raw": {
+                "base64": "UmVjZWl2ZWQ6IGZyb20gYmxhY2tib3guZXhhbXBsZSAodW52ZXJpZmllZCBbMTI3LjAuMC43Ml0pDQoJYnkgPGhvc3RuYW1lPiB3aXRoIEVTTVRQIGlkIDxyZWNlaXZlZC1pZD4NCglmb3IgPHFhQGV4YW1wbGUudGVzdD47DQoJPHJlY2VpdmVkLWF0Pg0KQXV0aGVudGljYXRpb24tUmVzdWx0czogPGhvc3RuYW1lPjsNCglzcGY9cGFzcyAoTWF0Y2hlZCBpcDQ6MTI3LjAuMC43Mikgc210cC5jbGllbnQtaXA9MTI3LjAuMC43MiBzbXRwLm1haWxmcm9tPXNlbmRlckBzcGYtYXV0aC5kbWFyYy1ibGFja2JveC1leGFtcGxlLm5ldDsNCglka2ltPW5vbmUgKE5vIERLSU0gc2lnbmF0dXJlIHByZXNlbnQpOw0KCWRtYXJjPWZhaWwgKHA9cXVhcmFudGluZSkgRE1BUkMgZmFpbGVkOiBhdXRoZW50aWNhdGVkIGlkZW50aWZpZXJzIGFyZSBub3QgYWxpZ25lZCB3aXRoIFJGQzUzMjIuRnJvbSBmcm9tLXVuYWxpZ25lZC5kbWFyYy1ibGFja2JveC1leGFtcGxlLm9yZw0KWC1TcGFtLVN0YXR1czogWWVzDQpYLVNwYW0tU2NvcmU6IDIuMA0KRnJvbTogRml4dHVyZSBTZW5kZXIgPHNlbmRlckBmcm9tLXVuYWxpZ25lZC5kbWFyYy1ibGFja2JveC1leGFtcGxlLm9yZz4NClRvOiBxYUBleGFtcGxlLnRlc3QNClN1YmplY3Q6IGJiLWRtYXJjLXNwZi11bmFsaWduZWQtcXVhcmFudGluZQ0KRGF0ZTogVHVlLCAxMSBBdWcgMjAyNiAwMDowMDowMCArMDAwMA0KTWVzc2FnZS1JRDogPGJiLWRtYXJjLXNwZi11bmFsaWduZWQtcXVhcmFudGluZUBleGFtcGxlLnRlc3Q+DQpNSU1FLVZlcnNpb246IDEuMA0KQ29udGVudC1UeXBlOiB0ZXh0L3BsYWluOyBjaGFyc2V0PXVzLWFzY2lpDQoNCkRNQVJDIHNwZi11bmFsaWduZWQtcXVhcmFudGluZSBmaXh0dXJlLg0K",
+                "length": 870,
+                "sha256": "3d6c45bfc99a507e0528a2a6f59100b2d6a1f3011c1c21db1888123afe4cbe5b"
+              },
+              "residual_temp_files": 0,
+              "symlinks": 0
+            },
+            "postgres": {
+              "file_name": "<generated>.eml",
+              "folder": "spam",
+              "from_address": "Fixture Sender <sender@from-unaligned.dmarc-blackbox-example.org>",
+              "has_attachments": false,
+              "id": "<identity>",
+              "indexed_at": "<timestamp>",
+              "mailbox_address": "qa@example.test",
+              "matching_rows": 1,
+              "message_id": "<bb-dmarc-spf-unaligned-quarantine@example.test>",
+              "received_at": "<timestamp>",
+              "size_bytes": "<maildir-byte-length>",
+              "subdirectory": 1,
+              "subject": "bb-dmarc-spf-unaligned-quarantine",
+              "to_addresses": "[\"qa@example.test\"]"
+            },
+            "redis": {
+              "after": 2,
+              "before": 1,
+              "delta": 1,
+              "key": "mail:count:qa@example.test:spam",
+              "pttl": -1,
+              "type": "string"
+            },
+            "size_contract": "postgres-size_bytes-equals-maildir-byte-length"
+          },
+          "wire": {
+            "accepted": [
+              "250 2.0.0 Message accepted for delivery, id=<session-id>\r\n"
+            ],
+            "data_ready": [
+              "354 Start mail input; end with <CRLF>.<CRLF>\r\n"
+            ],
+            "ehlo": [
+              "250-<hostname> Hello blackbox.example\r\n",
+              "250-PIPELINING\r\n",
+              "250-SIZE 15728640\r\n",
+              "250-8BITMIME\r\n",
+              "250-CHUNKING\r\n",
+              "250-ENHANCEDSTATUSCODES\r\n",
+              "250-SMTPUTF8\r\n",
+              "250 SKIBIDITOILET\r\n"
+            ],
+            "greeting": [
+              "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+            ],
+            "mail_from": [
+              "250 2.1.0 Sender OK\r\n"
+            ],
+            "quit": [
+              "221 2.0.0 <hostname> closing connection\r\n"
+            ],
+            "rcpt_to": [
+              "250 2.1.5 Recipient OK\r\n"
+            ]
+          }
+        },
+        "dmarc_txt_query_count": 1,
+        "early_envelope_dmarc_query_count": "at-least-one",
+        "name": "spf-unaligned-quarantine",
+        "spf_txt_query_count": 1
+      },
+      {
+        "authenticated_mechanism": "none",
+        "delivery": {
+          "mode": "data",
+          "storage": {
+            "maildir_unchanged": true,
+            "message_id": "<bb-dmarc-reject-no-auth@example.test>",
+            "observation_seconds": 5.0,
+            "postgres_matching_rows": 0,
+            "redis_unchanged": true,
+            "subject": "bb-dmarc-reject-no-auth"
+          },
+          "wire": {
+            "accepted": [
+              "250 2.0.0 Message accepted for delivery, id=<session-id>\r\n"
+            ],
+            "data_ready": [
+              "354 Start mail input; end with <CRLF>.<CRLF>\r\n"
+            ],
+            "ehlo": [
+              "250-<hostname> Hello blackbox.example\r\n",
+              "250-PIPELINING\r\n",
+              "250-SIZE 15728640\r\n",
+              "250-8BITMIME\r\n",
+              "250-CHUNKING\r\n",
+              "250-ENHANCEDSTATUSCODES\r\n",
+              "250-SMTPUTF8\r\n",
+              "250 SKIBIDITOILET\r\n"
+            ],
+            "greeting": [
+              "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+            ],
+            "mail_from": [
+              "250 2.1.0 Sender OK\r\n"
+            ],
+            "quit": [
+              "221 2.0.0 <hostname> closing connection\r\n"
+            ],
+            "rcpt_to": [
+              "250 2.1.5 Recipient OK\r\n"
+            ]
+          }
+        },
+        "dmarc_txt_query_count": 1,
+        "name": "reject-no-auth"
+      }
+    ]
+  },
+  "schema_version": 2
+}
