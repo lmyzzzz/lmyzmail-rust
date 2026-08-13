@@ -173,6 +173,7 @@ require_sha256 "$VIDEO" 0e76229bb77ebcf471aec692fa34709cfbbe3dc192127a852a518e34
 
 STABLE_BINARY="$(mktemp --tmpdir="${TMPDIR:-/tmp}" lmyzmail-release.XXXXXXXX)"
 DROP_IN_SOURCE=""
+CONFIG_CHECK_SOURCE=""
 TRANSACTION_BACKUP=""
 TRANSACTION_STARTED=0
 INSTALL_COMMITTED=0
@@ -220,6 +221,9 @@ cleanup_install_temporaries() {
     rm -f -- "$STABLE_BINARY"
     if [[ -n "$DROP_IN_SOURCE" ]]; then
         rm -f -- "$DROP_IN_SOURCE"
+    fi
+    if [[ -n "$CONFIG_CHECK_SOURCE" ]]; then
+        rm -f -- "$CONFIG_CHECK_SOURCE"
     fi
     if [[ -n "$TRANSACTION_BACKUP" ]]; then
         rm -rf -- "$TRANSACTION_BACKUP"
@@ -498,8 +502,13 @@ if [[ -e "$CONFIG_TARGET" ]]; then
     CONFIG_SOURCE="$CONFIG_TARGET"
 fi
 if [[ -z "$DESTDIR" ]]; then
+    CONFIG_CHECK_SOURCE="$CONFIG_SOURCE"
+    if [[ ! -e "$CONFIG_TARGET" ]]; then
+        CONFIG_CHECK_SOURCE="$(mktemp --tmpdir="${TMPDIR:-/tmp}" lmyzmail-config.XXXXXXXX)"
+        install -m 0644 -- "$CONFIG_EXAMPLE" "$CONFIG_CHECK_SOURCE"
+    fi
     CONFIG_SUMMARY="$(runuser -u lmyzmail -- "$STABLE_BINARY" \
-        --config "$CONFIG_SOURCE" --check-config)" || {
+        --config "$CONFIG_CHECK_SOURCE" --check-config)" || {
         printf '%s\n' 'lmyzmail configuration validation failed; no package files were replaced' >&2
         exit 1
     }
