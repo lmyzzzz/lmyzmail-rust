@@ -143,7 +143,7 @@ def _runner(repository: Path, profile: Profile, *, record_java: bool = False) ->
     name = f"managed-smtp-self-spoof-{profile}"
     return DifferentialRunner(
         repository,
-        repository / f"blackbox/golden/java/{name}-v2",
+        repository / f"blackbox/golden/java/{name}-v3",
         name,
         record_java=record_java,
     )

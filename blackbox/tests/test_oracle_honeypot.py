@@ -19,8 +19,8 @@ from lmyzmail_blackbox.honeypot_contract import (
 from lmyzmail_blackbox.runtime import CandidateRuntime, JavaOracleRuntime
 
 _PROFILE = "managed-honeypot"
-_GOLDEN = "blackbox/golden/java/managed-honeypot-v13"
-_ORACLE_EVIDENCE_GOLDEN = "blackbox/golden/java/managed-honeypot-oracle-evidence-v13"
+_GOLDEN = "blackbox/golden/java/managed-honeypot-v14"
+_ORACLE_EVIDENCE_GOLDEN = "blackbox/golden/java/managed-honeypot-oracle-evidence-v14"
 
 
 def _candidate(repository: Path) -> CandidateRuntime:

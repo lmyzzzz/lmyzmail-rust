@@ -25,7 +25,7 @@ from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-scheduled-play-v6"
+_GOLDEN = "managed-minecraft-scheduled-play-v7"
 _USERNAME = b"ScheduledProbe"
 _HOLOGRAM_IDS = (0x18,) * 7
 

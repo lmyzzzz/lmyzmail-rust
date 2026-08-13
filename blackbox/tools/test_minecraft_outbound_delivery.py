@@ -10,7 +10,6 @@ import sys
 import tempfile
 import time
 from dataclasses import dataclass
-from email.message import Message
 from email.parser import BytesParser
 from pathlib import Path
 from typing import Any
@@ -36,7 +35,7 @@ from test_minecraft_login import (
 )
 from test_minecraft_mail_view import _chat_payload
 from test_minecraft_main_menu_lifecycle import _play_frame
-from test_minecraft_password_auth import _SUCCESS_IDS
+from test_minecraft_password_auth import _SUCCESS_IDS as _PASSWORD_AUTH_SUCCESS_IDS
 
 from lmyzmail_blackbox.golden import GoldenAttestation, GoldenStore
 from lmyzmail_blackbox.outbound_oracle_probe import (
@@ -51,7 +50,7 @@ from lmyzmail_blackbox.runtime import QA_ADDRESS
 from lmyzmail_blackbox.scripted_smtp import ScriptedSmtpServer, SmtpScenario
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_PROFILE = "managed-minecraft-outbound-v6"
+_PROFILE = "managed-minecraft-outbound-v7"
 _REDIS_PREFIX = "botmail:mail:queue:"
 _USERNAME = b"MinecraftSender"
 _BUTTON_SEND = (5, 161, 6)
@@ -76,6 +75,7 @@ _MAX_EXPANDED_BYTES = 2 * 1024 * 1024
 _PHASE_TIMEOUT_SECONDS = 45.0
 _QUEUE_ID_RE = re.compile(r"(Email queued \(ID: )\d+(\), waiting for delivery\.\.\.)")
 _MESSAGE_ID_RE = re.compile(r"(Message ID: )<[^>]+>")
+SUCCESS_PACKET_IDS = _PASSWORD_AUTH_SUCCESS_IDS
 
 
 class _MinecraftOutboundOracleRuntime(OutboundOracleRuntime):
@@ -230,7 +230,7 @@ def _edit_sign(connection: Any, field: str, value: str) -> dict[str, Any]:
 
 
 def _message_snapshot(attempt: Any) -> dict[str, Any]:
-    message: Message = BytesParser(policy=email.policy.default).parsebytes(attempt.data)
+    message = BytesParser(policy=email.policy.default).parsebytes(attempt.data)
     plain = message.get_body(preferencelist=("plain",))
     if plain is None:
         raise AssertionError("Minecraft outbound SMTP message did not contain a plain body")
@@ -358,7 +358,7 @@ def _capture_case(runtime: Any, server: ScriptedSmtpServer, *, success: bool) ->
     edits: list[dict[str, Any]] = []
     with _begin_login(runtime.ports.minecraft, _USERNAME) as connection:
         _bootstrap(connection)
-        _authenticate(connection, _SUCCESS_IDS)
+        _authenticate(connection, SUCCESS_PACKET_IDS)
 
         connection.sendall(_button_frame())
         empty_to = _one_chat(connection)

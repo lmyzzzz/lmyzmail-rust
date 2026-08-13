@@ -49,7 +49,7 @@ def _assert_golden(
     *,
     record_java: bool,
 ) -> None:
-    path = repository / "blackbox/golden/java/managed-outbound-queue-v38.json"
+    path = repository / "blackbox/golden/java/managed-outbound-queue-v39.json"
     attestation = GoldenAttestation.from_repository(
         repository,
         profile="managed-outbound-queue",

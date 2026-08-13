@@ -13,7 +13,7 @@ from lmyzmail_blackbox.web_static_contract import WEB_STATIC_SCENARIOS
 def _runner(repository: Path, *, record_java: bool = False) -> DifferentialRunner:
     return DifferentialRunner(
         repository,
-        repository / "blackbox/golden/java/managed-web-static-v3",
+        repository / "blackbox/golden/java/managed-web-static-v4",
         "managed-web-static",
         record_java=record_java,
     )

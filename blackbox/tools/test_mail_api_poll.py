@@ -20,7 +20,7 @@ from test_candidate_mail_read_golden import LegacyCandidateRuntime, _OracleTarge
 
 _API_HEADERS = (("X-API-Key", "blackbox-admin-key"),)
 _CREDENTIALS = {"address": "qa@example.test", "password": "BlackboxPass123!"}
-_GOLDEN = "managed-mail-api-poll-v11"
+_GOLDEN = "managed-mail-api-poll-v12"
 
 
 def _capture_json(path: str, value: object) -> Callable[[RuntimeTarget], dict[str, Any]]:

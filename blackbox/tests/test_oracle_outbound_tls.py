@@ -163,7 +163,7 @@ def _assert_contract(observed: dict[str, Any], *, target: str) -> None:
 
 
 def _golden(repository: Path, observed: dict[str, Any], *, record_java: bool) -> None:
-    path = repository / "blackbox/golden/java/managed-outbound-tls-v7.json"
+    path = repository / "blackbox/golden/java/managed-outbound-tls-v8.json"
     attestation = GoldenAttestation.from_repository(
         repository,
         profile="managed-outbound-tls",
@@ -181,7 +181,7 @@ def _assert_approved_hostname_difference(
     envelope = cast(
         dict[str, Any],
         json.loads(
-            (repository / "blackbox/golden/java/managed-outbound-tls-v7.json").read_text(
+            (repository / "blackbox/golden/java/managed-outbound-tls-v8.json").read_text(
                 encoding="utf-8"
             )
         ),

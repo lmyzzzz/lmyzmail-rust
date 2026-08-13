@@ -26,7 +26,7 @@ from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-position-rebound-v6"
+_GOLDEN = "managed-minecraft-position-rebound-v7"
 _USERNAME = b"PositionProbe"
 _HOLOGRAM_IDS = (0x18,) * 7
 _REBOUND_IDS = (0x08, 0x02)

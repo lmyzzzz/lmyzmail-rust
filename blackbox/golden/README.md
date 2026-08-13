@@ -17,7 +17,9 @@ inputs, and must never be overwritten in place.
   omitted DNS for the allowlisted durable DSN recipient domain.
 - `managed-minecraft-outbound-v5.json` is retained after the reviewed behavior
   difference was added to the harness's strict manifest-ID assertion.
-- `managed-minecraft-outbound-v6.json` is the active normal profile under the
+- `managed-minecraft-outbound-v6.json` is retained after the complete
+  definition tree advanced for the reviewed strict difference-ID assertion.
+- `managed-minecraft-outbound-v7.json` is the active normal profile under the
   repeated-click and complete DSN-DNS harness definition. It retains exact validation, SMTP, queue,
   terminal payload clearing, Redis, Maildir, and draft lifecycle requirements.
 - `managed-minecraft-outbound-duplicate-oracle-evidence-v1.json` is the first
@@ -28,7 +30,10 @@ inputs, and must never be overwritten in place.
 - `managed-minecraft-outbound-duplicate-oracle-evidence-v3.json` is retained
   after the reviewed behavior difference was added to the strict manifest-ID
   assertion.
-- `managed-minecraft-outbound-duplicate-oracle-evidence-v4.json` is the active
+- `managed-minecraft-outbound-duplicate-oracle-evidence-v4.json` is retained
+  after the complete definition tree advanced for the reviewed strict
+  difference-ID assertion.
+- `managed-minecraft-outbound-duplicate-oracle-evidence-v5.json` is the active
   Java-only evidence profile. Two coalesced C08 packets must produce two queue
   rows, two SMTP attempts, and two sent files in the oracle. Candidate tests do
   not consume that behavior as an expectation; they require one admitted send

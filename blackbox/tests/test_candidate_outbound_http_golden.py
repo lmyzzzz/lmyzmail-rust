@@ -491,7 +491,7 @@ def test_frozen_java_outbound_http_golden(
     record_java_golden: bool,
 ) -> None:
     repository = Path(__file__).resolve().parents[2]
-    golden = repository / "blackbox/golden/java/managed-outbound-http-v23"
+    golden = repository / "blackbox/golden/java/managed-outbound-http-v24"
     runner = DifferentialRunner(
         repository,
         golden,
@@ -596,7 +596,7 @@ def test_rust_candidate_outbound_http_matches_frozen_java_golden() -> None:
     with _candidate(repository) as candidate:
         DifferentialRunner(
             repository,
-            repository / "blackbox/golden/java/managed-outbound-http-v23",
+            repository / "blackbox/golden/java/managed-outbound-http-v24",
             "managed-outbound-http",
         ).verify_candidate(OUTBOUND_HTTP_SCENARIOS, candidate)
 

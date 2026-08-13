@@ -20,7 +20,7 @@ from test_minecraft_outbound_delivery import (
     _FOOTER,
     _PAGES,
     _SIGN_VALUES,
-    _SUCCESS_IDS,
+    SUCCESS_PACKET_IDS,
     _button_frame,
     _CaptureBudget,
     _edit_sign,
@@ -43,7 +43,7 @@ from lmyzmail_blackbox.outbound_oracle_probe import (
 from lmyzmail_blackbox.runtime import QA_ADDRESS
 from lmyzmail_blackbox.scripted_smtp import ScriptedSmtpServer, SmtpScenario
 
-_PROFILE = "managed-minecraft-outbound-duplicate-oracle-evidence-v4"
+_PROFILE = "managed-minecraft-outbound-duplicate-oracle-evidence-v5"
 _USERNAME = b"DuplicateSender"
 _EXPECTED_ROWS = {"java": 2, "candidate": 1}
 
@@ -146,7 +146,7 @@ def _capture_duplicate(runtime: Any, server: ScriptedSmtpServer, target: str) ->
 
     with _begin_login(runtime.ports.minecraft, _USERNAME) as connection:
         _bootstrap(connection)
-        _authenticate(connection, _SUCCESS_IDS)
+        _authenticate(connection, SUCCESS_PACKET_IDS)
         for field in ("to", "subject", "cc", "bcc"):
             _edit_sign(connection, field, _SIGN_VALUES[field])
         connection.sendall(_book_edit_frame(_PAGES))

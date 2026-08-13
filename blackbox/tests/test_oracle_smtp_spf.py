@@ -95,7 +95,7 @@ class _SpfCandidateRuntime(CandidateRuntime):
 def _runner(repository: Path, *, record_java: bool = False) -> DifferentialRunner:
     return DifferentialRunner(
         repository,
-        repository / "blackbox/golden/java/managed-smtp-spf-v3",
+        repository / "blackbox/golden/java/managed-smtp-spf-v4",
         "managed-smtp-spf",
         record_java=record_java,
     )
