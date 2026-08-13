@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import os
 import shutil
@@ -24,8 +26,8 @@ from lmyzmail_blackbox.snapshots import http_json_snapshot
 
 _SESSION_HEADERS = (("X-Session-Token", LEGACY_SESSION_TOKEN),)
 _PROFILE = "managed-userdata"
-_GOLDEN = "blackbox/golden/java/managed-userdata-v17"
-_ORACLE_EVIDENCE_GOLDEN = "blackbox/golden/java/managed-userdata-oracle-evidence-v16"
+_GOLDEN = "blackbox/golden/java/managed-userdata-v18"
+_ORACLE_EVIDENCE_GOLDEN = "blackbox/golden/java/managed-userdata-oracle-evidence-v17"
 
 
 @dataclass(frozen=True, slots=True)
@@ -309,6 +311,35 @@ def _capture_malformed_oracle_userdata(target: RuntimeTarget) -> dict[str, Any]:
         b'{"email":"nameless@example.test","notes":"committed before response failure"}',
     )
     contacts_after_missing_fields = raw("GET", "/web/userdata/contacts", b"")
+    contacts_payload = contacts_after_missing_fields.get("body_json")
+    if isinstance(contacts_payload, list):
+        normalized_contacts: list[object] = []
+        for contact in sorted(
+            contacts_payload,
+            key=lambda value: str(value.get("email", "")) if isinstance(value, dict) else "",
+        ):
+            if isinstance(contact, dict):
+                normalized_contacts.append({**contact, "id": "<contact-id>"})
+            else:
+                normalized_contacts.append(contact)
+        normalized_wire = json.dumps(
+            normalized_contacts,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode()
+        contacts_after_missing_fields = {
+            **contacts_after_missing_fields,
+            "body_json": normalized_contacts,
+            "headers": [
+                [name, str(len(normalized_wire))] if name.lower() == "content-length" else [name, value]
+                for name, value in contacts_after_missing_fields["headers"]
+            ],
+        }
+        contacts_after_missing_fields["normalized_body_wire"] = {
+            "length": len(normalized_wire),
+            "sha256": hashlib.sha256(normalized_wire).hexdigest(),
+            "base64": base64.b64encode(normalized_wire).decode("ascii"),
+        }
     non_numeric_id = raw(
         "PUT",
         "/web/userdata/contacts/not-a-number",

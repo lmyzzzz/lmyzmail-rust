@@ -635,7 +635,7 @@ def test_frozen_java_web_multipart_golden(
     record_java_golden: bool,
 ) -> None:
     repository = Path(__file__).resolve().parents[2]
-    golden = repository / "blackbox/golden/java/managed-web-multipart-v16"
+    golden = repository / "blackbox/golden/java/managed-web-multipart-v17"
     runner = DifferentialRunner(
         repository,
         golden,
@@ -658,7 +658,7 @@ def test_frozen_java_web_multipart_oracle_evidence(
     record_java_golden: bool,
 ) -> None:
     repository = Path(__file__).resolve().parents[2]
-    golden = repository / "blackbox/golden/java/managed-web-multipart-oracle-evidence-v12"
+    golden = repository / "blackbox/golden/java/managed-web-multipart-oracle-evidence-v13"
     runner = DifferentialRunner(
         repository,
         golden,
@@ -681,7 +681,7 @@ def test_rust_candidate_web_multipart_matches_frozen_java_golden() -> None:
     with _candidate(repository) as candidate:
         DifferentialRunner(
             repository,
-            repository / "blackbox/golden/java/managed-web-multipart-v16",
+            repository / "blackbox/golden/java/managed-web-multipart-v17",
             "managed-web-multipart",
         ).verify_candidate(WEB_MULTIPART_SCENARIOS, candidate)
 
