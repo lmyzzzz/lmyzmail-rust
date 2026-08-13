@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "profile": "candidate-surface-v1",
+  "candidate": {
+    "binary": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "source_commit": "37774df5",
+    "current_evidence_commit": "fa128a0b"
+  },
+  "collection": {
+    "candidate_marked_tests": 126,
+    "non_netns_replay": "63 passed, 42 deselected",
+    "java_goldens": "read-only; no recording or normalization changes"
+  },
+  "independent_passes": {
+    "minecraft_protocol_gui_world_video": "29 passed across login, auth, GUI, mail, draft, world, playback, rendering, and video golden tests",
+    "xdp_disabled_and_skibidi_security": "2 passed",
+    "fail2ban": "1 passed, 1 deselected",
+    "candidate_foundation": "3 runtime tests plus HTTP/auth/mailbox/outbound/multipart golden suites passed"
+  },
+  "environment_gap": {
+    "test": "blackbox/tools/test_smtp_content_filter_rbl.py::test_rust_candidate_smtp_content_filter_rbl_matches_golden",
+    "status": "not completed",
+    "reason": "WSL unshare user/net namespace child remained alive beyond the bounded five-minute command window; the agent terminated only its own pytest/unshare process",
+    "policy": "not counted as pass, not used to weaken any assertion, and no golden was changed"
+  }
+}
