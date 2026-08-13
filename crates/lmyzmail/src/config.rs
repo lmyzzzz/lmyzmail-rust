@@ -6167,7 +6167,7 @@ fn parse_domain_configs(
                     &format!("{old_prefix}sendEnabled"),
                     &format!("{old_prefix}send-enabled"),
                 ],
-                false,
+                true,
             )?,
             require_existing_mailbox: preferred_bool(
                 properties,
