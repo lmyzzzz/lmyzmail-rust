@@ -191,7 +191,7 @@ declare -a PACKAGE_FILES=(
 )
 rollback_installation() {
     local logical backup target
-    (( TRANSACTION_STARTED == 1 && INSTALL_COMMITTED == 0 )) || return
+    (( TRANSACTION_STARTED == 1 && INSTALL_COMMITTED == 0 )) || return 0
     set +e
     for logical in "${PACKAGE_FILES[@]}"; do
         backup="$TRANSACTION_BACKUP$logical"

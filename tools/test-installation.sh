@@ -47,6 +47,9 @@ CONFIG_SUMMARY="$("$STAGE/usr/bin/lmyzmail" \
     --config "$STAGE/etc/lmyzmail/application.properties" --check-config)"
 [[ " $CONFIG_SUMMARY " == *" config=$STAGE/etc/lmyzmail/application.properties "* ]]
 [[ " $CONFIG_SUMMARY " == *" xdp=false "* ]]
+cp -a /usr/lib/systemd/system/. "$STAGE/usr/lib/systemd/system/"
+cp -- "$REPOSITORY/deploy/lmyzmail.service" \
+    "$STAGE/usr/lib/systemd/system/lmyzmail.service"
 systemd-analyze verify --root="$STAGE" \
     /usr/lib/systemd/system/lmyzmail.service
 
