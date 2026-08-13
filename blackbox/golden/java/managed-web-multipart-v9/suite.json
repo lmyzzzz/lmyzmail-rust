@@ -1,0 +1,72 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "9cdd26a82e4e5653e66c55de3596bc71207456844182c5aab2423c674ef71910",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "suite-manifest-v1"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-web-multipart"
+  },
+  "observation": {
+    "profile": "managed-web-multipart",
+    "scenarios": [
+      {
+        "contract": {
+          "authentication": [
+            "missing",
+            "blank",
+            "invalid",
+            "valid session token"
+          ],
+          "limits": {
+            "attachment": 64,
+            "attachments_total": 96,
+            "email": 4096,
+            "request": 16384
+          },
+          "normalization": [
+            "queue ID",
+            "Message-ID",
+            "sent filename",
+            "timestamps",
+            "DKIM signature",
+            "MIME boundaries"
+          ],
+          "parser": [
+            "malformed data JSON",
+            "duplicate data last-wins",
+            "JSON blob classification",
+            "empty, ignored-field, typed, and default-type file parts"
+          ],
+          "protocol": "http/raw-socket multipart/form-data",
+          "route": "POST /web/mail/send/multipart",
+          "state": "Redis queue keys and TTL, Sent Maildir MIME bytes, and mail count"
+        },
+        "name": "http/outbound/web-multipart",
+        "normalizers": [
+          "outbound:generated-identifiers-and-time",
+          "mime:generated-boundaries-and-dkim",
+          "json-object-order:jdk-map-of:web-multipart-errors"
+        ]
+      }
+    ]
+  },
+  "schema_version": 2
+}
