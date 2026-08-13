@@ -1,10 +1,9 @@
 # Skibidi banner contract
 
-The SMTP greeting banner always uses the frozen Skibidi 1.8.0 C library under
-`native/lmyzmail-skibidi/upstream`. Rust owns only the narrow FFI wrapper,
-OS-aware ISA dispatch, seeding, resource lifetime, and output validation. The
-production binary statically links ISA-capped Scalar, AVX2, and AVX-512 C
-objects and never starts a JVM.
+The SMTP greeting banner is implemented entirely in Rust. The frozen Skibidi
+1.8.0 C source under `native/lmyzmail-skibidi/upstream` remains a read-only
+probability, table, and behavior oracle only; it is not compiled, linked, or
+loaded by the production binary, and no JVM is started.
 
 The frozen C source is the sole probability and byte-level authority:
 
@@ -14,21 +13,19 @@ The frozen C source is the sole probability and byte-level authority:
 - The exact ASCII grammar, seed sequence, batch layout, context ABI, and
   allocation ownership rules.
 - `JAVA` is retained as a configuration alias for existing deployments. It
-  selects the Scalar C object and does not enable the historical Java outer
-  fast path.
+  selects the pure-Rust Scalar backend and does not enable a Java outer fast
+  path.
 - `AUTO`, `AUTO_SAFE`, `NATIVE`, `AVX2`, and `AVX-512` retain their validation
   and hardware capability reporting. Unsupported explicit modes are rejected
   before serving.
 
-Rust never duplicates the C probability implementation. It uses
-`is_x86_feature_detected!` before selecting a vector object, so both CPU support
-and OS extended-state support are required before AVX2 or AVX-512 instructions
-can execute. External compiler ISA overrides are rejected, and each object is
-built with a fixed instruction ceiling.
+Rust mirrors the frozen C thresholds, tables, RNG transitions, and packed batch
+ending semantics. It uses `is_x86_feature_detected!` for safe runtime backend
+selection; AVX-labelled modes retain their capability reporting while sharing
+the same checked Rust behavior.
 
 Single generation writes into a fixed 64-byte Rust-owned buffer. Batch output
-has a hard limit of 4096 expressions and a 44-byte record budget. The wrapper
-checks C version and layout metadata, allocator alignment, every returned
-length, newline delimiter, ASCII grammar, and output budget before publication.
-All unsafe code is confined to the documented FFI boundary, and matching C
-allocators release every context. There is no JVM dependency.
+has a hard limit of 4096 expressions and a 44-byte record budget. Every output
+length, newline delimiter, ASCII grammar, and output budget is checked before
+publication. The generator contains no unsafe code, C ABI, native Skibidi
+allocator, or JVM dependency.

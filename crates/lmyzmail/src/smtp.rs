@@ -226,7 +226,9 @@ impl SmtpService {
             SmtpError::InvalidConfig(format!("SMTP Skibidi generator cannot start: {error}"))
         })?;
         let skibidi_info = skibidi_generator.runtime_info().map_err(|error| {
-            SmtpError::InvalidConfig(format!("SMTP Skibidi generator ABI is invalid: {error}"))
+            SmtpError::InvalidConfig(format!(
+                "SMTP Skibidi generator runtime is invalid: {error}"
+            ))
         })?;
         eprintln!(
             "lmyzmail SMTP Skibidi generator: backend={}, version={}, capabilities=0x{:x}, hardware_avx2={}, hardware_avx512={}, avx512_enabled={}, simd_rng={}",

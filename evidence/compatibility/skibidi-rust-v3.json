@@ -1,0 +1,58 @@
+{
+  "schema_version": 3,
+  "profile": "skibidi-rust-v3",
+  "implementation": {
+    "path": "crates/lmyzmail/src/skibidi.rs",
+    "runtime": "rust-only",
+    "c_library_linked": false,
+    "jvm_dependency": false,
+    "fixed_expression_capacity": 64,
+    "max_batch_expressions": 4096,
+    "batch_record_capacity": 44
+  },
+  "probability_authority": {
+    "source": "native/lmyzmail-skibidi/upstream/skibidi_avx.c",
+    "source_sha256": {
+      "skibidi_avx.c": "7E8E7F3EE5BEA0AC8D0857BD5BC8D806B44E5142C17EC8B5B6583DB7C62FC613",
+      "skibidi_avx.h": "BDE8E9D19D6668C644ABA1CDD81FB9F56C2236FF827DDD16FB366369BC68BBEA"
+    },
+    "prophecy_threshold_nice": 1680443541,
+    "brrrrr_vibration_threshold": 38,
+    "toilet_rejection_threshold": 38,
+    "dop_boundaries": [12, 204, 230, 243],
+    "canonical_expression": "Skibidi dop dop dop yes yes!",
+    "canonical_probability": 0.4000000000606502
+  },
+  "configuration": {
+    "legacy_java_alias": "rust-scalar-backend",
+    "java_fast_path": false,
+    "modes": ["JAVA", "SCALAR", "AUTO", "AUTO_SAFE", "NATIVE", "AVX2", "AVX512", "AVX-512"]
+  },
+  "verification": [
+    {
+      "command": "cargo test -p lmyzmail skibidi --lib --locked",
+      "result": "46 passed"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "cargo build --release --locked",
+      "result": "passed; sha256=ac04c6b740afd86e1f8938a922b149d793b5678b0cd16d54b46bcfd10104f1d6"
+    },
+    {
+      "command": "./.blackbox-venv-wsl/bin/pytest -q blackbox/tests/test_smtp_greeting_distribution.py -m=candidate",
+      "result": "1 passed; 2048 isolated SMTP greetings"
+    },
+    {
+      "command": "./.blackbox-venv-wsl/bin/pytest -q blackbox/tests/test_skibidi_native_abi.py -m='not integration'",
+      "result": "3 passed, 2 deselected"
+    }
+  ],
+  "notes": [
+    "All modes are implemented by Rust; the frozen C source remains the probability and byte-level authority only.",
+    "JAVA is a legacy configuration alias for the Rust Scalar backend; no JVM, C generator, or Java fast path is started.",
+    "AVX-labelled objects are ISA-capped and selected only after OS-aware runtime feature checks."
+  ]
+}
