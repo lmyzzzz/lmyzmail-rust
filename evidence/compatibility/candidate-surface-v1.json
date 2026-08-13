@@ -12,7 +12,7 @@
     "java_goldens": "read-only; no recording or normalization changes"
   },
   "independent_passes": {
-    "minecraft_protocol_gui_world_video": "29 passed across login, auth, GUI, mail, draft, world, playback, rendering, and video golden tests",
+    "minecraft_protocol_gui_world_video": "28 passed across login, auth, GUI, mail, draft, world, playback, rendering, and video golden tests",
     "xdp_disabled_and_skibidi_security": "2 passed",
     "fail2ban": "1 passed, 1 deselected",
     "candidate_foundation": "3 runtime tests plus HTTP/auth/mailbox/outbound/multipart golden suites passed"
