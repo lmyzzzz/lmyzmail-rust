@@ -1,0 +1,134 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "f084436dd6f57d919a7bc17b060bbb7287ced0c61305d39aaa280789d55dac68",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "playwright:chromium-1181",
+      "locale:zh-CN",
+      "timezone:UTC",
+      "animations:disabled",
+      "focus:blurred",
+      "password-fields:cleared-after-validation",
+      "css-transitions:disabled"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-web-ui"
+  },
+  "observation": {
+    "browser": {
+      "desktop_viewport": {
+        "height": 720,
+        "width": 1280
+      },
+      "device_scale_factor": 1,
+      "engine": "chromium",
+      "locale": "zh-CN",
+      "mobile_viewport": {
+        "height": 844,
+        "width": 390
+      },
+      "revision": "1181",
+      "timezone": "UTC"
+    },
+    "errors": {
+      "console": [],
+      "page": [],
+      "requests": []
+    },
+    "network": {
+      "pinned_resources": [
+        "inter-v20-css",
+        "inter-v20-latin-font",
+        "material-icons-v110-css",
+        "material-icons-v110-font",
+        "vue-3.5.41"
+      ],
+      "policy": "application origin plus exact pinned fixtures; all other URLs blocked",
+      "unexpected_urls": []
+    },
+    "states": [
+      {
+        "anchor": {
+          "height": 473.5,
+          "selector": ".auth-card",
+          "width": 420,
+          "x": 430,
+          "y": 123.25
+        },
+        "name": "desktop-login",
+        "path": "/",
+        "title": "lmyzmail",
+        "visible_text_sha256": "6be1583f1eb6f64b35b498c2aa02777dc6417fe3c66e8397351a486509b25a81"
+      },
+      {
+        "anchor": {
+          "height": 608.5,
+          "selector": ".auth-card",
+          "width": 420,
+          "x": 430,
+          "y": 55.75
+        },
+        "name": "desktop-register-validation",
+        "path": "/",
+        "title": "lmyzmail",
+        "visible_text_sha256": "27d6d7aa8b9af253af97d5393426ee9d11dd6fcaa5996c79a9ef0139a2da4206"
+      },
+      {
+        "anchor": {
+          "height": 720,
+          "selector": ".app-layout",
+          "width": 1280,
+          "x": 0,
+          "y": 0
+        },
+        "name": "desktop-inbox",
+        "path": "/",
+        "title": "lmyzmail",
+        "visible_text_sha256": "57970e5968f58d23ad201f76e4f53a3747ed323454f48c0058721e6cb764d657"
+      },
+      {
+        "anchor": {
+          "height": 519,
+          "selector": ".compose-modal",
+          "width": 800,
+          "x": 240,
+          "y": 100.5
+        },
+        "name": "desktop-compose",
+        "path": "/",
+        "title": "lmyzmail",
+        "visible_text_sha256": "9852f72863990898119f09f371ce77d17a1e6a4396ba488ea5c4ebd231a5e662"
+      },
+      {
+        "anchor": {
+          "height": 473.5,
+          "selector": ".auth-card",
+          "width": 342,
+          "x": 24,
+          "y": 185.25
+        },
+        "name": "mobile-login",
+        "path": "/",
+        "title": "lmyzmail",
+        "visible_text_sha256": "6be1583f1eb6f64b35b498c2aa02777dc6417fe3c66e8397351a486509b25a81"
+      }
+    ]
+  },
+  "schema_version": 2
+}

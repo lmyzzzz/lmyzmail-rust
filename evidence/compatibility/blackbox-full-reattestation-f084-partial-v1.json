@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "profile": "blackbox-full-reattestation-f084-partial-v1",
+  "definition_tree_sha256": "f084436dd6f57d919a7bc17b060bbb7287ced0c61305d39aaa280789d55dac68",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "recording": {
+    "scope": "blackbox/tests oracle marker",
+    "result": "71 passed, 256 deselected",
+    "elapsed_seconds": 1801.94,
+    "create_once_files": 225
+  },
+  "fresh_jvm_replay": {
+    "result": "70 passed, 1 failed, 256 deselected",
+    "elapsed_seconds": 1678.67,
+    "log_sha256": "07c953f5d9f57c719d2dc3a302df3f8593ace8a6094d2836762f75a09b11d10c",
+    "failure": {
+      "test": "tests/test_oracle_outbound_queue.py::test_managed_java_outbound_queue_golden",
+      "golden": "blackbox/golden/java/managed-outbound-queue-v39.json",
+      "expected_envelope_sha256": "96f5919107257f86e70a58aaa3e5bfd54560d0c6898e87d54f88a0e650e56266",
+      "actual_envelope_sha256": "d57ddf5da1b8bb72e3be3a301d0fdd0989ac075c55ff13a88f143093de3cc39e"
+    }
+  },
+  "independent_reprobe": {
+    "raw_observation_sha256": "4949516d15e089c7a12fb0752996d159164b9a4939bb377a6b0557679c8d6893",
+    "difference_from_recorded_observation": {
+      "path": "/post/redis/sentfile_index/generated:large",
+      "recorded": "large",
+      "replay_and_reprobe": "absent"
+    },
+    "all_other_fields_equal": true
+  },
+  "disposition": {
+    "golden_generation_immutable": true,
+    "active_candidate_expectation": false,
+    "classification": "terminal snapshot raced Java sent-file-index cleanup",
+    "required_follow_up": "wait for all scoped sent-file-index entries to disappear, advance the complete definition tree, and create a new generation"
+  },
+  "repository_guards": {
+    "java_oracle_read_only": true,
+    "skibidi_freeze_read_only": true,
+    "older_goldens_modified": false
+  }
+}
