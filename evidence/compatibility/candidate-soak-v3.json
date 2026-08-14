@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "profile": "candidate-http-smtp-long-soak-v3",
+  "status": "passed",
+  "command": "PYTHONPATH=blackbox/src blackbox/.venv/bin/python evidence/compatibility/candidate-soak-v2.py --duration 600 --workers 16",
+  "duration_seconds": 600.074,
+  "workers": 16,
+  "http_successes": 25168,
+  "smtp_successes": 1573,
+  "failures": 0,
+  "failure_kinds": {},
+  "resource": {
+    "samples": 1573,
+    "rss_min_kib": 30236,
+    "rss_max_kib": 31196,
+    "fd_min": 24,
+    "fd_max": 26,
+    "unbounded_growth_observed": false
+  },
+  "assertions": {
+    "candidate_process_stopped": true,
+    "postgres_and_redis_stopped": true,
+    "temporary_workspace_cleaned": true,
+    "ports_released": true
+  },
+  "release_sha256": "ebc91b78f14a00b3059240f28410926918ff6e7683ee0fcbbf37d383fe741d82"
+}
