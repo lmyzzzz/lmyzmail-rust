@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "profile": "oracle-full-marker-replay-20260814",
+  "status": "incomplete_timeout",
+  "command": "env -u LMYZMAIL_RECORD_JAVA_GOLDEN PYTHONPATH=blackbox/src blackbox/.venv/bin/pytest -q -m oracle --disable-warnings",
+  "hard_deadline_seconds": 2000,
+  "observed_runtime_seconds": 2004.034,
+  "result": "pytest did not produce a final summary before the hard deadline",
+  "goldens_modified": false,
+  "residual_processes_after_explicit_cleanup": false,
+  "interpretation": "This is not a passing full oracle replay and must not be used for goal completion.",
+  "next_action": "split the oracle marker suite into bounded protocol/profile batches, preserve per-batch summaries, and rerun the unfinished batch without changing goldens.",
+  "java_oracle_read_only": true,
+  "skibidi_freeze_read_only": true
+}
