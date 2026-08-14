@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "profile": "candidate-marker-matrix-complete-20260814-v2",
+  "status": "passed_with_separate_runner_profiles",
+  "command": ".blackbox/venv/bin/pytest -q -m candidate --disable-warnings --ignore=blackbox/tools/test_smtp_content_filter_rbl.py --ignore=evidence/compatibility/report-trigger-concurrency-v1/test_report_trigger_concurrency.py",
+  "passed": 132,
+  "deselected": 291,
+  "elapsed_seconds": 833.52,
+  "separate_profiles": {
+    "smtp-rbl": "evidence/compatibility/smtp-rbl-replay-v1.json",
+    "report-trigger-concurrency": "evidence/compatibility/report-trigger-concurrency-v2/evidence.json"
+  },
+  "assertions": {
+    "no_golden_modified": true,
+    "no_java_or_skibidi_freeze_modified": true,
+    "residual_candidate_processes": false,
+    "release_sha256": "ebc91b78f14a00b3059240f28410926918ff6e7683ee0fcbbf37d383fe741d82"
+  }
+}
