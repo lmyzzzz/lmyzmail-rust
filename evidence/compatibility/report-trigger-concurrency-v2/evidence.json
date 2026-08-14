@@ -1,0 +1,8 @@
+{
+  "definition_tree_sha256": "141e1828ab97be8d814267968b204414954f25c45653d0d7b0b130fdcc129246",
+  "observation_sha256": "86122982d88a8cd293c645fc1369fcf157b1160c41af87124642cf9923da7c13",
+  "oracle_golden_modified": false,
+  "profile": "report-trigger-concurrency-v2",
+  "schema_version": 1,
+  "source": "candidate replay with v1 business observation matched; v2 refreshes only stale harness attestation"
+}
