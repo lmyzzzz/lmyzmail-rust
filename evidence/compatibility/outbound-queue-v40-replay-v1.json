@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "profile": "outbound-queue-v40-replay-v1",
+  "status": "passed",
+  "golden": "blackbox/golden/java/managed-outbound-queue-v40.json",
+  "normalizers": ["outbound:generated-sent-filename", "outbound:redis-seven-day-ttl-observation-window"],
+  "verification": [
+    {
+      "target": "java-oracle",
+      "command": "PYTHONPATH=blackbox/src blackbox/.venv/bin/pytest -q blackbox/tests/test_oracle_outbound_queue.py::test_managed_java_outbound_queue_golden --disable-warnings",
+      "result": "1 passed in 28.60s"
+    },
+    {
+      "target": "rust-candidate",
+      "command": "PYTHONPATH=blackbox/src blackbox/.venv/bin/pytest -q blackbox/tests/test_oracle_outbound_queue.py::test_rust_candidate_outbound_queue_matches_frozen_java_golden --disable-warnings",
+      "result": "1 passed in 7.92s"
+    }
+  ],
+  "historical_failure_superseded": "managed-outbound-queue-v39 terminal snapshot race; v40 is the active race-free generation",
+  "release_sha256": "ebc91b78f14a00b3059240f28410926918ff6e7683ee0fcbbf37d383fe741d82",
+  "java_oracle_read_only": true,
+  "older_goldens_modified": false
+}
