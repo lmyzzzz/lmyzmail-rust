@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "profile": "visual-model-regression-v1",
+  "status": "passed",
+  "release_sha256": "ebc91b78f14a00b3059240f28410926918ff6e7683ee0fcbbf37d383fe741d82",
+  "verification": [
+    {
+      "surface": "web-ui",
+      "command": "PYTHONPATH=blackbox/src blackbox/.venv/bin/pytest -q blackbox/tests/test_oracle_web_ui.py::test_rust_candidate_web_ui_matches_frozen_java_golden --disable-warnings",
+      "result": "1 passed in 3.70s",
+      "golden": "blackbox/golden/java/managed-web-ui-v9",
+      "normalizers": ["playwright:chromium-1181", "locale:zh-CN", "timezone:UTC", "animations:disabled", "focus:blurred"]
+    },
+    {
+      "surface": "minecraft-video-frames-and-maps",
+      "command": "PYTHONPATH=blackbox/src blackbox/.venv/bin/pytest -q blackbox/tools/test_minecraft_video.py::test_rust_candidate_minecraft_video_matches_golden --disable-warnings",
+      "result": "1 passed in 22.08s",
+      "golden": "blackbox/golden/java/managed-minecraft-video-v9",
+      "assertions": ["packet counts", "bounded wire bytes", "expanded frame/map payloads", "pixel digests", "video resource SHA-256"]
+    },
+    {
+      "surface": "skibidi-inferx",
+      "command": "cargo test -p lmyzmail skibidi_inferx --target x86_64-unknown-linux-gnu --locked",
+      "result": "21 passed, 0 failed",
+      "assertions": ["SafeTensors metadata and BPE", "Scalar golden text", "AVX2+FMA golden when available", "runtime dispatch", "bounded cancellation", "model/tokenizer rejection limits"]
+    }
+  ],
+  "limits": [
+    "AVX-512F execution remains hardware-unavailable on this WSL host; dispatch rejects unsupported instructions.",
+    "This evidence is supplemental and does not mark the full project goal complete."
+  ]
+}
