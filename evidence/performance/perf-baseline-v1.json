@@ -1,0 +1,48 @@
+{
+  "profile": "same-host-java-rust-performance-memory-baseline-v1",
+  "release_sha256": "ebc91b78f14a00b3059240f28410926918ff6e7683ee0fcbbf37d383fe741d82",
+  "rows": [
+    {
+      "duration_seconds": 20.471,
+      "failures": 0,
+      "http_successes": 40,
+      "name": "rust-candidate",
+      "resource": {
+        "fd_max": 26,
+        "fd_min": 24,
+        "rss_max_kib": 30428,
+        "rss_min_kib": 29660,
+        "samples": 20
+      },
+      "smtp_successes": 1,
+      "startup_seconds": 0.87,
+      "status": "passed"
+    },
+    {
+      "duration_seconds": 20.639,
+      "failures": 0,
+      "http_successes": 40,
+      "name": "java-oracle",
+      "resource": {
+        "fd_max": 502,
+        "fd_min": 348,
+        "rss_max_kib": 1896516,
+        "rss_min_kib": 1335580,
+        "samples": 20
+      },
+      "smtp_successes": 1,
+      "startup_seconds": 7.154,
+      "status": "passed"
+    }
+  ],
+  "schema_version": 1,
+  "workload": {
+    "duration_seconds": 20,
+    "http_route": "GET /api/health",
+    "http_workers": 2,
+    "isolated_runtime": true,
+    "probe_interval_seconds": 1.0,
+    "smtp_exchange": "greeting then QUIT",
+    "smtp_probe_once": true
+  }
+}
