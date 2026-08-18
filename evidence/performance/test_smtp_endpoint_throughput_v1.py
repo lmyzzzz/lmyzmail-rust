@@ -1635,6 +1635,19 @@ class PlanAndComparisonTests(unittest.TestCase):
             return {
                 "completed_tasks": completed,
                 "completed_total_ns": completed_total_ns,
+                "inbound_index_batches": {
+                    "batches": completed // 4,
+                    "rows": completed,
+                    "max_rows": 4,
+                    "size_buckets": {
+                        "1": 0,
+                        "2_4": completed // 4,
+                        "5_8": 0,
+                        "9_16": 0,
+                        "17_32": 0,
+                        "33_64": 0,
+                    },
+                },
                 "stages": {
                     "database_claim": {
                         "count": completed,
@@ -1674,6 +1687,15 @@ class PlanAndComparisonTests(unittest.TestCase):
         self.assertEqual(second["top_stages"][0]["delta_total_ns"], 13_000)
         self.assertEqual(second["selected_stages"][0]["stage"], "database_claim")
         self.assertEqual(second["selected_stages"][0]["delta_total_ns"], 9_000)
+        self.assertEqual(second["inbound_index_batches"]["delta_batches"], 512)
+        self.assertEqual(second["inbound_index_batches"]["delta_rows"], 2_048)
+        self.assertEqual(
+            second["inbound_index_batches"]["average_rows_per_batch"], 4.0
+        )
+        self.assertEqual(
+            second["inbound_index_batches"]["delta_size_buckets"]["2_4"],
+            512,
+        )
 
     def test_coordinator_quartile_diagnostics_are_bounded_and_partial(self) -> None:
         stages = {
@@ -1705,6 +1727,45 @@ class PlanAndComparisonTests(unittest.TestCase):
             ["stage_11", "stage_10", "stage_09"],
         )
         self.assertNotIn("records", diagnostic)
+
+    def test_coordinator_quartile_diagnostics_reject_invalid_batch_buckets(self) -> None:
+        records = []
+        for completed in range(1, 5):
+            records.append(
+                {
+                    "completed_tasks": completed,
+                    "completed_total_ns": completed * 100,
+                    "stages": {
+                        "inbound_index_commit": {
+                            "count": completed,
+                            "total_ns": completed * 10,
+                            "max_ns": 10,
+                        }
+                    },
+                    "inbound_index_batches": {
+                        "batches": completed,
+                        "rows": completed,
+                        "max_rows": 1,
+                        "size_buckets": {
+                            "1": completed,
+                            "2_4": 0,
+                            "5_8": 0,
+                            "9_16": 0,
+                            "17_32": 0,
+                            "33_64": 0,
+                        },
+                    },
+                }
+            )
+        records[2]["inbound_index_batches"]["size_buckets"]["1"] = 2
+
+        diagnostic = runner._coordinator_quartile_diagnostics(records, 4)
+
+        self.assertFalse(diagnostic["complete"])
+        self.assertEqual(
+            diagnostic["reason"],
+            "non_monotonic_or_invalid_inbound_index_batch_metrics",
+        )
 
     def test_two_arm_relative_range_is_a_fail_closed_stability_gate(self) -> None:
         java = _row("java-oracle", "10KB", 100.0)

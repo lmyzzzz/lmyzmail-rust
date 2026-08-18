@@ -11,6 +11,7 @@ use std::{
 const ENABLE_ENV: &str = "LMYZMAIL_COORDINATOR_OBSERVER";
 const SCHEMA: &str = "lmyzmail.coordinator-stage-observation.v1";
 const SNAPSHOT_INTERVAL: u64 = 256;
+const INBOUND_INDEX_BATCH_BUCKETS: usize = 6;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(usize)]
@@ -82,6 +83,12 @@ pub(crate) enum CoordinatorStage {
     InboundIntentInsert,
     InboundPublishFile,
     InboundIndexCommit,
+    InboundIndexBatchAdmission,
+    InboundIndexBatchQueueWait,
+    InboundIndexBatchDispatchWait,
+    InboundIndexBatchCollect,
+    InboundIndexBatchWorker,
+    InboundIndexBatchResponseWait,
     InboundIndexPool,
     InboundIndexBegin,
     InboundIndexIntentLock,
@@ -100,7 +107,7 @@ pub(crate) enum CoordinatorStage {
 }
 
 impl CoordinatorStage {
-    const ALL: [Self; 82] = [
+    const ALL: [Self; 88] = [
         Self::QueueClaim,
         Self::DatabaseClaim,
         Self::RecipientRoster,
@@ -168,6 +175,12 @@ impl CoordinatorStage {
         Self::InboundIntentInsert,
         Self::InboundPublishFile,
         Self::InboundIndexCommit,
+        Self::InboundIndexBatchAdmission,
+        Self::InboundIndexBatchQueueWait,
+        Self::InboundIndexBatchDispatchWait,
+        Self::InboundIndexBatchCollect,
+        Self::InboundIndexBatchWorker,
+        Self::InboundIndexBatchResponseWait,
         Self::InboundIndexPool,
         Self::InboundIndexBegin,
         Self::InboundIndexIntentLock,
@@ -254,6 +267,12 @@ impl CoordinatorStage {
             Self::InboundIntentInsert => "inbound_intent_insert",
             Self::InboundPublishFile => "inbound_publish_file",
             Self::InboundIndexCommit => "inbound_index_commit",
+            Self::InboundIndexBatchAdmission => "inbound_index_batch_admission",
+            Self::InboundIndexBatchQueueWait => "inbound_index_batch_queue_wait",
+            Self::InboundIndexBatchDispatchWait => "inbound_index_batch_dispatch_wait",
+            Self::InboundIndexBatchCollect => "inbound_index_batch_collect",
+            Self::InboundIndexBatchWorker => "inbound_index_batch_worker",
+            Self::InboundIndexBatchResponseWait => "inbound_index_batch_response_wait",
             Self::InboundIndexPool => "inbound_index_pool",
             Self::InboundIndexBegin => "inbound_index_begin",
             Self::InboundIndexIntentLock => "inbound_index_intent_lock",
@@ -300,8 +319,81 @@ impl StageCounters {
     }
 }
 
+struct InboundIndexBatchCounters {
+    // The single index-commit worker is the sole writer; snapshots may run on any task.
+    sequence: AtomicU64,
+    batches: AtomicU64,
+    rows: AtomicU64,
+    max_rows: AtomicU64,
+    size_buckets: [AtomicU64; INBOUND_INDEX_BATCH_BUCKETS],
+}
+
+impl InboundIndexBatchCounters {
+    fn new() -> Self {
+        Self {
+            sequence: AtomicU64::new(0),
+            batches: AtomicU64::new(0),
+            rows: AtomicU64::new(0),
+            max_rows: AtomicU64::new(0),
+            size_buckets: std::array::from_fn(|_| AtomicU64::new(0)),
+        }
+    }
+
+    fn record(&self, rows: usize) {
+        debug_assert!((1..=64).contains(&rows));
+        let rows = u64::try_from(rows).unwrap_or(u64::MAX);
+        self.sequence.fetch_add(1, Ordering::AcqRel);
+        self.batches.fetch_add(1, Ordering::Relaxed);
+        let _ = self
+            .rows
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |total| {
+                Some(total.saturating_add(rows))
+            });
+        self.max_rows.fetch_max(rows, Ordering::Relaxed);
+        let bucket = match rows {
+            1 => 0,
+            2..=4 => 1,
+            5..=8 => 2,
+            9..=16 => 3,
+            17..=32 => 4,
+            _ => 5,
+        };
+        self.size_buckets[bucket].fetch_add(1, Ordering::Relaxed);
+        self.sequence.fetch_add(1, Ordering::Release);
+    }
+
+    fn snapshot(&self) -> InboundIndexBatchSnapshot {
+        loop {
+            let before = self.sequence.load(Ordering::Acquire);
+            if !before.is_multiple_of(2) {
+                std::hint::spin_loop();
+                continue;
+            }
+            let snapshot = InboundIndexBatchSnapshot {
+                batches: self.batches.load(Ordering::Relaxed),
+                rows: self.rows.load(Ordering::Relaxed),
+                max_rows: self.max_rows.load(Ordering::Relaxed),
+                size_buckets: std::array::from_fn(|index| {
+                    self.size_buckets[index].load(Ordering::Relaxed)
+                }),
+            };
+            if self.sequence.load(Ordering::Acquire) == before {
+                return snapshot;
+            }
+        }
+    }
+}
+
+struct InboundIndexBatchSnapshot {
+    batches: u64,
+    rows: u64,
+    max_rows: u64,
+    size_buckets: [u64; INBOUND_INDEX_BATCH_BUCKETS],
+}
+
 struct Observer {
     stages: [StageCounters; CoordinatorStage::ALL.len()],
+    inbound_index_batches: InboundIndexBatchCounters,
     completed_tasks: AtomicU64,
     completed_total_ns: AtomicU64,
     completed_max_ns: AtomicU64,
@@ -313,6 +405,7 @@ impl Observer {
     fn new(snapshot_interval: u64) -> Self {
         Self {
             stages: std::array::from_fn(|_| StageCounters::new()),
+            inbound_index_batches: InboundIndexBatchCounters::new(),
             completed_tasks: AtomicU64::new(0),
             completed_total_ns: AtomicU64::new(0),
             completed_max_ns: AtomicU64::new(0),
@@ -327,6 +420,10 @@ impl Observer {
 
     fn record_stage(&self, stage: CoordinatorStage, elapsed: Duration) {
         self.stages[stage as usize].record(elapsed);
+    }
+
+    fn record_inbound_index_batch(&self, rows: usize) {
+        self.inbound_index_batches.record(rows);
     }
 
     fn record_completed_task(&self, elapsed: Duration) {
@@ -378,7 +475,34 @@ impl Observer {
             )
             .expect("writing a bounded coordinator observation to String cannot fail");
         }
-        output.push_str("}}");
+        let inbound_index_batches = self.inbound_index_batches.snapshot();
+        output.push_str("},\"inbound_index_batches\":{");
+        write!(
+            output,
+            concat!(
+                "\"batches\":{},\"rows\":{},\"max_rows\":{},",
+                "\"size_buckets\":{{"
+            ),
+            inbound_index_batches.batches,
+            inbound_index_batches.rows,
+            inbound_index_batches.max_rows,
+        )
+        .expect("writing bounded inbound index batch counters to String cannot fail");
+        for (index, label) in ["1", "2_4", "5_8", "9_16", "17_32", "33_64"]
+            .into_iter()
+            .enumerate()
+        {
+            if index != 0 {
+                output.push(',');
+            }
+            write!(
+                output,
+                "\"{label}\":{}",
+                inbound_index_batches.size_buckets[index]
+            )
+            .expect("writing bounded inbound index batch buckets to String cannot fail");
+        }
+        output.push_str("}}}");
         output
     }
 }
@@ -387,6 +511,22 @@ static OBSERVER: OnceLock<Option<Observer>> = OnceLock::new();
 
 fn observer() -> Option<&'static Observer> {
     OBSERVER.get_or_init(Observer::from_environment).as_ref()
+}
+
+pub(crate) fn observation_instant() -> Option<Instant> {
+    observer().map(|_| Instant::now())
+}
+
+pub(crate) fn record_stage_elapsed(stage: CoordinatorStage, elapsed: Duration) {
+    if let Some(observer) = observer() {
+        observer.record_stage(stage, elapsed);
+    }
+}
+
+pub(crate) fn record_inbound_index_batch(rows: usize) {
+    if let Some(observer) = observer() {
+        observer.record_inbound_index_batch(rows);
+    }
 }
 
 pub(crate) struct StageTimer {
@@ -479,10 +619,37 @@ mod tests {
     }
 
     #[test]
+    fn inbound_index_batch_stage_names_are_stable() {
+        let names = [
+            CoordinatorStage::InboundIndexBatchAdmission,
+            CoordinatorStage::InboundIndexBatchQueueWait,
+            CoordinatorStage::InboundIndexBatchDispatchWait,
+            CoordinatorStage::InboundIndexBatchCollect,
+            CoordinatorStage::InboundIndexBatchWorker,
+            CoordinatorStage::InboundIndexBatchResponseWait,
+        ]
+        .map(CoordinatorStage::name);
+        assert_eq!(
+            names,
+            [
+                "inbound_index_batch_admission",
+                "inbound_index_batch_queue_wait",
+                "inbound_index_batch_dispatch_wait",
+                "inbound_index_batch_collect",
+                "inbound_index_batch_worker",
+                "inbound_index_batch_response_wait",
+            ]
+        );
+    }
+
+    #[test]
     fn snapshot_reports_cumulative_stage_and_completion_totals() {
         let observer = Observer::new(2);
         observer.record_stage(CoordinatorStage::DatabaseClaim, Duration::from_nanos(11));
         observer.record_stage(CoordinatorStage::DatabaseClaim, Duration::from_nanos(13));
+        for rows in [1, 2, 4, 5, 8, 9, 16, 17, 32, 33, 64] {
+            observer.record_inbound_index_batch(rows);
+        }
         observer.record_completed_task(Duration::from_nanos(101));
 
         let value: serde_json::Value = serde_json::from_str(&observer.snapshot()).unwrap();
@@ -493,5 +660,12 @@ mod tests {
         assert_eq!(value["stages"]["database_claim"]["count"], 2);
         assert_eq!(value["stages"]["database_claim"]["total_ns"], 24);
         assert_eq!(value["stages"]["database_claim"]["max_ns"], 13);
+        assert_eq!(value["inbound_index_batches"]["batches"], 11);
+        assert_eq!(value["inbound_index_batches"]["rows"], 191);
+        assert_eq!(value["inbound_index_batches"]["max_rows"], 64);
+        assert_eq!(value["inbound_index_batches"]["size_buckets"]["1"], 1);
+        for bucket in ["2_4", "5_8", "9_16", "17_32", "33_64"] {
+            assert_eq!(value["inbound_index_batches"]["size_buckets"][bucket], 2);
+        }
     }
 }

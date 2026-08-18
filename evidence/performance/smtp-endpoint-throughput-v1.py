@@ -105,6 +105,14 @@ MAXIMUM_WITHIN_ARM_RELATIVE_RANGE = 0.30
 MAXIMUM_COORDINATOR_DIAGNOSTIC_STAGES = 8
 MAXIMUM_COORDINATOR_SELECTED_DIAGNOSTIC_STAGES = 16
 COORDINATOR_DIAGNOSTIC_STAGES_ENV = "LMYZMAIL_COORDINATOR_DIAGNOSTIC_STAGES"
+COORDINATOR_INBOUND_INDEX_BATCH_BUCKETS = (
+    "1",
+    "2_4",
+    "5_8",
+    "9_16",
+    "17_32",
+    "33_64",
+)
 COORDINATOR_SELECTED_DIAGNOSTIC_STAGES = (
     "smtp_commit",
     "smtp_final_reply",
@@ -2237,9 +2245,22 @@ def _coordinator_quartile_diagnostics(
             break
         milestones.append(selected)
 
+    batch_metric_presence = ["inbound_index_batches" in record for record in milestones]
+    if any(batch_metric_presence) and not all(batch_metric_presence):
+        result["reason"] = "inconsistent_inbound_index_batch_metrics"
+        return result
+
     before_completed = 0
     before_total_ns = 0
     before_stages: dict[str, Any] = {}
+    before_batch_metrics = {
+        "batches": 0,
+        "rows": 0,
+        "max_rows": 0,
+        "size_buckets": {
+            bucket: 0 for bucket in COORDINATOR_INBOUND_INDEX_BATCH_BUCKETS
+        },
+    }
     for ordinal, (threshold, after) in enumerate(zip(thresholds, milestones), start=1):
         after_completed = int(after["completed_tasks"])
         after_total_ns = int(after["completed_total_ns"])
@@ -2295,28 +2316,105 @@ def _coordinator_quartile_diagnostics(
         )
         delta_completed = after_completed - before_completed
         delta_completed_total_ns = after_total_ns - before_total_ns
-        result["segments"].append(
-            {
-                "ordinal": ordinal,
-                "threshold": threshold,
-                "start_completed_tasks": before_completed,
-                "end_completed_tasks": after_completed,
-                "delta_completed_tasks": delta_completed,
-                "delta_completed_total_ns": delta_completed_total_ns,
-                "average_completed_task_ns": (
-                    delta_completed_total_ns // delta_completed
-                    if delta_completed
-                    else None
-                ),
-                "all_stage_delta_total_ns": all_stage_total_ns,
-                "top_stages": stage_deltas[:maximum_stages],
-                "selected_stages": [
-                    stage_deltas_by_name[name]
-                    for name in selected_stage_names
-                    if name in stage_deltas_by_name
-                ],
+        segment = {
+            "ordinal": ordinal,
+            "threshold": threshold,
+            "start_completed_tasks": before_completed,
+            "end_completed_tasks": after_completed,
+            "delta_completed_tasks": delta_completed,
+            "delta_completed_total_ns": delta_completed_total_ns,
+            "average_completed_task_ns": (
+                delta_completed_total_ns // delta_completed if delta_completed else None
+            ),
+            "all_stage_delta_total_ns": all_stage_total_ns,
+            "top_stages": stage_deltas[:maximum_stages],
+            "selected_stages": [
+                stage_deltas_by_name[name]
+                for name in selected_stage_names
+                if name in stage_deltas_by_name
+            ],
+        }
+        if all(batch_metric_presence):
+            after_batch_metrics = after["inbound_index_batches"]
+            if not isinstance(after_batch_metrics, dict):
+                result["reason"] = "invalid_inbound_index_batch_metrics"
+                return result
+            try:
+                after_batches = int(after_batch_metrics["batches"])
+                after_rows = int(after_batch_metrics["rows"])
+                after_max_rows = int(after_batch_metrics["max_rows"])
+                after_buckets_raw = after_batch_metrics["size_buckets"]
+                if not isinstance(after_buckets_raw, dict) or set(after_buckets_raw) != set(
+                    COORDINATOR_INBOUND_INDEX_BATCH_BUCKETS
+                ):
+                    raise ValueError("invalid inbound index batch buckets")
+                after_buckets = {
+                    bucket: int(after_buckets_raw[bucket])
+                    for bucket in COORDINATOR_INBOUND_INDEX_BATCH_BUCKETS
+                }
+            except (KeyError, TypeError, ValueError):
+                result["reason"] = "invalid_inbound_index_batch_metrics"
+                return result
+            if (
+                after_batches < int(before_batch_metrics["batches"])
+                or after_rows < int(before_batch_metrics["rows"])
+                or after_max_rows < int(before_batch_metrics["max_rows"])
+                or after_batches < 0
+                or after_rows < 0
+                or after_max_rows < 0
+                or after_max_rows > 64
+                or any(
+                    after_buckets[bucket]
+                    < int(before_batch_metrics["size_buckets"][bucket])
+                    for bucket in COORDINATOR_INBOUND_INDEX_BATCH_BUCKETS
+                )
+                or sum(after_buckets.values()) != after_batches
+                or (after_batches == 0 and (after_rows != 0 or after_max_rows != 0))
+                or (
+                    after_batches > 0
+                    and (
+                        after_max_rows == 0
+                        or after_rows < after_batches
+                        or after_rows > after_batches * 64
+                        or after_rows < after_max_rows
+                    )
+                )
+            ):
+                result["reason"] = "non_monotonic_or_invalid_inbound_index_batch_metrics"
+                return result
+            delta_batches = after_batches - int(before_batch_metrics["batches"])
+            delta_rows = after_rows - int(before_batch_metrics["rows"])
+            delta_buckets = {
+                bucket: after_buckets[bucket]
+                - int(before_batch_metrics["size_buckets"][bucket])
+                for bucket in COORDINATOR_INBOUND_INDEX_BATCH_BUCKETS
             }
-        )
+            if (
+                sum(delta_buckets.values()) != delta_batches
+                or (delta_batches == 0 and delta_rows != 0)
+                or (
+                    delta_batches > 0
+                    and (delta_rows < delta_batches or delta_rows > delta_batches * 64)
+                )
+            ):
+                result["reason"] = "invalid_inbound_index_batch_delta"
+                return result
+            segment["inbound_index_batches"] = {
+                "delta_batches": delta_batches,
+                "delta_rows": delta_rows,
+                "average_rows_per_batch": (
+                    delta_rows / delta_batches if delta_batches else None
+                ),
+                "end_max_rows": after_max_rows,
+                "delta_size_buckets": delta_buckets,
+            }
+            before_batch_metrics = {
+                "batches": after_batches,
+                "rows": after_rows,
+                "max_rows": after_max_rows,
+                "size_buckets": after_buckets,
+            }
+        result["segments"].append(segment)
         before_completed = after_completed
         before_total_ns = after_total_ns
         before_stages = after_stages

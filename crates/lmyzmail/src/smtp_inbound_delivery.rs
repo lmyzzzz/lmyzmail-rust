@@ -19,7 +19,10 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    coordinator_observer::{CoordinatorStage, StageTimer},
+    coordinator_observer::{
+        CoordinatorStage, StageTimer, observation_instant, record_inbound_index_batch,
+        record_stage_elapsed,
+    },
     durability::{fsync, sync_all},
     mailbox::{
         normalize_mailbox, secure_directory_child, secure_directory_root, secure_mailbox_folder,
@@ -223,9 +226,41 @@ pub(crate) struct PreparedInbound {
 struct IndexCommitRequest {
     prepared: PreparedInbound,
     response: oneshot::Sender<io::Result<()>>,
+    observed_enqueued_at: Option<std::time::Instant>,
+    observed_dequeued_at: Option<std::time::Instant>,
 }
 
 impl IndexCommitRequest {
+    fn new(prepared: PreparedInbound, response: oneshot::Sender<io::Result<()>>) -> Self {
+        Self {
+            prepared,
+            response,
+            observed_enqueued_at: observation_instant(),
+            observed_dequeued_at: None,
+        }
+    }
+
+    fn observe_dequeued(&mut self) {
+        let dequeued_at = observation_instant();
+        if let (Some(enqueued_at), Some(dequeued_at)) = (self.observed_enqueued_at, dequeued_at) {
+            record_stage_elapsed(
+                CoordinatorStage::InboundIndexBatchQueueWait,
+                dequeued_at.saturating_duration_since(enqueued_at),
+            );
+        }
+        self.observed_dequeued_at = dequeued_at;
+    }
+
+    fn observe_dispatched(&self, dispatched_at: Option<std::time::Instant>) {
+        if let (Some(dequeued_at), Some(dispatched_at)) = (self.observed_dequeued_at, dispatched_at)
+        {
+            record_stage_elapsed(
+                CoordinatorStage::InboundIndexBatchDispatchWait,
+                dispatched_at.saturating_duration_since(dequeued_at),
+            );
+        }
+    }
+
     fn respond(self, result: io::Result<()>) {
         let _ = self.response.send(result);
     }
@@ -280,17 +315,18 @@ impl IndexCommitter {
 
     pub(crate) async fn submit(&self, prepared: &PreparedInbound) -> io::Result<()> {
         let sender = self.sender.clone();
-        let permit = timeout(DATABASE_TIMEOUT, sender.reserve_owned())
-            .await
-            .map_err(|_| timed_out("inbound index batch admission"))?
-            .map_err(|_| {
-                io::Error::new(io::ErrorKind::BrokenPipe, "inbound index worker closed")
-            })?;
+        let permit = {
+            let _timer = StageTimer::start(CoordinatorStage::InboundIndexBatchAdmission);
+            timeout(DATABASE_TIMEOUT, sender.reserve_owned())
+                .await
+                .map_err(|_| timed_out("inbound index batch admission"))?
+                .map_err(|_| {
+                    io::Error::new(io::ErrorKind::BrokenPipe, "inbound index worker closed")
+                })?
+        };
         let (response, receiver) = oneshot::channel();
-        permit.send(IndexCommitRequest {
-            prepared: prepared.clone(),
-            response,
-        });
+        permit.send(IndexCommitRequest::new(prepared.clone(), response));
+        let _timer = StageTimer::start(CoordinatorStage::InboundIndexBatchResponseWait);
         timeout(INDEX_BATCH_RESPONSE_TIMEOUT, receiver)
             .await
             .map_err(|_| timed_out("inbound index batch response"))?
@@ -336,11 +372,13 @@ async fn run_index_commit_worker(
             }
             request = receiver.recv() => request,
         };
-        let Some(first) = first else {
+        let Some(mut first) = first else {
             break;
         };
+        first.observe_dequeued();
         let mut batch = Vec::with_capacity(MAX_INDEX_BATCH_ROWS);
         batch.push(first);
+        let collection_timer = StageTimer::start(CoordinatorStage::InboundIndexBatchCollect);
         let collection_deadline = Instant::now() + INDEX_BATCH_COLLECTION_WINDOW;
         while batch.len() < MAX_INDEX_BATCH_ROWS {
             let request = tokio::select! {
@@ -353,11 +391,19 @@ async fn run_index_commit_worker(
                     result.ok().flatten()
                 }
             };
-            let Some(request) = request else {
+            let Some(mut request) = request else {
                 break;
             };
+            request.observe_dequeued();
             batch.push(request);
         }
+        drop(collection_timer);
+        let dispatched_at = observation_instant();
+        for request in &batch {
+            request.observe_dispatched(dispatched_at);
+        }
+        record_inbound_index_batch(batch.len());
+        let _worker_timer = StageTimer::start(CoordinatorStage::InboundIndexBatchWorker);
         persist_index_batch(&pool, batch).await;
     }
 }
@@ -2951,7 +2997,7 @@ INSERT INTO mailbox (address) VALUES ('qa@example.test');
             let (response, receiver) = oneshot::channel();
             committer
                 .sender
-                .send(IndexCommitRequest { prepared, response })
+                .send(IndexCommitRequest::new(prepared, response))
                 .await
                 .unwrap();
             responses.push(receiver);
@@ -2972,7 +3018,7 @@ INSERT INTO mailbox (address) VALUES ('qa@example.test');
             let (response, receiver) = oneshot::channel();
             committer
                 .sender
-                .send(IndexCommitRequest { prepared, response })
+                .send(IndexCommitRequest::new(prepared, response))
                 .await
                 .unwrap();
             queued_responses.push(receiver);
