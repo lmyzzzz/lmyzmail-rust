@@ -2217,3 +2217,24 @@ The root journal reports `request=DONE`, `cleanup=passed`,
 mount, loop device, image, or artifact. This run remains `qualified=false`:
 eight smoke messages do not satisfy the external prerequisites, formal
 500,000-message count, or queue-scheduler observation gate.
+
+The next two formal launcher attempts stopped before candidate startup and are
+not SMTP pressure or throughput evidence. Run
+`8bce5589-dd85-4c27-ba4d-1b7159ca13d4` correctly rejected its root proxy
+prerequisite because the 10 KB proxied round spread was `0.2733659435`, above
+the unchanged `0.20` limit. Run
+`f5dfd239-31c3-4a3f-84d0-f0ed72c059eb` produced three semantically passing
+tiers, but the independent verifier rejected their embedded raw-calibration
+hashes. Both runs ended with `request=ABORT`, `cleanup=passed`, missing
+provisional/checkpoint artifacts, no lazy unmount, and no root-resource
+residual.
+
+The second failure exposed a build-selection bug rather than a calibration
+failure. A combined workspace build enables `serde_json/preserve_order` through
+the main crate, so the proxy's former `canonical_json_sha256` hashed struct
+insertion order while the launcher independently hashes recursively key-sorted
+JSON. The proxy now explicitly fixes the actual feature set and recursively
+sorts every object before hashing. A nested object and floating-point fixture
+is bound to the Python-compatible SHA-256
+`a1d1b2ce3054778afbb38cca193d523c676f258475be4b6c46949f6174678e1d`.
+No qualification assertion or performance threshold changed.

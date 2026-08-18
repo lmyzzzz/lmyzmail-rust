@@ -380,8 +380,28 @@ fn unix_seconds() -> Result<u64, BoxError> {
 }
 
 fn canonical_json_sha256(value: &impl Serialize) -> Result<String, serde_json::Error> {
-    let canonical = serde_json::to_value(value)?;
+    let mut canonical = serde_json::to_value(value)?;
+    sort_json_object_keys(&mut canonical);
     serde_json::to_vec(&canonical).map(|payload| hex_sha256(&payload))
+}
+
+fn sort_json_object_keys(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::Array(values) => {
+            for value in values {
+                sort_json_object_keys(value);
+            }
+        }
+        serde_json::Value::Object(entries) => {
+            let mut sorted = std::mem::take(entries).into_iter().collect::<Vec<_>>();
+            sorted.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+            for (key, mut value) in sorted {
+                sort_json_object_keys(&mut value);
+                entries.insert(key, value);
+            }
+        }
+        _ => {}
+    }
 }
 
 pub fn publish_headroom_attestation(
@@ -564,6 +584,19 @@ mod tests {
         let limits = ObserverLimits::default();
         assert!(config_with_nofile(6_511).validate(&limits).is_err());
         assert!(config_with_nofile(6_512).validate(&limits).is_ok());
+    }
+
+    #[test]
+    fn canonical_hash_matches_cross_language_sorted_json_fixture() {
+        let fixture: serde_json::Value = serde_json::from_str(
+            r#"{"schema_version":4,"proxy_to_direct_ratio":1.018139747866214,"rounds":[{"messages_per_second":9337.31883700705,"duration_ns":123}],"qualification":true,"observer":{"verified":1000000,"missing":0}}"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            canonical_json_sha256(&fixture).unwrap(),
+            "a1d1b2ce3054778afbb38cca193d523c676f258475be4b6c46949f6174678e1d"
+        );
     }
 
     #[test]
