@@ -4326,6 +4326,7 @@ exec "$@"
             LMYZMAIL_BENCHMARK_MAX_MEMORY_BYTES="${max_memory_bytes}" \
             LMYZMAIL_BENCHMARK_NOFILE_LIMIT="${nofile_limit}" \
             LMYZMAIL_BENCHMARK_HOST_RESERVE_BYTES="${host_reserve_bytes}" \
+            LMYZMAIL_COORDINATOR_DIAGNOSTIC_STAGES="${LMYZMAIL_COORDINATOR_DIAGNOSTIC_STAGES:-}" \
             LMYZMAIL_BENCHMARK_CGROUP_SUPERVISOR_SOCKET="${migration_socket}" \
             LMYZMAIL_BENCHMARK_LAUNCHER_PID="${runner_parent_pid}" \
             "${venv_python}" -c '

@@ -128,7 +128,7 @@ COORDINATOR_SELECTED_DIAGNOSTIC_STAGES = (
 def _coordinator_selected_diagnostic_stages() -> tuple[str, ...]:
     """Return the default stage contract or an explicit bounded diagnostic override."""
     raw = os.environ.get(COORDINATOR_DIAGNOSTIC_STAGES_ENV)
-    if raw is None:
+    if raw is None or not raw.strip():
         return COORDINATOR_SELECTED_DIAGNOSTIC_STAGES
     selected = tuple(part.strip() for part in raw.split(","))
     if (
