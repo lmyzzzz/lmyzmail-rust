@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "negative_profiler_experiment_summary",
+  "qualified": false,
+  "retained": false,
+  "qualification_failure": "within_arm_throughput_stability",
+  "source_git_head": "1ed26ead16f85df9e69195ed98b6761e8af04d23",
+  "hypothesis": "Retaining one PostgreSQL connection in the inbound index worker when the pool has at least eight slots will reduce worker latency and improve end-to-end SMTP throughput without changing SQL, transaction, durability, batch, lock, or protocol behavior.",
+  "configuration": {
+    "profile": "rust-profiler",
+    "target": "rust-candidate",
+    "tier": "10KB",
+    "messages": 2048,
+    "rust_filesystem_fsync": "off",
+    "postgresql_fsync": "on",
+    "postgresql_synchronous_commit": "on",
+    "postgres_pool_size": 96,
+    "workload_cpu_limit": 1,
+    "io_limit_bytes_per_second": 500000000,
+    "original_stress_endpoint_invocations_per_run": 1,
+    "harness_batching": false,
+    "maximum_selected_diagnostic_stages": 16
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "4207735fdd7673254c6ee53ca9478573f42c791247aca40a71315b1b42f559d2",
+    "build_id": "3abe30c8434450c049cdc25976aebf3f47d659cd",
+    "size_bytes": 219705600,
+    "owner_mode": "root:root 0755",
+    "main_and_deps_hard_link": true
+  },
+  "control": {
+    "summary": "evidence/performance/smtp-rust-current-inbound-stage-profiler-v132-v133-summary.json",
+    "runs_messages_per_second": [116.98, 118.05],
+    "mean_messages_per_second": 117.515
+  },
+  "runs": [
+    {
+      "label": "v134",
+      "throughput_messages_per_second": 116.61,
+      "stability": {
+        "maximum_relative_range": 0.30,
+        "relative_range": 0.526888,
+        "passed": false
+      },
+      "outcome": {
+        "queued": 2048,
+        "received": 2048,
+        "failed": 0,
+        "exceptions": 0,
+        "oom": 0,
+        "retry": 0,
+        "lost": 0,
+        "maildir_publications": 4096,
+        "maildir_removals": 4096
+      },
+      "selected_stage_average_ms": {
+        "inbound_index_commit": 54.868621,
+        "inbound_index_batch_worker": 34.668430
+      },
+      "artifacts": {
+        "console": "evidence/performance/smtp-rust-index-affinity-profiler-v134-console.log",
+        "console_sha256": "f37fa6f379c37962afbaa59c1f951cb22bd447b924d2753d9c5fbbdd387bb44b",
+        "final_output": "not_published",
+        "root_cleanup_copy": "evidence/performance/smtp-rust-index-affinity-profiler-v134.json.root-cleanup",
+        "root_run_id": "5c890b67-0e00-46b1-9770-6f489390bf36",
+        "root_intent_sha256": "24d1e1986d7471392166e30b343a57fb9fa00f95370cfb50baeb02965effc3c2",
+        "root_done_sha256": "c3ba748e7cf50547c4e2c4fd57270c945167dce568046e7057d8cea0c743efcb"
+      }
+    },
+    {
+      "label": "v135",
+      "throughput_messages_per_second": 117.57,
+      "stability": {
+        "maximum_relative_range": 0.30,
+        "relative_range": 0.523434,
+        "passed": false
+      },
+      "outcome": {
+        "queued": 2048,
+        "received": 2048,
+        "failed": 0,
+        "exceptions": 0,
+        "oom": 0,
+        "retry": 0,
+        "lost": 0,
+        "maildir_publications": 4096,
+        "maildir_removals": 4096
+      },
+      "selected_stage_average_ms": {
+        "inbound_index_commit": 53.228003,
+        "inbound_index_batch_worker": 34.281048
+      },
+      "artifacts": {
+        "console": "evidence/performance/smtp-rust-index-affinity-profiler-v135-console.log",
+        "console_sha256": "30ea9a6dbad222b7d7d54ed77a056e1757f4613368f229ee368323589ae37f17",
+        "final_output": "not_published",
+        "root_cleanup_copy": "evidence/performance/smtp-rust-index-affinity-profiler-v135.json.root-cleanup",
+        "root_run_id": "d3001694-83be-4dcf-a86b-eca11236d857",
+        "root_intent_sha256": "d39fe2e59a64c1d3291f4ea92e7ee4ebb1c5e4ba9fb5c9af715f90c3a1c076ea",
+        "root_done_sha256": "37a4b8b908b382fdf7c1953bc3bfcf506c384012314df6c87509625a89ecb369"
+      }
+    }
+  ],
+  "combined": {
+    "mean_throughput_messages_per_second": 117.09,
+    "relative_change_from_control_mean": -0.003616,
+    "conclusion": "The retained connection slightly reduced the measured index worker and index commit stages, but the two-run end-to-end mean regressed by about 0.36 percent from the v132/v133 control. Both arms failed the unchanged stability gate. The optimization is rejected and must be reverted."
+  },
+  "same_host_java_context": {
+    "reference": "evidence/performance/smtp-endpoint-java-stable-window-baseline-v1.json",
+    "tier": "10KB",
+    "java_stable_window_messages_per_second": 47.22353592061864,
+    "rust_experiment_mean_messages_per_second": 117.09,
+    "rust_to_java_ratio": 2.4790,
+    "relative_improvement": 1.4790,
+    "interpretation": "The diagnostic Rust mean is about 2.48 times the same-host Java stable-window reference. The Java run did not complete 200000 messages and the Rust arms did not pass the stability gate, so this is sufficient to stop small profiler optimizations but is not final stress or soak qualification."
+  },
+  "cleanup": {
+    "passed": true,
+    "root_receipts": {
+      "v134": {"request": "ABORT", "cleanup": "passed", "lazy_unmount": 0, "recovered": 0},
+      "v135": {"request": "ABORT", "cleanup": "passed", "lazy_unmount": 0, "recovered": 0}
+    },
+    "post_run_read_only_audit": {
+      "application_or_benchmark_processes": 0,
+      "run_specific_cgroups": 0,
+      "loop_devices": 0,
+      "additional_ext4_mounts": 0
+    }
+  }
+}

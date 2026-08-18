@@ -2081,3 +2081,45 @@ Root runs `e4c4be91-a162-4667-821e-b1819d601176` and
 `cleanup=passed`, `lazy_unmount=0`, and `recovered=0`. A read-only post-run
 audit found no benchmark process, run-specific cgroup, loop device, or
 additional ext4 mount.
+
+Commit 1ed26ead tested the bounded index-worker connection-affinity hypothesis
+from v132/v133. Pools with at least eight slots retained one worker connection;
+smaller pools used the prior per-batch acquisition path. The experiment did not
+alter SQL, transaction boundaries, advisory-lock ordering, batch limits,
+durability, or protocol behavior. Before profiling, the full library suite
+passed 755/755, formatting passed, workspace all-target all-feature Clippy
+passed with warnings denied, and focused unavailable-pool tests confirmed that
+invalid and duplicate batches retained their pre-database error precedence.
+
+V134 and v135 used the same 10 KB, 2,048-message, one-endpoint-invocation,
+single-workload-CPU, 500,000,000-byte/s, Rust fsync-off contract as v132/v133.
+Both delivered and received 2,048/2,048 with zero failure, exception, retry,
+OOM, or loss and exactly 4,096 Maildir publications and removals per run. They
+measured 116.61 and 117.57 messages/second. Their 52.6888% and 52.3434%
+segment ranges failed the unchanged 30% stability gate, so no formal output
+was published and no qualified throughput claim is made.
+
+The index worker averaged 34.475 ms and index commit averaged 54.048 ms, small
+local reductions from the v132/v133 35.470 ms and 55.731 ms means. End-to-end
+throughput averaged 117.09 messages/second, however, which is 0.36% below the
+117.515 control mean. The connection-affinity optimization is therefore
+rejected and reverted. This closes the small-gain profiling phase: the 10 KB
+Rust diagnostic mean is about 2.48 times the same-host Java stable-window
+reference of 47.224 messages/second, which is enough to redirect work toward
+longer stability, stress, recovery, and goal-coverage evidence. The Java
+reference did not complete its requested 200,000 messages and these Rust runs
+did not pass the stability gate, so the comparison is not final qualification.
+
+The structured negative result is
+smtp-rust-index-affinity-profiler-v134-v135-summary.json. Raw console hashes are
+f37fa6f379c37962afbaa59c1f951cb22bd447b924d2753d9c5fbbdd387bb44b and
+30ea9a6dbad222b7d7d54ed77a056e1757f4613368f229ee368323589ae37f17.
+The profiling ELF is SHA-256
+4207735fdd7673254c6ee53ca9478573f42c791247aca40a71315b1b42f559d2,
+Build ID 3abe30c8434450c049cdc25976aebf3f47d659cd, size 219,705,600
+bytes, root-owned mode 0755, with main/deps hard-link identity. Root runs
+5c890b67-0e00-46b1-9770-6f489390bf36 and
+d3001694-83be-4dcf-a86b-eca11236d857 recorded request=ABORT, cleanup=passed,
+lazy_unmount=0, and recovered=0. A read-only audit found no benchmark process,
+run-specific cgroup, loop device, additional ext4 mount, or mutable per-run
+root resource.
