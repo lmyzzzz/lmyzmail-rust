@@ -1,0 +1,212 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "retained_profiler_optimization_diagnostic",
+  "qualified": false,
+  "retained": true,
+  "qualification_failures": [
+    "within_arm_throughput_stability",
+    "post_cleanup_receipt_publication"
+  ],
+  "retention_reason": "Two consecutive runs reproduced the targeted removed-state checkpoint latency reduction without failure, retry, exception, OOM, or loss.",
+  "source_git_head": "bc4219c6bcfdfe08696b98d18422bdf95fe71e86",
+  "diagnostic_patch_sha256": "583fc47a1bc47234fa78a6b47bd92de11d82ac37ec1f1314c8d1421c3907a559",
+  "optimization_patch_sha256": "3cbcba5bb8a1f609562b5adfe6a2c74093487063ed43dab6e9aa01be7d270312",
+  "optimization": "Collapse the removed-state spool checkpoint transaction into one atomic PostgreSQL data-modifying CTE while retaining row locking, path and state validation, a server-side statement timeout, monotonic OWNED-to-REMOVED transition semantics, idempotence, and OutcomeUnknown reconciliation.",
+  "profile": "rust-profiler",
+  "target": "rust-candidate",
+  "tier": "10KB",
+  "rust_filesystem_fsync": "off",
+  "requested_messages_per_run": 2048,
+  "observed_messages_per_run": 2048,
+  "runs": {
+    "v103": {
+      "run_id": "81b6294e-d113-40e7-ad6f-9786af69ca7a",
+      "console_path": "evidence/performance/smtp-rust-spool-checkpoint-cte-profiler-v103-console.log",
+      "console_sha256": "9fdc8caa7d2b3e8a2594b4729d771581573bbe217f972bb7eee9d16d9161a29c",
+      "queue_counters": {
+        "exceptions": 0,
+        "failed": 0,
+        "oom": 0,
+        "queued": 2048,
+        "rate_limited": 0,
+        "success": 2048,
+        "retry": 0,
+        "lost": 0
+      },
+      "timing": {
+        "total_ms": 18646,
+        "throughput_messages_per_second": 109.83,
+        "queueing_ms": 8576,
+        "delivery_ms": 10069
+      },
+      "stability": {
+        "maximum_relative_range": 0.3,
+        "relative_range": 0.439438,
+        "passed": false,
+        "segments_messages_per_second": [
+          91.414952,
+          110.703289,
+          147.478311,
+          148.142324
+        ],
+        "progress_samples_sha256": "0fcf8884bc2f4e24518d87c617ab242c8ba12799a1f231f9e8188409897bbd21"
+      },
+      "stage_average_ns_by_segment": {
+        "smtp_commit": [147560361, 133743467, 104606130, 108179084],
+        "smtp_final_reply": [141056519, 127680668, 100262827, 103827025],
+        "prepared_checkpoint": [65449804, 59759855, 46290515, 46816454],
+        "result_checkpoint": [61071882, 57512255, 45316085, 44091924],
+        "legacy_projection": [59751951, 57982494, 45406456, 43649404],
+        "inbound_index_commit": [65195717, 63817325, 52389496, 54952904],
+        "queue_acknowledge": [61159342, 53593225, 41216264, 40489643],
+        "queue_ack_spool_cleanup": [23320551, 20785775, 17113844, 17066753],
+        "queue_ack_spool_snapshot": [8704704, 8243077, 6050167, 6114359],
+        "queue_ack_spool_durability": [154, 128, 125, 134],
+        "queue_ack_spool_checkpoint": [12419628, 11210181, 10565528, 10638515]
+      },
+      "maildir": {
+        "publications": 4096,
+        "removals": 4096
+      },
+      "resource_io": {
+        "application_process_write_bytes": 142675968,
+        "application_process_write_syscalls": 80765,
+        "application_write_bytes": 34426880,
+        "application_write_operations": 72,
+        "services_process_write_bytes": 83886080,
+        "services_process_write_syscalls": 60415
+      },
+      "cleanup": {
+        "request": "ABORT",
+        "cleanup": "passed",
+        "lazy_unmount": 0,
+        "qualified_cleanup": 0,
+        "receipt_path": "evidence/performance/smtp-rust-spool-checkpoint-cte-profiler-v103.json.root-cleanup",
+        "receipt_sha256": "43de1fdf07cbd92d621ebedf83bddb2bdf5b0d83083d9a533d193dfcddb2468e",
+        "intent_sha256": "417c1c0a6f4c56711227d171b3aef2ecb4061635d5486ff203a60de5832a904f"
+      }
+    },
+    "v104": {
+      "run_id": "7e6e1311-0c48-40f9-a50c-bc642283ca20",
+      "console_path": "evidence/performance/smtp-rust-spool-checkpoint-cte-repeat-profiler-v104-console.log",
+      "console_sha256": "51ed79a685b18e5631d5a7ea4022d4d51b173c1b1b75cdd9867a50da717959a1",
+      "queue_counters": {
+        "exceptions": 0,
+        "failed": 0,
+        "oom": 0,
+        "queued": 2048,
+        "rate_limited": 0,
+        "success": 2048,
+        "retry": 0,
+        "lost": 0
+      },
+      "timing": {
+        "total_ms": 18745,
+        "throughput_messages_per_second": 109.25,
+        "queueing_ms": 8679,
+        "delivery_ms": 10066
+      },
+      "stability": {
+        "maximum_relative_range": 0.3,
+        "relative_range": 0.437188,
+        "passed": false,
+        "segments_messages_per_second": [
+          90.604589,
+          118.742622,
+          144.117467,
+          148.064263
+        ],
+        "progress_samples_sha256": "9a0957a79795e992d964a3d8f0a38ab832e0ba875db67b973b9f552a5a6e3c2b"
+      },
+      "stage_average_ns_by_segment": {
+        "smtp_commit": [150323719, 126176383, 108100385, 102886051],
+        "smtp_final_reply": [144819186, 120426527, 103622075, 98776482],
+        "prepared_checkpoint": [66650387, 55877219, 47525516, 44637816],
+        "result_checkpoint": [63812974, 55773994, 47225184, 41876899],
+        "legacy_projection": [63308752, 55293729, 47020766, 42284229],
+        "inbound_index_commit": [69721820, 60028277, 53378760, 50673435],
+        "queue_acknowledge": [58905503, 51389355, 41722943, 37843291],
+        "queue_ack_spool_cleanup": [21803458, 19472077, 17397263, 15831107],
+        "queue_ack_spool_snapshot": [8048070, 7255733, 6199733, 5648660],
+        "queue_ack_spool_durability": [134, 138, 150, 145],
+        "queue_ack_spool_checkpoint": [12350753, 11344270, 10810826, 9828122]
+      },
+      "maildir": {
+        "publications": 4096,
+        "removals": 4096
+      },
+      "resource_io": {
+        "application_process_write_bytes": 142667776,
+        "application_process_write_syscalls": 80522,
+        "application_write_bytes": 33484800,
+        "application_write_operations": 73,
+        "services_process_write_bytes": 84647936,
+        "services_process_write_syscalls": 60484
+      },
+      "cleanup": {
+        "request": "ABORT",
+        "cleanup": "passed",
+        "lazy_unmount": 0,
+        "qualified_cleanup": 0,
+        "receipt_path": "evidence/performance/smtp-rust-spool-checkpoint-cte-repeat-profiler-v104.json.root-cleanup",
+        "receipt_sha256": "96ad1a4e0bad2879e86acce464b2515d615cdbfc79203194cf361aecb2b8788b",
+        "intent_sha256": "8ca43c086781e4f16aeeb02b515502f3d0ee4bdba88785307ed7653c6f059c97"
+      }
+    }
+  },
+  "comparison": {
+    "baseline": "evidence/performance/smtp-rust-spool-stages-profiler-v102-diagnostic.json",
+    "baseline_last_segment_messages_per_second": 145.157561,
+    "optimized_last_segment_mean_messages_per_second": 148.1032935,
+    "last_segment_change_percent": 2.0293345242966776,
+    "baseline_total_messages_per_second": 108.86,
+    "optimized_total_mean_messages_per_second": 109.54,
+    "total_change_percent": 0.6246555208524684,
+    "baseline_last_segment_stage_average_ns": {
+      "queue_acknowledge": 50869589,
+      "queue_ack_spool_cleanup": 27568296,
+      "queue_ack_spool_snapshot": 5778484,
+      "queue_ack_spool_checkpoint": 21198696,
+      "inbound_index_commit": 52095730
+    },
+    "optimized_last_segment_mean_stage_average_ns": {
+      "queue_acknowledge": 39166467.0,
+      "queue_ack_spool_cleanup": 16448930.0,
+      "queue_ack_spool_snapshot": 5881509.5,
+      "queue_ack_spool_checkpoint": 10233318.5,
+      "inbound_index_commit": 52813169.5
+    },
+    "stage_change_percent": {
+      "queue_acknowledge": -23.00612650910154,
+      "queue_ack_spool_cleanup": -40.3338893343281,
+      "queue_ack_spool_snapshot": 1.7829157266854079,
+      "queue_ack_spool_checkpoint": -51.72666045119001,
+      "inbound_index_commit": 1.3771560548244466
+    },
+    "optimized_last_segment_spool_cleanup_share": {
+      "checkpoint": 0.6221266976028228,
+      "snapshot": 0.3575618292496837,
+      "other_measured_work": 0.020311473147493486
+    }
+  },
+  "artifacts": {
+    "candidate_path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "candidate_sha256": "ad3629ed3f9fe43c85135e83226e93b253995252a159e6862e041b8b4c23cf51",
+    "candidate_build_id": "e58ef8ca058fec9b232d7e073db9b4d6a94b6590",
+    "candidate_size_bytes": 218806752,
+    "candidate_owner_mode": "root:root 0555",
+    "candidate_main_and_deps_hard_link": true,
+    "reproducible_build_count": 2,
+    "reproducible_build_hashes_equal": true
+  },
+  "verification": {
+    "outbound_delivery_unit_tests": "11 passed",
+    "outbound_coordinator_integration_tests": "17 passed",
+    "outbound_delivery_postgres_tests": "12 passed",
+    "outbound_queue_redis_tests": "46 passed",
+    "outbound_smtp_protocol_tests": "21 passed",
+    "clippy_lib_tests_deny_warnings": "passed",
+    "cargo_fmt_check": "passed",
+    "resource_audit": "candidate, service, per-run cgroup, loop image, mount, provisional output, output artifact, and checkpoint artifact absent after both runs"
+  }
+}

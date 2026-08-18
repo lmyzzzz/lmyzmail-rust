@@ -1483,3 +1483,51 @@ derived diagnostic, console, and receipt SHA-256 values are
 `5a6045bffc79727fb080983ee9764c578a0f37aad884329b14b4d57527cb6aa7`,
 `48cb6d6267bd522be055e14c62341f4552bf4f6530ed79ea133706472cabac3c`,
 and `24e2b0883dfff768501f3d429c2ff0426e8dab13cfcc0877d0a86bfc696e3eba`.
+
+The retained checkpoint optimization replaces the removed-state spool
+checkpoint's explicit transaction, timeout statement, locked read, update,
+and commit with one atomic data-modifying PostgreSQL CTE. The CTE keeps the
+row lock, path and state checks, transaction-local statement timeout,
+monotonic `OWNED` to `REMOVED` transition, idempotent replay, and the existing
+unknown-outcome reconciliation. Unit and real-PostgreSQL coverage includes an
+absent row, success, replay with timestamp preservation, path conflict,
+unchanged invalid state, and an exact dropped-response commit outcome. The
+11 outbound-delivery unit tests, 17 outbound-coordinator integration tests, 12
+PostgreSQL delivery tests, 46 Redis queue tests, and 21 outbound SMTP protocol
+tests pass; clippy with warnings denied and the formatting check also pass.
+
+V103 and v104 each delivered 2,048/2,048 messages with zero failure, retry,
+exception, OOM, or loss. Their final segments reached 148.142 and 148.064
+messages/second. The mean final removed-state checkpoint fell 51.73%, from
+v102's 21.199 ms to 10.233 ms; terminal spool cleanup fell 40.33%, from 27.568
+ms to 16.449 ms; and `queue_acknowledge` fell 23.01%, from 50.870 ms to 39.166
+ms. Mean final-segment throughput improved 2.03% to 148.103 messages/second.
+The full-run mean was 109.54 messages/second, 0.62% above v102, while ramp-up
+continued to dominate the full-run result.
+
+Both runs remain explicitly unqualified. Their four-segment ranges were
+43.9438% and 43.7188%, above the unchanged 30% stability limit, and the
+launcher consequently failed closed at post-cleanup runner-success receipt
+qualification. Runs `81b6294e-d113-40e7-ad6f-9786af69ca7a` and
+`7e6e1311-0c48-40f9-a50c-bc642283ca20` each recorded `request=ABORT`,
+`cleanup=passed`, and `lazy_unmount=0`. Independent root audits found no
+candidate, service, per-run cgroup, loop image, mount, provisional output,
+output artifact, or checkpoint artifact after either run.
+
+The v103/v104 summary SHA-256 is
+`16b1678acb96daeeec005847414a48e882179ef02f6c6a8ca34e6c2c9d6cefcf`.
+The v103 and v104 console hashes are
+`9fdc8caa7d2b3e8a2594b4729d771581573bbe217f972bb7eee9d16d9161a29c`
+and
+`51ed79a685b18e5631d5a7ea4022d4d51b173c1b1b75cdd9867a50da717959a1`;
+their cleanup receipts hash to
+`43de1fdf07cbd92d621ebedf83bddb2bdf5b0d83083d9a533d193dfcddb2468e`
+and
+`96ad1a4e0bad2879e86acce464b2515d615cdbfc79203194cf361aecb2b8788b`.
+Two forced builds produced the same profiling ELF SHA-256,
+`ad3629ed3f9fe43c85135e83226e93b253995252a159e6862e041b8b4c23cf51`,
+with Build ID `e58ef8ca058fec9b232d7e073db9b4d6a94b6590`; its main and deps paths are
+one root-owned mode-0555 inode. The optimized final spool cleanup is now
+62.21% checkpoint, 35.76% snapshot, and 2.03% other measured work, so the next
+profiler-driven investigation is the pair of PostgreSQL spool reads rather
+than filesystem mutation or disabled durability.
