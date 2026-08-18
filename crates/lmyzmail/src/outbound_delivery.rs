@@ -1254,50 +1254,54 @@ impl PostgresDeliveryState {
         validate_outbound_spool_identity(task_id, spool_path)?;
         let now = postgres_timestamp(now)?;
         let deadline = Instant::now() + self.operation_timeout;
-        let mut client = self.client(deadline).await?;
+        let client = self.client(deadline).await?;
         let cancel_token = client.cancel_token();
-        ledger_mutation(deadline, cancel_token, async {
-            let transaction = client.transaction().await?;
-            configure_transaction_deadline(&transaction, deadline).await?;
-            let row = transaction
+        let statement_timeout = postgres_statement_timeout(deadline);
+        let row = ledger_mutation(deadline, cancel_token, async {
+            client
                 .query_opt(
-                    "SELECT spool_path,cleanup_state FROM lmyzmail_outbound_spool
-                     WHERE task_id=$1 FOR UPDATE",
-                    &[&task_id],
+                    "WITH configured AS MATERIALIZED (
+                         SELECT set_config('statement_timeout',$4,true)
+                     ),
+                     candidate AS MATERIALIZED (
+                         SELECT spool.task_id,spool.spool_path,spool.cleanup_state
+                         FROM lmyzmail_outbound_spool spool
+                         CROSS JOIN configured
+                         WHERE spool.task_id=$1
+                         FOR UPDATE OF spool
+                     ),
+                     updated AS (
+                         UPDATE lmyzmail_outbound_spool spool
+                         SET cleanup_state='REMOVED',updated_at=$3
+                         FROM candidate
+                         WHERE spool.task_id=candidate.task_id
+                           AND candidate.spool_path=$2
+                           AND candidate.cleanup_state='OWNED'
+                         RETURNING spool.task_id
+                     )
+                     SELECT candidate.spool_path,candidate.cleanup_state,
+                            EXISTS(SELECT 1 FROM updated)
+                     FROM candidate",
+                    &[&task_id, &spool_path, &now, &statement_timeout],
                 )
-                .await?;
-            let Some(row) = row else {
-                transaction.commit().await?;
-                return Ok(false);
-            };
-            if row.get::<_, &str>(0) != spool_path {
-                transaction.commit().await?;
-                return Err(DeliveryStateError::InvalidTransition(
-                    "outbound spool path conflicts with durable state",
-                )
-                .into());
-            }
-            let changed = match row.get::<_, &str>(1) {
-                "REMOVED" => false,
-                "OWNED" => {
-                    transaction
-                        .execute(
-                            "UPDATE lmyzmail_outbound_spool
-                             SET cleanup_state='REMOVED',updated_at=$2 WHERE task_id=$1",
-                            &[&task_id, &now],
-                        )
-                        .await?;
-                    true
-                }
-                _ => {
-                    transaction.commit().await?;
-                    return Err(DeliveryStateError::Unavailable.into());
-                }
-            };
-            transaction.commit().await?;
-            Ok(changed)
+                .await
+                .map_err(Into::into)
         })
-        .await
+        .await?;
+        let Some(row) = row else {
+            return Ok(false);
+        };
+        if row.get::<_, &str>(0) != spool_path {
+            return Err(DeliveryStateError::InvalidTransition(
+                "outbound spool path conflicts with durable state",
+            ));
+        }
+        let changed = row.get::<_, bool>(2);
+        match row.get::<_, &str>(1) {
+            "REMOVED" if !changed => Ok(false),
+            "OWNED" if changed => Ok(true),
+            _ => Err(DeliveryStateError::Unavailable),
+        }
     }
 
     pub async fn removed_outbound_spools(
@@ -4640,6 +4644,76 @@ mod tests {
                 )
                 .await
                 .unwrap();
+        }
+
+        #[tokio::test]
+        async fn outbound_spool_removed_checkpoint_preserves_transition_checks_in_one_statement() {
+            let (_process, pool, state) = setup().await;
+            let now = timestamp(1_786_399_900);
+
+            assert!(
+                !state
+                    .mark_outbound_spool_removed(7_404, "/tmp/message-7404.eml", now)
+                    .await
+                    .unwrap()
+            );
+
+            insert_terminal(&pool, 7_404, "qa@example.test", now).await;
+            insert_spool(&pool, 7_404, "/tmp/message-7404.eml", "OWNED", now).await;
+            let removed_at = now + chrono::Duration::seconds(1);
+            assert!(
+                state
+                    .mark_outbound_spool_removed(7_404, "/tmp/message-7404.eml", removed_at,)
+                    .await
+                    .unwrap()
+            );
+            assert!(
+                !state
+                    .mark_outbound_spool_removed(
+                        7_404,
+                        "/tmp/message-7404.eml",
+                        now + chrono::Duration::seconds(2),
+                    )
+                    .await
+                    .unwrap()
+            );
+            let row = pool
+                .get()
+                .await
+                .unwrap()
+                .query_one(
+                    "SELECT cleanup_state,updated_at FROM lmyzmail_outbound_spool
+                     WHERE task_id=7404",
+                    &[],
+                )
+                .await
+                .unwrap();
+            assert_eq!(row.get::<_, &str>(0), "REMOVED");
+            assert_eq!(row.get::<_, DateTime<Utc>>(1), removed_at);
+
+            insert_terminal(&pool, 7_405, "qa@example.test", now).await;
+            insert_spool(&pool, 7_405, "/tmp/message-7405.eml", "OWNED", now).await;
+            assert_eq!(
+                state
+                    .mark_outbound_spool_removed(7_405, "/tmp/wrong-7405.eml", removed_at)
+                    .await,
+                Err(DeliveryStateError::InvalidTransition(
+                    "outbound spool path conflicts with durable state",
+                ))
+            );
+            assert_eq!(
+                pool.get()
+                    .await
+                    .unwrap()
+                    .query_one(
+                        "SELECT cleanup_state FROM lmyzmail_outbound_spool WHERE task_id=7405",
+                        &[],
+                    )
+                    .await
+                    .unwrap()
+                    .get::<_, &str>(0),
+                "OWNED"
+            );
         }
 
         #[tokio::test]

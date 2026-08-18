@@ -1921,6 +1921,76 @@ async fn maintenance_retains_removed_sidecar_until_redis_ack_is_proven() {
 }
 
 #[tokio::test]
+async fn lost_exact_spool_removed_checkpoint_response_is_idempotently_reconciled() {
+    let postgres = PostgresProcess::start();
+    let redis_process = RedisProcess::start();
+    let runtime = configuration(postgres.port, redis_process.port);
+    let direct_pool = database::create_pool(&runtime).unwrap();
+    let client = direct_pool.get().await.unwrap();
+    let ddl = include_str!("../../../blackbox/fixtures/legacy/postgres-longtext-oracle.sql")
+        .replace("LONGTEXT", "TEXT");
+    client.batch_execute(&ddl).await.unwrap();
+    drop(client);
+    let direct_state = PostgresDeliveryState::new(direct_pool.clone());
+    direct_state.initialize_schema().await.unwrap();
+
+    let task_id = 7_032_i64;
+    let now = Utc::now();
+    insert_pending(&direct_pool, task_id).await;
+    let spool_path = format!("/var/lib/lmyzmail/spool/message-{task_id}.eml");
+    direct_state
+        .register_outbound_spool(task_id, &spool_path, OutboundSpoolKind::Rust, now)
+        .await
+        .unwrap();
+
+    let proxy = DropResponseProxy::start_after_postgres_ready(
+        postgres.port,
+        b"SET cleanup_state='REMOVED',updated_at=$3",
+    );
+    let lossy_runtime = configuration(proxy.port(), redis_process.port);
+    let lossy_pool = database::create_pool(&lossy_runtime).unwrap();
+    let lossy_state = PostgresDeliveryState::new(lossy_pool.clone());
+    assert_eq!(
+        lossy_state
+            .mark_outbound_spool_removed(task_id, &spool_path, now)
+            .await
+            .unwrap_err(),
+        DeliveryStateError::OutcomeUnknown
+    );
+    assert_eq!(
+        lossy_state
+            .outbound_spool_snapshot(task_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .state,
+        OutboundSpoolState::Removed,
+        "the same state layer must reconcile the dropped checkpoint response by identity"
+    );
+    drop(lossy_state);
+    drop(lossy_pool);
+    proxy.wait();
+
+    assert_eq!(
+        direct_state
+            .outbound_spool_snapshot(task_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .state,
+        OutboundSpoolState::Removed,
+        "the dropped response must not hide a committed removed-state checkpoint"
+    );
+    assert!(
+        !direct_state
+            .mark_outbound_spool_removed(task_id, &spool_path, now)
+            .await
+            .unwrap(),
+        "repeating the exact checkpoint after reconciliation must be a no-op"
+    );
+}
+
+#[tokio::test]
 async fn lost_exact_sidecar_delete_commit_response_is_idempotently_reconciled() {
     let postgres = PostgresProcess::start();
     let redis_process = RedisProcess::start();
