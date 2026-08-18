@@ -1307,3 +1307,22 @@ main binary and its deps hard link are one inode and byte-identical on both
 runs. Their SHA-256 is
 `0a20582506be4eeda1257176b82488c55aeaf1fd1493c26e006a0999cb5b9de5`, Build ID
 `c435828cacdd1c15f2be21abeccc19d0a9aa3e0c`, and size 218,842,472 bytes.
+
+V93 is a profiler-only Rust 10KB fsync-off diagnostic at the current HEAD.
+It completed 8,192/8,192 messages with zero failure, retry, exception, OOM, or
+loss at 114.20 messages/second; queueing took 35.395 seconds and delivery
+took 36.338 seconds. The unchanged ramp-up gate failed because its four
+segments were 90.436, 106.504, 141.724, and 143.281 messages/second, a
+42.5771% range versus the 30% limit. The runner therefore published no
+qualified JSON or checkpoint. The derived diagnostic is
+`smtp-rust-next-profiler-v93-diagnostic.json` (SHA-256
+`e84043e54dafc1db5361110257e21771311fd22a107319de3cb3eba99a307476`) and is
+explicitly not throughput qualification evidence.
+
+The completed stage trace points at `smtp_commit` (120.856 ms average),
+`smtp_final_reply` (117.077 ms), `inbound_index_commit` (66.894 ms), and
+`queue_acknowledge` (60.648 ms), followed by the three checkpoint/projection
+stages at 40.008-41.426 ms. The run's root cleanup receipt has SHA-256
+`034839d3f14f62de33ebfc8454025a6f8487b054e679487d83ef42f68d0cd16f` and
+records `request=ABORT`, `cleanup=passed`, and `lazy_unmount=0`; no run
+process, mount, cgroup, or temporary artifact remained.
