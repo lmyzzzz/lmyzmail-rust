@@ -1604,6 +1604,44 @@ device, mount, artifact, provisional or final output, runner receipt,
 supervisor socket, runner gate, or listening port. Only persistent
 housekeeping state and unrelated historical attestations remain.
 
+V107 retained the v106 workload and ran the split-lock profiler from commit
+`78d88275` at 2,048 messages in the same Rust 10KB fsync-off isolation
+profile. It delivered 2,048/2,048 messages with zero failure, retry,
+exception, OOM, or loss at 107.58 messages/second. Its final segment reached
+153.208 messages/second, but the four rates of 83.375, 115.837, 152.905, and
+153.208 messages/second had a 51.9707% range, so the unchanged 30% ramp-up
+stability gate rejected the run. It is not formal throughput qualification
+evidence.
+
+The split profiler reports a final result-checkpoint mutation of 38.228 ms.
+The aggregate attempt-lock helper averaged 10.950 ms over 501 checkpoint-path
+invocations. Its internal row lock, roster verification, and commit-barrier
+timers each averaged 3.963, 3.912, and 3.991 ms, respectively, over 1,476
+internal invocations because the helper is also used by other ledger paths.
+There is no single slow statement; the evidence points to three sequential
+PostgreSQL round trips. The next bounded candidate is to combine only roster
+verification and barrier existence reading while retaining `FOR SHARE`, lock
+order, fencing, and transaction boundaries, then rerun all correctness tests
+before retaining any change.
+
+The derived v107 diagnostic, console, cleanup receipt, and root intent SHA-256
+values are
+`46e453da47ae62735de352c341f301d80a318a89dd1ecaeb473fde6b2db8d396`,
+`741950e90934e48a225276a76e462f0bc7048dfea90c053795e60e4c3086a586`,
+`bc61a89bdc70d1e5b61f56588b3bfd9602355bf4fc567026de819189e37ace56`,
+and
+`05af9fac7451ade5ba12a859a35d057cbbf19633f05c796d30772958316991a`.
+The profiling ELF SHA-256 is
+`ec28a7c34b1e0c086bea031dddcb84a4dd96b5db7ef78db9a16ee3079292d63e`
+with Build ID `3201d8fc24b1fdc176f30467798de0bc8a8eab0b`; its main and deps paths
+are one root-owned mode-0555 inode. Run
+`18a99c0e-f37e-4b50-a404-70451c323a31` recorded `request=ABORT`,
+`cleanup=passed`, `lazy_unmount=0`, and `recovered=0`. The root audit found no
+v107 candidate, service, benchmark process, per-run cgroup, loop image or
+device, mount, artifact, provisional or final output, runner receipt,
+supervisor socket, runner gate, or listening port. Only persistent
+housekeeping state and unrelated historical attestations remain.
+
 V108 and v109 repeated the retained result-checkpoint split-lock optimization
 from commit `df5bf1b2`. Both used the same profiling ELF and the same 2,048
 message, 10 KB, fsync-off workload. Each delivered 2,048/2,048 messages with
@@ -1643,46 +1681,8 @@ ID `74eab898fb68e7912b85c75fba8b4eccf660392a`, size 218,821,576 bytes, and
 is root-owned mode 0555 with its main/deps hard link identity preserved.
 
 After the optimization, the complete Rust library suite passed 744 tests,
-the Python performance and launcher suite passed 224 tests, `cargo fmt
+the Python performance and launcher suite passed 225 tests, `cargo fmt
 --all -- --check` passed, and clippy with warnings denied passed. These are
 regression results only; the active goal still requires stable qualification,
 full differential coverage, soak, 500k-scale pressure, rendering/model
 goldens, and all other completion gates.
-
-V107 retained the v106 workload and ran the split-lock profiler from commit
-`78d88275` at 2,048 messages in the same Rust 10KB fsync-off isolation
-profile. It delivered 2,048/2,048 messages with zero failure, retry,
-exception, OOM, or loss at 107.58 messages/second. Its final segment reached
-153.208 messages/second, but the four rates of 83.375, 115.837, 152.905, and
-153.208 messages/second had a 51.9707% range, so the unchanged 30% ramp-up
-stability gate rejected the run. It is not formal throughput qualification
-evidence.
-
-The split profiler reports a final result-checkpoint mutation of 38.228 ms.
-The aggregate attempt-lock helper averaged 10.950 ms over 501 checkpoint-path
-invocations. Its internal row lock, roster verification, and commit-barrier
-timers each averaged 3.963, 3.912, and 3.991 ms, respectively, over 1,476
-internal invocations because the helper is also used by other ledger paths.
-There is no single slow statement; the evidence points to three sequential
-PostgreSQL round trips. The next bounded candidate is to combine only roster
-verification and barrier existence reading while retaining `FOR SHARE`, lock
-order, fencing, and transaction boundaries, then rerun all correctness tests
-before retaining any change.
-
-The derived v107 diagnostic, console, cleanup receipt, and root intent SHA-256
-values are
-`46e453da47ae62735de352c341f301d80a318a89dd1ecaeb473fde6b2db8d396`,
-`741950e90934e48a225276a76e462f0bc7048dfea90c053795e60e4c3086a586`,
-`bc61a89bdc70d1e5b61f56588b3bfd9602355bf4fc567026de819189e37ace56`,
-and
-`05af9fac7451ade5ba12a859a35d057cbbf19633f05c796d30772958316991a`.
-The profiling ELF SHA-256 is
-`ec28a7c34b1e0c086bea031dddcb84a4dd96b5db7ef78db9a16ee3079292d63e`
-with Build ID `3201d8fc24b1fdc176f30467798de0bc8a8eab0b`; its main and deps paths
-are one root-owned mode-0555 inode. Run
-`18a99c0e-f37e-4b50-a404-70451c323a31` recorded `request=ABORT`,
-`cleanup=passed`, `lazy_unmount=0`, and `recovered=0`. The root audit found no
-v107 candidate, service, benchmark process, per-run cgroup, loop image or
-device, mount, artifact, provisional or final output, runner receipt,
-supervisor socket, runner gate, or listening port. Only persistent
-housekeeping state and unrelated historical attestations remain.

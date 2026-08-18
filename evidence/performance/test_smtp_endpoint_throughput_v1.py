@@ -1253,6 +1253,39 @@ class PlanAndComparisonTests(unittest.TestCase):
         )
         self.assertEqual(len(set(selected)), len(selected))
 
+    def test_profiler_stage_selection_override_is_bounded_and_default_is_stable(
+        self,
+    ) -> None:
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop(runner.COORDINATOR_DIAGNOSTIC_STAGES_ENV, None)
+            self.assertEqual(
+                runner._coordinator_selected_diagnostic_stages(),
+                runner.COORDINATOR_SELECTED_DIAGNOSTIC_STAGES,
+            )
+        with mock.patch.dict(
+            os.environ,
+            {
+                runner.COORDINATOR_DIAGNOSTIC_STAGES_ENV:
+                "inbound_prepare_file,inbound_index_commit"
+            },
+            clear=False,
+        ):
+            self.assertEqual(
+                runner._coordinator_selected_diagnostic_stages(),
+                ("inbound_prepare_file", "inbound_index_commit"),
+            )
+        too_many = ",".join(
+            f"stage_{index}"
+            for index in range(runner.MAXIMUM_COORDINATOR_SELECTED_DIAGNOSTIC_STAGES + 1)
+        )
+        with mock.patch.dict(
+            os.environ,
+            {runner.COORDINATOR_DIAGNOSTIC_STAGES_ENV: too_many},
+            clear=False,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "bounded stage limit"):
+                runner._coordinator_selected_diagnostic_stages()
+
     def test_cli_replacements_remove_prior_values_without_duplicates(self) -> None:
         arguments = [
             "java",

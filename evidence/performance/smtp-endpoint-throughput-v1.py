@@ -104,6 +104,7 @@ MAXIMUM_ABBA_ARM_RELATIVE_RANGE = 0.20
 MAXIMUM_WITHIN_ARM_RELATIVE_RANGE = 0.30
 MAXIMUM_COORDINATOR_DIAGNOSTIC_STAGES = 8
 MAXIMUM_COORDINATOR_SELECTED_DIAGNOSTIC_STAGES = 16
+COORDINATOR_DIAGNOSTIC_STAGES_ENV = "LMYZMAIL_COORDINATOR_DIAGNOSTIC_STAGES"
 COORDINATOR_SELECTED_DIAGNOSTIC_STAGES = (
     "smtp_commit",
     "smtp_final_reply",
@@ -122,6 +123,26 @@ COORDINATOR_SELECTED_DIAGNOSTIC_STAGES = (
     "result_checkpoint_attempt_update",
     "result_checkpoint_commit",
 )
+
+
+def _coordinator_selected_diagnostic_stages() -> tuple[str, ...]:
+    """Return the default stage contract or an explicit bounded diagnostic override."""
+    raw = os.environ.get(COORDINATOR_DIAGNOSTIC_STAGES_ENV)
+    if raw is None:
+        return COORDINATOR_SELECTED_DIAGNOSTIC_STAGES
+    selected = tuple(part.strip() for part in raw.split(","))
+    if (
+        not selected
+        or len(selected) > MAXIMUM_COORDINATOR_SELECTED_DIAGNOSTIC_STAGES
+        or len(set(selected)) != len(selected)
+        or any(not name for name in selected)
+    ):
+        raise RuntimeError(
+            f"{COORDINATOR_DIAGNOSTIC_STAGES_ENV} is invalid or exceeds the bounded stage limit"
+        )
+    return selected
+
+
 MAXIMUM_PROXY_PROGRESS_SAMPLES = 20_000
 MAXIMUM_RESOURCE_SAMPLES = 10_000
 MAXIMUM_POST_FINAL_PERSISTENCE_LAG_SECONDS = 30.0
@@ -6367,7 +6388,7 @@ def _run_round(
             "coordinator_quartile_diagnostics": _coordinator_quartile_diagnostics(
                 log.get("coordinator_observer_records", ()),
                 count,
-                selected_stage_names=COORDINATOR_SELECTED_DIAGNOSTIC_STAGES,
+                selected_stage_names=_coordinator_selected_diagnostic_stages(),
             ),
             "resource_io": (
                 None
