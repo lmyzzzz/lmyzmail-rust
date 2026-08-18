@@ -1306,77 +1306,90 @@ async fn insert_intent_batch(pool: &Pool, prepared: &[&PreparedInbound]) -> io::
         .map(|item| item.index.to_addresses.as_str())
         .collect::<Vec<_>>();
 
-    let mut client = database_client(pool).await?;
-    let transaction = timeout(DATABASE_TIMEOUT, client.transaction())
-        .await
-        .map_err(|_| timed_out("inbound intent batch transaction"))?
-        .map_err(database_error)?;
+    let mut client = {
+        let _timer = StageTimer::start(CoordinatorStage::InboundIntentBatchPool);
+        database_client(pool).await?
+    };
+    let transaction = {
+        let _timer = StageTimer::start(CoordinatorStage::InboundIntentBatchBegin);
+        timeout(DATABASE_TIMEOUT, client.transaction())
+            .await
+            .map_err(|_| timed_out("inbound intent batch transaction"))?
+            .map_err(database_error)?
+    };
     let mut intent_locks = unique
         .iter()
         .map(|item| intent_lock_id(&item.intent_id))
         .collect::<Vec<_>>();
     intent_locks.sort_unstable();
     intent_locks.dedup();
-    timeout(
-        DATABASE_TIMEOUT,
-        transaction.query(
-            "SELECT pg_advisory_xact_lock(value)
-             FROM (
-               SELECT value
-               FROM unnest($1::bigint[]) AS lock_id(value)
-               ORDER BY value
-             ) AS ordered_locks",
-            &[&intent_locks],
-        ),
-    )
-    .await
-    .map_err(|_| timed_out("inbound intent batch locks"))?
-    .map_err(database_error)?;
+    {
+        let _timer = StageTimer::start(CoordinatorStage::InboundIntentBatchLock);
+        timeout(
+            DATABASE_TIMEOUT,
+            transaction.query(
+                "SELECT pg_advisory_xact_lock(value)
+                 FROM (
+                   SELECT value
+                   FROM unnest($1::bigint[]) AS lock_id(value)
+                   ORDER BY value
+                 ) AS ordered_locks",
+                &[&intent_locks],
+            ),
+        )
+        .await
+        .map_err(|_| timed_out("inbound intent batch locks"))?
+        .map_err(database_error)?;
+    }
 
-    timeout(
-        DATABASE_TIMEOUT,
-        transaction.execute(
-            "INSERT INTO lmyzmail_inbound_delivery_intent
-             (intent_id,mailbox_address,folder,subdirectory,temporary_file_name,file_name,
-              device,inode,size_bytes,sha256,has_attachments,received_at,from_address,
-              message_id,subject,to_addresses,state,updated_at)
-             SELECT intent_id,mailbox_address,folder,subdirectory,temporary_file_name,file_name,
-                    device,inode,size_bytes,sha256,has_attachments,received_at,from_address,
-                    message_id,subject,to_addresses,'PREPARED',CURRENT_TIMESTAMP
-             FROM unnest(
-               $1::text[],$2::text[],$3::text[],$4::int4[],$5::text[],$6::text[],
-               $7::bytea[],$8::bytea[],$9::bigint[],$10::bytea[],$11::bool[],
-               $12::timestamptz[],$13::text[],$14::text[],$15::text[],$16::text[]
-             ) AS input(
-               intent_id,mailbox_address,folder,subdirectory,temporary_file_name,file_name,
-               device,inode,size_bytes,sha256,has_attachments,received_at,from_address,
-               message_id,subject,to_addresses
-             )
-             ON CONFLICT (intent_id) DO NOTHING",
-            &[
-                &intent_ids,
-                &mailboxes,
-                &folders,
-                &subdirectories,
-                &temporary_names,
-                &file_names,
-                &devices,
-                &inodes,
-                &size_bytes,
-                &sha256,
-                &has_attachments,
-                &received_at,
-                &from_addresses,
-                &message_ids,
-                &subjects,
-                &to_addresses,
-            ],
-        ),
-    )
-    .await
-    .map_err(|_| timed_out("inbound intent batch insert"))?
-    .map_err(database_error)?;
+    {
+        let _timer = StageTimer::start(CoordinatorStage::InboundIntentBatchInsert);
+        timeout(
+            DATABASE_TIMEOUT,
+            transaction.execute(
+                "INSERT INTO lmyzmail_inbound_delivery_intent
+                 (intent_id,mailbox_address,folder,subdirectory,temporary_file_name,file_name,
+                  device,inode,size_bytes,sha256,has_attachments,received_at,from_address,
+                  message_id,subject,to_addresses,state,updated_at)
+                 SELECT intent_id,mailbox_address,folder,subdirectory,temporary_file_name,file_name,
+                        device,inode,size_bytes,sha256,has_attachments,received_at,from_address,
+                        message_id,subject,to_addresses,'PREPARED',CURRENT_TIMESTAMP
+                 FROM unnest(
+                   $1::text[],$2::text[],$3::text[],$4::int4[],$5::text[],$6::text[],
+                   $7::bytea[],$8::bytea[],$9::bigint[],$10::bytea[],$11::bool[],
+                   $12::timestamptz[],$13::text[],$14::text[],$15::text[],$16::text[]
+                 ) AS input(
+                   intent_id,mailbox_address,folder,subdirectory,temporary_file_name,file_name,
+                   device,inode,size_bytes,sha256,has_attachments,received_at,from_address,
+                   message_id,subject,to_addresses
+                 )
+                 ON CONFLICT (intent_id) DO NOTHING",
+                &[
+                    &intent_ids,
+                    &mailboxes,
+                    &folders,
+                    &subdirectories,
+                    &temporary_names,
+                    &file_names,
+                    &devices,
+                    &inodes,
+                    &size_bytes,
+                    &sha256,
+                    &has_attachments,
+                    &received_at,
+                    &from_addresses,
+                    &message_ids,
+                    &subjects,
+                    &to_addresses,
+                ],
+            ),
+        )
+        .await
+        .map_err(|_| timed_out("inbound intent batch insert"))?
+        .map_err(database_error)?;
+    }
 
+    let identity_timer = StageTimer::start(CoordinatorStage::InboundIntentBatchIdentityRead);
     let rows = timeout(
         DATABASE_TIMEOUT,
         transaction.query(
@@ -1429,8 +1442,13 @@ async fn insert_intent_batch(pool: &Pool, prepared: &[&PreparedInbound]) -> io::
             }
         }
     }
+    drop(identity_timer);
 
-    match timeout(DATABASE_TIMEOUT, transaction.commit()).await {
+    let committed = {
+        let _timer = StageTimer::start(CoordinatorStage::InboundIntentBatchTransactionCommit);
+        timeout(DATABASE_TIMEOUT, transaction.commit()).await
+    };
+    match committed {
         Ok(Ok(())) => Ok(()),
         Ok(Err(error)) => reconcile_intent_batch_insert(pool, &unique, database_error(error)).await,
         Err(_) => {

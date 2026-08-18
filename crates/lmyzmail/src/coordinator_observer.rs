@@ -87,6 +87,12 @@ pub(crate) enum CoordinatorStage {
     InboundIntentBatchCollect,
     InboundIntentBatchWorker,
     InboundIntentBatchResponseWait,
+    InboundIntentBatchPool,
+    InboundIntentBatchBegin,
+    InboundIntentBatchLock,
+    InboundIntentBatchInsert,
+    InboundIntentBatchIdentityRead,
+    InboundIntentBatchTransactionCommit,
     InboundPublishFile,
     InboundIndexCommit,
     InboundIndexBatchAdmission,
@@ -125,7 +131,7 @@ pub(crate) enum CoordinatorStage {
 }
 
 impl CoordinatorStage {
-    const ALL: [Self; 106] = [
+    const ALL: [Self; 112] = [
         Self::QueueClaim,
         Self::DatabaseClaim,
         Self::RecipientRoster,
@@ -197,6 +203,12 @@ impl CoordinatorStage {
         Self::InboundIntentBatchCollect,
         Self::InboundIntentBatchWorker,
         Self::InboundIntentBatchResponseWait,
+        Self::InboundIntentBatchPool,
+        Self::InboundIntentBatchBegin,
+        Self::InboundIntentBatchLock,
+        Self::InboundIntentBatchInsert,
+        Self::InboundIntentBatchIdentityRead,
+        Self::InboundIntentBatchTransactionCommit,
         Self::InboundPublishFile,
         Self::InboundIndexCommit,
         Self::InboundIndexBatchAdmission,
@@ -307,6 +319,12 @@ impl CoordinatorStage {
             Self::InboundIntentBatchCollect => "inbound_intent_batch_collect",
             Self::InboundIntentBatchWorker => "inbound_intent_batch_worker",
             Self::InboundIntentBatchResponseWait => "inbound_intent_batch_response_wait",
+            Self::InboundIntentBatchPool => "inbound_intent_batch_pool",
+            Self::InboundIntentBatchBegin => "inbound_intent_batch_begin",
+            Self::InboundIntentBatchLock => "inbound_intent_batch_lock",
+            Self::InboundIntentBatchInsert => "inbound_intent_batch_insert",
+            Self::InboundIntentBatchIdentityRead => "inbound_intent_batch_identity_read",
+            Self::InboundIntentBatchTransactionCommit => "inbound_intent_batch_transaction_commit",
             Self::InboundPublishFile => "inbound_publish_file",
             Self::InboundIndexCommit => "inbound_index_commit",
             Self::InboundIndexBatchAdmission => "inbound_index_batch_admission",
@@ -683,6 +701,12 @@ mod tests {
             CoordinatorStage::InboundIntentBatchCollect,
             CoordinatorStage::InboundIntentBatchWorker,
             CoordinatorStage::InboundIntentBatchResponseWait,
+            CoordinatorStage::InboundIntentBatchPool,
+            CoordinatorStage::InboundIntentBatchBegin,
+            CoordinatorStage::InboundIntentBatchLock,
+            CoordinatorStage::InboundIntentBatchInsert,
+            CoordinatorStage::InboundIntentBatchIdentityRead,
+            CoordinatorStage::InboundIntentBatchTransactionCommit,
         ]
         .map(CoordinatorStage::name);
         assert_eq!(
@@ -694,6 +718,12 @@ mod tests {
                 "inbound_intent_batch_collect",
                 "inbound_intent_batch_worker",
                 "inbound_intent_batch_response_wait",
+                "inbound_intent_batch_pool",
+                "inbound_intent_batch_begin",
+                "inbound_intent_batch_lock",
+                "inbound_intent_batch_insert",
+                "inbound_intent_batch_identity_read",
+                "inbound_intent_batch_transaction_commit",
             ]
         );
     }
