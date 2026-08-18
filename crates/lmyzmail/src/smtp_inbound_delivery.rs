@@ -43,7 +43,6 @@ pub(crate) const STAGING_ORPHAN_MIN_AGE: Duration = Duration::from_secs(300);
 pub(crate) const MAX_ACTIVE_INBOUND_INTENTS: usize = 256;
 const INDEX_BATCH_CHANNEL_CAPACITY: usize = MAX_ACTIVE_INBOUND_INTENTS;
 const MAX_INDEX_BATCH_ROWS: usize = 64;
-const MAX_INDEX_COMMIT_SHARDS: usize = 8;
 const INDEX_BATCH_COLLECTION_WINDOW: Duration = Duration::from_millis(2);
 const INDEX_BATCH_RESPONSE_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -262,36 +261,25 @@ impl IndexCommitFailure {
 }
 
 pub(crate) struct IndexCommitter {
-    senders: Vec<mpsc::Sender<IndexCommitRequest>>,
+    sender: mpsc::Sender<IndexCommitRequest>,
     shutdown: CancellationToken,
-    workers: AsyncMutex<Vec<JoinHandle<()>>>,
+    worker: AsyncMutex<Option<JoinHandle<()>>>,
 }
 
 impl IndexCommitter {
     pub(crate) fn start(pool: Pool) -> Arc<Self> {
-        let shard_count = pool.status().max_size.clamp(1, MAX_INDEX_COMMIT_SHARDS);
-        let channel_capacity = INDEX_BATCH_CHANNEL_CAPACITY.div_ceil(shard_count);
+        let (sender, receiver) = mpsc::channel(INDEX_BATCH_CHANNEL_CAPACITY);
         let shutdown = CancellationToken::new();
-        let mut senders = Vec::with_capacity(shard_count);
-        let mut workers = Vec::with_capacity(shard_count);
-        for _ in 0..shard_count {
-            let (sender, receiver) = mpsc::channel(channel_capacity);
-            senders.push(sender);
-            workers.push(tokio::spawn(run_index_commit_worker(
-                pool.clone(),
-                receiver,
-                shutdown.clone(),
-            )));
-        }
+        let worker = tokio::spawn(run_index_commit_worker(pool, receiver, shutdown.clone()));
         Arc::new(Self {
-            senders,
+            sender,
             shutdown,
-            workers: AsyncMutex::new(workers),
+            worker: AsyncMutex::new(Some(worker)),
         })
     }
 
     pub(crate) async fn submit(&self, prepared: &PreparedInbound) -> io::Result<()> {
-        let sender = self.shard_sender(&prepared.index.mailbox);
+        let sender = self.sender.clone();
         let permit = timeout(DATABASE_TIMEOUT, sender.reserve_owned())
             .await
             .map_err(|_| timed_out("inbound index batch admission"))?
@@ -316,20 +304,15 @@ impl IndexCommitter {
 
     pub(crate) async fn shutdown(&self, deadline: Instant) -> bool {
         self.shutdown.cancel();
-        let workers = std::mem::take(&mut *self.workers.lock().await);
-        let mut graceful = true;
-        for mut worker in workers {
-            if timeout_at(deadline, &mut worker).await.is_err() {
-                graceful = false;
-                worker.abort();
-                let _ = worker.await;
-            }
+        let Some(mut worker) = self.worker.lock().await.take() else {
+            return true;
+        };
+        if timeout_at(deadline, &mut worker).await.is_ok() {
+            return true;
         }
-        graceful
-    }
-
-    fn shard_sender(&self, mailbox: &str) -> mpsc::Sender<IndexCommitRequest> {
-        self.senders[index_commit_shard(mailbox, self.senders.len())].clone()
+        worker.abort();
+        let _ = worker.await;
+        false
     }
 }
 
@@ -337,16 +320,6 @@ impl Drop for IndexCommitter {
     fn drop(&mut self) {
         self.shutdown.cancel();
     }
-}
-
-fn index_commit_shard(mailbox: &str, shard_count: usize) -> usize {
-    debug_assert!(shard_count > 0);
-    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
-    for byte in mailbox.as_bytes() {
-        hash ^= u64::from(*byte);
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    hash as usize % shard_count
 }
 
 async fn run_index_commit_worker(
@@ -2675,14 +2648,6 @@ INSERT INTO mailbox (address) VALUES ('qa@example.test');
     }
 
     fn database_prepared(sequence: u64, folder: &str) -> PreparedInbound {
-        database_prepared_for_mailbox(sequence, folder, "qa@example.test")
-    }
-
-    fn database_prepared_for_mailbox(
-        sequence: u64,
-        folder: &str,
-        mailbox: &str,
-    ) -> PreparedInbound {
         let size = 1_024 + sequence;
         PreparedInbound {
             intent_id: format!("{sequence:032x}"),
@@ -2696,7 +2661,7 @@ INSERT INTO mailbox (address) VALUES ('qa@example.test');
                 sha256: [sequence as u8; 32],
             },
             index: InboundIndexMetadata {
-                mailbox: mailbox.to_owned(),
+                mailbox: "qa@example.test".to_owned(),
                 folder: folder.to_owned(),
                 subdirectory: Some((sequence / 10_000 + 1) as i32),
                 file_name: format!("message-{sequence:08}.eml"),
@@ -2719,15 +2684,11 @@ INSERT INTO mailbox (address) VALUES ('qa@example.test');
     }
 
     async fn assert_exact_count(pool: &Pool, folder: &str, expected: i64) {
-        assert_exact_count_for(pool, "qa@example.test", folder, expected).await;
-    }
-
-    async fn assert_exact_count_for(pool: &Pool, mailbox: &str, folder: &str, expected: i64) {
         let client = pool.get().await.unwrap();
         let indexed: i64 = client
             .query_one(
                 "SELECT COUNT(*) FROM email_index WHERE mailbox_address=$1 AND folder=$2",
-                &[&mailbox, &folder],
+                &[&"qa@example.test", &folder],
             )
             .await
             .unwrap()
@@ -2736,7 +2697,7 @@ INSERT INTO mailbox (address) VALUES ('qa@example.test');
             .query_one(
                 "SELECT exact_count FROM lmyzmail_inbound_mail_count_state
                  WHERE mailbox_address=$1 AND folder=$2",
-                &[&mailbox, &folder],
+                &[&"qa@example.test", &folder],
             )
             .await
             .unwrap()
@@ -2745,7 +2706,7 @@ INSERT INTO mailbox (address) VALUES ('qa@example.test');
             .query_one(
                 "SELECT desired_count FROM lmyzmail_inbound_mail_count_projection
                  WHERE mailbox_address=$1 AND folder=$2",
-                &[&mailbox, &folder],
+                &[&"qa@example.test", &folder],
             )
             .await
             .unwrap()
@@ -2989,7 +2950,7 @@ INSERT INTO mailbox (address) VALUES ('qa@example.test');
         for prepared in [valid.clone(), missing] {
             let (response, receiver) = oneshot::channel();
             committer
-                .shard_sender(&prepared.index.mailbox)
+                .sender
                 .send(IndexCommitRequest { prepared, response })
                 .await
                 .unwrap();
@@ -3010,7 +2971,7 @@ INSERT INTO mailbox (address) VALUES ('qa@example.test');
         for prepared in queued {
             let (response, receiver) = oneshot::channel();
             committer
-                .shard_sender(&prepared.index.mailbox)
+                .sender
                 .send(IndexCommitRequest { prepared, response })
                 .await
                 .unwrap();
@@ -3029,104 +2990,6 @@ INSERT INTO mailbox (address) VALUES ('qa@example.test');
             committer.submit(&valid).await.unwrap_err().kind(),
             io::ErrorKind::BrokenPipe
         );
-    }
-
-    #[test]
-    fn mailbox_shard_routing_is_stable_and_bounded() {
-        for mailbox in [
-            "qa@example.test",
-            "other@example.test",
-            "stress-sender@lmyz.net",
-            "stress-receiver@lmyz.net",
-        ] {
-            let shard = index_commit_shard(mailbox, MAX_INDEX_COMMIT_SHARDS);
-            assert!(shard < MAX_INDEX_COMMIT_SHARDS);
-            assert_eq!(shard, index_commit_shard(mailbox, MAX_INDEX_COMMIT_SHARDS));
-        }
-        assert_ne!(
-            index_commit_shard("qa@example.test", MAX_INDEX_COMMIT_SHARDS),
-            index_commit_shard("other@example.test", MAX_INDEX_COMMIT_SHARDS)
-        );
-        assert_ne!(
-            index_commit_shard("stress-sender@lmyz.net", MAX_INDEX_COMMIT_SHARDS),
-            index_commit_shard("stress-receiver@lmyz.net", MAX_INDEX_COMMIT_SHARDS)
-        );
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn distinct_mailbox_shards_commit_while_one_count_lock_is_blocked() {
-        let (_postgres, pool) = test_database().await;
-        let second_mailbox = "other@example.test";
-        pool.get()
-            .await
-            .unwrap()
-            .execute(
-                "INSERT INTO mailbox (address) VALUES ($1)",
-                &[&second_mailbox],
-            )
-            .await
-            .unwrap();
-        let first = database_prepared_for_mailbox(6_100, "inbox", "qa@example.test");
-        let second = database_prepared_for_mailbox(6_101, "inbox", second_mailbox);
-        insert_intent(&pool, &first).await.unwrap();
-        insert_intent(&pool, &second).await.unwrap();
-
-        let committer = IndexCommitter::start(pool.clone());
-        assert_ne!(
-            index_commit_shard(&first.index.mailbox, committer.senders.len()),
-            index_commit_shard(&second.index.mailbox, committer.senders.len())
-        );
-        let mut lock_client = pool.get().await.unwrap();
-        let lock_transaction = lock_client.transaction().await.unwrap();
-        let first_count_lock = mailbox_count_lock_id(&first.index.mailbox, &first.index.folder);
-        lock_transaction
-            .query_one("SELECT pg_advisory_xact_lock($1)", &[&first_count_lock])
-            .await
-            .unwrap();
-
-        let first_committer = Arc::clone(&committer);
-        let first_task = tokio::spawn(async move { first_committer.submit(&first).await });
-        let observer = pool.get().await.unwrap();
-        timeout(Duration::from_secs(5), async {
-            loop {
-                let waiting: bool = observer
-                    .query_one(
-                        "SELECT EXISTS (
-                           SELECT 1 FROM pg_locks
-                           WHERE locktype='advisory' AND NOT granted
-                         )",
-                        &[],
-                    )
-                    .await
-                    .unwrap()
-                    .get(0);
-                if waiting {
-                    break;
-                }
-                tokio::time::sleep(Duration::from_millis(5)).await;
-            }
-        })
-        .await
-        .expect("first mailbox commit did not block on its count lock");
-
-        timeout(Duration::from_secs(5), committer.submit(&second))
-            .await
-            .expect("second mailbox shard was blocked behind the first")
-            .unwrap();
-        assert!(!first_task.is_finished());
-        lock_transaction.commit().await.unwrap();
-        timeout(Duration::from_secs(5), first_task)
-            .await
-            .expect("first mailbox shard did not resume")
-            .unwrap()
-            .unwrap();
-        assert!(
-            committer
-                .shutdown(Instant::now() + Duration::from_secs(5))
-                .await
-        );
-        assert_exact_count_for(&pool, "qa@example.test", "inbox", 1).await;
-        assert_exact_count_for(&pool, second_mailbox, "inbox", 1).await;
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
