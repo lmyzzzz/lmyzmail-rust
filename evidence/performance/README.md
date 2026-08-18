@@ -1719,3 +1719,22 @@ Its root cleanup receipt is
 The v111 and v110 cleanup receipts hash to
 `e6b7ec0f0c7569be0ca2c4badfcb6a2e4f7a22ee51b06278fa888b109f84a835` and
 `971a1f3547194d7c01b31702d871897a3a68327937f027038d0710ca95e5d`.
+
+The completion-statement experiment was then tested in v113 and v114 using
+only `smtp_commit`, `smtp_final_reply`, and `inbound_intent_complete` stage
+diagnostics. Both runs delivered 2,048/2,048 with zero failures, retries,
+OOM, or loss and published/removed 4,096 Maildir entries. V113 measured
+80.48 messages/second with segment rates 63.681, 70.511, 124.695, and
+122.801 (63.1243% range); v114 measured 99.10 messages/second with segment
+rates 79.892, 106.445, 127.076, and 129.335 (42.3458% range). Neither passed
+the unchanged 30% stability gate. The final-segment completion stage averaged
+21.225 ms in v113 and 18.020 ms in v114, but the two-run mean throughput was
+89.79 messages/second, below the v108/v109 mean of 111.795. The SQL
+experiment and its focused tests were therefore rejected and the original
+read/identity-check/delete implementation was restored.
+
+These are retained negative diagnostics, not qualification artifacts. Their
+console hashes are `7a64eec5246212f8917b1891c6fe84aa82b3320b273d3f706b4a14e1b105c39a`
+and `f6c942f05f4373f515310938208b28db23f803a8577dac51af735235e15925e4`;
+the diagnostic JSON files record that the launcher published no final output
+or cleanup receipt, so no cleanup success is claimed.

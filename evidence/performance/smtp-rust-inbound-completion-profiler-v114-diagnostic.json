@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "rejected_profiler_diagnostic",
+  "qualified": false,
+  "retained": true,
+  "qualification_failure": "within_arm_throughput_stability",
+  "rejection_reason": "The repeated atomic completion experiment did not produce a stable end-to-end throughput qualification and was reverted.",
+  "experiment_git_head": "167a9a8b",
+  "reverted_by_git_head": "167a9a8b",
+  "run_id": "d8e1c090-33e6-4511-9d58-d43d3ca2a99d",
+  "profile": "rust-profiler",
+  "target": "rust-candidate",
+  "tier": "10KB",
+  "rust_filesystem_fsync": "off",
+  "requested_messages": 2048,
+  "observed_messages": 2048,
+  "queue_counters": {"queued": 2048, "success": 2048, "failed": 0, "exceptions": 0, "oom": 0, "rate_limited": 0, "retry": 0, "lost": 0},
+  "timing": {"queueing_ms": 9550, "delivery_ms": 11115, "total_ms": 20666, "throughput_messages_per_second": 99.10},
+  "stability": {"maximum_relative_range": 0.30, "relative_range": 0.423458, "passed": false, "segments_messages_per_second": [79.891890, 106.445412, 127.076464, 129.335267]},
+  "selected_stage_names": ["smtp_commit", "smtp_final_reply", "inbound_intent_complete"],
+  "inbound_intent_complete_average_ns_by_segment": [21782999, 20095486, 18147355, 18019970],
+  "maildir": {"publications": 4096, "removals": 4096},
+  "baseline_comparison": {"baseline": "smtp-rust-result-checkpoint-transaction-profiler-v108-v109-summary.json", "baseline_mean_messages_per_second": 111.795, "experiment_mean_messages_per_second": 89.79, "mean_change_percent": -19.68},
+  "artifacts": {
+    "candidate_path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "candidate_sha256": "9b37df68c346a8294672dc71c95304b16207563bfbbf214fa1383175cb983cbd",
+    "candidate_build_id": "8df9e2dc59f5aef34c5d4f0388bca1dc4ef05ce4",
+    "console_path": "evidence/performance/smtp-rust-inbound-completion-profiler-v114-console.log",
+    "console_sha256": "f6c942f05f4373f515310938208b28db23f803a8577dac51af735235e15925e4"
+  },
+  "cleanup": {"launcher_receipt": "not_published", "final_output": "not_published", "cleanup_attestation": "not_claimed"}
+}
