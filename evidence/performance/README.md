@@ -2238,3 +2238,26 @@ sorts every object before hashing. A nested object and floating-point fixture
 is bound to the Python-compatible SHA-256
 `a1d1b2ce3054778afbb38cca193d523c676f258475be4b6c46949f6174678e1d`.
 No qualification assertion or performance threshold changed.
+
+Repeated current-machine 10 KB raw calibrations then isolated the remaining
+prerequisite instability. With the former `0-22` housekeeping set, two focused
+ABBA runs failed: direct spreads were `0.188227` and `0.257197`, while proxied
+spreads were `0.236211` and `0.223626`. The per-round rates moved both downward
+and upward, so a simple thermal warmup did not explain the variance. Restricting
+the identical 250,000-message-per-round, 1,000-connection workload to `0-7`
+passed with direct spread `0.019176`, proxied spread `0.037454`, ratio
+`1.020158`, one million observer-verified messages, and zero missing,
+duplicate, or failed proxy connections. Its JSON SHA-256 is
+`6e886b8d78e45c059ea355500958303b5fc7268980d0ee6c8d25b1336b83b87b`.
+The two all-housekeeping-CPU failure JSON hashes are respectively
+`0adc8328989d52e994121738fa8a7a946091669089d460b9556ddeed105a15bf`
+and `0d17f3af81478841c57c7e785bb57ee6a1eb51de52e367957f8e5bf9b3d3e1ed`.
+
+The formal launcher now derives a bounded housekeeping set by removing the
+single candidate CPU from the root cpuset and selecting at most the lowest
+eight remaining CPUs. The exact set is still enforced by cgroup readback and
+recorded in the root proxy attestation and final result for the harness,
+services, runner, PostgreSQL, and Redis. This does not change the candidate's
+single-CPU placement, the proxy workload, the `0.20` spread gate, or the `2.0`
+headroom requirement; it reduces scheduler migration as indicated by the
+focused evidence.

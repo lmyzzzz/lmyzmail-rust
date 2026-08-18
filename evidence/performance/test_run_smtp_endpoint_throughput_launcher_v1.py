@@ -1074,6 +1074,24 @@ printf 'dual-device-io-limit: PASS\n'
             )
         self.assertIn("dual-device-io-limit: PASS", result.stdout)
 
+    def test_housekeeping_cpuset_is_bounded_and_excludes_benchmark(self) -> None:
+        derive = self.bash_function("derive_housekeeping_cpus")
+        result = self.run_bash_probe(
+            derive
+            + """
+set -euo pipefail
+venv_python=$(command -v python3)
+[[ $(derive_housekeeping_cpus 0-23 23 8) == 0-7 ]]
+[[ $(derive_housekeeping_cpus 0-3,8-11 2 8) == 0-1,3,8-11 ]]
+[[ $(derive_housekeeping_cpus 4-12 4 3) == 5-7 ]]
+! derive_housekeeping_cpus 0-3 7 8 >/dev/null 2>&1
+! derive_housekeeping_cpus 0 0 8 >/dev/null 2>&1
+! derive_housekeeping_cpus 0-3 3 0 >/dev/null 2>&1
+printf 'bounded-housekeeping-cpuset: PASS\n'
+"""
+        )
+        self.assertIn("bounded-housekeeping-cpuset: PASS", result.stdout)
+
     def test_headroom_attestation_is_generated_automatically_in_harness_cgroup(
         self,
     ) -> None:

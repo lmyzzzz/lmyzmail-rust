@@ -34,6 +34,7 @@ max_pids=${LMYZMAIL_BENCHMARK_MAX_PIDS:-8192}
 max_memory_bytes=${LMYZMAIL_BENCHMARK_MAX_MEMORY_BYTES:-8589934592}
 nofile_limit=${LMYZMAIL_BENCHMARK_NOFILE_LIMIT:-8192}
 host_reserve_bytes=${LMYZMAIL_BENCHMARK_HOST_RESERVE_BYTES:-10737418240}
+housekeeping_cpu_limit=8
 runner_gate_timeout_seconds=5
 
 for command in dd fallocate findmnt flock install losetup mkfifo mkfs.ext4 mount mv \
@@ -98,21 +99,19 @@ if [[ ! ${host_reserve_bytes} =~ ^[1-9][0-9]*$ ]]; then
     echo "LMYZMAIL_BENCHMARK_HOST_RESERVE_BYTES must be a positive integer" >&2
     exit 2
 fi
+if [[ ! ${housekeeping_cpu_limit} =~ ^[1-9][0-9]*$ ]]; then
+    echo "housekeeping CPU limit must be a positive integer" >&2
+    exit 2
+fi
 
-root_cpus=$(<"${cgroup_root}/cpuset.cpus.effective")
-root_mems=$(<"${cgroup_root}/cpuset.mems.effective")
-if [[ -z ${root_cpus} || -z ${root_mems} ]]; then
-    echo "could not resolve cgroup cpuset topology" >&2
-    exit 2
-fi
-if ! taskset --cpu-list "${benchmark_cpu}" true >/dev/null 2>&1; then
-    echo "CPU ${benchmark_cpu} is outside cpuset.cpus.effective=${root_cpus}" >&2
-    exit 2
-fi
-housekeeping_cpus=$("${venv_python}" - "${root_cpus}" "${benchmark_cpu}" <<'PY'
+derive_housekeeping_cpus() {
+    "${venv_python}" - "$1" "$2" "$3" <<'PY'
 import sys
 
 selected = int(sys.argv[2])
+limit = int(sys.argv[3])
+if limit <= 0:
+    raise SystemExit("housekeeping CPU limit must be positive")
 cpus = set()
 for part in sys.argv[1].split(","):
     bounds = part.split("-", 1)
@@ -124,10 +123,10 @@ for part in sys.argv[1].split(","):
 if selected not in cpus:
     raise SystemExit("benchmark CPU is outside the root cpuset")
 cpus.remove(selected)
-if not cpus:
+ordered = sorted(cpus)[:limit]
+if not ordered:
     raise SystemExit("benchmark requires at least one housekeeping CPU")
 ranges = []
-ordered = sorted(cpus)
 start = previous = ordered[0]
 for cpu in ordered[1:]:
     if cpu == previous + 1:
@@ -138,7 +137,20 @@ for cpu in ordered[1:]:
 ranges.append(str(start) if start == previous else f"{start}-{previous}")
 print(",".join(ranges))
 PY
-)
+}
+
+root_cpus=$(<"${cgroup_root}/cpuset.cpus.effective")
+root_mems=$(<"${cgroup_root}/cpuset.mems.effective")
+if [[ -z ${root_cpus} || -z ${root_mems} ]]; then
+    echo "could not resolve cgroup cpuset topology" >&2
+    exit 2
+fi
+if ! taskset --cpu-list "${benchmark_cpu}" true >/dev/null 2>&1; then
+    echo "CPU ${benchmark_cpu} is outside cpuset.cpus.effective=${root_cpus}" >&2
+    exit 2
+fi
+housekeeping_cpus=$(derive_housekeeping_cpus \
+    "${root_cpus}" "${benchmark_cpu}" "${housekeeping_cpu_limit}")
 if ! taskset --cpu-list "${housekeeping_cpus}" true >/dev/null 2>&1; then
     echo "could not construct housekeeping cpuset excluding CPU ${benchmark_cpu}" >&2
     exit 2
