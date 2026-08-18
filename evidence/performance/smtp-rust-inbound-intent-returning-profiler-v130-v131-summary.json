@@ -1,0 +1,198 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "profiler_diagnostic_summary",
+  "qualified": false,
+  "retained": true,
+  "qualification_failure": "within_arm_throughput_stability",
+  "hypothesis_status": "rejected",
+  "source_git_head": "90337e2bc2e58cd204de819d3426d109520b6f21",
+  "repository_head_at_run": "90337e2bc2e58cd204de819d3426d109520b6f21",
+  "hypothesis": "Use INSERT RETURNING to fully validate fresh inserted rows and issue the identity SELECT only for conflict or replay rows.",
+  "configuration": {
+    "profile": "rust-profiler",
+    "target": "rust-candidate",
+    "tier": "10KB",
+    "messages": 2048,
+    "rust_filesystem_fsync": "off",
+    "postgresql_fsync": "on",
+    "postgresql_synchronous_commit": "on",
+    "workload_cpu_limit": 1,
+    "io_limit_bytes_per_second": 500000000,
+    "original_stress_endpoint_invocations_per_run": 1,
+    "harness_batching": false,
+    "inbound_intent_channel_capacity": 256,
+    "inbound_intent_batch_capacity": 64,
+    "inbound_intent_batch_collection_window_ms": 2,
+    "maximum_selected_diagnostic_stages": 16
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "bd6750d521e886777f8e77d71b930d204bcf7c99f9b88f0f8ee2c4acce3973da",
+    "build_id": "168ea252393570661ee87f203cc12b057f65bb60",
+    "size_bytes": 219669016,
+    "owner_mode": "root:root 0755",
+    "main_and_deps_hard_link": true
+  },
+  "selected_stages": [
+    "smtp_commit",
+    "smtp_final_reply",
+    "inbound_intent_insert",
+    "inbound_intent_batch_admission",
+    "inbound_intent_batch_queue_wait",
+    "inbound_intent_batch_dispatch_wait",
+    "inbound_intent_batch_collect",
+    "inbound_intent_batch_worker",
+    "inbound_intent_batch_response_wait",
+    "inbound_intent_batch_pool",
+    "inbound_intent_batch_begin",
+    "inbound_intent_batch_lock",
+    "inbound_intent_batch_insert",
+    "inbound_intent_batch_identity_read",
+    "inbound_intent_batch_transaction_commit",
+    "inbound_index_commit"
+  ],
+  "runs": [
+    {
+      "label": "v130",
+      "throughput_messages_per_second": 117.56,
+      "timing_ms": {"queueing": 8378, "delivery": 9042, "total": 17420},
+      "stability": {
+        "maximum_relative_range": 0.30,
+        "relative_range": 0.495986,
+        "passed": false,
+        "segments_messages_per_second": [90.770893, 125.587036, 157.663196, 161.015034]
+      },
+      "outcome": {
+        "queued": 2048,
+        "received": 2048,
+        "failed": 0,
+        "exceptions": 0,
+        "oom": 0,
+        "retry": 0,
+        "lost": 0,
+        "maildir_publications": 4096,
+        "maildir_removals": 4096
+      },
+      "inbound_intent": {
+        "worker_transactions": 571,
+        "rows": 2048,
+        "average_rows_per_worker": 3.584939,
+        "stage_average_ms": {
+          "insert_outer": 33.048194,
+          "queue_wait": 6.899542,
+          "dispatch_wait": 4.324487,
+          "collect": 4.860430,
+          "worker": 20.745554,
+          "response_wait": 33.044494,
+          "pool": 0.022708,
+          "begin": 2.163166,
+          "lock": 4.611502,
+          "insert": 5.407525,
+          "identity_read": 0.0,
+          "transaction_commit": 8.480510
+        }
+      },
+      "artifacts": {
+        "console": "evidence/performance/smtp-rust-inbound-intent-returning-profiler-v130-console.log",
+        "console_sha256": "a08324d485d8eeb76b2c171ceada1b8237f007eb81be89dd2c36da612dc62825",
+        "final_output": "not_published",
+        "launcher_cleanup_receipt": "not_published",
+        "root_cleanup_copy": "evidence/performance/smtp-rust-inbound-intent-returning-profiler-v130.json.root-cleanup",
+        "root_run_id": "2dc1a0b7-805c-482c-9145-1af99f611027",
+        "root_intent_sha256": "4784ca8aceb653fb444cdb03f054093de9c7121935278bb556f48430d2db9ebd",
+        "root_done_sha256": "62e9a37f35a47d53cae7e655ff8e599610ccdb8542e3e425b7d5d13022290c11"
+      }
+    },
+    {
+      "label": "v131",
+      "throughput_messages_per_second": 118.47,
+      "timing_ms": {"queueing": 8232, "delivery": 9053, "total": 17286},
+      "stability": {
+        "maximum_relative_range": 0.30,
+        "relative_range": 0.514968,
+        "passed": false,
+        "segments_messages_per_second": [89.762351, 122.691491, 161.545295, 156.094288]
+      },
+      "outcome": {
+        "queued": 2048,
+        "received": 2048,
+        "failed": 0,
+        "exceptions": 0,
+        "oom": 0,
+        "retry": 0,
+        "lost": 0,
+        "maildir_publications": 4096,
+        "maildir_removals": 4096
+      },
+      "inbound_intent": {
+        "worker_transactions": 570,
+        "rows": 2048,
+        "average_rows_per_worker": 3.592982,
+        "stage_average_ms": {
+          "insert_outer": 32.640519,
+          "queue_wait": 6.640118,
+          "dispatch_wait": 4.138602,
+          "collect": 4.776588,
+          "worker": 20.194233,
+          "response_wait": 32.636837,
+          "pool": 0.004462,
+          "begin": 2.225879,
+          "lock": 4.358369,
+          "insert": 5.167536,
+          "identity_read": 0.0,
+          "transaction_commit": 8.355602
+        }
+      },
+      "artifacts": {
+        "console": "evidence/performance/smtp-rust-inbound-intent-returning-profiler-v131-console.log",
+        "console_sha256": "000e3265e985ed9c7961cb70b287a5e18de4d2d89332405cf06b63607e931e54",
+        "final_output": "not_published",
+        "launcher_cleanup_receipt": "not_published",
+        "root_cleanup_copy": "evidence/performance/smtp-rust-inbound-intent-returning-profiler-v131.json.root-cleanup",
+        "root_run_id": "4779651d-fa51-4ca4-9cd5-5053068a5bec",
+        "root_intent_sha256": "41fbbb7853442887298cb88ceeb4bfe8f94542b1b6a801cfa02d5239417e4980",
+        "root_done_sha256": "86ea8845f474d959683a0da35c4f8212f63494e88af57aae8611adfca9b5e5cf"
+      }
+    }
+  ],
+  "combined": {
+    "mean_throughput_messages_per_second": 118.015,
+    "v126_v127_diagnostic_mean_messages_per_second": 117.91,
+    "diagnostic_throughput_delta_vs_v126_v127_percent": 0.08905,
+    "mean_worker_transactions": 570.5,
+    "mean_rows_per_worker": 3.590359,
+    "transaction_count_reduction_vs_one_per_message_percent": 72.143555,
+    "mean_stage_ms": {
+      "smtp_commit": 139.414879,
+      "smtp_final_reply": 134.937190,
+      "inbound_intent_insert": 32.844357,
+      "inbound_intent_batch_queue_wait": 6.769830,
+      "inbound_intent_batch_dispatch_wait": 4.231544,
+      "inbound_intent_batch_collect": 4.818509,
+      "inbound_intent_batch_worker": 20.469894,
+      "inbound_intent_batch_response_wait": 32.840666,
+      "inbound_intent_batch_pool": 0.013585,
+      "inbound_intent_batch_begin": 2.194523,
+      "inbound_intent_batch_lock": 4.484936,
+      "inbound_intent_batch_insert": 5.287531,
+      "inbound_intent_batch_identity_read": 0.0,
+      "inbound_intent_batch_transaction_commit": 8.418056,
+      "inbound_index_commit": 57.107900
+    },
+    "conclusion": "The hypothesis removed the fresh-path identity SELECT and both runs recorded zero identity-read observations, with the worker stage falling from 25.276 ms to 20.470 ms. It also raised worker transactions from 485 to 570.5, reducing the mean batch from 4.223 to 3.590 rows. The two-run endpoint mean was only 0.089% above v126/v127, one arm was below both controls, and both arms failed the unchanged stability gate. The optimization is rejected and the source path is restored; retain the evidence as a negative profiler result rather than claiming a speedup."
+  },
+  "cleanup": {
+    "passed": true,
+    "root_receipts": {
+      "v130": {"request": "ABORT", "cleanup": "passed", "lazy_unmount": 0, "recovered": 0},
+      "v131": {"request": "ABORT", "cleanup": "passed", "lazy_unmount": 0, "recovered": 0}
+    },
+    "post_run_read_only_audit": {
+      "application_or_benchmark_processes": 0,
+      "run_specific_cgroups": 0,
+      "loop_devices": 0,
+      "additional_ext4_mounts": 0,
+      "run_specific_root_files_other_than_intent_and_done_journals": 0
+    }
+  }
+}

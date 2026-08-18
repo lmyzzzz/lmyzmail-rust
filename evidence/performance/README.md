@@ -2014,3 +2014,38 @@ bytes, root-owned mode 0755, with main/deps hard-link identity. Root runs
 `cleanup=passed`, `lazy_unmount=0`, and `recovered=0`. Read-only post-run audits
 found no application or benchmark process, run-specific cgroup, loop device,
 additional ext4 mount, or root state beyond the immutable intent/done journals.
+
+Commit `90337e2b` tested a bounded fresh-path SQL optimization: `INSERT ...
+RETURNING` validated newly inserted rows, while the identity `SELECT` remained
+for conflict or replay IDs. The full library suite passed 752/752, formatting
+and strict all-feature Clippy passed, and mixed replay plus fresh, collision
+atomicity, duplicate fan-out, non-UTF-8, and lock-liveness tests passed.
+
+V130 and v131 kept the v128/v129 10 KB, 2,048-message, one-endpoint,
+single-workload-CPU, 500,000,000-byte/s, Rust fsync-off contract. Both delivered
+2,048/2,048 with zero failure, exception, retry, OOM, or loss and exactly 4,096
+Maildir publications and removals. The identity-read stage was zero in both
+runs and intent worker time fell from 25.276 to 20.470 ms, but worker
+transactions rose from 485 to 570.5 and mean rows per transaction fell from
+4.223 to 3.590. Throughput was 117.56 and 118.47 messages/second, for a
+118.015 mean only 0.089% above the v126/v127 diagnostic mean; one arm regressed
+and both 49.5986% and 51.4968% stability ranges failed the unchanged 30% gate.
+The optimization is rejected and the source is restored; this is negative
+profiler evidence, not a throughput claim.
+
+The structured diagnostic is
+`smtp-rust-inbound-intent-returning-profiler-v130-v131-summary.json`, SHA-256
+`5cba0eb6462bf582b6ed442ca55b361104bdfe835ce1c17a03cddb258224911f`.
+Raw
+console hashes are
+`a08324d485d8eeb76b2c171ceada1b8237f007eb81be89dd2c36da612dc62825`
+and `000e3265e985ed9c7961cb70b287a5e18de4d2d89332405cf06b63607e931e54`.
+The tested candidate is SHA-256
+`bd6750d521e886777f8e77d71b930d204bcf7c99f9b88f0f8ee2c4acce3973da`,
+Build ID `168ea252393570661ee87f203cc12b057f65bb60`, size 219,669,016
+bytes, root-owned mode 0755, with main/deps hard-link identity. Root runs
+`2dc1a0b7-805c-482c-9145-1af99f611027` and
+`4779651d-fa51-4ca4-9cd5-5053068a5bec` recorded `request=ABORT`,
+`cleanup=passed`, `lazy_unmount=0`, and `recovered=0`; read-only audits found
+no application or benchmark process, run-specific cgroup, loop device, or
+additional ext4 mount.
