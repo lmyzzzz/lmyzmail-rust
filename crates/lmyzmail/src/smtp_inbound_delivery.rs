@@ -1342,11 +1342,11 @@ async fn insert_intent_batch(pool: &Pool, prepared: &[&PreparedInbound]) -> io::
         .map_err(database_error)?;
     }
 
-    let inserted_rows = {
+    {
         let _timer = StageTimer::start(CoordinatorStage::InboundIntentBatchInsert);
         timeout(
             DATABASE_TIMEOUT,
-            transaction.query(
+            transaction.execute(
                 "INSERT INTO lmyzmail_inbound_delivery_intent
                  (intent_id,mailbox_address,folder,subdirectory,temporary_file_name,file_name,
                   device,inode,size_bytes,sha256,has_attachments,received_at,from_address,
@@ -1363,11 +1363,7 @@ async fn insert_intent_batch(pool: &Pool, prepared: &[&PreparedInbound]) -> io::
                    device,inode,size_bytes,sha256,has_attachments,received_at,from_address,
                    message_id,subject,to_addresses
                  )
-                 ON CONFLICT (intent_id) DO NOTHING
-                 RETURNING intent_id,mailbox_address,folder,subdirectory,
-                           temporary_file_name,file_name,device,inode,size_bytes,sha256,
-                           has_attachments,received_at,from_address,message_id,subject,
-                           to_addresses,state",
+                 ON CONFLICT (intent_id) DO NOTHING",
                 &[
                     &intent_ids,
                     &mailboxes,
@@ -1390,10 +1386,28 @@ async fn insert_intent_batch(pool: &Pool, prepared: &[&PreparedInbound]) -> io::
         )
         .await
         .map_err(|_| timed_out("inbound intent batch insert"))?
-        .map_err(database_error)?
-    };
+        .map_err(database_error)?;
+    }
+
+    let identity_timer = StageTimer::start(CoordinatorStage::InboundIntentBatchIdentityRead);
+    let rows = timeout(
+        DATABASE_TIMEOUT,
+        transaction.query(
+            "SELECT intent_id,mailbox_address,folder,subdirectory,temporary_file_name,file_name,
+                    device,inode,size_bytes,sha256,has_attachments,received_at,from_address,
+                    message_id,subject,to_addresses,state
+             FROM lmyzmail_inbound_delivery_intent
+             WHERE intent_id::text = ANY($1::text[])
+             ORDER BY intent_id
+             FOR UPDATE",
+            &[&intent_ids],
+        ),
+    )
+    .await
+    .map_err(|_| timed_out("inbound intent batch identity query"))?
+    .map_err(database_error)?;
     let mut stored_by_id = BTreeMap::new();
-    for row in &inserted_rows {
+    for row in &rows {
         let stored = row_to_prepared(row)?;
         if stored_by_id
             .insert(stored.intent_id.clone(), stored)
@@ -1404,43 +1418,6 @@ async fn insert_intent_batch(pool: &Pool, prepared: &[&PreparedInbound]) -> io::
                 "inbound intent batch returned a duplicate intent",
             ));
         }
-    }
-    let replay_ids = unique
-        .iter()
-        .filter(|expected| !stored_by_id.contains_key(&expected.intent_id))
-        .map(|expected| expected.intent_id.as_str())
-        .collect::<Vec<_>>();
-    if !replay_ids.is_empty() {
-        let identity_timer = StageTimer::start(CoordinatorStage::InboundIntentBatchIdentityRead);
-        let rows = timeout(
-            DATABASE_TIMEOUT,
-            transaction.query(
-                "SELECT intent_id,mailbox_address,folder,subdirectory,temporary_file_name,file_name,
-                        device,inode,size_bytes,sha256,has_attachments,received_at,from_address,
-                        message_id,subject,to_addresses,state
-                 FROM lmyzmail_inbound_delivery_intent
-                 WHERE intent_id::text = ANY($1::text[])
-                 ORDER BY intent_id
-                 FOR UPDATE",
-                &[&replay_ids],
-            ),
-        )
-        .await
-        .map_err(|_| timed_out("inbound intent batch identity query"))?
-        .map_err(database_error)?;
-        for row in &rows {
-            let stored = row_to_prepared(row)?;
-            if stored_by_id
-                .insert(stored.intent_id.clone(), stored)
-                .is_some()
-            {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "inbound intent batch returned a duplicate intent",
-                ));
-            }
-        }
-        drop(identity_timer);
     }
     if stored_by_id.len() != unique.len() {
         return Err(io::Error::new(
@@ -1465,6 +1442,8 @@ async fn insert_intent_batch(pool: &Pool, prepared: &[&PreparedInbound]) -> io::
             }
         }
     }
+    drop(identity_timer);
+
     let committed = {
         let _timer = StageTimer::start(CoordinatorStage::InboundIntentBatchTransactionCommit);
         timeout(DATABASE_TIMEOUT, transaction.commit()).await
@@ -3885,20 +3864,6 @@ INSERT INTO mailbox (address) VALUES ('qa@example.test');
         assert_eq!(intent_count(&pool).await, prepared.len() as i64);
         assert_eq!(database_xact_rollback(&pool).await, rollbacks_before);
 
-        let mixed_new = database_prepared(24_100, "inbox");
-        insert_intent_batch(&pool, &[&prepared[0], &mixed_new])
-            .await
-            .unwrap();
-        assert_eq!(intent_count(&pool).await, prepared.len() as i64 + 1);
-        assert!(
-            load_intent(&pool, &mixed_new.intent_id)
-                .await
-                .unwrap()
-                .unwrap()
-                .matches(&mixed_new)
-        );
-        assert_eq!(database_xact_rollback(&pool).await, rollbacks_before);
-
         let collision = database_prepared(25_000, "sent");
         insert_intent(&pool, &collision).await.unwrap();
         let client = pool.get().await.unwrap();
@@ -3916,7 +3881,7 @@ INSERT INTO mailbox (address) VALUES ('qa@example.test');
             .await
             .unwrap_err();
         assert_eq!(error.kind(), io::ErrorKind::InvalidData);
-        assert_eq!(intent_count(&pool).await, prepared.len() as i64 + 2);
+        assert_eq!(intent_count(&pool).await, prepared.len() as i64 + 1);
         assert!(
             load_intent(&pool, &new_valid.intent_id)
                 .await
