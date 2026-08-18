@@ -1269,3 +1269,41 @@ and
 Run `845430ec-b405-41fc-902f-12f052c6f9eb` ended with `request=ABORT`,
 `cleanup=passed`, and `lazy_unmount=0`; a root audit again found no residual
 run resource or service process.
+
+V92 tested a rejected full-transaction fusion. It reduced the retained six
+PostgreSQL exchanges (begin, intent lock, fused validation, count lock, fused
+mutation, and commit) to begin, one materialized statement, and commit while
+preserving the existing lock order and validation-before-mutation dependency.
+The database failure-atomicity gate covered a missing intent, durable identity
+drift, a missing mailbox, mismatched replay content, and duplicate replay under
+a NULL shard; a separate database oracle found identical index, intent,
+count-state, and projection snapshots for the fused and retained paths.
+
+The run delivered 4,096/4,096 messages with zero failure, exception, retry, or
+loss in 36.470 seconds at 112.31 messages/second; delivery took 19.147 seconds.
+It used 981 inbound index transactions, or 4.175 messages per transaction,
+versus 737 and 743 transactions in v90b/v91. Its quartile rates were 90.58,
+110.41, 144.62, and 143.42 messages/second, so it again failed only the
+unchanged 30% ramp-up stability gate. Although the fused statement reduced
+per-transaction PostgreSQL time, its smaller self-batches left throughput
+0.94% below the 113.38 messages/second v90b/v91 mean. The experiment therefore
+failed the retention gate and the production path was restored.
+
+The rejected profiling ELF hashes to
+`10591053dc6a9ebd8044628782cfe81f7a685f00febac18b34d588811839dea6`;
+its Build ID is `1276c9f1fab5c48153376bf9df6b4c0f2d36830c`. The v92 console
+and cleanup-receipt hashes are
+`5e3ba90480480bf76a961dccd68f56206f10a5d77ca9644d27bc5b3aaa172725`
+and
+`9d8eec9d91614d3788314a9e27f2e702c67dd31d9d9cd4e7a636bfa3c8113405`.
+Run `e196896f-f789-4ac2-8ee0-c029e3b99b73` ended with `request=ABORT`,
+`cleanup=passed`, and `lazy_unmount=0`. A root audit confirmed its cgroup,
+mount, image, loop device, artifacts, candidate, PostgreSQL, and Redis
+processes were absent before the independent unqualified receipt was retained.
+
+The restored current-HEAD `release-with-debug` profiler build was reproduced
+twice with `CARGO_TARGET_DIR=target/profiling` and the locked toolchain. The
+main binary and its deps hard link are one inode and byte-identical on both
+runs. Their SHA-256 is
+`0a20582506be4eeda1257176b82488c55aeaf1fd1493c26e006a0999cb5b9de5`, Build ID
+`c435828cacdd1c15f2be21abeccc19d0a9aa3e0c`, and size 218,842,472 bytes.
