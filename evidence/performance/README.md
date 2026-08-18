@@ -1816,3 +1816,14 @@ and root-owned mode 0755 with main/deps hard-link identity preserved. Neither
 run published final JSON or a launcher cleanup receipt; post-run read-only root
 audits found no benchmark process, run-specific cgroup, loop device, extra
 ext4 mount, or run-specific root state.
+
+After the rollback and negative-evidence commit, the restored library passed
+741/741 tests, `cargo fmt --all -- --check`, and strict all-feature library
+Clippy with warnings denied. The current-HEAD profiling candidate was rebuilt
+with the locked Rust 1.94.0 toolchain and `CARGO_TARGET_DIR=target/profiling`.
+It is SHA-256
+`6c9a727be73aee7020e91c2c172d2388e8cc558086ada9dcd8564d883880e548`,
+Build ID `6e2d63403353e742b960e1a456b60fcf9e19b562`, and size 218,829,816
+bytes. Its main and deps paths are the same root-owned mode-0755 inode. This
+attests the rebuilt rollback candidate only; it does not claim byte identity
+with the overwritten v115/v116 artifact.
