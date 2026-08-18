@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "profile": "blackbox-full-reattestation-b0ce-v1",
+  "definition_tree_sha256": "b0ce09dd6c4bf3fc0baa8f817d2bfe1ce9b8c35034dd5c099d2fc811f764f703",
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "candidate": {
+    "release_sha256": "c3047dd2818e4ad363874f7d59938750cffa10ab3d1037af7c6f196a1412d143",
+    "main_matrix": {
+      "passed": 132,
+      "deselected": 291,
+      "warnings": 480,
+      "elapsed_seconds": 892.96
+    },
+    "smtp_rbl_launcher": {
+      "passed": 1,
+      "deselected": 1,
+      "elapsed_seconds": 6.22
+    }
+  },
+  "golden_generation": {
+    "active_targets": 101,
+    "present_targets": 101,
+    "missing_targets": 0,
+    "integrity_anomalies": 0,
+    "audited_envelopes_and_artifact_sidecars": 336,
+    "audited_hash_records": 341,
+    "all_attestations_share_definition_tree": true,
+    "older_generations_modified": false,
+    "cringe_spring_page_record": "1 passed",
+    "cringe_spring_page_fresh_replay": "1 passed",
+    "ordinary_tools_record": "36 passed, 44 deselected",
+    "smtp_rbl_record": "1 passed, 1 deselected",
+    "outbound_completion_record": "3 passed, 4 deselected"
+  },
+  "fresh_java_replay": {
+    "tests": {
+      "passed": 71,
+      "deselected": 258,
+      "elapsed_seconds": 1585.96
+    },
+    "ordinary_tools": {
+      "passed": 36,
+      "deselected": 44,
+      "elapsed_seconds": 746.28
+    },
+    "smtp_rbl_launcher": {
+      "passed": 1,
+      "deselected": 1,
+      "elapsed_seconds": 14.80
+    }
+  },
+  "report_concurrency_v3": {
+    "profile": "report-trigger-concurrency-v3",
+    "java_candidate_observations_equal": true,
+    "java_observation_sha256": "ffdab61c0f1cb0eff0662e6ed8c83a6196e8585008a6996dfb925c1eb94bef8e",
+    "candidate_observation_sha256": "ffdab61c0f1cb0eff0662e6ed8c83a6196e8585008a6996dfb925c1eb94bef8e",
+    "golden_envelope_sha256": "5e648bf9f9673730e7fea0e49968aa09aed1d4013e20ee4372cd2213baac3d26"
+  },
+  "recording_recovery": {
+    "parallel_batch_issue": "The first four-way recording batch omitted the oracle marker and exercised extra candidate tests. Under four concurrent JVMs, one report restart port reservation and one Redis RDB Java startup failed.",
+    "disposition": "Both failed oracle checks passed in isolated no-record reruns. The scheduler golden had already completed its exclusive record before its same-test fresh verification failed.",
+    "isolated_report_restart": "1 passed in 34.15s",
+    "isolated_rdb_recovery": "1 passed in 26.53s",
+    "parallel_rbl_startup_issue": "One fresh RBL Java startup missed its health deadline while both full replay matrices were active.",
+    "isolated_rbl_replay": "1 passed, 1 deselected in 14.80s"
+  },
+  "repository_guards": {
+    "java_oracle_read_only": true,
+    "skibidi_freeze_read_only": true,
+    "definition_tree_unchanged_after_record_and_replay": true,
+    "runtime_has_no_java_dependency": true
+  }
+}

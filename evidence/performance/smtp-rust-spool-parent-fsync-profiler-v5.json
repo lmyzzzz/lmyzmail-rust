@@ -1,0 +1,228 @@
+{
+  "schema_version": 1,
+  "profile": "rust-spool-parent-fsync-profiler-v5",
+  "qualification": false,
+  "qualification_reason": "The 500000-message profiler arm was intentionally interrupted after bounded observer and perf captures. It is not a completed arm or ABBA result, and its partial end-to-end rate did not improve.",
+  "assembled_at": "2026-08-16T11:24:17+08:00",
+  "git_head": "296b6f6afb3a1bb339886b555f2f00567326efd9",
+  "dirty_tree_at_capture": true,
+  "platform": {
+    "os": "WSL2 Ubuntu",
+    "kernel": "6.6.87.2-microsoft-standard-WSL2",
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+    "power_mode": "user-reported OEM power-save mode"
+  },
+  "hypothesis": {
+    "description": "The outbound spool cleanup setup repeated a parent-directory fsync even though the publication proof and final cleanup path already preserve the required durability ordering.",
+    "change": "Remove only the setup-time parent-directory fsync while retaining final quarantine/spool durability barriers and the proof-removal directory fsync.",
+    "preserved_checks": [
+      "spool and publication-proof identity validation",
+      "sent-copy byte comparison",
+      "quarantine rename before unlink",
+      "quarantine directory fsync after rename",
+      "spool directory fsync after final unlink",
+      "publication-proof removal and parent-directory fsync",
+      "database removed-state checkpoint",
+      "rename cutpoint recovery through coordinator_quarantine_renamed"
+    ]
+  },
+  "candidate": {
+    "profiling_path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "profiling_sha256": "5ad4f05990b0375b4503f57bea5ad66f82ab1925d820432c6e2b58d1e3300705",
+    "build_id": "f0d696e4c4b306594c40f5b7863fe71e82a96bec",
+    "benchmark_proxy_sha256": "2c8d692d6ef088bd5000b673b9624d0b4b485a52628de0864170c6b014481de9",
+    "benchmark_runner_sha256": "eab26b5ca3c556ae0d0bdece1f932f6a19ed053b999fb467b991536babb4b3bc",
+    "benchmark_launcher_sha256": "f929ad09915c9e0f0eef7f8d793f81c665c6bec50709a11f304273fb103b8b49",
+    "cargo_lock_sha256": "e878d55d2652bb23910931d8d185685daf211fa93c740855f7504f0d7b39ef25",
+    "outbound_coordinator_source_sha256": "3aa85e9f2a1e997a4b9434c649c8cb2077ccc6c2fd248d2c4d72e549f6a13e67",
+    "coordinator_observer_source_sha256": "6e478b991cf318b6ca0841e67b818cf5b31b4f1ad00e42019fcdc9790aee878b"
+  },
+  "correctness_gates_before_profile": {
+    "coordinator_observer_unit_tests": "2 passed",
+    "outbound_coordinator_unit_tests": "17 passed plus the quarantine-rename recovery cutpoint test",
+    "outbound_coordinator_integration": "16 passed",
+    "outbound_delivery_postgres_integration": "10 passed",
+    "cargo_check_all_targets": "passed",
+    "vendored_c_warnings": "existing litehtml/gumbo compiler warnings only"
+  },
+  "post_capture_validation": {
+    "cargo_clippy_locked_all_targets_deny_warnings": "passed",
+    "json_parse": "passed",
+    "perf_sha256_and_size": "passed",
+    "git_diff_check": "passed"
+  },
+  "baseline": {
+    "run_id": "8202e455-aefc-44d1-95a3-9a567900fa28",
+    "profiling_binary_sha256": "2bc2917eb7b21c39ba4ac5df85df7dfffa44ef757223a25590c7ac8fa8cedb7b",
+    "observer_failures": 0,
+    "completed_tasks_at_snapshot": 1280,
+    "averages_ms_per_message": {
+      "queue_ack_spool_cleanup": 86.76,
+      "queue_ack_spool_setup": 17.46,
+      "queue_ack_spool_durability": 35.69,
+      "queue_ack_spool_proof_cleanup": 19.49,
+      "queue_ack_spool_checkpoint": 12.95
+    },
+    "values_are_rounded": true
+  },
+  "capture": {
+    "launcher_run_id": "6c39c3fc-b545-4469-8323-ed0522641059",
+    "proxy_round_id": "rust-candidate-10kb-arm-0-c5d59fe308da4c44a78dbc8a060328a7",
+    "tier": "10KB",
+    "requested_messages": 500000,
+    "observer_snapshots": [
+      {
+        "completed_tasks": 1280,
+        "completed_average_ms": 323.686297,
+        "stages": {
+          "queue_ack_spool_cleanup": {
+            "count": 1280,
+            "total_ns": 54263487783,
+            "average_ms": 42.393350
+          },
+          "queue_ack_spool_snapshot": {
+            "count": 1280,
+            "total_ns": 642941485,
+            "average_ms": 0.502298
+          },
+          "queue_ack_spool_permit": {
+            "count": 1301,
+            "total_ns": 1204093,
+            "average_ms": 0.000926
+          },
+          "queue_ack_spool_setup": {
+            "count": 1314,
+            "total_ns": 32474328,
+            "average_ms": 0.024714
+          },
+          "queue_ack_spool_proof_validation": {
+            "count": 1314,
+            "total_ns": 1053550503,
+            "average_ms": 0.801789
+          },
+          "queue_ack_spool_sent_compare": {
+            "count": 1280,
+            "total_ns": 48547919,
+            "average_ms": 0.037928
+          },
+          "queue_ack_spool_mutation": {
+            "count": 1280,
+            "total_ns": 108042966,
+            "average_ms": 0.084409
+          },
+          "queue_ack_spool_durability": {
+            "count": 1280,
+            "total_ns": 26295617953,
+            "average_ms": 20.543452
+          },
+          "queue_ack_spool_proof_cleanup": {
+            "count": 1280,
+            "total_ns": 15715507514,
+            "average_ms": 12.277740
+          },
+          "queue_ack_spool_checkpoint": {
+            "count": 1301,
+            "total_ns": 10952738232,
+            "average_ms": 8.418707
+          }
+        }
+      },
+      {
+        "completed_tasks": 1536,
+        "completed_average_ms": 337.098056,
+        "stages": {
+          "queue_ack_spool_cleanup_average_ms": 45.236885,
+          "queue_ack_spool_setup_average_ms": 0.024728,
+          "queue_ack_spool_durability_average_ms": 22.053626,
+          "queue_ack_spool_proof_cleanup_average_ms": 13.082789,
+          "queue_ack_spool_checkpoint_average_ms": 8.917573
+        }
+      }
+    ],
+    "proxy_partial_summary": {
+      "verified_messages": 1879,
+      "expected_messages": 500000,
+      "accepted_elapsed_start_ns": 131711470,
+      "latest_accepted_elapsed_ns": 264550122909,
+      "derived_messages_per_second": 7.106162,
+      "smtp_success": 1879,
+      "smtp_transient_failure": 0,
+      "smtp_permanent_failure": 0,
+      "retry_responses": 0,
+      "observer_failure_count": 0,
+      "proxy_failed_connections": 0,
+      "proxy_peak_connections": 6,
+      "transaction_latency_ms_upper_bound": {
+        "p50": 268.435456,
+        "p95": 536.870912,
+        "p99": 536.870912,
+        "maximum": 768.224617
+      },
+      "partial_window_only": true
+    },
+    "application_log_diagnostics": {
+      "stress_outbound_blocking_soft_deadline_lines": 1524,
+      "critical_failure_lines": 0,
+      "stress_enqueue_failed_lines": 0,
+      "interpretation": "The four-worker strict stress pool accumulated enough queued materialization work for many jobs to cross the 60-second soft deadline. This invalidates the arm as clean throughput evidence even though the passive SMTP proxy had no failures or retries at the snapshot."
+    }
+  },
+  "perf": {
+    "command": "/usr/lib/linux-tools-6.8.0-137/perf record -o evidence/performance/smtp-rust-spool-parent-fsync-cpu-clock-60s-v1.data -e cpu-clock -F 99 -g -p 16947 -- sleep 60",
+    "data_path": "evidence/performance/smtp-rust-spool-parent-fsync-cpu-clock-60s-v1.data",
+    "data_sha256": "a7767883a746939039b6249df7f7feff4a885203909948ffa61d9ea9c4743f42",
+    "file_size_bytes": 193868,
+    "sample_duration_seconds": 59.648450,
+    "samples": 618,
+    "lost_samples": 0,
+    "top_resolved_user_space_flat_symbols": [
+      {
+        "symbol": "ring_core_0_17_14__bn_sqrx8x_internal",
+        "overhead_percent": 3.07
+      },
+      {
+        "symbol": "mulx4x_internal",
+        "overhead_percent": 2.10
+      },
+      {
+        "symbol": "libc malloc",
+        "overhead_percent": 1.46
+      },
+      {
+        "symbol": "tokio runtime multi_thread worker run",
+        "overhead_percent": 1.46
+      },
+      {
+        "symbol": "tokio_postgres Connection::poll",
+        "overhead_percent": 0.65
+      }
+    ],
+    "interpretation": "The low-rate CPU capture contains no dominant resolved user-space hotspot. Stage timing, rather than flat CPU attribution, remains the stronger evidence for the serialized durability path."
+  },
+  "comparison": {
+    "queue_ack_spool_setup_reduction_percent_at_1280": 99.858,
+    "queue_ack_spool_cleanup_reduction_percent_at_1280": 51.137,
+    "queue_ack_spool_durability_reduction_percent_at_1280": 42.439,
+    "queue_ack_spool_proof_cleanup_reduction_percent_at_1280": 37.005,
+    "queue_ack_spool_checkpoint_reduction_percent_at_1280": 34.991,
+    "prior_diagnostic_messages_per_second": 12.466483,
+    "current_partial_messages_per_second": 7.106162,
+    "overall_throughput_improved": false,
+    "time_variation_present": true
+  },
+  "decision": {
+    "retained": true,
+    "reason": "The removed setup barrier was demonstrably redundant and the quarantine-rename recovery test preserves the crash-ordering contract. The setup stage reduction reproduces at both 1280 and 1536 completed tasks.",
+    "performance_claim": "Only the local spool setup and cleanup stage reduction is claimed. No end-to-end throughput improvement or formal qualification is claimed.",
+    "next_hypothesis": "Profile and right-size or partition the bounded stress body/materialization pool. It has four workers against 1000 active 10KB enqueue jobs and produced 1524 60-second soft deadlines, while the remaining delivery-side latency is concentrated in spool durability, proof cleanup, and the database checkpoint."
+  },
+  "cleanup": {
+    "interrupted_by_launcher_session": true,
+    "recovered_by_next_launcher_start": true,
+    "benchmark_process_residue": false,
+    "per_run_cgroup_residue": false,
+    "mount_residue": false,
+    "loop_residue": false,
+    "unqualified_launcher_outputs_published": false
+  }
+}

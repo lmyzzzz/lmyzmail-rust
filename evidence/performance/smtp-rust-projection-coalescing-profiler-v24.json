@@ -1,0 +1,177 @@
+{
+  "schema_version": 1,
+  "profile": "rust-projection-coalescing-profiler-v24",
+  "qualification": false,
+  "qualification_reasons": [
+    "Both 500000-message endpoint invocations were intentionally interrupted after bounded sequence-2 diagnostic windows.",
+    "The clean repetitions establish a retained local latency improvement, not a completed endpoint-throughput or ABBA qualification result."
+  ],
+  "captured_at": "2026-08-16T21:30:32.3053742+08:00",
+  "git_head": "296b6f6afb3a1bb339886b555f2f00567326efd9",
+  "dirty_tree_at_capture": true,
+  "platform": {
+    "os": "WSL2 Ubuntu",
+    "kernel": "6.6.87.2-microsoft-standard-WSL2",
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+    "power_mode": "user-reported OEM power-save mode"
+  },
+  "candidate": {
+    "release": {
+      "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+      "sha256": "54e9bad5727d3a6756d9e79d05c76552c7afebc9a9b11e6255a711fde1c2a83c",
+      "build_id": "d205f69515618748e7dbeb5feb6de819df3f1ea8",
+      "size_bytes": 50886104
+    },
+    "profiling": {
+      "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+      "sha256": "d42376a280902d1e6235b62e1b25e2854b7670ad69ac49358db3be407ef45232",
+      "build_id": "9e53bc1c8a61b784b5623d0e4137d8056ff89946",
+      "size_bytes": 216694136
+    }
+  },
+  "experiment": {
+    "hypothesis": "The synchronous best-effort Redis mail-count projection and its PostgreSQL acknowledgement serialize final SMTP acceptance; leaving the already-durable compacted generation to the existing bounded maintenance loop should coalesce concurrent updates and remove redundant commits.",
+    "implementation": "SMTP acceptance retains the durable projection upsert in the index transaction but no longer calls flush_projection inline. Existing one-second maintenance processes at most 64 projection rows per pass, uses Redis SET KEEPTTL, and deletes only the exact locked generation after success.",
+    "retention_gate": "Final SMTP reply, intent insertion, index commit, and intent completion must all improve in both fresh-state sequence-2 windows; projection convergence, frozen SMTP DATA behavior, diagnostics, durability settings, and bounded maintenance must remain intact.",
+    "source_retained": true
+  },
+  "baseline": {
+    "evidence": "evidence/performance/smtp-rust-maildir-syscall-profiler-v19.json",
+    "stage_values_from": "evidence/performance/smtp-rust-intent-roundtrip-v21.json",
+    "observer_sequence": 2,
+    "completed_tasks": 512,
+    "smtp_prepare_mean_ms": 3.157836,
+    "smtp_final_reply_mean_ms": 78.027632,
+    "inbound_prepare_file_mean_ms": 20.741461,
+    "inbound_intent_insert_mean_ms": 7.472641,
+    "inbound_publish_file_mean_ms": 20.511391,
+    "inbound_index_commit_mean_ms": 13.315800,
+    "inbound_publish_verify_mean_ms": 0.216774,
+    "inbound_intent_complete_mean_ms": 8.175809,
+    "inbound_projection_flush_mean_ms": 6.260387,
+    "kernel_match": true
+  },
+  "repetitions": [
+    {
+      "label": "run-a",
+      "run_id": "df652499-7cb6-4934-8c88-66334a034431",
+      "candidate_log": {
+        "path": "evidence/performance/smtp-rust-projection-coalescing-profiler-v24a-rust-candidate.log",
+        "sha256": "5df13c3f064772df54485fbfb41c2bf9c76cf3ea4ea54b5aa346d4a0e02fc09a",
+        "size_bytes": 17444,
+        "observer_records": 4,
+        "captured_before_signal": true
+      },
+      "sequence_2": {
+        "completed_tasks": 512,
+        "smtp_prepare_mean_ms": 3.347265,
+        "smtp_final_reply_mean_ms": 71.900240,
+        "inbound_prepare_file_mean_ms": 21.910111,
+        "inbound_intent_insert_mean_ms": 7.321273,
+        "inbound_publish_file_mean_ms": 21.221759,
+        "inbound_index_commit_mean_ms": 12.046162,
+        "inbound_publish_verify_mean_ms": 0.191547,
+        "inbound_intent_complete_mean_ms": 8.070630,
+        "inbound_projection_flush_count": 0
+      },
+      "relative_change_percent": {
+        "smtp_prepare": 5.998689,
+        "smtp_final_reply": -7.852848,
+        "inbound_prepare_file": 5.634366,
+        "inbound_intent_insert": -2.025635,
+        "inbound_publish_file": 3.463286,
+        "inbound_index_commit": -9.534820,
+        "inbound_publish_verify": -11.637394,
+        "inbound_intent_complete": -1.286461
+      },
+      "diagnostic_counts": {
+        "invalid_transition_checkpoint": 0,
+        "spool_cleanup_reconciler_unavailable": 0,
+        "task_reconciler_unavailable": 0,
+        "queue_unavailable_total": 0,
+        "stress_soft_deadline": 0,
+        "delivery_failed": 0,
+        "projection_deferred_error": 0,
+        "expected_http_broken_pipe": 1
+      },
+      "cleanup": {
+        "request": "SIGINT to exact launcher PID 24625 after candidate-log capture",
+        "cleanup": "passed",
+        "lazy_unmount": false,
+        "recovered": false,
+        "residual_application_processes": 0,
+        "residual_run_cgroups": 0,
+        "residual_quota_mounts": 0,
+        "residual_loop_devices": 0
+      }
+    },
+    {
+      "label": "run-b",
+      "run_id": "25700e60-5283-457a-8cb8-c04875cac9dc",
+      "candidate_log": {
+        "path": "evidence/performance/smtp-rust-projection-coalescing-profiler-v24b-rust-candidate.log",
+        "sha256": "97e88cd12028f2a4ac3e008d374fa3ed29bd09b22f75ba37d77dfb0895263520",
+        "size_bytes": 13160,
+        "observer_records": 3,
+        "captured_before_signal": true
+      },
+      "sequence_2": {
+        "completed_tasks": 512,
+        "smtp_prepare_mean_ms": 2.830416,
+        "smtp_final_reply_mean_ms": 67.101920,
+        "inbound_prepare_file_mean_ms": 20.354787,
+        "inbound_intent_insert_mean_ms": 6.777110,
+        "inbound_publish_file_mean_ms": 20.034369,
+        "inbound_index_commit_mean_ms": 10.981041,
+        "inbound_publish_verify_mean_ms": 0.174041,
+        "inbound_intent_complete_mean_ms": 7.674082,
+        "inbound_projection_flush_count": 0
+      },
+      "relative_change_percent": {
+        "smtp_prepare": -10.368488,
+        "smtp_final_reply": -14.002362,
+        "inbound_prepare_file": -1.864258,
+        "inbound_intent_insert": -9.307700,
+        "inbound_publish_file": -2.325646,
+        "inbound_index_commit": -17.533746,
+        "inbound_publish_verify": -19.713206,
+        "inbound_intent_complete": -6.136722
+      },
+      "diagnostic_counts": {
+        "invalid_transition_checkpoint": 0,
+        "spool_cleanup_reconciler_unavailable": 0,
+        "task_reconciler_unavailable": 0,
+        "queue_unavailable_total": 0,
+        "stress_soft_deadline": 0,
+        "delivery_failed": 0,
+        "projection_deferred_error": 0,
+        "expected_http_broken_pipe": 1
+      },
+      "cleanup": {
+        "request": "SIGINT to exact launcher PID 27400 after candidate-log capture",
+        "cleanup": "passed",
+        "lazy_unmount": false,
+        "recovered": false,
+        "residual_application_processes": 0,
+        "residual_run_cgroups": 0,
+        "residual_quota_mounts": 0,
+        "residual_loop_devices": 0
+      }
+    }
+  ],
+  "verification": {
+    "smtp_related_unit_tests": {"passed": 141, "failed": 0},
+    "candidate_smtp_data_and_parallel_exact_count": {"passed": 2, "failed": 0},
+    "outbound_smtp_protocol_integration_tests": {"passed": 17, "failed": 0},
+    "projection_convergence_gate": "PostgreSQL durable projection row absent and Redis exact count equal after concurrent inserts and deletes",
+    "cargo_clippy_workspace_all_targets_all_features_deny_warnings": "passed",
+    "cargo_fmt_check": "passed",
+    "git_diff_check": "passed"
+  },
+  "decision": {
+    "result": "retained",
+    "evidence": "Both clean sequence-2 repetitions improved final reply, intent insertion, index commit, intent completion, and publish verification with zero diagnostics; the existing exact-count integration gate proved bounded eventual projection convergence.",
+    "next_action": "Measure PostgreSQL WAL syscalls in a separate invasive window, then profile the remaining intent completion transaction without weakening Maildir or restart recovery.",
+    "throughput_claim_allowed": false
+  }
+}

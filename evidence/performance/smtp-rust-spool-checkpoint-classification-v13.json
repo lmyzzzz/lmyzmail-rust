@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "profile": "rust-spool-checkpoint-classification-v13",
+  "qualification": false,
+  "qualification_reasons": [
+    "The 500000-message endpoint invocation was intentionally interrupted after a bounded diagnostic window.",
+    "The candidate log contains 3 invalid-transition checkpoint failures and 2 queue-unavailable reconciliation diagnostics.",
+    "Interrupted profiler diagnostics did not publish a final raw endpoint result; this record is failure-classification evidence only."
+  ],
+  "captured_at": "2026-08-16T17:35:24+08:00",
+  "git_head": "296b6f6afb3a1bb339886b555f2f00567326efd9",
+  "dirty_tree_at_capture": true,
+  "platform": {
+    "os": "WSL2 Ubuntu",
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+    "power_mode": "user-reported OEM power-save mode"
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "ce7cc4f59a0aa5f196037c1eda15ce03de830a4fdbc61b2e2f4f760d7c96cdd6",
+    "build_id": "6ec909203c07b5552eb4718bc512d80ed309b968"
+  },
+  "endpoint_window": {
+    "launcher_run_id": "16e8cbba-509e-4fea-a6b9-4763a7b5eae0",
+    "launcher_pid": 11213,
+    "tier": "10KB",
+    "expected_messages": 500000,
+    "latest_observer_sequence": 7,
+    "latest_observer_completed_tasks": 1792,
+    "latest_observer_completed_total_ns": 466380644631,
+    "partial_window_only": true,
+    "clean_throughput_result": false,
+    "java_10kb_stable_window_messages_per_second": 47.223536,
+    "java_evidence": "evidence/performance/smtp-endpoint-java-stable-window-baseline-v1.json"
+  },
+  "candidate_log": {
+    "path": "evidence/performance/smtp-rust-spool-checkpoint-classification-v13-rust-candidate.log",
+    "sha256": "cba01469b0b7417e1bf379f75bc41b551ab6634dc5cb593a9056e08c6f8816e3",
+    "size_bytes": 25044,
+    "diagnostic_counts": {
+      "invalid_transition_checkpoint": 3,
+      "spool_cleanup_reconciler_unavailable": 1,
+      "task_reconciler_unavailable": 1,
+      "queue_unavailable_total": 2
+    }
+  },
+  "decision": {
+    "result": "reproduced-and-classified",
+    "next_action": "Reconcile only a previously read exact sidecar that was concurrently removed, while rejecting identity replacement and conflicting OWNED state.",
+    "throughput_claim_allowed": false
+  },
+  "cleanup": {
+    "request": "SIGINT to exact launcher PID 11213",
+    "cleanup": "passed",
+    "residual_application_processes": 0,
+    "residual_run_cgroups": 0,
+    "residual_quota_mounts": 0
+  }
+}

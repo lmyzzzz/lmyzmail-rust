@@ -1,0 +1,61 @@
+{
+  "schema": "lmyzmail.smtp-inbound-index-batch-profiler.failure.v1",
+  "run_id": "4c404f4b-6682-4867-83c6-d8a4aff56537",
+  "profile": "rust-profiler",
+  "tier": "10KB",
+  "requested_messages": 8192,
+  "filesystem_fsync": "off",
+  "postgres_fsync": "on",
+  "formal_benchmark": false,
+  "qualification": false,
+  "throughput_claim": false,
+  "candidate_binary": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "built_at": "2026-08-18T02:20:14+08:00",
+    "size_bytes": 218620616,
+    "sha256": "7c54e26ab90e97aa2b2aa9353d041e3b6147c94113b2dfdbb63235dc40fc42c0"
+  },
+  "terminal_state": {
+    "outbound_queue_sent": 8192,
+    "delivery_recipients_delivered": 8192,
+    "delivery_attempts_projected": 8192,
+    "email_index_rows": 0,
+    "outbound_spool_rows": 0,
+    "outbound_dsn_rows": 0,
+    "email_index_insertions": 16384,
+    "email_index_deletions": 16384,
+    "database_xact_rollback": 0,
+    "maildir_files": 0,
+    "redis_key_count": 8200,
+    "redis_scan_complete_and_stable": true,
+    "redis_ttl_contract_passed": true
+  },
+  "failure": {
+    "exception": "TimeoutError: stress automatic cleanup did not finish",
+    "cleanup_timeout_seconds": 1800,
+    "mechanism": "The legacy migration worker reused its stable empty tokens but refreshed each EMPTY receipt TTL and done-index score on every poll. Exact Redis value hashing therefore changed the zset score continuously and could never produce three identical semantic snapshots.",
+    "archive_receipt": {
+      "key": "lmyzmail:mail:queue:migration:archive:done:migrate:cbd204cf17ff3e7a0d7a3ee069bd919e",
+      "pttl_ms_at_timeout": 299250,
+      "done_index_cardinality": 1
+    },
+    "status_updates_receipt": {
+      "key": "lmyzmail:mail:queue:migration:status-updates:done:migrate:b9ecf899a9c8ebab8ff9926bb6c58577",
+      "pttl_ms_at_timeout": 299251,
+      "done_index_cardinality": 1
+    },
+    "settlement_index_cardinality": 8192,
+    "provisional_artifact": "not published",
+    "load_window_metrics": "unavailable because the failed launcher did not publish its provisional artifact and the console prefix was truncated"
+  },
+  "cleanup": {
+    "request": "ABORT",
+    "cleanup": "passed",
+    "lazy_unmount": 0,
+    "recovered": 0,
+    "qualified_cleanup": 0,
+    "root_receipt": "/var/lib/lmyzmail-benchmark/journal/4c404f4b-6682-4867-83c6-d8a4aff56537.done",
+    "root_receipt_sha256": "aa4fcc6e55e5ba8a7101039efe7ad568f870039f3181db05618a619147fb9274",
+    "residual_process_mount_loop_cgroup_run_directory": false
+  }
+}

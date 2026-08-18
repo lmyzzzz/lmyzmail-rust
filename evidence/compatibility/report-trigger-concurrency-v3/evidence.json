@@ -1,0 +1,25 @@
+{
+  "candidate_observation_sha256": "ffdab61c0f1cb0eff0662e6ed8c83a6196e8585008a6996dfb925c1eb94bef8e",
+  "candidate_release_sha256": "c3047dd2818e4ad363874f7d59938750cffa10ab3d1037af7c6f196a1412d143",
+  "definition_tree_sha256": "b0ce09dd6c4bf3fc0baa8f817d2bfe1ce9b8c35034dd5c099d2fc811f764f703",
+  "golden_envelope_sha256": "5e648bf9f9673730e7fea0e49968aa09aed1d4013e20ee4372cd2213baac3d26",
+  "java_candidate_observations_equal": true,
+  "java_observation_sha256": "ffdab61c0f1cb0eff0662e6ed8c83a6196e8585008a6996dfb925c1eb94bef8e",
+  "normalizers": [
+    "header:date:http-date",
+    "json-object-order:reports-contract",
+    "report-id:uuid-v4",
+    "rfc5322:parsed-message",
+    "report-body:wall-clock-period",
+    "redis-domain-status:updated-at",
+    "maildir:generated-filename"
+  ],
+  "older_generations_modified": false,
+  "oracle": {
+    "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+    "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "profile": "report-trigger-concurrency-v3",
+  "schema_version": 1,
+  "source": "fresh Java oracle capture and independent locked Rust release capture"
+}

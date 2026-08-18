@@ -1,0 +1,174 @@
+{
+  "schema_version": 1,
+  "profile": "rust-quarantine-parent-sync-cache-profiler-v8",
+  "qualification": false,
+  "qualification_reasons": [
+    "The 500000-message endpoint invocation was intentionally interrupted after a bounded diagnostic window.",
+    "This was one profiler arm rather than a completed ABBA throughput comparison.",
+    "The identity cache hypothesis regressed both end-to-end throughput and measured coordinator stages, so the source change was reverted after capture."
+  ],
+  "captured_at": "2026-08-16T15:44:00+08:00",
+  "git_head": "296b6f6afb3a1bb339886b555f2f00567326efd9",
+  "dirty_tree_at_capture": true,
+  "platform": {
+    "os": "WSL2 Ubuntu",
+    "kernel": "6.6.87.2-microsoft-standard-WSL2",
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+    "power_mode": "user-reported OEM power-save mode"
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "4a27c17ec82eb7a4e51cdb15375a649c55192ce6c913abcbf45bf81ebfaa76f4",
+    "build_id": "0f31aa1d9a96ed8dc6ada7d9c8240b913c5dedef",
+    "included_experiment": "hard-bounded identity cache for successfully parent-synced quarantine directories",
+    "retention_decision": "reverted_after_profile"
+  },
+  "endpoint_window": {
+    "launcher_run_id": "fa60a308-9e10-49d5-981f-6c8b0d40e9db",
+    "proxy_round_run_id": "rust-candidate-10kb-arm-0-82615fd2e58f4a488af69cc08918724d",
+    "tier": "10KB",
+    "expected_messages": 500000,
+    "verified_messages_at_summary": 1620,
+    "smtp_success": 1620,
+    "smtp_transient_failure": 0,
+    "smtp_permanent_failure": 0,
+    "smtp_other_replies": 0,
+    "retry_responses": 0,
+    "duplicates": 0,
+    "observer_failure_count": 0,
+    "proxy_accepted_connections": 1623,
+    "proxy_completed_connections": 1620,
+    "proxy_active_connections": 3,
+    "proxy_failed_connections": 0,
+    "proxy_peak_connections": 8,
+    "first_accepted_monotonic_ns": 1912301547,
+    "last_accepted_monotonic_ns": 149739409475,
+    "derived_first_to_last_interval_seconds": 147.827107928,
+    "derived_messages_per_second": 10.958747842033342,
+    "transaction_latency_ns_upper_bound": {
+      "p50": 268435456,
+      "p95": 536870912,
+      "p99": 536870912,
+      "maximum": 576391435
+    },
+    "partial_window_only": true,
+    "comparison": {
+      "java_10kb_stable_window_messages_per_second": 47.223536,
+      "rust_to_java_ratio": 0.232061145146635,
+      "previous_v7_messages_per_second": 16.567647,
+      "v8_to_v7_ratio": 0.661454691908473,
+      "v8_regression_from_v7_percent": 33.8545308091527,
+      "java_evidence": "evidence/performance/smtp-endpoint-java-stable-window-baseline-v1.json",
+      "v7_evidence": "evidence/performance/smtp-rust-shard-reservation-profiler-v7.json"
+    }
+  },
+  "coordinator_observer": {
+    "source": "evidence/performance/smtp-rust-quarantine-parent-sync-cache-observer-v1.log",
+    "source_sha256": "35108fb4a4c94298a0c1f165d122ade01977304e721e5a2d4d78eae2bc423715",
+    "source_size_bytes": 23731,
+    "latest_sequence": 6,
+    "completed_tasks": 1536,
+    "completed_task_average_ms": 375.47354981966146,
+    "completed_task_max_ms": 987.481708,
+    "stage_average_ms": {
+      "smtp_prepare": 89.4515203407022,
+      "smtp_commit": 131.16420551594015,
+      "queue_acknowledge": 83.19536087304688,
+      "queue_ack_spool_cleanup": 68.290855734375,
+      "queue_ack_spool_setup": 0.02621391176470588,
+      "queue_ack_spool_durability": 34.26307889583334,
+      "queue_ack_spool_proof_cleanup": 19.150134165364584,
+      "queue_ack_spool_checkpoint": 13.355792670535138,
+      "inbound_prepare_file": 36.428004355237476,
+      "inbound_intent_insert": 12.931027781392324,
+      "inbound_publish_file": 36.52078163500325,
+      "inbound_index_commit": 18.04250462914769,
+      "inbound_publish_verify": 0.23198679440468445,
+      "inbound_intent_complete": 13.684749813923228,
+      "inbound_projection_flush": 11.979608870527
+    }
+  },
+  "perf": {
+    "tool": "/usr/lib/linux-tools-6.8.0-137/perf",
+    "tool_version": "6.8.12",
+    "command": "perf record -e cpu-clock:u -F 997 -g --call-graph dwarf,65528 -p 19126 -- sleep 60",
+    "data_path": "evidence/performance/smtp-rust-quarantine-parent-sync-cache-cpu-clock-60s-v1.data",
+    "data_sha256": "a48b90739efe256aff0b2ed37efc93fcddee96f4e0a2e6a3192e42360da63bf7",
+    "data_size_bytes": 245647700,
+    "sample_duration_ms": 59975.659,
+    "captured_samples": 3746,
+    "lost_samples": 0,
+    "children_hotspots": [
+      "OutboundCoordinator::process_next_inner: 25.73%",
+      "OutboundCoordinator::process_claimed: 22.85%",
+      "OutboundMessageBuilder::materialize: 20.34%",
+      "OutboundService::materialize_message: 17.30%",
+      "mail_auth DkimSigningStream::finish: 11.13%",
+      "ring RSA KeyPair::sign: 11.00%",
+      "deadpool_postgres ConfigConnectImpl::connect: 10.20%",
+      "SmtpService::deliver: 10.12%",
+      "OutboundCoordinator::deliver_domain: 10.04%"
+    ],
+    "self_hotspots": [
+      "ring_core bn_sqrx8x_internal: 8.22%",
+      "malloc: 2.99%",
+      "tokio_postgres Connection::poll: 2.30%",
+      "tokio runtime worker run: 2.30%",
+      "mulx4x_internal: 2.24%",
+      "cfree: 1.98%"
+    ],
+    "symbolization_note": "perf source-line expansion was disabled after the WSL addr2line helper failed to consume records; symbol-level percentages and the raw data remain reproducible."
+  },
+  "resource_snapshot_before_interrupt": {
+    "workload_cpu_usage_usec": 33504655,
+    "workload_cpu_user_usec": 16649683,
+    "workload_cpu_system_usec": 16854971,
+    "workload_cpu_throttled_usec": 10333,
+    "workload_memory_current_bytes": 460320768,
+    "workload_memory_peak_bytes": 461393920,
+    "candidate_rss_kib": 475620,
+    "candidate_threads": 71,
+    "candidate_fd_count": 133,
+    "loop_write_bytes": 133853184,
+    "backing_write_bytes": 133853184,
+    "proxy_peak_total_accounted_bytes": 120193024
+  },
+  "cleanup": {
+    "launcher_run_id": "fa60a308-9e10-49d5-981f-6c8b0d40e9db",
+    "request": "ABORT",
+    "cleanup": "passed",
+    "lazy_unmount": 0,
+    "intent_sha256": "ef8ffd7e9b131b1b3990f05741fcb145ab255a44588e52f427249e0258d14481",
+    "done_sha256": "ae83039b5a3ba49490633e2fdca790b37c00ac76f9261a477efd8caca854707e",
+    "residual_application_processes": 0,
+    "residual_run_cgroups": 0,
+    "residual_quota_mounts": 0,
+    "residual_loop_devices": 0,
+    "residual_artifacts": 0,
+    "published_formal_output": false
+  },
+  "excluded_preliminary_run": {
+    "launcher_run_id": "7d43607b-47b6-4a2c-84c5-14b3e1cf1e62",
+    "exclusion_reason": "A read-only summary probe used root instead of the benchmark socket owner UID and was rejected, incrementing observer_failure_count; this arm was discarded.",
+    "recovery_cleanup": "passed",
+    "recovered": 1,
+    "lazy_unmount": 0,
+    "intent_sha256": "052952e5ec4c5a9e5ec90e8c518cf300f63dcf2c0002b476027490937f4520ec",
+    "done_sha256": "5c45abe678a6b2f7c1f92fe5473584cdc9df272f519e906e625fe8eb3ece1928"
+  },
+  "verification_after_revert": {
+    "cargo_test_quarantine_parent_sync": "1 passed",
+    "cargo_test_outbound_message": "60 passed",
+    "cargo_fmt_check": "passed",
+    "git_diff_check": "passed",
+    "cargo_clippy_all_targets_deny_warnings": "passed",
+    "third_party_warning_note": "Existing vendored litehtml/gumbo C compiler warnings remain outside Rust clippy diagnostics."
+  },
+  "finding": {
+    "hypothesis": "A hard-bounded, inode-pinned identity cache would remove repeated quarantine parent-directory fsync waits and improve the measured path without weakening first-publication durability.",
+    "result": "rejected",
+    "reason": "The clean v8 arm regressed 33.85% from v7 end-to-end, while smtp_commit, queue acknowledgement, spool cleanup, and inbound publication stage averages all increased. No end-to-end or local-stage benefit was demonstrated.",
+    "source_retention": "The cache implementation and its identity-bound test were removed; unconditional parent fsync and its failure-retry test remain.",
+    "next_action": "Use profiler evidence to isolate publication temporary-file creation, spool durability/proof cleanup, or inbound publication barriers. Do not revive the identity cache without a new crash-safe design and reportable local plus end-to-end evidence."
+  }
+}

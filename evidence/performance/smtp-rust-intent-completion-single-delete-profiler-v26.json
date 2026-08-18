@@ -1,0 +1,177 @@
+{
+  "schema_version": 1,
+  "profile": "rust-intent-completion-single-delete-profiler-v26",
+  "qualification": false,
+  "qualification_reasons": [
+    "Both 500000-message endpoint invocations were intentionally interrupted after bounded sequence-2 diagnostic windows.",
+    "The second fresh-state window regressed final SMTP reply and index commit latency relative to its v24 counterpart."
+  ],
+  "captured_at": "2026-08-16T22:22:18+08:00",
+  "git_head": "296b6f6afb3a1bb339886b555f2f00567326efd9",
+  "dirty_tree_at_capture": true,
+  "platform": {
+    "os": "WSL2 Ubuntu",
+    "kernel": "6.6.87.2-microsoft-standard-WSL2",
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+    "power_mode": "user-reported OEM power-save mode"
+  },
+  "candidate": {
+    "release": {
+      "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+      "sha256": "03b16a95b01c2a69b356ffa2849713a73700f50b7733581d6ed0f0207eae6475",
+      "build_id": "f07a676805dd0d890bd25eb866a733abd53b1e56",
+      "size_bytes": 50883992
+    },
+    "profiling": {
+      "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+      "sha256": "e7751b9d914c78526f3b33510832af5a2414dfd0809c1c3ffe300f2319f9a8ef",
+      "build_id": "2b72fcb7a603b53df09fd9d6301fbacaacd9d567",
+      "size_bytes": 216687424
+    }
+  },
+  "restored_candidate": {
+    "release": {
+      "sha256": "54e9bad5727d3a6756d9e79d05c76552c7afebc9a9b11e6255a711fde1c2a83c",
+      "build_id": "d205f69515618748e7dbeb5feb6de819df3f1ea8",
+      "size_bytes": 50886104
+    },
+    "profiling": {
+      "sha256": "d42376a280902d1e6235b62e1b25e2854b7670ad69ac49358db3be407ef45232",
+      "build_id": "9e53bc1c8a61b784b5623d0e4137d8056ff89946",
+      "size_bytes": 216694136
+    }
+  },
+  "experiment": {
+    "hypothesis": "The explicit completion BEGIN, advisory lock, identity SELECT, DELETE, and COMMIT add avoidable PostgreSQL round trips; one identity-bound autocommit DELETE should preserve INDEXED recovery semantics while reducing final reply latency.",
+    "implementation": "The completion DELETE constrained all sixteen durable intent identity fields and INDEXED state in one PostgreSQL statement. Timeout or connection errors still reconciled under the existing advisory-lock load_intent path; an absent row remained idempotent success.",
+    "retention_gate": "Intent completion and final SMTP reply must both improve in each fresh-state window without material regression in index commit, diagnostics, exact counts, or recovery semantics.",
+    "source_retained": false,
+    "experimental_source_sha256": "459ad6561315562394066a22007a315516c85b1c9a239644345dd7a6218cf7ac",
+    "restored_source_sha256": "000a5e5596e5aa9f2ccf3e7fc91e25dbe3c53eb38745f4bec9c7146bccdc540f"
+  },
+  "baseline": {
+    "evidence": "evidence/performance/smtp-rust-projection-coalescing-profiler-v24.json",
+    "comparison": "same repetition ordinal, observer sequence 2"
+  },
+  "repetitions": [
+    {
+      "label": "run-a",
+      "run_id": "e2a233c0-f8aa-458f-8c51-1233c6747dc8",
+      "candidate_log": {
+        "path": "evidence/performance/smtp-rust-intent-completion-single-delete-profiler-v26a-rust-candidate.log",
+        "sha256": "97c7b285e4d553357f6c3ed58a7d9b8193aeae5e562952d73359bc3bb9ba61ca",
+        "size_bytes": 42893,
+        "observer_records": 10,
+        "captured_before_signal": true
+      },
+      "sequence_2": {
+        "completed_tasks": 512,
+        "smtp_prepare_mean_ms": 2.922393,
+        "smtp_final_reply_mean_ms": 64.911550,
+        "inbound_prepare_file_mean_ms": 19.592724,
+        "inbound_intent_insert_mean_ms": 6.942090,
+        "inbound_publish_file_mean_ms": 19.391388,
+        "inbound_index_commit_mean_ms": 11.183107,
+        "inbound_publish_verify_mean_ms": 0.146399,
+        "inbound_intent_complete_mean_ms": 6.526454,
+        "inbound_projection_flush_count": 0
+      },
+      "relative_to_v24_percent": {
+        "smtp_prepare": -12.693100,
+        "smtp_final_reply": -9.719982,
+        "inbound_prepare_file": -10.576794,
+        "inbound_intent_insert": -5.179194,
+        "inbound_publish_file": -8.624974,
+        "inbound_index_commit": -7.164561,
+        "inbound_publish_verify": -23.570023,
+        "inbound_intent_complete": -19.133283
+      },
+      "diagnostic_counts": {
+        "invalid_transition_checkpoint": 0,
+        "spool_cleanup_reconciler_unavailable": 0,
+        "task_reconciler_unavailable": 0,
+        "queue_unavailable_total": 0,
+        "stress_soft_deadline": 0,
+        "delivery_failed": 0,
+        "projection_deferred_error": 0,
+        "expected_http_broken_pipe": 1
+      },
+      "cleanup": {
+        "request": "SIGINT to exact launcher PID 3368 after candidate-log capture",
+        "cleanup": "passed",
+        "lazy_unmount": false,
+        "recovered": false,
+        "residual_application_processes": 0,
+        "residual_run_cgroups": 0,
+        "residual_quota_mounts": 0,
+        "residual_loop_devices": 0
+      }
+    },
+    {
+      "label": "run-b",
+      "run_id": "8ce5a303-de7b-47d8-8ef4-a885e0808e22",
+      "candidate_log": {
+        "path": "evidence/performance/smtp-rust-intent-completion-single-delete-profiler-v26b-rust-candidate.log",
+        "sha256": "f8c11476e2ae6f739faa8d716f2dbb7cd251d62be3e49a03bbba7b184f4d155a",
+        "size_bytes": 30129,
+        "observer_records": 7,
+        "captured_before_signal": true
+      },
+      "sequence_2": {
+        "completed_tasks": 512,
+        "smtp_prepare_mean_ms": 3.010160,
+        "smtp_final_reply_mean_ms": 67.829714,
+        "inbound_prepare_file_mean_ms": 19.851977,
+        "inbound_intent_insert_mean_ms": 6.989669,
+        "inbound_publish_file_mean_ms": 19.311912,
+        "inbound_index_commit_mean_ms": 13.143124,
+        "inbound_publish_verify_mean_ms": 0.177895,
+        "inbound_intent_complete_mean_ms": 6.759583,
+        "inbound_projection_flush_count": 0
+      },
+      "relative_to_v24_percent": {
+        "smtp_prepare": 6.350437,
+        "smtp_final_reply": 1.084610,
+        "inbound_prepare_file": -2.470229,
+        "inbound_intent_insert": 3.136429,
+        "inbound_publish_file": -3.606088,
+        "inbound_index_commit": 19.689237,
+        "inbound_publish_verify": 2.214318,
+        "inbound_intent_complete": -11.916718
+      },
+      "diagnostic_counts": {
+        "invalid_transition_checkpoint": 0,
+        "spool_cleanup_reconciler_unavailable": 0,
+        "task_reconciler_unavailable": 0,
+        "queue_unavailable_total": 0,
+        "stress_soft_deadline": 0,
+        "delivery_failed": 0,
+        "projection_deferred_error": 0,
+        "expected_http_broken_pipe": 1
+      },
+      "cleanup": {
+        "request": "SIGINT to exact launcher PID 6245 after candidate-log capture",
+        "cleanup": "passed",
+        "lazy_unmount": false,
+        "recovered": false,
+        "residual_application_processes": 0,
+        "residual_run_cgroups": 0,
+        "residual_quota_mounts": 0,
+        "residual_loop_devices": 0
+      }
+    }
+  ],
+  "verification": {
+    "inbound_delivery_unit_tests": {"passed": 10, "failed": 0},
+    "candidate_smtp_data_and_parallel_exact_count": {"passed": 2, "failed": 0},
+    "restored_binary_identity": "release and profiling SHA-256, Build ID, and size match v24",
+    "cargo_fmt_check": "passed",
+    "git_diff_check": "passed"
+  },
+  "decision": {
+    "result": "rejected",
+    "evidence": "Completion latency improved by 19.13% and 11.92%, but the second repetition regressed final reply by 1.08% and index commit by 19.69%; the end-to-end retention gate failed.",
+    "next_action": "Restore the prior completion transaction byte-for-byte and profile a different durable-boundary hypothesis instead of retaining a local-only round-trip win.",
+    "throughput_claim_allowed": false
+  }
+}

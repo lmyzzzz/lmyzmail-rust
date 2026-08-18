@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "profile": "rust-intent-roundtrip-v21",
+  "qualification": false,
+  "qualification_reasons": [
+    "The 500000-message endpoint invocation was intentionally interrupted after a bounded diagnostic window.",
+    "The clean repeated sequence-2 window regressed inbound index commit latency by 3.425622 percent against the same-kernel v19 baseline.",
+    "The advisory-lock CTE experiment failed its all-targeted-stages retention gate and was fully reverted."
+  ],
+  "captured_at": "2026-08-16T20:43:48+08:00",
+  "git_head": "296b6f6afb3a1bb339886b555f2f00567326efd9",
+  "dirty_tree_at_capture": true,
+  "platform": {
+    "os": "WSL2 Ubuntu",
+    "kernel": "6.6.87.2-microsoft-standard-WSL2",
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+    "power_mode": "user-reported OEM power-save mode"
+  },
+  "experimental_candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "1204cc73897ede44ca4f06ad2aba7b5106151066b07223e9f6d8363a974960a0",
+    "build_id": "432bdb2930a1081d57ebb5a8126f2eb27a97f210",
+    "size_bytes": 216684328,
+    "experimental_binary_only": true
+  },
+  "experiment": {
+    "hypothesis": "Fusing each PostgreSQL advisory-lock acquisition with the immediately following intent statement removes three serialized protocol round trips without changing transaction or durability boundaries.",
+    "implementation": "MATERIALIZED CTEs combined lock acquisition with PREPARED insertion, INDEXED intent selection, and completion DELETE RETURNING.",
+    "retention_gate": "Intent insertion, index commit, intent completion, and final SMTP reply must all materially and repeatably improve with zero transition, reconciler, queue, deadline, or delivery diagnostics.",
+    "source_reverted": true
+  },
+  "candidate_log": {
+    "path": "evidence/performance/smtp-rust-intent-roundtrip-v21b-rust-candidate.log",
+    "sha256": "ae8a53b3c1e56346300bc95ab0a3b36f3c79dbce1cbd6cddba5c3fe08394e3e1",
+    "size_bytes": 13217,
+    "observer_records": 3,
+    "captured_before_signal": true,
+    "diagnostic_counts": {
+      "invalid_transition_checkpoint": 0,
+      "spool_cleanup_reconciler_unavailable": 0,
+      "task_reconciler_unavailable": 0,
+      "queue_unavailable_total": 0,
+      "stress_soft_deadline": 0,
+      "delivery_failed": 0
+    },
+    "expected_probe_noise": {
+      "http_broken_pipe": 1
+    }
+  },
+  "same_kernel_sequence_2_comparison": {
+    "baseline": {
+      "evidence": "evidence/performance/smtp-rust-maildir-syscall-profiler-v19.json",
+      "candidate_log": "evidence/performance/smtp-rust-maildir-syscall-profiler-v19-rust-candidate.log",
+      "observer_sequence": 2,
+      "completed_tasks": 512,
+      "smtp_prepare_mean_ms": 3.157836,
+      "smtp_final_reply_mean_ms": 78.027632,
+      "inbound_prepare_file_mean_ms": 20.741461,
+      "inbound_intent_insert_mean_ms": 7.472641,
+      "inbound_publish_file_mean_ms": 20.511391,
+      "inbound_index_commit_mean_ms": 13.315800,
+      "inbound_publish_verify_mean_ms": 0.216774,
+      "inbound_intent_complete_mean_ms": 8.175809,
+      "inbound_projection_flush_mean_ms": 6.260387
+    },
+    "experiment": {
+      "observer_sequence": 2,
+      "completed_tasks": 512,
+      "smtp_prepare_mean_ms": 2.965977,
+      "smtp_final_reply_mean_ms": 74.509843,
+      "inbound_prepare_file_mean_ms": 19.573690,
+      "inbound_intent_insert_mean_ms": 6.651010,
+      "inbound_publish_file_mean_ms": 19.305617,
+      "inbound_index_commit_mean_ms": 13.771949,
+      "inbound_publish_verify_mean_ms": 0.176364,
+      "inbound_intent_complete_mean_ms": 6.890068,
+      "inbound_projection_flush_mean_ms": 6.280101
+    },
+    "relative_change_percent": {
+      "smtp_prepare": -6.075652,
+      "smtp_final_reply": -4.508389,
+      "inbound_prepare_file": -5.630129,
+      "inbound_intent_insert": -10.995186,
+      "inbound_publish_file": -5.878559,
+      "inbound_index_commit": 3.425622,
+      "inbound_publish_verify": -18.641386,
+      "inbound_intent_complete": -15.726167,
+      "inbound_projection_flush": 0.314907
+    },
+    "kernel_match": true,
+    "lower_is_better": true
+  },
+  "discarded_signal_contaminated_capture": {
+    "reason": "A PTY control character reached the cgroup supervisor before the exact launcher received SIGINT; seven post-signal Redis queue or delivery diagnostics made the whole copied log ineligible.",
+    "metrics_used_for_decision": false,
+    "recovery_run_id": "04ec2612-fa44-46e5-9442-fbc339351ba9",
+    "cleanup": "passed",
+    "lazy_unmount": false,
+    "residual_application_processes": 0,
+    "residual_run_cgroups": 0,
+    "residual_quota_mounts": 0,
+    "residual_loop_devices": 0
+  },
+  "experimental_verification": {
+    "smtp_related_unit_tests": {"passed": 141, "failed": 0},
+    "candidate_smtp_data_differential": {"passed": 1, "failed": 0},
+    "candidate_parallel_exact_count": {"passed": 1, "failed": 0},
+    "outbound_smtp_protocol_integration_tests": {"passed": 17, "failed": 0},
+    "cargo_clippy_workspace_all_targets_all_features_deny_warnings": "passed",
+    "cargo_fmt_check": "passed"
+  },
+  "rollback_verification": {
+    "smtp_related_unit_tests": {"passed": 141, "failed": 0},
+    "candidate_smtp_data_and_parallel_exact_count": {"passed": 2, "failed": 0},
+    "outbound_smtp_protocol_integration_tests": {"passed": 17, "failed": 0},
+    "cargo_clippy_workspace_all_targets_all_features_deny_warnings": "passed",
+    "cargo_fmt_check": "passed",
+    "profiling_binary": {
+      "sha256": "d021762f7433145f9a49003af729dc0f69450b84c43619230dabb6b812c195a6",
+      "build_id": "02b20fa938018cbdd7587906d08bcf83f0ae99de",
+      "size_bytes": 216691728,
+      "byte_identical_to_pre_experiment_baseline": true
+    }
+  },
+  "decision": {
+    "result": "rejected-and-reverted",
+    "evidence": "Intent insertion and completion improved, but index commit regressed in the clean repeat, so the three-statement fusion did not satisfy its predeclared retention gate.",
+    "next_action": "Profile PostgreSQL WAL and commit waits directly before changing any remaining durable transaction boundary.",
+    "throughput_claim_allowed": false
+  },
+  "cleanup": {
+    "run_id": "623fc6ea-f2b0-41af-b2e6-69ffdeda1655",
+    "request": "SIGINT to the exact launcher after copying the clean bounded observer log",
+    "cleanup": "passed",
+    "lazy_unmount": false,
+    "recovered": false,
+    "residual_application_processes": 0,
+    "residual_run_cgroups": 0,
+    "residual_quota_mounts": 0,
+    "residual_loop_devices": 0,
+    "published_raw_result": false
+  }
+}

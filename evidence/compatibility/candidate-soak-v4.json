@@ -1,0 +1,126 @@
+{
+  "cleanup": {
+    "managed_pids": {
+      "candidate": 20541,
+      "postgres": 20522,
+      "redis": 20536
+    },
+    "residual_pids": {},
+    "workspace_removed": true
+  },
+  "duration_seconds": 1800.074,
+  "failure_kinds": {},
+  "failures": 0,
+  "latency": {
+    "htcpcp": {
+      "count": 37560,
+      "max_ms": 145.072,
+      "p50_ms": 2.038,
+      "p95_ms": 4.549
+    },
+    "http": {
+      "count": 87640,
+      "max_ms": 301.036,
+      "p50_ms": 134.996,
+      "p95_ms": 152.625
+    },
+    "minecraft": {
+      "count": 37560,
+      "max_ms": 583.263,
+      "p50_ms": 2.433,
+      "p95_ms": 5.057
+    },
+    "smtp": {
+      "count": 37560,
+      "max_ms": 145.27,
+      "p50_ms": 2.645,
+      "p95_ms": 5.266
+    }
+  },
+  "profile": "candidate-multi-module-half-hour-soak-v4",
+  "release_sha256": "53c45a52c7912ebb9bc98c1afc16b05a99250892b542fc8b2f433661fc400493",
+  "resource": {
+    "disk_baseline_bytes": 807587102720,
+    "disk_delta_final_bytes": 5791744,
+    "disk_delta_peak_bytes": 5791744,
+    "disk_used_max_bytes": 807592894464,
+    "disk_used_min_bytes": 807586955264,
+    "fd_final": 27,
+    "fd_first": 26,
+    "fd_max": 27,
+    "fd_min": 26,
+    "growth_per_hour": {
+      "fd_count": 2.071,
+      "rss_kib": 397.672,
+      "task_count": 0.0,
+      "workspace_bytes": 11970470.061
+    },
+    "queue_final": 0,
+    "queue_first": 0,
+    "queue_max": 0,
+    "queue_min": 0,
+    "rss_delta_kib": 335616,
+    "rss_final_kib": 410204,
+    "rss_first_kib": 74588,
+    "rss_max_kib": 410204,
+    "rss_min_kib": 74588,
+    "samples": 355,
+    "samples_tail": [
+      {
+        "disk_delta_bytes": 5791744,
+        "disk_used_bytes": 807592894464,
+        "elapsed_millis": 1790424,
+        "fd_count": 27,
+        "postgres_port": 41134,
+        "queue_pending": 0,
+        "rss_kib": 410204,
+        "task_count": 52,
+        "workspace_bytes": 49250304,
+        "workspace_delta_bytes": 5779456
+      },
+      {
+        "disk_delta_bytes": 5791744,
+        "disk_used_bytes": 807592894464,
+        "elapsed_millis": 1795494,
+        "fd_count": 27,
+        "postgres_port": 41134,
+        "queue_pending": 0,
+        "rss_kib": 410204,
+        "task_count": 52,
+        "workspace_bytes": 49250304,
+        "workspace_delta_bytes": 5779456
+      },
+      {
+        "disk_delta_bytes": 5791744,
+        "disk_used_bytes": 807592894464,
+        "elapsed_millis": 1800073,
+        "fd_count": 27,
+        "postgres_port": 41134,
+        "queue_pending": 0,
+        "rss_kib": 410204,
+        "task_count": 52,
+        "workspace_bytes": 49250304,
+        "workspace_delta_bytes": 5779456
+      }
+    ],
+    "steady_state_baseline_elapsed_seconds": 61.959,
+    "task_final": 52,
+    "task_first": 46,
+    "task_max": 52,
+    "task_min": 46,
+    "workspace_baseline_bytes": 43470848,
+    "workspace_delta_final_bytes": 5779456,
+    "workspace_delta_peak_bytes": 5779456,
+    "workspace_used_max_bytes": 49250304,
+    "workspace_used_min_bytes": 43311104
+  },
+  "schema_version": 1,
+  "status": "passed",
+  "successes": {
+    "htcpcp": 37560,
+    "http": 87640,
+    "minecraft": 37560,
+    "smtp": 37560
+  },
+  "workers": 16
+}

@@ -1,0 +1,27 @@
+{
+  "schema": "lmyzmail.smtp-inbound-index-batch-profiler.v1",
+  "run_id": "af17a294-e6f4-4421-bd0c-e19c5855f9c4",
+  "profile": "rust-profiler",
+  "tier": "10KB",
+  "requested_messages": 500000,
+  "filesystem_fsync": "off",
+  "postgres_fsync": "on",
+  "formal_benchmark": false,
+  "qualification": false,
+  "throughput_claim": false,
+  "measurement": "none",
+  "failure": {
+    "mechanism": "An external timeout terminated the root launcher before its runner completed; the runner was recovered by the launcher journal protocol.",
+    "launcher_exit": 1,
+    "provisional_artifact": "missing",
+    "checkpoint_artifact": "missing"
+  },
+  "cleanup": {
+    "request": "RECOVERY",
+    "cleanup": "passed",
+    "lazy_unmount": 0,
+    "recovered": 1,
+    "residual_process_mount_loop_cgroup": false,
+    "journal": "/var/lib/lmyzmail-benchmark/journal/af17a294-e6f4-4421-bd0c-e19c5855f9c4.done"
+  }
+}

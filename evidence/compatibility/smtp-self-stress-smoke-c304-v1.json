@@ -1,0 +1,221 @@
+{
+  "hard_disk_budget_bytes": 21474836480,
+  "network_isolation": {
+    "kept_namespace_capabilities": true,
+    "mapped_uid": 1000,
+    "mount_namespace": true,
+    "network_namespace": true,
+    "public_test_mx": "1.1.1.1",
+    "smtp_port": 25,
+    "user_namespace": true
+  },
+  "plans": [
+    {
+      "batch_completion_ms": {
+        "count": 2,
+        "max": 1214.01,
+        "p50": 1214.01,
+        "p95": 1214.01,
+        "p99": 1214.01
+      },
+      "batch_size": 2,
+      "batches": 2,
+      "cleanup": {
+        "managed_pids": {
+          "candidate": 9336,
+          "postgres": 9317,
+          "redis": 9331
+        },
+        "residual_pids": {},
+        "workspace_removed": true
+      },
+      "duration_seconds": 3.441,
+      "failures": 0,
+      "label": "1KB-smoke",
+      "message_bytes": 1024,
+      "message_latency_ms": {
+        "count": 4,
+        "max": 244.213,
+        "p50": 244.213,
+        "p95": 244.213,
+        "p99": 244.213
+      },
+      "requested": 4,
+      "residual_state": {
+        "email_index": 0,
+        "outbound_queue": 0,
+        "redis_pending": 0
+      },
+      "resource": {
+        "fd_final": 26,
+        "fd_first": 21,
+        "fd_max": 28,
+        "fd_min": 21,
+        "filesystem_delta_final_bytes": 221184,
+        "filesystem_delta_peak_bytes": 253952,
+        "filesystem_free_min_bytes": 218913468416,
+        "queue_final": 0,
+        "queue_first": 0,
+        "queue_max": 0,
+        "rss_final_kib": 410400,
+        "rss_first_kib": 39840,
+        "rss_max_kib": 410400,
+        "rss_min_kib": 39840,
+        "samples": 6,
+        "task_final": 54,
+        "task_first": 42,
+        "task_max": 54,
+        "task_min": 42,
+        "workspace_baseline_bytes": 43446272,
+        "workspace_delta_final_bytes": 204800,
+        "workspace_delta_peak_bytes": 212992
+      },
+      "retries": 0,
+      "sent": 4,
+      "status": "passed",
+      "stress_error_lines": [],
+      "throughput_bytes_per_second": 1190.418,
+      "throughput_messages_per_second": 1.163
+    },
+    {
+      "batch_completion_ms": {
+        "count": 2,
+        "max": 1186.378,
+        "p50": 1186.378,
+        "p95": 1186.378,
+        "p99": 1186.378
+      },
+      "batch_size": 2,
+      "batches": 2,
+      "cleanup": {
+        "managed_pids": {
+          "candidate": 9456,
+          "postgres": 9437,
+          "redis": 9451
+        },
+        "residual_pids": {},
+        "workspace_removed": true
+      },
+      "duration_seconds": 3.179,
+      "failures": 0,
+      "label": "10KB-smoke",
+      "message_bytes": 10240,
+      "message_latency_ms": {
+        "count": 4,
+        "max": 183.02,
+        "p50": 183.001,
+        "p95": 183.02,
+        "p99": 183.02
+      },
+      "requested": 4,
+      "residual_state": {
+        "email_index": 0,
+        "outbound_queue": 0,
+        "redis_pending": 0
+      },
+      "resource": {
+        "fd_final": 26,
+        "fd_first": 18,
+        "fd_max": 26,
+        "fd_min": 18,
+        "filesystem_delta_final_bytes": 217088,
+        "filesystem_delta_peak_bytes": 282624,
+        "filesystem_free_min_bytes": 218913435648,
+        "queue_final": 0,
+        "queue_first": 0,
+        "queue_max": 0,
+        "rss_final_kib": 410404,
+        "rss_first_kib": 26404,
+        "rss_max_kib": 410404,
+        "rss_min_kib": 26404,
+        "samples": 6,
+        "task_final": 55,
+        "task_first": 42,
+        "task_max": 55,
+        "task_min": 42,
+        "workspace_baseline_bytes": 43446272,
+        "workspace_delta_final_bytes": 204800,
+        "workspace_delta_peak_bytes": 229376
+      },
+      "retries": 0,
+      "sent": 4,
+      "status": "passed",
+      "stress_error_lines": [],
+      "throughput_bytes_per_second": 12884.007,
+      "throughput_messages_per_second": 1.258
+    },
+    {
+      "batch_completion_ms": {
+        "count": 1,
+        "max": 1532.107,
+        "p50": 1532.107,
+        "p95": 1532.107,
+        "p99": 1532.107
+      },
+      "batch_size": 2,
+      "batches": 1,
+      "cleanup": {
+        "managed_pids": {
+          "candidate": 9571,
+          "postgres": 9552,
+          "redis": 9566
+        },
+        "residual_pids": {},
+        "workspace_removed": true
+      },
+      "duration_seconds": 2.575,
+      "failures": 0,
+      "label": "10MB-smoke",
+      "message_bytes": 10485760,
+      "message_latency_ms": {
+        "count": 2,
+        "max": 617.866,
+        "p50": 617.866,
+        "p95": 617.866,
+        "p99": 617.866
+      },
+      "requested": 2,
+      "residual_state": {
+        "email_index": 0,
+        "outbound_queue": 0,
+        "redis_pending": 0
+      },
+      "resource": {
+        "fd_final": 26,
+        "fd_first": 25,
+        "fd_max": 26,
+        "fd_min": 25,
+        "filesystem_delta_final_bytes": 499712,
+        "filesystem_delta_peak_bytes": 499712,
+        "filesystem_free_min_bytes": 218913206272,
+        "queue_final": 0,
+        "queue_first": 0,
+        "queue_max": 0,
+        "rss_final_kib": 511260,
+        "rss_first_kib": 72356,
+        "rss_max_kib": 511260,
+        "rss_min_kib": 72356,
+        "samples": 4,
+        "task_final": 55,
+        "task_first": 46,
+        "task_max": 55,
+        "task_min": 46,
+        "workspace_baseline_bytes": 43446272,
+        "workspace_delta_final_bytes": 491520,
+        "workspace_delta_peak_bytes": 491520
+      },
+      "retries": 0,
+      "sent": 2,
+      "status": "passed",
+      "stress_error_lines": [],
+      "throughput_bytes_per_second": 8145750.067,
+      "throughput_messages_per_second": 0.777
+    }
+  ],
+  "profile": "candidate-smtp-self-receive-disk-stress-v1",
+  "release_binary_unchanged": true,
+  "release_sha256": "c3047dd2818e4ad363874f7d59938750cffa10ab3d1037af7c6f196a1412d143",
+  "release_sha256_after": "c3047dd2818e4ad363874f7d59938750cffa10ab3d1037af7c6f196a1412d143",
+  "schema_version": 2,
+  "status": "passed"
+}

@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "profile": "rust-reconciler-race-fix-v15",
+  "qualification": false,
+  "qualification_reasons": [
+    "The 500000-message endpoint invocation was intentionally interrupted after a bounded diagnostic window.",
+    "The preserved candidate log has zero invalid-transition, spool-cleanup reconciler, task reconciler, and generic queue-unavailable diagnostics through 3584 completed tasks.",
+    "No final endpoint result or profiler sample was published; this clean diagnostic window does not establish an end-to-end throughput gain."
+  ],
+  "captured_at": "2026-08-16T18:12:11+08:00",
+  "git_head": "296b6f6afb3a1bb339886b555f2f00567326efd9",
+  "dirty_tree_at_capture": true,
+  "platform": {
+    "os": "WSL2 Ubuntu",
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+    "power_mode": "user-reported OEM power-save mode"
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "a8304ecf6cfbf1c07942c3cb5d0489f3ac601bae3ca361215b4de220dbc66957",
+    "build_id": "e2859cc82d02d2703ec50589b4064ab280936324"
+  },
+  "endpoint_window": {
+    "launcher_run_id": "88d0c662-e6c8-48f5-b912-852f3baba79c",
+    "launcher_pid": 21913,
+    "tier": "10KB",
+    "expected_messages": 500000,
+    "latest_observer_sequence": 14,
+    "latest_observer_completed_tasks": 3584,
+    "latest_observer_completed_total_ns": 948946554761,
+    "partial_window_only": true,
+    "clean_throughput_result": false,
+    "java_10kb_stable_window_messages_per_second": 47.223536,
+    "java_evidence": "evidence/performance/smtp-endpoint-java-stable-window-baseline-v1.json"
+  },
+  "candidate_log": {
+    "path": "evidence/performance/smtp-rust-reconciler-race-fix-v15-rust-candidate.log",
+    "sha256": "fe0dc88b2c7f27753f02c70dd5a22037e4efed94e3fdc4d87256a658efdeb9ad",
+    "size_bytes": 48858,
+    "diagnostic_counts": {
+      "invalid_transition_checkpoint": 0,
+      "spool_cleanup_reconciler_unavailable": 0,
+      "task_reconciler_unavailable": 0,
+      "queue_unavailable_total": 0
+    }
+  },
+  "verification": {
+    "outbound_unit_tests": { "passed": 22, "failed": 0 },
+    "outbound_coordinator_integration_tests": { "passed": 16, "failed": 0 },
+    "cargo_clippy_all_targets_deny_warnings": "passed",
+    "cargo_fmt_check": "passed"
+  },
+  "decision": {
+    "result": "race-fix-retained-clean-diagnostic-window",
+    "next_action": "Capture a clean same-host profiler arm and use its measurements to select the next performance hypothesis.",
+    "throughput_claim_allowed": false
+  },
+  "cleanup": {
+    "request": "SIGINT to exact launcher PID 21913",
+    "cleanup": "passed",
+    "residual_application_processes": 0,
+    "residual_run_cgroups": 0,
+    "residual_quota_mounts": 0,
+    "residual_run_directories": 0,
+    "published_raw_result": false
+  }
+}

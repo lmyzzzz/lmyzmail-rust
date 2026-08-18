@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "profile": "rust-projection-coalescing-wal-profiler-v25",
+  "qualification": false,
+  "qualification_reasons": [
+    "The 500000-message endpoint invocation was intentionally interrupted after a bounded diagnostic window.",
+    "strace attached to the live PostgreSQL postmaster, workers, and connection backends for 20 seconds and is invasive.",
+    "This record validates WAL-sync reduction and makes no endpoint-throughput claim."
+  ],
+  "captured_at": "2026-08-16T21:37:48.7362832+08:00",
+  "git_head": "296b6f6afb3a1bb339886b555f2f00567326efd9",
+  "dirty_tree_at_capture": true,
+  "platform": {
+    "os": "WSL2 Ubuntu",
+    "kernel": "6.6.87.2-microsoft-standard-WSL2",
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+    "power_mode": "user-reported OEM power-save mode"
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "d42376a280902d1e6235b62e1b25e2854b7670ad69ac49358db3be407ef45232",
+    "build_id": "9e53bc1c8a61b784b5623d0e4137d8056ff89946",
+    "size_bytes": 216694136
+  },
+  "trace": {
+    "path": "evidence/performance/smtp-rust-projection-coalescing-wal-syscall-trace-v25.txt",
+    "sha256": "8b1b931d35f30b977262987af26f442cb5d9fd09803bcac805bb8af93e2ef58c",
+    "size_bytes": 641865,
+    "tool": "strace 6.8",
+    "requested_duration_seconds": 20,
+    "parsed_elapsed_seconds": 19.925495,
+    "options": ["-f", "-ttt", "-T", "-yy"],
+    "syscalls": ["fsync", "fdatasync", "pwrite64"],
+    "initial_attached_pids": [325, 327, 328, 332, 333, 334, 373, 391, 439, 440, 441, 442, 443, 444],
+    "followed_new_pid": 532,
+    "parsed_completed_syscalls": 2572,
+    "unfinished_resumed_pairs": 29,
+    "pending_at_trace_end": 0
+  },
+  "candidate_log": {
+    "path": "evidence/performance/smtp-rust-projection-coalescing-wal-profiler-v25-rust-candidate.log",
+    "sha256": "87110509586783549a52feecaf8a726526cc043cbad1e972c1d73e477bca9bdf",
+    "size_bytes": 25898,
+    "observer_records": 6,
+    "captured_before_signal": true,
+    "diagnostic_counts": {
+      "invalid_transition_checkpoint": 0,
+      "spool_cleanup_reconciler_unavailable": 0,
+      "task_reconciler_unavailable": 0,
+      "queue_unavailable_total": 0,
+      "stress_soft_deadline": 0,
+      "delivery_failed": 0,
+      "projection_deferred_error": 0,
+      "expected_http_broken_pipe": 1
+    }
+  },
+  "syscall_latency": {
+    "postgres_wal_fdatasync": {
+      "count": 1285,
+      "wal_path_count": 1285,
+      "errors": 0,
+      "total_ms": 13455.940,
+      "mean_ms": 10.471549,
+      "p50_ms": 11.096000,
+      "p95_ms": 13.893000,
+      "p99_ms": 14.916000,
+      "max_ms": 20.509000
+    },
+    "postgres_wal_pwrite64": {
+      "count": 1287,
+      "wal_path_count": 1287,
+      "errors": 0,
+      "total_ms": 249.856,
+      "mean_ms": 0.194138,
+      "p50_ms": 0.086000,
+      "p95_ms": 0.336000,
+      "p99_ms": 0.562000,
+      "max_ms": 16.518000
+    },
+    "postgres_fsync": {"count": 0, "errors": 0}
+  },
+  "observer_trace_window": {
+    "from_sequence_exclusive": 2,
+    "through_sequence": 6,
+    "completed_tasks_delta": 1024,
+    "smtp_final_reply_count_delta": 1024,
+    "smtp_final_reply_mean_ms": 108.506727,
+    "inbound_intent_insert_count_delta": 1024,
+    "inbound_intent_insert_mean_ms": 12.102724,
+    "inbound_index_commit_count_delta": 1024,
+    "inbound_index_commit_mean_ms": 16.314251,
+    "inbound_intent_complete_count_delta": 1024,
+    "inbound_intent_complete_mean_ms": 13.033345,
+    "inbound_projection_flush_count_delta": 0,
+    "approximate_fdatasync_calls_per_completed_task": 1.254883,
+    "approximate_fdatasync_aggregate_ms_per_completed_task": 13.140566,
+    "approximate_pwrite64_calls_per_completed_task": 1.256836,
+    "approximate_pwrite64_aggregate_ms_per_completed_task": 0.244000,
+    "boundary_note": "Syscall attachment and observer emission were not atomic, so per-task ratios are localization estimates rather than exact transaction attribution."
+  },
+  "comparison_to_v22": {
+    "baseline_evidence": "evidence/performance/smtp-rust-postgres-wal-profiler-v22.json",
+    "baseline_fdatasync_calls_per_completed_task": 3.032227,
+    "current_fdatasync_calls_per_completed_task": 1.254883,
+    "fdatasync_calls_per_task_reduction_percent": 58.615143,
+    "baseline_fdatasync_aggregate_ms_per_completed_task": 11.711641,
+    "current_fdatasync_aggregate_ms_per_completed_task": 13.140566,
+    "aggregate_ms_per_task_change_percent": 12.200898,
+    "interpretation": "Projection coalescing removed durable commits, while invasive trace latency and storage variation made aggregate wait unsuitable as a clean latency comparison; clean v24 windows provide the latency decision."
+  },
+  "decision": {
+    "result": "projection-coalescing-reduces-wal-sync-rate",
+    "evidence": "The approximate WAL fdatasync rate fell by 58.62% from 3.032 to 1.255 calls per completed task, with no syscall errors or application diagnostics.",
+    "safety_constraint": "Keep PostgreSQL fsync, synchronous_commit, full_page_writes, the durable projection upsert, generation fencing, bounded maintenance, Maildir ordering, and restart recovery enabled.",
+    "next_action": "Profile whether the post-publication intent completion transaction can be atomically folded into the index commit while preserving ambiguous-commit reconciliation and every crash cutpoint.",
+    "throughput_claim_allowed": false
+  },
+  "cleanup": {
+    "run_id": "bf91ec4f-ec3a-4b65-9fa6-7ba649ef93b1",
+    "request": "SIGINT to exact launcher PID 30222 after trace and candidate-log capture",
+    "cleanup": "passed",
+    "lazy_unmount": false,
+    "recovered": false,
+    "residual_application_processes": 0,
+    "residual_run_cgroups": 0,
+    "residual_quota_mounts": 0,
+    "residual_loop_devices": 0,
+    "published_raw_result": false
+  }
+}

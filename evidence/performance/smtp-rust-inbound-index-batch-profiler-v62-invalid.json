@@ -1,0 +1,51 @@
+{
+  "schema": "lmyzmail.smtp-inbound-index-batch-profiler.invalid.v1",
+  "run_id": "3438e96a-c4a6-4ac5-a9eb-099b6a86a0f4",
+  "profile": "rust-profiler",
+  "tier": "10KB",
+  "requested_messages": 8192,
+  "filesystem_fsync": "off",
+  "postgres_fsync": "on",
+  "formal_benchmark": false,
+  "qualification": false,
+  "throughput_claim": false,
+  "measurement": "diagnostic-load-window-only",
+  "candidate_binary": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "built_at": "2026-08-18T02:20:14+08:00",
+    "size_bytes": 218620616,
+    "sha256": "7c54e26ab90e97aa2b2aa9353d041e3b6147c94113b2dfdbb63235dc40fc42c0"
+  },
+  "load_window": {
+    "accepted_messages": 8192,
+    "failed_messages": 0,
+    "missing_messages": 0,
+    "elapsed_seconds": 75.236,
+    "messages_per_second": 108.88,
+    "queueing_seconds": 35.906,
+    "delivery_seconds": 39.330,
+    "inbound_index_batch_transactions": 1114,
+    "mean_messages_per_index_batch": 7.354,
+    "mailbox_folder_count_updates": 2228,
+    "mailbox_folder_count_update_seconds": 9.456
+  },
+  "invalidated_by_observer": {
+    "database_xact_rollback_before_observer_error": 0,
+    "database_xact_rollback_after_observer_error": 1,
+    "observer_operation": "An out-of-band psycopg autocommit diagnostic queried status on lmyzmail_outbound_delivery_recipient, whose column is state.",
+    "observer_exception": "psycopg.errors.UndefinedColumn: column status does not exist",
+    "causal_mechanism": "PostgreSQL counted the failed observer statement as an aborted autocommit transaction. The benchmark correctly failed its zero-rollback gate, but the rollback was not emitted by the candidate.",
+    "runner_exception": "RuntimeError: stress automatic cleanup cannot satisfy the rollback-free gate: database_xact_rollback delta=1",
+    "provisional_artifact": "not published",
+    "rule_for_replacement_run": "Do not connect to or inspect the isolated PostgreSQL or Redis instances while the benchmark runner is active."
+  },
+  "cleanup": {
+    "request": "ABORT",
+    "cleanup": "passed",
+    "lazy_unmount": 0,
+    "recovered": 0,
+    "qualified_cleanup": 0,
+    "root_receipt": "/var/lib/lmyzmail-benchmark/journal/3438e96a-c4a6-4ac5-a9eb-099b6a86a0f4.done",
+    "residual_process_mount_loop_cgroup_run_directory": false
+  }
+}

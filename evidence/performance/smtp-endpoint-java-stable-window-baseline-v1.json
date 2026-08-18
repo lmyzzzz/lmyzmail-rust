@@ -1,0 +1,95 @@
+{
+  "schema": 1,
+  "kind": "same_host_java_stable_window_reference",
+  "qualification": false,
+  "completed_requested_count": false,
+  "operator_terminated_after_stable_window": true,
+  "reason": "The frozen Java stress endpoint was unstable and too slow to reasonably complete 200000 messages. Per the revised acceptance rule, the operator captured a stable failure-free window and terminated the exact launcher PID so the watchdog could clean up the isolated run.",
+  "oracle": {
+    "path": "oracle/artifacts/lmyzmail-java-oracle.jar",
+    "sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+  },
+  "harness": {
+    "profile": "java-small",
+    "requested_messages_per_tier": 200000,
+    "endpoint_invocations_per_tier": 1,
+    "warmup_invocations": 0,
+    "harness_batching": false,
+    "workload_logical_cpus": 1,
+    "sequential_io_limit_bytes_per_second": 500000000,
+    "queue_batch_size": 1200,
+    "queue_max_concurrent_sends": 400,
+    "queue_poll_interval_ms": 100,
+    "launcher_sha256_at_extraction": "b53300ec1f0dec356bd5952fb70634e1e2ec8aab22706678f2177fe4656591ef",
+    "runner_sha256_at_extraction": "b7f8b56652192e05da2f5c43cc5512e7f735f0018a20d1db073729e1d620271b"
+  },
+  "machine": {
+    "cpu": "Intel Core Ultra 9 275HX",
+    "user_reported_mode": "OEM power-save mode",
+    "windows_powercfg_observation": "High performance"
+  },
+  "tiers": [
+    {
+      "tier": "1kb",
+      "run_id": "java-oracle-1kb-arm-0-58c5a9b6dfeb49b3a45199fc569fc8e1",
+      "start_snapshot": {
+        "captured_at_utc": "2026-08-15T16:39:43.746Z",
+        "successful_messages": 8063,
+        "last_accepted_at_proxy_monotonic_ns": 248084884938,
+        "record_stream_sha256": "5963a740e45ae3cc23243e7a55c2f6b6b4aa7f8a554bcf29ab56b50ba5b1f174"
+      },
+      "end_snapshot": {
+        "captured_at_utc": "2026-08-15T16:42:08.773Z",
+        "successful_messages": 14611,
+        "last_accepted_at_proxy_monotonic_ns": 394657599288,
+        "record_stream_sha256": "b2fd6aea8a7890dc55e4f84bde499765c85d814d40177fe7a9541d8eae6ddc17"
+      },
+      "stable_window": {
+        "messages": 6548,
+        "duration_ns": 146572714350,
+        "messages_per_second": 44.67407204020303
+      },
+      "failed_smtp_connections": 0,
+      "peak_smtp_connections": 400,
+      "observer_failure_count": 2,
+      "observer_failure_scope": "Two malformed operator control-socket probes ended before newline; SMTP final replies and captured message records had no failure. This disqualifies formal evidence but does not change the passive stable-window count."
+    },
+    {
+      "tier": "10kb",
+      "run_id": "java-oracle-10kb-arm-0-ed8a60af92be4f46a01a8706e7e46bae",
+      "start_snapshot": {
+        "captured_at_utc": "2026-08-15T16:48:36.487Z",
+        "successful_messages": 5667,
+        "last_accepted_at_proxy_monotonic_ns": 167335157627,
+        "record_stream_sha256": "88b969228121ea44696c8aebb0225cad002fa5a92f1e356aeae337a97a89de4d"
+      },
+      "end_snapshot": {
+        "captured_at_utc": "2026-08-15T16:49:39.692Z",
+        "successful_messages": 8645,
+        "last_accepted_at_proxy_monotonic_ns": 230396932692,
+        "record_stream_sha256": "bc497e01a850cacae7a3553741b7e0f4a02934160256eed03969f3e051cec2bf"
+      },
+      "stable_window": {
+        "messages": 2978,
+        "duration_ns": 63061775065,
+        "messages_per_second": 47.22353592061864
+      },
+      "failed_smtp_connections": 0,
+      "peak_smtp_connections": 400,
+      "observer_failure_count": 0
+    }
+  ],
+  "interpretation": {
+    "java_same_host_reference_messages_per_second": {
+      "1kb": 44.67407204020303,
+      "10kb": 47.22353592061864
+    },
+    "rust_requirement": "Use these stable Java windows as the same-host floor. Retain a Rust optimization only after correctness gates and a comparable sustained window show a clear improvement with zero SMTP failures.",
+    "not_proven": [
+      "completion of either 200000-message request",
+      "formal persistence-gate qualification",
+      "ABBA median qualification",
+      "Java 10MB behavior"
+    ]
+  }
+}

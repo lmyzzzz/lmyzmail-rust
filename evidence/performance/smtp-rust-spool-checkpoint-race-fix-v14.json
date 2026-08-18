@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "profile": "rust-spool-checkpoint-race-fix-v14",
+  "qualification": false,
+  "qualification_reasons": [
+    "The 500000-message endpoint invocation was intentionally interrupted after a bounded diagnostic window.",
+    "The invalid-transition checkpoint failures fell to zero, but the candidate log contains 8 queue-unavailable reconciliation diagnostics.",
+    "No clean endpoint throughput result was published from this arm; it verifies only the first race fix and exposes the next races."
+  ],
+  "captured_at": "2026-08-16T17:55:16+08:00",
+  "git_head": "296b6f6afb3a1bb339886b555f2f00567326efd9",
+  "dirty_tree_at_capture": true,
+  "platform": {
+    "os": "WSL2 Ubuntu",
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+    "power_mode": "user-reported OEM power-save mode"
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "5e944f7af027f8f636af005b3f620c6d71763f3eeb2da709259a454c19a4b4e7",
+    "build_id": "6ecc5113d38fd4c809f7bbc9d73f3118e65546e5"
+  },
+  "endpoint_window": {
+    "launcher_run_id": "2bdfbb0f-962e-4d03-b94a-dd8be84eb976",
+    "launcher_pid": 16941,
+    "tier": "10KB",
+    "expected_messages": 500000,
+    "latest_observer_sequence": 10,
+    "latest_observer_completed_tasks": 2560,
+    "latest_observer_completed_total_ns": 697879924679,
+    "partial_window_only": true,
+    "clean_throughput_result": false,
+    "java_10kb_stable_window_messages_per_second": 47.223536,
+    "java_evidence": "evidence/performance/smtp-endpoint-java-stable-window-baseline-v1.json"
+  },
+  "candidate_log": {
+    "path": "evidence/performance/smtp-rust-spool-checkpoint-race-fix-v14-rust-candidate.log",
+    "sha256": "6dea8cdfa3a1b24bdd03744f7a700e2eda8c377299e7877d5ac8900a4812b358",
+    "size_bytes": 35667,
+    "diagnostic_counts": {
+      "invalid_transition_checkpoint": 0,
+      "spool_cleanup_reconciler_unavailable": 3,
+      "task_reconciler_unavailable": 5,
+      "queue_unavailable_total": 8
+    }
+  },
+  "decision": {
+    "result": "first-fix-retained-next-races-classified",
+    "next_action": "Skip background reconciliation while a live admission owns the same task and reconcile a missing exact sidecar only after excluding identity replacement or collision.",
+    "throughput_claim_allowed": false
+  },
+  "cleanup": {
+    "request": "SIGINT to exact launcher PID 16941",
+    "cleanup": "passed",
+    "residual_application_processes": 0,
+    "residual_run_cgroups": 0,
+    "residual_quota_mounts": 0
+  }
+}

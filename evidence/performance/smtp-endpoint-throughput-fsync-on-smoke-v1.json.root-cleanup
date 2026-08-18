@@ -1,0 +1,9 @@
+schema_version=2
+run_id=6f9c8132-70ae-46c6-a69f-03bfa6af849f
+request=DONE
+cleanup=passed
+lazy_unmount=0
+recovered=0
+qualified_cleanup=1
+provisional_sha256=b14907faba446baa785e5c447d2e2aa9cdad8d5982c2bde6b62c61fc64d85c25
+checkpoint_sha256=0d716c8012c3c4d21ca5eebc036bfbd7779f9ece86c196dab303da8b5342749c

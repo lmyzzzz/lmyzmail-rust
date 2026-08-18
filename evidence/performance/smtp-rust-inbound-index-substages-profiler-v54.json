@@ -1,0 +1,119 @@
+{
+  "schema": "lmyzmail.smtp-inbound-index-substage-profiler.v1",
+  "run_id": "acdb6b94-2861-4b85-a69f-360ba7f2f2b1",
+  "profile": "rust-profiler",
+  "tier": "10KB",
+  "requested_messages": 500000,
+  "filesystem_fsync": "off",
+  "postgres_fsync": "on",
+  "formal_benchmark": false,
+  "qualification": false,
+  "throughput_claim": false,
+  "final_observer_sequence": 34,
+  "coordinator_completed_tasks": 8704,
+  "inbound_index": {
+    "commit": {
+      "count": 8660,
+      "total_ns": 5812138226298,
+      "mean_ns": 671147601,
+      "max_ns": 8057223760
+    },
+    "pool": {
+      "count": 8698,
+      "total_ns": 20398411,
+      "mean_ns": 2345,
+      "max_ns": 57583
+    },
+    "begin": {
+      "count": 8698,
+      "total_ns": 14292657270,
+      "mean_ns": 1643212,
+      "max_ns": 103526764
+    },
+    "intent_lock": {
+      "count": 8698,
+      "total_ns": 24060754758,
+      "mean_ns": 2766240,
+      "max_ns": 57469159
+    },
+    "intent_read": {
+      "count": 8698,
+      "total_ns": 22341562739,
+      "mean_ns": 2568586,
+      "max_ns": 41219048
+    },
+    "mailbox_read": {
+      "count": 8698,
+      "total_ns": 21409926302,
+      "mean_ns": 2461477,
+      "max_ns": 52841430
+    },
+    "existing_read": {
+      "count": 8698,
+      "total_ns": 40772543328,
+      "mean_ns": 4687577,
+      "max_ns": 82592981
+    },
+    "insert": {
+      "count": 8698,
+      "total_ns": 28580200423,
+      "mean_ns": 3285836,
+      "max_ns": 67622115
+    },
+    "count_state": {
+      "count": 8662,
+      "total_ns": 5521072392593,
+      "mean_ns": 637390025,
+      "max_ns": 8003379187
+    },
+    "projection_state": {
+      "count": 8661,
+      "total_ns": 34108118608,
+      "mean_ns": 3938127,
+      "max_ns": 185487148
+    },
+    "intent_advance": {
+      "count": 8661,
+      "total_ns": 29940493644,
+      "mean_ns": 3456933,
+      "max_ns": 71342707
+    },
+    "transaction_commit": {
+      "count": 8660,
+      "total_ns": 79073134764,
+      "mean_ns": 9130847,
+      "max_ns": 141418029
+    }
+  },
+  "finding": {
+    "count_state_fraction_of_index_commit_total": 0.9499210407,
+    "mechanism": "All self-SMTP messages target one mailbox/folder, so the ON CONFLICT increment on lmyzmail_inbound_mail_count_state serializes concurrent inbound index transactions.",
+    "decision": "Do not optimize until a correctness-preserving bounded group-commit design preserves exact counts, crash recovery, immediate semantics, and reconciliation."
+  },
+  "other_observers": {
+    "redis_publish_completed": 18621,
+    "redis_publish_failed": 0,
+    "stress_publish_completed": 18432,
+    "stress_total_max_ns": 17029211271
+  },
+  "interruption_and_recovery": {
+    "launcher_signal": "SIGINT",
+    "request": "RECOVERY",
+    "cleanup": "passed",
+    "lazy_unmount": 0,
+    "recovered": 1,
+    "residual_process_mount_loop_cgroup": false
+  },
+  "artifacts": {
+    "launcher_log_sha256": "5106c617e4df57e232082053b821076935ed59370f6bf715895813c52f14d577",
+    "candidate_log_sha256": "4e67f9afc86feca6487ee11e6e7ba038cb71d7c794374ddab326be1c96d1a5e1",
+    "smtp_proxy_log_sha256": "65c2bc35c201f7d78b8a1284f436c42eb68fbd0e462d274317a4fc7542709e7b",
+    "postgres_log_sha256": "e4c0c99658bef21f55549d4d4f28f620f42d0f39d33e8756532dc1900e4db673",
+    "redis_log_sha256": "f1dae127a8ca07d51423dcaa551cfb95744f01c810c47bb23469352de107c3f4",
+    "cleanup_receipt_sha256": "99c05a6544f0657bc8e2524a5f2ce50279e9732ebb27d3e1b0b8f2617d51b509",
+    "candidate_binary_sha256": "faa5dcf557e07f9cb8a4304ecec40fd2054a12d344ff828afbb0eb5deaa80211",
+    "coordinator_observer_source_sha256": "202e9873851d2bfcada86d67135514104ccb6ebce25f98e4d5758acea55ffab4",
+    "smtp_inbound_delivery_source_sha256": "0a31c37a4c3c2f94d757932c244af4cb9f782845b5b315e6bdfb9e3ad0a8a79b",
+    "cargo_lock_sha256": "cc9836ff20f39b93de17735066559aac2b376ff166c9fd74c96f01d71e774b94"
+  }
+}

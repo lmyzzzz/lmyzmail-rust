@@ -1,0 +1,377 @@
+{
+  "cleanup": {
+    "managed_pids": {
+      "candidate": 25766,
+      "postgres": 25747,
+      "redis": 25761
+    },
+    "residual_pids": {},
+    "workspace_removed": true
+  },
+  "definition_tree_sha256": "b0ce09dd6c4bf3fc0baa8f817d2bfe1ce9b8c35034dd5c099d2fc811f764f703",
+  "duration_seconds": 15.06,
+  "failure_kinds": {},
+  "failures": 0,
+  "invocation": {
+    "argv": [
+      "evidence/compatibility/candidate-soak-v6.py",
+      "--duration",
+      "15",
+      "--workers",
+      "4",
+      "--smoke",
+      "--output",
+      "evidence/compatibility/candidate-soak-v6-smoke-c304-v1.json"
+    ],
+    "cwd": "/home/lmyzzz/lmyzmail-rust",
+    "git_head": "296b6f6afb3a1bb339886b555f2f00567326efd9",
+    "pid": 25732
+  },
+  "latency": {
+    "htcpcp": {
+      "count": 488,
+      "max_ms": 2.637,
+      "p50_ms": 0.814,
+      "p95_ms": 1.441
+    },
+    "http": {
+      "count": 976,
+      "max_ms": 40.647,
+      "p50_ms": 27.05,
+      "p95_ms": 33.949
+    },
+    "minecraft": {
+      "count": 0,
+      "max_ms": 0.0,
+      "p50_ms": 0.0,
+      "p95_ms": 0.0
+    },
+    "smtp": {
+      "count": 488,
+      "max_ms": 3.275,
+      "p50_ms": 1.231,
+      "p95_ms": 2.118
+    }
+  },
+  "profile": "candidate-multi-module-half-hour-soak-v6",
+  "qualification": {
+    "minimum_duration_seconds": 1800,
+    "minimum_workers": 16,
+    "qualified_half_hour": false,
+    "smoke": true
+  },
+  "recovery_semantics": {
+    "ephemeral_workspace_must_be_removed": true,
+    "final_evidence_create_once": true,
+    "managed_processes_must_exit": true,
+    "release_binary_must_remain_unchanged": true,
+    "running_checkpoint_retained_on_interruption_or_failure": true,
+    "runtime_stop_always_attempted": true
+  },
+  "release_binary_unchanged": true,
+  "release_sha256": "c3047dd2818e4ad363874f7d59938750cffa10ab3d1037af7c6f196a1412d143",
+  "release_sha256_after": "c3047dd2818e4ad363874f7d59938750cffa10ab3d1037af7c6f196a1412d143",
+  "resource": {
+    "disk_baseline_bytes": 807151722496,
+    "disk_delta_final_bytes": 12288,
+    "disk_delta_peak_bytes": 12288,
+    "disk_used_max_bytes": 807151734784,
+    "disk_used_min_bytes": 807151734784,
+    "fd_final": 27,
+    "fd_first": 25,
+    "fd_max": 27,
+    "fd_min": 25,
+    "growth_per_hour": {
+      "fd_count": 0.0,
+      "rss_kib": 0.0,
+      "task_count": 0.0,
+      "workspace_bytes": 0.0
+    },
+    "queue_final": 0,
+    "queue_first": 0,
+    "queue_max": 0,
+    "queue_min": 0,
+    "rss_delta_kib": 336960,
+    "rss_final_kib": 409436,
+    "rss_first_kib": 72476,
+    "rss_max_kib": 409436,
+    "rss_min_kib": 72476,
+    "samples": 4,
+    "samples_all": [
+      {
+        "disk_delta_bytes": 12288,
+        "disk_used_bytes": 807151734784,
+        "elapsed_millis": 1091,
+        "fd_count": 25,
+        "postgres_port": 40300,
+        "queue_pending": 0,
+        "rss_kib": 72476,
+        "task_count": 46,
+        "workspace_bytes": 43470848,
+        "workspace_components_bytes": {
+          "candidate-runtime.json": 8192,
+          "postgres-data": 43446272,
+          "postgres-socket": 4096,
+          "postgres.log": 4096,
+          "redis.log": 4096,
+          "rust-candidate.log": 4096
+        },
+        "workspace_delta_bytes": 0
+      },
+      {
+        "disk_delta_bytes": 12288,
+        "disk_used_bytes": 807151734784,
+        "elapsed_millis": 6148,
+        "fd_count": 26,
+        "postgres_port": 40300,
+        "queue_pending": 0,
+        "rss_kib": 409436,
+        "task_count": 52,
+        "workspace_bytes": 43470848,
+        "workspace_components_bytes": {
+          "candidate-runtime.json": 8192,
+          "postgres-data": 43446272,
+          "postgres-socket": 4096,
+          "postgres.log": 4096,
+          "redis.log": 4096,
+          "rust-candidate.log": 4096
+        },
+        "workspace_delta_bytes": 0
+      },
+      {
+        "disk_delta_bytes": 12288,
+        "disk_used_bytes": 807151734784,
+        "elapsed_millis": 11195,
+        "fd_count": 27,
+        "postgres_port": 40300,
+        "queue_pending": 0,
+        "rss_kib": 409436,
+        "task_count": 52,
+        "workspace_bytes": 43470848,
+        "workspace_components_bytes": {
+          "candidate-runtime.json": 8192,
+          "postgres-data": 43446272,
+          "postgres-socket": 4096,
+          "postgres.log": 4096,
+          "redis.log": 4096,
+          "rust-candidate.log": 4096
+        },
+        "workspace_delta_bytes": 0
+      },
+      {
+        "disk_delta_bytes": 12288,
+        "disk_used_bytes": 807151734784,
+        "elapsed_millis": 15059,
+        "fd_count": 27,
+        "postgres_port": 40300,
+        "queue_pending": 0,
+        "rss_kib": 409436,
+        "task_count": 52,
+        "workspace_bytes": 43470848,
+        "workspace_components_bytes": {
+          "candidate-runtime.json": 8192,
+          "postgres-data": 43446272,
+          "postgres-socket": 4096,
+          "postgres.log": 4096,
+          "redis.log": 4096,
+          "rust-candidate.log": 4096
+        },
+        "workspace_delta_bytes": 0
+      }
+    ],
+    "samples_tail": [
+      {
+        "disk_delta_bytes": 12288,
+        "disk_used_bytes": 807151734784,
+        "elapsed_millis": 6148,
+        "fd_count": 26,
+        "postgres_port": 40300,
+        "queue_pending": 0,
+        "rss_kib": 409436,
+        "task_count": 52,
+        "workspace_bytes": 43470848,
+        "workspace_components_bytes": {
+          "candidate-runtime.json": 8192,
+          "postgres-data": 43446272,
+          "postgres-socket": 4096,
+          "postgres.log": 4096,
+          "redis.log": 4096,
+          "rust-candidate.log": 4096
+        },
+        "workspace_delta_bytes": 0
+      },
+      {
+        "disk_delta_bytes": 12288,
+        "disk_used_bytes": 807151734784,
+        "elapsed_millis": 11195,
+        "fd_count": 27,
+        "postgres_port": 40300,
+        "queue_pending": 0,
+        "rss_kib": 409436,
+        "task_count": 52,
+        "workspace_bytes": 43470848,
+        "workspace_components_bytes": {
+          "candidate-runtime.json": 8192,
+          "postgres-data": 43446272,
+          "postgres-socket": 4096,
+          "postgres.log": 4096,
+          "redis.log": 4096,
+          "rust-candidate.log": 4096
+        },
+        "workspace_delta_bytes": 0
+      },
+      {
+        "disk_delta_bytes": 12288,
+        "disk_used_bytes": 807151734784,
+        "elapsed_millis": 15059,
+        "fd_count": 27,
+        "postgres_port": 40300,
+        "queue_pending": 0,
+        "rss_kib": 409436,
+        "task_count": 52,
+        "workspace_bytes": 43470848,
+        "workspace_components_bytes": {
+          "candidate-runtime.json": 8192,
+          "postgres-data": 43446272,
+          "postgres-socket": 4096,
+          "postgres.log": 4096,
+          "redis.log": 4096,
+          "rust-candidate.log": 4096
+        },
+        "workspace_delta_bytes": 0
+      }
+    ],
+    "steady_state_baseline_elapsed_seconds": 15.059,
+    "task_final": 52,
+    "task_first": 46,
+    "task_max": 52,
+    "task_min": 46,
+    "workspace_baseline_bytes": 43470848,
+    "workspace_components": {
+      "candidate-runtime.json": {
+        "final_bytes": 8192,
+        "first_bytes": 8192,
+        "max_bytes": 8192,
+        "min_bytes": 8192,
+        "steady_growth_per_hour_bytes": 0.0
+      },
+      "postgres-data": {
+        "final_bytes": 43446272,
+        "first_bytes": 43446272,
+        "max_bytes": 43446272,
+        "min_bytes": 43446272,
+        "steady_growth_per_hour_bytes": 0.0
+      },
+      "postgres-socket": {
+        "final_bytes": 4096,
+        "first_bytes": 4096,
+        "max_bytes": 4096,
+        "min_bytes": 4096,
+        "steady_growth_per_hour_bytes": 0.0
+      },
+      "postgres.log": {
+        "final_bytes": 4096,
+        "first_bytes": 4096,
+        "max_bytes": 4096,
+        "min_bytes": 4096,
+        "steady_growth_per_hour_bytes": 0.0
+      },
+      "redis.log": {
+        "final_bytes": 4096,
+        "first_bytes": 4096,
+        "max_bytes": 4096,
+        "min_bytes": 4096,
+        "steady_growth_per_hour_bytes": 0.0
+      },
+      "rust-candidate.log": {
+        "final_bytes": 4096,
+        "first_bytes": 4096,
+        "max_bytes": 4096,
+        "min_bytes": 4096,
+        "steady_growth_per_hour_bytes": 0.0
+      }
+    },
+    "workspace_delta_final_bytes": 0,
+    "workspace_delta_peak_bytes": 0,
+    "workspace_used_max_bytes": 43470848,
+    "workspace_used_min_bytes": 43470848
+  },
+  "resource_policy": {
+    "max_disk_delta_peak_bytes": 1073741824,
+    "max_fd_count": 512,
+    "max_rss_kib": 2097152,
+    "max_steady_fd_growth": 4,
+    "max_steady_rss_growth_kib": 65536,
+    "max_steady_task_growth": 4,
+    "max_steady_workspace_growth_bytes": 67108864,
+    "max_task_count": 512,
+    "max_workspace_delta_peak_bytes": 536870912
+  },
+  "resource_policy_checks": {
+    "disk_peak": {
+      "enforced": true,
+      "limit": 1073741824,
+      "observed": 12288,
+      "passed": true
+    },
+    "fd_absolute": {
+      "enforced": true,
+      "limit": 512,
+      "observed": 27,
+      "passed": true
+    },
+    "rss_absolute": {
+      "enforced": true,
+      "limit": 2097152,
+      "observed": 409436,
+      "passed": true
+    },
+    "steady_fd_growth": {
+      "enforced": false,
+      "limit": 4,
+      "observed": 0,
+      "passed": true
+    },
+    "steady_rss_growth": {
+      "enforced": false,
+      "limit": 65536,
+      "observed": 0,
+      "passed": true
+    },
+    "steady_task_growth": {
+      "enforced": false,
+      "limit": 4,
+      "observed": 0,
+      "passed": true
+    },
+    "steady_workspace_growth": {
+      "enforced": false,
+      "limit": 67108864,
+      "observed": 0,
+      "passed": true
+    },
+    "task_absolute": {
+      "enforced": true,
+      "limit": 512,
+      "observed": 52,
+      "passed": true
+    },
+    "workspace_peak": {
+      "enforced": true,
+      "limit": 536870912,
+      "observed": 0,
+      "passed": true
+    }
+  },
+  "runner_sha256": "a73071ce6ba5b70667a821c072febfe5884ab467bca45e303b0518ad1b70dc13",
+  "schema_version": 2,
+  "source_sha256": "e6185f46f17a622db648eca2149ea0082c4acf1ff775980b33acfd2b0e7d1d1b",
+  "status": "passed",
+  "successes": {
+    "htcpcp": 488,
+    "http": 976,
+    "minecraft": 0,
+    "smtp": 488
+  },
+  "workers": 4
+}

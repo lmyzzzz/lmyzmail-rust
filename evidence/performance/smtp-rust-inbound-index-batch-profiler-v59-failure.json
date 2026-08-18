@@ -1,0 +1,46 @@
+{
+  "schema": "lmyzmail.smtp-inbound-index-batch-profiler.failure.v1",
+  "run_id": "faaca0d4-890a-409a-9a6e-832bead99e81",
+  "profile": "rust-profiler",
+  "tier": "10KB",
+  "requested_messages": 8192,
+  "filesystem_fsync": "off",
+  "postgres_fsync": "on",
+  "formal_benchmark": false,
+  "qualification": false,
+  "throughput_claim": false,
+  "measurement": "diagnostic-load-window-only",
+  "candidate_binary": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "built_at": "2026-08-18T01:58:31+08:00",
+    "size_bytes": 218615992,
+    "sha256": "352f06c1b3d9d1d0885027769e5ced821b7a3833b67e4176baecb628237504e5"
+  },
+  "load_window": {
+    "accepted_messages": 8192,
+    "failed_messages": 0,
+    "missing_messages": 0,
+    "elapsed_seconds": 76.022,
+    "messages_per_second": 107.76,
+    "queueing_seconds": 36.705,
+    "delivery_seconds": 39.316,
+    "inbound_index_batch_transactions": 1112,
+    "mean_messages_per_index_batch": 7.37,
+    "mailbox_folder_count_updates": 2224,
+    "mailbox_folder_count_update_seconds": 10.153
+  },
+  "failure": {
+    "mechanism": "The strict publication gate observed database_xact_rollback delta=59 and failed immediately.",
+    "exception": "RuntimeError: stress automatic cleanup cannot satisfy the rollback-free gate: database_xact_rollback delta=59",
+    "provisional_artifact": "not published",
+    "root_receipt": "/var/lib/lmyzmail-benchmark/journal/faaca0d4-890a-409a-9a6e-832bead99e81.done"
+  },
+  "cleanup": {
+    "request": "ABORT",
+    "cleanup": "passed",
+    "lazy_unmount": 0,
+    "recovered": 0,
+    "qualified_cleanup": 0,
+    "residual_process_mount_loop_cgroup_run_directory": false
+  }
+}

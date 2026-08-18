@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "profile": "rust-ring-dkim-cpu-clock-60s-v1",
+  "qualification": false,
+  "qualification_reason": "The endpoint run was intentionally interrupted after a bounded profiler window; it is not a 500000-message completion or ABBA result.",
+  "captured_at": "2026-08-16T02:01:36+08:00",
+  "git_head": "296b6f6afb3a1bb339886b555f2f00567326efd9",
+  "dirty_tree_at_capture": true,
+  "platform": {
+    "os": "WSL2 Ubuntu",
+    "kernel": "6.6.87.2-microsoft-standard-WSL2",
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+    "power_mode": "user-reported OEM power-save mode"
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "15206bae82e4b5f715fff8844f8632652aaac82d783abcd617776ee70c5f9a8a",
+    "production_release_sha256": "10e970c31bb0f5c77f9aeaf0606aac792e8ea722f0b50d308f5d8d9459e82d0d",
+    "mail_auth_backend": "ring"
+  },
+  "perf": {
+    "tool": "/usr/lib/linux-tools-6.8.0-137/perf",
+    "command": "perf record -e cpu-clock:u -F 997 -g --call-graph dwarf,65528 -p <attested-candidate-pid> -- sleep 60",
+    "data_path": "evidence/performance/smtp-rust-ring-symbolized-cpu-clock-60s-v1.data",
+    "data_sha256": "0709573c71f3604c91f2e6a48e5ae6cd69ea4e03c379b8b90b25a3831218fdb1",
+    "data_size_bytes": 304780628,
+    "sample_duration_ms": 59995.158,
+    "samples": 4646,
+    "lost_samples": 3,
+    "comparison_baseline": {
+      "data_path": "evidence/performance/smtp-rust-symbolized-cpu-clock-60s-v1.data",
+      "data_sha256": "5ac9685d31ec9ff78c39ff2699d6fcefd194e6c134f20a5f53281b67d56d8e60",
+      "sample_duration_ms": 60012.936,
+      "samples": 5536,
+      "lost_samples": 0,
+      "pre_ring_hotspots": [
+        "OutboundMessageBuilder::materialize: 31.18% children",
+        "DKIM finish: 19.36%",
+        "RSA PKCS#1 v1.5 sign: 19.22%",
+        "num_bigint_dig::montgomery: 20.81% self combined"
+      ]
+    },
+    "post_ring_hotspots": [
+      "ring_core_0_17_14__bn_sqrx8x_internal: 9.04% self",
+      "malloc: 3.49% self",
+      "mulx4x_internal: 2.69% self",
+      "OutboundCoordinator::process_next_inner: 22.41% children",
+      "OutboundCoordinator::process_claimed: 20.94% children",
+      "OutboundCoordinator::project_and_finalize: 9.66% children",
+      "OutboundCoordinator::deliver_domain: 7.77% children",
+      "SmtpService::deliver_inner: 10.22% children"
+    ]
+  },
+  "throughput_window": {
+    "source": "proxy Summary command over the socket owner UID",
+    "profile": "rust-profiler, rust target, 10KB, one original stress endpoint invocation",
+    "expected_messages": 500000,
+    "verified_messages": 531,
+    "smtp_success": 531,
+    "smtp_transient_failure": 0,
+    "smtp_permanent_failure": 0,
+    "retry_responses": 0,
+    "first_accepted_monotonic_ns": 1643447569,
+    "last_accepted_monotonic_ns": 4667793830,
+    "measured_interval_seconds": 45.024346261,
+    "messages_per_second": 11.7936,
+    "proxy_observer_failure_count": 0,
+    "partial_window_only": true,
+    "comparison_floors": {
+      "prior_rust_approx_messages_per_second": 11.0,
+      "java_10kb_stable_window_messages_per_second": 47.223536,
+      "java_stable_window_evidence": "evidence/performance/smtp-endpoint-java-stable-window-baseline-v1.json"
+    }
+  },
+  "smoke_followups": {
+    "candidate_1kb_10kb": {
+      "status": "passed",
+      "evidence_jsonl_sha256": "159e26718349f8ec3e1c78f0eb74b2141ab62f1137bad02be7f53f894f0bba4c",
+      "notes": "Both tiers delivered 4/4 with zero SMTP failures/retries and zero durable state after cleanup."
+    },
+    "candidate_10mb": {
+      "status": "failed_natural_drain_timeout",
+      "evidence_jsonl_sha256": "159e26718349f8ec3e1c78f0eb74b2141ab62f1137bad02be7f53f894f0bba4c",
+      "notes": "Two messages reached SMTP delivery with zero failures/retries, but one stress body temporary file remained beyond the 120 second natural-drain bound."
+    }
+  },
+  "cleanup": {
+    "profiler_run_1_recovered_by_launcher": true,
+    "profiler_run_2_processes_and_cgroups_clean": true,
+    "mounts_and_loop_devices_clean": true,
+    "unqualified_output_not_published": true
+  }
+}

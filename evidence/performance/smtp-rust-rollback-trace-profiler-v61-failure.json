@@ -1,0 +1,50 @@
+{
+  "schema": "lmyzmail.smtp-postgresql-rollback-trace.failure.v1",
+  "run_id": "5c2b04b0-84a9-4b68-a1b2-334281a2724c",
+  "profile": "rust-profiler",
+  "tier": "10KB",
+  "requested_messages": 512,
+  "filesystem_fsync": "off",
+  "postgres_fsync": "on",
+  "formal_benchmark": false,
+  "qualification": false,
+  "throughput_claim": false,
+  "candidate_binary_sha256": "352f06c1b3d9d1d0885027769e5ced821b7a3833b67e4176baecb628237504e5",
+  "database_xact_rollback_delta": 5,
+  "postgres_trace": {
+    "path": "evidence/performance/smtp-rust-rollback-trace-profiler-v61-postgres.log",
+    "size_bytes": 19192550,
+    "sha256": "760be3cabb99daeb90083ddea3a00fb545eba9796c7080da5ae020a0257cc2c3",
+    "log_statement": "all",
+    "rollback_statements": 5,
+    "rollback_backend_pids": [
+      5272,
+      5261,
+      5271,
+      5285,
+      5236
+    ],
+    "preceding_task_ids": [
+      412,
+      413,
+      417,
+      420,
+      431
+    ],
+    "preceding_statement": "SELECT spool_path,cleanup_state FROM lmyzmail_outbound_spool WHERE task_id=$1 FOR UPDATE",
+    "preceding_query_returned_no_row": true
+  },
+  "finding": {
+    "cause": "Concurrent terminal spool cleanup had already deleted the durable sidecar. mark_outbound_spool_removed converted the missing row to InvalidTransition before committing, so Transaction::drop emitted ROLLBACK.",
+    "fix": "Treat the already-missing exact checkpoint as idempotent false after an explicit commit. Read-only path-conflict and invalid-state errors also commit before returning their unchanged errors.",
+    "regression": "missing_spool_removal_is_idempotent_without_counting_a_postgresql_rollback"
+  },
+  "cleanup": {
+    "request": "ABORT",
+    "cleanup": "passed",
+    "lazy_unmount": 0,
+    "recovered": 0,
+    "qualified_cleanup": 0,
+    "residual_process_mount_loop_cgroup_run_directory": false
+  }
+}

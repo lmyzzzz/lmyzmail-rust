@@ -1,0 +1,129 @@
+{
+  "attestation": {
+    "candidate": {
+      "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+      "sha256": "2a1d71700e18f3f06696ee3897f350c96ad6a37aaa19c687d96cf9e48ac04d54"
+    },
+    "machine": "x86_64",
+    "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "sources": [
+      {
+        "path": "Cargo.lock",
+        "sha256": "cc9836ff20f39b93de17735066559aac2b376ff166c9fd74c96f01d71e774b94"
+      },
+      {
+        "path": "crates/lmyzmail/src/outbound.rs",
+        "sha256": "5674ffc1db56383b06a0d233a90fe28821b1f41eabbcfd851def1c857f7ee4df"
+      },
+      {
+        "path": "crates/lmyzmail/src/outbound_batch.rs",
+        "sha256": "493ef5607cc794d2308ed846551b711cc192989022f9336657910e46be12dec8"
+      },
+      {
+        "path": "crates/lmyzmail/src/stress.rs",
+        "sha256": "89bf5e3d4956f9b10f6c414bbd57e6ca06acbf1782bc078417e6742dd5bda91f"
+      },
+      {
+        "path": "crates/lmyzmail/src/stress_observer.rs",
+        "sha256": "19b76ef0dffd01f85d3a71dd3d6e98cf9a48b44cecbf052c5414930f6e096c2f"
+      },
+      {
+        "path": "evidence/performance/fsync-off-batch-profiler-v1.py",
+        "sha256": "1f536c82dd68a42eb5eae1e5942254b01de9440c0239328c78b598842e97dbdb"
+      },
+      {
+        "path": "evidence/performance/test_fsync_off_batch_persistence_v1.py",
+        "sha256": "d2d507e089f85938b1401143ca3613a4ccda5dba32fc62a3d8a183d2d5ddfe16"
+      }
+    ]
+  },
+  "count": 4096,
+  "email_size_kib": 10,
+  "filesystem_fsync": "off",
+  "finished_at": "2026-08-17T02:26:33.290980+00:00",
+  "harness_batching": false,
+  "measurement": {
+    "batch_observer_last": {
+      "batches": 865,
+      "max_ns": 33805403,
+      "max_rows": 8,
+      "pid": 24544,
+      "rows": 4096,
+      "schema": "lmyzmail.outbound-batch-observation.v1",
+      "sequence": 16,
+      "total_ns": 9248946978,
+      "uncertain_batches": 0
+    },
+    "batch_observer_record_count": 16,
+    "elapsed_seconds": 12.940333766,
+    "messages_per_second": 316.5297027161703,
+    "postgres_authority_counts": {
+      "content": 4096,
+      "queue": 4096,
+      "sent_index": 4096,
+      "spool": 4096
+    },
+    "process_at_completion": {
+      "Threads": 61,
+      "VmHWM": 457544,
+      "VmRSS": 443676,
+      "fd_count": 37
+    },
+    "redis_pending_ids": 4096,
+    "stress_observer_last": {
+      "active": 0,
+      "peak_active": 8,
+      "pid": 24544,
+      "schema": "lmyzmail.stress-enqueue-observation.v1",
+      "sequence": 16,
+      "stages": {
+        "admission_wait": {
+          "count": 4096,
+          "max_ns": 3619477723,
+          "total_ns": 10738697030336
+        },
+        "cleanup": {
+          "count": 4096,
+          "max_ns": 2513705,
+          "total_ns": 173002647
+        },
+        "materialize": {
+          "count": 4096,
+          "max_ns": 36244033,
+          "total_ns": 15182101397
+        },
+        "persist": {
+          "count": 4096,
+          "max_ns": 58788325,
+          "total_ns": 79315295422
+        },
+        "publish": {
+          "count": 4096,
+          "max_ns": 6728399,
+          "total_ns": 6176025792
+        },
+        "reserve": {
+          "count": 4096,
+          "max_ns": 45718860,
+          "total_ns": 398912123
+        },
+        "total": {
+          "count": 4096,
+          "max_ns": 3644835898,
+          "total_ns": 10840065794128
+        }
+      }
+    },
+    "stress_observer_record_count": 16
+  },
+  "one_original_stress_endpoint_invocation": true,
+  "production_default_filesystem_fsync": "on",
+  "qualification_reason": "enqueue-only diagnostic: delivery workers are intentionally parked and the result is not an end-to-end SMTP or Java comparison",
+  "qualified": false,
+  "run_id": "6e11553f-e9b4-46b7-8fc4-a454359a4ca5",
+  "schema": "lmyzmail.fsync-off-batch-profiler.v1",
+  "started_at": "2026-08-17T02:26:17.181888+00:00",
+  "status": "passed",
+  "workspace_removed": true
+}

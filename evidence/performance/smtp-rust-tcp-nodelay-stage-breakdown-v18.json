@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "profile": "rust-tcp-nodelay-stage-breakdown-v18",
+  "qualification": false,
+  "qualification_reasons": [
+    "The 500000-message endpoint invocation was intentionally interrupted after a bounded diagnostic window.",
+    "The clean observer window validates a local stage-latency hypothesis but does not publish a completed endpoint result.",
+    "No throughput value is derived from this interrupted window."
+  ],
+  "captured_at": "2026-08-16T19:04:33+08:00",
+  "git_head": "296b6f6afb3a1bb339886b555f2f00567326efd9",
+  "dirty_tree_at_capture": true,
+  "platform": {
+    "os": "WSL2 Ubuntu",
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+    "power_mode": "user-reported OEM power-save mode"
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "d021762f7433145f9a49003af729dc0f69450b84c43619230dabb6b812c195a6",
+    "build_id": "02b20fa938018cbdd7587906d08bcf83f0ae99de",
+    "size_bytes": 216691728
+  },
+  "endpoint_window": {
+    "launcher_run_id": "9e334385-b876-4112-a1f5-5b598e83c6c3",
+    "launcher_pid": 649,
+    "candidate_pid": 3032,
+    "tier": "10KB",
+    "expected_messages": 500000,
+    "latest_observer_sequence": 12,
+    "latest_observer_completed_tasks": 3072,
+    "latest_observer_completed_total_ns": 599774205390,
+    "latest_observer_completed_max_ns": 696970607,
+    "partial_window_only": true,
+    "clean_throughput_result": false,
+    "java_10kb_stable_window_messages_per_second": 47.223536,
+    "java_evidence": "evidence/performance/smtp-endpoint-java-stable-window-baseline-v1.json"
+  },
+  "candidate_log": {
+    "path": "evidence/performance/smtp-rust-tcp-nodelay-stage-breakdown-v18-rust-candidate.log",
+    "sha256": "e890747d1bff98321f256ec4f6c6aa4fd2025ad17c2d7ef8fa50e7e0bf80fe33",
+    "size_bytes": 51644,
+    "diagnostic_counts": {
+      "invalid_transition_checkpoint": 0,
+      "spool_cleanup_reconciler_unavailable": 0,
+      "task_reconciler_unavailable": 0,
+      "queue_unavailable_total": 0,
+      "stress_soft_deadline": 0,
+      "delivery_failed": 0
+    }
+  },
+  "latest_stage_observation": {
+    "smtp_prepare": { "count": 3074, "mean_ms": 2.553353, "max_ms": 23.877948 },
+    "smtp_authorize": { "count": 3074, "mean_ms": 0.262653, "max_ms": 3.008022 },
+    "smtp_connect": { "count": 3074, "mean_ms": 0.090290, "max_ms": 2.031081 },
+    "smtp_greeting": { "count": 3074, "mean_ms": 0.326354, "max_ms": 8.134875 },
+    "smtp_ehlo": { "count": 3074, "mean_ms": 0.224109, "max_ms": 7.397412 },
+    "smtp_envelope": { "count": 3074, "mean_ms": 0.791419, "max_ms": 22.349506 },
+    "smtp_message_prepare": { "count": 3074, "mean_ms": 0.233561, "max_ms": 4.897494 },
+    "smtp_data_ready": { "count": 3074, "mean_ms": 0.196385, "max_ms": 7.096221 },
+    "smtp_body_write": { "count": 3074, "mean_ms": 0.409060, "max_ms": 8.991287 },
+    "smtp_commit": { "count": 3073, "mean_ms": 86.802175, "max_ms": 359.913127 },
+    "smtp_final_dot": { "count": 3074, "mean_ms": 0.018717, "max_ms": 1.411934 },
+    "smtp_final_reply": { "count": 3073, "mean_ms": 86.483516, "max_ms": 359.378264 },
+    "smtp_quit": { "count": 3073, "mean_ms": 0.248964, "max_ms": 9.774027 }
+  },
+  "inbound_final_reply_breakdown": {
+    "inbound_prepare_file": { "count": 3074, "mean_ms": 23.857859, "max_ms": 133.464673 },
+    "inbound_intent_insert": { "count": 3074, "mean_ms": 8.339203, "max_ms": 46.649407 },
+    "inbound_publish_file": { "count": 3073, "mean_ms": 23.525487, "max_ms": 132.300391 },
+    "inbound_index_commit": { "count": 3073, "mean_ms": 13.006082, "max_ms": 97.307384 },
+    "inbound_publish_verify": { "count": 3073, "mean_ms": 0.167655, "max_ms": 4.817219 },
+    "inbound_intent_complete": { "count": 3073, "mean_ms": 9.183271, "max_ms": 73.834445 },
+    "inbound_projection_flush": { "count": 3073, "mean_ms": 7.550215, "max_ms": 76.648954 },
+    "sum_mean_ms": 85.629772,
+    "smtp_final_reply_mean_ms": 86.483516,
+    "accounted_fraction": 0.990128
+  },
+  "v17_comparison": {
+    "evidence": "evidence/performance/smtp-rust-smtp-stage-breakdown-v17.json",
+    "smtp_prepare_mean_ms": { "before": 89.008331, "after": 2.553353, "reduction_percent": 97.131332 },
+    "smtp_ehlo_mean_ms": { "before": 42.916437, "after": 0.224109, "reduction_percent": 99.477796 },
+    "smtp_envelope_mean_ms": { "before": 44.269014, "after": 0.791419, "reduction_percent": 98.212486 },
+    "completed_task_mean_ms": { "before": 257.946917, "after": 195.238998, "reduction_percent": 24.310399 },
+    "throughput_comparison_allowed": false
+  },
+  "verification": {
+    "accepted_socket_tcp_nodelay_unit_test": { "passed": 1, "failed": 0 },
+    "smtp_related_unit_tests": { "passed": 36, "failed": 0 },
+    "outbound_smtp_protocol_integration_tests": { "passed": 17, "failed": 0 },
+    "cargo_clippy_workspace_all_targets_all_features_deny_warnings": "passed",
+    "cargo_fmt_check": "passed"
+  },
+  "decision": {
+    "result": "tcp-nodelay-retained-local-stage-improvement",
+    "evidence": "Production inbound SMTP now enables TCP_NODELAY before protocol I/O; v18 collapses the EHLO and envelope reply-bound waits while the clean error counters remain zero.",
+    "next_action": "Profile the synchronous Maildir prepare and publish operations because they are the two largest components of the remaining final-reply latency.",
+    "throughput_claim_allowed": false
+  },
+  "cleanup": {
+    "request": "SIGINT to exact launcher PID 649",
+    "cleanup": "passed",
+    "residual_application_processes": 0,
+    "residual_run_cgroups": 0,
+    "residual_quota_mounts": 0,
+    "residual_run_directories": 0,
+    "residual_loop_devices": 0,
+    "published_raw_result": false
+  }
+}

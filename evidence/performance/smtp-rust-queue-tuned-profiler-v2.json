@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "profile": "rust-queue-tuned-dkim-cpu-clock-60s-v2",
+  "qualification": false,
+  "qualification_reason": "The endpoint run was intentionally interrupted after a bounded profiler window; it is not a 500000-message completion or ABBA result.",
+  "captured_at": "2026-08-16T03:40:42+08:00",
+  "git_head": "296b6f6afb3a1bb339886b555f2f00567326efd9",
+  "dirty_tree_at_capture": true,
+  "platform": {
+    "os": "WSL2 Ubuntu",
+    "kernel": "6.6.87.2-microsoft-standard-WSL2",
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+    "power_mode": "user-reported OEM power-save mode"
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "30edbaacc857bfec844ce0ef51d9d506cbc6464a6c113428310eff59096c5d90",
+    "production_release_sha256": "0fcb542f75f866e35825a436a0346c3570ba9356ff307651ef5cbfe8157e67c8",
+    "benchmark_runner_sha256": "60eb7f179042a808b8521074a66f5046f92555a7bede898fe5b7e8ea23d8557c",
+    "queue_profile": {
+      "outbound_poll_interval_ms": 100,
+      "outbound_max_concurrent_sends": 256,
+      "outbound_batch_size": 1200,
+      "outbound_migration_batch_size": 1000,
+      "hard_concurrency_ceiling_preserved": true
+    }
+  },
+  "perf": {
+    "tool": "/usr/lib/linux-tools-6.8.0-137/perf",
+    "command": "perf record -e cpu-clock:u -F 997 -g --call-graph dwarf,65528 -p <attested-candidate-pid> -- sleep 60",
+    "data_path": "evidence/performance/smtp-rust-queue-tuned-symbolized-cpu-clock-60s-v1.data",
+    "data_sha256": "3acc0c7be2107f1f9934b18b6c3532293f6afb0a985508b1366eed54b700afa9",
+    "data_size_bytes": 354405908,
+    "samples": 5403,
+    "lost_samples": 0,
+    "post_tuning_hotspots": [
+      "OutboundCoordinator::process_next_inner: 25.80% children",
+      "OutboundCoordinator::process_claimed: 23.41% children",
+      "OutboundMessageBuilder::materialize: 20.03% children",
+      "OutboundService::materialize_message: 16.95% children",
+      "deadpool_postgres ConfigConnectImpl::connect: 10.75% children",
+      "mail_auth DkimSigningStream::finish: 10.64% children",
+      "ring RSA KeyPair::sign: 10.42% children",
+      "tokio_postgres Connection::poll: 10.29% children",
+      "OutboundCoordinator::deliver_domain: 10.24% children",
+      "OutboundCoordinator::project_and_finalize: 8.16% children",
+      "tokio_postgres Client::query_opt: 7.00% children",
+      "tokio_postgres ToStatementType::into_statement: 6.70% children",
+      "ring_core bn_sqrx8x_internal: 7.40% self",
+      "malloc: 3.35% self"
+    ]
+  },
+  "throughput_window": {
+    "source": "proxy summary command over the socket owner UID",
+    "profile": "rust-profiler, rust target, 10KB, one original stress endpoint invocation",
+    "expected_messages": 500000,
+    "verified_messages": 1479,
+    "smtp_success": 1479,
+    "smtp_transient_failure": 0,
+    "smtp_permanent_failure": 0,
+    "retry_responses": 0,
+    "observer_failure_count": 0,
+    "first_accepted_monotonic_ns": 1226217837,
+    "last_accepted_monotonic_ns": 119864329830,
+    "measured_interval_seconds": 118.638111993,
+    "messages_per_second": 12.466483,
+    "transaction_latency_ns_upper_bound": {
+      "p50": 268435456,
+      "p95": 536870912,
+      "p99": 1073741824,
+      "maximum": 1065949939
+    },
+    "proxy_peak_connections": 18,
+    "proxy_failed_connections": 0,
+    "partial_window_only": true,
+    "comparison_floors": {
+      "prior_rust_messages_per_second": 11.7936,
+      "java_10kb_stable_window_messages_per_second": 47.223536,
+      "java_stable_window_evidence": "evidence/performance/smtp-endpoint-java-stable-window-baseline-v1.json"
+    }
+  },
+  "discarded_experiments": [
+    {
+      "hypothesis": "Increase benchmark PostgreSQL and Redis pools from 16 to 96 and 256 respectively",
+      "result_messages_per_second": 12.13,
+      "reason_not_retained": "Only about 2.8% above the prior 11.7936 msg/s window, peak proxy connections remained 18, and two wrong-UID diagnostic probes made that window unsuitable as evidence."
+    }
+  ],
+  "smoke_followup": {
+    "status": "passed",
+    "evidence": "evidence/compatibility/smtp-self-stress-v2-temp-cleanup-v4.json",
+    "evidence_sha256": "6c21bf0bc201620c22effad5abe80092b514e262d1ee629aec04596b451a1295",
+    "checkpoint_sha256": "4ffbd0ea1af22804f8102d963be58df1916284b542a0222d8ad4b984f57c5092",
+    "tiers": {
+      "1KB": "4/4",
+      "10KB": "4/4",
+      "10MB": "2/2"
+    },
+    "final_postgresql_rows": 0,
+    "final_redis_keys": 0,
+    "final_maildir_spool_and_stress_temp_files": 0,
+    "residual_processes": 0
+  },
+  "cleanup": {
+    "processes_and_cgroups_clean": true,
+    "mounts_and_loop_devices_clean": true,
+    "unqualified_output_not_published": true
+  }
+}

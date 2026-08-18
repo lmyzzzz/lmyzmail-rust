@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "profile": "rust-durable-io-wait-profiler-v6",
+  "qualification": false,
+  "qualification_reason": "The endpoint invocation was intentionally interrupted after a bounded diagnostic window. It is not a 500000-message completion or an ABBA result.",
+  "captured_at": "2026-08-16T12:48:03+08:00",
+  "git_head": "296b6f6afb3a1bb339886b555f2f00567326efd9",
+  "dirty_tree_at_capture": true,
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "d4d537bc4044be6fdde65e95f185c12d25849d6b8d34131b6970176594c66830",
+    "build_id": "bfc15d3a56f85f8e812c6be4c126139714b3a773",
+    "included_change": "skip reconciliation for publication intents still owned by an in-process ActivePublicationGuard",
+    "excluded_later_source_change": "The exact-name Maildir shard probe was compiled into target/x86_64-unknown-linux-gnu/release-with-debug, not the attested target/profiling binary, and was therefore not exercised by this window."
+  },
+  "endpoint_window": {
+    "launcher_run_id": "ba57980c-bb80-430a-bfbe-b677a2b35efc",
+    "proxy_round_run_id": "rust-candidate-10kb-arm-0-bfe4f1d0f20c4d059cd1d5ca95146a7f",
+    "tier": "10KB",
+    "expected_messages": 500000,
+    "verified_messages": 5827,
+    "smtp_success": 5827,
+    "smtp_transient_failure": 0,
+    "smtp_permanent_failure": 0,
+    "retry_responses": 0,
+    "observer_failures": 0,
+    "proxy_failed_connections": 0,
+    "proxy_peak_connections": 64,
+    "measured_interval_seconds": 510.223423687,
+    "messages_per_second": 11.418527119,
+    "maximum_transaction_latency_ms": 9567.985144,
+    "partial_window_only": true
+  },
+  "coordinator_observer_at_5888_completed_tasks": {
+    "schema": "lmyzmail.coordinator-stage-observation.v1",
+    "completed_task_average_ms": 5437.521,
+    "smtp_commit_average_ms": 5227.565,
+    "smtp_prepare_average_ms": 89.367,
+    "queue_acknowledge_average_ms": 62.988,
+    "queue_ack_spool_cleanup_average_ms": 50.585,
+    "inbound_prepare_file_average_ms": 29.773,
+    "inbound_intent_insert_average_ms": 10.694,
+    "inbound_publish_file_average_ms": 25.356,
+    "inbound_index_commit_average_ms": 11.125,
+    "inbound_publish_verify_average_ms": 0.179,
+    "inbound_intent_complete_average_ms": 9.734,
+    "inbound_projection_flush_average_ms": 11.411
+  },
+  "scheduler_trace": {
+    "command": "perf record -e sched:sched_switch -F 997 --call-graph dwarf,65528 -p 8069 -- sleep 60",
+    "original_path": "evidence/performance/smtp-rust-shard-probe-sched-switch-60s-v1.data",
+    "original_sha256": "16a9a40a12e741cd8d4b009c97c1d23f533fb53b439aa48fcc07661e5286322b",
+    "original_size_bytes": 2563013630,
+    "captured_samples": 39108,
+    "lost_chunks": 180,
+    "reported_lost_samples": 400,
+    "retained": false,
+    "retention_reason": "The 2.56GB trace lost chunks and was reduced to explicit aggregate counts before deletion.",
+    "aggregate_counts_are_not_time_weighted": true,
+    "stress_thread_schedule_out_events": 8105,
+    "stress_thread_uninterruptible_d_events": 7349,
+    "categorized_uninterruptible_d_events": {
+      "open_quarantine_directory": 653,
+      "atomic_copy": 1159,
+      "try_remove_if_still_owned": 1989,
+      "publish_temp_file": 1202,
+      "other": 2346
+    },
+    "fsync_stack_examples": [
+      "ext4_sync_file -> fsync -> open_quarantine_directory -> create_owned_temporary -> OutboundMessageBuilder::materialize",
+      "ext4_sync_file -> fsync -> atomic_copy -> OutboundMessageBuilder::materialize",
+      "ext4_sync_file -> fsync -> try_remove_if_still_owned -> OutboundMessageBuilder::materialize"
+    ]
+  },
+  "finding": {
+    "cpu_hotspot_rejected": true,
+    "dominant_wait": "ext4 journal commit waits caused by repeated durable filesystem barriers",
+    "next_falsifiable_hypothesis": "Cache only successfully fsynced quarantine directory identities in a hard-bounded process-local set, while always resyncing a newly created or replaced directory identity. This should remove repeated parent-directory fsync waits without weakening the first-publication crash invariant."
+  },
+  "cleanup": {
+    "proxy_graceful_shutdown": true,
+    "shutdown_forced_connections": 0,
+    "crash_recovery_launcher_completed": true,
+    "process_cgroup_mount_loop_and_provisional_residue": 0
+  }
+}

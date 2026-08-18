@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "profile": "rust-shard-reservation-cpu-clock-60s-v7",
+  "qualification": false,
+  "qualification_reasons": [
+    "The 500000-message endpoint invocation was intentionally interrupted after a bounded diagnostic window.",
+    "perf reported one lost chunk and one total lost sample.",
+    "A malformed external read-only summary request omitted its newline and caused one proxy observer failure."
+  ],
+  "captured_at": "2026-08-16T14:57:02+08:00",
+  "git_head": "296b6f6afb3a1bb339886b555f2f00567326efd9",
+  "dirty_tree_at_capture": true,
+  "platform": {
+    "os": "WSL2 Ubuntu",
+    "kernel": "6.6.87.2-microsoft-standard-WSL2",
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+    "power_mode": "user-reported OEM power-save mode"
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "e9d9a46c0966760882bf1109cb3e768e41a48e81cc926146dea0c366eb1ed809",
+    "build_id": "930a35d2858cbf9bc6ebe37d8d0f2daede609d2e"
+  },
+  "endpoint_window": {
+    "launcher_run_id": "d1096979-4305-47bd-8769-6340a542e685",
+    "proxy_round_run_id": "rust-candidate-10kb-arm-0-c637b7dd5ddd44a7b2570d4e6968d303",
+    "tier": "10KB",
+    "expected_messages": 500000,
+    "verified_messages_at_summary": 3301,
+    "smtp_success": 3301,
+    "smtp_transient_failure": 0,
+    "smtp_permanent_failure": 0,
+    "retry_responses": 0,
+    "proxy_failed_connections": 0,
+    "proxy_peak_connections": 8,
+    "first_accepted_monotonic_ns": 1635282486,
+    "last_accepted_monotonic_ns": 200818669454,
+    "derived_first_to_last_interval_seconds": 199.183386968,
+    "derived_messages_per_second": 16.567647,
+    "transaction_latency_ns_upper_bound": {
+      "p50": 134217728,
+      "p95": 268435456,
+      "p99": 536870912,
+      "maximum": 660437205
+    },
+    "observer_failure_count": 1,
+    "observer_failure": "benchmark control protocol failed: control request ended before newline",
+    "failure_origin": "external diagnostic summary request after perf capture",
+    "partial_window_only": true,
+    "comparison": {
+      "java_10kb_stable_window_messages_per_second": 47.223536,
+      "rust_to_java_ratio": 0.350835,
+      "java_evidence": "evidence/performance/smtp-endpoint-java-stable-window-baseline-v1.json"
+    }
+  },
+  "coordinator_observer": {
+    "source": "evidence/performance/smtp-rust-shard-reservation-observer-v2.log",
+    "source_sha256": "174284fbdb06a1613bfeaf6af49f62d65614102dde43f4ad98660a87f0854cd7",
+    "source_size_bytes": 51263,
+    "latest_sequence": 14,
+    "completed_tasks": 3584,
+    "completed_task_average_ms": 274.027464,
+    "stage_average_ms": {
+      "smtp_prepare": 89.209337,
+      "smtp_commit": 82.687053,
+      "queue_acknowledge": 51.375227,
+      "queue_ack_spool_cleanup": 42.203373,
+      "inbound_prepare_file": 23.135882,
+      "inbound_publish_file": 21.888714,
+      "inbound_index_commit": 12.940253,
+      "inbound_intent_insert": 7.806099,
+      "inbound_intent_complete": 8.568146,
+      "inbound_projection_flush": 6.770146
+    }
+  },
+  "perf": {
+    "tool": "/usr/lib/linux-tools-6.8.0-137/perf",
+    "command": "perf record -e cpu-clock:u -F 997 -g --call-graph dwarf,65528 -p 7543 -- sleep 60",
+    "data_path": "evidence/performance/smtp-rust-shard-reservation-cpu-clock-60s-v1.data",
+    "data_sha256": "d6727a488c8ce3eafc544e3851bdc9e869fb26633f9d9dd841538888b3dad0cc",
+    "data_size_bytes": 493679908,
+    "sample_duration_ms": 59991.141,
+    "processed_events": 10182,
+    "captured_samples": 7531,
+    "lost_chunks": 1,
+    "lost_samples": 1,
+    "children_hotspots": [
+      "OutboundCoordinator::process_next_inner: 24.55%",
+      "OutboundCoordinator::process_claimed: 22.33%",
+      "OutboundMessageBuilder::materialize: 21.80%",
+      "OutboundService::materialize_message: 18.54%",
+      "mail_auth DkimSigningStream::finish: 11.67%",
+      "ring RSA KeyPair::sign: 11.26%",
+      "SmtpService::deliver: 10.69%",
+      "deadpool_postgres ConfigConnectImpl::connect: 9.93%",
+      "tokio_postgres Connection::poll: 9.56%",
+      "OutboundCoordinator::deliver_domain: 9.44%",
+      "OutboundCoordinator::project_and_finalize: 8.19%",
+      "tokio_postgres Client::query_opt: 6.68%",
+      "tokio_postgres ToStatementType::into_statement: 6.53%"
+    ],
+    "self_hotspots": [
+      "ring_core bn_sqrx8x_internal: 8.35%",
+      "malloc: 2.84%",
+      "mulx4x_internal: 2.40%",
+      "cfree: 2.14%",
+      "tokio runtime worker run: 2.03%",
+      "tokio_postgres Connection::poll: 1.69%"
+    ]
+  },
+  "resource_snapshot_before_interrupt": {
+    "workload_cpu_usage_usec": 57212195,
+    "workload_cpu_user_usec": 27238993,
+    "workload_cpu_system_usec": 29973202,
+    "workload_cpu_throttled_usec": 3460,
+    "workload_memory_current_bytes": 534487040
+  },
+  "finding": {
+    "cpu_only_bottleneck_rejected": true,
+    "dominant_wall_time": "durable outbound SMTP commit, spool acknowledgement, and inbound publication barriers",
+    "evidence_boundary": "CPU children percentages identify active code paths; coordinator stage averages identify wall-clock latency and include I/O waits.",
+    "next_action": "Inspect the durable barrier sequence on the measured smtp_prepare, smtp_commit, and queue_ack_spool_cleanup paths before changing code."
+  },
+  "cleanup": {
+    "preliminary_no_profiler_run": {
+      "launcher_run_id": "18be966e-cd14-44b7-a3cf-b672ff9a7540",
+      "request": "ABORT",
+      "cleanup": "passed",
+      "lazy_unmount": 0,
+      "intent_sha256": "feb57b8b8d0b2091de58f5b5d31182f429e2e9b18f60f058607c1e253f4e53ca",
+      "done_sha256": "5c9a4247f5147359b636d16b87215ee3872801b8d4470570bf80beb391151744"
+    },
+    "profiler_run": {
+      "launcher_run_id": "d1096979-4305-47bd-8769-6340a542e685",
+      "request": "ABORT",
+      "cleanup": "passed",
+      "lazy_unmount": 0,
+      "intent_sha256": "e7b5ab0f7b81d1ac84048c94218f494d78b8b5e58f3956b62a323acbcd21ccb0",
+      "done_sha256": "f00284a28c854a5b71b7516da3567e6f29e289f55947bc810e1178e32ffa1a66"
+    },
+    "residual_application_processes": 0,
+    "residual_run_cgroups": 0,
+    "residual_quota_mounts": 0,
+    "residual_loop_devices": 0,
+    "published_formal_output": false
+  }
+}

@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "profile": "rust-staging-barrier-v20",
+  "qualification": false,
+  "qualification_reasons": [
+    "The 500000-message endpoint invocation was intentionally interrupted after a bounded diagnostic window.",
+    "The userspace staging-directory group barrier regressed the same-kernel clean sequence-2 comparison.",
+    "The experiment was rejected and its source changes were fully reverted."
+  ],
+  "captured_at": "2026-08-16T19:40:52+08:00",
+  "git_head": "296b6f6afb3a1bb339886b555f2f00567326efd9",
+  "dirty_tree_at_capture": true,
+  "platform": {
+    "os": "WSL2 Ubuntu",
+    "kernel": "6.6.87.2-microsoft-standard-WSL2",
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+    "power_mode": "user-reported OEM power-save mode"
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "8bf6ac916b614e451278d9eccc684007f4897c99ba018d60074d9b8d15d1e692",
+    "build_id": "6077c63dbc55af48e520864eb42672616f3ed121",
+    "size_bytes": 216768784,
+    "experimental_binary_only": true
+  },
+  "experiment": {
+    "hypothesis": "A generation-based staging-directory group barrier can let concurrent inbound publications share a directory fsync without weakening per-file or final-directory durability.",
+    "implementation": "An RwLock, Mutex, and Condvar coordinator serialized generations while retaining staging-file fsync, final-directory fsync, and existing publication ordering.",
+    "source_reverted": true
+  },
+  "candidate_log": {
+    "path": "evidence/performance/smtp-rust-staging-barrier-v20-rust-candidate.log",
+    "sha256": "aa1ddf452711b1d43fdc866e87cf97fcda86dbea21f488e30d12a538c3c7a37f",
+    "size_bytes": 34568,
+    "diagnostic_counts": {
+      "invalid_transition_checkpoint": 0,
+      "spool_cleanup_reconciler_unavailable": 0,
+      "task_reconciler_unavailable": 0,
+      "queue_unavailable_total": 0,
+      "stress_soft_deadline": 0,
+      "delivery_failed": 0
+    }
+  },
+  "latest_observer_window": {
+    "observer_sequence": 8,
+    "completed_tasks": 2048,
+    "completed_total_ns": 384315439965,
+    "completed_max_ns": 728406184,
+    "smtp_prepare_mean_ms": 2.770411,
+    "smtp_final_reply_mean_ms": 86.352625,
+    "inbound_prepare_file_mean_ms": 25.591761,
+    "inbound_publish_file_mean_ms": 22.771358
+  },
+  "same_kernel_sequence_2_comparison": {
+    "baseline": {
+      "evidence": "evidence/performance/smtp-rust-maildir-syscall-profiler-v19.json",
+      "observer_sequence": 2,
+      "completed_tasks": 512,
+      "inbound_prepare_file_mean_ms": 20.741461,
+      "inbound_publish_file_mean_ms": 20.511391,
+      "smtp_final_reply_mean_ms": 78.027632
+    },
+    "experiment": {
+      "observer_sequence": 2,
+      "completed_tasks": 512,
+      "inbound_prepare_file_mean_ms": 23.880895,
+      "inbound_publish_file_mean_ms": 20.881746,
+      "smtp_final_reply_mean_ms": 80.03072
+    },
+    "relative_change_percent": {
+      "inbound_prepare_file": 15.13603,
+      "inbound_publish_file": 1.805607,
+      "smtp_final_reply": 2.567153
+    },
+    "kernel_match": true,
+    "lower_is_better": true
+  },
+  "experimental_verification": {
+    "staging_barrier_coordinator_tests": {"passed": 2, "failed": 0},
+    "inbound_delivery_tests": {"passed": 12, "failed": 0},
+    "smtp_related_unit_tests": {"passed": 143, "failed": 0},
+    "outbound_smtp_protocol_integration_tests": {"passed": 17, "failed": 0},
+    "cargo_clippy_workspace_all_targets_all_features_deny_warnings": "passed",
+    "cargo_fmt_check": "passed"
+  },
+  "decision": {
+    "result": "rejected-and-reverted",
+    "evidence": "ext4 already coalesced concurrent flushes; the userspace generation barrier added head-of-line blocking and worsened all three same-kernel sequence-2 latency measures.",
+    "next_action": "Profile higher-level durable PostgreSQL and Redis state transitions; do not reintroduce the staging-directory barrier.",
+    "throughput_claim_allowed": false
+  },
+  "cleanup": {
+    "request": "SIGINT to the exact launcher after the bounded observer window",
+    "cleanup": "passed",
+    "residual_application_processes": 0,
+    "residual_run_cgroups": 0,
+    "residual_quota_mounts": 0,
+    "residual_run_directories": 0,
+    "residual_loop_devices": 0,
+    "published_raw_result": false
+  }
+}

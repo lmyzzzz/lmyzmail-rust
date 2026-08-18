@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "profile": "rust-smtp-stage-breakdown-v17",
+  "qualification": false,
+  "qualification_reasons": [
+    "The 500000-message endpoint invocation was intentionally interrupted after a bounded diagnostic window.",
+    "The observer-only SMTP substages identify wall-time concentration but do not publish a completed endpoint result.",
+    "No throughput value is derived from this interrupted window."
+  ],
+  "captured_at": "2026-08-16T18:41:15+08:00",
+  "git_head": "296b6f6afb3a1bb339886b555f2f00567326efd9",
+  "dirty_tree_at_capture": true,
+  "platform": {
+    "os": "WSL2 Ubuntu",
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+    "power_mode": "user-reported OEM power-save mode"
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "f9da044f0290cc59fdff12e29473289a7ff4f5dbe0e7c546f72a96d086a65700",
+    "build_id": "82ca6f3f95f08b93453a68c6341cda9431b25015"
+  },
+  "endpoint_window": {
+    "launcher_run_id": "f44b0aa6-053a-4764-82db-b42801465c94",
+    "launcher_pid": 30363,
+    "candidate_pid": 32735,
+    "tier": "10KB",
+    "expected_messages": 500000,
+    "latest_observer_sequence": 14,
+    "latest_observer_completed_tasks": 3584,
+    "latest_observer_completed_total_ns": 924481747534,
+    "latest_observer_completed_max_ns": 655202795,
+    "partial_window_only": true,
+    "clean_throughput_result": false,
+    "java_10kb_stable_window_messages_per_second": 47.223536,
+    "java_evidence": "evidence/performance/smtp-endpoint-java-stable-window-baseline-v1.json"
+  },
+  "candidate_log": {
+    "path": "evidence/performance/smtp-rust-smtp-stage-breakdown-v17-rust-candidate.log",
+    "sha256": "d37b70f5556072c2a51bb4ce005b761680e77c8a40a997dbc2c3708dfabde02a",
+    "size_bytes": 60400,
+    "diagnostic_counts": {
+      "invalid_transition_checkpoint": 0,
+      "spool_cleanup_reconciler_unavailable": 0,
+      "task_reconciler_unavailable": 0,
+      "queue_unavailable_total": 0,
+      "stress_soft_deadline": 0
+    }
+  },
+  "latest_stage_observation": {
+    "smtp_prepare": { "count": 3586, "mean_ms": 89.008331, "max_ms": 138.623938 },
+    "smtp_authorize": { "count": 3586, "mean_ms": 0.297670, "max_ms": 6.243601 },
+    "smtp_connect": { "count": 3586, "mean_ms": 0.090772, "max_ms": 2.690664 },
+    "smtp_greeting": { "count": 3586, "mean_ms": 0.334226, "max_ms": 14.213807 },
+    "smtp_ehlo": { "count": 3586, "mean_ms": 42.916437, "max_ms": 72.876782 },
+    "smtp_envelope": { "count": 3586, "mean_ms": 44.269014, "max_ms": 81.054761 },
+    "smtp_message_prepare": { "count": 3586, "mean_ms": 0.332779, "max_ms": 15.014646 },
+    "smtp_data_ready": { "count": 3586, "mean_ms": 0.248558, "max_ms": 8.294355 },
+    "smtp_body_write": { "count": 3586, "mean_ms": 0.499382, "max_ms": 19.871462 },
+    "smtp_commit": { "count": 3584, "mean_ms": 74.523340, "max_ms": 354.757712 },
+    "smtp_final_dot": { "count": 3586, "mean_ms": 0.016840, "max_ms": 1.764582 },
+    "smtp_final_reply": { "count": 3584, "mean_ms": 74.191069, "max_ms": 353.983363 },
+    "smtp_quit": { "count": 3584, "mean_ms": 0.263958, "max_ms": 23.209331 }
+  },
+  "verification": {
+    "coordinator_observer_unit_tests": { "passed": 2, "failed": 0 },
+    "outbound_smtp_unit_tests": { "passed": 15, "failed": 0 },
+    "outbound_smtp_protocol_integration_tests": { "passed": 17, "failed": 0 },
+    "cargo_clippy_all_targets_deny_warnings": "passed",
+    "cargo_fmt_check": "passed"
+  },
+  "decision": {
+    "result": "tcp-delayed-ack-nagle-hypothesis-selected",
+    "evidence": "EHLO, envelope, and final-reply waits dominate SMTP wall time while connect, greeting, message preparation, and body writes remain sub-millisecond on average.",
+    "next_action": "Enable TCP_NODELAY on the production inbound SMTP accepted socket and require a clean v18 arm to collapse the three reply-bound stages without correctness diagnostics.",
+    "throughput_claim_allowed": false
+  },
+  "cleanup": {
+    "request": "SIGINT to exact launcher PID 30363",
+    "cleanup": "passed",
+    "residual_application_processes": 0,
+    "residual_run_cgroups": 0,
+    "residual_quota_mounts": 0,
+    "residual_run_directories": 0,
+    "residual_loop_devices": 0,
+    "published_raw_result": false
+  }
+}

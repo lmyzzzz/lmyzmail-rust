@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "profile": "rust-durability-group-commit-profiler-v10",
+  "qualification": false,
+  "qualification_reasons": [
+    "The 500000-message endpoint invocation was intentionally interrupted after a bounded diagnostic window.",
+    "The observed long-window throughput declined from 18.84 to 15.79 msg/s and is not a valid improvement claim.",
+    "The candidate observer log was held only in the temporary launcher runtime and was removed during launcher cleanup; this record is therefore an explicit assembled diagnostic record, not a reproducible raw-log publication.",
+    "The syscall ratios and fsync tail latency did not demonstrate the proposed durability coalescing benefit."
+  ],
+  "captured_at": "2026-08-16T16:42:00+08:00",
+  "git_head": "296b6f6afb3a1bb339886b555f2f00567326efd9",
+  "dirty_tree_at_capture": true,
+  "platform": {
+    "os": "WSL2 Ubuntu",
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+    "power_mode": "user-reported OEM power-save mode"
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "1b42287dcf03717472a22299b339180b878fe006d3100f8833fc3d865bd4a2f2",
+    "build_id": "a65031d8d33f3bce16ed4d8578d1c21c3d23a57f"
+  },
+  "endpoint_window": {
+    "launcher_run_id": "a944bb6a-da9a-4f2f-9990-943fa4fc0a4f",
+    "tier": "10KB",
+    "expected_messages": 500000,
+    "verified_messages_at_last_observer_snapshot": 3840,
+    "smtp_success": 3840,
+    "smtp_transient_failure": 0,
+    "smtp_permanent_failure": 0,
+    "retry_responses": 0,
+    "observer_failure_count": 0,
+    "proxy_failed_connections": 0,
+    "partial_window_only": true,
+    "observed_windows": [
+      { "verified_messages": 1957, "messages_per_second": 18.84 },
+      { "verified_messages": 3050, "messages_per_second": 16.88 },
+      { "verified_messages": 3707, "messages_per_second": 15.79 }
+    ],
+    "comparison": {
+      "java_10kb_stable_window_messages_per_second": 47.223536,
+      "prior_rust_v9_messages_per_second": 11.57,
+      "not_a_throughput_qualification": true,
+      "java_evidence": "evidence/performance/smtp-endpoint-java-stable-window-baseline-v1.json"
+    }
+  },
+  "coordinator_observer": {
+    "source": null,
+    "source_sha256": null,
+    "source_preserved": false,
+    "latest_sequence": null,
+    "completed_tasks": 3840,
+    "average_task_ms": 284.720,
+    "stage_average_ms": {
+      "smtp_prepare": 88.962,
+      "smtp_commit": 85.167,
+      "queue_acknowledge": 59.008,
+      "queue_ack_spool_cleanup": 49.903,
+      "queue_ack_spool_durability": 27.944,
+      "queue_ack_spool_proof_cleanup": 12.422,
+      "queue_ack_spool_checkpoint": 8.224,
+      "inbound_prepare_file": 23.317,
+      "inbound_publish_file": 22.726,
+      "inbound_index_commit": 13.354
+    }
+  },
+  "syscall_trace": {
+    "command": "perf trace --syscalls -e fsync,fdatasync,unlinkat,renameat2 -p <candidate-pid> -o evidence/performance/smtp-rust-durability-group-commit-syscall-trace-v10.txt -- sleep 30",
+    "path": "evidence/performance/smtp-rust-durability-group-commit-syscall-trace-v10.txt",
+    "sha256": "439e8c4844df3cefc3c2ce68ad23e780e38b355b403af24cff02a13a65cd3b7c",
+    "size_bytes": 6629096,
+    "duration_seconds": 30,
+    "successful_fsync_samples": 19776,
+    "successful_renameat2": 6456,
+    "successful_unlinkat": 3629,
+    "fsync_to_unlink_ratio": 5.4494,
+    "fsync_to_rename_ratio": 3.0632,
+    "fsync_latency_ms": {
+      "p50": 10.092,
+      "p95": 28.243,
+      "p99": 34.316,
+      "maximum": 93.668
+    }
+  },
+  "comparison_to_v9": {
+    "v9_fsync_samples": 27213,
+    "v9_renameat2": 8873,
+    "v9_unlinkat": 4989,
+    "v9_fsync_to_unlink_ratio": 5.454,
+    "v9_fsync_to_rename_ratio": 3.066,
+    "v9_fsync_latency_ms": { "p50": 9.423, "p95": 13.429, "p99": 20.069, "maximum": 85.870 },
+    "barrier_hypothesis": "rejected_no_demonstrated_fsync_reduction"
+  },
+  "decision": {
+    "retained": false,
+    "reason": "The bounded diagnostic run had no protocol or observer failures, but its long-window rate fell and syscall counts/ratios were effectively unchanged while fsync tail latency worsened.",
+    "code_action": "Revert SpoolDurabilityCoordinator and restore the pre-experiment per-operation durability barrier.",
+    "next_focus": [
+      "smtp_commit PostgreSQL round trips and transaction waits",
+      "SMTP materialization and RSA/DKIM cost",
+      "proof cleanup fsync path",
+      "inbound publication barriers"
+    ]
+  },
+  "cleanup": {
+    "request": "SIGINT to exact launcher PID 30402",
+    "cleanup": "passed",
+    "residual_application_processes": 0,
+    "residual_run_cgroups": 0,
+    "residual_quota_mounts": 0,
+    "residual_loop_devices": 0,
+    "residual_artifacts": 0
+  }
+}

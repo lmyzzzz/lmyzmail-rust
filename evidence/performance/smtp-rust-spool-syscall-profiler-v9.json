@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "profile": "rust-spool-syscall-profiler-v9",
+  "qualification": false,
+  "qualification_reasons": [
+    "The 500000-message endpoint invocation was intentionally interrupted after a bounded diagnostic window.",
+    "This arm is syscall tracing evidence, not a completed ABBA throughput comparison."
+  ],
+  "captured_at": "2026-08-16T16:07:00+08:00",
+  "git_head": "296b6f6afb3a1bb339886b555f2f00567326efd9",
+  "dirty_tree_at_capture": true,
+  "platform": {
+    "os": "WSL2 Ubuntu",
+    "kernel": "6.8.0-137-generic",
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+    "power_mode": "user-reported OEM power-save mode"
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "4337032e5e6583756f2e6302748030aca38a3299d65f0149f70a3d910bf33456",
+    "build_id": "26a21f81b9b15bf26bc7bd54a5918363ff1fa950"
+  },
+  "endpoint_window": {
+    "launcher_run_id": "a4ed33f4-f1b2-49c6-a972-b1fda53769b9",
+    "proxy_round_run_id": "rust-candidate-10kb-arm-0-5940f14096584ded98ec745aba5d15bd",
+    "tier": "10KB",
+    "expected_messages": 500000,
+    "verified_messages_at_summary": 2676,
+    "smtp_success": 2676,
+    "smtp_transient_failure": 0,
+    "smtp_permanent_failure": 0,
+    "retry_responses": 0,
+    "observer_failure_count": 0,
+    "proxy_failed_connections": 0,
+    "proxy_peak_connections": 8,
+    "derived_first_to_last_interval_seconds": 231.305111,
+    "derived_messages_per_second": 11.570,
+    "partial_window_only": true,
+    "comparison": {
+      "java_10kb_stable_window_messages_per_second": 47.223536,
+      "rust_to_java_ratio": 0.245,
+      "java_evidence": "evidence/performance/smtp-endpoint-java-stable-window-baseline-v1.json"
+    }
+  },
+  "coordinator_observer": {
+    "source": "evidence/performance/smtp-rust-spool-syscall-profiler-v9-rust-candidate.log",
+    "source_sha256": "f6aba2a1799207e2b85d5e7485fdd9cfd66fb90423d9ae9852fc1e2250709934",
+    "latest_sequence": 11,
+    "completed_tasks": 2816,
+    "completed_task_total_ns": 971477768807,
+    "completed_task_max_ns": 993730085,
+    "stage_average_ms": {
+      "smtp_commit": 117.148,
+      "smtp_prepare": 89.281,
+      "queue_acknowledge": 73.647,
+      "queue_ack_spool_cleanup": 60.349,
+      "inbound_prepare_file": 32.578,
+      "inbound_publish_file": 32.279,
+      "queue_ack_spool_durability": 30.279,
+      "queue_ack_spool_proof_cleanup": 17.028,
+      "inbound_index_commit": 16.283,
+      "prepared_checkpoint": 14.024,
+      "result_checkpoint": 13.754,
+      "legacy_projection": 13.668,
+      "inbound_intent_complete": 12.437,
+      "queue_ack_sidecar_cleanup": 12.185,
+      "queue_ack_spool_checkpoint": 11.670,
+      "inbound_intent_insert": 11.632,
+      "database_claim": 11.554,
+      "inbound_projection_flush": 10.472
+    }
+  },
+  "syscall_trace": {
+    "command": "perf trace --syscalls -e fsync,fdatasync,unlinkat,renameat2 -p <candidate-pid> -o evidence/performance/smtp-rust-spool-syscall-trace-v1.txt -- sleep 30",
+    "path": "evidence/performance/smtp-rust-spool-syscall-trace-v1.txt",
+    "sha256": "4976d4b30c961d30f401e939208de20dee46b7f707341874f1f8fac3d80a3618",
+    "size_bytes": 9119408,
+    "duration_seconds": 30,
+    "successful_fsync_samples": 27213,
+    "successful_renameat2": 8873,
+    "successful_unlinkat": 4989,
+    "fsync_latency_ms": {
+      "p50": 9.423,
+      "p95": 13.429,
+      "p99": 20.069,
+      "maximum": 85.870,
+      "over_1ms": 27205,
+      "over_5ms": 26119,
+      "over_10ms": 10797
+    }
+  },
+  "finding": {
+    "cpu_hotspot_rejected": true,
+    "dominant_wall_time": "repeated durable filesystem barriers in outbound commit/spool cleanup and inbound Maildir publication",
+    "next_falsifiable_hypothesis": "A bounded Linux-only durability coordinator can coalesce concurrent directory barriers only when every mutation generation is covered by a completed fsync, while preserving quarantine-before-unlink, proof cleanup ordering, and crash-recovery tests."
+  },
+  "cleanup": {
+    "request": "SIGINT to exact launcher PID",
+    "cleanup": "passed",
+    "residual_application_processes": 0,
+    "residual_run_cgroups": 0,
+    "residual_quota_mounts": 0,
+    "residual_loop_devices": 0,
+    "residual_artifacts": 0
+  }
+}

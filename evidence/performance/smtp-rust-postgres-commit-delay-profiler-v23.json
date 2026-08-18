@@ -1,0 +1,182 @@
+{
+  "schema_version": 1,
+  "profile": "rust-postgres-commit-delay-profiler-v23",
+  "qualification": false,
+  "qualification_reasons": [
+    "Both 500000-message endpoint invocations were intentionally interrupted after bounded sequence-2 diagnostic windows.",
+    "PostgreSQL session commit_delay=500 microseconds regressed every targeted durable database stage and final SMTP reply latency in both fresh-state repetitions.",
+    "The experiment failed its predeclared latency retention gate and was fully reverted without an invasive follow-up syscall trace."
+  ],
+  "captured_at": "2026-08-16T21:16:06.4804756+08:00",
+  "git_head": "296b6f6afb3a1bb339886b555f2f00567326efd9",
+  "dirty_tree_at_capture": true,
+  "platform": {
+    "os": "WSL2 Ubuntu",
+    "kernel": "6.6.87.2-microsoft-standard-WSL2",
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+    "power_mode": "user-reported OEM power-save mode"
+  },
+  "experiment": {
+    "hypothesis": "A session-local 500 microsecond PostgreSQL commit delay, gated by the default commit_siblings=5, may coalesce concurrent durable commits without relaxing fsync, synchronous_commit, full_page_writes, transaction boundaries, Maildir ordering, or recovery.",
+    "implementation": "deadpool-postgres connections supplied -c commit_delay=500 through the libpq options startup parameter; all PostgreSQL durability settings remained enabled.",
+    "retention_gate": "Final SMTP reply, inbound intent insertion, index commit, intent completion, and projection flush latency must all materially and repeatably improve with zero transition, reconciler, queue, deadline, or delivery diagnostics.",
+    "source_reverted": true
+  },
+  "experimental_candidate": {
+    "release": {
+      "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+      "sha256": "dc2bb286473bcfaaef84e7e72a560a511d0fb822234488262970315aee634344",
+      "build_id": "58e3840bb5bce636600dc2aa116d13980270275f",
+      "size_bytes": 50885784
+    },
+    "profiling": {
+      "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+      "sha256": "395cfb0ec461f255ec4ecdf593f613730de79df5e3c2d99c3e33e5e72644299d",
+      "build_id": "b0657bce75cf316ce86dda301cad3c1c8448fa7d",
+      "size_bytes": 216692560
+    },
+    "experimental_binary_only": true
+  },
+  "baseline": {
+    "evidence": "evidence/performance/smtp-rust-maildir-syscall-profiler-v19.json",
+    "stage_values_from": "evidence/performance/smtp-rust-intent-roundtrip-v21.json",
+    "observer_sequence": 2,
+    "completed_tasks": 512,
+    "smtp_final_reply_mean_ms": 78.027632,
+    "inbound_intent_insert_mean_ms": 7.472641,
+    "inbound_index_commit_mean_ms": 13.315800,
+    "inbound_intent_complete_mean_ms": 8.175809,
+    "inbound_projection_flush_mean_ms": 6.260387,
+    "kernel_match": true
+  },
+  "repetitions": [
+    {
+      "label": "run-a",
+      "run_id": "606225e3-6632-48e4-ba77-99a6aa2b0295",
+      "candidate_log": {
+        "path": "evidence/performance/smtp-rust-postgres-commit-delay-profiler-v23a-rust-candidate.log",
+        "sha256": "17af5b9d0b1e00ecd9cc06564ca1b5be56494bc2a9b011dcc1bb51b994d4dff8",
+        "size_bytes": 13267,
+        "observer_records": 3,
+        "captured_before_signal": true
+      },
+      "sequence_2": {
+        "completed_tasks": 512,
+        "smtp_prepare_mean_ms": 4.523837,
+        "smtp_final_reply_mean_ms": 93.087345,
+        "inbound_prepare_file_mean_ms": 24.513274,
+        "inbound_intent_insert_mean_ms": 8.933368,
+        "inbound_publish_file_mean_ms": 23.985140,
+        "inbound_index_commit_mean_ms": 15.950484,
+        "inbound_publish_verify_mean_ms": 0.260917,
+        "inbound_intent_complete_mean_ms": 9.833784,
+        "inbound_projection_flush_mean_ms": 7.835350
+      },
+      "targeted_relative_change_percent": {
+        "smtp_final_reply": 19.300487,
+        "inbound_intent_insert": 19.547662,
+        "inbound_index_commit": 19.786152,
+        "inbound_intent_complete": 20.279036,
+        "inbound_projection_flush": 25.157596
+      },
+      "diagnostic_counts": {
+        "invalid_transition_checkpoint": 0,
+        "spool_cleanup_reconciler_unavailable": 0,
+        "task_reconciler_unavailable": 0,
+        "queue_unavailable_total": 0,
+        "stress_soft_deadline": 0,
+        "delivery_failed": 0,
+        "expected_http_broken_pipe": 1
+      },
+      "cleanup": {
+        "request": "SIGINT to exact launcher PID 16379 after candidate-log capture",
+        "cleanup": "passed",
+        "lazy_unmount": false,
+        "recovered": false,
+        "residual_application_processes": 0,
+        "residual_run_cgroups": 0,
+        "residual_quota_mounts": 0,
+        "residual_loop_devices": 0
+      }
+    },
+    {
+      "label": "run-b",
+      "run_id": "1bda2191-a7e0-44a5-906d-c1e352e665be",
+      "candidate_log": {
+        "path": "evidence/performance/smtp-rust-postgres-commit-delay-profiler-v23b-rust-candidate.log",
+        "sha256": "248441aa871a102a1d199503c09f6127aa55a4d6f53fdf891d778d73a8664ba6",
+        "size_bytes": 13274,
+        "observer_records": 3,
+        "captured_before_signal": true
+      },
+      "sequence_2": {
+        "completed_tasks": 512,
+        "smtp_prepare_mean_ms": 4.620584,
+        "smtp_final_reply_mean_ms": 91.632445,
+        "inbound_prepare_file_mean_ms": 25.402355,
+        "inbound_intent_insert_mean_ms": 9.029800,
+        "inbound_publish_file_mean_ms": 23.771512,
+        "inbound_index_commit_mean_ms": 15.205479,
+        "inbound_publish_verify_mean_ms": 0.247169,
+        "inbound_intent_complete_mean_ms": 9.260125,
+        "inbound_projection_flush_mean_ms": 7.226666
+      },
+      "targeted_relative_change_percent": {
+        "smtp_final_reply": 17.435892,
+        "inbound_intent_insert": 20.838129,
+        "inbound_index_commit": 14.191256,
+        "inbound_intent_complete": 13.262490,
+        "inbound_projection_flush": 15.434807
+      },
+      "diagnostic_counts": {
+        "invalid_transition_checkpoint": 0,
+        "spool_cleanup_reconciler_unavailable": 0,
+        "task_reconciler_unavailable": 0,
+        "queue_unavailable_total": 0,
+        "stress_soft_deadline": 0,
+        "delivery_failed": 0,
+        "expected_http_broken_pipe": 1
+      },
+      "cleanup": {
+        "request": "SIGINT to exact launcher PID 19212 after candidate-log capture",
+        "cleanup": "passed",
+        "lazy_unmount": false,
+        "recovered": false,
+        "residual_application_processes": 0,
+        "residual_run_cgroups": 0,
+        "residual_quota_mounts": 0,
+        "residual_loop_devices": 0
+      }
+    }
+  ],
+  "experimental_verification": {
+    "database_unit_tests": {"passed": 1, "failed": 0},
+    "smtp_related_unit_tests": {"passed": 141, "failed": 0},
+    "candidate_smtp_data_and_parallel_exact_count": {"passed": 2, "failed": 0},
+    "outbound_smtp_protocol_integration_tests": {"passed": 17, "failed": 0},
+    "cargo_clippy_workspace_all_targets_all_features_deny_warnings": "passed",
+    "cargo_fmt_check": "passed",
+    "git_diff_check": "passed"
+  },
+  "rollback_verification": {
+    "source_diff_removed": true,
+    "cargo_fmt_check": "passed",
+    "git_diff_check": "passed",
+    "release_binary": {
+      "sha256": "fa5e4fb0fcf1da8bcaebe3ccabf58365951748207e158e52956db1ac5dbd5462",
+      "size_bytes": 50885720
+    },
+    "profiling_binary": {
+      "sha256": "d021762f7433145f9a49003af729dc0f69450b84c43619230dabb6b812c195a6",
+      "build_id": "02b20fa938018cbdd7587906d08bcf83f0ae99de",
+      "size_bytes": 216691728,
+      "byte_identical_to_pre_experiment_baseline": true
+    }
+  },
+  "decision": {
+    "result": "rejected-and-reverted",
+    "evidence": "Both fresh-state sequence-2 windows regressed all five targeted latency stages by 13.26% to 25.16%, despite zero transition, reconciler, queue, deadline, or delivery diagnostics.",
+    "next_action": "Profile a separate durable projection-coalescing hypothesis: keep the PostgreSQL projection durable before SMTP acceptance but let the existing bounded one-second maintenance loop update Redis and acknowledge a compacted generation.",
+    "throughput_claim_allowed": false
+  }
+}

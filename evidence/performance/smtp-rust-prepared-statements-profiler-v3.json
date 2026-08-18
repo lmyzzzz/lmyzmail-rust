@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "profile": "rust-prepared-statements-cpu-clock-60s-v3",
+  "qualification": false,
+  "qualification_reason": "The endpoint run was intentionally interrupted after one bounded profiler window. The experiment did not improve throughput and was reverted; this is neither a 500000-message completion nor an ABBA result.",
+  "captured_at": "2026-08-16T04:15:26+08:00",
+  "git_head": "296b6f6afb3a1bb339886b555f2f00567326efd9",
+  "dirty_tree_at_capture": true,
+  "platform": {
+    "os": "WSL2 Ubuntu",
+    "kernel": "6.6.87.2-microsoft-standard-WSL2",
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+    "power_mode": "user-reported OEM power-save mode"
+  },
+  "hypothesis": {
+    "description": "Cache prepared statements on each deadpool-postgres physical connection for profiled outbound success-path queries without changing transactions, locks, deadlines, fencing, commit barriers, or parameters.",
+    "scope": [
+      "content_authority",
+      "ledger_snapshot",
+      "claim_with_attempt",
+      "claimed_recipient_roster",
+      "configure_transaction_deadline",
+      "lock_legacy_claim",
+      "lock_ledger_attempt",
+      "verify_roster",
+      "verify_commit_barrier_consistency",
+      "project_attempt_row"
+    ]
+  },
+  "candidate": {
+    "profiling_path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "profiling_sha256": "7df250e77681221b78e691dc9c1949c16f5d2192d8638faa297b8f264d00fba1",
+    "production_release_sha256": "a6b0447a35bf7a0ffc07f87477b0773c5126bb33adb46e3c784074c831463128",
+    "benchmark_proxy_sha256": "2c8d692d6ef088bd5000b673b9624d0b4b485a52628de0864170c6b014481de9",
+    "benchmark_runner_sha256": "60eb7f179042a808b8521074a66f5046f92555a7bede898fe5b7e8ea23d8557c",
+    "benchmark_launcher_sha256": "f929ad09915c9e0f0eef7f8d793f81c665c6bec50709a11f304273fb103b8b49"
+  },
+  "correctness_gates_before_profile": {
+    "cargo_check_all_targets": "passed",
+    "outbound_delivery_unit_tests": "9 passed",
+    "outbound_delivery_postgres_integration": "10 passed",
+    "outbound_coordinator_integration": "16 passed",
+    "clippy_all_targets_deny_warnings": "passed",
+    "vendored_c_warnings": "existing litehtml/gumbo compiler warnings only"
+  },
+  "perf": {
+    "tool": "/usr/lib/linux-tools-6.8.0-137/perf",
+    "command": "perf record -e cpu-clock:u -F 997 -g --call-graph dwarf,65528 -p 8582 -- sleep 60",
+    "data_path": "evidence/performance/smtp-rust-prepared-statements-cpu-clock-60s-v1.data",
+    "data_sha256": "3f9783ef3eebc17c5c4bffdbac80b98b0d6dc2ca77e574e57d96464675d32b76",
+    "file_size_bytes": 334671636,
+    "sample_duration_seconds": 60.018161,
+    "samples": 5102,
+    "lost_samples": 0,
+    "hotspots_children_percent": {
+      "process_next_inner": 23.68,
+      "process_claimed": 21.56,
+      "outbound_message_materialize": 21.17,
+      "outbound_service_materialize_message": 18.37,
+      "dkim_finish": 11.31,
+      "ring_rsa_sign": 11.02,
+      "postgres_connect_future": 9.74,
+      "postgres_connection_poll": 9.39,
+      "deliver_domain": 9.23,
+      "project_and_finalize": 8.19,
+      "postgres_query_opt_primary": 4.06,
+      "postgres_prepare": 3.84,
+      "statement_cache_prepare": 0.47,
+      "statement_cache_get": 0.45
+    },
+    "hotspots_self_percent": {
+      "ring_rsa_square_kernel": 8.31,
+      "malloc": 3.31,
+      "postgres_connection_poll": 1.80
+    },
+    "tostatement_observation": "The prior 6.70 percent ToStatementType::into_statement symbol was no longer reportable, but tokio_postgres prepare still accounted for 3.84 percent children and the end-to-end rate did not improve."
+  },
+  "throughput_window": {
+    "source": "proxy summary command over the control socket as its owner UID",
+    "profile": "rust-profiler, Rust target, 10KB, one original stress endpoint invocation",
+    "expected_messages": 500000,
+    "verified_messages": 1597,
+    "smtp_success": 1597,
+    "smtp_transient_failure": 0,
+    "smtp_permanent_failure": 0,
+    "retry_responses": 0,
+    "observer_failure_count": 0,
+    "first_accepted_monotonic_ns": 1286738028,
+    "last_accepted_monotonic_ns": 131399170308,
+    "measured_interval_seconds": 130.11243228,
+    "messages_per_second": 12.27400004761482,
+    "transaction_latency_ns_upper_bound": {
+      "p50": 268435456,
+      "p95": 536870912,
+      "p99": 1073741824,
+      "maximum": 1025257685
+    },
+    "proxy_peak_connections": 18,
+    "proxy_failed_connections": 0,
+    "partial_window_only": true
+  },
+  "comparison": {
+    "prior_rust_messages_per_second": 12.466483,
+    "delta_vs_prior_percent": -1.5440036487049391,
+    "java_10kb_stable_window_messages_per_second": 47.223536,
+    "rust_to_java_ratio": 0.25991276992927465,
+    "java_stable_window_evidence": "evidence/performance/smtp-endpoint-java-stable-window-baseline-v1.json"
+  },
+  "decision": {
+    "retained": false,
+    "source_reverted": true,
+    "reason": "Statement parsing CPU fell, but the single controlled window was slower and remained dominated by message materialization, RSA signing, and PostgreSQL round-trip paths. The experiment did not satisfy the multi-window improvement gate required to retain an optimization.",
+    "next_hypothesis": "Measure and reduce serialized durable PostgreSQL round trips in the successful coordinator path while preserving the existing transaction, fencing, crash, and commit-barrier contracts."
+  },
+  "cleanup": {
+    "processes_and_per_run_cgroups_clean": true,
+    "mounts_and_loop_devices_clean": true,
+    "unqualified_launcher_output_not_published": true
+  }
+}

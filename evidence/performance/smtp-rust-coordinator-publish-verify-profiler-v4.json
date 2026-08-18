@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "profile": "rust-coordinator-publish-verify-two-window-v4",
+  "qualification": false,
+  "qualification_reason": "Both endpoint runs were intentionally interrupted after bounded profiler windows. They are neither 500000-message completions nor ABBA results, and the measured end-to-end rate did not improve.",
+  "assembled_at": "2026-08-16T10:36:47+08:00",
+  "git_head": "296b6f6afb3a1bb339886b555f2f00567326efd9",
+  "dirty_tree_at_capture": true,
+  "platform": {
+    "os": "WSL2 Ubuntu",
+    "kernel": "6.6.87.2-microsoft-standard-WSL2",
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+    "power_mode": "user-reported OEM power-save mode"
+  },
+  "hypothesis": {
+    "description": "After PostgreSQL commits the inbound index, verify the already-durable Maildir publication identity and staging-name absence without repeating both directory fsync barriers.",
+    "preserved_checks": [
+      "final file device and inode",
+      "final file regular-file type and single-link ownership",
+      "final file size and SHA-256",
+      "staging temporary name absence",
+      "initial publication and recovery replay directory fsync barriers"
+    ]
+  },
+  "candidate": {
+    "profiling_path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "profiling_sha256": "e247bf8b9325ce7971ab3c10657cc21ab443deb9ceb93d0d447c4ed862d1fada",
+    "build_id": "4e4688248f2bc70fea3f51155f03bdebfbae51e3",
+    "benchmark_proxy_source_sha256": "3bcf9a76619604d509e269f20efa842336c8d6ec6d7d9d00d069a0c03239a314",
+    "benchmark_runner_sha256": "eab26b5ca3c556ae0d0bdece1f932f6a19ed053b999fb467b991536babb4b3bc",
+    "benchmark_launcher_sha256": "f929ad09915c9e0f0eef7f8d793f81c665c6bec50709a11f304273fb103b8b49"
+  },
+  "correctness_gates_before_profile": {
+    "inbound_delivery_unit_tests": "8 passed",
+    "smtp_unit_tests": "31 passed",
+    "outbound_coordinator_integration": "16 passed",
+    "outbound_delivery_postgres_integration": "10 passed",
+    "cargo_check_all_targets": "passed",
+    "clippy_all_targets_deny_warnings": "passed",
+    "vendored_c_warnings": "existing litehtml/gumbo compiler warnings only"
+  },
+  "windows": [
+    {
+      "run_id": "7f1dbdd7-7054-46c1-9825-66bc269abdfd",
+      "captured_at": "2026-08-16T06:24:34+08:00",
+      "perf": {
+        "command": "/usr/lib/linux-tools-6.8.0-137/perf record -F 997 -e cpu-clock:u --call-graph dwarf,65528 -p 1890 -o evidence/performance/smtp-rust-coordinator-verify-cpu-clock-60s-v1.data -- sleep 60",
+        "data_path": "evidence/performance/smtp-rust-coordinator-verify-cpu-clock-60s-v1.data",
+        "data_sha256": "dec80a4241ce07f700fa8a19d6c6800e449aeebb1ffcad5e86b120caec9c01b2",
+        "file_size_bytes": 379117104,
+        "sample_duration_seconds": 59.980889,
+        "samples": 5783,
+        "lost_samples": 0
+      },
+      "observer": {
+        "completed_tasks_at_snapshot": 7173,
+        "inbound_publish_verify_average_ms": 0.118,
+        "inbound_publish_file_average_ms": 13.79
+      },
+      "throughput_window": null
+    },
+    {
+      "run_id": "e286ecb3-3ebd-4fe8-88af-6a48ccd10df4",
+      "captured_at": "2026-08-16T10:26:47+08:00",
+      "perf": {
+        "command": "/usr/lib/linux-tools-6.8.0-137/perf record -F 997 -e cpu-clock:u --call-graph dwarf,65528 -p 23678 -o evidence/performance/smtp-rust-coordinator-verify-cpu-clock-60s-v2.data -- sleep 60",
+        "data_path": "evidence/performance/smtp-rust-coordinator-verify-cpu-clock-60s-v2.data",
+        "data_sha256": "3e755cef0fcf75ba5bca40d7f68be9ccc57c38e6f45bdca5f4631611b6227c3d",
+        "file_size_bytes": 367310720,
+        "sample_duration_seconds": 60.018819,
+        "samples": 5600
+      },
+      "observer": {
+        "completed_tasks_at_snapshot": 1537,
+        "inbound_publish_verify_average_ms": 0.133,
+        "inbound_publish_file_average_ms": 18.11,
+        "queue_ack_spool_cleanup_average_ms": 45.85
+      },
+      "throughput_window": {
+        "source": "two passive-proxy summaries bracketing the profiler window",
+        "verified_messages_before": 109,
+        "verified_messages_after": 1021,
+        "accepted_monotonic_seconds_before": 22.147353516,
+        "accepted_monotonic_seconds_after": 106.994696128,
+        "verified_messages_delta": 912,
+        "measured_interval_seconds": 84.847342612,
+        "messages_per_second": 10.749,
+        "smtp_failures": 0,
+        "retries": 0,
+        "observer_failures": 0,
+        "proxy_peak_connections": 5,
+        "transaction_latency_ms_upper_bound": {
+          "p50": 268,
+          "p95": 536,
+          "p99": 536,
+          "maximum": 650.338
+        },
+        "partial_window_only": true
+      }
+    }
+  ],
+  "comparison": {
+    "prior_inbound_publish_verify_average_ms": 13.81,
+    "new_inbound_publish_verify_range_ms": [
+      0.118,
+      0.133
+    ],
+    "prior_rust_messages_per_second": 12.466483,
+    "second_window_messages_per_second": 10.749,
+    "overall_throughput_improved": false
+  },
+  "decision": {
+    "retained": true,
+    "reason": "The change removes a demonstrably repeated durability barrier while preserving identity, digest, link-count, size, and staging-residue checks. Two observer windows reproduce the local-stage reduction and all correctness gates pass.",
+    "performance_claim": "Local inbound verification latency improved; no end-to-end throughput improvement is claimed.",
+    "next_hypothesis": "Decompose queue_ack_spool_cleanup and remove only directory durability work proven redundant under the spool publication and deletion crash-ordering contract."
+  },
+  "cleanup": {
+    "run_1": "recovered by launcher request=RECOVERY; cleanup passed; no benchmark process, cgroup, mount, or loop residue",
+    "run_2": "recovered by launcher request=RECOVERY; cleanup passed; no benchmark process, cgroup, mount, or loop residue",
+    "unqualified_launcher_outputs_published": false
+  }
+}

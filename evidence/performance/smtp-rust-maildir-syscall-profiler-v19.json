@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "profile": "rust-maildir-syscall-profiler-v19",
+  "qualification": false,
+  "qualification_reasons": [
+    "The 500000-message endpoint invocation was intentionally interrupted after a bounded diagnostic window.",
+    "strace attached to the live candidate for 30 seconds and materially perturbed the later observer window.",
+    "The traced window logged one outbound spool ownership or cleanup delivery failure, so it is diagnostic only and cannot qualify throughput."
+  ],
+  "captured_at": "2026-08-16T19:16:41+08:00",
+  "git_head": "296b6f6afb3a1bb339886b555f2f00567326efd9",
+  "dirty_tree_at_capture": true,
+  "platform": {
+    "os": "WSL2 Ubuntu",
+    "kernel": "6.6.87.2-microsoft-standard-WSL2",
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+    "power_mode": "user-reported OEM power-save mode"
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "d021762f7433145f9a49003af729dc0f69450b84c43619230dabb6b812c195a6",
+    "build_id": "02b20fa938018cbdd7587906d08bcf83f0ae99de",
+    "size_bytes": 216691728,
+    "identity_evidence": "The unchanged retained v18 profiling binary recorded in smtp-rust-tcp-nodelay-stage-breakdown-v18.json."
+  },
+  "trace": {
+    "path": "evidence/performance/smtp-rust-maildir-syscall-trace-v19.txt",
+    "sha256": "fab1b3277a6a51862e99f3bb2fa6a3a4d06f3462b138ede10011d8fabdf1928c",
+    "size_bytes": 54840498,
+    "tool": "strace 6.8",
+    "attach_pid": 6602,
+    "duration_seconds": 30,
+    "options": ["-f", "-ttt", "-T", "-yy"],
+    "syscalls": ["fsync", "renameat2", "openat", "openat2", "read", "write", "lseek", "close"],
+    "parsed_completed_syscalls": 148466,
+    "unfinished_at_trace_end": 5
+  },
+  "candidate_log": {
+    "path": "evidence/performance/smtp-rust-maildir-syscall-profiler-v19-rust-candidate.log",
+    "sha256": "eaf6a55c78cdb8f92009e8d98483a7d79aa366e77a6b31ffeaac84841f104d6d",
+    "size_bytes": 39283,
+    "diagnostic_counts": {
+      "invalid_transition_checkpoint": 0,
+      "spool_cleanup_reconciler_unavailable": 0,
+      "task_reconciler_unavailable": 0,
+      "queue_unavailable_total": 0,
+      "stress_soft_deadline": 0,
+      "delivery_failed": 1
+    }
+  },
+  "clean_pre_trace_window": {
+    "observer_sequence": 2,
+    "completed_tasks": 512,
+    "completed_total_ns": 90251989885,
+    "completed_max_ns": 625171036,
+    "smtp_prepare_mean_ms": 3.157836,
+    "smtp_final_reply_mean_ms": 78.027632,
+    "inbound_prepare_file_mean_ms": 20.741461,
+    "inbound_publish_file_mean_ms": 20.511391,
+    "later_traced_observations_excluded_from_comparison": true
+  },
+  "syscall_latency": {
+    "inbound_staging_file_fsync": {"count": 521, "mean_ms": 9.492823, "p50_ms": 8.992, "p95_ms": 13.96, "max_ms": 35.654},
+    "inbound_staging_directory_fsync": {
+      "count": 1039,
+      "mean_ms": 8.077971,
+      "p50_ms": 8.069,
+      "p95_ms": 13.185,
+      "max_ms": 55.184,
+      "meaning": "Two staging-directory durability barriers per normally completed inbound publication."
+    },
+    "inbound_final_maildir_directory_fsync": {"count": 518, "mean_ms": 7.721793, "p50_ms": 7.3465, "p95_ms": 12.035, "max_ms": 28.826},
+    "inbound_renameat2": {"count": 518, "mean_ms": 0.157461, "p50_ms": 0.108, "p95_ms": 0.331, "max_ms": 4.061},
+    "all_renameat2": {"count": 8333, "mean_ms": 0.268606, "p50_ms": 0.126, "p95_ms": 0.97, "max_ms": 11.573},
+    "inbound_staging_write": {"count": 521, "mean_ms": 0.168238, "p50_ms": 0.098, "p95_ms": 0.33, "max_ms": 8.402},
+    "inbound_final_file_read": {"count": 2078, "mean_ms": 0.099676, "p50_ms": 0.06, "p95_ms": 0.188, "max_ms": 9.714}
+  },
+  "decision": {
+    "result": "four-maildir-durability-barriers-confirmed",
+    "evidence": "The staging file fsync, two staging-directory fsyncs, and final Maildir directory fsync dominate each 10KB inbound publication; rename, write, and cached reread costs are minor.",
+    "safety_constraint": "Do not remove or weaken a Maildir durability barrier without crash-cutpoint and restart-recovery evidence.",
+    "next_action": "Falsify a userspace staging-directory group barrier while retaining file fsync, final-directory fsync, publication ordering, and recovery semantics.",
+    "throughput_claim_allowed": false
+  },
+  "cleanup": {
+    "request": "SIGINT to the exact launcher after trace collection",
+    "cleanup": "passed",
+    "residual_application_processes": 0,
+    "residual_run_cgroups": 0,
+    "residual_quota_mounts": 0,
+    "residual_run_directories": 0,
+    "residual_loop_devices": 0,
+    "published_raw_result": false
+  }
+}

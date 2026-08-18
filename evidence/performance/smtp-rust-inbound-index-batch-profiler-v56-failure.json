@@ -1,0 +1,41 @@
+{
+  "schema": "lmyzmail.smtp-inbound-index-batch-profiler.failure.v1",
+  "run_id": null,
+  "profile": "rust-profiler",
+  "tier": "10KB",
+  "requested_messages": 8192,
+  "filesystem_fsync": "off",
+  "postgres_fsync": "on",
+  "formal_benchmark": false,
+  "qualification": false,
+  "throughput_claim": false,
+  "measurement": "invalid-stale-binary-window",
+  "candidate_provenance": {
+    "binary_mtime": "2026-08-17T22:51:00+08:00",
+    "batch_source_mtime": "2026-08-17T23:31:00+08:00",
+    "valid": false,
+    "failure": "The profiling binary predated the inbound-index batch implementation."
+  },
+  "load_window": {
+    "accepted_messages": 8192,
+    "failed_messages": 0,
+    "missing_messages": 0,
+    "messages_per_second": 73.68,
+    "inbound_index_count_state_seconds": 4230.76
+  },
+  "failure": {
+    "mechanisms": [
+      "The candidate binary did not contain the source under test.",
+      "The Maildir observer reported an inotify kernel queue overflow.",
+      "PostgreSQL database_xact_rollback reached 14 and violated the strict cleanup gate."
+    ],
+    "provisional_artifact": "not published",
+    "raw_terminal_record": "not persisted"
+  },
+  "cleanup": {
+    "request": "ABORT",
+    "cleanup": "passed",
+    "lazy_unmount": 0,
+    "residual_process_mount_loop_cgroup": false
+  }
+}

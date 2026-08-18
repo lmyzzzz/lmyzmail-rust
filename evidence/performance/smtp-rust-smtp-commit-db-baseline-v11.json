@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "profile": "rust-smtp-commit-db-baseline-v11",
+  "qualification": false,
+  "qualification_reasons": [
+    "The 500000-message endpoint invocation was intentionally interrupted after a bounded profiler window.",
+    "The candidate log contains 11 outbound spool cleanup checkpoint failures and 2 outbound queue unavailable diagnostics.",
+    "No clean endpoint throughput result was published from this arm; it is a failure/CPU diagnostic capture only."
+  ],
+  "captured_at": "2026-08-16T17:12:00+08:00",
+  "git_head": "296b6f6afb3a1bb339886b555f2f00567326efd9",
+  "dirty_tree_at_capture": true,
+  "platform": {
+    "os": "WSL2 Ubuntu",
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+    "power_mode": "user-reported OEM power-save mode"
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "560c056bc43cc3aeaced8f29911c0ac746db044f52aaf3bf84bcff0165fd8a95",
+    "build_id": "865a27b16c2fab148d6d28ad0dad97186e3a0d17"
+  },
+  "endpoint_window": {
+    "launcher_run_id": "c0348b99-2c89-475e-9d6a-e07261b0efd0",
+    "tier": "10KB",
+    "expected_messages": 500000,
+    "latest_observer_completed_tasks": 1792,
+    "partial_window_only": true,
+    "smtp_success": null,
+    "retry_responses": null,
+    "observer_failure_count": null,
+    "proxy_failed_connections": null,
+    "clean_throughput_result": false,
+    "java_10kb_stable_window_messages_per_second": 47.223536,
+    "java_evidence": "evidence/performance/smtp-endpoint-java-stable-window-baseline-v1.json"
+  },
+  "coordinator_observer": {
+    "source": "evidence/performance/smtp-rust-smtp-commit-db-baseline-v11-rust-candidate.log",
+    "source_sha256": "25aa25542aea3b19a81fd0d9163cfeac0e44a17e10ca169deb966b7124fab89f",
+    "source_size_bytes": 25606,
+    "latest_sequence": 7,
+    "latest_completed_tasks": 1792,
+    "latest_completed_total_ns": 444103783049,
+    "stage_totals_latest": {
+      "smtp_prepare": { "count": 1795, "total_ns": 159968775022 },
+      "smtp_commit": { "count": 1792, "total_ns": 123980248318 },
+      "prepared_checkpoint": { "count": 1795, "total_ns": 17588031080 },
+      "result_checkpoint": { "count": 1792, "total_ns": 15643737363 },
+      "queue_acknowledge": { "count": 1792, "total_ns": 78771178488 },
+      "queue_ack_spool_cleanup": { "count": 1792, "total_ns": 64603016834 },
+      "queue_ack_spool_durability": { "count": 1792, "total_ns": 31161815674 },
+      "queue_ack_spool_proof_cleanup": { "count": 1792, "total_ns": 18504047772 },
+      "queue_ack_spool_checkpoint": { "count": 1811, "total_ns": 12600093100 },
+      "inbound_prepare_file": { "count": 1795, "total_ns": 34474762783 },
+      "inbound_publish_file": { "count": 1794, "total_ns": 33012737223 },
+      "inbound_index_commit": { "count": 1794, "total_ns": 19931516316 }
+    },
+    "diagnostic_counts": {
+      "outbound_spool_cleanup_checkpoint_failed": 11,
+      "outbound_queue_unavailable": 2,
+      "critical_failure_lines": 0,
+      "stress_enqueue_failed_lines": 0
+    }
+  },
+  "perf": {
+    "command": "/usr/lib/linux-tools-6.8.0-137/perf record -e cpu-clock:u -F 997 -g --call-graph dwarf,65528 -p <candidate-pid> -o evidence/performance/smtp-rust-smtp-commit-db-cpu-clock-v11.data -- sleep 60",
+    "data_path": "evidence/performance/smtp-rust-smtp-commit-db-cpu-clock-v11.data",
+    "data_sha256": "769143f708b61bd4c95ca9400ced9daa9b6d472cecb74c8208317de3a1a128ce",
+    "data_size_bytes": 527335044,
+    "samples": 8044,
+    "lost_samples": 0,
+    "sample_duration_seconds": 60,
+    "top_flat_symbols_percent": {
+      "ring_core_0_17_14__bn_sqrx8x_internal": 8.32,
+      "malloc": 3.06,
+      "mulx4x_internal": 2.61,
+      "tokio_runtime_multi_thread_worker_run": 2.36,
+      "tokio_postgres_connection_poll": 1.65,
+      "ring_digest_context_update": 1.36,
+      "sha2_sha256_x86_compress": 1.32,
+      "syscall": 1.27,
+      "epoll_wait": 1.22
+    },
+    "interpretation": "CPU sampling shows RSA/DKIM and allocation cost, but this arm is invalid for end-to-end throughput because spool checkpoint and queue availability errors occurred."
+  },
+  "decision": {
+    "retained": false,
+    "next_action": "Investigate and reproduce the spool cleanup checkpoint failure before any throughput optimization; then isolate smtp_commit database waits from RSA/DKIM materialization with a clean window.",
+    "no_code_change_from_profiler": true
+  },
+  "cleanup": {
+    "request": "SIGINT to exact launcher PID 4302",
+    "cleanup": "passed",
+    "residual_application_processes": 0,
+    "residual_run_cgroups": 0,
+    "residual_quota_mounts": 0,
+    "residual_loop_devices": 0,
+    "residual_artifacts": 0
+  }
+}

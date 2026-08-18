@@ -1,0 +1,62 @@
+{
+  "schema": "lmyzmail.smtp-inbound-index-batch-profiler.failure.v1",
+  "run_id": "740c53b1-f489-487d-8e51-a6d109e7bacd",
+  "profile": "rust-profiler",
+  "tier": "10KB",
+  "requested_messages": 8192,
+  "filesystem_fsync": "off",
+  "postgres_fsync": "on",
+  "formal_benchmark": false,
+  "qualification": false,
+  "throughput_claim": false,
+  "measurement": "diagnostic-load-window-only",
+  "candidate_binary": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "built_at": "2026-08-18T00:51:06+08:00",
+    "sha256": "71ce12129d59bf92fa2b7e9312204eeff6dc22952f729e48da51d226fa5da14d"
+  },
+  "load_window": {
+    "accepted_messages": 8192,
+    "failed_messages": 0,
+    "missing_messages": 0,
+    "elapsed_seconds": 74.257,
+    "messages_per_second": 110.32,
+    "queueing_seconds": 35.934,
+    "delivery_seconds": 38.323,
+    "inbound_index_batch_transactions": 1114,
+    "mean_messages_per_index_batch": 7.35,
+    "mailbox_folder_count_updates": 2228,
+    "mailbox_folder_count_update_seconds": 9.845,
+    "inbound_index_commit_seconds": 723.842
+  },
+  "final_state": {
+    "email_index_rows": 0,
+    "outbound_mail_queue_sent": 8192,
+    "delivery_recipients_delivered": 8192,
+    "delivery_attempts_projected": 8192,
+    "outbound_spool_rows": 0,
+    "outbound_dsn_rows": 0,
+    "completed_audit_rows": 24576,
+    "transient_residual_rows": 0,
+    "email_index_inserts": 16384,
+    "email_index_deletes": 16384,
+    "database_xact_rollback": 57,
+    "sender_maildir_files": 0,
+    "receiver_maildir_files": 0,
+    "outbound_spool_files": 0
+  },
+  "failure": {
+    "mechanism": "The 30-minute automatic-cleanup gate timed out because PostgreSQL xact_rollback was nonzero even though transient database, Maildir, and spool state converged.",
+    "exception": "TimeoutError: stress automatic cleanup did not finish",
+    "provisional_artifact": "not published",
+    "root_receipt": "not emitted because the runner produced no qualifying artifact"
+  },
+  "post_exit_audit": {
+    "captured_at": "2026-08-18T01:24:00+08:00",
+    "run_processes_present": false,
+    "run_mounts_present": false,
+    "run_cgroup_present": false,
+    "run_directory_present": false,
+    "git_diff_check_passed": true
+  }
+}

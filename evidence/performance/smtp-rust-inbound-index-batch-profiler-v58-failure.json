@@ -1,0 +1,49 @@
+{
+  "schema": "lmyzmail.smtp-inbound-index-batch-profiler.failure.v1",
+  "run_id": "349785cc-8112-4899-a882-19f82d35a42f",
+  "profile": "rust-profiler",
+  "tier": "10KB",
+  "requested_messages": 8192,
+  "filesystem_fsync": "off",
+  "postgres_fsync": "on",
+  "formal_benchmark": false,
+  "qualification": false,
+  "throughput_claim": false,
+  "measurement": "diagnostic-load-window-only",
+  "candidate_binary": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "built_at": "2026-08-18T01:35:18+08:00",
+    "sha256": "e4767471b93747d156033a8dea603f40d314281f2166b16cc624c018f00ad9e5"
+  },
+  "load_window": {
+    "accepted_messages": 8192,
+    "failed_messages": 0,
+    "missing_messages": 0,
+    "elapsed_seconds": 74.834,
+    "messages_per_second": 109.47,
+    "queueing_seconds": 36.499,
+    "delivery_seconds": 38.335,
+    "inbound_index_batch_transactions": 1098,
+    "mean_messages_per_index_batch": 7.46,
+    "mailbox_folder_count_update_seconds": 9.429
+  },
+  "final_state": {
+    "email_index_rows": 0,
+    "database_xact_rollback": 59,
+    "business_state_converged": true
+  },
+  "failure": {
+    "mechanism": "Read-only inbound intent reconciliation and tracked-staging cleanup explicitly rolled back their advisory-lock transactions, increasing pg_stat_database.xact_rollback and violating the strict zero-rollback publication gate.",
+    "action": "The runner was stopped through the launcher SIGINT trap after the monotonic rollback counter made qualification impossible.",
+    "provisional_artifact": "not published",
+    "root_receipt": "/var/lib/lmyzmail-benchmark/journal/349785cc-8112-4899-a882-19f82d35a42f.done"
+  },
+  "recovery": {
+    "request": "RECOVERY",
+    "cleanup": "passed",
+    "lazy_unmount": 0,
+    "recovered": 1,
+    "qualified_cleanup": 0,
+    "residual_process_mount_loop_cgroup_run_directory": false
+  }
+}
