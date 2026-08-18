@@ -1232,6 +1232,27 @@ class RustProxyLifecycleTests(unittest.TestCase):
 
 
 class PlanAndComparisonTests(unittest.TestCase):
+    def test_profiler_stage_selection_targets_result_checkpoint_transaction(
+        self,
+    ) -> None:
+        expected = (
+            "result_checkpoint_pool",
+            "result_checkpoint_begin",
+            "result_checkpoint_deadline",
+            "result_checkpoint_legacy_lock",
+            "result_checkpoint_attempt_lock",
+            "result_checkpoint_recipient_update",
+            "result_checkpoint_attempt_update",
+            "result_checkpoint_commit",
+        )
+        selected = runner.COORDINATOR_SELECTED_DIAGNOSTIC_STAGES
+        self.assertEqual(selected[-len(expected) :], expected)
+        self.assertEqual(
+            len(selected),
+            runner.MAXIMUM_COORDINATOR_SELECTED_DIAGNOSTIC_STAGES,
+        )
+        self.assertEqual(len(set(selected)), len(selected))
+
     def test_cli_replacements_remove_prior_values_without_duplicates(self) -> None:
         arguments = [
             "java",

@@ -113,14 +113,14 @@ COORDINATOR_SELECTED_DIAGNOSTIC_STAGES = (
     "result_checkpoint_mutation",
     "legacy_projection",
     "queue_acknowledge",
-    "queue_ack_spool_cleanup",
-    "queue_ack_spool_snapshot",
-    "queue_ack_spool_proof_validation",
-    "queue_ack_spool_sent_compare",
-    "queue_ack_spool_mutation",
-    "queue_ack_spool_durability",
-    "queue_ack_spool_proof_cleanup",
-    "queue_ack_spool_checkpoint",
+    "result_checkpoint_pool",
+    "result_checkpoint_begin",
+    "result_checkpoint_deadline",
+    "result_checkpoint_legacy_lock",
+    "result_checkpoint_attempt_lock",
+    "result_checkpoint_recipient_update",
+    "result_checkpoint_attempt_update",
+    "result_checkpoint_commit",
 )
 MAXIMUM_PROXY_PROGRESS_SAMPLES = 20_000
 MAXIMUM_RESOURCE_SAMPLES = 10_000

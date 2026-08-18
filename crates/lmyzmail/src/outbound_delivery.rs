@@ -15,6 +15,7 @@ use sha2::{Digest, Sha256};
 use tokio::time::{Instant, timeout_at};
 use tokio_postgres::{CancelToken, NoTls};
 
+use crate::coordinator_observer::{CoordinatorStage, StageTimer};
 use crate::outbound_dsn::{DsnEligibility, DsnRecipientSnapshot, normalize_reply_address};
 
 const DATABASE_TIMEOUT: Duration = Duration::from_secs(8);
@@ -2229,53 +2230,77 @@ impl PostgresDeliveryState {
         let state = status.ledger_state().database_value();
         let smtp_code = i32::from(smtp_code);
         let deadline = Instant::now() + self.operation_timeout;
-        let mut client = self.client(deadline).await?;
+        let mut client = {
+            let _timer = StageTimer::start(CoordinatorStage::ResultCheckpointPool);
+            self.client(deadline).await?
+        };
         let cancel_token = client.cancel_token();
         ledger_mutation(deadline, cancel_token, async {
-            let transaction = client.transaction().await?;
-            configure_transaction_deadline(&transaction, deadline).await?;
-            lock_legacy_claim(&transaction, claim).await?;
-            let attempt = lock_ledger_attempt(&transaction, claim).await?;
+            let transaction = {
+                let _timer = StageTimer::start(CoordinatorStage::ResultCheckpointBegin);
+                client.transaction().await?
+            };
+            {
+                let _timer = StageTimer::start(CoordinatorStage::ResultCheckpointDeadline);
+                configure_transaction_deadline(&transaction, deadline).await?;
+            }
+            {
+                let _timer = StageTimer::start(CoordinatorStage::ResultCheckpointLegacyLock);
+                lock_legacy_claim(&transaction, claim).await?;
+            }
+            let attempt = {
+                let _timer = StageTimer::start(CoordinatorStage::ResultCheckpointAttemptLock);
+                lock_ledger_attempt(&transaction, claim).await?
+            };
             if attempt.1 != "COMMIT_ARMED" {
                 return Err(DeliveryStateError::InvalidTransition(
                     "delivery attempt is not commit-armed",
                 )
                 .into());
             }
-            let updated = transaction
-                .execute(
-                    "UPDATE lmyzmail_outbound_delivery_recipient
+            let updated = {
+                let _timer = StageTimer::start(CoordinatorStage::ResultCheckpointRecipientUpdate);
+                transaction
+                    .execute(
+                        "UPDATE lmyzmail_outbound_delivery_recipient
                      SET state=$2,attempt_generation=$3,smtp_code=$4,detail=$5,updated_at=$6
                      WHERE task_id=$1 AND state='COMMIT_ARMED'",
-                    &[
-                        &claim.task_id,
-                        &state,
-                        &attempt.0,
-                        &smtp_code,
-                        &detail,
-                        &now,
-                    ],
-                )
-                .await?;
+                        &[
+                            &claim.task_id,
+                            &state,
+                            &attempt.0,
+                            &smtp_code,
+                            &detail,
+                            &now,
+                        ],
+                    )
+                    .await?
+            };
             if updated == 0 {
                 return Err(DeliveryStateError::InvalidTransition(
                     "commit-armed attempt has no armed recipients",
                 )
                 .into());
             }
-            let attempt_updated = transaction
-                .execute(
-                    "UPDATE lmyzmail_outbound_delivery_attempt
+            let attempt_updated = {
+                let _timer = StageTimer::start(CoordinatorStage::ResultCheckpointAttemptUpdate);
+                transaction
+                    .execute(
+                        "UPDATE lmyzmail_outbound_delivery_attempt
                      SET phase='PREPARING',updated_at=$3
                      WHERE task_id=$1 AND owner_token=$2 AND generation=$4
                        AND phase='COMMIT_ARMED'",
-                    &[&claim.task_id, &claim.owner_token, &now, &claim.generation],
-                )
-                .await?;
+                        &[&claim.task_id, &claim.owner_token, &now, &claim.generation],
+                    )
+                    .await?
+            };
             if attempt_updated != 1 {
                 return Err(DeliveryStateError::Fenced.into());
             }
-            transaction.commit().await?;
+            {
+                let _timer = StageTimer::start(CoordinatorStage::ResultCheckpointCommit);
+                transaction.commit().await?;
+            }
             Ok(updated as usize)
         })
         .await

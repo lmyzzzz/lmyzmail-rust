@@ -42,6 +42,14 @@ pub(crate) enum CoordinatorStage {
     ResultCheckpoint,
     ResultCheckpointSnapshot,
     ResultCheckpointMutation,
+    ResultCheckpointPool,
+    ResultCheckpointBegin,
+    ResultCheckpointDeadline,
+    ResultCheckpointLegacyLock,
+    ResultCheckpointAttemptLock,
+    ResultCheckpointRecipientUpdate,
+    ResultCheckpointAttemptUpdate,
+    ResultCheckpointCommit,
     DomainLedgerRefresh,
     ProjectionLedgerRead,
     LegacyProjection,
@@ -89,7 +97,7 @@ pub(crate) enum CoordinatorStage {
 }
 
 impl CoordinatorStage {
-    const ALL: [Self; 71] = [
+    const ALL: [Self; 79] = [
         Self::QueueClaim,
         Self::DatabaseClaim,
         Self::RecipientRoster,
@@ -117,6 +125,14 @@ impl CoordinatorStage {
         Self::ResultCheckpoint,
         Self::ResultCheckpointSnapshot,
         Self::ResultCheckpointMutation,
+        Self::ResultCheckpointPool,
+        Self::ResultCheckpointBegin,
+        Self::ResultCheckpointDeadline,
+        Self::ResultCheckpointLegacyLock,
+        Self::ResultCheckpointAttemptLock,
+        Self::ResultCheckpointRecipientUpdate,
+        Self::ResultCheckpointAttemptUpdate,
+        Self::ResultCheckpointCommit,
         Self::DomainLedgerRefresh,
         Self::ProjectionLedgerRead,
         Self::LegacyProjection,
@@ -192,6 +208,14 @@ impl CoordinatorStage {
             Self::ResultCheckpoint => "result_checkpoint",
             Self::ResultCheckpointSnapshot => "result_checkpoint_snapshot",
             Self::ResultCheckpointMutation => "result_checkpoint_mutation",
+            Self::ResultCheckpointPool => "result_checkpoint_pool",
+            Self::ResultCheckpointBegin => "result_checkpoint_begin",
+            Self::ResultCheckpointDeadline => "result_checkpoint_deadline",
+            Self::ResultCheckpointLegacyLock => "result_checkpoint_legacy_lock",
+            Self::ResultCheckpointAttemptLock => "result_checkpoint_attempt_lock",
+            Self::ResultCheckpointRecipientUpdate => "result_checkpoint_recipient_update",
+            Self::ResultCheckpointAttemptUpdate => "result_checkpoint_attempt_update",
+            Self::ResultCheckpointCommit => "result_checkpoint_commit",
             Self::DomainLedgerRefresh => "domain_ledger_refresh",
             Self::ProjectionLedgerRead => "projection_ledger_read",
             Self::LegacyProjection => "legacy_projection",
@@ -409,6 +433,34 @@ mod tests {
             .map(CoordinatorStage::name)
             .collect::<HashSet<_>>();
         assert_eq!(names.len(), CoordinatorStage::ALL.len());
+    }
+
+    #[test]
+    fn result_checkpoint_stage_names_are_stable() {
+        let names = [
+            CoordinatorStage::ResultCheckpointPool,
+            CoordinatorStage::ResultCheckpointBegin,
+            CoordinatorStage::ResultCheckpointDeadline,
+            CoordinatorStage::ResultCheckpointLegacyLock,
+            CoordinatorStage::ResultCheckpointAttemptLock,
+            CoordinatorStage::ResultCheckpointRecipientUpdate,
+            CoordinatorStage::ResultCheckpointAttemptUpdate,
+            CoordinatorStage::ResultCheckpointCommit,
+        ]
+        .map(CoordinatorStage::name);
+        assert_eq!(
+            names,
+            [
+                "result_checkpoint_pool",
+                "result_checkpoint_begin",
+                "result_checkpoint_deadline",
+                "result_checkpoint_legacy_lock",
+                "result_checkpoint_attempt_lock",
+                "result_checkpoint_recipient_update",
+                "result_checkpoint_attempt_update",
+                "result_checkpoint_commit",
+            ]
+        );
     }
 
     #[test]
