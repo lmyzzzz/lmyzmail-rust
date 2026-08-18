@@ -1236,11 +1236,11 @@ class PlanAndComparisonTests(unittest.TestCase):
         self,
     ) -> None:
         expected = (
-            "result_checkpoint_pool",
-            "result_checkpoint_begin",
-            "result_checkpoint_deadline",
             "result_checkpoint_legacy_lock",
             "result_checkpoint_attempt_lock",
+            "result_checkpoint_attempt_row_lock",
+            "result_checkpoint_roster_verify",
+            "result_checkpoint_barrier_verify",
             "result_checkpoint_recipient_update",
             "result_checkpoint_attempt_update",
             "result_checkpoint_commit",

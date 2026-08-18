@@ -3408,26 +3408,33 @@ async fn lock_ledger_attempt(
     transaction: &deadpool_postgres::Transaction<'_>,
     claim: &RecipientLedgerClaim,
 ) -> Result<(i64, String), LedgerMutationError> {
-    let row = transaction
-        .query_opt(
-            "SELECT generation,phase,recipient_count,roster_sha256
-             FROM lmyzmail_outbound_delivery_attempt
-             WHERE task_id=$1 AND owner_token=$2 AND generation=$3 FOR UPDATE",
-            &[&claim.task_id, &claim.owner_token, &claim.generation],
-        )
-        .await?
-        .ok_or(DeliveryStateError::Fenced)?;
+    let row = {
+        let _timer = StageTimer::start(CoordinatorStage::ResultCheckpointAttemptRowLock);
+        transaction
+            .query_opt(
+                "SELECT generation,phase,recipient_count,roster_sha256
+                 FROM lmyzmail_outbound_delivery_attempt
+                 WHERE task_id=$1 AND owner_token=$2 AND generation=$3 FOR UPDATE",
+                &[&claim.task_id, &claim.owner_token, &claim.generation],
+            )
+            .await?
+    }
+    .ok_or(DeliveryStateError::Fenced)?;
     let recipient_count: i32 = row.get(2);
     let roster_sha256: Vec<u8> = row.get(3);
-    if recipient_count != claim.recipient_count as i32
-        || roster_sha256 != claim.roster_sha256
-        || !verify_roster(
+    let roster_valid = {
+        let _timer = StageTimer::start(CoordinatorStage::ResultCheckpointRosterVerify);
+        verify_roster(
             transaction,
             claim.task_id,
             claim.recipient_count,
             &claim.roster_sha256,
         )
         .await?
+    };
+    if recipient_count != claim.recipient_count as i32
+        || roster_sha256 != claim.roster_sha256
+        || !roster_valid
     {
         return Err(DeliveryStateError::InvalidTransition(
             "delivery recipient roster failed integrity verification",
@@ -3435,7 +3442,10 @@ async fn lock_ledger_attempt(
         .into());
     }
     let phase: String = row.get(1);
-    verify_commit_barrier_consistency(transaction, claim.task_id, &phase).await?;
+    {
+        let _timer = StageTimer::start(CoordinatorStage::ResultCheckpointBarrierVerify);
+        verify_commit_barrier_consistency(transaction, claim.task_id, &phase).await?;
+    }
     Ok((row.get(0), phase))
 }
 

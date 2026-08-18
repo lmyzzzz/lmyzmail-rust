@@ -47,6 +47,9 @@ pub(crate) enum CoordinatorStage {
     ResultCheckpointDeadline,
     ResultCheckpointLegacyLock,
     ResultCheckpointAttemptLock,
+    ResultCheckpointAttemptRowLock,
+    ResultCheckpointRosterVerify,
+    ResultCheckpointBarrierVerify,
     ResultCheckpointRecipientUpdate,
     ResultCheckpointAttemptUpdate,
     ResultCheckpointCommit,
@@ -97,7 +100,7 @@ pub(crate) enum CoordinatorStage {
 }
 
 impl CoordinatorStage {
-    const ALL: [Self; 79] = [
+    const ALL: [Self; 82] = [
         Self::QueueClaim,
         Self::DatabaseClaim,
         Self::RecipientRoster,
@@ -130,6 +133,9 @@ impl CoordinatorStage {
         Self::ResultCheckpointDeadline,
         Self::ResultCheckpointLegacyLock,
         Self::ResultCheckpointAttemptLock,
+        Self::ResultCheckpointAttemptRowLock,
+        Self::ResultCheckpointRosterVerify,
+        Self::ResultCheckpointBarrierVerify,
         Self::ResultCheckpointRecipientUpdate,
         Self::ResultCheckpointAttemptUpdate,
         Self::ResultCheckpointCommit,
@@ -213,6 +219,9 @@ impl CoordinatorStage {
             Self::ResultCheckpointDeadline => "result_checkpoint_deadline",
             Self::ResultCheckpointLegacyLock => "result_checkpoint_legacy_lock",
             Self::ResultCheckpointAttemptLock => "result_checkpoint_attempt_lock",
+            Self::ResultCheckpointAttemptRowLock => "result_checkpoint_attempt_row_lock",
+            Self::ResultCheckpointRosterVerify => "result_checkpoint_roster_verify",
+            Self::ResultCheckpointBarrierVerify => "result_checkpoint_barrier_verify",
             Self::ResultCheckpointRecipientUpdate => "result_checkpoint_recipient_update",
             Self::ResultCheckpointAttemptUpdate => "result_checkpoint_attempt_update",
             Self::ResultCheckpointCommit => "result_checkpoint_commit",
@@ -443,6 +452,9 @@ mod tests {
             CoordinatorStage::ResultCheckpointDeadline,
             CoordinatorStage::ResultCheckpointLegacyLock,
             CoordinatorStage::ResultCheckpointAttemptLock,
+            CoordinatorStage::ResultCheckpointAttemptRowLock,
+            CoordinatorStage::ResultCheckpointRosterVerify,
+            CoordinatorStage::ResultCheckpointBarrierVerify,
             CoordinatorStage::ResultCheckpointRecipientUpdate,
             CoordinatorStage::ResultCheckpointAttemptUpdate,
             CoordinatorStage::ResultCheckpointCommit,
@@ -456,6 +468,9 @@ mod tests {
                 "result_checkpoint_deadline",
                 "result_checkpoint_legacy_lock",
                 "result_checkpoint_attempt_lock",
+                "result_checkpoint_attempt_row_lock",
+                "result_checkpoint_roster_verify",
+                "result_checkpoint_barrier_verify",
                 "result_checkpoint_recipient_update",
                 "result_checkpoint_attempt_update",
                 "result_checkpoint_commit",
