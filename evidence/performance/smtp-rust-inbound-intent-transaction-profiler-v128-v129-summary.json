@@ -1,0 +1,197 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "profiler_diagnostic_summary",
+  "qualified": false,
+  "retained": true,
+  "qualification_failure": "within_arm_throughput_stability",
+  "source_git_head": "a0bf3fe8bd1bf97162a5a94298067e9372fca0bb",
+  "repository_head_at_run": "a0bf3fe8bd1bf97162a5a94298067e9372fca0bb",
+  "hypothesis": "Decompose the bounded PREPARED inbound intent transaction without changing SQL, transaction, queue, collection-window, durability, or failure semantics.",
+  "configuration": {
+    "profile": "rust-profiler",
+    "target": "rust-candidate",
+    "tier": "10KB",
+    "messages": 2048,
+    "rust_filesystem_fsync": "off",
+    "postgresql_fsync": "on",
+    "postgresql_synchronous_commit": "on",
+    "workload_cpu_limit": 1,
+    "io_limit_bytes_per_second": 500000000,
+    "original_stress_endpoint_invocations_per_run": 1,
+    "harness_batching": false,
+    "inbound_intent_channel_capacity": 256,
+    "inbound_intent_batch_capacity": 64,
+    "inbound_intent_batch_collection_window_ms": 2,
+    "maximum_selected_diagnostic_stages": 16
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "7c79ce69fdc5271e2882bf70093f40efcdb1af2218645fd7676d527dcd1d521a",
+    "build_id": "d24fa8ea660aa0a0d5117c7d558df03b2866d94f",
+    "size_bytes": 219654896,
+    "owner_mode": "root:root 0755",
+    "main_and_deps_hard_link": true
+  },
+  "selected_stages": [
+    "smtp_commit",
+    "smtp_final_reply",
+    "inbound_intent_insert",
+    "inbound_intent_batch_admission",
+    "inbound_intent_batch_queue_wait",
+    "inbound_intent_batch_dispatch_wait",
+    "inbound_intent_batch_collect",
+    "inbound_intent_batch_worker",
+    "inbound_intent_batch_response_wait",
+    "inbound_intent_batch_pool",
+    "inbound_intent_batch_begin",
+    "inbound_intent_batch_lock",
+    "inbound_intent_batch_insert",
+    "inbound_intent_batch_identity_read",
+    "inbound_intent_batch_transaction_commit",
+    "inbound_index_commit"
+  ],
+  "runs": [
+    {
+      "label": "v128",
+      "throughput_messages_per_second": 118.26,
+      "timing_ms": {"queueing": 8266, "delivery": 9051, "total": 17317},
+      "stability": {
+        "maximum_relative_range": 0.30,
+        "relative_range": 0.518816,
+        "passed": false,
+        "segments_messages_per_second": [89.576622, 121.499872, 161.608317, 163.017126]
+      },
+      "outcome": {
+        "queued": 2048,
+        "received": 2048,
+        "failed": 0,
+        "exceptions": 0,
+        "oom": 0,
+        "retry": 0,
+        "lost": 0,
+        "maildir_publications": 4096,
+        "maildir_removals": 4096
+      },
+      "inbound_intent": {
+        "worker_transactions": 483,
+        "rows": 2048,
+        "average_rows_per_worker": 4.240166,
+        "stage_average_ms": {
+          "insert_outer": 39.950482,
+          "queue_wait": 9.246707,
+          "dispatch_wait": 4.431084,
+          "collect": 5.181143,
+          "worker": 25.320296,
+          "response_wait": 39.946867,
+          "pool": 0.003878,
+          "begin": 2.292786,
+          "lock": 4.242413,
+          "insert": 5.495389,
+          "identity_read": 4.925958,
+          "transaction_commit": 8.316716
+        }
+      },
+      "artifacts": {
+        "console": "evidence/performance/smtp-rust-inbound-intent-transaction-profiler-v128-console.log",
+        "console_sha256": "b2b91dbf78a0a00982be78434df8edbf8f864d9cf88ad85f17adccc9ad2bc942",
+        "final_output": "not_published",
+        "launcher_cleanup_receipt": "not_published",
+        "root_cleanup_copy": "evidence/performance/smtp-rust-inbound-intent-transaction-profiler-v128.json.root-cleanup",
+        "root_run_id": "c9cec1e4-640d-451b-a0cc-29b7da24330b",
+        "root_intent_sha256": "861a85cf9087ecd6b78d1556fc7cb30449b3963c512d744d2e0c2b32c20e68f7",
+        "root_done_sha256": "43f87c9e1e7865b89621c5604bd1c890a40d3951c7331dd0788818a8c094fc3c"
+      }
+    },
+    {
+      "label": "v129",
+      "throughput_messages_per_second": 117.87,
+      "timing_ms": {"queueing": 8325, "delivery": 9049, "total": 17374},
+      "stability": {
+        "maximum_relative_range": 0.30,
+        "relative_range": 0.499382,
+        "passed": false,
+        "segments_messages_per_second": [93.622313, 119.110415, 157.522973, 162.695184]
+      },
+      "outcome": {
+        "queued": 2048,
+        "received": 2048,
+        "failed": 0,
+        "exceptions": 0,
+        "oom": 0,
+        "retry": 0,
+        "lost": 0,
+        "maildir_publications": 4096,
+        "maildir_removals": 4096
+      },
+      "inbound_intent": {
+        "worker_transactions": 487,
+        "rows": 2048,
+        "average_rows_per_worker": 4.205339,
+        "stage_average_ms": {
+          "insert_outer": 39.952687,
+          "queue_wait": 8.915217,
+          "dispatch_wait": 4.328027,
+          "collect": 4.983305,
+          "worker": 25.231990,
+          "response_wait": 39.949106,
+          "pool": 0.003991,
+          "begin": 2.231477,
+          "lock": 4.414244,
+          "insert": 5.300214,
+          "identity_read": 4.950194,
+          "transaction_commit": 8.287402
+        }
+      },
+      "artifacts": {
+        "console": "evidence/performance/smtp-rust-inbound-intent-transaction-profiler-v129-console.log",
+        "console_sha256": "e13e83d129360be5bdaeb3c0cd6f8ba0d5c292c5bfb07704038a9da2c7851383",
+        "final_output": "not_published",
+        "launcher_cleanup_receipt": "not_published",
+        "root_cleanup_copy": "evidence/performance/smtp-rust-inbound-intent-transaction-profiler-v129.json.root-cleanup",
+        "root_run_id": "cde5e2a4-d6c1-47e0-b1ab-de46ac482d4c",
+        "root_intent_sha256": "2bb3681d938bdeaa76f28abeab9fa93c7a9bb62486ea3a3313f211e9fb8fa0d3",
+        "root_done_sha256": "776a24b5fb6f206e570459a61a3ce95ee804d75ca7743998a77f6276c5cde218"
+      }
+    }
+  ],
+  "combined": {
+    "mean_throughput_messages_per_second": 118.065,
+    "v126_v127_diagnostic_mean_messages_per_second": 117.91,
+    "diagnostic_throughput_delta_vs_v126_v127_percent": 0.131456,
+    "mean_worker_transactions": 485.0,
+    "mean_rows_per_worker": 4.222752,
+    "transaction_count_reduction_vs_one_per_message_percent": 76.318359,
+    "mean_stage_ms": {
+      "smtp_commit": 144.757272,
+      "smtp_final_reply": 140.309329,
+      "inbound_intent_insert": 39.951584,
+      "inbound_intent_batch_queue_wait": 9.080962,
+      "inbound_intent_batch_dispatch_wait": 4.379556,
+      "inbound_intent_batch_collect": 5.082224,
+      "inbound_intent_batch_worker": 25.276143,
+      "inbound_intent_batch_response_wait": 39.947987,
+      "inbound_intent_batch_pool": 0.003935,
+      "inbound_intent_batch_begin": 2.262131,
+      "inbound_intent_batch_lock": 4.328329,
+      "inbound_intent_batch_insert": 5.397801,
+      "inbound_intent_batch_identity_read": 4.938076,
+      "inbound_intent_batch_transaction_commit": 8.302059,
+      "inbound_index_commit": 54.826124
+    },
+    "conclusion": "The instrumentation itself left the 118.065 messages/second mean within 0.14% of the v126/v127 diagnostic mean. Both runs failed the unchanged stability gate, so no throughput qualification is made. Transaction commit is the largest intent worker substage, but PostgreSQL fsync and synchronous_commit remain required. Insert plus the full identity read account for another 10.336 ms per worker transaction. The next bounded hypothesis is to validate newly inserted rows from INSERT RETURNING while issuing the separate identity SELECT only for conflict or replay rows. This preserves full durable identity validation and unknown-commit reconciliation while removing one normal-path SQL exchange."
+  },
+  "cleanup": {
+    "passed": true,
+    "root_receipts": {
+      "v128": {"request": "ABORT", "cleanup": "passed", "lazy_unmount": 0, "recovered": 0},
+      "v129": {"request": "ABORT", "cleanup": "passed", "lazy_unmount": 0, "recovered": 0}
+    },
+    "post_run_read_only_audit": {
+      "application_or_benchmark_processes": 0,
+      "run_specific_cgroups": 0,
+      "loop_devices": 0,
+      "additional_ext4_mounts": 0,
+      "run_specific_root_files_other_than_intent_and_done_journals": 0
+    }
+  }
+}

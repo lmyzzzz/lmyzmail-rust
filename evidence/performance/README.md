@@ -1974,3 +1974,43 @@ bytes, root-owned mode 0755, with main/deps hard-link identity. Root runs
 `cleanup=passed`, `lazy_unmount=0`, and `recovered=0`. The post-run audit found
 no application or benchmark process, run-specific cgroup, loop device, or
 additional ext4 mount.
+
+Commit `a0bf3fe8` added observer-only decomposition of the bounded inbound
+intent transaction. It did not change SQL, transaction boundaries, queue
+capacity, batch size, collection timing, durability, or failure behavior. The
+complete library suite passed 752/752 tests, formatting passed, and strict
+all-feature test Clippy passed before the profiling ELF was built.
+
+V128 and v129 used the same 10 KB, 2,048-message, one-endpoint-invocation,
+single-workload-CPU, 500,000,000-byte/s, Rust fsync-off diagnostic contract as
+v126/v127. They delivered 2,048/2,048 at 118.26 and 117.87 messages/second,
+with zero failure, exception, retry, OOM, or loss and exactly 4,096 Maildir
+publications and removals per run. Their 51.8816% and 49.9382% stability ranges
+failed the unchanged 30% gate, so the 118.065 messages/second mean remains
+diagnostic and no formal output was published.
+
+Across the two runs, the inbound intent worker averaged 25.276 ms. PostgreSQL
+transaction commit was the largest substage at 8.302 ms; insert averaged 5.398
+ms, the full identity read 4.938 ms, sorted advisory locks 4.328 ms, transaction
+begin 2.262 ms, and pool acquisition 0.004 ms. Insert and identity validation
+together therefore account for 10.336 ms per worker transaction. The next
+falsifiable optimization is to validate newly inserted rows from `INSERT ...
+RETURNING` and issue the separate identity query only for conflict or replay
+rows. It must retain full durable identity/state validation, atomic collision
+failure, replay safety, and unknown-commit reconciliation.
+
+The structured diagnostic is
+`smtp-rust-inbound-intent-transaction-profiler-v128-v129-summary.json`, SHA-256
+`59771c7a3588c1657fdee9bea8f0428606fcd9bd3fbb1fc1ba41bc79c2069adf`.
+Raw console hashes are
+`b2b91dbf78a0a00982be78434df8edbf8f864d9cf88ad85f17adccc9ad2bc942`
+and `e13e83d129360be5bdaeb3c0cd6f8ba0d5c292c5bfb07704038a9da2c7851383`.
+The profiling ELF is SHA-256
+`7c79ce69fdc5271e2882bf70093f40efcdb1af2218645fd7676d527dcd1d521a`,
+Build ID `d24fa8ea660aa0a0d5117c7d558df03b2866d94f`, size 219,654,896
+bytes, root-owned mode 0755, with main/deps hard-link identity. Root runs
+`c9cec1e4-640d-451b-a0cc-29b7da24330b` and
+`cde5e2a4-d6c1-47e0-b1ab-de46ac482d4c` recorded `request=ABORT`,
+`cleanup=passed`, `lazy_unmount=0`, and `recovered=0`. Read-only post-run audits
+found no application or benchmark process, run-specific cgroup, loop device,
+additional ext4 mount, or root state beyond the immutable intent/done journals.
