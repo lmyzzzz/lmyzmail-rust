@@ -81,7 +81,7 @@ const CRINGE_SHUTDOWN_DEADLINE: Duration = Duration::from_secs(10);
 const CRINGE_FORCED_SHUTDOWN_DEADLINE: Duration = Duration::from_secs(2);
 const INBOUND_RECOVERY_INTERVAL: Duration = Duration::from_secs(1);
 const INBOUND_MAINTENANCE_SHUTDOWN_DEADLINE: Duration = Duration::from_secs(5);
-const INBOUND_INDEX_SHUTDOWN_DEADLINE: Duration = Duration::from_secs(10);
+const INBOUND_COMMITTER_SHUTDOWN_DEADLINE: Duration = Duration::from_secs(10);
 const MAX_SMTP_REPLY_TEXT_BYTES: usize = 506;
 const MAILDIR_SHARD_LOCKS: usize = 64;
 const MAX_INBOUND_SHARD_CACHE_ENTRIES: usize = 4_096;
@@ -295,6 +295,7 @@ pub struct SmtpService {
     inbound_shard_allocator: Arc<InboundShardAllocator>,
     active_inbound_intents: Arc<inbound_delivery::ActiveInboundIntents>,
     inbound_index_committer: Arc<inbound_delivery::IndexCommitter>,
+    inbound_completion_committer: Arc<inbound_delivery::CompletionCommitter>,
     inbound_staging_gate: Arc<RwLock<()>>,
     tls_acceptor: Option<TlsAcceptor>,
     rbl_scanner: RblScanner,
@@ -511,6 +512,9 @@ impl SmtpService {
             inbound_shard_allocator: Arc::new(InboundShardAllocator::default()),
             active_inbound_intents: Arc::new(inbound_delivery::ActiveInboundIntents::default()),
             inbound_index_committer: inbound_delivery::IndexCommitter::start(pool.clone()),
+            inbound_completion_committer: inbound_delivery::CompletionCommitter::start(
+                pool.clone(),
+            ),
             inbound_staging_gate: Arc::new(RwLock::new(())),
             tls_acceptor,
             rbl_scanner,
@@ -982,7 +986,7 @@ impl SmtpService {
         }
         {
             let _timer = StageTimer::start(CoordinatorStage::InboundIntentComplete);
-            inbound_delivery::complete_intent(&self.pool, &prepared).await?;
+            self.inbound_completion_committer.submit(&prepared).await?;
         }
         active_intent.complete()?;
         // The index transaction durably coalesces this Redis projection; bounded
@@ -1058,7 +1062,7 @@ impl SmtpService {
             })
             .await
             .map_err(|error| io::Error::other(error.to_string()))??;
-            inbound_delivery::complete_intent(&self.pool, &intent).await?;
+            self.inbound_completion_committer.submit(&intent).await?;
         }
         for mailbox in self.active_inbound_intents.blocked_mailboxes()? {
             let active_ids = self.active_inbound_intents.active_ids()?;
@@ -1383,9 +1387,17 @@ pub async fn serve_smtp(
         maintenance_task.abort();
         let _ = maintenance_task.await;
     }
+    let inbound_committer_deadline = Instant::now() + INBOUND_COMMITTER_SHUTDOWN_DEADLINE;
+    if !service
+        .inbound_completion_committer
+        .shutdown(inbound_committer_deadline)
+        .await
+    {
+        eprintln!("lmyzmail SMTP inbound completion worker exceeded its shutdown deadline");
+    }
     if !service
         .inbound_index_committer
-        .shutdown(Instant::now() + INBOUND_INDEX_SHUTDOWN_DEADLINE)
+        .shutdown(inbound_committer_deadline)
         .await
     {
         eprintln!("lmyzmail SMTP inbound index worker exceeded its shutdown deadline");

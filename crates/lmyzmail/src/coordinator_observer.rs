@@ -103,6 +103,12 @@ pub(crate) enum CoordinatorStage {
     InboundIndexTransactionCommit,
     InboundPublishVerify,
     InboundIntentComplete,
+    InboundCompletionBatchAdmission,
+    InboundCompletionBatchQueueWait,
+    InboundCompletionBatchDispatchWait,
+    InboundCompletionBatchCollect,
+    InboundCompletionBatchWorker,
+    InboundCompletionBatchResponseWait,
     InboundIntentCompletePool,
     InboundIntentCompleteBegin,
     InboundIntentCompleteLock,
@@ -113,7 +119,7 @@ pub(crate) enum CoordinatorStage {
 }
 
 impl CoordinatorStage {
-    const ALL: [Self; 94] = [
+    const ALL: [Self; 100] = [
         Self::QueueClaim,
         Self::DatabaseClaim,
         Self::RecipientRoster,
@@ -201,6 +207,12 @@ impl CoordinatorStage {
         Self::InboundIndexTransactionCommit,
         Self::InboundPublishVerify,
         Self::InboundIntentComplete,
+        Self::InboundCompletionBatchAdmission,
+        Self::InboundCompletionBatchQueueWait,
+        Self::InboundCompletionBatchDispatchWait,
+        Self::InboundCompletionBatchCollect,
+        Self::InboundCompletionBatchWorker,
+        Self::InboundCompletionBatchResponseWait,
         Self::InboundIntentCompletePool,
         Self::InboundIntentCompleteBegin,
         Self::InboundIntentCompleteLock,
@@ -299,6 +311,12 @@ impl CoordinatorStage {
             Self::InboundIndexTransactionCommit => "inbound_index_transaction_commit",
             Self::InboundPublishVerify => "inbound_publish_verify",
             Self::InboundIntentComplete => "inbound_intent_complete",
+            Self::InboundCompletionBatchAdmission => "inbound_completion_batch_admission",
+            Self::InboundCompletionBatchQueueWait => "inbound_completion_batch_queue_wait",
+            Self::InboundCompletionBatchDispatchWait => "inbound_completion_batch_dispatch_wait",
+            Self::InboundCompletionBatchCollect => "inbound_completion_batch_collect",
+            Self::InboundCompletionBatchWorker => "inbound_completion_batch_worker",
+            Self::InboundCompletionBatchResponseWait => "inbound_completion_batch_response_wait",
             Self::InboundIntentCompletePool => "inbound_intent_complete_pool",
             Self::InboundIntentCompleteBegin => "inbound_intent_complete_begin",
             Self::InboundIntentCompleteLock => "inbound_intent_complete_lock",
@@ -658,6 +676,30 @@ mod tests {
                 "inbound_index_batch_collect",
                 "inbound_index_batch_worker",
                 "inbound_index_batch_response_wait",
+            ]
+        );
+    }
+
+    #[test]
+    fn inbound_completion_batch_stage_names_are_stable() {
+        let names = [
+            CoordinatorStage::InboundCompletionBatchAdmission,
+            CoordinatorStage::InboundCompletionBatchQueueWait,
+            CoordinatorStage::InboundCompletionBatchDispatchWait,
+            CoordinatorStage::InboundCompletionBatchCollect,
+            CoordinatorStage::InboundCompletionBatchWorker,
+            CoordinatorStage::InboundCompletionBatchResponseWait,
+        ]
+        .map(CoordinatorStage::name);
+        assert_eq!(
+            names,
+            [
+                "inbound_completion_batch_admission",
+                "inbound_completion_batch_queue_wait",
+                "inbound_completion_batch_dispatch_wait",
+                "inbound_completion_batch_collect",
+                "inbound_completion_batch_worker",
+                "inbound_completion_batch_response_wait",
             ]
         );
     }
