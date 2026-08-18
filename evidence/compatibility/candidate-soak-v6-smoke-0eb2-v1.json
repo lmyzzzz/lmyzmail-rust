@@ -1,0 +1,457 @@
+{
+  "candidate_release_sha256_after": "ec1d7a3fa9376963dd62ad60d982bf60ad4eacf70d2e5a5284b303d6386118c9",
+  "candidate_release_sha256_before": "ec1d7a3fa9376963dd62ad60d982bf60ad4eacf70d2e5a5284b303d6386118c9",
+  "cleanup": {
+    "managed_pids": {
+      "candidate": 946245,
+      "postgres": 946226,
+      "redis": 946240
+    },
+    "residual_pids": {},
+    "workspace_removed": true
+  },
+  "complete": true,
+  "definition_tree_sha256": "0c1a5f9c7c747d9c7658935842b10ec78682f5dba375ad80afc3c29b63ac7b8c",
+  "duration_seconds": 30.111,
+  "failure_kinds": {},
+  "failures": 0,
+  "finished_at": "2026-08-18T16:34:04.898880+00:00",
+  "immutable_inputs": {
+    "definition_tree_sha256_after": "0c1a5f9c7c747d9c7658935842b10ec78682f5dba375ad80afc3c29b63ac7b8c",
+    "definition_tree_sha256_before": "0c1a5f9c7c747d9c7658935842b10ec78682f5dba375ad80afc3c29b63ac7b8c",
+    "git_head_after": "0eb2a5f5b32b9b54edacb045a8456c1a71f81e86",
+    "git_head_before": "0eb2a5f5b32b9b54edacb045a8456c1a71f81e86",
+    "runner_sha256_after": "71858209a52878fc2eeaa5a806225608d94446d7b0ad0734544bbd812f8e850f",
+    "runner_sha256_before": "71858209a52878fc2eeaa5a806225608d94446d7b0ad0734544bbd812f8e850f",
+    "source_sha256_after": "e6185f46f17a622db648eca2149ea0082c4acf1ff775980b33acfd2b0e7d1d1b",
+    "source_sha256_before": "e6185f46f17a622db648eca2149ea0082c4acf1ff775980b33acfd2b0e7d1d1b",
+    "unchanged": true
+  },
+  "invocation": {
+    "argv": [
+      "evidence/compatibility/candidate-soak-v6.py",
+      "--duration",
+      "30",
+      "--workers",
+      "16",
+      "--smoke",
+      "--output",
+      "evidence/compatibility/candidate-soak-v6-smoke-0eb2-v1.json"
+    ],
+    "cwd": "/home/lmyzzz/lmyzmail-rust",
+    "git_head": "0eb2a5f5b32b9b54edacb045a8456c1a71f81e86",
+    "pid": 946203
+  },
+  "latency": {
+    "htcpcp": {
+      "count": 369,
+      "max_ms": 10.938,
+      "p50_ms": 2.878,
+      "p95_ms": 5.985
+    },
+    "http": {
+      "count": 861,
+      "max_ms": 312.844,
+      "p50_ms": 209.293,
+      "p95_ms": 244.682
+    },
+    "minecraft": {
+      "count": 369,
+      "max_ms": 948.038,
+      "p50_ms": 3.326,
+      "p95_ms": 6.91
+    },
+    "smtp": {
+      "count": 369,
+      "max_ms": 9.371,
+      "p50_ms": 3.644,
+      "p95_ms": 7.137
+    }
+  },
+  "profile": "candidate-multi-module-half-hour-soak-v6",
+  "protocol_activity_verified": true,
+  "qualification": {
+    "minimum_duration_seconds": 1800,
+    "minimum_workers": 16,
+    "qualified_half_hour": false,
+    "smoke": true
+  },
+  "recovery_semantics": {
+    "ephemeral_workspace_must_be_removed": true,
+    "final_evidence_create_once": true,
+    "final_evidence_created_before_checkpoint_removed": true,
+    "managed_processes_must_exit": true,
+    "release_binary_must_remain_unchanged": true,
+    "running_checkpoint_retained_on_interruption_or_failure": true,
+    "runtime_stop_always_attempted": true
+  },
+  "release_binary_unchanged": true,
+  "release_sha256": "ec1d7a3fa9376963dd62ad60d982bf60ad4eacf70d2e5a5284b303d6386118c9",
+  "release_sha256_after": "ec1d7a3fa9376963dd62ad60d982bf60ad4eacf70d2e5a5284b303d6386118c9",
+  "resource": {
+    "disk_baseline_bytes": 897666699264,
+    "disk_delta_final_bytes": 0,
+    "disk_delta_peak_bytes": 0,
+    "disk_used_max_bytes": 897666699264,
+    "disk_used_min_bytes": 897666699264,
+    "fd_final": 27,
+    "fd_first": 27,
+    "fd_max": 27,
+    "fd_min": 27,
+    "growth_per_hour": {
+      "fd_count": 0.0,
+      "rss_kib": 0.0,
+      "task_count": 0.0,
+      "workspace_bytes": 0.0
+    },
+    "queue_final": 0,
+    "queue_first": 0,
+    "queue_max": 0,
+    "queue_min": 0,
+    "rss_delta_kib": 307200,
+    "rss_final_kib": 411272,
+    "rss_first_kib": 104072,
+    "rss_max_kib": 411272,
+    "rss_min_kib": 104072,
+    "samples": 7,
+    "samples_all": [
+      {
+        "disk_delta_bytes": 0,
+        "disk_used_bytes": 897666699264,
+        "elapsed_millis": 1636,
+        "fd_count": 27,
+        "postgres_port": 47553,
+        "queue_pending": 0,
+        "rss_kib": 104072,
+        "task_count": 55,
+        "workspace_bytes": 43577344,
+        "workspace_components_bytes": {
+          "candidate-runtime.json": 8192,
+          "postgres-data": 43552768,
+          "postgres-socket": 4096,
+          "postgres.log": 4096,
+          "redis.log": 4096,
+          "rust-candidate.log": 4096
+        },
+        "workspace_delta_bytes": 0
+      },
+      {
+        "disk_delta_bytes": 0,
+        "disk_used_bytes": 897666699264,
+        "elapsed_millis": 6863,
+        "fd_count": 27,
+        "postgres_port": 47553,
+        "queue_pending": 0,
+        "rss_kib": 411272,
+        "task_count": 61,
+        "workspace_bytes": 43577344,
+        "workspace_components_bytes": {
+          "candidate-runtime.json": 8192,
+          "postgres-data": 43552768,
+          "postgres-socket": 4096,
+          "postgres.log": 4096,
+          "redis.log": 4096,
+          "rust-candidate.log": 4096
+        },
+        "workspace_delta_bytes": 0
+      },
+      {
+        "disk_delta_bytes": 0,
+        "disk_used_bytes": 897666699264,
+        "elapsed_millis": 12003,
+        "fd_count": 27,
+        "postgres_port": 47553,
+        "queue_pending": 0,
+        "rss_kib": 411272,
+        "task_count": 61,
+        "workspace_bytes": 43577344,
+        "workspace_components_bytes": {
+          "candidate-runtime.json": 8192,
+          "postgres-data": 43552768,
+          "postgres-socket": 4096,
+          "postgres.log": 4096,
+          "redis.log": 4096,
+          "rust-candidate.log": 4096
+        },
+        "workspace_delta_bytes": 0
+      },
+      {
+        "disk_delta_bytes": 0,
+        "disk_used_bytes": 897666699264,
+        "elapsed_millis": 17154,
+        "fd_count": 27,
+        "postgres_port": 47553,
+        "queue_pending": 0,
+        "rss_kib": 411272,
+        "task_count": 61,
+        "workspace_bytes": 43577344,
+        "workspace_components_bytes": {
+          "candidate-runtime.json": 8192,
+          "postgres-data": 43552768,
+          "postgres-socket": 4096,
+          "postgres.log": 4096,
+          "redis.log": 4096,
+          "rust-candidate.log": 4096
+        },
+        "workspace_delta_bytes": 0
+      },
+      {
+        "disk_delta_bytes": 0,
+        "disk_used_bytes": 897666699264,
+        "elapsed_millis": 22281,
+        "fd_count": 27,
+        "postgres_port": 47553,
+        "queue_pending": 0,
+        "rss_kib": 411272,
+        "task_count": 61,
+        "workspace_bytes": 43577344,
+        "workspace_components_bytes": {
+          "candidate-runtime.json": 8192,
+          "postgres-data": 43552768,
+          "postgres-socket": 4096,
+          "postgres.log": 4096,
+          "redis.log": 4096,
+          "rust-candidate.log": 4096
+        },
+        "workspace_delta_bytes": 0
+      },
+      {
+        "disk_delta_bytes": 0,
+        "disk_used_bytes": 897666699264,
+        "elapsed_millis": 27462,
+        "fd_count": 27,
+        "postgres_port": 47553,
+        "queue_pending": 0,
+        "rss_kib": 411272,
+        "task_count": 61,
+        "workspace_bytes": 43577344,
+        "workspace_components_bytes": {
+          "candidate-runtime.json": 8192,
+          "postgres-data": 43552768,
+          "postgres-socket": 4096,
+          "postgres.log": 4096,
+          "redis.log": 4096,
+          "rust-candidate.log": 4096
+        },
+        "workspace_delta_bytes": 0
+      },
+      {
+        "disk_delta_bytes": 0,
+        "disk_used_bytes": 897666699264,
+        "elapsed_millis": 30110,
+        "fd_count": 27,
+        "postgres_port": 47553,
+        "queue_pending": 0,
+        "rss_kib": 411272,
+        "task_count": 61,
+        "workspace_bytes": 43577344,
+        "workspace_components_bytes": {
+          "candidate-runtime.json": 8192,
+          "postgres-data": 43552768,
+          "postgres-socket": 4096,
+          "postgres.log": 4096,
+          "redis.log": 4096,
+          "rust-candidate.log": 4096
+        },
+        "workspace_delta_bytes": 0
+      }
+    ],
+    "samples_tail": [
+      {
+        "disk_delta_bytes": 0,
+        "disk_used_bytes": 897666699264,
+        "elapsed_millis": 22281,
+        "fd_count": 27,
+        "postgres_port": 47553,
+        "queue_pending": 0,
+        "rss_kib": 411272,
+        "task_count": 61,
+        "workspace_bytes": 43577344,
+        "workspace_components_bytes": {
+          "candidate-runtime.json": 8192,
+          "postgres-data": 43552768,
+          "postgres-socket": 4096,
+          "postgres.log": 4096,
+          "redis.log": 4096,
+          "rust-candidate.log": 4096
+        },
+        "workspace_delta_bytes": 0
+      },
+      {
+        "disk_delta_bytes": 0,
+        "disk_used_bytes": 897666699264,
+        "elapsed_millis": 27462,
+        "fd_count": 27,
+        "postgres_port": 47553,
+        "queue_pending": 0,
+        "rss_kib": 411272,
+        "task_count": 61,
+        "workspace_bytes": 43577344,
+        "workspace_components_bytes": {
+          "candidate-runtime.json": 8192,
+          "postgres-data": 43552768,
+          "postgres-socket": 4096,
+          "postgres.log": 4096,
+          "redis.log": 4096,
+          "rust-candidate.log": 4096
+        },
+        "workspace_delta_bytes": 0
+      },
+      {
+        "disk_delta_bytes": 0,
+        "disk_used_bytes": 897666699264,
+        "elapsed_millis": 30110,
+        "fd_count": 27,
+        "postgres_port": 47553,
+        "queue_pending": 0,
+        "rss_kib": 411272,
+        "task_count": 61,
+        "workspace_bytes": 43577344,
+        "workspace_components_bytes": {
+          "candidate-runtime.json": 8192,
+          "postgres-data": 43552768,
+          "postgres-socket": 4096,
+          "postgres.log": 4096,
+          "redis.log": 4096,
+          "rust-candidate.log": 4096
+        },
+        "workspace_delta_bytes": 0
+      }
+    ],
+    "steady_state_baseline_elapsed_seconds": 30.11,
+    "task_final": 61,
+    "task_first": 55,
+    "task_max": 61,
+    "task_min": 55,
+    "workspace_baseline_bytes": 43577344,
+    "workspace_components": {
+      "candidate-runtime.json": {
+        "final_bytes": 8192,
+        "first_bytes": 8192,
+        "max_bytes": 8192,
+        "min_bytes": 8192,
+        "steady_growth_per_hour_bytes": 0.0
+      },
+      "postgres-data": {
+        "final_bytes": 43552768,
+        "first_bytes": 43552768,
+        "max_bytes": 43552768,
+        "min_bytes": 43552768,
+        "steady_growth_per_hour_bytes": 0.0
+      },
+      "postgres-socket": {
+        "final_bytes": 4096,
+        "first_bytes": 4096,
+        "max_bytes": 4096,
+        "min_bytes": 4096,
+        "steady_growth_per_hour_bytes": 0.0
+      },
+      "postgres.log": {
+        "final_bytes": 4096,
+        "first_bytes": 4096,
+        "max_bytes": 4096,
+        "min_bytes": 4096,
+        "steady_growth_per_hour_bytes": 0.0
+      },
+      "redis.log": {
+        "final_bytes": 4096,
+        "first_bytes": 4096,
+        "max_bytes": 4096,
+        "min_bytes": 4096,
+        "steady_growth_per_hour_bytes": 0.0
+      },
+      "rust-candidate.log": {
+        "final_bytes": 4096,
+        "first_bytes": 4096,
+        "max_bytes": 4096,
+        "min_bytes": 4096,
+        "steady_growth_per_hour_bytes": 0.0
+      }
+    },
+    "workspace_delta_final_bytes": 0,
+    "workspace_delta_peak_bytes": 0,
+    "workspace_used_max_bytes": 43577344,
+    "workspace_used_min_bytes": 43577344
+  },
+  "resource_policy": {
+    "max_disk_delta_peak_bytes": 1073741824,
+    "max_fd_count": 512,
+    "max_rss_kib": 2097152,
+    "max_steady_fd_growth": 4,
+    "max_steady_rss_growth_kib": 65536,
+    "max_steady_task_growth": 4,
+    "max_steady_workspace_growth_bytes": 67108864,
+    "max_task_count": 512,
+    "max_workspace_delta_peak_bytes": 536870912
+  },
+  "resource_policy_basis": "Hard ceilings are at least 4x the v5 measured candidate RSS and over 10x its transient filesystem/workspace growth; steady growth gates apply only to a qualified >=30 minute run.",
+  "resource_policy_checks": {
+    "disk_peak": {
+      "enforced": true,
+      "limit": 1073741824,
+      "observed": 0,
+      "passed": true
+    },
+    "fd_absolute": {
+      "enforced": true,
+      "limit": 512,
+      "observed": 27,
+      "passed": true
+    },
+    "rss_absolute": {
+      "enforced": true,
+      "limit": 2097152,
+      "observed": 411272,
+      "passed": true
+    },
+    "steady_fd_growth": {
+      "enforced": false,
+      "limit": 4,
+      "observed": 0,
+      "passed": true
+    },
+    "steady_rss_growth": {
+      "enforced": false,
+      "limit": 65536,
+      "observed": 0,
+      "passed": true
+    },
+    "steady_task_growth": {
+      "enforced": false,
+      "limit": 4,
+      "observed": 0,
+      "passed": true
+    },
+    "steady_workspace_growth": {
+      "enforced": false,
+      "limit": 67108864,
+      "observed": 0,
+      "passed": true
+    },
+    "task_absolute": {
+      "enforced": true,
+      "limit": 512,
+      "observed": 61,
+      "passed": true
+    },
+    "workspace_peak": {
+      "enforced": true,
+      "limit": 536870912,
+      "observed": 0,
+      "passed": true
+    }
+  },
+  "run_id": "d1ec4072-c902-41a6-8643-1eddd2bb684e",
+  "runner_sha256": "71858209a52878fc2eeaa5a806225608d94446d7b0ad0734544bbd812f8e850f",
+  "schema_version": 2,
+  "source_sha256": "e6185f46f17a622db648eca2149ea0082c4acf1ff775980b33acfd2b0e7d1d1b",
+  "started_at": "2026-08-18T16:33:34.528466+00:00",
+  "status": "passed",
+  "successes": {
+    "htcpcp": 369,
+    "http": 861,
+    "minecraft": 369,
+    "smtp": 369
+  },
+  "workers": 16
+}
