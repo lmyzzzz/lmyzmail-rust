@@ -1455,3 +1455,31 @@ and
 `9cceef792fbdc2bbdf7f786e69233b496f774dd27b20d15bb928ba5577274942`.
 The root audit found no remaining candidate or service process, per-run cgroup,
 loop image, mount, provisional output, or runner artifact after any run.
+
+V102 changed only the retained profiler stage selection and ran the optimized
+ELF at 2,048 messages in the same Rust 10KB fsync-off isolation profile. It
+delivered 2,048/2,048 messages with zero failure, retry, exception, OOM, or
+loss. Its final segment reached 145.158 messages/second, but the four rates of
+88.005, 114.974, 145.003, and 145.158 messages/second had a 43.9671% range, so
+the unchanged 30% ramp-up gate rejected the run.
+
+The new substages falsified filesystem I/O as the remaining terminal-spool
+bottleneck. In the final segment, `queue_ack_spool_cleanup` averaged 27.568 ms:
+the PostgreSQL removed-state checkpoint used 21.199 ms (76.90%), the sidecar
+snapshot used 5.778 ms (20.96%), and all measured setup, proof validation,
+Sent comparison, mutation, disabled durability, proof cleanup, and permit work
+used 0.196 ms (0.71%) together. In particular, the fsync-off durability stage
+averaged 122 ns. The next profiler-driven hypothesis is therefore the database
+checkpoint path, not file hashing, comparison, rename, unlink, or fsync.
+
+The launcher cleaned the run but failed closed at its post-cleanup runner PID
+qualification check, so it published no formal output or cleanup receipt. The
+root journal for run `adeb2eb2-0c63-4900-88f1-ca6b875740a2` independently
+records `request=ABORT`, `cleanup=passed`, and `lazy_unmount=0`; its exact
+content was retained as the explicitly unqualified cleanup receipt. An
+independent audit found no candidate, service, per-run cgroup, loop image,
+mount, provisional output, output artifact, or checkpoint artifact. The
+derived diagnostic, console, and receipt SHA-256 values are
+`5a6045bffc79727fb080983ee9764c578a0f37aad884329b14b4d57527cb6aa7`,
+`48cb6d6267bd522be055e14c62341f4552bf4f6530ed79ea133706472cabac3c`,
+and `24e2b0883dfff768501f3d429c2ff0426e8dab13cfcc0877d0a86bfc696e3eba`.
