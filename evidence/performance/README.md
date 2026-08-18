@@ -1251,3 +1251,21 @@ already-exited runner after the failed stability assertion, so no qualified
 artifact or runner-success receipt exists. A root audit confirmed that its
 cgroup, mount, image, loop device, artifacts, candidate, PostgreSQL, and Redis
 processes were absent before this unqualified receipt was retained.
+
+V91 repeated v90b with the same ELF and isolation settings. It delivered
+4,096/4,096 messages with zero failure, exception, retry, or loss in 35.912
+seconds at 114.06 messages/second; delivery took 19.154 seconds. Its 737
+inbound index transactions averaged 5.558 messages each. V90b and v91 have a
+113.38 messages/second mean and a 1.20% relative range, confirming that the
+restored source reproduces the retained mutation-fused baseline. V91's
+quartile rates were 93.52, 110.78, 142.75, and 147.27 messages/second, so it
+also failed only the unchanged 30% ramp-up stability gate and remains
+diagnostic rather than formal throughput evidence.
+
+The v91 console and cleanup-receipt hashes are
+`23db3d1a80a30a826633018bd592d79600f03ed7f35841a0477f3826c88d9dd4`
+and
+`d665f3483dffb4afb0b61f991e47600a537eff30f04616b7c32164d89da8f817`.
+Run `845430ec-b405-41fc-902f-12f052c6f9eb` ended with `request=ABORT`,
+`cleanup=passed`, and `lazy_unmount=0`; a root audit again found no residual
+run resource or service process.
