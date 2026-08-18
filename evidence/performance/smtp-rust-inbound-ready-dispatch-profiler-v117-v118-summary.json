@@ -1,0 +1,167 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "rejected_profiler_experiment_summary",
+  "qualified": false,
+  "retained": true,
+  "qualification_failure": "within_arm_throughput_stability",
+  "rejection_reason": "Backlog-aware dispatch reduced collection latency but increased transaction count and reduced two-run mean end-to-end throughput.",
+  "experiment_git_head": "d8e718e6419da323cc203c9d411f6f46848dd7d6",
+  "reverted_by_git_head": "32efc0b6bfec1a7a1a7e6cfba61e20979167029a",
+  "configuration": {
+    "profile": "rust-profiler",
+    "target": "rust-candidate",
+    "tier": "10KB",
+    "messages": 2048,
+    "rust_filesystem_fsync": "off",
+    "workload_cpu_limit": 1,
+    "io_limit_bytes_per_second": 500000000,
+    "original_stress_endpoint_invocations_per_run": 1,
+    "harness_batching": false,
+    "configured_collection_window_ms": 2,
+    "ready_dispatch_rows": 5
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "506cd1f667c4ab2e4245c7f242f3013ad2cf332c2dcd0e40c93c12e17cc9e294",
+    "build_id": "c1e378a7fbeb8a784c600a9f2c5998fd69066707",
+    "size_bytes": 218834184,
+    "owner_mode": "root:root 0755",
+    "main_and_deps_hard_link": true
+  },
+  "runs": [
+    {
+      "label": "v117",
+      "started_at": "2026-08-18T19:57:30+08:00",
+      "ended_at": "2026-08-18T19:59:59+08:00",
+      "throughput_messages_per_second": 114.25,
+      "timing_ms": {"queueing": 8861, "delivery": 9064, "total": 17926},
+      "stability": {
+        "maximum_relative_range": 0.30,
+        "relative_range": 0.480271,
+        "passed": false,
+        "segments_messages_per_second": [90.896655, 111.763082, 152.121479, 154.264679]
+      },
+      "outcome": {
+        "queued": 2048,
+        "received": 2048,
+        "failed": 0,
+        "exceptions": 0,
+        "oom": 0,
+        "retry": 0,
+        "lost": 0,
+        "maildir_publications": 4096,
+        "maildir_removals": 4096
+      },
+      "inbound_index_full_run_average_ms": {
+        "commit": 58.380377,
+        "queue_wait": 17.149594,
+        "dispatch_wait": 1.154148,
+        "collection_per_batch": 2.130455,
+        "worker_per_batch": 38.884505,
+        "response_wait": 58.377696
+      },
+      "batches": {
+        "count": 390,
+        "rows": 2048,
+        "average_rows": 5.251282,
+        "max_rows": 15,
+        "size_buckets": {"1": 16, "2_4": 106, "5_8": 251, "9_16": 17, "17_32": 0, "33_64": 0}
+      },
+      "artifacts": {
+        "console": "evidence/performance/smtp-rust-inbound-ready-dispatch-profiler-v117-console.log",
+        "console_sha256": "41a81e668b151ccf45dea528d30054acbbee6fb2841345028338c7276365199c",
+        "final_output": "not_published",
+        "launcher_cleanup_receipt": "not_published"
+      }
+    },
+    {
+      "label": "v118",
+      "started_at": "2026-08-18T20:00:34+08:00",
+      "ended_at": "2026-08-18T20:03:02+08:00",
+      "throughput_messages_per_second": 114.99,
+      "timing_ms": {"queueing": 8728, "delivery": 9082, "total": 17810},
+      "stability": {
+        "maximum_relative_range": 0.30,
+        "relative_range": 0.501283,
+        "passed": false,
+        "segments_messages_per_second": [89.437235, 114.027353, 152.023605, 156.120697]
+      },
+      "outcome": {
+        "queued": 2048,
+        "received": 2048,
+        "failed": 0,
+        "exceptions": 0,
+        "oom": 0,
+        "retry": 0,
+        "lost": 0,
+        "maildir_publications": 4096,
+        "maildir_removals": 4096
+      },
+      "inbound_index_full_run_average_ms": {
+        "commit": 57.468731,
+        "queue_wait": 16.379478,
+        "dispatch_wait": 1.099436,
+        "collection_per_batch": 1.829089,
+        "worker_per_batch": 38.201481,
+        "response_wait": 57.465987
+      },
+      "batches": {
+        "count": 394,
+        "rows": 2048,
+        "average_rows": 5.197970,
+        "max_rows": 16,
+        "size_buckets": {"1": 20, "2_4": 109, "5_8": 247, "9_16": 18, "17_32": 0, "33_64": 0}
+      },
+      "artifacts": {
+        "console": "evidence/performance/smtp-rust-inbound-ready-dispatch-profiler-v118-console.log",
+        "console_sha256": "5ff340e35742f45bfa5e43aa22bf22a0868f4dc07d174a55e97837e9148d6b2b",
+        "final_output": "not_published",
+        "launcher_cleanup_receipt": "not_published"
+      }
+    }
+  ],
+  "comparison": {
+    "control": "smtp-rust-inbound-batch-wait-profiler-v115-v116-summary.json",
+    "control_mean_throughput_messages_per_second": 115.585,
+    "experiment_mean_throughput_messages_per_second": 114.620,
+    "throughput_change_percent": -0.834883,
+    "control_mean_final_segment_messages_per_second": 154.804402,
+    "experiment_mean_final_segment_messages_per_second": 155.192688,
+    "final_segment_change_percent": 0.250824,
+    "control_mean_batches_per_run": 357.0,
+    "experiment_mean_batches_per_run": 392.0,
+    "batch_count_change_percent": 9.803922,
+    "control_combined_average_rows_per_batch": 5.736695,
+    "experiment_combined_average_rows_per_batch": 5.224490,
+    "average_rows_change_percent": -8.928571,
+    "full_run_mean_ms": {
+      "control_queue_wait": 15.173395,
+      "experiment_queue_wait": 16.764536,
+      "queue_wait_change_percent": 10.486390,
+      "control_dispatch_wait": 4.669968,
+      "experiment_dispatch_wait": 1.126792,
+      "dispatch_wait_change_percent": -75.871528,
+      "control_collection_per_batch": 5.017871,
+      "experiment_collection_per_batch": 1.979772,
+      "collection_change_percent": -60.545577,
+      "control_worker_per_batch": 38.550541,
+      "experiment_worker_per_batch": 38.542993,
+      "worker_per_batch_change_percent": -0.019579,
+      "control_response_wait": 59.975435,
+      "experiment_response_wait": 57.921842,
+      "response_wait_change_percent": -3.424058
+    }
+  },
+  "conclusion": "The five-row ready-dispatch floor achieved the local latency objective but caused 9.8% more serialized database batches. The two-run end-to-end mean regressed by 0.835%, so the experiment was rejected and fully reverted. Lowering the floor would move farther in the disproven direction.",
+  "cleanup": {
+    "launcher_receipts": "not_published_after_stability_failure",
+    "post_run_read_only_audit": {
+      "passed": true,
+      "application_or_benchmark_processes": 0,
+      "run_specific_cgroups": 0,
+      "loop_devices": 0,
+      "additional_ext4_mounts": 0,
+      "run_specific_root_state_entries": 0
+    }
+  }
+}

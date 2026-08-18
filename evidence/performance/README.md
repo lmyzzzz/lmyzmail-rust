@@ -1780,3 +1780,39 @@ launcher published neither final JSON nor cleanup receipts after stability
 failure. A subsequent read-only root audit found no benchmark process,
 run-specific cgroup, loop device, extra ext4 mount, or run-specific root state;
 that audit is recorded separately from launcher qualification in the summary.
+
+A backlog-aware dispatch experiment then drained immediately available inbound
+index requests and dispatched once a batch reached five rows, retaining the
+existing two-millisecond deadline for batches of one through four. Commit
+`d8e718e6` added two paused-clock policy tests and passed the real PostgreSQL
+committer test, all 743 library tests, formatting, and strict all-feature
+Clippy before measurement.
+
+V117 and v118 each delivered 2,048/2,048 with zero failures, exceptions,
+retries, OOM, or loss. They measured 114.25 and 114.99 messages/second, for a
+114.620 two-run mean versus the v115/v116 control mean of 115.585: a 0.835%
+regression. Both also failed the unchanged stability gate, with 48.0271% and
+50.1283% segment ranges. The final-segment mean improved only 0.251%, which is
+not an end-to-end retention result.
+
+The local effect was real but counterproductive. Mean dequeue-to-dispatch wait
+fell 75.9% and collection time fell 60.5%, while response wait fell 3.42%.
+However, mean batch count rose from 357 to 392 per run, average rows fell from
+5.737 to 5.224, and queue wait rose 10.5%. Per-batch worker time was unchanged,
+so the extra serialized PostgreSQL transactions consumed the saved latency.
+The experiment was fully reverted by commit `32efc0b6`; lowering the row floor
+would move farther in the rejected direction.
+
+The negative summary is
+`smtp-rust-inbound-ready-dispatch-profiler-v117-v118-summary.json`, SHA-256
+`8998ec407fb245ede89959ebc252a7e8995ddd5746fb613fe0b6eef5238071d4`. The
+normalized repository console hashes are
+`41a81e668b151ccf45dea528d30054acbbee6fb2841345028338c7276365199c` and
+`5ff340e35742f45bfa5e43aa22bf22a0868f4dc07d174a55e97837e9148d6b2b`.
+The experimental profiling ELF was SHA-256
+`506cd1f667c4ab2e4245c7f242f3013ad2cf332c2dcd0e40c93c12e17cc9e294`,
+Build ID `c1e378a7fbeb8a784c600a9f2c5998fd69066707`, size 218,834,184 bytes,
+and root-owned mode 0755 with main/deps hard-link identity preserved. Neither
+run published final JSON or a launcher cleanup receipt; post-run read-only root
+audits found no benchmark process, run-specific cgroup, loop device, extra
+ext4 mount, or run-specific root state.
