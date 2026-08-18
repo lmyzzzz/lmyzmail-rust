@@ -40,6 +40,8 @@ pub(crate) enum CoordinatorStage {
     SmtpFinalReply,
     SmtpQuit,
     ResultCheckpoint,
+    ResultCheckpointSnapshot,
+    ResultCheckpointMutation,
     DomainLedgerRefresh,
     ProjectionLedgerRead,
     LegacyProjection,
@@ -87,7 +89,7 @@ pub(crate) enum CoordinatorStage {
 }
 
 impl CoordinatorStage {
-    const ALL: [Self; 69] = [
+    const ALL: [Self; 71] = [
         Self::QueueClaim,
         Self::DatabaseClaim,
         Self::RecipientRoster,
@@ -113,6 +115,8 @@ impl CoordinatorStage {
         Self::SmtpFinalReply,
         Self::SmtpQuit,
         Self::ResultCheckpoint,
+        Self::ResultCheckpointSnapshot,
+        Self::ResultCheckpointMutation,
         Self::DomainLedgerRefresh,
         Self::ProjectionLedgerRead,
         Self::LegacyProjection,
@@ -186,6 +190,8 @@ impl CoordinatorStage {
             Self::SmtpFinalReply => "smtp_final_reply",
             Self::SmtpQuit => "smtp_quit",
             Self::ResultCheckpoint => "result_checkpoint",
+            Self::ResultCheckpointSnapshot => "result_checkpoint_snapshot",
+            Self::ResultCheckpointMutation => "result_checkpoint_mutation",
             Self::DomainLedgerRefresh => "domain_ledger_refresh",
             Self::ProjectionLedgerRead => "projection_ledger_read",
             Self::LegacyProjection => "legacy_projection",

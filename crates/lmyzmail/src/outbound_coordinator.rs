@@ -1346,18 +1346,22 @@ impl OutboundCoordinator {
         let _timer = StageTimer::start(CoordinatorStage::ResultCheckpoint);
         let detail = bounded_detail(detail);
         for _ in 0..MAX_RECONCILIATION_ATTEMPTS {
-            let before = self
-                .state
-                .ledger_snapshot(claim.task_id(), Some(claim))
-                .await?
-                .ok_or(CoordinatorError::Reconciliation(
-                    "commit result ledger disappeared",
-                ))?;
-            match self
-                .state
-                .checkpoint_result(claim, status, smtp_code, &detail, Utc::now())
-                .await
-            {
+            let before = {
+                let _timer = StageTimer::start(CoordinatorStage::ResultCheckpointSnapshot);
+                self.state
+                    .ledger_snapshot(claim.task_id(), Some(claim))
+                    .await?
+                    .ok_or(CoordinatorError::Reconciliation(
+                        "commit result ledger disappeared",
+                    ))?
+            };
+            let mutation = {
+                let _timer = StageTimer::start(CoordinatorStage::ResultCheckpointMutation);
+                self.state
+                    .checkpoint_result(claim, status, smtp_code, &detail, Utc::now())
+                    .await
+            };
+            match mutation {
                 Ok(updated) if updated > 0 => return Ok(()),
                 Ok(_) => {
                     return Err(CoordinatorError::Reconciliation(
@@ -1365,13 +1369,15 @@ impl OutboundCoordinator {
                     ));
                 }
                 Err(DeliveryStateError::OutcomeUnknown) => {
-                    let snapshot = self
-                        .state
-                        .ledger_snapshot(claim.task_id(), Some(claim))
-                        .await?
-                        .ok_or(CoordinatorError::Reconciliation(
-                            "commit result ledger disappeared",
-                        ))?;
+                    let snapshot = {
+                        let _timer = StageTimer::start(CoordinatorStage::ResultCheckpointSnapshot);
+                        self.state
+                            .ledger_snapshot(claim.task_id(), Some(claim))
+                            .await?
+                            .ok_or(CoordinatorError::Reconciliation(
+                                "commit result ledger disappeared",
+                            ))?
+                    };
                     if commit_checkpoint_matches(
                         &before, &snapshot, claim, status, smtp_code, &detail,
                     ) {
