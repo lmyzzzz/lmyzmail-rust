@@ -1,0 +1,187 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "profiler_diagnostic_summary",
+  "qualified": false,
+  "retained": true,
+  "qualification_failure": "within_arm_throughput_stability",
+  "source_git_head": "3cb88ea9f26edbb6f3036098928219c1299f73db",
+  "hypothesis": "The gap between inbound index transaction substages and inbound_index_commit is queue and collection coordination rather than unmeasured database work.",
+  "configuration": {
+    "profile": "rust-profiler",
+    "target": "rust-candidate",
+    "tier": "10KB",
+    "messages": 2048,
+    "rust_filesystem_fsync": "off",
+    "workload_cpu_limit": 1,
+    "io_limit_bytes_per_second": 500000000,
+    "original_stress_endpoint_invocations_per_run": 1,
+    "harness_batching": false,
+    "configured_collection_window_ms": 2
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "9a7abc9d75119299458dd2ae7cc5de39cf40aba5908294ff8c2cbef08c6c00dd",
+    "build_id": "4f558dba7599ce239289aa65bfccfcca19c287b0",
+    "size_bytes": 218829816,
+    "owner_mode": "root:root 0755",
+    "main_and_deps_hard_link": true
+  },
+  "runs": [
+    {
+      "label": "v115",
+      "started_at": "2026-08-18T19:36:49+08:00",
+      "ended_at": "2026-08-18T19:39:15+08:00",
+      "throughput_messages_per_second": 115.15,
+      "timing_ms": {"queueing": 8723, "delivery": 9062, "total": 17786},
+      "stability": {
+        "maximum_relative_range": 0.30,
+        "relative_range": 0.447460,
+        "passed": false,
+        "segments_messages_per_second": [94.517267, 112.313757, 150.593552, 153.337565]
+      },
+      "outcome": {
+        "queued": 2048,
+        "received": 2048,
+        "failed": 0,
+        "exceptions": 0,
+        "oom": 0,
+        "retry": 0,
+        "lost": 0,
+        "maildir_publications": 4096,
+        "maildir_removals": 4096
+      },
+      "inbound_index_full_run_average_ms": {
+        "commit": 60.216609,
+        "admission": 0.000664,
+        "queue_wait": 15.458265,
+        "dispatch_wait": 4.626821,
+        "collection_per_batch": 4.910515,
+        "worker_per_batch": 38.797351,
+        "response_wait": 60.213702
+      },
+      "inbound_index_final_segment_average_ms": {
+        "commit": 50.541965,
+        "queue_wait": 12.700254,
+        "dispatch_wait": 4.019248,
+        "collection_per_batch": 4.303206,
+        "worker_per_batch": 32.833464,
+        "response_wait": 50.539116,
+        "measured_database_substages_per_batch": 32.735970
+      },
+      "batches": {
+        "count": 360,
+        "rows": 2048,
+        "average_rows": 5.688889,
+        "max_rows": 17,
+        "size_buckets": {"1": 11, "2_4": 104, "5_8": 211, "9_16": 33, "17_32": 1, "33_64": 0}
+      },
+      "artifacts": {
+        "console": "evidence/performance/smtp-rust-inbound-batch-wait-profiler-v115-console.log",
+        "console_sha256": "30efdc5c6b01f29f68a772f672bb2c911aa102b3ac576a035a535ea979567f3e",
+        "final_output": "not_published",
+        "launcher_cleanup_receipt": "not_published"
+      }
+    },
+    {
+      "label": "v116",
+      "started_at": "2026-08-18T19:41:02+08:00",
+      "ended_at": "2026-08-18T19:43:30+08:00",
+      "throughput_messages_per_second": 116.02,
+      "timing_ms": {"queueing": 8577, "delivery": 9074, "total": 17651},
+      "stability": {
+        "maximum_relative_range": 0.30,
+        "relative_range": 0.475485,
+        "passed": false,
+        "segments_messages_per_second": [92.651905, 116.081726, 151.515802, 156.271239]
+      },
+      "outcome": {
+        "queued": 2048,
+        "received": 2048,
+        "failed": 0,
+        "exceptions": 0,
+        "oom": 0,
+        "retry": 0,
+        "lost": 0,
+        "maildir_publications": 4096,
+        "maildir_removals": 4096
+      },
+      "inbound_index_full_run_average_ms": {
+        "commit": 59.739845,
+        "admission": 0.000566,
+        "queue_wait": 14.888525,
+        "dispatch_wait": 4.713114,
+        "collection_per_batch": 5.125227,
+        "worker_per_batch": 38.303730,
+        "response_wait": 59.737168
+      },
+      "inbound_index_final_segment_average_ms": {
+        "commit": 52.091800,
+        "queue_wait": 13.560537,
+        "dispatch_wait": 4.420377,
+        "collection_per_batch": 4.818971,
+        "worker_per_batch": 32.872345,
+        "response_wait": 52.089074,
+        "measured_database_substages_per_batch": 32.649135
+      },
+      "batches": {
+        "count": 354,
+        "rows": 2048,
+        "average_rows": 5.785311,
+        "max_rows": 21,
+        "size_buckets": {"1": 18, "2_4": 84, "5_8": 223, "9_16": 26, "17_32": 3, "33_64": 0}
+      },
+      "artifacts": {
+        "console": "evidence/performance/smtp-rust-inbound-batch-wait-profiler-v116-console.log",
+        "console_sha256": "27e028876632c8f88d2d280543d14d448b3980d06596b349f313e8270d550c2d",
+        "final_output": "not_published",
+        "launcher_cleanup_receipt": "not_published"
+      }
+    }
+  ],
+  "combined": {
+    "mean_throughput_messages_per_second": 115.585,
+    "mean_final_segment_messages_per_second": 154.804402,
+    "full_run_mean_ms": {
+      "queue_wait": 15.173395,
+      "dispatch_wait": 4.669968,
+      "collection_per_batch": 5.017871,
+      "worker_per_batch": 38.550541,
+      "response_wait": 59.975435,
+      "queue_dispatch_worker_sum": 58.393903,
+      "residual": 1.581532
+    },
+    "batches": {
+      "count": 714,
+      "rows": 4096,
+      "average_rows": 5.736695,
+      "max_rows": 21,
+      "size_buckets": {"1": 29, "2_4": 188, "5_8": 434, "9_16": 59, "17_32": 4, "33_64": 0}
+    },
+    "baseline_comparison": {
+      "baseline": "smtp-rust-result-checkpoint-transaction-profiler-v108-v109-summary.json",
+      "baseline_mean_messages_per_second": 111.795,
+      "overall_mean_change_percent": 3.390134,
+      "baseline_mean_final_segment_messages_per_second": 153.306,
+      "final_segment_mean_change_percent": 0.977393
+    }
+  },
+  "conclusion": "Queue wait, dispatch wait, and worker duration explain 97.36% of response wait. The configured two-millisecond collection window consumed 5.02 milliseconds per batch on average under the single-core workload, while batches averaged only 5.74 rows. This supports a bounded backlog-aware dispatch experiment; it does not support changing database or durability semantics.",
+  "next_experiment": "Drain already queued requests and dispatch without waiting once a small bounded row floor is reached; preserve the existing two-millisecond window for sparse batches. Retain only after correctness gates and two comparable profiler repetitions.",
+  "cleanup": {
+    "launcher_receipts": "not_published_after_stability_failure",
+    "post_run_read_only_audit": {
+      "passed": true,
+      "application_or_benchmark_processes": 0,
+      "run_specific_cgroups": 0,
+      "loop_devices": 0,
+      "additional_ext4_mounts": 0,
+      "run_specific_root_state_entries": 0,
+      "persistent_state_only": [
+        "/sys/fs/cgroup/lmyzmail-benchmark-root",
+        "/sys/fs/cgroup/lmyzmail-benchmark-housekeeping",
+        "/run/lmyzmail-benchmark-root/smtp-endpoint-throughput.lock",
+        "/run/lmyzmail-benchmark-root/mounts"
+      ]
+    }
+  }
+}

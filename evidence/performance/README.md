@@ -1738,3 +1738,45 @@ console hashes are `7a64eec5246212f8917b1891c6fe84aa82b3320b273d3f706b4a14e1b105
 and `f6c942f05f4373f515310938208b28db23f803a8577dac51af735235e15925e4`;
 the diagnostic JSON files record that the launcher published no final output
 or cleanup receipt, so no cleanup success is claimed.
+
+The next diagnostic added observer-only timing around the unchanged inbound
+index batcher in commit `3cb88ea9`. Per request it records channel admission,
+submit-to-worker queue wait, dequeue-to-dispatch wait, and response wait. Per
+batch it records collection and worker duration, plus a consistent cumulative
+size histogram. The observer remains disabled outside explicitly instrumented
+runs; the batching window and all database, durability, and protocol behavior
+were unchanged.
+
+V115 and v116 each delivered 2,048/2,048 10 KB messages with zero failures,
+exceptions, retries, OOM, or loss, and each published and removed 4,096
+Maildir entries. They measured 115.15 and 116.02 messages/second. Their four
+segment rates were 94.517, 112.314, 150.594, 153.338 and 92.652, 116.082,
+151.516, 156.271 messages/second, so both failed the unchanged 30% stability
+gate. The two-run mean was 115.585 messages/second; this is diagnostic only,
+not a qualification or a new performance floor.
+
+Across both runs, response wait averaged 59.975 ms per request. Queue wait,
+dequeue-to-dispatch wait, and worker time averaged 15.173, 4.670, and 38.551
+ms, explaining 58.394 ms and leaving only 1.582 ms of scheduling and response
+wakeup residual. The 714 batches averaged 5.737 rows and never exceeded 21
+rows. Although the configured collection window is two milliseconds, observed
+collection averaged 5.018 ms per batch under the single-core workload. This
+supports one bounded next experiment: immediately dispatch an already drained
+backlog after a small row floor, while retaining the two-millisecond window for
+sparse batches. It does not support weakening transaction or durability
+semantics.
+
+The combined diagnostic is
+`smtp-rust-inbound-batch-wait-profiler-v115-v116-summary.json`, SHA-256
+`8f79c1f0aa6c2e7215294c231fb77176be7eb637700d14efdebcf15df5d05001`.
+The v115 and v116 normalized repository console hashes are
+`30efdc5c6b01f29f68a772f672bb2c911aa102b3ac576a035a535ea979567f3e` and
+`27e028876632c8f88d2d280543d14d448b3980d06596b349f313e8270d550c2d`.
+The profiling ELF is SHA-256
+`9a7abc9d75119299458dd2ae7cc5de39cf40aba5908294ff8c2cbef08c6c00dd`,
+Build ID `4f558dba7599ce239289aa65bfccfcca19c287b0`, size 218,829,816 bytes,
+and root-owned mode 0755 with its main and deps paths sharing one inode. The
+launcher published neither final JSON nor cleanup receipts after stability
+failure. A subsequent read-only root audit found no benchmark process,
+run-specific cgroup, loop device, extra ext4 mount, or run-specific root state;
+that audit is recorded separately from launcher qualification in the summary.
