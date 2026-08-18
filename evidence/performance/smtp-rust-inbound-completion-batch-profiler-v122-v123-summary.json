@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "profiler_diagnostic_summary",
+  "qualified": false,
+  "retained": true,
+  "qualification_failure": "within_arm_throughput_stability",
+  "source_git_head": "4d1d4623c2c1ad2d1d4b4292e353cab7ad18c368",
+  "hypothesis": "Batch already verified inbound intent completions in a bounded worker while preserving identity validation, stable advisory-lock order, per-request failures, and unknown-commit reconciliation.",
+  "configuration": {
+    "profile": "rust-profiler",
+    "target": "rust-candidate",
+    "tier": "10KB",
+    "messages": 2048,
+    "rust_filesystem_fsync": "off",
+    "workload_cpu_limit": 1,
+    "io_limit_bytes_per_second": 500000000,
+    "original_stress_endpoint_invocations_per_run": 1,
+    "harness_batching": false,
+    "completion_batch_capacity": 64,
+    "completion_batch_collection_window_ms": 2,
+    "completion_batch_channel_capacity": 256,
+    "maximum_selected_diagnostic_stages": 16
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "c50fb8bb8f3cfbd7183e8f8b7a02d4e718f243876dd6dcadc9a73b7887369156e",
+    "build_id": "dc3206c8abe688a1243e19cf8cf7f2f6578cb9d7",
+    "size_bytes": 219226136,
+    "owner_mode": "root:root 0755",
+    "main_and_deps_hard_link": true
+  },
+  "runs": [
+    {
+      "label": "v122",
+      "started_at": "2026-08-18T21:15:06+08:00",
+      "ended_at": "2026-08-18T21:17:36+08:00",
+      "throughput_messages_per_second": 107.54,
+      "timing_ms": {"queueing": 8970, "delivery": 10073, "total": 19044},
+      "stability": {
+        "maximum_relative_range": 0.30,
+        "relative_range": 0.526679,
+        "passed": false,
+        "segments_messages_per_second": [85.886529, 115.614048, 153.617967, 141.587871]
+      },
+      "outcome": {
+        "queued": 2048,
+        "received": 2048,
+        "failed": 0,
+        "exceptions": 0,
+        "oom": 0,
+        "retry": 0,
+        "lost": 0,
+        "maildir_publications": 4096,
+        "maildir_removals": 4096
+      },
+      "completion_batch": {
+        "worker_stage_count": 379,
+        "rows": 2048,
+        "average_rows_per_worker": 5.403694,
+        "worker_average_ms_by_retained_segment": [34.908530, 29.540527, 22.341472, 25.140854],
+        "final_segment_average_ms": {
+          "admission": 0.000364,
+          "queue_wait": 0.846241,
+          "dispatch_wait": 3.381262,
+          "collect": 4.078611,
+          "worker": 25.140854,
+          "response_wait": 30.497508
+        }
+      },
+      "artifacts": {
+        "console": "evidence/performance/smtp-rust-inbound-completion-batch-profiler-v122-console.log",
+        "console_sha256": "154f6e90a5df297c824bd896b759c07471416808c1bd74f906563a21413b9df4",
+        "final_output": "not_published",
+        "launcher_cleanup_receipt": "not_published"
+      }
+    },
+    {
+      "label": "v123",
+      "started_at": "2026-08-18T21:18:10+08:00",
+      "ended_at": "2026-08-18T21:20:40+08:00",
+      "throughput_messages_per_second": 114.83,
+      "timing_ms": {"queueing": 8765, "delivery": 9069, "total": 17835},
+      "stability": {
+        "maximum_relative_range": 0.30,
+        "relative_range": 0.479146,
+        "passed": false,
+        "segments_messages_per_second": [89.983425, 119.472612, 155.215489, 155.791270]
+      },
+      "outcome": {
+        "queued": 2048,
+        "received": 2048,
+        "failed": 0,
+        "exceptions": 0,
+        "oom": 0,
+        "retry": 0,
+        "lost": 0,
+        "maildir_publications": 4096,
+        "maildir_removals": 4096
+      },
+      "completion_batch": {
+        "worker_stage_count": 374,
+        "rows": 2048,
+        "average_rows_per_worker": 5.475936,
+        "worker_average_ms_by_retained_segment": [32.151555, 28.381876, 22.350081, 20.763498],
+        "final_segment_average_ms": {
+          "admission": 0.000364,
+          "queue_wait": 0.979222,
+          "dispatch_wait": 3.867871,
+          "collect": 4.342956,
+          "worker": 20.763498,
+          "response_wait": 26.273703
+        }
+      },
+      "artifacts": {
+        "console": "evidence/performance/smtp-rust-inbound-completion-batch-profiler-v123-console.log",
+        "console_sha256": "3ec5cd7dcb66c69983a8d76afde0c1134ac02cabb6ace68a8b444f54aadd1a8b",
+        "final_output": "not_published",
+        "launcher_cleanup_receipt": "not_published"
+      }
+    }
+  ],
+  "combined": {
+    "mean_throughput_messages_per_second": 111.185,
+    "control_v120_v121_mean_messages_per_second": 112.585,
+    "throughput_change_percent": -1.243503,
+    "completion_batch_worker_stage_count": 753,
+    "completion_batch_worker_stage_count_mean": 376.5,
+    "completion_rows": 4096,
+    "completion_average_rows_per_worker": 5.439814,
+    "estimated_single_message_transaction_reduction_percent": 81.616211,
+    "bottleneck_stage_order": [
+      "smtp_commit",
+      "smtp_final_reply",
+      "inbound_index_commit",
+      "inbound_index_batch_response_wait"
+    ],
+    "conclusion": "The completion committer materially reduces completion transaction count while preserving zero-loss behavior, but the end-to-end mean is 1.24% below the v120/v121 control and both runs fail the unchanged stability gate. Completion batching is therefore not a retained throughput optimization; the next profiler target is inbound index transaction/queue or SMTP/checkpoint latency."
+  },
+  "cleanup": {
+    "passed": true,
+    "post_run_read_only_audit": {
+      "application_or_benchmark_processes": 0,
+      "run_specific_cgroups": 0,
+      "loop_devices": 0,
+      "additional_ext4_mounts": 0,
+      "run_specific_root_state_entries": 0,
+      "persistent_harness_state": [
+        "/sys/fs/cgroup/lmyzmail-benchmark-root",
+        "/sys/fs/cgroup/lmyzmail-benchmark-housekeeping",
+        "/run/lmyzmail-benchmark-root",
+        "/run/lmyzmail-benchmark-attestations"
+      ]
+    }
+  }
+}

@@ -1864,3 +1864,35 @@ bytes, and root-owned mode 0755 with its main and deps paths sharing one inode.
 Neither valid run published final JSON or a launcher cleanup receipt. A
 post-run read-only root audit found no benchmark process, run-specific cgroup,
 loop device, extra ext4 mount, or run-specific root state.
+
+Commit `4d1d4623` added the bounded `CompletionCommitter` for already verified
+inbound intents. The current-HEAD profiling ELF is SHA-256
+`c50fb8bb8f3cfbd7183e8f8b7a02d4e718f243876dd6dcadc9a73b7887369156e`, Build ID
+`dc3206c8abe688a1243e19cf8cf7f2f6578cb9d7`, size 219,226,136 bytes, and
+root-owned mode 0755 with its main and deps paths sharing one inode. The two
+fresh 10 KB diagnostic runs again used one original stress-endpoint invocation
+each, 2,048 messages, one workload CPU, the 500,000,000-byte/s I/O cap, and
+Rust fsync-off. Both delivered and received 2,048/2,048, published and removed
+4,096 Maildir entries, and recorded zero failures, exceptions, retries, OOM, or
+loss. They measured 107.54 and 114.83 messages/second, but failed the unchanged
+30% stability gate with 52.6679% and 47.9146% ranges, so their 111.185 mean is
+diagnostic only.
+
+The completion worker stage appeared 379 and 374 times, respectively, for
+2,048 rows per run and about 5.40 and 5.48 rows per worker transaction. This
+is a substantial reduction from one completion transaction per message, while
+the end-to-end mean was still 1.24% below the v120/v121 control mean of 112.585.
+The retained quartiles put `smtp_commit`, `smtp_final_reply`,
+`inbound_index_commit`, and `inbound_index_batch_response_wait` above the
+completion stages. The change therefore reduces database work but does not
+qualify as a throughput improvement; the next profiler pass must target the
+inbound index transaction/queue or SMTP/checkpoint pipeline. The raw console
+hashes are `154f6e90a5df297c824bd896b759c07471416808c1bd74f906563a21413b9df4`
+and `3ec5cd7dcb66c69983a8d76afde0c1134ac02cabb6ace68a8b444f54aadd1a8b`.
+The structured diagnostic is
+`smtp-rust-inbound-completion-batch-profiler-v122-v123-summary.json`.
+Both launcher JSON outputs were intentionally absent because the stability
+contract failed; a read-only post-run audit found no application or benchmark
+process, run-specific cgroup, loop device, extra ext4 mount, or run-specific
+root state. The persistent benchmark parent cgroups and attestation/lock roots
+are retained harness state, not run residue.
