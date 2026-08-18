@@ -105,22 +105,22 @@ MAXIMUM_WITHIN_ARM_RELATIVE_RANGE = 0.30
 MAXIMUM_COORDINATOR_DIAGNOSTIC_STAGES = 8
 MAXIMUM_COORDINATOR_SELECTED_DIAGNOSTIC_STAGES = 16
 COORDINATOR_SELECTED_DIAGNOSTIC_STAGES = (
-    "smtp_connect",
-    "smtp_greeting",
-    "smtp_ehlo",
-    "smtp_quit",
-    "inbound_index_pool",
-    "inbound_index_begin",
-    "inbound_index_intent_lock",
-    "inbound_index_intent_read",
-    "inbound_index_mailbox_read",
-    "inbound_index_existing_read",
-    "inbound_index_insert",
-    "inbound_index_count_state",
-    "inbound_index_projection_state",
-    "inbound_index_intent_advance",
-    "inbound_index_mutation",
-    "inbound_index_transaction_commit",
+    "smtp_commit",
+    "smtp_final_reply",
+    "prepared_checkpoint",
+    "result_checkpoint",
+    "legacy_projection",
+    "queue_acknowledge",
+    "queue_ack_spool_cleanup",
+    "queue_ack_spool_setup",
+    "queue_ack_spool_proof_validation",
+    "queue_ack_spool_sent_compare",
+    "queue_ack_spool_mutation",
+    "queue_ack_spool_durability",
+    "queue_ack_spool_proof_cleanup",
+    "queue_ack_mutation",
+    "queue_ack_reconciliation",
+    "queue_ack_sidecar_cleanup",
 )
 MAXIMUM_PROXY_PROGRESS_SAMPLES = 20_000
 MAXIMUM_RESOURCE_SAMPLES = 10_000
