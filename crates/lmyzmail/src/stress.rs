@@ -47,7 +47,9 @@ const STREAMING_BODY_HEADER_BYTES: usize = 512;
 // admission must cover the complete body plus the bounded writer/header scratch.
 const STREAMING_BODY_SCRATCH_BYTES: usize =
     STREAMING_BODY_BUFFER_BYTES + STREAMING_BODY_HEADER_BYTES;
-const QUEUE_WAIT: Duration = Duration::from_secs(30 * 60);
+const QUEUE_WAIT_BASE_SECONDS: u64 = 30 * 60;
+const QUEUE_WAIT_MIN_MESSAGES_PER_SECOND: u64 = 50;
+const QUEUE_WAIT_MAX_SECONDS: u64 = 3 * 60 * 60;
 const DELIVERY_WAIT: Duration = Duration::from_secs(20 * 60);
 const DELIVERY_POLL: Duration = Duration::from_secs(1);
 const DELIVERY_STABLE_POLLS: usize = 2;
@@ -950,15 +952,21 @@ async fn run_stress(
             },
             );
             tokio::pin!(queueing);
-            if timeout(QUEUE_WAIT, &mut queueing).await.is_err() {
+            let queue_wait = queue_wait_deadline(email_count);
+            if timeout(queue_wait, &mut queueing).await.is_err() {
                 cancellation.cancel();
                 if timeout(TEMP_CLEANUP_DEADLINE, &mut queueing).await.is_err() {
                     eprintln!(
-                        "[STRESS TEST] Queue timed out and active enqueue jobs did not quiesce within {}s",
+                        "[STRESS TEST] Queue exceeded its {}s deadline and active enqueue jobs did not quiesce within {}s",
+                        queue_wait.as_secs(),
                         TEMP_CLEANUP_DEADLINE.as_secs()
                     );
                     return Err(StressError::Backend);
                 }
+                eprintln!(
+                    "[STRESS TEST] Queue exceeded its bounded {}s deadline",
+                    queue_wait.as_secs()
+                );
                 return Err(StressError::Backend);
             }
             if cancellation.is_cancelled() {
@@ -1617,6 +1625,12 @@ fn body_memory_per_job(body_size: usize) -> usize {
     }
 }
 
+fn queue_wait_deadline(email_count: i32) -> Duration {
+    let message_count = u64::try_from(email_count.max(0)).unwrap_or_default();
+    let workload_seconds = message_count.div_ceil(QUEUE_WAIT_MIN_MESSAGES_PER_SECOND);
+    Duration::from_secs(workload_seconds.clamp(QUEUE_WAIT_BASE_SECONDS, QUEUE_WAIT_MAX_SECONDS))
+}
+
 fn final_cleanup_deadline(email_count: i32, email_size_kb: i32) -> Duration {
     let message_count = u64::try_from(email_count.max(0)).unwrap_or_default();
     let message_bytes = u64::try_from(email_size_kb.max(0))
@@ -2124,6 +2138,18 @@ mod tests {
             Duration::from_secs(FINAL_CLEANUP_MAX_SECONDS)
         );
         assert!(final_cleanup_deadline(i32::MAX, i32::MAX) < Duration::from_secs(120));
+    }
+
+    #[test]
+    fn queue_wait_deadline_preserves_java_floor_and_bounds_formal_runs() {
+        assert_eq!(queue_wait_deadline(0), Duration::from_secs(30 * 60));
+        assert_eq!(queue_wait_deadline(90_000), Duration::from_secs(30 * 60));
+        assert_eq!(queue_wait_deadline(500_000), Duration::from_secs(10_000));
+        assert_eq!(
+            queue_wait_deadline(i32::MAX),
+            Duration::from_secs(QUEUE_WAIT_MAX_SECONDS)
+        );
+        assert!(queue_wait_deadline(500_000) < Duration::from_secs(3 * 60 * 60));
     }
 
     #[test]

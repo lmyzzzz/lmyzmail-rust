@@ -62,7 +62,7 @@ class _FakeMaildirObserver:
         receiver_scope = f"{runner.ENDPOINT_RECEIVER}/inbox"
         sender_scope = f"{runner.ENDPOINT_SENDER}/sent"
         return {
-            "profile": "lmyzmail-maildir-inotify-publication-v8",
+            "profile": "lmyzmail-maildir-inotify-publication-v9",
             "expected_messages": self.expected_messages,
             "expected_publication_events": self.expected_messages * 2,
             "publication_events": self.expected_messages * 2,
@@ -1268,6 +1268,21 @@ class RustProxyLifecycleTests(unittest.TestCase):
 
 
 class PlanAndComparisonTests(unittest.TestCase):
+    def test_formal_timeout_and_sample_bounds_cover_candidate_deadlines(self) -> None:
+        self.assertGreater(
+            runner.MEASUREMENT_TIMEOUT_SECONDS,
+            runner.CANDIDATE_MAX_QUEUE_WAIT_SECONDS
+            + runner.CANDIDATE_DELIVERY_WAIT_SECONDS,
+        )
+        self.assertGreater(
+            runner.MAXIMUM_PROXY_PROGRESS_SAMPLES * 0.25,
+            runner.MEASUREMENT_TIMEOUT_SECONDS,
+        )
+        self.assertGreater(
+            runner.MAXIMUM_RESOURCE_SAMPLES * runner.RESOURCE_SAMPLE_SECONDS,
+            runner.MEASUREMENT_TIMEOUT_SECONDS,
+        )
+
     def test_profiler_stage_selection_targets_result_checkpoint_transaction(
         self,
     ) -> None:
@@ -3516,7 +3531,7 @@ class RoundContractTests(unittest.TestCase):
             self.assertIsNotNone(evidence)
             assert evidence is not None
             self.assertEqual(
-                evidence["profile"], "lmyzmail-maildir-inotify-publication-v8"
+                evidence["profile"], "lmyzmail-maildir-inotify-publication-v9"
             )
             self.assertEqual(evidence["atomic_rename_publications"], 2)
             self.assertEqual(evidence["receiver_inbox_publications"], 1)
@@ -3662,6 +3677,7 @@ class RoundContractTests(unittest.TestCase):
         observer.receiver_root = receiver
         observer.published = 0
         observer.removed = 0
+        observer.last_publication_monotonic_ns = None
         observer.close_write_events = 0
         observer.peak_live_files = 0
         observer.publication_mechanisms = {}
@@ -3702,6 +3718,7 @@ class RoundContractTests(unittest.TestCase):
         observer.receiver_root = receiver
         observer.published = 0
         observer.removed = 0
+        observer.last_publication_monotonic_ns = None
         observer.close_write_events = 0
         observer.peak_live_files = 0
         observer.publication_mechanisms = {}
@@ -3712,8 +3729,12 @@ class RoundContractTests(unittest.TestCase):
         payload = observer._EVENT.pack(
             -1, observer._IN_Q_OVERFLOW, 0, 0
         )
-        with self.assertRaisesRegex(RuntimeError, "before all publications"):
-            observer._consume(payload)
+        observer._consume(payload)
+        evidence = observer._evidence(require_cleanup=False)
+        self.assertEqual(evidence["publication_overflow_before_expected"], 1)
+        self.assertFalse(evidence["publication_stream_complete"])
+        self.assertFalse(evidence["publication_passed"])
+        self.assertFalse(evidence["passed"])
 
     def test_maildir_observer_reconciles_missing_names_after_cleanup_overflow(
         self,

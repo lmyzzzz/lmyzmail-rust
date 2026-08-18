@@ -2169,3 +2169,51 @@ d3001694-83be-4dcf-a86b-eca11236d857 recorded request=ABORT, cleanup=passed,
 lazy_unmount=0, and recovered=0. A read-only audit found no benchmark process,
 run-specific cgroup, loop device, additional ext4 mount, or mutable per-run
 root resource.
+
+The first formal `candidate-stability` 1 KB, fsync-off attempt at commit
+`d2e10458` is retained only as negative stability evidence. Run
+`ed2b4d2a-afc3-4550-8413-cc109ad3330b` made one original
+`POST /api/stress/start` request for 500,000 messages with no harness batching.
+The passive SMTP proxy verified 224,232 unique messages with zero retry,
+duplicate, or observer failure before the Rust stress endpoint reached its
+fixed 30-minute enqueue timeout. The application cancelled the remaining
+work, which produced 49,165 PostgreSQL rollback outcomes in the failed-run
+window; the deletion burst also overflowed inotify before the observer had
+seen the requested one million sender/receiver Maildir publications. The run
+therefore published no result or throughput claim.
+
+Privileged fail-closed cleanup still removed every process, mount, loop image,
+artifact, and cgroup. The protected journal reports `request=ABORT`,
+`cleanup=passed`, `lazy_unmount=0`, and `recovered=0`. Its copied cleanup
+receipt hashes to
+`2e561917a132fd0d7fac5cf5be99399a27a02c34fa0e024f169d01ea45d2e76d`;
+the bounded failure record hashes to
+`1d17f071d7dabfe67926da10fce6225341cbcf06d58ffede99ec29ea455de131`.
+
+The retained fix preserves Java's 30-minute minimum wait but scales the queue
+deadline at a conservative floor of 50 messages/second, giving the formal
+500,000-message tiers 10,000 seconds, with a three-hour hard ceiling. The
+harness now allows the endpoint's three-hour queue ceiling, the frozen
+20-minute delivery ceiling, and a ten-minute shutdown margin while keeping
+fixed resource and proxy-sample limits. A publication-side inotify overflow
+still fails qualification immediately, but the observer remains alive to
+produce bounded partial failure and cleanup evidence instead of discarding the
+diagnostic stream. None of these changes relax exact message, zero-retry,
+zero-rollback, persistence, cleanup, or root-resource gates.
+
+The post-fix candidate-stability smoke, run
+`f58d14b9-9430-4c21-9828-4233b325041f`, used the close-only fsync mode and
+passively verified all `8/8` requested 1 KB messages. It recorded zero retries,
+failures, PostgreSQL rollbacks, or application-log failure lines, and passed
+the message lifecycle, persistence, resource, immutable-artifact, and root
+cleanup checks. The candidate release SHA-256 was
+`c69305850bda89769d4a6f5c5912ffca346ce009987794e8cbac54c662c2ec1a`;
+the create-only JSON and root cleanup receipt SHA-256 values were respectively
+`9c40b9f3afd6c39298586ac6cec6df379e0949381c48c1d5052c74fc163211d9`
+and
+`146e55971e1d9a80b11dab843e1c78bc67fbfaaa7cab4a6b9a1852ac21eaf609`.
+The root journal reports `request=DONE`, `cleanup=passed`,
+`qualified_cleanup=1`, and `lazy_unmount=0`, with no residual process, cgroup,
+mount, loop device, image, or artifact. This run remains `qualified=false`:
+eight smoke messages do not satisfy the external prerequisites, formal
+500,000-message count, or queue-scheduler observation gate.

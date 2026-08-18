@@ -73,7 +73,11 @@ BENCHMARK_SELF_SMTP_MAX_INBOUND_BYTES_PER_WINDOW = 8 * 1024**3
 MAX_WIRE_MESSAGE_BYTES = 12 * 1024 * 1024
 HEADER_CAPTURE_BYTES = 64 * 1024
 SAMPLE_MESSAGES = 8
-MEASUREMENT_TIMEOUT_SECONDS = 45 * 60
+CANDIDATE_MAX_QUEUE_WAIT_SECONDS = 3 * 60 * 60
+CANDIDATE_DELIVERY_WAIT_SECONDS = 20 * 60
+MEASUREMENT_TIMEOUT_SECONDS = (
+    CANDIDATE_MAX_QUEUE_WAIT_SECONDS + CANDIDATE_DELIVERY_WAIT_SECONDS + 10 * 60
+)
 CLEANUP_TIMEOUT_SECONDS = 30 * 60
 RESOURCE_SAMPLE_SECONDS = 1.0
 STATE_STABLE_POLLS = 3
@@ -151,8 +155,8 @@ def _coordinator_selected_diagnostic_stages() -> tuple[str, ...]:
     return selected
 
 
-MAXIMUM_PROXY_PROGRESS_SAMPLES = 20_000
-MAXIMUM_RESOURCE_SAMPLES = 10_000
+MAXIMUM_PROXY_PROGRESS_SAMPLES = 60_000
+MAXIMUM_RESOURCE_SAMPLES = 15_000
 MAXIMUM_POST_FINAL_PERSISTENCE_LAG_SECONDS = 30.0
 PERSISTENCE_GATE_TIMEOUT_SECONDS = 30.0
 PERSISTENCE_VISIBILITY_POLL_SECONDS = 0.05
@@ -2884,6 +2888,7 @@ class MaildirPersistenceObserver:
         self.publications_by_parent: dict[str, set[str]] = {}
         self.removed_paths: set[str] = set()
         self.overflow_events = 0
+        self.publication_overflow_before_expected = 0
         self.overflow_reconciliations = 0
         self.overflow_reconciled_removals = 0
         self.overflow_directory_scans = 0
@@ -3105,8 +3110,13 @@ class MaildirPersistenceObserver:
         )
         expected_publications = self.expected_messages * len(scope_roots)
         if self.published != expected_publications:
-            raise RuntimeError(
-                "Maildir observer queue overflowed before all publications were observed"
+            self.publication_overflow_before_expected = (
+                getattr(self, "publication_overflow_before_expected", 0) + 1
+            )
+            self.event_digest.update(
+                f"publication-overflow\0{self.published}\0{expected_publications}\n".encode(
+                    "ascii"
+                )
             )
         removed_before = self.removed
         publications_by_parent = getattr(self, "publications_by_parent", {})
@@ -3170,8 +3180,12 @@ class MaildirPersistenceObserver:
             for scope in scope_roots
         }
         expected_publications = self.expected_messages * len(scope_roots)
+        publication_overflow_before_expected = getattr(
+            self, "publication_overflow_before_expected", 0
+        )
         publication_passed = bool(
             self.published == expected_publications
+            and publication_overflow_before_expected == 0
             and all(
                 count == self.expected_messages for count in publication_counts.values()
             )
@@ -3203,7 +3217,7 @@ class MaildirPersistenceObserver:
             for scope in scope_roots
         }
         return {
-            "profile": "lmyzmail-maildir-inotify-publication-v8",
+            "profile": "lmyzmail-maildir-inotify-publication-v9",
             "watch_scope_profile": "target-mailbox-folders-only-v1",
             "watched_directories": len(getattr(self, "watches", {})),
             "unrelated_maildir_trees_excluded": True,
@@ -3236,6 +3250,8 @@ class MaildirPersistenceObserver:
             "peak_live_files": self.peak_live_files,
             "event_stream_sha256": self.event_digest.hexdigest(),
             "inotify_overflow_events": getattr(self, "overflow_events", 0),
+            "publication_overflow_before_expected": publication_overflow_before_expected,
+            "publication_stream_complete": publication_overflow_before_expected == 0,
             "overflow_reconciliations": getattr(
                 self, "overflow_reconciliations", 0
             ),
@@ -3357,6 +3373,10 @@ class MaildirPersistenceObserver:
                     raise RuntimeError(
                         f"Maildir persistence observer failed: {self.error!r}"
                     ) from self.error
+                if getattr(self, "publication_overflow_before_expected", 0) > 0:
+                    raise RuntimeError(
+                        "Maildir observer queue overflowed before all publications were observed"
+                    )
                 if abort_check is not None:
                     abort_check()
                 remaining = deadline - time.monotonic()
@@ -9947,6 +9967,11 @@ def _run_benchmark(args: argparse.Namespace, layout: CgroupLayout) -> dict[str, 
             "stress_start_maximum_attempts_per_arm": 1,
             "stress_start_automatic_retries": 0,
             "uncertain_start_outcome": "fail_closed_and_restart_as_a_new_benchmark_run",
+            "candidate_max_queue_wait_seconds": CANDIDATE_MAX_QUEUE_WAIT_SECONDS,
+            "candidate_delivery_wait_seconds": CANDIDATE_DELIVERY_WAIT_SECONDS,
+            "measurement_timeout_seconds": MEASUREMENT_TIMEOUT_SECONDS,
+            "proxy_progress_sample_limit": MAXIMUM_PROXY_PROGRESS_SAMPLES,
+            "resource_sample_limit": MAXIMUM_RESOURCE_SAMPLES,
             "harness_batching": False,
             "automatic_endpoint_cleanup_only": True,
             "warmup_endpoint_invocations": 0,
