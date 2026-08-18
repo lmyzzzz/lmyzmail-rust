@@ -1,0 +1,200 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "profiler_diagnostic_summary",
+  "qualified": false,
+  "retained": true,
+  "qualification_failure": "within_arm_throughput_stability",
+  "source_git_head": "b869923e9ca328709f940d3f18612adb3f280b09",
+  "hypothesis": "Refresh the complete inbound SMTP commit decomposition after intent, index, and completion batching without changing production behavior.",
+  "configuration": {
+    "profile": "rust-profiler",
+    "target": "rust-candidate",
+    "tier": "10KB",
+    "messages": 2048,
+    "rust_filesystem_fsync": "off",
+    "postgresql_fsync": "on",
+    "postgresql_synchronous_commit": "on",
+    "postgres_pool_size": 96,
+    "workload_cpu_limit": 1,
+    "io_limit_bytes_per_second": 500000000,
+    "original_stress_endpoint_invocations_per_run": 1,
+    "harness_batching": false,
+    "maximum_selected_diagnostic_stages": 16
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "7c79ce69fdc5271e2882bf70093f40efcdb1af2218645fd7676d527dcd1d521a",
+    "build_id": "d24fa8ea660aa0a0d5117c7d558df03b2866d94f",
+    "size_bytes": 219654896,
+    "owner_mode": "root:root 0755",
+    "main_and_deps_hard_link": true
+  },
+  "selected_stages": [
+    "smtp_commit",
+    "inbound_prepare_file",
+    "inbound_intent_insert",
+    "inbound_publish_file",
+    "inbound_index_commit",
+    "inbound_publish_verify",
+    "inbound_intent_complete",
+    "inbound_intent_batch_queue_wait",
+    "inbound_intent_batch_dispatch_wait",
+    "inbound_intent_batch_worker",
+    "inbound_index_batch_queue_wait",
+    "inbound_index_batch_dispatch_wait",
+    "inbound_index_batch_worker",
+    "inbound_completion_batch_queue_wait",
+    "inbound_completion_batch_dispatch_wait",
+    "inbound_completion_batch_worker"
+  ],
+  "runs": [
+    {
+      "label": "v132",
+      "throughput_messages_per_second": 116.98,
+      "timing_ms": {"queueing": 8443, "delivery": 9063, "total": 17506},
+      "stability": {
+        "maximum_relative_range": 0.30,
+        "relative_range": 0.535621,
+        "passed": false,
+        "segments_messages_per_second": [90.334180, 122.144040, 149.799532, 163.163480]
+      },
+      "outcome": {
+        "queued": 2048,
+        "received": 2048,
+        "failed": 0,
+        "exceptions": 0,
+        "oom": 0,
+        "retry": 0,
+        "lost": 0,
+        "maildir_publications": 4096,
+        "maildir_removals": 4096
+      },
+      "full_run_stage_average_ms": {
+        "smtp_commit": 147.330988,
+        "inbound_prepare_file": 1.016816,
+        "inbound_intent_insert": 40.337650,
+        "inbound_publish_file": 0.620090,
+        "inbound_index_commit": 55.952771,
+        "inbound_publish_verify": 0.529226,
+        "inbound_intent_complete": 31.848826,
+        "inbound_intent_batch_queue_wait": 9.490682,
+        "inbound_intent_batch_dispatch_wait": 4.709527,
+        "inbound_intent_batch_worker": 25.164621,
+        "inbound_index_batch_queue_wait": 13.317761,
+        "inbound_index_batch_dispatch_wait": 5.457738,
+        "inbound_index_batch_worker": 35.869568,
+        "inbound_completion_batch_queue_wait": 0.645557,
+        "inbound_completion_batch_dispatch_wait": 4.431897,
+        "inbound_completion_batch_worker": 25.792957
+      },
+      "final_segment_stage_average_ms": {
+        "smtp_commit": 120.004283,
+        "inbound_prepare_file": 0.322798,
+        "inbound_intent_insert": 32.750455,
+        "inbound_publish_file": 0.291941,
+        "inbound_index_commit": 46.528339,
+        "inbound_publish_verify": 0.219496,
+        "inbound_intent_complete": 23.740671
+      },
+      "inbound_index": {"batches": 368, "rows": 2048, "average_rows_per_batch": 5.565217},
+      "artifacts": {
+        "console": "evidence/performance/smtp-rust-current-inbound-stage-profiler-v132-console.log",
+        "console_sha256": "33e31e72c806ac311e776405a91eef67a182ebda0ac26e7e45292cbc7d9e83ca",
+        "final_output": "not_published",
+        "root_cleanup_copy": "evidence/performance/smtp-rust-current-inbound-stage-profiler-v132.json.root-cleanup",
+        "root_run_id": "e4c4be91-a162-4667-821e-b1819d601176",
+        "root_intent_sha256": "fd8082afb456bd3b121d9608270e1ee30aeb3c0556d563ff327c0bc56c18e523",
+        "root_done_sha256": "495af9adc19b88c83f0fba28445a6c68b1b4c26109a6cff5b1d6978fd55cd60e"
+      }
+    },
+    {
+      "label": "v133",
+      "throughput_messages_per_second": 118.05,
+      "timing_ms": {"queueing": 8280, "delivery": 9068, "total": 17348},
+      "stability": {
+        "maximum_relative_range": 0.30,
+        "relative_range": 0.495661,
+        "passed": false,
+        "segments_messages_per_second": [90.964988, 125.478937, 157.214193, 161.024931]
+      },
+      "outcome": {
+        "queued": 2048,
+        "received": 2048,
+        "failed": 0,
+        "exceptions": 0,
+        "oom": 0,
+        "retry": 0,
+        "lost": 0,
+        "maildir_publications": 4096,
+        "maildir_removals": 4096
+      },
+      "full_run_stage_average_ms": {
+        "smtp_commit": 146.195819,
+        "inbound_prepare_file": 1.100486,
+        "inbound_intent_insert": 40.716089,
+        "inbound_publish_file": 0.694260,
+        "inbound_index_commit": 55.509911,
+        "inbound_publish_verify": 0.418508,
+        "inbound_intent_complete": 31.748481,
+        "inbound_intent_batch_queue_wait": 9.323813,
+        "inbound_intent_batch_dispatch_wait": 4.284716,
+        "inbound_intent_batch_worker": 25.418671,
+        "inbound_index_batch_queue_wait": 13.670892,
+        "inbound_index_batch_dispatch_wait": 5.460052,
+        "inbound_index_batch_worker": 35.071059,
+        "inbound_completion_batch_queue_wait": 1.570240,
+        "inbound_completion_batch_dispatch_wait": 4.229760,
+        "inbound_completion_batch_worker": 25.327735
+      },
+      "final_segment_stage_average_ms": {
+        "smtp_commit": 127.940567,
+        "inbound_prepare_file": 0.378180,
+        "inbound_intent_insert": 34.830166,
+        "inbound_publish_file": 0.212932,
+        "inbound_index_commit": 50.179527,
+        "inbound_publish_verify": 0.135037,
+        "inbound_intent_complete": 26.602762
+      },
+      "inbound_index": {"batches": 371, "rows": 2048, "average_rows_per_batch": 5.520216},
+      "artifacts": {
+        "console": "evidence/performance/smtp-rust-current-inbound-stage-profiler-v133-console.log",
+        "console_sha256": "8c7b22ccacc3cb1984e57ebf0f69bf17678de2467c96f8c851e682f4c3c5cce1",
+        "final_output": "not_published",
+        "root_cleanup_copy": "evidence/performance/smtp-rust-current-inbound-stage-profiler-v133.json.root-cleanup",
+        "root_run_id": "9a1dd82f-9258-4f7e-bd48-3630ac838670",
+        "root_intent_sha256": "a30667ccc97790dbd5fe61ab907f4b78e6af998081deb546b896ecd4b560b5c1",
+        "root_done_sha256": "8a649fd36762b60b3e06293e62b4d4f9a27a42c36920cc06882639d2ee4ec347"
+      }
+    }
+  ],
+  "combined": {
+    "mean_throughput_messages_per_second": 117.515,
+    "mean_stage_ms": {
+      "smtp_commit": 146.763403,
+      "inbound_prepare_file": 1.058651,
+      "inbound_intent_insert": 40.526870,
+      "inbound_publish_file": 0.657175,
+      "inbound_index_commit": 55.731341,
+      "inbound_publish_verify": 0.473867,
+      "inbound_intent_complete": 31.798653,
+      "inbound_intent_batch_worker": 25.291646,
+      "inbound_index_batch_worker": 35.470313,
+      "inbound_completion_batch_worker": 25.560346
+    },
+    "historical_supporting_observation": "The retained v78 PostgreSQL duration trace distributed inbound batch work across 57 backend PIDs under the benchmark pool; this is supporting history, not a direct v132/v133 measurement.",
+    "conclusion": "Both runs reproduce the same ordering. Intent, index, and completion database committers dominate smtp_commit, while file preparation, publication, and verification average only 2.19 ms combined. Every database worker becomes materially faster from the first to the final quartile. The next bounded hypothesis is index-worker connection affinity with a low-pool fallback, tested without changing SQL, transaction, durability, batch, or protocol semantics. Neither run passes the unchanged stability gate, so no qualified throughput claim is made."
+  },
+  "cleanup": {
+    "passed": true,
+    "root_receipts": {
+      "v132": {"request": "ABORT", "cleanup": "passed", "lazy_unmount": 0, "recovered": 0},
+      "v133": {"request": "ABORT", "cleanup": "passed", "lazy_unmount": 0, "recovered": 0}
+    },
+    "post_run_read_only_audit": {
+      "application_or_benchmark_processes": 0,
+      "run_specific_cgroups": 0,
+      "loop_devices": 0,
+      "additional_ext4_mounts": 0
+    }
+  }
+}

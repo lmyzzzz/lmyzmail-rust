@@ -2049,3 +2049,35 @@ bytes, root-owned mode 0755, with main/deps hard-link identity. Root runs
 `cleanup=passed`, `lazy_unmount=0`, and `recovered=0`; read-only audits found
 no application or benchmark process, run-specific cgroup, loop device, or
 additional ext4 mount.
+
+V132 and v133 refreshed the complete inbound SMTP commit decomposition after
+the retained intent, index, and completion batchers. Both used the unchanged
+10 KB, 2,048-message, one-endpoint, single-workload-CPU, 500,000,000-byte/s,
+Rust fsync-off contract with PostgreSQL fsync and synchronous commit enabled.
+They delivered 2,048/2,048 at 116.98 and 118.05 messages/second with zero
+failure, exception, retry, OOM, or loss and exactly 4,096 Maildir publications
+and removals per run. Their 53.5621% and 49.5661% stability ranges failed the
+unchanged 30% gate, so the 117.515 messages/second mean is diagnostic only.
+
+Across both runs, `smtp_commit` averaged 146.763 ms. Durable intent insert,
+index commit, and durable intent completion averaged 40.527, 55.731, and
+31.799 ms. File preparation, atomic publication, and post-index verification
+together averaged only 2.190 ms. All three database workers accelerated
+materially between the first and final quartiles. The retained v78 PostgreSQL
+trace had distributed inbound transactions across 57 backend PIDs under the
+large benchmark pool, so the next isolated hypothesis is a recoverable,
+low-pool-safe index-worker connection affinity experiment. This historical
+PID count is supporting evidence and was not remeasured by v132/v133.
+
+The structured diagnostic is
+`smtp-rust-current-inbound-stage-profiler-v132-v133-summary.json`, SHA-256
+`4da901992cd829726f3ed6a51667b63a6e51eeec43f0ef3ce4bdc405e05c3295`.
+Raw console hashes are
+`33e31e72c806ac311e776405a91eef67a182ebda0ac26e7e45292cbc7d9e83ca`
+and
+`8c7b22ccacc3cb1984e57ebf0f69bf17678de2467c96f8c851e682f4c3c5cce1`.
+Root runs `e4c4be91-a162-4667-821e-b1819d601176` and
+`9a1dd82f-9258-4f7e-bd48-3630ac838670` recorded `request=ABORT`,
+`cleanup=passed`, `lazy_unmount=0`, and `recovered=0`. A read-only post-run
+audit found no benchmark process, run-specific cgroup, loop device, or
+additional ext4 mount.
