@@ -1,0 +1,203 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "profiler_diagnostic_summary",
+  "qualified": false,
+  "retained": true,
+  "qualification_failure": "within_arm_throughput_stability",
+  "source_git_head": "35a36564fc12530d2fb3e8e0158c00c1ba0750a6",
+  "hypothesis": "Decompose the per-message inbound intent completion transaction before deciding whether bounded completion batching can reduce PostgreSQL transactions and sequential exchanges.",
+  "configuration": {
+    "profile": "rust-profiler",
+    "target": "rust-candidate",
+    "tier": "10KB",
+    "messages": 2048,
+    "rust_filesystem_fsync": "off",
+    "workload_cpu_limit": 1,
+    "io_limit_bytes_per_second": 500000000,
+    "original_stress_endpoint_invocations_per_run": 1,
+    "harness_batching": false,
+    "maximum_selected_diagnostic_stages": 16
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "ffd84f3a2f40e38f99594e7e443aece0e9b214b169fd703e069f081cc15d9b34",
+    "build_id": "a47deaef332241972a07120703a523944d655a73",
+    "size_bytes": 218830728,
+    "owner_mode": "root:root 0755",
+    "main_and_deps_hard_link": true
+  },
+  "invalid_preflight": {
+    "label": "v119",
+    "reason": "The requested 20 diagnostic stages exceeded the unchanged bounded maximum of 16; the runner failed closed before the message workload.",
+    "performance_claim": false,
+    "console": "evidence/performance/smtp-rust-inbound-completion-stages-profiler-v119-console.log",
+    "console_sha256": "22bd9e4a2936f7324c06e2e8ce90d2771514cd2ec79b375b5a23fb705cd6b355"
+  },
+  "runs": [
+    {
+      "label": "v120",
+      "started_at": "2026-08-18T20:32:01+08:00",
+      "ended_at": "2026-08-18T20:34:28+08:00",
+      "throughput_messages_per_second": 116.41,
+      "timing_ms": {"queueing": 8533, "delivery": 9060, "total": 17593},
+      "stability": {
+        "maximum_relative_range": 0.30,
+        "relative_range": 0.444493,
+        "passed": false,
+        "segments_messages_per_second": [92.990323, 119.305295, 153.157241, 151.416084]
+      },
+      "outcome": {
+        "queued": 2048,
+        "received": 2048,
+        "failed": 0,
+        "exceptions": 0,
+        "oom": 0,
+        "retry": 0,
+        "lost": 0,
+        "maildir_publications": 4096,
+        "maildir_removals": 4096
+      },
+      "full_run_average_ms": {
+        "smtp_commit": 125.124004,
+        "smtp_final_reply": 119.470288,
+        "inbound_intent_complete": 25.667443,
+        "completion_pool": 0.012563,
+        "completion_begin": 2.800450,
+        "completion_lock": 4.469613,
+        "completion_read": 4.585300,
+        "completion_delete": 4.972441,
+        "completion_transaction_commit": 8.814996,
+        "completion_substage_sum": 25.655363,
+        "completion_residual": 0.012080,
+        "inbound_index_commit": 57.591851,
+        "index_queue_wait": 15.313139,
+        "index_collection_per_batch": 5.421317,
+        "index_worker_per_batch": 37.417355,
+        "index_response_wait": 57.589155
+      },
+      "final_segment_average_ms": {
+        "inbound_intent_complete": 21.316283,
+        "completion_pool": 0.001453,
+        "completion_begin": 2.301007,
+        "completion_lock": 4.021792,
+        "completion_read": 3.354294,
+        "completion_delete": 3.818396,
+        "completion_transaction_commit": 7.779869,
+        "completion_substage_sum": 21.276811,
+        "completion_residual": 0.039472
+      },
+      "inbound_index_batches": {"count": 364, "rows": 2048, "average_rows": 5.626374, "max_rows": 19},
+      "artifacts": {
+        "console": "evidence/performance/smtp-rust-inbound-completion-stages-profiler-v120-console.log",
+        "console_sha256": "5e07648425be7ab5e2616ee3b1da72f4bea439efe85d053c2f3a64a40a708266",
+        "final_output": "not_published",
+        "launcher_cleanup_receipt": "not_published"
+      }
+    },
+    {
+      "label": "v121",
+      "started_at": "2026-08-18T20:34:41+08:00",
+      "ended_at": "2026-08-18T20:37:09+08:00",
+      "throughput_messages_per_second": 108.76,
+      "timing_ms": {"queueing": 8771, "delivery": 10058, "total": 18830},
+      "stability": {
+        "maximum_relative_range": 0.30,
+        "relative_range": 0.458155,
+        "passed": false,
+        "segments_messages_per_second": [92.961868, 111.806415, 151.148564, 142.197877]
+      },
+      "outcome": {
+        "queued": 2048,
+        "received": 2048,
+        "failed": 0,
+        "exceptions": 0,
+        "oom": 0,
+        "retry": 0,
+        "lost": 0,
+        "maildir_publications": 4096,
+        "maildir_removals": 4096
+      },
+      "full_run_average_ms": {
+        "smtp_commit": 128.874643,
+        "smtp_final_reply": 123.070661,
+        "inbound_intent_complete": 26.691626,
+        "completion_pool": 0.018179,
+        "completion_begin": 2.724919,
+        "completion_lock": 5.159939,
+        "completion_read": 4.940525,
+        "completion_delete": 5.174633,
+        "completion_transaction_commit": 8.660508,
+        "completion_substage_sum": 26.678703,
+        "completion_residual": 0.012923,
+        "inbound_index_commit": 61.149406,
+        "index_queue_wait": 16.346040,
+        "index_collection_per_batch": 5.246086,
+        "index_worker_per_batch": 39.153756,
+        "index_response_wait": 61.146477
+      },
+      "final_segment_average_ms": {
+        "inbound_intent_complete": 23.401976,
+        "completion_pool": 0.001488,
+        "completion_begin": 2.553368,
+        "completion_lock": 4.590421,
+        "completion_read": 4.092710,
+        "completion_delete": 4.011161,
+        "completion_transaction_commit": 8.115000,
+        "completion_substage_sum": 23.364148,
+        "completion_residual": 0.037828
+      },
+      "inbound_index_batches": {"count": 360, "rows": 2048, "average_rows": 5.688889, "max_rows": 20},
+      "artifacts": {
+        "console": "evidence/performance/smtp-rust-inbound-completion-stages-profiler-v121-console.log",
+        "console_sha256": "2e678ccf1983da6b1b10fa206b77120353602c124c7b17899fb9faa5b5a097b3",
+        "final_output": "not_published",
+        "launcher_cleanup_receipt": "not_published"
+      }
+    }
+  ],
+  "combined": {
+    "mean_throughput_messages_per_second": 112.585,
+    "control_v115_v116_mean_messages_per_second": 115.585,
+    "throughput_change_percent": -2.595492,
+    "full_run_mean_ms": {
+      "inbound_intent_complete": 26.179534,
+      "completion_pool": 0.015371,
+      "completion_begin": 2.762684,
+      "completion_lock": 4.814776,
+      "completion_read": 4.762912,
+      "completion_delete": 5.073537,
+      "completion_transaction_commit": 8.737752,
+      "completion_substage_sum": 26.167033,
+      "completion_residual": 0.012501,
+      "inbound_index_commit": 59.370629,
+      "index_queue_wait": 15.829590,
+      "index_collection_per_batch": 5.333702,
+      "index_worker_per_batch": 38.285555,
+      "index_response_wait": 59.367816
+    },
+    "final_segment_mean_ms": {
+      "inbound_intent_complete": 22.359130,
+      "completion_pool": 0.001471,
+      "completion_begin": 2.427187,
+      "completion_lock": 4.306107,
+      "completion_read": 3.723502,
+      "completion_delete": 3.914779,
+      "completion_transaction_commit": 7.947435,
+      "completion_substage_sum": 22.320480,
+      "completion_residual": 0.038650
+    },
+    "inbound_index_batches": {"count": 724, "rows": 4096, "average_rows": 5.657459, "max_rows": 20}
+  },
+  "conclusion": "The six completion substages explain 99.95% of the full-run completion latency. Pool acquisition is negligible, while transaction begin, advisory lock, identity read, delete, and commit are serialized per message. The next bounded experiment is a completion committer that batches only already verified published intents, preserves sorted advisory-lock acquisition, validates every complete identity before deletion, reduces rather than increases PostgreSQL transaction count, and reconciles unknown commit outcomes per intent.",
+  "cleanup": {
+    "launcher_receipts": "not_published_after_stability_failure",
+    "post_run_read_only_audit": {
+      "passed": true,
+      "application_or_benchmark_processes": 0,
+      "run_specific_cgroups": 0,
+      "loop_devices": 0,
+      "additional_ext4_mounts": 0,
+      "run_specific_root_state_entries": 0
+    }
+  }
+}

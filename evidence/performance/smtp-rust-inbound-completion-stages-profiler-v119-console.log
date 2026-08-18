@@ -1,0 +1,34 @@
+Script started on 2026-08-18 20:29:01+08:00 [COMMAND="env LMYZMAIL_COORDINATOR_DIAGNOSTIC_STAGES=smtp_commit,smtp_final_reply,inbound_intent_complete,inbound_intent_complete_pool,inbound_intent_complete_begin,inbound_intent_complete_lock,inbound_intent_complete_read,inbound_intent_complete_delete,inbound_intent_complete_transaction_commit,inbound_index_commit,inbound_index_batch_queue_wait,inbound_index_batch_collect,inbound_index_batch_worker,inbound_index_batch_response_wait,inbound_index_begin,inbound_index_intent_lock,inbound_index_intent_read,inbound_index_count_state,inbound_index_mutation,inbound_index_transaction_commit ./evidence/performance/run-smtp-endpoint-throughput-v1.sh --profile rust-profiler --target rust --tier 10kb --rust-filesystem-fsync off --profiler-messages 2048 --output evidence/performance/smtp-rust-inbound-completion-stages-profiler-v119.json" <not executed on terminal>]
+Traceback (most recent call last):
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 9974, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 9955, in main
+    result = _run_benchmark(args, layout)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 9539, in _run_benchmark
+    raise primary_error
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 9452, in _run_benchmark
+    arm = _run_target_tier(
+          ^^^^^^^^^^^^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 7298, in _run_target_tier
+    raise primary_error
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 7166, in _run_target_tier
+    record = _run_attested_round(
+             ^^^^^^^^^^^^^^^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 6720, in _run_attested_round
+    raise primary_error
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 6680, in _run_attested_round
+    result = _run_round(
+             ^^^^^^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 6489, in _run_round
+    selected_stage_names=_coordinator_selected_diagnostic_stages(),
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 148, in _coordinator_selected_diagnostic_stages
+    raise RuntimeError(
+RuntimeError: LMYZMAIL_COORDINATOR_DIAGNOSTIC_STAGES is invalid or exceeds the bounded stage limit
+benchmark arm target=rust-candidate tier=10KB phase=measurement ordinal=0
+benchmark watchdog refused to signal a stale or out-of-cgroup runner PID
+benchmark watchdog qualification failed:  artifact_receipt_valid=0  runner_success_valid=0
+
+Script done on 2026-08-18 20:31:30+08:00 [COMMAND_EXIT_CODE="1"]

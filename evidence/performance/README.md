@@ -1827,3 +1827,40 @@ Build ID `6e2d63403353e742b960e1a456b60fcf9e19b562`, and size 218,829,816
 bytes. Its main and deps paths are the same root-owned mode-0755 inode. This
 attests the rebuilt rollback candidate only; it does not claim byte identity
 with the overwritten v115/v116 artifact.
+
+Commit `35a36564` added observer-only substages around the unchanged per-message
+inbound intent completion transaction. V119 intentionally retains the
+fail-closed preflight caused by requesting 20 stages against the existing
+16-stage diagnostic bound; it never entered the message workload and carries
+no performance claim. V120 and v121 then used exactly 16 stages and each
+delivered 2,048/2,048 10 KB messages with zero failure, exception, retry, OOM,
+or loss. Each published and removed 4,096 Maildir entries. They measured
+116.41 and 108.76 messages/second, but both failed the unchanged 30% stability
+gate with 44.4493% and 45.8155% segment ranges, so the 112.585 two-run mean is
+diagnostic only.
+
+Across both valid runs, completion averaged 26.180 ms per message. Pool
+acquisition was 0.015 ms; transaction begin, advisory lock, identity read,
+delete, and commit averaged 2.763, 4.815, 4.763, 5.074, and 8.738 ms. Those six
+substages explain 99.95% of completion wall time. In the final segments,
+completion averaged 22.359 ms, of which commit consumed 7.947 ms and
+lock/read/delete consumed 11.944 ms. This supports one bounded next experiment:
+batch only already verified published intent completions, acquire locks in a
+stable order, validate every full identity before deletion, preserve per-intent
+unknown-outcome reconciliation, and reduce rather than increase PostgreSQL
+transaction count.
+
+The combined diagnostic is
+`smtp-rust-inbound-completion-stages-profiler-v120-v121-summary.json`, SHA-256
+`b1fdde5f60981c7f791255e7282010de940676fa57a0eda2bf775192ac0b789a`.
+The normalized repository console hashes for v119, v120, and v121 are
+`22bd9e4a2936f7324c06e2e8ce90d2771514cd2ec79b375b5a23fb705cd6b355`,
+`5e07648425be7ab5e2616ee3b1da72f4bea439efe85d053c2f3a64a40a708266`,
+and `2e678ccf1983da6b1b10fa206b77120353602c124c7b17899fb9faa5b5a097b3`.
+The shared profiling ELF is SHA-256
+`ffd84f3a2f40e38f99594e7e443aece0e9b214b169fd703e069f081cc15d9b34`,
+Build ID `a47deaef332241972a07120703a523944d655a73`, size 218,830,728
+bytes, and root-owned mode 0755 with its main and deps paths sharing one inode.
+Neither valid run published final JSON or a launcher cleanup receipt. A
+post-run read-only root audit found no benchmark process, run-specific cgroup,
+loop device, extra ext4 mount, or run-specific root state.
