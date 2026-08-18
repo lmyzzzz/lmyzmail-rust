@@ -1565,3 +1565,41 @@ paths are one root-owned mode-0555 inode. Run
 remaining candidate or service process, per-run cgroup, loop image, mount,
 provisional or final output, runner artifact or journal, supervisor socket,
 or runner gate.
+
+V106 changed only the retained profiler stage selection and ran commit
+`fc5a17c1` at 2,048 messages in the same Rust 10KB fsync-off isolation
+profile. It delivered 2,048/2,048 messages with zero failure, retry,
+exception, OOM, or loss at 106.34 messages/second. Its final segment reached
+145.999 messages/second, but the four rates of 85.753, 107.713, 146.089, and
+145.999 messages/second had a 47.5626% range, so the unchanged 30% ramp-up
+stability gate rejected the run. It is not formal throughput qualification
+evidence.
+
+The result-checkpoint mutation's final-segment average was 40.644 ms. The
+attempt-lock helper was its largest measured transaction substage at 12.556
+ms, or approximately 30.89%. Commit used 7.349 ms (18.08%), the legacy queue
+lock used 5.138 ms (12.64%), and the remaining begin, deadline, recipient
+update, attempt update, and unclassified time accounted for the balance.
+Substage counts differ slightly, so these percentages are diagnostic rather
+than an exact additive decomposition. The attempt-lock helper contains the
+attempt-row `FOR UPDATE`, recipient-roster `FOR SHARE` verification, and
+commit-barrier `EXISTS` statements. Those statements must be profiled
+separately before SQL or transaction behavior changes.
+
+The derived v106 diagnostic, console, cleanup receipt, and root intent SHA-256
+values are
+`bb8ec45f7233346fd04cd4942d0d077f0820bccbd2201816d69922c959c81fa6`,
+`e788509406d0031e299b90ad302ed0a6bd59600a65963168c357c62938c940fb`,
+`691a485da246af7a67a53821f0fed31dc2631ba606db45e123b3304bbbcabbe2`,
+and
+`ed8b69713122b105f7a8728616969a99973468de8b317562289d3ed9461691d9`.
+The profiling ELF SHA-256 is
+`db23f715e35f3f049704e2bdb7f3cf6dc8a3fa090e4dd7fda3add994c624870a`
+with Build ID `91e386d542b5471c730107aba23e16edf64e8e2b`; its main and deps paths
+are one root-owned mode-0555 inode. Run
+`6e191857-a323-46a0-a95c-cadea18bdaf3` recorded `request=ABORT`,
+`cleanup=passed`, `lazy_unmount=0`, and `recovered=0`. The root audit found no
+v106 candidate, service, benchmark process, per-run cgroup, loop image or
+device, mount, artifact, provisional or final output, runner receipt,
+supervisor socket, runner gate, or listening port. Only persistent
+housekeeping state and unrelated historical attestations remain.

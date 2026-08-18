@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "derived_profiler_diagnostic",
+  "qualified": false,
+  "retained": true,
+  "qualification_failures": [
+    "within_arm_throughput_stability",
+    "post_cleanup_receipt_publication"
+  ],
+  "source_note": "Derived from the complete v106 runner failure output. The root cleanup journal recorded cleanup=passed, but the launcher did not publish a qualified artifact after the unchanged within-arm stability gate failed closed.",
+  "run_id": "6e191857-a323-46a0-a95c-cadea18bdaf3",
+  "source_git_head": "fc5a17c1631b21c8b06cd9cdae77d6da7bcdc448",
+  "profile": "rust-profiler",
+  "target": "rust-candidate",
+  "tier": "10KB",
+  "rust_filesystem_fsync": "off",
+  "requested_messages": 2048,
+  "observed_messages": 2048,
+  "queue_counters": {
+    "exceptions": 0,
+    "failed": 0,
+    "oom": 0,
+    "queued": 2048,
+    "rate_limited": 0,
+    "success": 2048,
+    "retry": 0,
+    "lost": 0
+  },
+  "timing": {
+    "total_ms": 19258,
+    "throughput_messages_per_second": 106.34,
+    "queueing_ms": 9181,
+    "delivery_ms": 10077
+  },
+  "stability": {
+    "maximum_relative_range": 0.3,
+    "relative_range": 0.475626,
+    "passed": false,
+    "segments_messages_per_second": [
+      85.752727,
+      107.713309,
+      146.088915,
+      145.999396
+    ],
+    "progress_samples_sha256": "0b0ece626bb798b00afd91db70e1b263110eb041e61c05cd30dd8a1525eb085e"
+  },
+  "stage_average_ns_by_segment": {
+    "smtp_commit": [160420750, 138265564, 107560944, 107013441],
+    "smtp_final_reply": [152943805, 132018182, 102933235, 102964054],
+    "prepared_checkpoint": [68168576, 59121771, 46534129, 46095946],
+    "result_checkpoint": [64960529, 59570041, 46424047, 44581452],
+    "result_checkpoint_snapshot": [7478724, 6001893, 4325376, 3970905],
+    "result_checkpoint_mutation": [57363241, 53629276, 42064523, 40643585],
+    "legacy_projection": [65812172, 59359724, 47253247, 44233912],
+    "queue_acknowledge": [61274360, 55762905, 43221952, 40333680],
+    "result_checkpoint_pool": [1530, 1316, 1322, 1316],
+    "result_checkpoint_begin": [3641014, 2864619, 1949687, 1833221],
+    "result_checkpoint_deadline": [6413117, 5545201, 4521395, 4312308],
+    "result_checkpoint_legacy_lock": [7184259, 6265454, 5013509, 5137748],
+    "result_checkpoint_attempt_lock": [17549574, 17619675, 13691840, 12556396],
+    "result_checkpoint_recipient_update": [6328014, 5967450, 5004340, 4490943],
+    "result_checkpoint_attempt_update": [6384261, 6689692, 4573447, 4849851],
+    "result_checkpoint_commit": [9599681, 8877478, 7303978, 7348944]
+  },
+  "last_segment_analysis": {
+    "result_checkpoint_average_ns": 44581452,
+    "snapshot_average_ns": 3970905,
+    "mutation_average_ns": 40643585,
+    "measured_transaction_substage_sum_ns": 40529411,
+    "unattributed_mutation_ns": 114174,
+    "attempt_lock_average_ns": 12556396,
+    "attempt_lock_to_mutation_ratio": 0.30893918437559087,
+    "commit_average_ns": 7348944,
+    "commit_to_mutation_ratio": 0.18081436467772222,
+    "legacy_lock_average_ns": 5137748,
+    "legacy_lock_to_mutation_ratio": 0.12640981350439437,
+    "note": "Substage counts differ slightly within the segment, so the sum and ratios are diagnostic rather than an exact additive decomposition.",
+    "conclusion": "The attempt-lock helper is the largest measured transaction substage. It contains three sequential PostgreSQL statements: the attempt-row FOR UPDATE lock, recipient-roster FOR SHARE verification, and commit-barrier EXISTS check. Profile those statements separately before changing SQL or transaction behavior."
+  },
+  "maildir": {
+    "publications": 4096,
+    "removals": 4096
+  },
+  "resource_io": {
+    "application_process_write_bytes": 142684160,
+    "application_process_write_syscalls": 81176,
+    "application_write_bytes": 31797248,
+    "application_write_operations": 99,
+    "services_process_write_bytes": 84271104,
+    "services_process_write_syscalls": 60458
+  },
+  "artifacts": {
+    "candidate_path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "candidate_sha256": "db23f715e35f3f049704e2bdb7f3cf6dc8a3fa090e4dd7fda3add994c624870a",
+    "candidate_build_id": "91e386d542b5471c730107aba23e16edf64e8e2b",
+    "candidate_size_bytes": 218813808,
+    "candidate_owner_mode": "root:root 0555",
+    "candidate_main_and_deps_hard_link": true,
+    "console_path": "evidence/performance/smtp-rust-result-checkpoint-transaction-profiler-v106-console.log",
+    "console_sha256": "e788509406d0031e299b90ad302ed0a6bd59600a65963168c357c62938c940fb"
+  },
+  "cleanup": {
+    "request": "ABORT",
+    "cleanup": "passed",
+    "lazy_unmount": 0,
+    "recovered": 0,
+    "qualified_cleanup": 0,
+    "launcher_receipt_published": false,
+    "receipt_source": "/var/lib/lmyzmail-benchmark/journal/6e191857-a323-46a0-a95c-cadea18bdaf3.done",
+    "receipt_path": "evidence/performance/smtp-rust-result-checkpoint-transaction-profiler-v106.json.root-cleanup",
+    "receipt_sha256": "691a485da246af7a67a53821f0fed31dc2631ba606db45e123b3304bbbcabbe2",
+    "intent_sha256": "ed8b69713122b105f7a8728616969a99973468de8b317562289d3ed9461691d9",
+    "resource_audit": "candidate, service, per-run cgroup, loop image, mount, provisional output, final output, runner artifacts, runner journal, supervisor socket, and runner gate absent"
+  }
+}
