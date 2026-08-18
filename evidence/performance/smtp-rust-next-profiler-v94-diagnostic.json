@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "derived_profiler_diagnostic",
+  "qualified": false,
+  "qualification_failure": "within_arm_throughput_stability",
+  "source_note": "Derived from the complete runner failure output captured at /tmp/lmyzmail-v94-console.log; the runner intentionally removed the unqualified provisional output and checkpoint.",
+  "run_id": "3566f9a7-db92-4cd8-ba48-d2f20e10b531",
+  "git_head": "e2f885908f747184a1ff689319b8abe06ccc7ab7",
+  "profile": "rust-profiler",
+  "target": "rust-candidate",
+  "tier": "10KB",
+  "rust_filesystem_fsync": "off",
+  "requested_messages": 2048,
+  "observed_messages": 2048,
+  "queue_counters": {
+    "queued": 2048,
+    "success": 2048,
+    "failed": 0,
+    "exceptions": 0,
+    "oom": 0,
+    "rate_limited": 0
+  },
+  "timing": {
+    "queueing_ms": 8335,
+    "delivery_ms": 10063,
+    "throughput_messages_per_second": 149.484889
+  },
+  "stability": {
+    "maximum_relative_range": 0.30,
+    "relative_range": 0.461975,
+    "passed": false,
+    "segments_messages_per_second": [
+      88.668833,
+      116.674078,
+      146.613053,
+      149.484889
+    ],
+    "progress_samples_sha256": "245aa6adf79ffd22df63ace7138bb6ecc9c4eb3db7b37c4ec31065432467a26e"
+  },
+  "top_stages_ns": {
+    "smtp_commit": 97968163,
+    "smtp_final_reply": 94431088,
+    "queue_acknowledge": 56473824,
+    "inbound_index_commit": 47497287,
+    "prepared_checkpoint": 43360279,
+    "legacy_projection": 37971249,
+    "result_checkpoint": 37874482,
+    "begin_attempt": 34180309
+  },
+  "inbound_index_stage_average_ns": {
+    "inbound_index_pool": 5578,
+    "inbound_index_begin": 2291720,
+    "inbound_index_intent_lock": 3426237,
+    "inbound_index_intent_read": 6733415,
+    "inbound_index_count_state": 4431176,
+    "inbound_index_mutation": 6597560,
+    "inbound_index_transaction_commit": 6641376
+  },
+  "maildir": {
+    "publications": 4096,
+    "removals": 4096
+  },
+  "resource_io": {
+    "application_process_write_bytes": 142667776,
+    "application_process_write_syscalls": 80775,
+    "application_write_bytes": 36446208,
+    "application_write_operations": 112,
+    "services_process_write_bytes": 84369408,
+    "services_process_write_syscalls": 60551
+  },
+  "artifacts": {
+    "candidate_path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "candidate_sha256": "0a20582506be4eeda1257176b82488c55aeaf1fd1493c26e006a0999cb5b9de5",
+    "candidate_build_id": "c435828cacdd1c15f2be21abeccc19d0a9aa3e0c",
+    "benchmark_proxy_sha256": "7cca17dcc249b295bc855a1706ba75f36ede0b56ef60122c6851b5a6e93b5246",
+    "benchmark_proxy_source_tree_sha256": "7bdefca727ead99034814d8ffafdf51ad6ff6355628c25404e131d532c5195a0"
+  },
+  "cleanup": {
+    "request": "ABORT",
+    "cleanup": "passed",
+    "lazy_unmount": 0,
+    "receipt_path": "/var/lib/lmyzmail-benchmark/journal/3566f9a7-db92-4cd8-ba48-d2f20e10b531.done",
+    "receipt_sha256": "8470cc1c481389f1c90172707e001720458a5971dde5e4476683ab829199d1cb",
+    "intent_sha256": "59f11555412a203f36df6c325f10aa64af39f269690d47219a845d9ce18c564a"
+  }
+}

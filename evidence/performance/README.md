@@ -1326,3 +1326,22 @@ stages at 40.008-41.426 ms. The run's root cleanup receipt has SHA-256
 `034839d3f14f62de33ebfc8454025a6f8487b054e679487d83ef42f68d0cd16f` and
 records `request=ABORT`, `cleanup=passed`, and `lazy_unmount=0`; no run
 process, mount, cgroup, or temporary artifact remained.
+
+V94 repeated the same profiler arm at 2,048 messages so the complete
+coordinator stage vector could be retained from the raw failure output. It
+delivered 2,048/2,048 with zero failure, retry, exception, OOM, or loss; the
+last quartile reached 149.485 messages/second, but the unchanged stability
+gate failed at a 46.1975% range (88.669, 116.674, 146.613, and 149.485
+messages/second). The derived diagnostic is
+`smtp-rust-next-profiler-v94-diagnostic.json` (SHA-256
+`9dc0493923e74e6484d68ee4b3537e68c03c6d2b4faf6e8dea6d04f24ba7c12e`) and is
+not qualification evidence.
+
+The substage values show that the final inbound index SQL work remained about
+2.292 ms begin, 3.426 ms intent lock, 6.733 ms validation, 4.431 ms count
+state, 6.598 ms mutation, and 6.641 ms transaction commit. The complete
+`inbound_index_commit` stage averaged 47.497 ms, so queue/admission wait is
+the dominant part of that stage rather than PostgreSQL execution. The root
+cleanup receipt SHA-256 is
+`8470cc1c481389f1c90172707e001720458a5971dde5e4476683ab829199d1cb` and
+records `request=ABORT`, `cleanup=passed`, and `lazy_unmount=0`.
