@@ -46,7 +46,6 @@ pub(crate) const STAGING_ORPHAN_MIN_AGE: Duration = Duration::from_secs(300);
 pub(crate) const MAX_ACTIVE_INBOUND_INTENTS: usize = 256;
 const INDEX_BATCH_CHANNEL_CAPACITY: usize = MAX_ACTIVE_INBOUND_INTENTS;
 const MAX_INDEX_BATCH_ROWS: usize = 64;
-const INDEX_BATCH_READY_ROWS: usize = 5;
 const INDEX_BATCH_COLLECTION_WINDOW: Duration = Duration::from_millis(2);
 const INDEX_BATCH_RESPONSE_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -373,59 +372,40 @@ async fn run_index_commit_worker(
             }
             request = receiver.recv() => request,
         };
-        let Some(first) = first else {
+        let Some(mut first) = first else {
             break;
         };
-        let batch = collect_index_batch(&mut receiver, first, &shutdown).await;
-        let _worker_timer = StageTimer::start(CoordinatorStage::InboundIndexBatchWorker);
-        persist_index_batch(&pool, batch).await;
-    }
-}
-
-async fn collect_index_batch(
-    receiver: &mut mpsc::Receiver<IndexCommitRequest>,
-    mut first: IndexCommitRequest,
-    shutdown: &CancellationToken,
-) -> Vec<IndexCommitRequest> {
-    first.observe_dequeued();
-    let mut batch = Vec::with_capacity(MAX_INDEX_BATCH_ROWS);
-    batch.push(first);
-    let collection_timer = StageTimer::start(CoordinatorStage::InboundIndexBatchCollect);
-    let collection_deadline = Instant::now() + INDEX_BATCH_COLLECTION_WINDOW;
-    while batch.len() < MAX_INDEX_BATCH_ROWS {
+        first.observe_dequeued();
+        let mut batch = Vec::with_capacity(MAX_INDEX_BATCH_ROWS);
+        batch.push(first);
+        let collection_timer = StageTimer::start(CoordinatorStage::InboundIndexBatchCollect);
+        let collection_deadline = Instant::now() + INDEX_BATCH_COLLECTION_WINDOW;
         while batch.len() < MAX_INDEX_BATCH_ROWS {
-            let Ok(mut request) = receiver.try_recv() else {
+            let request = tokio::select! {
+                biased;
+                _ = shutdown.cancelled() => {
+                    receiver.close();
+                    receiver.try_recv().ok()
+                }
+                result = timeout_at(collection_deadline, receiver.recv()) => {
+                    result.ok().flatten()
+                }
+            };
+            let Some(mut request) = request else {
                 break;
             };
             request.observe_dequeued();
             batch.push(request);
         }
-        if batch.len() >= INDEX_BATCH_READY_ROWS {
-            break;
+        drop(collection_timer);
+        let dispatched_at = observation_instant();
+        for request in &batch {
+            request.observe_dispatched(dispatched_at);
         }
-        let request = tokio::select! {
-            biased;
-            _ = shutdown.cancelled() => {
-                receiver.close();
-                receiver.try_recv().ok()
-            }
-            result = timeout_at(collection_deadline, receiver.recv()) => {
-                result.ok().flatten()
-            }
-        };
-        let Some(mut request) = request else {
-            break;
-        };
-        request.observe_dequeued();
-        batch.push(request);
+        record_inbound_index_batch(batch.len());
+        let _worker_timer = StageTimer::start(CoordinatorStage::InboundIndexBatchWorker);
+        persist_index_batch(&pool, batch).await;
     }
-    drop(collection_timer);
-    let dispatched_at = observation_instant();
-    for request in &batch {
-        request.observe_dispatched(dispatched_at);
-    }
-    record_inbound_index_batch(batch.len());
-    batch
 }
 
 async fn persist_index_batch(pool: &Pool, batch: Vec<IndexCommitRequest>) {
@@ -2741,44 +2721,6 @@ INSERT INTO mailbox (address) VALUES ('qa@example.test');
             },
             state: IntentState::Prepared,
         }
-    }
-
-    fn index_commit_request(sequence: u64) -> IndexCommitRequest {
-        let (response, _receiver) = oneshot::channel();
-        IndexCommitRequest::new(database_prepared(sequence, "inbox"), response)
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn ready_index_backlog_dispatches_without_collection_delay() {
-        let (sender, mut receiver) = mpsc::channel(INDEX_BATCH_CHANNEL_CAPACITY);
-        for sequence in 0..INDEX_BATCH_READY_ROWS as u64 {
-            sender.send(index_commit_request(sequence)).await.unwrap();
-        }
-        let first = receiver.recv().await.unwrap();
-        let started = Instant::now();
-
-        let batch = collect_index_batch(&mut receiver, first, &CancellationToken::new()).await;
-
-        assert_eq!(batch.len(), INDEX_BATCH_READY_ROWS);
-        assert_eq!(Instant::now().duration_since(started), Duration::ZERO);
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn sparse_index_backlog_retains_collection_window() {
-        let (sender, mut receiver) = mpsc::channel(INDEX_BATCH_CHANNEL_CAPACITY);
-        for sequence in 0..INDEX_BATCH_READY_ROWS as u64 - 1 {
-            sender.send(index_commit_request(sequence)).await.unwrap();
-        }
-        let first = receiver.recv().await.unwrap();
-        let started = Instant::now();
-
-        let batch = collect_index_batch(&mut receiver, first, &CancellationToken::new()).await;
-
-        assert_eq!(batch.len(), INDEX_BATCH_READY_ROWS - 1);
-        assert_eq!(
-            Instant::now().duration_since(started),
-            INDEX_BATCH_COLLECTION_WINDOW
-        );
     }
 
     async fn insert_prepared(pool: &Pool, values: &[PreparedInbound]) {
