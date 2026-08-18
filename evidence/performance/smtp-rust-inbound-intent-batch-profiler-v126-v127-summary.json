@@ -1,0 +1,203 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "profiler_diagnostic_summary",
+  "qualified": false,
+  "retained": true,
+  "qualification_failure": "within_arm_throughput_stability",
+  "source_git_head": "9594a63813e1299570cf952d85d46345e5cc89bd",
+  "repository_head_at_run": "9594a63813e1299570cf952d85d46345e5cc89bd",
+  "hypothesis": "Batch the PREPARED inbound intent transaction while preserving stable advisory-lock ordering, full durable identity validation, request-specific failure isolation, and unknown-commit reconciliation.",
+  "configuration": {
+    "profile": "rust-profiler",
+    "target": "rust-candidate",
+    "tier": "10KB",
+    "messages": 2048,
+    "rust_filesystem_fsync": "off",
+    "postgresql_fsync": "on",
+    "postgresql_synchronous_commit": "on",
+    "workload_cpu_limit": 1,
+    "io_limit_bytes_per_second": 500000000,
+    "original_stress_endpoint_invocations_per_run": 1,
+    "harness_batching": false,
+    "inbound_intent_channel_capacity": 256,
+    "inbound_intent_batch_capacity": 64,
+    "inbound_intent_batch_collection_window_ms": 2,
+    "maximum_selected_diagnostic_stages": 16
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "19f589153f5a8970d7c5f2614d4a90fc8f409c6f9ededdb318c54cca5a41a80a",
+    "build_id": "ab706a854e55a19e1a77bea142a7d3840ddc506d",
+    "size_bytes": 219634736,
+    "owner_mode": "root:root 0755",
+    "main_and_deps_hard_link": true
+  },
+  "selected_stages": [
+    "smtp_commit",
+    "smtp_final_reply",
+    "inbound_prepare_file",
+    "inbound_intent_insert",
+    "inbound_intent_batch_admission",
+    "inbound_intent_batch_queue_wait",
+    "inbound_intent_batch_dispatch_wait",
+    "inbound_intent_batch_collect",
+    "inbound_intent_batch_worker",
+    "inbound_intent_batch_response_wait",
+    "inbound_publish_file",
+    "inbound_index_commit",
+    "inbound_index_batch_response_wait",
+    "inbound_intent_complete",
+    "inbound_completion_batch_response_wait",
+    "result_checkpoint"
+  ],
+  "runs": [
+    {
+      "label": "v126",
+      "throughput_messages_per_second": 117.79,
+      "timing_ms": {
+        "queueing": 8325,
+        "delivery": 9062,
+        "total": 17387
+      },
+      "stability": {
+        "maximum_relative_range": 0.30,
+        "relative_range": 0.482883,
+        "passed": false,
+        "segments_messages_per_second": [91.646660, 120.439754, 157.922339, 154.060351]
+      },
+      "outcome": {
+        "queued": 2048,
+        "received": 2048,
+        "failed": 0,
+        "exceptions": 0,
+        "oom": 0,
+        "retry": 0,
+        "lost": 0,
+        "maildir_publications": 4096,
+        "maildir_removals": 4096
+      },
+      "inbound_intent": {
+        "worker_batches": 483,
+        "rows": 2048,
+        "average_rows_per_worker": 4.240166,
+        "stage_average_ms": {
+          "insert_outer": 41.123440,
+          "admission": 0.000607,
+          "queue_wait": 9.619643,
+          "dispatch_wait": 4.649778,
+          "collect": 5.018162,
+          "worker": 25.315098,
+          "response_wait": 41.119922
+        }
+      },
+      "artifacts": {
+        "console": "evidence/performance/smtp-rust-inbound-intent-batch-profiler-v126-console.log",
+        "console_sha256": "4492e4d75fe3c8ab4c0f0a1b735cf35c70069d380053c6272ce0d20f994136fa",
+        "final_output": "not_published",
+        "launcher_cleanup_receipt": "not_published",
+        "root_run_id": "96b4cd35-4721-4060-8f9a-33a71fb3367c",
+        "root_intent_sha256": "93b28dce7c81c8a34fbae20f5f8486a47cfab4a3c0e69f54aaa3c4d13893cbbe",
+        "root_done_sha256": "3e85c7470ba328d48e590d32f9e0a23c86187d1501b405730a030ba258704faa"
+      }
+    },
+    {
+      "label": "v127",
+      "throughput_messages_per_second": 118.03,
+      "timing_ms": {
+        "queueing": 8299,
+        "delivery": 9051,
+        "total": 17351
+      },
+      "stability": {
+        "maximum_relative_range": 0.30,
+        "relative_range": 0.487096,
+        "passed": false,
+        "segments_messages_per_second": [93.373213, 120.312794, 151.504359, 159.573758]
+      },
+      "outcome": {
+        "queued": 2048,
+        "received": 2048,
+        "failed": 0,
+        "exceptions": 0,
+        "oom": 0,
+        "retry": 0,
+        "lost": 0,
+        "maildir_publications": 4096,
+        "maildir_removals": 4096
+      },
+      "inbound_intent": {
+        "worker_batches": 487,
+        "rows": 2048,
+        "average_rows_per_worker": 4.205339,
+        "stage_average_ms": {
+          "insert_outer": 40.471369,
+          "admission": 0.000590,
+          "queue_wait": 9.238520,
+          "dispatch_wait": 4.389777,
+          "collect": 4.945144,
+          "worker": 25.193066,
+          "response_wait": 40.467860
+        }
+      },
+      "artifacts": {
+        "console": "evidence/performance/smtp-rust-inbound-intent-batch-profiler-v127-console.log",
+        "console_sha256": "8bfff3cd2be4748c9fab09016ec38b59c95e5cfc1dc3137480ac0e92211d6719",
+        "final_output": "not_published",
+        "launcher_cleanup_receipt": "not_published",
+        "root_run_id": "3075875c-2cef-46a0-a6a1-e00d70de081f",
+        "root_intent_sha256": "28f449f3f5784305a0233cc37d534264f44de2636c702d65660d880c3319825b",
+        "root_done_sha256": "b74f552e01a8e3fad3ef253774a4732ecd57782282e06d4e5cc6e7bf0ec5ea00"
+      }
+    }
+  ],
+  "combined": {
+    "mean_throughput_messages_per_second": 117.91,
+    "control_v124_v125_mean_messages_per_second": 116.485,
+    "diagnostic_throughput_delta_vs_control_percent": 1.223333,
+    "mean_worker_batches": 485.0,
+    "mean_rows_per_worker": 4.222752,
+    "transaction_count_reduction_vs_one_per_message_percent": 76.318359,
+    "mean_stage_ms": {
+      "smtp_commit": 146.657501,
+      "smtp_final_reply": 142.089868,
+      "inbound_intent_insert": 40.797404,
+      "inbound_intent_batch_queue_wait": 9.429082,
+      "inbound_intent_batch_dispatch_wait": 4.519777,
+      "inbound_intent_batch_collect": 4.981653,
+      "inbound_intent_batch_worker": 25.254082,
+      "inbound_intent_batch_response_wait": 40.793891,
+      "inbound_index_commit": 55.336375,
+      "inbound_intent_complete": 31.004625
+    },
+    "conclusion": "The bounded committer reduced PREPARED intent persistence from one transaction per message to a mean 485 worker transactions for 2048 rows without failures, loss, or cleanup residue. The 1.22% end-to-end mean gain versus v124/v125 is diagnostic only because both runs failed the unchanged stability gate and used an intent-focused stage set. Retain the batching structure for its measured transaction reduction and preserved correctness; do not claim a qualified throughput improvement. The remaining end-to-end leaders are smtp_commit, inbound index, result checkpoint, and completion response wait."
+  },
+  "cleanup": {
+    "passed": true,
+    "root_receipts": {
+      "v126": {
+        "request": "ABORT",
+        "cleanup": "passed",
+        "lazy_unmount": 0,
+        "recovered": 0
+      },
+      "v127": {
+        "request": "ABORT",
+        "cleanup": "passed",
+        "lazy_unmount": 0,
+        "recovered": 0
+      }
+    },
+    "post_run_read_only_audit": {
+      "application_or_benchmark_processes": 0,
+      "run_specific_cgroups": 0,
+      "loop_devices": 0,
+      "additional_ext4_mounts": 0,
+      "persistent_harness_state": [
+        "/sys/fs/cgroup/lmyzmail-benchmark-root",
+        "/sys/fs/cgroup/lmyzmail-benchmark-housekeeping",
+        "/run/lmyzmail-benchmark-root",
+        "/run/lmyzmail-benchmark-attestations"
+      ]
+    }
+  }
+}

@@ -1925,3 +1925,52 @@ bytes, root-owned mode 0755, with main/deps hard-link identity. Neither run
 published final JSON or a launcher receipt after the stability failure. A
 post-run read-only audit found no application or benchmark process,
 run-specific cgroup, loop device, extra ext4 mount, or run-specific root state.
+
+Commit `9594a638` added a bounded committer for the PREPARED inbound intent
+transaction. It uses a 256-request channel, 64-row maximum batch, two
+millisecond collection window, stable advisory-lock ordering, one `unnest`
+insert, full same-transaction identity/state validation, per-request fallback
+for request-specific errors, and per-intent reconciliation after an unknown
+commit result. Identical duplicate requests fan out one durable result;
+conflicting identities remain errors. Shutdown closes admission and drains the
+worker against the same absolute deadline as the index and completion workers.
+The complete library suite passed 752/752 tests, including atomic collision,
+non-UTF-8 staging-name isolation, duplicate fan-out, concurrent batch/single
+lock liveness, and shutdown drain. Formatting and strict all-feature test
+Clippy also passed.
+
+V126 and v127 used the same single-core, 500,000,000-byte/s, 10 KB, 2,048
+message, one-endpoint-invocation, Rust fsync-off diagnostic contract as the
+preceding profiler passes. Both delivered 2,048/2,048 with zero failure,
+exception, retry, OOM, or loss and each published and removed 4,096 Maildir
+entries. They measured 117.79 and 118.03 messages/second. Their segment ranges
+were 48.2883% and 48.7096%, above the unchanged 30% limit, so no formal JSON
+or launcher cleanup receipt was published and no qualified throughput claim is
+made.
+
+The intent worker ran 483 and 487 batches, averaging 4.240 and 4.205 rows per
+transaction. The 485-batch two-run mean is a 76.318% transaction-count
+reduction from one transaction per message. Intent response wait averaged
+40.794 ms: queue wait 9.429 ms, dequeue-to-dispatch 4.520 ms, and worker time
+25.254 ms explain 39.203 ms. The 117.91 messages/second mean is only 1.223%
+above the v124/v125 116.485 diagnostic mean and used a different selected-stage
+set, so that delta is not evidence of a qualified speedup. The batching
+structure is retained for the measured database-work reduction and preserved
+correctness; the remaining end-to-end leaders are SMTP commit/final reply,
+inbound index, result checkpoint, and completion response wait.
+
+The structured diagnostic is
+`smtp-rust-inbound-intent-batch-profiler-v126-v127-summary.json`, SHA-256
+`de96fa18990686cd1128b24d1f9ce4b80ace0b3b4e8b8c40c9071347e5b0dc8b`.
+Raw console
+hashes are `4492e4d75fe3c8ab4c0f0a1b735cf35c70069d380053c6272ce0d20f994136fa`
+and `8bfff3cd2be4748c9fab09016ec38b59c95e5cfc1dc3137480ac0e92211d6719`.
+The profiling ELF is SHA-256
+`19f589153f5a8970d7c5f2614d4a90fc8f409c6f9ededdb318c54cca5a41a80a`,
+Build ID `ab706a854e55a19e1a77bea142a7d3840ddc506d`, size 219,634,736
+bytes, root-owned mode 0755, with main/deps hard-link identity. Root runs
+`96b4cd35-4721-4060-8f9a-33a71fb3367c` and
+`3075875c-2cef-46a0-a6a1-e00d70de081f` recorded `request=ABORT`,
+`cleanup=passed`, `lazy_unmount=0`, and `recovered=0`. The post-run audit found
+no application or benchmark process, run-specific cgroup, loop device, or
+additional ext4 mount.
