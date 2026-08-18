@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "retained_profiler_optimization_diagnostic",
+  "qualified": false,
+  "retained": true,
+  "qualification_failures": ["within_arm_throughput_stability", "post_cleanup_receipt_publication"],
+  "retention_reason": "The split result-checkpoint lock optimization was reproduced twice with zero delivery failures, retries, OOM, or loss; both runs failed only the unchanged 30% ramp-up stability gate and remain diagnostic rather than formal throughput qualification.",
+  "source_git_head": "df5bf1b2f2e0cd6f33222f800ea9204e32b53659",
+  "optimization": "Split the result-checkpoint attempt lock into measured row-lock, roster-verification, and barrier-verification stages, then combine roster FOR SHARE reading with barrier state reading while retaining fencing, lock order, roster fingerprint validation, transaction boundaries, and commit-barrier semantics.",
+  "profile": "rust-profiler",
+  "target": "rust-candidate",
+  "tier": "10KB",
+  "rust_filesystem_fsync": "off",
+  "requested_messages_per_run": 2048,
+  "observed_messages_per_run": 2048,
+  "runs": {
+    "v108": {
+      "run_id": "3966742d-bbe8-4289-a755-a6093416bf53",
+      "console_path": "evidence/performance/smtp-rust-result-checkpoint-transaction-profiler-v108-console.log",
+      "console_sha256": "dc9cae9702b3b81500efe8cca15656606d35bcf255ccba4f83ee219ba4573012",
+      "intent_sha256": "eaa92500e32c946e5007b4bc4fd620749c3a6a52ef05964c72c584ef7f63b5b8",
+      "done_sha256": "fb671d977896655b14a9c66719de08cf8ba0279c2bd0c1700c4ca2c66ab2d909",
+      "queue_counters": {"queued": 2048, "success": 2048, "failed": 0, "exceptions": 0, "oom": 0, "retry": 0, "lost": 0},
+      "maildir": {"publications": 4096, "removals": 4096},
+      "timing": {"total_ms": 18652, "queueing_ms": 8600, "delivery_ms": 10052, "throughput_messages_per_second": 109.80},
+      "stability": {"maximum_relative_range": 0.3, "relative_range": 0.442970, "passed": false, "progress_samples": 66, "progress_samples_sha256": "0e75c934567e390f02cb315af46958a8be3985c3c3279ed1ca82d251083590b6", "segments_messages_per_second": [91.070472, 117.429042, 148.895397, 150.057370]},
+      "stage_average_ns_by_segment": {
+        "smtp_commit": [151961630, 129846497, 110053151, 109308399],
+        "smtp_final_reply": [145416089, 124206840, 105461064, 105381391],
+        "inbound_index_commit": [72296181, 61463678, 53809376, 54406165],
+        "result_checkpoint_mutation": [50622064, 45096597, 38534762, 36329100],
+        "result_checkpoint_attempt_lock": [12137917, 10181680, 8880338, 8176149],
+        "result_checkpoint_attempt_row_lock": [5874187, 5492188, 4517384, 4086402],
+        "result_checkpoint_roster_verify": [6326260, 5244138, 4660668, 4192912],
+        "result_checkpoint_barrier_verify": [121, 159, 155, 127]
+      },
+      "cleanup": {"request": "ABORT", "cleanup": "passed", "lazy_unmount": 0, "recovered": 0, "qualified_cleanup": 0, "receipt_path": "evidence/performance/smtp-rust-result-checkpoint-transaction-profiler-v108.json.root-cleanup", "receipt_sha256": "fb671d977896655b14a9c66719de08cf8ba0279c2bd0c1700c4ca2c66ab2d909"}
+    },
+    "v109": {
+      "run_id": "bdd7933b-e783-4077-885a-d63b2a8ab0c8",
+      "console_path": "evidence/performance/smtp-rust-result-checkpoint-transaction-profiler-v109-console.log",
+      "console_sha256": "b2e642f299d6edf9a740797dc7e166245fab3cfe59fdfc6a48e4f7506b600cd8",
+      "intent_sha256": "5cdfec066fcbf7c124f9e1ed7d833ad924177b6b671270ecbcfc4cf623cb634c",
+      "done_sha256": "2cdcd316db38219b8c59529fe619c0cf265d6a2ce73f808b6fbca41631fe5bb5",
+      "queue_counters": {"queued": 2048, "success": 2048, "failed": 0, "exceptions": 0, "oom": 0, "retry": 0, "lost": 0},
+      "maildir": {"publications": 4096, "removals": 4096},
+      "timing": {"total_ms": 17998, "queueing_ms": 8937, "delivery_ms": 9060, "throughput_messages_per_second": 113.79},
+      "stability": {"maximum_relative_range": 0.3, "relative_range": 0.531567, "passed": false, "progress_samples": 66, "progress_samples_sha256": "7ccc9a67f17f99baaac025355007bdab14643b3cec11d3cb092e0b6796be6786", "segments_messages_per_second": [85.286356, 117.212799, 150.929855, 156.554199]},
+      "stage_average_ns_by_segment": {
+        "smtp_commit": [158743489, 132833871, 108365929, 104907453],
+        "smtp_final_reply": [152710827, 126775536, 103801461, 101349321],
+        "inbound_index_commit": [72028334, 63309267, 53429290, 51581286],
+        "result_checkpoint_mutation": [50595306, 44505701, 37669144, 34089582],
+        "result_checkpoint_attempt_lock": [11039845, 10412225, 9078569, 7849820],
+        "result_checkpoint_attempt_row_lock": [5739280, 5492188, 4562700, 3892279],
+        "result_checkpoint_roster_verify": [6103123, 5345434, 4386518, 3996163],
+        "result_checkpoint_barrier_verify": [121, 118, 136, 128]
+      },
+      "cleanup": {"request": "ABORT", "cleanup": "passed", "lazy_unmount": 0, "recovered": 0, "qualified_cleanup": 0, "receipt_path": "evidence/performance/smtp-rust-result-checkpoint-transaction-profiler-v109.json.root-cleanup", "receipt_sha256": "2cdcd316db38219b8c59529fe619c0cf265d6a2ce73f808b6fbca41631fe5bb5"}
+    }
+  },
+  "comparison": {
+    "baseline": "v107",
+    "baseline_throughput_messages_per_second": 107.58,
+    "optimized_mean_throughput_messages_per_second": 111.795,
+    "optimized_mean_throughput_change_percent": 3.92,
+    "baseline_mutation_ms": 38.228,
+    "optimized_mean_mutation_ms": 35.209,
+    "mutation_change_percent": -7.90,
+    "baseline_attempt_lock_ms": 10.950,
+    "optimized_mean_attempt_lock_ms": 8.013,
+    "attempt_lock_change_percent": -26.82,
+    "baseline_final_segment_messages_per_second": 153.208,
+    "optimized_mean_final_segment_messages_per_second": 153.306,
+    "barrier_round_trip_eliminated": true
+  },
+  "artifacts": {"candidate_path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail", "candidate_sha256": "4a0aabdec18579a97474d76467036b05ae87c2b3e85b6fb2a12cede7c17891db", "candidate_build_id": "74eab898fb68e7912b85c75fba8b4eccf660392a", "candidate_size_bytes": 218821576, "candidate_owner_mode": "root:root 0555", "candidate_main_and_deps_hard_link": true},
+  "verification": {"library_tests": "744 passed", "python_performance_and_launcher_tests": "224 passed", "cargo_fmt_check": "passed", "clippy_deny_warnings": "passed", "resource_audit": "v108 and v109 candidate, service, per-run cgroup, loop image, mount, output/checkpoint artifact, and supervisor resources absent after cleanup", "qualification_note": "Both runs failed only within_arm_throughput_stability; no formal throughput artifact was published."}
+}

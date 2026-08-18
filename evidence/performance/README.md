@@ -1604,6 +1604,51 @@ device, mount, artifact, provisional or final output, runner receipt,
 supervisor socket, runner gate, or listening port. Only persistent
 housekeeping state and unrelated historical attestations remain.
 
+V108 and v109 repeated the retained result-checkpoint split-lock optimization
+from commit `df5bf1b2`. Both used the same profiling ELF and the same 2,048
+message, 10 KB, fsync-off workload. Each delivered 2,048/2,048 messages with
+zero failed sends, exceptions, retries, OOM, or loss, and each published and
+removed 4,096 Maildir entries. V108 measured 109.80 messages/second overall;
+v109 measured 113.79 messages/second. Their final-segment rates were 150.057
+and 156.554 messages/second. The two-run means are 111.795 overall and
+153.306 in the final segment, about 3.92% above v107 overall.
+
+The split transaction timers show result-checkpoint mutation falling from
+v107's 38.228 ms to a 35.209 ms two-run mean, and attempt-lock falling from
+10.950 ms to 8.013 ms. The combined roster/barrier read is real: barrier
+verification is 121-159 ns, not a PostgreSQL round trip. In the final segment
+the remaining large stages are `smtp_commit` (109.308/104.907 ms),
+`smtp_final_reply` (105.381/101.349 ms), and `inbound_index_commit`
+(54.406/51.581 ms), so the next profiler hypothesis must target one of those
+paths rather than the eliminated barrier read.
+
+Neither run is qualified. The unchanged stability limit is 30%; v108's four
+rates were 91.070, 117.429, 148.895, and 150.057 messages/second (44.2970%
+range), while v109's were 85.286, 117.213, 150.930, and 156.554 (53.1567%
+range). The launcher therefore failed closed after cleanup and emitted no
+formal throughput artifact. The combined evidence is retained at
+`smtp-rust-result-checkpoint-transaction-profiler-v108-v109-summary.json`.
+Its SHA-256 is
+`06a3f553bbbcde2925a04f1c441a117ad4741fb54e35e0ca2c26119149e1189b`.
+
+The v108 and v109 console hashes are
+`dc9cae9702b3b81500efe8cca15656606d35bcf255ccba4f83ee219ba4573012` and
+`b2e642f299d6edf9a740797dc7e166245fab3cfe59fdfc6a48e4f7506b600cd8`.
+Their root cleanup receipts hash to
+`fb671d977896655b14a9c66719de08cf8ba0279c2bd0c1700c4ca2c66ab2d909` and
+`2cdcd316db38219b8c59529fe619c0cf265d6a2ce73f808b6fbca41631fe5bb5`.
+The shared profiling ELF is SHA-256
+`4a0aabdec18579a97474d76467036b05ae87c2b3e85b6fb2a12cede7c17891db`, Build
+ID `74eab898fb68e7912b85c75fba8b4eccf660392a`, size 218,821,576 bytes, and
+is root-owned mode 0555 with its main/deps hard link identity preserved.
+
+After the optimization, the complete Rust library suite passed 744 tests,
+the Python performance and launcher suite passed 224 tests, `cargo fmt
+--all -- --check` passed, and clippy with warnings denied passed. These are
+regression results only; the active goal still requires stable qualification,
+full differential coverage, soak, 500k-scale pressure, rendering/model
+goldens, and all other completion gates.
+
 V107 retained the v106 workload and ran the split-lock profiler from commit
 `78d88275` at 2,048 messages in the same Rust 10KB fsync-off isolation
 profile. It delivered 2,048/2,048 messages with zero failure, retry,
