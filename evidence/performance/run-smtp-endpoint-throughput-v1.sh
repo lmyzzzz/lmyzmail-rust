@@ -1045,12 +1045,16 @@ def validate_output(payload):
         raise SystemExit("provisional evidence schema changed")
     profile = value.get("profile")
     java_small = profile == "java-small-single-invocation-smtp-endpoint-baseline-v1"
+    candidate_stability = (
+        profile == "rust-candidate-single-invocation-smtp-endpoint-stability-v1"
+    )
     legacy_abba = profile == "abba-single-invocation-smtp-endpoint-throughput-v1"
     mixed_v2 = profile == "mixed-single-invocation-smtp-endpoint-throughput-v2"
     if profile not in {
         "abba-single-invocation-smtp-endpoint-throughput-v1",
         "mixed-single-invocation-smtp-endpoint-throughput-v2",
         "java-small-single-invocation-smtp-endpoint-baseline-v1",
+        "rust-candidate-single-invocation-smtp-endpoint-stability-v1",
     }:
         raise SystemExit("provisional evidence profile changed")
     if value.get("launcher_run_id") != launcher_run_id:
@@ -1331,6 +1335,223 @@ def validate_output(payload):
         for digest in (runner_sha, launcher_sha, definition_sha):
             if not valid_sha256(digest):
                 raise SystemExit("Java-small provenance digest is invalid")
+        return value, runner_run_id, profile, runner_sha, launcher_sha, definition_sha
+    if candidate_stability:
+        plans = value.get("plans")
+        expected_by_label = (
+            {
+                "1KB": {"label": "1KB", "message_bytes": 1024, "total_messages": 500_000},
+                "10KB": {"label": "10KB", "message_bytes": 10 * 1024, "total_messages": 500_000},
+                "10MB": {"label": "10MB", "message_bytes": 10 * 1024 * 1024, "total_messages": 500},
+            }
+            if formal
+            else {
+                "1KB": {"label": "1KB", "message_bytes": 1024, "total_messages": 8},
+                "10KB": {"label": "10KB", "message_bytes": 10 * 1024, "total_messages": 8},
+                "10MB": {"label": "10MB", "message_bytes": 10 * 1024 * 1024, "total_messages": 2},
+            }
+        )
+        labels = [plan.get("label") for plan in plans] if isinstance(plans, list) else []
+        expected_ordered_labels = [
+            label for label in ("1KB", "10KB", "10MB") if label in labels
+        ]
+        if not (
+            labels
+            and labels == expected_ordered_labels
+            and len(labels) == len(set(labels))
+            and plans == [expected_by_label[label] for label in labels]
+        ):
+            raise SystemExit("candidate stability plan contract changed")
+        expected_order = [
+            {"target": "rust-candidate", "tier": label, "arm_ordinal": 0}
+            for label in labels
+        ]
+        expected_counts = [expected_by_label[label]["total_messages"] for label in labels]
+        if not (
+            value.get("execution_order") == expected_order
+            and value.get("total_endpoint_invocations") == len(labels)
+            and value.get("endpoint_requested_messages") == expected_counts
+            and value.get("observer_verified_messages") == expected_counts
+        ):
+            raise SystemExit("candidate stability top-level contract changed")
+        comparison = value.get("comparison")
+        required_comparison_gates = (
+            "all_passed",
+            "candidate_complete_passed",
+            "plan_order_passed",
+            "candidate_only_passed",
+            "single_arm_per_tier_passed",
+            "operational_evidence_passed",
+            "arm_completeness_passed",
+            "measurement_evidence_passed",
+            "within_arm_stability_passed",
+            "zero_retry_gate_passed",
+            "proxy_headroom_passed",
+            "java_comparison_intentionally_external",
+        )
+        if not isinstance(comparison, dict) or not all(
+            comparison.get(key) is True for key in required_comparison_gates
+        ):
+            raise SystemExit("candidate stability comparison gates did not all pass")
+        summaries = comparison.get("comparisons")
+        if not isinstance(summaries, list) or len(summaries) != len(labels):
+            raise SystemExit("candidate stability tier summaries changed")
+        for label, row in zip(labels, summaries, strict=True):
+            expected_count = expected_by_label[label]["total_messages"]
+            scheduler_observed = row.get("queue_scheduler_observed")
+            if not (
+                isinstance(row, dict)
+                and row.get("tier") == label
+                and row.get("target") == "rust-candidate"
+                and row.get("requested_messages") == expected_count
+                and row.get("observer_verified_messages") == expected_count
+                and row.get("single_endpoint_invocation") is True
+                and isinstance(scheduler_observed, bool)
+                and (not formal or scheduler_observed is True)
+                and row.get("passed") is True
+            ):
+                raise SystemExit("candidate stability tier summaries changed")
+        acceptance = value.get("acceptance")
+        if not isinstance(acceptance, dict) or not (
+            acceptance.get("passed") is True
+            and acceptance.get("qualified") is qualified
+            and acceptance.get("no_batching") is True
+            and acceptance.get("candidate_stability") is True
+            and acceptance.get("candidate_only") is True
+            and acceptance.get("one_arm_per_tier") is True
+            and acceptance.get("one_endpoint_invocation_per_tier") is True
+            and acceptance.get("two_equally_weighted_arms_per_target_tier") is False
+            and acceptance.get("both_paired_ratios_must_pass") is False
+            and acceptance.get("conservative_min_rust_over_max_java_must_pass") is False
+            and acceptance.get("cross_arm_stability_must_pass") is False
+            and acceptance.get("no_warmup_endpoint_calls") is True
+            and acceptance.get("no_repetition_loop") is True
+            and acceptance.get("no_stress_start_retries") is True
+        ):
+            raise SystemExit("candidate stability acceptance semantics changed")
+        methodology = value.get("methodology")
+        if not isinstance(methodology, dict) or not (
+            methodology.get("per_tier_arms") == ["rust-candidate"]
+            and methodology.get("candidate_only_stability_tiers") == labels
+            and methodology.get("one_large_start_invocation_per_arm") is True
+            and methodology.get("harness_batching") is False
+            and methodology.get("automatic_endpoint_cleanup_only") is True
+            and methodology.get("warmup_endpoint_invocations") == 0
+            and methodology.get("repetition_loop") is False
+            and methodology.get("performance_gate_uses_both_ordinal_pairs") is False
+            and methodology.get("performance_gate_uses_min_rust_over_max_java") is False
+            and methodology.get("performance_comparison_tiers") == []
+            and methodology.get("cross_arm_relative_range_limit") is None
+            and methodology.get("candidate_stability_is_qualification_evidence") is True
+            and methodology.get("java_comparison_is_external") is True
+        ):
+            raise SystemExit("candidate stability methodology changed")
+        rows = value.get("rows")
+        if not isinstance(rows, list) or len(rows) != len(labels):
+            raise SystemExit("candidate stability rows are missing")
+        for plan, row in zip(plans, rows, strict=True):
+            arms = row.get("arms") if isinstance(row, dict) else None
+            measurements = row.get("measurements") if isinstance(row, dict) else None
+            if not (
+                row.get("target") == "rust-candidate"
+                and row.get("tier") == plan
+                and row.get("arm_count") == 1
+                and row.get("endpoint_start_invocations") == 1
+                and row.get("endpoint_invocations") == 1
+                and row.get("harness_batches") == 0
+                and row.get("requested_equals_observer_verified") is True
+                and isinstance(arms, list)
+                and len(arms) == 1
+                and isinstance(measurements, list)
+                and len(measurements) == 1
+            ):
+                raise SystemExit("candidate stability row shape changed")
+            arm = arms[0]
+            measurement = arm.get("measurement")
+            outcome = measurement.get("endpoint_outcome") if isinstance(measurement, dict) else None
+            resource = measurement.get("resource") if isinstance(measurement, dict) else None
+            count = plan["total_messages"]
+            if not (
+                arm.get("target") == "rust-candidate"
+                and arm.get("arm_ordinal") == 0
+                and arm.get("endpoint_start_invocations") == 1
+                and arm.get("endpoint_invocations") == 1
+                and arm.get("harness_batches") == 0
+                and arm.get("endpoint_requested_messages") == count
+                and arm.get("observer_verified_messages") == count
+                and arm.get("requested_equals_observer_verified") is True
+                and valid_dkim_fixture(arm.get("dkim_fixture"))
+                and isinstance(outcome, dict)
+                and outcome.get("failure_count") == 0
+                and outcome.get("retry_count") == 0
+                and (not formal or outcome.get("queue_scheduler_observed") is True)
+                and measurement.get("endpoint_start_invocation_count") == 1
+                and measurement.get("endpoint_start_automatic_retries") == 0
+                and measurement.get("smtp", {}).get(
+                    "within_arm_throughput_stability", {}
+                ).get("passed") is True
+                and isinstance(resource, dict)
+                and resource.get("candidate_cpu_usage_seconds", 0) > 0
+                and resource.get("services_cpu_usage_seconds", 0) > 0
+                and valid_application_persistence_io(arm, resource)
+                and resource.get("services_persistence_io_observed") is True
+                and resource.get("temperature", {}).get("within_limit") is True
+            ):
+                raise SystemExit("candidate stability single-call evidence changed")
+        attestation = value.get("attestation")
+        external = value.get("external_prerequisites")
+        calibration = value.get("real_gate_calibration")
+        if not (
+            isinstance(attestation, dict)
+            and isinstance(external, dict)
+            and isinstance(calibration, dict)
+        ):
+            raise SystemExit("candidate stability provenance is missing")
+        runner_sha = attestation.get("runner_sha256")
+        launcher_sha = attestation.get("launcher_sha256")
+        definition = attestation.get("benchmark_definition")
+        definition_sha = definition.get("sha256") if isinstance(definition, dict) else None
+        proxy_binary_sha = attestation.get("benchmark_proxy_release_sha256")
+        proxy_source_sha = attestation.get("benchmark_proxy_source_tree_sha256")
+        for digest in (
+            runner_sha,
+            launcher_sha,
+            definition_sha,
+            proxy_binary_sha,
+            proxy_source_sha,
+        ):
+            if not valid_sha256(digest):
+                raise SystemExit("candidate stability provenance digest is invalid")
+        if formal:
+            isolation = attestation.get("isolation_policy")
+            proxy = external.get("proxy_headroom")
+            if not (
+                qualified is True
+                and value.get("qualification_prerequisites_passed") is True
+                and external.get("passed") is True
+                and acceptance.get("external_prerequisites_passed") is True
+                and acceptance.get("real_gate_calibration_passed") is True
+                and calibration.get("required_for_qualification") is True
+                and calibration.get("performed") is True
+                and calibration.get("passed") is True
+                and set(calibration.get("tiers", {})) == set(labels)
+                and isinstance(isolation, dict)
+                and isolation.get("passed") is True
+                and external.get("launcher_sha256") == launcher_sha
+                and isinstance(proxy, dict)
+                and proxy.get("runner_sha256") == runner_sha
+                and proxy.get("binary_sha256") == proxy_binary_sha
+                and proxy.get("source_tree_sha256") == proxy_source_sha
+                and comparison.get("proxy_headroom_passed") is True
+            ):
+                raise SystemExit("formal candidate stability evidence is not qualified")
+        elif not (
+            qualified is False
+            and value.get("qualification_prerequisites_passed") is False
+            and external.get("passed") is False
+            and calibration.get("performed") is False
+        ):
+            raise SystemExit("candidate stability smoke provenance changed")
         return value, runner_run_id, profile, runner_sha, launcher_sha, definition_sha
     comparison = value.get("comparison")
     comparison_gates = [
@@ -4131,6 +4352,21 @@ parse_runner_arguments() {
         java_small_baseline_run=1
         formal_run=0
         disk_budget_gib=20
+    elif [[ ${profile} == candidate-stability ]]; then
+        (( seen_profiler_messages == 0 )) || return 1
+        [[ ${target} == rust ]] || return 1
+        if (( smoke != 0 )); then
+            if (( seen_rust_filesystem_fsync == 0 )); then
+                rust_filesystem_fsync=on
+            fi
+            formal_run=0
+            disk_budget_gib=${LMYZMAIL_BENCHMARK_SMOKE_IMAGE_GIB:-5}
+            [[ ${disk_budget_gib} =~ ^[5-9]$|^[1-9][0-9]+$ ]] || return 1
+        else
+            (( seen_rust_filesystem_fsync == 1 )) || return 1
+            formal_run=1
+            disk_budget_gib=20
+        fi
     elif [[ ${profile} == rust-profiler ]]; then
         [[ ${target} == rust && ${tier} == 10kb && ${smoke} -eq 0 ]] || return 1
         if (( seen_profiler_messages != 0 )); then

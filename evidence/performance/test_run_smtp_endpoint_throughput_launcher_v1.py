@@ -54,6 +54,10 @@ class LauncherIsolationContractTests(unittest.TestCase):
             '"java-small-single-invocation-smtp-endpoint-baseline-v1",',
             source,
         )
+        self.assertIn(
+            '"rust-candidate-single-invocation-smtp-endpoint-stability-v1",',
+            source,
+        )
         for contract in (
             '"arm_completeness_passed"',
             '"required_topology_passed"',
@@ -161,6 +165,55 @@ printf 'rust-filesystem-fsync-launcher: PASS\n'
 """
         )
         self.assertIn("rust-filesystem-fsync-launcher: PASS", result.stdout)
+
+    def test_candidate_stability_launcher_is_single_target_and_formal(self) -> None:
+        parse = self.bash_function("parse_runner_arguments")
+        result = self.run_bash_probe(
+            f"""
+set -euo pipefail
+{parse}
+repository=/tmp/lmyzmail-candidate-stability-launcher-test
+mkdir -p "$repository/evidence/performance"
+run_id={RUN_ID}
+formal_run=0
+java_small_baseline_run=0
+profiler_run=0
+rust_filesystem_fsync=not-applicable
+disk_budget_gib=20
+image_bytes=0
+declare -a runner_arguments=()
+parse_runner_arguments \
+    --profile candidate-stability --target rust --tier 10kb \
+    --rust-filesystem-fsync off \
+    --output evidence/performance/candidate-formal.json
+[[ $formal_run == 1 ]]
+[[ $rust_filesystem_fsync == off ]]
+[[ $image_bytes == 21474836480 ]]
+[[ ${{runner_arguments[*]}} == *'--profile candidate-stability --target rust --tier 10kb'* ]]
+(
+    declare -a runner_arguments=()
+    ! parse_runner_arguments --profile candidate-stability --target rust \
+        --tier 10kb --output evidence/performance/reject-missing-fsync.json
+)
+(
+    declare -a runner_arguments=()
+    ! parse_runner_arguments --profile candidate-stability --target both \
+        --tier 10kb --rust-filesystem-fsync off \
+        --output evidence/performance/reject-both.json
+)
+(
+    declare -a runner_arguments=()
+    parse_runner_arguments --profile candidate-stability --target rust \
+        --tier 1kb --smoke \
+        --output evidence/performance/candidate-smoke.json
+    [[ $formal_run == 0 ]]
+    [[ $rust_filesystem_fsync == on ]]
+    [[ ${{runner_arguments[*]}} == *'--rust-filesystem-fsync on'* ]]
+)
+printf 'candidate-stability-launcher-profile: PASS\n'
+"""
+        )
+        self.assertIn("candidate-stability-launcher-profile: PASS", result.stdout)
 
     def test_promotion_validator_uses_process_io_only_for_rust_fsync_off(
         self,

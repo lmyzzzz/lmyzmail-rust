@@ -184,6 +184,9 @@ MAXIMUM_RECORDED_TEMPERATURE_MILLICELSIUS = 95_000
 EXTERNAL_PREREQUISITE_PROFILE = "lmyzmail-smtp-throughput-external-prerequisites-v1"
 BENCHMARK_PROFILE = "mixed-single-invocation-smtp-endpoint-throughput-v2"
 JAVA_SMALL_BASELINE_PROFILE = "java-small-single-invocation-smtp-endpoint-baseline-v1"
+CANDIDATE_STABILITY_PROFILE = (
+    "rust-candidate-single-invocation-smtp-endpoint-stability-v1"
+)
 JAVA_FROZEN_CONFIG_RELATIVE = Path(
     "evidence/freeze/java-oracle/application.properties.redacted"
 )
@@ -7477,6 +7480,27 @@ def _java_small_baseline_execution_matrix(
     return tuple(("java-oracle", plan, 0) for plan in plans)
 
 
+def _candidate_stability_execution_matrix(
+    plans: Sequence[BenchmarkPlan],
+) -> tuple[tuple[str, BenchmarkPlan, int], ...]:
+    if not plans:
+        raise ValueError("candidate stability requires at least one plan")
+    allowed = {
+        plan.label: plan
+        for plan in _plans(
+            smoke=False, disk_budget_bytes=FORMAL_DISK_BUDGET_BYTES, tier="all"
+        )
+    }
+    if any(
+        plan.label not in allowed
+        or plan.message_bytes != allowed[plan.label].message_bytes
+        or plan.total_messages > allowed[plan.label].total_messages
+        for plan in plans
+    ):
+        raise ValueError("candidate stability plan contract changed")
+    return tuple(("rust-candidate", plan, 0) for plan in plans)
+
+
 def _throughput_stability(values: Sequence[float]) -> dict[str, Any]:
     if not values:
         raise ValueError("throughput stability requires at least one run")
@@ -7901,6 +7925,173 @@ def _java_small_baseline_comparison(
             row.get("tier", {}).get("message_bytes", 0) < 10 * 1024 * 1024
             for row in rows
         ),
+        "remembered_java_reference_messages_per_second": 1_500,
+        "remembered_reference_is_not_the_gate": True,
+    }
+
+
+def _candidate_stability_comparison(
+    rows: Sequence[dict[str, Any]],
+    plans: Sequence[BenchmarkPlan],
+    *,
+    smoke: bool,
+    proxy_headroom: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    expected_plans = tuple(plans)
+    _candidate_stability_execution_matrix(expected_plans)
+    expected_labels = [plan.label for plan in expected_plans]
+    observed_labels = [str(row.get("tier", {}).get("label")) for row in rows]
+    plan_order_passed = observed_labels == expected_labels
+    comparisons: list[dict[str, Any]] = []
+    for plan, row in zip(expected_plans, rows, strict=False):
+        arms = row.get("arms") if isinstance(row, dict) else None
+        arm = arms[0] if isinstance(arms, list) and len(arms) == 1 else None
+        measurement = arm.get("measurement") if isinstance(arm, dict) else None
+        outcome = (
+            measurement.get("endpoint_outcome")
+            if isinstance(measurement, dict)
+            else None
+        )
+        throughput = _finite_number(
+            row.get("throughput", {}).get("median_messages_per_second"),
+            f"{plan.label} candidate stability throughput",
+            positive=True,
+        )
+        passed = bool(
+            row.get("target") == "rust-candidate"
+            and row.get("tier")
+            == {
+                "label": plan.label,
+                "message_bytes": plan.message_bytes,
+                "total_messages": plan.total_messages,
+            }
+            and row.get("arm_count") == 1
+            and row.get("endpoint_start_invocations") == 1
+            and row.get("endpoint_invocations") == 1
+            and row.get("harness_batches") == 0
+            and row.get("requested_equals_observer_verified") is True
+            and isinstance(arm, dict)
+            and arm.get("arm_ordinal") == 0
+            and arm.get("endpoint_requested_messages") == plan.total_messages
+            and arm.get("observer_verified_messages") == plan.total_messages
+            and arm.get("requested_equals_observer_verified") is True
+            and arm.get("endpoint_start_invocations") == 1
+            and arm.get("endpoint_invocations") == 1
+            and arm.get("harness_batches") == 0
+            and isinstance(measurement, dict)
+            and _round_contract_passed(measurement)
+            and isinstance(outcome, dict)
+            and outcome.get("failure_count") == 0
+            and outcome.get("retry_count") == 0
+            and (smoke or outcome.get("queue_scheduler_observed") is True)
+        )
+        comparisons.append(
+            {
+                "tier": plan.label,
+                "target": "rust-candidate",
+                "requested_messages": plan.total_messages,
+                "observer_verified_messages": (
+                    arm.get("observer_verified_messages")
+                    if isinstance(arm, dict)
+                    else None
+                ),
+                "throughput_messages_per_second": round(throughput, 6),
+                "single_endpoint_invocation": True,
+                "queue_scheduler_observed": (
+                    outcome.get("queue_scheduler_observed")
+                    if isinstance(outcome, dict)
+                    else False
+                ),
+                "passed": passed,
+            }
+        )
+    row_count_passed = len(rows) == len(expected_plans)
+    arm_completeness_passed = row_count_passed and all(
+        comparison["passed"] for comparison in comparisons
+    )
+    measurement_evidence_passed = row_count_passed and all(
+        len(row.get("measurements", ())) == 1
+        and _round_contract_passed(row["measurements"][0])
+        for row in rows
+    )
+    within_arm_stability_passed = row_count_passed and all(
+        row["measurements"][0]
+        .get("smtp", {})
+        .get("within_arm_throughput_stability", {})
+        .get("passed")
+        is True
+        for row in rows
+        if len(row.get("measurements", ())) == 1
+    )
+    zero_retry_gate_passed = row_count_passed and all(
+        row["measurements"][0].get("endpoint_outcome", {}).get("retry_count") == 0
+        for row in rows
+        if len(row.get("measurements", ())) == 1
+    )
+    proxy_headroom_gates: list[dict[str, Any]] = []
+    proxy_headroom_passed = smoke
+    if proxy_headroom is not None:
+        proxy_tiers = proxy_headroom.get("tiers")
+        if not isinstance(proxy_tiers, dict):
+            raise RuntimeError("proxy headroom evidence omitted its tier map")
+        proxy_headroom_passed = row_count_passed
+        for comparison in comparisons:
+            tier = str(comparison["tier"])
+            tier_evidence = proxy_tiers.get(tier)
+            if not isinstance(tier_evidence, dict):
+                raise RuntimeError(f"proxy headroom evidence is missing for {tier}")
+            sustained = _finite_number(
+                tier_evidence.get("sustained_messages_per_second"),
+                f"{tier} sustained proxy capacity",
+                positive=True,
+            )
+            observed = _finite_number(
+                comparison["throughput_messages_per_second"],
+                f"{tier} observed candidate throughput",
+                positive=True,
+            )
+            ratio = sustained / observed
+            passed = ratio >= MINIMUM_PROXY_HEADROOM_RATIO
+            proxy_headroom_passed = proxy_headroom_passed and passed
+            proxy_headroom_gates.append(
+                {
+                    "tier": tier,
+                    "sustained_proxy_messages_per_second": sustained,
+                    "observed_candidate_messages_per_second": observed,
+                    "observed_headroom_ratio": round(ratio, 6),
+                    "required_headroom_ratio": MINIMUM_PROXY_HEADROOM_RATIO,
+                    "passed": passed,
+                }
+            )
+    operational_evidence_passed = (
+        arm_completeness_passed
+        and measurement_evidence_passed
+        and within_arm_stability_passed
+    )
+    all_passed = bool(
+        row_count_passed
+        and plan_order_passed
+        and operational_evidence_passed
+        and zero_retry_gate_passed
+        and proxy_headroom_passed
+    )
+    return {
+        "comparisons": comparisons,
+        "all_passed": all_passed,
+        "candidate_complete_passed": row_count_passed and plan_order_passed,
+        "plan_order_passed": plan_order_passed,
+        "candidate_only_passed": row_count_passed
+        and all(row.get("target") == "rust-candidate" for row in rows),
+        "single_arm_per_tier_passed": row_count_passed
+        and all(row.get("arm_count") == 1 for row in rows),
+        "operational_evidence_passed": operational_evidence_passed,
+        "arm_completeness_passed": arm_completeness_passed,
+        "measurement_evidence_passed": measurement_evidence_passed,
+        "within_arm_stability_passed": within_arm_stability_passed,
+        "zero_retry_gate_passed": zero_retry_gate_passed,
+        "proxy_headroom_passed": proxy_headroom_passed,
+        "proxy_headroom_gates": proxy_headroom_gates,
+        "java_comparison_intentionally_external": True,
         "remembered_java_reference_messages_per_second": 1_500,
         "remembered_reference_is_not_the_gate": True,
     }
@@ -9106,6 +9297,31 @@ def _qualified(
     )
 
 
+def _candidate_stability_qualified(
+    *,
+    smoke: bool,
+    target: str,
+    tier: str,
+    disk_budget_bytes: int,
+    layout: CgroupLayout,
+    external_prerequisites_passed: bool,
+    isolation_policy_passed: bool,
+) -> bool:
+    return (
+        not smoke
+        and target == "rust"
+        and tier in {"all", "1kb", "10kb", "10mb"}
+        and disk_budget_bytes == FORMAL_DISK_BUDGET_BYTES
+        and layout.host_reserve_bytes >= FORMAL_HOST_RESERVE_BYTES
+        and layout.io_bytes_per_second == FORMAL_IO_BYTES_PER_SECOND
+        and layout.max_memory_bytes == FORMAL_MAX_MEMORY_BYTES
+        and layout.max_pids == FORMAL_MAX_PIDS
+        and layout.nofile_limit == FORMAL_NOFILE_LIMIT
+        and external_prerequisites_passed
+        and isolation_policy_passed
+    )
+
+
 def _resolve_output(value: Path) -> Path:
     output = value if value.is_absolute() else REPOSITORY / value
     output = output.resolve(strict=False)
@@ -9254,6 +9470,8 @@ def _run_benchmark(args: argparse.Namespace, layout: CgroupLayout) -> dict[str, 
     disk_budget_bytes = round(args.disk_budget_gib * 1024**3)
     dkim_material = _generate_benchmark_dkim_material()
     java_small_baseline = getattr(args, "profile", "abba") == "java-small"
+    candidate_stability = getattr(args, "profile", "abba") == "candidate-stability"
+    single_arm_profile = java_small_baseline or candidate_stability
     rust_filesystem_fsync = getattr(
         args, "rust_filesystem_fsync", None if java_small_baseline else "on"
     )
@@ -9263,6 +9481,14 @@ def _run_benchmark(args: argparse.Namespace, layout: CgroupLayout) -> dict[str, 
             plans = [plan for plan in plans if plan.label.lower() == args.tier]
         targets = ("java-oracle",)
         execution_matrix = _java_small_baseline_execution_matrix(plans)
+    elif candidate_stability:
+        plans = _plans(
+            smoke=args.smoke,
+            disk_budget_bytes=disk_budget_bytes,
+            tier=args.tier,
+        )
+        targets = ("rust-candidate",)
+        execution_matrix = _candidate_stability_execution_matrix(plans)
     else:
         plans = _plans(
             smoke=args.smoke,
@@ -9317,14 +9543,26 @@ def _run_benchmark(args: argparse.Namespace, layout: CgroupLayout) -> dict[str, 
         qualification_prerequisites_passed = (
             False
             if java_small_baseline
-            else _qualified(
-                smoke=args.smoke,
-                target=args.target,
-                tier=args.tier,
-                disk_budget_bytes=disk_budget_bytes,
-                layout=layout,
-                external_prerequisites_passed=external_prerequisites["passed"],
-                isolation_policy_passed=attestation["isolation_policy"]["passed"],
+            else (
+                _candidate_stability_qualified(
+                    smoke=args.smoke,
+                    target=args.target,
+                    tier=args.tier,
+                    disk_budget_bytes=disk_budget_bytes,
+                    layout=layout,
+                    external_prerequisites_passed=external_prerequisites["passed"],
+                    isolation_policy_passed=attestation["isolation_policy"]["passed"],
+                )
+                if candidate_stability
+                else _qualified(
+                    smoke=args.smoke,
+                    target=args.target,
+                    tier=args.tier,
+                    disk_budget_bytes=disk_budget_bytes,
+                    layout=layout,
+                    external_prerequisites_passed=external_prerequisites["passed"],
+                    isolation_policy_passed=attestation["isolation_policy"]["passed"],
+                )
             )
         )
         started_at = _utc_now()
@@ -9341,7 +9579,11 @@ def _run_benchmark(args: argparse.Namespace, layout: CgroupLayout) -> dict[str, 
                 "benchmark_profile": (
                     JAVA_SMALL_BASELINE_PROFILE
                     if java_small_baseline
-                    else BENCHMARK_PROFILE
+                    else (
+                        CANDIDATE_STABILITY_PROFILE
+                        if candidate_stability
+                        else BENCHMARK_PROFILE
+                    )
                 ),
                 "execution_order": (
                     (
@@ -9350,7 +9592,11 @@ def _run_benchmark(args: argparse.Namespace, layout: CgroupLayout) -> dict[str, 
                         else f"{plans[0].label} Java once"
                     )
                     if java_small_baseline
-                    else "1KB/10KB ABBA; 10MB Rust-only"
+                    else (
+                        "candidate tiers once in plan order"
+                        if candidate_stability
+                        else "1KB/10KB ABBA; 10MB Rust-only"
+                    )
                 ),
                 "plans": [
                     {
@@ -9361,7 +9607,7 @@ def _run_benchmark(args: argparse.Namespace, layout: CgroupLayout) -> dict[str, 
                     }
                     for plan in plans
                 ],
-                "arms_per_target_per_tier": 1 if java_small_baseline else 2,
+                "arms_per_target_per_tier": 1 if single_arm_profile else 2,
                 "warmup_endpoint_invocations": 0,
                 "disk_budget_bytes": disk_budget_bytes,
                 "qualified": False,
@@ -9415,7 +9661,12 @@ def _run_benchmark(args: argparse.Namespace, layout: CgroupLayout) -> dict[str, 
             and not args.smoke
         ):
             gate_tiers: dict[str, dict[str, Any]] = {}
-            for label in REAL_GATE_CALIBRATION_SHAPES:
+            calibration_labels = (
+                [plan.label for plan in plans]
+                if candidate_stability
+                else list(REAL_GATE_CALIBRATION_SHAPES)
+            )
+            for label in calibration_labels:
                 gate_tiers[label] = _run_real_gate_calibration_tier(
                     label,
                     layout,
@@ -9551,7 +9802,7 @@ def _run_benchmark(args: argparse.Namespace, layout: CgroupLayout) -> dict[str, 
     rows = _aggregate_arm_rows(
         arms,
         plans,
-        expected_ordinals=(0,) if java_small_baseline else (0, 1),
+        expected_ordinals=(0,) if single_arm_profile else (0, 1),
     )
     definition_after = _checkpointed_finalization(
         checkpoint,
@@ -9569,14 +9820,27 @@ def _run_benchmark(args: argparse.Namespace, layout: CgroupLayout) -> dict[str, 
     comparison = (
         _java_small_baseline_comparison(rows, plans)
         if java_small_baseline
-        else _comparison(
-            rows,
-            smoke=args.smoke,
-            proxy_headroom=(
-                external_prerequisites["proxy_headroom"]
-                if external_prerequisites["passed"]
-                else None
-            ),
+        else (
+            _candidate_stability_comparison(
+                rows,
+                plans,
+                smoke=args.smoke,
+                proxy_headroom=(
+                    external_prerequisites["proxy_headroom"]
+                    if external_prerequisites["passed"]
+                    else None
+                ),
+            )
+            if candidate_stability
+            else _comparison(
+                rows,
+                smoke=args.smoke,
+                proxy_headroom=(
+                    external_prerequisites["proxy_headroom"]
+                    if external_prerequisites["passed"]
+                    else None
+                ),
+            )
         )
     )
     qualified = (
@@ -9586,10 +9850,10 @@ def _run_benchmark(args: argparse.Namespace, layout: CgroupLayout) -> dict[str, 
             qualification_prerequisites_passed
             and comparison["all_passed"]
             and comparison["zero_retry_gate_passed"]
-            and comparison["pair_completeness_passed"]
             and comparison["arm_completeness_passed"]
             and comparison["proxy_headroom_passed"]
             and real_gate_calibration["passed"]
+            and (candidate_stability or comparison["pair_completeness_passed"])
         )
     )
     status = "passed" if comparison["all_passed"] else "failed"
@@ -9602,7 +9866,13 @@ def _run_benchmark(args: argparse.Namespace, layout: CgroupLayout) -> dict[str, 
     result = {
         "schema_version": 1,
         "profile": (
-            JAVA_SMALL_BASELINE_PROFILE if java_small_baseline else BENCHMARK_PROFILE
+            JAVA_SMALL_BASELINE_PROFILE
+            if java_small_baseline
+            else (
+                CANDIDATE_STABILITY_PROFILE
+                if candidate_stability
+                else BENCHMARK_PROFILE
+            )
         ),
         "run_id": run_id,
         "launcher_run_id": args.launcher_run_id,
@@ -9618,7 +9888,8 @@ def _run_benchmark(args: argparse.Namespace, layout: CgroupLayout) -> dict[str, 
         "harness_batches": 0,
         "total_endpoint_invocations": len(arms),
         "real_gate_calibration_endpoint_invocations": (
-            len(REAL_GATE_CALIBRATION_SHAPES) * len(REAL_GATE_CALIBRATION_SEQUENCE)
+            (len(plans) if candidate_stability else len(REAL_GATE_CALIBRATION_SHAPES))
+            * len(REAL_GATE_CALIBRATION_SEQUENCE)
             if real_gate_calibration["performed"]
             else 0
         ),
@@ -9647,22 +9918,30 @@ def _run_benchmark(args: argparse.Namespace, layout: CgroupLayout) -> dict[str, 
                 if java_small_baseline and len(plans) == 2
                 else (
                     plans[0].label
-                    if java_small_baseline
-                    else "1KB/10KB ABBA; 10MB Rust-only"
+                    if java_small_baseline or len(plans) == 1
+                    else (
+                        " then ".join(plan.label for plan in plans)
+                        if candidate_stability
+                        else "1KB/10KB ABBA; 10MB Rust-only"
+                    )
                 )
             ),
             "per_tier_arms": (
                 ["java-oracle"]
                 if java_small_baseline
-                else {
-                    "1KB/10KB": [
-                        "java-oracle",
-                        "rust-candidate",
-                        "rust-candidate",
-                        "java-oracle",
-                    ],
-                    "10MB": ["rust-candidate", "rust-candidate"],
-                }
+                else (
+                    ["rust-candidate"]
+                    if candidate_stability
+                    else {
+                        "1KB/10KB": [
+                            "java-oracle",
+                            "rust-candidate",
+                            "rust-candidate",
+                            "java-oracle",
+                        ],
+                        "10MB": ["rust-candidate", "rust-candidate"],
+                    }
+                )
             ),
             "one_large_start_invocation_per_arm": True,
             "stress_start_maximum_attempts_per_arm": 1,
@@ -9690,19 +9969,23 @@ def _run_benchmark(args: argparse.Namespace, layout: CgroupLayout) -> dict[str, 
             "real_gate_calibration_same_runtime_per_tier": not java_small_baseline,
             "real_gate_calibration_fresh_proxy_per_round": not java_small_baseline,
             "real_gate_calibration_synthetic": False,
-            "performance_gate_uses_both_ordinal_pairs": not java_small_baseline,
-            "performance_gate_uses_min_rust_over_max_java": not java_small_baseline,
+            "performance_gate_uses_both_ordinal_pairs": not single_arm_profile,
+            "performance_gate_uses_min_rust_over_max_java": not single_arm_profile,
             "performance_comparison_tiers": (
-                [] if java_small_baseline else ["1KB", "10KB"]
+                [] if single_arm_profile else ["1KB", "10KB"]
             ),
             "candidate_only_stability_tiers": (
-                [] if java_small_baseline else ["10MB"]
+                [plan.label for plan in plans]
+                if candidate_stability
+                else ([] if java_small_baseline else ["10MB"])
             ),
             "cross_arm_relative_range_limit": (
-                None if java_small_baseline else MAXIMUM_ABBA_ARM_RELATIVE_RANGE
+                None if single_arm_profile else MAXIMUM_ABBA_ARM_RELATIVE_RANGE
             ),
             "hard_disk_quota_attested": external_prerequisites["passed"],
             "java_small_baseline_is_not_qualification_evidence": java_small_baseline,
+            "candidate_stability_is_qualification_evidence": candidate_stability,
+            "java_comparison_is_external": candidate_stability,
             "throughput_window": (
                 "immediately before POST /api/stress/start through the final self-SMTP "
                 "250 response after inbound Maildir and PostgreSQL persistence"
@@ -9732,19 +10015,19 @@ def _run_benchmark(args: argparse.Namespace, layout: CgroupLayout) -> dict[str, 
             "qualified": qualified,
             "qualification_prerequisites_passed": (qualification_prerequisites_passed),
             "rust_primary_tiers_require_20_percent_improvement": (
-                not java_small_baseline
+                not single_arm_profile
             ),
-            "both_paired_ratios_must_pass": not java_small_baseline,
-            "conservative_min_rust_over_max_java_must_pass": (not java_small_baseline),
-            "cross_arm_stability_must_pass": not java_small_baseline,
+            "both_paired_ratios_must_pass": not single_arm_profile,
+            "conservative_min_rust_over_max_java_must_pass": not single_arm_profile,
+            "cross_arm_stability_must_pass": not single_arm_profile,
             "no_batching": True,
             "per_tier_abba": (
-                not java_small_baseline
+                not single_arm_profile
                 and args.target == "both"
                 and all(plan.label != "10MB" for plan in plans)
             ),
             "small_message_tiers_abba": (
-                not java_small_baseline and args.target == "both"
+                not single_arm_profile and args.target == "both"
             ),
             "ten_megabyte_java_prohibited": not java_small_baseline,
             "ten_megabyte_rust_only": (
@@ -9752,11 +10035,13 @@ def _run_benchmark(args: argparse.Namespace, layout: CgroupLayout) -> dict[str, 
                 and any(plan.label == "10MB" for plan in plans)
                 and "rust-candidate" in targets
             ),
-            "two_equally_weighted_arms_per_target_tier": not java_small_baseline,
+            "two_equally_weighted_arms_per_target_tier": not single_arm_profile,
             "java_small_baseline": java_small_baseline,
             "java_only": java_small_baseline,
-            "one_arm_per_tier": java_small_baseline,
-            "one_endpoint_invocation_per_tier": java_small_baseline,
+            "candidate_stability": candidate_stability,
+            "candidate_only": candidate_stability,
+            "one_arm_per_tier": single_arm_profile,
+            "one_endpoint_invocation_per_tier": single_arm_profile,
             "one_kib_then_ten_kib": java_small_baseline and len(plans) == 2,
             "two_hundred_thousand_messages_per_tier": java_small_baseline,
             "ten_megabyte_excluded": java_small_baseline,
@@ -9825,16 +10110,20 @@ def _run_benchmark(args: argparse.Namespace, layout: CgroupLayout) -> dict[str, 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Run Java/Rust ABBA arms for 1KB and 10KB plus Rust-only 10MB "
-            "arms using one original stress-endpoint invocation and a fresh "
-            "isolated runtime per arm."
+            "Run Java/Rust ABBA, Java baseline, or Rust candidate stability "
+            "profiles using one original stress-endpoint invocation and a "
+            "fresh isolated runtime per arm."
         )
     )
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--launcher-run-id", required=True, type=_canonical_uuid4)
     parser.add_argument("--output-fd", required=True, type=_artifact_descriptor)
     parser.add_argument("--checkpoint-fd", required=True, type=_artifact_descriptor)
-    parser.add_argument("--profile", choices=("abba", "java-small"), default="abba")
+    parser.add_argument(
+        "--profile",
+        choices=("abba", "java-small", "candidate-stability"),
+        default="abba",
+    )
     parser.add_argument("--target", choices=("both", "java", "rust"), default="both")
     parser.add_argument(
         "--rust-filesystem-fsync",
@@ -9879,6 +10168,17 @@ def _parse_args() -> argparse.Namespace:
             )
         if args.rust_filesystem_fsync is not None:
             parser.error("--profile java-small does not accept a Rust fsync mode")
+    elif args.profile == "candidate-stability":
+        if args.target != "rust":
+            parser.error("--profile candidate-stability requires --target rust")
+        if args.rust_filesystem_fsync is None:
+            if args.smoke:
+                args.rust_filesystem_fsync = "on"
+            else:
+                parser.error(
+                    "formal candidate stability runs require "
+                    "--rust-filesystem-fsync on or off"
+                )
     elif args.target == "java":
         if args.tier == "10mb":
             parser.error("Java 10MB execution is prohibited; use --target rust")

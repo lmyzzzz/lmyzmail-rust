@@ -45,5 +45,6 @@
 /evidence/performance/*.jsonl
 /evidence/performance/*.txt
 /evidence/performance/smtp-endpoint-throughput-*-smoke-*.json
+/evidence/performance/smtp-endpoint-candidate-stability-*-smoke-*.json
 /evidence/compatibility/*.jsonl
 /evidence/compatibility/smtp-self-stress-*-formal-*.json

@@ -940,6 +940,42 @@ class ProxySelectionTests(unittest.TestCase):
                     with self.assertRaises(SystemExit):
                         runner._parse_args()
 
+    def test_candidate_stability_cli_is_rust_only_and_binds_fsync(self) -> None:
+        base = [
+            "smtp-endpoint-throughput-v1.py",
+            "--output",
+            "evidence/performance/candidate-stability.json",
+            "--launcher-run-id",
+            LAUNCHER_RUN_ID,
+            "--output-fd",
+            "8",
+            "--checkpoint-fd",
+            "9",
+            "--profile",
+            "candidate-stability",
+            "--target",
+            "rust",
+            "--tier",
+            "10kb",
+        ]
+        with mock.patch.object(sys, "argv", base):
+            with self.assertRaises(SystemExit):
+                runner._parse_args()
+        with mock.patch.object(sys, "argv", [*base, "--rust-filesystem-fsync", "off"]):
+            args = runner._parse_args()
+        self.assertEqual(args.profile, "candidate-stability")
+        self.assertEqual(args.target, "rust")
+        self.assertEqual(args.rust_filesystem_fsync, "off")
+        with mock.patch.object(sys, "argv", [*base, "--smoke"]):
+            smoke = runner._parse_args()
+        self.assertEqual(smoke.rust_filesystem_fsync, "on")
+        for target in ("both", "java"):
+            with self.subTest(target=target):
+                arguments = [target if value == "rust" else value for value in base]
+                with mock.patch.object(sys, "argv", arguments):
+                    with self.assertRaises(SystemExit):
+                        runner._parse_args()
+
     def test_rust_cli_requires_one_explicit_fsync_mode_per_formal_run(self) -> None:
         base = [
             "smtp-endpoint-throughput-v1.py",
@@ -1548,6 +1584,55 @@ class PlanAndComparisonTests(unittest.TestCase):
         self.assertFalse(
             runner._java_small_baseline_comparison(rows, plans)["all_passed"]
         )
+
+    def test_candidate_stability_is_one_rust_arm_with_operational_gates(self) -> None:
+        plan = runner.BenchmarkPlan("10KB", 10 * 1024, 500_000)
+        matrix = runner._candidate_stability_execution_matrix([plan])
+        self.assertEqual(
+            [(target, value.label, ordinal) for target, value, ordinal in matrix],
+            [("rust-candidate", "10KB", 0)],
+        )
+        measurement = _round_record(measured=True)
+        measurement["endpoint_outcome"]["failure_count"] = 0
+        arm = {
+            "target": "rust-candidate",
+            "tier": {
+                "label": plan.label,
+                "message_bytes": plan.message_bytes,
+                "total_messages": plan.total_messages,
+            },
+            "arm_ordinal": 0,
+            "measurement": measurement,
+            "endpoint_start_invocations": 1,
+            "endpoint_invocations": 1,
+            "harness_batches": 0,
+            "endpoint_requested_messages": plan.total_messages,
+            "observer_verified_messages": plan.total_messages,
+            "requested_equals_observer_verified": True,
+            "throughput_messages_per_second": 120.0,
+        }
+        rows = runner._aggregate_arm_rows([arm], [plan], expected_ordinals=(0,))
+        comparison = runner._candidate_stability_comparison(
+            rows,
+            [plan],
+            smoke=False,
+            proxy_headroom={
+                "tiers": {"10KB": {"sustained_messages_per_second": 300.0}}
+            },
+        )
+        self.assertTrue(comparison["all_passed"])
+        self.assertTrue(comparison["candidate_only_passed"])
+        self.assertTrue(comparison["single_arm_per_tier_passed"])
+        self.assertTrue(comparison["proxy_headroom_passed"])
+
+        rows[0]["arms"][0]["measurement"]["endpoint_outcome"]["retry_count"] = 1
+        failed = runner._candidate_stability_comparison(
+            rows,
+            [plan],
+            smoke=True,
+        )
+        self.assertFalse(failed["zero_retry_gate_passed"])
+        self.assertFalse(failed["all_passed"])
 
     def test_arm_aggregation_preserves_four_raw_values_and_equal_weights(self) -> None:
         plan = runner.BenchmarkPlan("10KB", 10 * 1024, 500_000)

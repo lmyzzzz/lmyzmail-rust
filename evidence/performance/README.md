@@ -71,6 +71,52 @@ sudo evidence/performance/run-smtp-endpoint-throughput-v1.sh \
   --output evidence/performance/smtp-endpoint-throughput-fsync-on-v1.json
 ```
 
+Once the independent Java baseline has been recorded, use the candidate-only
+stability profile for the long Rust pressure campaign. This profile preserves
+the original endpoint behavior but runs exactly one arm and one
+`/api/stress/start` invocation per selected tier. It never substitutes a
+synthetic producer, splits a tier into harness batches, or treats the absence
+of a Java arm as a failure. Formal 1KB and 10KB tiers each request 500,000
+messages; the 10MB tier remains bounded by the attested 20 GiB disk budget.
+
+```bash
+sudo evidence/performance/run-smtp-endpoint-throughput-v1.sh \
+  --profile candidate-stability \
+  --target rust \
+  --tier 1kb \
+  --rust-filesystem-fsync off \
+  --output evidence/performance/smtp-endpoint-candidate-stability-fsync-off-1kb-v1.json
+```
+
+Each tier can qualify independently so a late large-message failure cannot
+erase a completed 500,000-message small-message result. Formal qualification
+still requires the hard disk quota, single-CPU workload placement, 500 MB/s
+dual-device I/O cap, proxy capacity and transparency attestation, exact passive
+SMTP observation, queue-scheduler activity, zero failures/retries, persistence
+barriers, resource accounting, and complete root cleanup. `fsync=off` is the
+Java-comparison mode; repeat the same selected tiers with `fsync=on` for the
+production-default durability and restart-recovery campaign.
+
+The first end-to-end profile smokes exercised the 1KB tier from the same
+candidate release. Fsync-off run `4335b8d1-57cd-4b43-9b04-90350b3f88f6`
+and fsync-on run `6a4edff5-75e2-4cc9-87d1-ccbb7f815ade` each used one arm,
+one endpoint invocation, and passively verified all `8/8` messages. Both
+recorded zero failures and retries, passed the persistence/resource contract,
+and ended with `request=DONE`, `cleanup=passed`, and no lazy unmount. Their
+create-only JSON SHA-256 values are respectively
+`3b5185141bd87a88b305061e1e1425c1580183256c323a963735f6bb7a4f5c76`
+and `34ae266cfb288ccfd673347fad382664bac85d55f70baa59881ddacb4b1bfbe6`.
+Both remain `qualified=false` because smoke counts deliberately do not satisfy
+the formal 500,000-message and external-attestation gates.
+
+The preceding current-candidate ABBA 1KB smoke, run
+`9a89d6f7-a7ea-43d2-9d1f-f7500bae7edb`, also passed both Java and Rust arms.
+Its conservative `min(Rust)/max(Java)` ratio was `8.921104`; the create-only
+JSON SHA-256 was
+`19beab2c654642f2e9dbf0a294c6a68cea7fe743284297df685c1aca4d547f63`.
+That eight-message-per-arm result is retained only as contract smoke evidence,
+not as the Java/Rust throughput baseline.
+
 `off` changes only lmyzmail-owned filesystem barriers. PostgreSQL WAL and
 `synchronous_commit`, Redis persistence, atomic publication, ownership checks,
 queue bounds, and evidence-file fsync remain unchanged. `on` remains the
