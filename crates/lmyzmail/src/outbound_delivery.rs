@@ -3422,9 +3422,9 @@ async fn lock_ledger_attempt(
     .ok_or(DeliveryStateError::Fenced)?;
     let recipient_count: i32 = row.get(2);
     let roster_sha256: Vec<u8> = row.get(3);
-    let roster_valid = {
+    let (roster_valid, has_armed_recipient) = {
         let _timer = StageTimer::start(CoordinatorStage::ResultCheckpointRosterVerify);
-        verify_roster(
+        verify_roster_with_barrier(
             transaction,
             claim.task_id,
             claim.recipient_count,
@@ -3444,9 +3444,41 @@ async fn lock_ledger_attempt(
     let phase: String = row.get(1);
     {
         let _timer = StageTimer::start(CoordinatorStage::ResultCheckpointBarrierVerify);
-        verify_commit_barrier_consistency(transaction, claim.task_id, &phase).await?;
+        validate_commit_barrier_consistency(&phase, has_armed_recipient)?;
     }
     Ok((row.get(0), phase))
+}
+
+async fn verify_roster_with_barrier(
+    transaction: &deadpool_postgres::Transaction<'_>,
+    task_id: i64,
+    expected_count: usize,
+    expected_fingerprint: &[u8; 32],
+) -> Result<(bool, bool), LedgerMutationError> {
+    let rows = transaction
+        .query(
+            "SELECT recipient_ordinal,recipient_address,state
+             FROM lmyzmail_outbound_delivery_recipient
+             WHERE task_id=$1 ORDER BY recipient_ordinal FOR SHARE",
+            &[&task_id],
+        )
+        .await?;
+    if rows.len() != expected_count {
+        return Ok((false, false));
+    }
+    let mut recipients = Vec::with_capacity(rows.len());
+    let mut has_armed_recipient = false;
+    for (ordinal, row) in rows.iter().enumerate() {
+        if row.get::<_, i32>(0) != ordinal as i32 {
+            return Ok((false, false));
+        }
+        recipients.push(row.get::<_, String>(1));
+        has_armed_recipient |= row.get::<_, &str>(2) == "COMMIT_ARMED";
+    }
+    Ok((
+        roster_fingerprint(&recipients) == *expected_fingerprint,
+        has_armed_recipient,
+    ))
 }
 
 async fn verify_roster(
