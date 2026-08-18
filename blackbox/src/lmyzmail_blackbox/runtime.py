@@ -998,6 +998,10 @@ class CandidateRuntime(JavaOracleRuntime):
                 "default_brew_time_seconds": 1,
                 "pots": list(_HTCPCP_POTS),
             },
+            "minecraft": {
+                "enabled": True,
+                "online_mode": False,
+            },
             "limits": {
                 "redis_pool": 16,
                 "postgres_pool": 16,

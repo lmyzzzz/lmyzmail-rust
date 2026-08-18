@@ -97,6 +97,14 @@ class _ProfileCandidateRuntime(CandidateRuntime):
         if self._dns is None:
             raise RuntimeError("self-spoofing DNS fixture is not running")
         value["domain"] = "blackbox.example.com"
+        value["domains"] = [
+            {
+                "domain": "blackbox.example.com",
+                "receive_enabled": True,
+                "send_enabled": True,
+                "require_existing_mailbox": True,
+            }
+        ]
         value["features"]["smtp_spf_dns_server"] = f"{self._dns.host}:{self._dns.port}"
         inferx = value["skibidi_inferx"]
         if self.profile == "inferx":
@@ -143,7 +151,7 @@ def _runner(repository: Path, profile: Profile, *, record_java: bool = False) ->
     name = f"managed-smtp-self-spoof-{profile}"
     return DifferentialRunner(
         repository,
-        repository / f"blackbox/golden/java/{name}-v4",
+        repository / f"blackbox/golden/java/{name}-v7",
         name,
         record_java=record_java,
     )

@@ -37,13 +37,13 @@ def test_managed_java_starttls_goldens(record_java_golden: bool) -> None:
     paths = JavaOracleRuntime().paths
     differential = DifferentialRunner(
         paths.repository,
-        paths.repository / "blackbox/golden/java/managed-starttls-v42",
+        paths.repository / "blackbox/golden/java/managed-starttls-v45",
         "managed-starttls",
         record_java=record_java_golden,
     )
     oracle_evidence = DifferentialRunner(
         paths.repository,
-        paths.repository / "blackbox/golden/java/managed-starttls-oracle-evidence-v42",
+        paths.repository / "blackbox/golden/java/managed-starttls-oracle-evidence-v45",
         "managed-starttls-oracle-evidence",
         record_java=record_java_golden,
     )
@@ -64,7 +64,7 @@ def test_rust_candidate_starttls_matches_frozen_java_golden() -> None:
     repository = Path(__file__).resolve().parents[2]
     differential = DifferentialRunner(
         repository,
-        repository / "blackbox/golden/java/managed-starttls-v42",
+        repository / "blackbox/golden/java/managed-starttls-v45",
         "managed-starttls",
     )
     with _candidate(repository) as candidate:

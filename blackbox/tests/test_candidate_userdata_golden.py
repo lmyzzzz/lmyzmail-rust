@@ -26,8 +26,8 @@ from lmyzmail_blackbox.snapshots import http_json_snapshot
 
 _SESSION_HEADERS = (("X-Session-Token", LEGACY_SESSION_TOKEN),)
 _PROFILE = "managed-userdata"
-_GOLDEN = "blackbox/golden/java/managed-userdata-v21"
-_ORACLE_EVIDENCE_GOLDEN = "blackbox/golden/java/managed-userdata-oracle-evidence-v20"
+_GOLDEN = "blackbox/golden/java/managed-userdata-v24"
+_ORACLE_EVIDENCE_GOLDEN = "blackbox/golden/java/managed-userdata-oracle-evidence-v23"
 
 
 @dataclass(frozen=True, slots=True)

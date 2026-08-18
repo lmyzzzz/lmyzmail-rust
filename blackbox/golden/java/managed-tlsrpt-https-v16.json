@@ -1,0 +1,489 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "b258f9e77babf233ac28e121a3cdc5d0e23b25d65c1d5a09ad45ce3d6c9b65af",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "report-id:uuid-v4",
+      "json-object-order:reports-contract",
+      "http:header-order",
+      "tlsrpt:uuid-derived-content-length"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-tlsrpt-https"
+  },
+  "observation": {
+    "cases": {
+      "certificate_failure": {
+        "dns": [
+          {
+            "class": 1,
+            "name": "_smtp._tls.certificate-failure.delivery.tlsrpt.fixture.test",
+            "type": 16
+          }
+        ],
+        "https": {
+          "handshake_failures": 1,
+          "requests": []
+        },
+        "response": {
+          "body": {
+            "date": "2024-01-01",
+            "dmarc": {
+              "error": "No DMARC data for this domain/date",
+              "results": []
+            },
+            "domain": "certificate-failure.delivery.tlsrpt.fixture.test",
+            "tls": {
+              "error": "none",
+              "results": [
+                {
+                  "error": "Unable to connect to validated HTTP target",
+                  "method": "https",
+                  "success": false,
+                  "target": "https://collector-certificate-failure.tlsrpt.fixture.test/v1/reports/tls?case=certificate-failure"
+                }
+              ]
+            }
+          },
+          "body_wire": "{\"date\":\"2024-01-01\",\"dmarc\":{\"error\":\"No DMARC data for this domain/date\",\"results\":[]},\"domain\":\"certificate-failure.delivery.tlsrpt.fixture.test\",\"tls\":{\"error\":\"none\",\"results\":[{\"error\":\"Unable to connect to validated HTTP target\",\"method\":\"https\",\"success\":false,\"target\":\"https://collector-certificate-failure.tlsrpt.fixture.test/v1/reports/tls?case=certificate-failure\"}]}}",
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "381"
+            ]
+          ],
+          "status_code": 200
+        },
+        "source_row_unchanged": true
+      },
+      "private_address": {
+        "dns": [
+          {
+            "class": 1,
+            "name": "_smtp._tls.private-address.delivery.tlsrpt.fixture.test",
+            "type": 16
+          }
+        ],
+        "https": {
+          "handshake_failures": 0,
+          "requests": []
+        },
+        "response": {
+          "body": {
+            "date": "2024-01-01",
+            "dmarc": {
+              "error": "No DMARC data for this domain/date",
+              "results": []
+            },
+            "domain": "private-address.delivery.tlsrpt.fixture.test",
+            "tls": {
+              "error": "none",
+              "results": [
+                {
+                  "error": "SSRF protection: Host 'collector-private-address.tlsrpt.fixture.test' resolves to non-public address(es): 127.0.0.1",
+                  "method": "https",
+                  "success": false,
+                  "target": "https://collector-private-address.tlsrpt.fixture.test/v1/reports/tls?case=private-address"
+                }
+              ]
+            }
+          },
+          "body_wire": "{\"date\":\"2024-01-01\",\"dmarc\":{\"error\":\"No DMARC data for this domain/date\",\"results\":[]},\"domain\":\"private-address.delivery.tlsrpt.fixture.test\",\"tls\":{\"error\":\"none\",\"results\":[{\"error\":\"SSRF protection: Host 'collector-private-address.tlsrpt.fixture.test' resolves to non-public address(es): 127.0.0.1\",\"method\":\"https\",\"success\":false,\"target\":\"https://collector-private-address.tlsrpt.fixture.test/v1/reports/tls?case=private-address\"}]}}",
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "442"
+            ]
+          ],
+          "status_code": 200
+        },
+        "source_row_unchanged": true
+      },
+      "redirect": {
+        "dns": [
+          {
+            "class": 1,
+            "name": "_smtp._tls.redirect.delivery.tlsrpt.fixture.test",
+            "type": 16
+          }
+        ],
+        "https": {
+          "handshake_failures": 0,
+          "requests": [
+            {
+              "compressed_bytes_bounded": true,
+              "connection": 1,
+              "connection_header": "close",
+              "content_length_matches": true,
+              "content_type": "application/tlsrpt+gzip",
+              "decompressed_bytes": 707,
+              "gzip_header_hex": "1f8b08000000000000ff",
+              "headers": [
+                [
+                  "connection",
+                  "close"
+                ],
+                [
+                  "content-length",
+                  "<uuid-derived-content-length>"
+                ],
+                [
+                  "content-type",
+                  "application/tlsrpt+gzip"
+                ],
+                [
+                  "host",
+                  "collector-redirect.tlsrpt.fixture.test"
+                ],
+                [
+                  "user-agent",
+                  "Botmail-TLSRPT/1.0"
+                ]
+              ],
+              "host": "collector-redirect.tlsrpt.fixture.test",
+              "method": "POST",
+              "normalized_decompressed_sha256": "6ae0f294d402d7fc57b116cfb4dfe10d4aee7c59bf5f3c227a1d287b0995a73a",
+              "normalized_decompressed_text": "{\n  \"organization-name\" : \"Blackbox Reports\",\n  \"date-range\" : {\n    \"start-datetime\" : \"2024-01-01T00:00:00Z\",\n    \"end-datetime\" : \"2024-01-01T23:59:59Z\"\n  },\n  \"contact-info\" : \"reports@example.test\",\n  \"report-id\" : \"<report-id>\",\n  \"policies\" : [ {\n    \"policy\" : {\n      \"policy-type\" : \"sts\",\n      \"policy-string\" : [ \"version: STSv1\", \"mode: enforce\", \"mx: mx.redirect.delivery.tlsrpt.fixture.test\", \"max_age: 604800\" ],\n      \"policy-domain\" : \"redirect.delivery.tlsrpt.fixture.test\",\n      \"mx-host\" : [ \"mx.redirect.delivery.tlsrpt.fixture.test\" ]\n    },\n    \"summary\" : {\n      \"total-successful-session-count\" : 2,\n      \"total-failure-session-count\" : 0\n    }\n  } ]\n}",
+              "report": {
+                "contact-info": "reports@example.test",
+                "date-range": {
+                  "end-datetime": "2024-01-01T23:59:59Z",
+                  "start-datetime": "2024-01-01T00:00:00Z"
+                },
+                "organization-name": "Blackbox Reports",
+                "policies": [
+                  {
+                    "policy": {
+                      "mx-host": [
+                        "mx.redirect.delivery.tlsrpt.fixture.test"
+                      ],
+                      "policy-domain": "redirect.delivery.tlsrpt.fixture.test",
+                      "policy-string": [
+                        "version: STSv1",
+                        "mode: enforce",
+                        "mx: mx.redirect.delivery.tlsrpt.fixture.test",
+                        "max_age: 604800"
+                      ],
+                      "policy-type": "sts"
+                    },
+                    "summary": {
+                      "total-failure-session-count": 0,
+                      "total-successful-session-count": 2
+                    }
+                  }
+                ],
+                "report-id": "<report-id>"
+              },
+              "sni": "collector-redirect.tlsrpt.fixture.test",
+              "target": "/v1/reports/tls?case=redirect",
+              "tls_cipher": "TLS_AES_256_GCM_SHA384",
+              "tls_protocol": "TLSv1.3",
+              "tls_secret_bits": 256,
+              "user_agent": "Botmail-TLSRPT/1.0",
+              "version": "HTTP/1.1"
+            }
+          ]
+        },
+        "response": {
+          "body": {
+            "date": "2024-01-01",
+            "dmarc": {
+              "error": "No DMARC data for this domain/date",
+              "results": []
+            },
+            "domain": "redirect.delivery.tlsrpt.fixture.test",
+            "tls": {
+              "error": "none",
+              "results": [
+                {
+                  "error": "HTTP 302",
+                  "method": "https",
+                  "success": false,
+                  "target": "https://collector-redirect.tlsrpt.fixture.test/v1/reports/tls?case=redirect"
+                }
+              ]
+            }
+          },
+          "body_wire": "{\"date\":\"2024-01-01\",\"dmarc\":{\"error\":\"No DMARC data for this domain/date\",\"results\":[]},\"domain\":\"redirect.delivery.tlsrpt.fixture.test\",\"tls\":{\"error\":\"none\",\"results\":[{\"error\":\"HTTP 302\",\"method\":\"https\",\"success\":false,\"target\":\"https://collector-redirect.tlsrpt.fixture.test/v1/reports/tls?case=redirect\"}]}}",
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "314"
+            ]
+          ],
+          "status_code": 200
+        },
+        "source_row_unchanged": true
+      },
+      "success": {
+        "dns": [
+          {
+            "class": 1,
+            "name": "_smtp._tls.success.delivery.tlsrpt.fixture.test",
+            "type": 16
+          }
+        ],
+        "https": {
+          "handshake_failures": 0,
+          "requests": [
+            {
+              "compressed_bytes_bounded": true,
+              "connection": 1,
+              "connection_header": "close",
+              "content_length_matches": true,
+              "content_type": "application/tlsrpt+gzip",
+              "decompressed_bytes": 704,
+              "gzip_header_hex": "1f8b08000000000000ff",
+              "headers": [
+                [
+                  "connection",
+                  "close"
+                ],
+                [
+                  "content-length",
+                  "<uuid-derived-content-length>"
+                ],
+                [
+                  "content-type",
+                  "application/tlsrpt+gzip"
+                ],
+                [
+                  "host",
+                  "collector-success.tlsrpt.fixture.test"
+                ],
+                [
+                  "user-agent",
+                  "Botmail-TLSRPT/1.0"
+                ]
+              ],
+              "host": "collector-success.tlsrpt.fixture.test",
+              "method": "POST",
+              "normalized_decompressed_sha256": "7e9df05fc336987a928e2de3e596cc455758d12e16f50d294f85c6fb1cf398ed",
+              "normalized_decompressed_text": "{\n  \"organization-name\" : \"Blackbox Reports\",\n  \"date-range\" : {\n    \"start-datetime\" : \"2024-01-01T00:00:00Z\",\n    \"end-datetime\" : \"2024-01-01T23:59:59Z\"\n  },\n  \"contact-info\" : \"reports@example.test\",\n  \"report-id\" : \"<report-id>\",\n  \"policies\" : [ {\n    \"policy\" : {\n      \"policy-type\" : \"sts\",\n      \"policy-string\" : [ \"version: STSv1\", \"mode: enforce\", \"mx: mx.success.delivery.tlsrpt.fixture.test\", \"max_age: 604800\" ],\n      \"policy-domain\" : \"success.delivery.tlsrpt.fixture.test\",\n      \"mx-host\" : [ \"mx.success.delivery.tlsrpt.fixture.test\" ]\n    },\n    \"summary\" : {\n      \"total-successful-session-count\" : 1,\n      \"total-failure-session-count\" : 0\n    }\n  } ]\n}",
+              "report": {
+                "contact-info": "reports@example.test",
+                "date-range": {
+                  "end-datetime": "2024-01-01T23:59:59Z",
+                  "start-datetime": "2024-01-01T00:00:00Z"
+                },
+                "organization-name": "Blackbox Reports",
+                "policies": [
+                  {
+                    "policy": {
+                      "mx-host": [
+                        "mx.success.delivery.tlsrpt.fixture.test"
+                      ],
+                      "policy-domain": "success.delivery.tlsrpt.fixture.test",
+                      "policy-string": [
+                        "version: STSv1",
+                        "mode: enforce",
+                        "mx: mx.success.delivery.tlsrpt.fixture.test",
+                        "max_age: 604800"
+                      ],
+                      "policy-type": "sts"
+                    },
+                    "summary": {
+                      "total-failure-session-count": 0,
+                      "total-successful-session-count": 1
+                    }
+                  }
+                ],
+                "report-id": "<report-id>"
+              },
+              "sni": "collector-success.tlsrpt.fixture.test",
+              "target": "/v1/reports/tls?case=success",
+              "tls_cipher": "TLS_AES_256_GCM_SHA384",
+              "tls_protocol": "TLSv1.3",
+              "tls_secret_bits": 256,
+              "user_agent": "Botmail-TLSRPT/1.0",
+              "version": "HTTP/1.1"
+            }
+          ]
+        },
+        "response": {
+          "body": {
+            "date": "2024-01-01",
+            "dmarc": {
+              "error": "No DMARC data for this domain/date",
+              "results": []
+            },
+            "domain": "success.delivery.tlsrpt.fixture.test",
+            "tls": {
+              "error": "none",
+              "results": [
+                {
+                  "method": "https",
+                  "success": true,
+                  "target": "https://collector-success.tlsrpt.fixture.test/v1/reports/tls?case=success"
+                }
+              ]
+            }
+          },
+          "body_wire": "{\"date\":\"2024-01-01\",\"dmarc\":{\"error\":\"No DMARC data for this domain/date\",\"results\":[]},\"domain\":\"success.delivery.tlsrpt.fixture.test\",\"tls\":{\"error\":\"none\",\"results\":[{\"method\":\"https\",\"success\":true,\"target\":\"https://collector-success.tlsrpt.fixture.test/v1/reports/tls?case=success\"}]}}",
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "291"
+            ]
+          ],
+          "status_code": 200
+        },
+        "source_row_unchanged": true
+      },
+      "timeout": {
+        "dns": [
+          {
+            "class": 1,
+            "name": "_smtp._tls.timeout.delivery.tlsrpt.fixture.test",
+            "type": 16
+          }
+        ],
+        "https": {
+          "handshake_failures": 0,
+          "requests": [
+            {
+              "compressed_bytes_bounded": true,
+              "connection": 1,
+              "connection_header": "close",
+              "content_length_matches": true,
+              "content_type": "application/tlsrpt+gzip",
+              "decompressed_bytes": 704,
+              "gzip_header_hex": "1f8b08000000000000ff",
+              "headers": [
+                [
+                  "connection",
+                  "close"
+                ],
+                [
+                  "content-length",
+                  "<uuid-derived-content-length>"
+                ],
+                [
+                  "content-type",
+                  "application/tlsrpt+gzip"
+                ],
+                [
+                  "host",
+                  "collector-timeout.tlsrpt.fixture.test"
+                ],
+                [
+                  "user-agent",
+                  "Botmail-TLSRPT/1.0"
+                ]
+              ],
+              "host": "collector-timeout.tlsrpt.fixture.test",
+              "method": "POST",
+              "normalized_decompressed_sha256": "fed47b335d897a219f4de47c5667844f7785dcc9b34bfbc7abdc7f2b6cd09f92",
+              "normalized_decompressed_text": "{\n  \"organization-name\" : \"Blackbox Reports\",\n  \"date-range\" : {\n    \"start-datetime\" : \"2024-01-01T00:00:00Z\",\n    \"end-datetime\" : \"2024-01-01T23:59:59Z\"\n  },\n  \"contact-info\" : \"reports@example.test\",\n  \"report-id\" : \"<report-id>\",\n  \"policies\" : [ {\n    \"policy\" : {\n      \"policy-type\" : \"sts\",\n      \"policy-string\" : [ \"version: STSv1\", \"mode: enforce\", \"mx: mx.timeout.delivery.tlsrpt.fixture.test\", \"max_age: 604800\" ],\n      \"policy-domain\" : \"timeout.delivery.tlsrpt.fixture.test\",\n      \"mx-host\" : [ \"mx.timeout.delivery.tlsrpt.fixture.test\" ]\n    },\n    \"summary\" : {\n      \"total-successful-session-count\" : 5,\n      \"total-failure-session-count\" : 0\n    }\n  } ]\n}",
+              "report": {
+                "contact-info": "reports@example.test",
+                "date-range": {
+                  "end-datetime": "2024-01-01T23:59:59Z",
+                  "start-datetime": "2024-01-01T00:00:00Z"
+                },
+                "organization-name": "Blackbox Reports",
+                "policies": [
+                  {
+                    "policy": {
+                      "mx-host": [
+                        "mx.timeout.delivery.tlsrpt.fixture.test"
+                      ],
+                      "policy-domain": "timeout.delivery.tlsrpt.fixture.test",
+                      "policy-string": [
+                        "version: STSv1",
+                        "mode: enforce",
+                        "mx: mx.timeout.delivery.tlsrpt.fixture.test",
+                        "max_age: 604800"
+                      ],
+                      "policy-type": "sts"
+                    },
+                    "summary": {
+                      "total-failure-session-count": 0,
+                      "total-successful-session-count": 5
+                    }
+                  }
+                ],
+                "report-id": "<report-id>"
+              },
+              "sni": "collector-timeout.tlsrpt.fixture.test",
+              "target": "/v1/reports/tls?case=timeout",
+              "tls_cipher": "TLS_AES_256_GCM_SHA384",
+              "tls_protocol": "TLSv1.3",
+              "tls_secret_bits": 256,
+              "user_agent": "Botmail-TLSRPT/1.0",
+              "version": "HTTP/1.1"
+            }
+          ]
+        },
+        "response": {
+          "body": {
+            "date": "2024-01-01",
+            "dmarc": {
+              "error": "No DMARC data for this domain/date",
+              "results": []
+            },
+            "domain": "timeout.delivery.tlsrpt.fixture.test",
+            "tls": {
+              "error": "none",
+              "results": [
+                {
+                  "error": "HTTP request deadline exceeded",
+                  "method": "https",
+                  "success": false,
+                  "target": "https://collector-timeout.tlsrpt.fixture.test/v1/reports/tls?case=timeout"
+                }
+              ]
+            }
+          },
+          "body_wire": "{\"date\":\"2024-01-01\",\"dmarc\":{\"error\":\"No DMARC data for this domain/date\",\"results\":[]},\"domain\":\"timeout.delivery.tlsrpt.fixture.test\",\"tls\":{\"error\":\"none\",\"results\":[{\"error\":\"HTTP request deadline exceeded\",\"method\":\"https\",\"success\":false,\"target\":\"https://collector-timeout.tlsrpt.fixture.test/v1/reports/tls?case=timeout\"}]}}",
+          "headers": [
+            [
+              "content-type",
+              "application/json; charset=UTF-8"
+            ],
+            [
+              "content-length",
+              "333"
+            ]
+          ],
+          "status_code": 200
+        },
+        "source_row_unchanged": true
+      }
+    },
+    "target": "java"
+  },
+  "schema_version": 2
+}

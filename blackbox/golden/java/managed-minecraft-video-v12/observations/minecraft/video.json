@@ -1,0 +1,3362 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "b0ce09dd6c4bf3fc0baa8f817d2bfe1ce9b8c35034dd5c099d2fc811f764f703",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-minecraft-video-v12"
+  },
+  "observation": {
+    "block_video": {
+      "command": "/video play width=4 fps=1 contrast=1.2",
+      "delta_protocol": {
+        "expanded_bytes": 24604,
+        "packet_counts": [
+          [
+            33,
+            2
+          ]
+        ],
+        "packets": [
+          {
+            "data_length": 12302,
+            "frame": {
+              "length": 224,
+              "sha256": "331de64b5ee10c949ee913006d725b7fcb25b94a7aa2eea69b32219f6d956f2a"
+            },
+            "packet_id": 33
+          },
+          {
+            "data_length": 12302,
+            "frame": {
+              "length": 174,
+              "sha256": "cef819fc1512ef94e1a867248387316deaccac9590ae63514dff183c60e520ba"
+            },
+            "packet_id": 33
+          }
+        ],
+        "skipped_scheduled_packets": 0,
+        "unordered_block_changes": [],
+        "wire_bytes": 398
+      },
+      "first_frame_protocol": {
+        "expanded_bytes": 24639,
+        "packet_counts": [
+          [
+            2,
+            1
+          ],
+          [
+            33,
+            2
+          ]
+        ],
+        "packets": [
+          {
+            "data_length": 12302,
+            "frame": {
+              "length": 219,
+              "sha256": "4a0d8f93c297bdccfbb169d383d13dec4579ced10ed13fca9a527e8e86a0dffa"
+            },
+            "packet_id": 33
+          },
+          {
+            "data_length": 12302,
+            "frame": {
+              "length": 169,
+              "sha256": "29b4b54fed632f20a1120e32bfba23adc18b73126f1ea57954b068c4fd9cadfc"
+            },
+            "packet_id": 33
+          },
+          {
+            "chat": {
+              "position": 2,
+              "text": "§7▶ §f1 §7frames"
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 37,
+              "sha256": "30fc103772d8398d3df2a5de6e3e8521ec9d1a84c4ca5e045ca064764f266a3d"
+            },
+            "packet_id": 2
+          }
+        ],
+        "skipped_scheduled_packets": 0,
+        "unordered_block_changes": [],
+        "wire_bytes": 425
+      },
+      "pause_protocol": {
+        "expanded_bytes": 27,
+        "packet_counts": [
+          [
+            2,
+            1
+          ]
+        ],
+        "packets": [
+          {
+            "chat": {
+              "position": 0,
+              "text": "§7⏸ Paused"
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 29,
+              "sha256": "6572dda58152a3fec1a8d3363319557b374255327aca66fdef9579e4eb7918e0"
+            },
+            "packet_id": 2
+          }
+        ],
+        "skipped_scheduled_packets": 0,
+        "unordered_block_changes": [],
+        "wire_bytes": 29
+      },
+      "paused_non_scheduled_packets": {
+        "expanded_bytes": 0,
+        "packet_counts": [],
+        "packets": [],
+        "skipped_scheduled_packets": 0,
+        "unordered_block_changes": [],
+        "wire_bytes": 0
+      },
+      "resume_protocol": {
+        "expanded_bytes": 28,
+        "packet_counts": [
+          [
+            2,
+            1
+          ]
+        ],
+        "packets": [
+          {
+            "chat": {
+              "position": 0,
+              "text": "§7▶ Resumed"
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 30,
+              "sha256": "516fa6f66682d09e591dc780db8f4209d0754ad270b303994987a4ca54a8f8ae"
+            },
+            "packet_id": 2
+          }
+        ],
+        "skipped_scheduled_packets": 0,
+        "unordered_block_changes": [],
+        "wire_bytes": 30
+      },
+      "setup_protocol": {
+        "expanded_bytes": 542993,
+        "packet_counts": [
+          [
+            2,
+            8
+          ],
+          [
+            9,
+            1
+          ],
+          [
+            33,
+            4
+          ],
+          [
+            47,
+            2
+          ],
+          [
+            59,
+            2
+          ],
+          [
+            60,
+            8
+          ],
+          [
+            61,
+            1
+          ]
+        ],
+        "packets": [
+          {
+            "data_length": 370,
+            "frame": {
+              "length": 339,
+              "sha256": "1f5bc9f7a4a706dd562be6b5f576bc1ed3806f3c658c4f50c7ffbdaeade60688"
+            },
+            "packet_id": 47
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 88,
+              "sha256": "294b7806aef70a021c6d898d73d0b25569ba712b71926b1b94f7ba642e1c6d9b"
+            },
+            "packet_id": 47
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 4,
+              "sha256": "c5bb7427360d178e43e91c227fe5d0ccf158ec3dd1de761e44f3dc2e8b4e67f6"
+            },
+            "packet_id": 9
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 9,
+              "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+            },
+            "packet_id": 59
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 30,
+              "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+            },
+            "packet_id": 59
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 9,
+              "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+            },
+            "packet_id": 61
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 59,
+              "sha256": "8daa502da1ff4016c99da192f3e3de77682207b0da0533d855332d0fa13f8190"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§0§r§7━━━━━━━━━━━━━",
+              "objective": "lmyz",
+              "value": 8
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 33,
+              "sha256": "0d46799897d0ad7ae9d26cca1c9e41538ed3f7db35cf71807a366733d16ef3e0"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§1§r§cVideo Playing",
+              "objective": "lmyz",
+              "value": 7
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 34,
+              "sha256": "a50caeba5e082a4b1869308365662c63c004ddc744cf0cdd0278aebaeed7a657"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§2§r§fMode: §aBlock",
+              "objective": "lmyz",
+              "value": 6
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 29,
+              "sha256": "41eebcac9b773433267481364500c0b5cdf7d250a9257ee722ff65729f2fc589"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§3§r§fFPS: §a1",
+              "objective": "lmyz",
+              "value": 5
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 17,
+              "sha256": "31ddffcd1f1273cf97fdddd20b2cdb6e57ce2f9d6fd7a5e39663dcaf907d6d9c"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§4§r",
+              "objective": "lmyz",
+              "value": 4
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 48,
+              "sha256": "e8b1a42c5121dc08f0fe210c5ce34275c7085263ed590c2ccedbb2dabdb5eec8"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§5§r§f⏯ §7Pause  §f⏹ §7Stop",
+              "objective": "lmyz",
+              "value": 3
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 59,
+              "sha256": "dfeb932ff261da4032e2b4ff1c4bcb4ca153abc49cdd523d0d53a212ed3443da"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§6§r§7━━━━━━━━━━━━━",
+              "objective": "lmyz",
+              "value": 2
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 33,
+              "sha256": "a8615a61979175494772606156e65b54b899126a9858d44a6b1d797be2daee46"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§7§r§email.lmyz.net",
+              "objective": "lmyz",
+              "value": 1
+            }
+          },
+          {
+            "chat": {
+              "position": 0,
+              "text": "§a§lStarting block video playback..."
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 70,
+              "sha256": "1f2a2b92e3b34a1ae015c29b8c7de23eb3d5338b1a1be2785030c8bbccd78d96"
+            },
+            "packet_id": 2
+          },
+          {
+            "chat": {
+              "position": 0,
+              "text": "§7Width: §f4 §7| FPS: §f1 §7| Contrast: §f1.2"
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 67,
+              "sha256": "2327c6c77eccf18f60ae0d3adc48d4c77a3380b4e5e927bfa8088307033f51f8"
+            },
+            "packet_id": 2
+          },
+          {
+            "chat": {
+              "position": 0,
+              "text": "§7Use §fbarrier item §7or §f/video stop §7to stop"
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 70,
+              "sha256": "72a5131510d7040379d1e247b3a524275755e31f3ebd8b8686a6b9b5927ec0cb"
+            },
+            "packet_id": 2
+          },
+          {
+            "chat": {
+              "position": 0,
+              "text": "§7Preparing screen..."
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 53,
+              "sha256": "95a3e1849dd5cc6aa432b27db4ca5c201d51b0da6e156daebcf86338ee91f1b5"
+            },
+            "packet_id": 2
+          },
+          {
+            "data_length": 135439,
+            "frame": {
+              "length": 6293,
+              "sha256": "5d2ff8a5fad7d3c93c578a251240d8957b5898816880b0da2c5c52e5b2c50059"
+            },
+            "packet_id": 33
+          },
+          {
+            "data_length": 135439,
+            "frame": {
+              "length": 5984,
+              "sha256": "4fe9f13a7964ccf60b89007d24d8e2a145dc13de98194c880fc56ab863caebec"
+            },
+            "packet_id": 33
+          },
+          {
+            "data_length": 135439,
+            "frame": {
+              "length": 4895,
+              "sha256": "b93f16d583735ac928f20376fac992f2ab80535e1a1c41ae69c1932634a1315e"
+            },
+            "packet_id": 33
+          },
+          {
+            "data_length": 135439,
+            "frame": {
+              "length": 5942,
+              "sha256": "bc9f808deaf8a871da2b9a110a17c9771625f8c18a38eb0498a1eed438e8bcf6"
+            },
+            "packet_id": 33
+          },
+          {
+            "chat": {
+              "position": 0,
+              "text": "§7Starting in 3..."
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 50,
+              "sha256": "d71901fd8453a999aef0b3d1ff662c571a9b522c27eaedab9b3882491f779180"
+            },
+            "packet_id": 2
+          },
+          {
+            "chat": {
+              "position": 0,
+              "text": "§7Starting in 2..."
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 50,
+              "sha256": "3b7ced4ead2aa5ae856a4b8039c11c8cd75e5cfce122ba99110f04b5f6755c40"
+            },
+            "packet_id": 2
+          },
+          {
+            "chat": {
+              "position": 0,
+              "text": "§7Starting in 1..."
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 50,
+              "sha256": "5ecdd04973bdcaf32125498047bce1a769938021587237510c608fd34ae5d5e9"
+            },
+            "packet_id": 2
+          },
+          {
+            "chat": {
+              "position": 0,
+              "text": "§a▶ Playing!"
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 47,
+              "sha256": "c48ad2359e9b69f2b5c722f10ceb3384c6513b59324a46fcaea0ae47fadd8143"
+            },
+            "packet_id": 2
+          }
+        ],
+        "skipped_scheduled_packets": 0,
+        "unordered_block_changes": [],
+        "wire_bytes": 24362
+      },
+      "stop_protocol": {
+        "expanded_bytes": 543449,
+        "packet_counts": [
+          [
+            2,
+            3
+          ],
+          [
+            9,
+            1
+          ],
+          [
+            33,
+            4
+          ],
+          [
+            47,
+            9
+          ],
+          [
+            53,
+            5
+          ],
+          [
+            59,
+            4
+          ],
+          [
+            60,
+            20
+          ],
+          [
+            61,
+            2
+          ]
+        ],
+        "packets": [
+          {
+            "chat": {
+              "position": 0,
+              "text": "§aStopping video playback..."
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 61,
+              "sha256": "3d659c83d81ade9d0440f59e15c3d808905ff5dc7b0dfc5943ee0d2f1fb98d27"
+            },
+            "packet_id": 2
+          },
+          {
+            "data_length": 135439,
+            "frame": {
+              "length": 4901,
+              "sha256": "b69f0057e7ee30d2fdacaf9fac0fcc502602a3d7f9c32373f8b3a39de16007e4"
+            },
+            "packet_id": 33
+          },
+          {
+            "data_length": 135439,
+            "frame": {
+              "length": 5944,
+              "sha256": "7f2ea6b938897de813a4bc2ab7803d8f21074717ca6917a9ab48175c00fe87d9"
+            },
+            "packet_id": 33
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 99,
+              "sha256": "0fa0c322ab82ae607eb7067a052b340307e0d752f12c264f276c968d039327d8"
+            },
+            "packet_id": 53
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 99,
+              "sha256": "f77c122706ca4400b895549f3cd2e9b56486cb74fb877221f7449177cea376ee"
+            },
+            "packet_id": 53
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 99,
+              "sha256": "855c8852feb8af043a45c6ea6c745222d70475e00cd6f9b8885ae879b59f5d1e"
+            },
+            "packet_id": 53
+          },
+          {
+            "data_length": 135439,
+            "frame": {
+              "length": 6300,
+              "sha256": "970849c2504c709553975473e36bc5cee931e073e38b054b6144e7bad71b3a70"
+            },
+            "packet_id": 33
+          },
+          {
+            "data_length": 135439,
+            "frame": {
+              "length": 5983,
+              "sha256": "c07b9ba6dde692abb3b7a526c0ce7fd0edaf47d63499457e3d328d42a90d3064"
+            },
+            "packet_id": 33
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 99,
+              "sha256": "03896261e9db685cc8b8f4d9a05da932c1cc5ce3cc9f81bc4c7bad87237b93ed"
+            },
+            "packet_id": 53
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 99,
+              "sha256": "68a42f818abb4664989fa5df9a0e720a395efe221038a5efbb2da447e013dd57"
+            },
+            "packet_id": 53
+          },
+          {
+            "chat": {
+              "position": 0,
+              "text": "§aBlocks restored."
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 51,
+              "sha256": "f274cd0694f62f669cfd337dc94b9179e241eecd24380acf2e8f9cb2ea4a6237"
+            },
+            "packet_id": 2
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 8,
+              "sha256": "c1da7cbd879b044f506e12b8b5d60fd5b81271f14a04d5bc1cd2e98ba953ec1c"
+            },
+            "packet_id": 47
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 8,
+              "sha256": "4ecdaae026a170da3fd068797cac729be8c4dd0b357740b40f657f9989a13284"
+            },
+            "packet_id": 47
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 8,
+              "sha256": "381a6ccc0c8dd00cef1fc9f6428227deb5e8a2f02c7a5aebe8144be0d46ebe9e"
+            },
+            "packet_id": 47
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 8,
+              "sha256": "7563c851e1666322e67bf5f4c61cfe8b69f412ba58c4626ed3246aa9f174d36f"
+            },
+            "packet_id": 47
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 8,
+              "sha256": "81247005fdb8411d0059f5e11e00a9d77864f23e583ff1acb65b2ed9edfefc74"
+            },
+            "packet_id": 47
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 8,
+              "sha256": "1f976a3d8dc452aeb53135cdf203daea079fc5e35a361a90219d0344b9792224"
+            },
+            "packet_id": 47
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 8,
+              "sha256": "e5683044c133586d9f9d6ff062b6e9e087fee0b0a10052c1b666fbae20900d44"
+            },
+            "packet_id": 47
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 30,
+              "sha256": "53d3bf98930333abe2c0f3c44d32d05f4ed37da256707dcf8f2dc4d600950442"
+            },
+            "packet_id": 47
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 142,
+              "sha256": "190ae2184077eb88a43e15382f6786d89f0bb8c35c6579d9b646b77eaef0265e"
+            },
+            "packet_id": 47
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 4,
+              "sha256": "66eb83bb3c908858d9e4d9c61e538c3316d88505dc2709a6ca369acb1d853add"
+            },
+            "packet_id": 9
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 9,
+              "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+            },
+            "packet_id": 59
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 30,
+              "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+            },
+            "packet_id": 59
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 9,
+              "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+            },
+            "packet_id": 61
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 59,
+              "sha256": "e012f15f170d94372f62123b87e501e427549413df97c58e563b31dd165842d8"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§0§r§7━━━━━━━━━━━━━",
+              "objective": "lmyz",
+              "value": 10
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 44,
+              "sha256": "881c42f792ba16078a1ec674240a14d3d49e37c0927746fbb83dbeaf415f4d41"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§1§r§fPlayer: §aPassAuthProbe",
+              "objective": "lmyz",
+              "value": 9
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 45,
+              "sha256": "144eb79d856aca62fe0ae4876c1bc3bdda2caa643d2e360268f006ce2af9dc6d"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§2§r§fEmail: §bqa@example.test",
+              "objective": "lmyz",
+              "value": 8
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 17,
+              "sha256": "97039c6adb84706113c3e1fcf18f6568d849b66937ff564163ba64c47a452791"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§3§r",
+              "objective": "lmyz",
+              "value": 7
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 42,
+              "sha256": "87213ec86c2ff615d14684d8b055d142024163ef12109256b783a3fc73570aea"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§4§r§fRender: §e10×20 maps",
+              "objective": "lmyz",
+              "value": 6
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 33,
+              "sha256": "b678627e4c9abbe82cba776b7a1b8de9634a18cf2feee6c4364c07817a15db16"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§5§r§fFont: §e20px",
+              "objective": "lmyz",
+              "value": 5
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 17,
+              "sha256": "2ea137b30495c7cade1e243af53687e36fd82756586a35cd837f340de4c1d705"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§6§r",
+              "objective": "lmyz",
+              "value": 4
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 42,
+              "sha256": "16a1cc012b7162b2890938ab038821db199c1eae8050085666bc7cebf938b47c"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§7§r§f/menu §7→ Open menu",
+              "objective": "lmyz",
+              "value": 3
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 59,
+              "sha256": "3d062ae4b88594a0f111de7355f0d42bfba2a8f01bcd823fe7aef377fd22e635"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§8§r§7━━━━━━━━━━━━━",
+              "objective": "lmyz",
+              "value": 2
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 33,
+              "sha256": "ab365cbfd1f14dc5cc28056ab4e32d8fe69b56de3e4f0b885e005b941d314f02"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§9§r§email.lmyz.net",
+              "objective": "lmyz",
+              "value": 1
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 9,
+              "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+            },
+            "packet_id": 59
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 30,
+              "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+            },
+            "packet_id": 59
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 9,
+              "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+            },
+            "packet_id": 61
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 59,
+              "sha256": "e012f15f170d94372f62123b87e501e427549413df97c58e563b31dd165842d8"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§0§r§7━━━━━━━━━━━━━",
+              "objective": "lmyz",
+              "value": 10
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 44,
+              "sha256": "881c42f792ba16078a1ec674240a14d3d49e37c0927746fbb83dbeaf415f4d41"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§1§r§fPlayer: §aPassAuthProbe",
+              "objective": "lmyz",
+              "value": 9
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 45,
+              "sha256": "144eb79d856aca62fe0ae4876c1bc3bdda2caa643d2e360268f006ce2af9dc6d"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§2§r§fEmail: §bqa@example.test",
+              "objective": "lmyz",
+              "value": 8
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 17,
+              "sha256": "97039c6adb84706113c3e1fcf18f6568d849b66937ff564163ba64c47a452791"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§3§r",
+              "objective": "lmyz",
+              "value": 7
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 42,
+              "sha256": "87213ec86c2ff615d14684d8b055d142024163ef12109256b783a3fc73570aea"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§4§r§fRender: §e10×20 maps",
+              "objective": "lmyz",
+              "value": 6
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 33,
+              "sha256": "b678627e4c9abbe82cba776b7a1b8de9634a18cf2feee6c4364c07817a15db16"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§5§r§fFont: §e20px",
+              "objective": "lmyz",
+              "value": 5
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 17,
+              "sha256": "2ea137b30495c7cade1e243af53687e36fd82756586a35cd837f340de4c1d705"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§6§r",
+              "objective": "lmyz",
+              "value": 4
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 42,
+              "sha256": "16a1cc012b7162b2890938ab038821db199c1eae8050085666bc7cebf938b47c"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§7§r§f/menu §7→ Open menu",
+              "objective": "lmyz",
+              "value": 3
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 59,
+              "sha256": "3d062ae4b88594a0f111de7355f0d42bfba2a8f01bcd823fe7aef377fd22e635"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§8§r§7━━━━━━━━━━━━━",
+              "objective": "lmyz",
+              "value": 2
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 33,
+              "sha256": "ab365cbfd1f14dc5cc28056ab4e32d8fe69b56de3e4f0b885e005b941d314f02"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§9§r§email.lmyz.net",
+              "objective": "lmyz",
+              "value": 1
+            }
+          },
+          {
+            "chat": {
+              "position": 0,
+              "text": "§aBlock video playback finished!"
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 65,
+              "sha256": "b36f085e509387a0b3c318dca2d841e2d7154bc1f5b3febea40f5253cac2b7d2"
+            },
+            "packet_id": 2
+          }
+        ],
+        "skipped_scheduled_packets": 0,
+        "unordered_block_changes": [],
+        "wire_bytes": 24910
+      }
+    },
+    "gui_and_commands": {
+      "commands": [
+        {
+          "command": "/video play width=nope",
+          "name": "invalid-block-width",
+          "response": [
+            {
+              "data_length": 0,
+              "frame": {
+                "base64": "MwACL3sidGV4dCI6IsKnY0ludmFsaWQgd2lkdGg6IG5vcGUiLCJjb2xvciI6InJlZCJ9AA==",
+                "length": 52,
+                "sha256": "e2dfb3bc6d7c55f66a88942caa50a93005a3171513ec7782aa523d215812e32e"
+              },
+              "packet_id": 2
+            }
+          ]
+        },
+        {
+          "command": "/video play width=65",
+          "name": "block-width-limit",
+          "response": [
+            {
+              "data_length": 0,
+              "frame": {
+                "base64": "OAACNHsidGV4dCI6IsKnY1dpZHRoIHRvbyBsYXJnZSAobWF4IDY0KSIsImNvbG9yIjoicmVkIn0A",
+                "length": 57,
+                "sha256": "fe5cd79d959faace925c2bad02aee90d6529ffe26d11f057c5b3f6749fe76c70"
+              },
+              "packet_id": 2
+            }
+          ]
+        },
+        {
+          "command": "/video play fps=21",
+          "name": "block-fps-limit",
+          "response": [
+            {
+              "data_length": 0,
+              "frame": {
+                "base64": "NQACMXsidGV4dCI6IsKnY0ZQUyB0b28gaGlnaCAobWF4IDIwKSIsImNvbG9yIjoicmVkIn0A",
+                "length": 54,
+                "sha256": "ff2d786df3bf5897bd1c1873e8532f94f23fff4d5576101583a72a90e314c09e"
+              },
+              "packet_id": 2
+            }
+          ]
+        },
+        {
+          "command": "/video play wat=1",
+          "name": "unknown-block-option",
+          "response": [
+            {
+              "data_length": 0,
+              "frame": {
+                "base64": "MwACL3sidGV4dCI6IsKnY1Vua25vd24gb3B0aW9uOiB3YXQiLCJjb2xvciI6InJlZCJ9AA==",
+                "length": 52,
+                "sha256": "2fbb87a7bc123f5a9777382b7d82b54ba4c55bc3ce32246e225468e52e88c711"
+              },
+              "packet_id": 2
+            }
+          ]
+        },
+        {
+          "command": "/video play 4 1 1.2 extra",
+          "name": "too-many-block-positionals",
+          "response": [
+            {
+              "data_length": 0,
+              "frame": {
+                "base64": "MgACLnsidGV4dCI6IsKnY1RvbyBtYW55IGFyZ3VtZW50cyIsImNvbG9yIjoicmVkIn0A",
+                "length": 51,
+                "sha256": "b5ff75455d512285d192bc5839a856d1595e43eabfc31c6781b19c5fe55bfbfe"
+              },
+              "packet_id": 2
+            }
+          ]
+        },
+        {
+          "command": "/video play map width=11",
+          "name": "map-width-limit",
+          "response": [
+            {
+              "data_length": 0,
+              "frame": {
+                "base64": "PQACOXsidGV4dCI6IsKnY1dpZHRoIHRvbyBsYXJnZSAobWF4IDEwIG1hcHMpIiwiY29sb3IiOiJyZWQifQA=",
+                "length": 62,
+                "sha256": "244a60d0066eb119a654a10557df1ef9925c19ed0b6ef2597c9e5e9e98cdafe6"
+              },
+              "packet_id": 2
+            }
+          ]
+        },
+        {
+          "command": "/video play map fps=nope",
+          "name": "invalid-map-fps",
+          "response": [
+            {
+              "data_length": 0,
+              "frame": {
+                "base64": "MQACLXsidGV4dCI6IsKnY0ludmFsaWQgZnBzOiBub3BlIiwiY29sb3IiOiJyZWQifQA=",
+                "length": 50,
+                "sha256": "e610a4af1d1b66b1d92adb278f5152c6110b1ee5736fd6bbf4806e1f81b7f20f"
+              },
+              "packet_id": 2
+            }
+          ]
+        },
+        {
+          "command": "/video stop",
+          "name": "no-video-stop",
+          "response": [
+            {
+              "data_length": 0,
+              "frame": {
+                "base64": "PgACOnsidGV4dCI6IsKnY05vIHZpZGVvIGlzIGN1cnJlbnRseSBwbGF5aW5nLiIsImNvbG9yIjoicmVkIn0A",
+                "length": 63,
+                "sha256": "00af4942d5a2fcef0b6507d2baf0a97db161fa54c433ad05286396e7469d640f"
+              },
+              "packet_id": 2
+            }
+          ]
+        },
+        {
+          "command": "/video pause",
+          "name": "no-video-pause",
+          "response": [
+            {
+              "data_length": 0,
+              "frame": {
+                "base64": "PgACOnsidGV4dCI6IsKnY05vIHZpZGVvIGlzIGN1cnJlbnRseSBwbGF5aW5nLiIsImNvbG9yIjoicmVkIn0A",
+                "length": 63,
+                "sha256": "00af4942d5a2fcef0b6507d2baf0a97db161fa54c433ad05286396e7469d640f"
+              },
+              "packet_id": 2
+            }
+          ]
+        },
+        {
+          "command": "/video nonsense",
+          "name": "video-usage",
+          "response": [
+            {
+              "data_length": 0,
+              "frame": {
+                "base64": "RwACQ3sidGV4dCI6IsKnY1VzYWdlOiAvdmlkZW8gcGxheXxzdG9wfHBhdXNlIFtvcHRpb25zXSIsImNvbG9yIjoicmVkIn0A",
+                "length": 72,
+                "sha256": "d2454f7fbc0d2c96c891eef366bdaee01cfb27da921108549a56a9c81e7f1ede"
+              },
+              "packet_id": 2
+            }
+          ]
+        }
+      ],
+      "email": "qa@example.test",
+      "main_menu": [
+        {
+          "data_length": 0,
+          "frame": {
+            "base64": "MAAtAQ9taW5lY3JhZnQ6Y2hlc3QbeyJ0ZXh0Ijoiwqc4TE1ZWk1BSUwgTWVudSJ9Ng==",
+            "length": 49,
+            "sha256": "d6782db9fde8cd7547f352ef8230f952367f4c2739feb2d9075f0cfe8ed54c32"
+          },
+          "packet_id": 45
+        },
+        {
+          "data_length": 2771,
+          "frame": {
+            "base64": "rwXTFXic7VZdT9RAFL2FFQG/EUWDJsMbvJhdoizxxRAUIe4qYQkG3ob2tp3QzjSdLh+v/gEfffXJ/o/6w/RO6+KW2CW6IfBgkyZNz8yce87ce2fqFuzBVwvuTAJMwnVH6CjgJ+NQe89DBIsBXBxqfbYM9Af0dpYuZWnQau/utVc2WhNQa6kYx2nBEXiUpc22kGjH3E1Ym4uAdTA+xBhmCekciH3hCOaoKH9PUJt3DmgNlLZPdGCNwIhwzFqjwWEAFozCxLpwcC3gnib81QVqHgpdqvLrRpZy8mtD7qvjPrNGYYYs2RF4xGK0URyiwzAkx4zKu1mKq4GwD1iimIpQnrtdY1X0k1m6T/QdlEmJ/X6PXRMyDPPbAcJtYt6OufZL1A971A4GmAynWw3Q/dzojnhYoZuQIZgvrTBXqxQ/IAmkeAulgzHVXZII6ek+8WPw2NSnqcq4GOSIEKUWSmp4StBqNyYgecmy1G3Uv39ZrNNXM+SRhin6mG8sLpu/L5bqLDpeMJ4119Sv8Yv16Jg4pvp9tH0uPbyqTkKjysmpInN3qO8otkkAxn021uAJCf/IE9tnvZa2rQSlMnuz+ayR2yIkO+2DczRnpmyLUhpZqJxzvbG2B+S3SzGuYxCV8nvaNFpfHTFbhSGXDvNpBCH3TiNwVdz7OZh7t4p7usi0zpEwHqzYtuqWukstL/GW8pjqJswEoYUnmZB5AtIsn3HKPdfF+LT5nM0dnS9+7h5+q4rxZrGHFATFUHLIHEWvhbaVpA1KmBurkPVOs7NRBPn0K5vB/9H+fH1XlQu3TG8LTM21UXb7ksEyZbH8uzDNmMsT8OOfHutTIXsCrkXcQ13oOrta9X1utrjPGWdMt5/fEp6fsNyThZJVdL40P9DJyBKfmhenFkeHR/fvLm8/Af+hv78=",
+            "length": 689,
+            "sha256": "f140440733572fa89dbaafad369a0bfbde14f38b8c7442ec1072d2c22a023ce4"
+          },
+          "packet_id": 48
+        }
+      ],
+      "username": "PassAuthProbe",
+      "video_submenu": {
+        "main_window_id": 1,
+        "packets": {
+          "expanded_bytes": 4508,
+          "packet_counts": [
+            [
+              45,
+              1
+            ],
+            [
+              47,
+              3
+            ],
+            [
+              48,
+              2
+            ],
+            [
+              50,
+              1
+            ]
+          ],
+          "packets": [
+            {
+              "data_length": 0,
+              "frame": {
+                "length": 7,
+                "sha256": "9bca109435b7be65506aff9fe5880825e530a539f402a7a7a842adc203f63382"
+              },
+              "packet_id": 50
+            },
+            {
+              "data_length": 0,
+              "frame": {
+                "length": 8,
+                "sha256": "ed996cc35dd2b0a08b370106b73e128062f775a2f7cefc135e30f2f9e48b7c9d"
+              },
+              "packet_id": 47
+            },
+            {
+              "data_length": 2771,
+              "frame": {
+                "length": 689,
+                "sha256": "f140440733572fa89dbaafad369a0bfbde14f38b8c7442ec1072d2c22a023ce4"
+              },
+              "packet_id": 48
+            },
+            {
+              "data_length": 0,
+              "frame": {
+                "length": 30,
+                "sha256": "53d3bf98930333abe2c0f3c44d32d05f4ed37da256707dcf8f2dc4d600950442"
+              },
+              "packet_id": 47
+            },
+            {
+              "data_length": 0,
+              "frame": {
+                "length": 142,
+                "sha256": "190ae2184077eb88a43e15382f6786d89f0bb8c35c6579d9b646b77eaef0265e"
+              },
+              "packet_id": 47
+            },
+            {
+              "data_length": 0,
+              "frame": {
+                "length": 48,
+                "sha256": "133086918a809c25f1a70957eb0b67c49c3aa4dd16e7c8c339e5977889e92c23"
+              },
+              "packet_id": 45
+            },
+            {
+              "data_length": 1513,
+              "frame": {
+                "length": 452,
+                "sha256": "471f2ffc0857033e6e3bc42bbe9ac6cbe74c615a5206e6763d3356d24707b39c"
+              },
+              "packet_id": 48
+            }
+          ],
+          "skipped_scheduled_packets": 0,
+          "unordered_block_changes": [],
+          "wire_bytes": 1376
+        },
+        "video_window_id": 2
+      },
+      "world_expanded_bytes_through_position": 356583182,
+      "world_packet_count_through_position": 3215
+    },
+    "map_video": {
+      "command": "/video play map width=1 fps=0 dither=99 contrast=9",
+      "delta_protocol": {
+        "expanded_bytes": 65455,
+        "packet_counts": [
+          [
+            52,
+            4
+          ]
+        ],
+        "packets": [
+          {
+            "data_length": 16396,
+            "map": {
+              "columns": 128,
+              "icon_count": 0,
+              "pixels": {
+                "length": 16384,
+                "sha256": "09ea5e238aefde9604e44d10a17e6f45001ba927cda265c43c44277326a0fb5b"
+              },
+              "relative_map_id": 0,
+              "rows": 128,
+              "scale": 0,
+              "x_offset": 0,
+              "z_offset": 0
+            },
+            "packet_id": 52
+          },
+          {
+            "data_length": 16396,
+            "map": {
+              "columns": 128,
+              "icon_count": 0,
+              "pixels": {
+                "length": 16384,
+                "sha256": "3d16c92b94460b2d11a28cdbb7cbed68e2caa7ac03edc7e5cfd924dfa7a1b7dd"
+              },
+              "relative_map_id": 1,
+              "rows": 128,
+              "scale": 0,
+              "x_offset": 0,
+              "z_offset": 0
+            },
+            "packet_id": 52
+          },
+          {
+            "data_length": 16267,
+            "map": {
+              "columns": 127,
+              "icon_count": 0,
+              "pixels": {
+                "length": 16256,
+                "sha256": "253861d739524601aa5d5a02aa5439dae9b94eb47c0d8865a4206576b2933e63"
+              },
+              "relative_map_id": 2,
+              "rows": 128,
+              "scale": 0,
+              "x_offset": 1,
+              "z_offset": 0
+            },
+            "packet_id": 52
+          },
+          {
+            "data_length": 16396,
+            "map": {
+              "columns": 128,
+              "icon_count": 0,
+              "pixels": {
+                "length": 16384,
+                "sha256": "4adbaed96e1980c470f83db5a8fafde55fe27ee098f3157e0955a23ec0eeed10"
+              },
+              "relative_map_id": 3,
+              "rows": 128,
+              "scale": 0,
+              "x_offset": 0,
+              "z_offset": 0
+            },
+            "packet_id": 52
+          }
+        ],
+        "skipped_scheduled_packets": 0,
+        "wire_bytes": 22004
+      },
+      "first_frame": {
+        "height": 256,
+        "palette_counts": [
+          [
+            5,
+            3
+          ],
+          [
+            6,
+            207
+          ],
+          [
+            8,
+            39
+          ],
+          [
+            9,
+            501
+          ],
+          [
+            10,
+            1175
+          ],
+          [
+            11,
+            2
+          ],
+          [
+            16,
+            118
+          ],
+          [
+            19,
+            439
+          ],
+          [
+            33,
+            43
+          ],
+          [
+            34,
+            69
+          ],
+          [
+            40,
+            291
+          ],
+          [
+            41,
+            4
+          ],
+          [
+            42,
+            2
+          ],
+          [
+            43,
+            32
+          ],
+          [
+            47,
+            2
+          ],
+          [
+            52,
+            48
+          ],
+          [
+            53,
+            8
+          ],
+          [
+            54,
+            42
+          ],
+          [
+            55,
+            16
+          ],
+          [
+            57,
+            64
+          ],
+          [
+            58,
+            98
+          ],
+          [
+            59,
+            1
+          ],
+          [
+            60,
+            2074
+          ],
+          [
+            61,
+            13712
+          ],
+          [
+            62,
+            13918
+          ],
+          [
+            63,
+            180
+          ],
+          [
+            72,
+            159
+          ],
+          [
+            73,
+            38
+          ],
+          [
+            74,
+            1423
+          ],
+          [
+            75,
+            7
+          ],
+          [
+            83,
+            433
+          ],
+          [
+            84,
+            2
+          ],
+          [
+            87,
+            730
+          ],
+          [
+            99,
+            135
+          ],
+          [
+            103,
+            62
+          ],
+          [
+            104,
+            17
+          ],
+          [
+            106,
+            2
+          ],
+          [
+            107,
+            442
+          ],
+          [
+            108,
+            4
+          ],
+          [
+            111,
+            32
+          ],
+          [
+            112,
+            701
+          ],
+          [
+            113,
+            438
+          ],
+          [
+            114,
+            790
+          ],
+          [
+            115,
+            490
+          ],
+          [
+            116,
+            5174
+          ],
+          [
+            117,
+            4963
+          ],
+          [
+            118,
+            1678
+          ],
+          [
+            119,
+            583
+          ],
+          [
+            120,
+            2073
+          ],
+          [
+            121,
+            1228
+          ],
+          [
+            122,
+            8152
+          ],
+          [
+            123,
+            1134
+          ],
+          [
+            126,
+            98
+          ],
+          [
+            136,
+            102
+          ],
+          [
+            137,
+            22
+          ],
+          [
+            138,
+            174
+          ],
+          [
+            139,
+            148
+          ],
+          [
+            140,
+            1
+          ],
+          [
+            141,
+            1
+          ],
+          [
+            142,
+            57
+          ],
+          [
+            143,
+            955
+          ]
+        ],
+        "pixels": {
+          "length": 65536,
+          "sha256": "b84f38e9169d6a5d170c72df09e15ff310d94ecbb9397c03971b18753fc04475"
+        },
+        "tiles": [
+          {
+            "column": 0,
+            "pixels": {
+              "length": 16384,
+              "sha256": "49d03783387df69775cd02397211d5a995ca8654224e3a67dfbd8f384959d1dc"
+            },
+            "relative_map_id": 0,
+            "row": 0
+          },
+          {
+            "column": 1,
+            "pixels": {
+              "length": 16384,
+              "sha256": "f36d60f1ca5d5b9aa1b3858dd72c6a0cda10adbc04e87d8a2944cceffbdd1467"
+            },
+            "relative_map_id": 1,
+            "row": 0
+          },
+          {
+            "column": 0,
+            "pixels": {
+              "length": 16384,
+              "sha256": "3ee7cf7ce4b6479fe2652c5a07c9758acd0d1e5355ff9d64d671c8e16ca9bfc7"
+            },
+            "relative_map_id": 2,
+            "row": 1
+          },
+          {
+            "column": 1,
+            "pixels": {
+              "length": 16384,
+              "sha256": "d69044ca0b8f3080f15b18dcaeeab78191f84ec15f5dc2e983e1bf55db145a80"
+            },
+            "relative_map_id": 3,
+            "row": 1
+          }
+        ],
+        "width": 256
+      },
+      "first_frame_protocol": {
+        "expanded_bytes": 65640,
+        "packet_counts": [
+          [
+            2,
+            1
+          ],
+          [
+            52,
+            4
+          ]
+        ],
+        "packets": [
+          {
+            "data_length": 16396,
+            "map": {
+              "columns": 128,
+              "icon_count": 0,
+              "pixels": {
+                "length": 16384,
+                "sha256": "49d03783387df69775cd02397211d5a995ca8654224e3a67dfbd8f384959d1dc"
+              },
+              "relative_map_id": 0,
+              "rows": 128,
+              "scale": 0,
+              "x_offset": 0,
+              "z_offset": 0
+            },
+            "packet_id": 52
+          },
+          {
+            "data_length": 16396,
+            "map": {
+              "columns": 128,
+              "icon_count": 0,
+              "pixels": {
+                "length": 16384,
+                "sha256": "f36d60f1ca5d5b9aa1b3858dd72c6a0cda10adbc04e87d8a2944cceffbdd1467"
+              },
+              "relative_map_id": 1,
+              "rows": 128,
+              "scale": 0,
+              "x_offset": 0,
+              "z_offset": 0
+            },
+            "packet_id": 52
+          },
+          {
+            "data_length": 16396,
+            "map": {
+              "columns": 128,
+              "icon_count": 0,
+              "pixels": {
+                "length": 16384,
+                "sha256": "3ee7cf7ce4b6479fe2652c5a07c9758acd0d1e5355ff9d64d671c8e16ca9bfc7"
+              },
+              "relative_map_id": 2,
+              "rows": 128,
+              "scale": 0,
+              "x_offset": 0,
+              "z_offset": 0
+            },
+            "packet_id": 52
+          },
+          {
+            "data_length": 16396,
+            "map": {
+              "columns": 128,
+              "icon_count": 0,
+              "pixels": {
+                "length": 16384,
+                "sha256": "d69044ca0b8f3080f15b18dcaeeab78191f84ec15f5dc2e983e1bf55db145a80"
+              },
+              "relative_map_id": 3,
+              "rows": 128,
+              "scale": 0,
+              "x_offset": 0,
+              "z_offset": 0
+            },
+            "packet_id": 52
+          },
+          {
+            "chat": {
+              "position": 2,
+              "text": "§7▶ §f1 §7frames §8| §f1s§7/§f66s"
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 58,
+              "sha256": "6c00ff5a6008a23d91698a6fdd63a3635bde46a1d91d62de7ee670dccf2bec41"
+            },
+            "packet_id": 2
+          }
+        ],
+        "skipped_scheduled_packets": 0,
+        "wire_bytes": 20561
+      },
+      "pause_protocol": {
+        "expanded_bytes": 27,
+        "packet_counts": [
+          [
+            2,
+            1
+          ]
+        ],
+        "packets": [
+          {
+            "chat": {
+              "position": 0,
+              "text": "§7⏸ Paused"
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 29,
+              "sha256": "6572dda58152a3fec1a8d3363319557b374255327aca66fdef9579e4eb7918e0"
+            },
+            "packet_id": 2
+          }
+        ],
+        "skipped_scheduled_packets": 0,
+        "wire_bytes": 29
+      },
+      "paused_non_scheduled_packets": {
+        "expanded_bytes": 0,
+        "packet_counts": [],
+        "packets": [],
+        "skipped_scheduled_packets": 0,
+        "wire_bytes": 0
+      },
+      "resume_protocol": {
+        "expanded_bytes": 28,
+        "packet_counts": [
+          [
+            2,
+            1
+          ]
+        ],
+        "packets": [
+          {
+            "chat": {
+              "position": 0,
+              "text": "§7▶ Resumed"
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 30,
+              "sha256": "516fa6f66682d09e591dc780db8f4209d0754ad270b303994987a4ca54a8f8ae"
+            },
+            "packet_id": 2
+          }
+        ],
+        "skipped_scheduled_packets": 0,
+        "wire_bytes": 30
+      },
+      "resumed_frame": {
+        "height": 256,
+        "palette_counts": [
+          [
+            5,
+            3
+          ],
+          [
+            6,
+            619
+          ],
+          [
+            8,
+            70
+          ],
+          [
+            9,
+            1594
+          ],
+          [
+            10,
+            3388
+          ],
+          [
+            11,
+            9
+          ],
+          [
+            16,
+            353
+          ],
+          [
+            19,
+            503
+          ],
+          [
+            31,
+            1
+          ],
+          [
+            33,
+            166
+          ],
+          [
+            34,
+            337
+          ],
+          [
+            40,
+            126
+          ],
+          [
+            41,
+            4
+          ],
+          [
+            42,
+            4
+          ],
+          [
+            43,
+            10
+          ],
+          [
+            52,
+            77
+          ],
+          [
+            53,
+            8
+          ],
+          [
+            54,
+            81
+          ],
+          [
+            55,
+            23
+          ],
+          [
+            57,
+            222
+          ],
+          [
+            58,
+            378
+          ],
+          [
+            60,
+            2051
+          ],
+          [
+            61,
+            11001
+          ],
+          [
+            62,
+            10815
+          ],
+          [
+            63,
+            205
+          ],
+          [
+            72,
+            273
+          ],
+          [
+            73,
+            73
+          ],
+          [
+            74,
+            1847
+          ],
+          [
+            75,
+            27
+          ],
+          [
+            78,
+            3
+          ],
+          [
+            83,
+            102
+          ],
+          [
+            84,
+            1
+          ],
+          [
+            87,
+            110
+          ],
+          [
+            103,
+            1
+          ],
+          [
+            104,
+            12
+          ],
+          [
+            105,
+            2
+          ],
+          [
+            106,
+            1
+          ],
+          [
+            107,
+            235
+          ],
+          [
+            108,
+            10
+          ],
+          [
+            109,
+            1
+          ],
+          [
+            110,
+            1
+          ],
+          [
+            111,
+            61
+          ],
+          [
+            112,
+            260
+          ],
+          [
+            113,
+            262
+          ],
+          [
+            114,
+            655
+          ],
+          [
+            115,
+            72
+          ],
+          [
+            116,
+            4849
+          ],
+          [
+            117,
+            4526
+          ],
+          [
+            118,
+            334
+          ],
+          [
+            119,
+            532
+          ],
+          [
+            120,
+            3022
+          ],
+          [
+            121,
+            1408
+          ],
+          [
+            122,
+            12757
+          ],
+          [
+            123,
+            1077
+          ],
+          [
+            126,
+            370
+          ],
+          [
+            136,
+            119
+          ],
+          [
+            137,
+            18
+          ],
+          [
+            138,
+            108
+          ],
+          [
+            139,
+            187
+          ],
+          [
+            141,
+            2
+          ],
+          [
+            142,
+            78
+          ],
+          [
+            143,
+            92
+          ]
+        ],
+        "pixels": {
+          "length": 65536,
+          "sha256": "c6cb3e505c9a412b8503e2de6637eeee251a56c6e830f6a5cab2117d70b9e7c9"
+        },
+        "tiles": [
+          {
+            "column": 0,
+            "pixels": {
+              "length": 16384,
+              "sha256": "09ea5e238aefde9604e44d10a17e6f45001ba927cda265c43c44277326a0fb5b"
+            },
+            "relative_map_id": 0,
+            "row": 0
+          },
+          {
+            "column": 1,
+            "pixels": {
+              "length": 16384,
+              "sha256": "3d16c92b94460b2d11a28cdbb7cbed68e2caa7ac03edc7e5cfd924dfa7a1b7dd"
+            },
+            "relative_map_id": 1,
+            "row": 0
+          },
+          {
+            "column": 0,
+            "pixels": {
+              "length": 16384,
+              "sha256": "4f871d32b3cabeecb77fcec5d5d245da172bbd406758974845f809e5a0ca6466"
+            },
+            "relative_map_id": 2,
+            "row": 1
+          },
+          {
+            "column": 1,
+            "pixels": {
+              "length": 16384,
+              "sha256": "4adbaed96e1980c470f83db5a8fafde55fe27ee098f3157e0955a23ec0eeed10"
+            },
+            "relative_map_id": 3,
+            "row": 1
+          }
+        ],
+        "width": 256
+      },
+      "setup_protocol": {
+        "expanded_bytes": 67049,
+        "packet_counts": [
+          [
+            2,
+            7
+          ],
+          [
+            9,
+            1
+          ],
+          [
+            14,
+            4
+          ],
+          [
+            28,
+            4
+          ],
+          [
+            35,
+            8
+          ],
+          [
+            47,
+            2
+          ],
+          [
+            52,
+            4
+          ],
+          [
+            59,
+            2
+          ],
+          [
+            60,
+            8
+          ],
+          [
+            61,
+            1
+          ]
+        ],
+        "packets": [
+          {
+            "data_length": 370,
+            "frame": {
+              "length": 339,
+              "sha256": "1f5bc9f7a4a706dd562be6b5f576bc1ed3806f3c658c4f50c7ffbdaeade60688"
+            },
+            "packet_id": 47
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 88,
+              "sha256": "294b7806aef70a021c6d898d73d0b25569ba712b71926b1b94f7ba642e1c6d9b"
+            },
+            "packet_id": 47
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 4,
+              "sha256": "c5bb7427360d178e43e91c227fe5d0ccf158ec3dd1de761e44f3dc2e8b4e67f6"
+            },
+            "packet_id": 9
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 9,
+              "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+            },
+            "packet_id": 59
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 30,
+              "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+            },
+            "packet_id": 59
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 9,
+              "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+            },
+            "packet_id": 61
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 59,
+              "sha256": "8daa502da1ff4016c99da192f3e3de77682207b0da0533d855332d0fa13f8190"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§0§r§7━━━━━━━━━━━━━",
+              "objective": "lmyz",
+              "value": 8
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 33,
+              "sha256": "0d46799897d0ad7ae9d26cca1c9e41538ed3f7db35cf71807a366733d16ef3e0"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§1§r§cVideo Playing",
+              "objective": "lmyz",
+              "value": 7
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 32,
+              "sha256": "0c4c5debd8c695c535c7c5c4c7467377ef53c7e7524b0dc914692697bc681239"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§2§r§fMode: §aMap",
+              "objective": "lmyz",
+              "value": 6
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 29,
+              "sha256": "41eebcac9b773433267481364500c0b5cdf7d250a9257ee722ff65729f2fc589"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§3§r§fFPS: §a1",
+              "objective": "lmyz",
+              "value": 5
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 17,
+              "sha256": "31ddffcd1f1273cf97fdddd20b2cdb6e57ce2f9d6fd7a5e39663dcaf907d6d9c"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§4§r",
+              "objective": "lmyz",
+              "value": 4
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 48,
+              "sha256": "e8b1a42c5121dc08f0fe210c5ce34275c7085263ed590c2ccedbb2dabdb5eec8"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§5§r§f⏯ §7Pause  §f⏹ §7Stop",
+              "objective": "lmyz",
+              "value": 3
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 59,
+              "sha256": "dfeb932ff261da4032e2b4ff1c4bcb4ca153abc49cdd523d0d53a212ed3443da"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§6§r§7━━━━━━━━━━━━━",
+              "objective": "lmyz",
+              "value": 2
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 33,
+              "sha256": "a8615a61979175494772606156e65b54b899126a9858d44a6b1d797be2daee46"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§7§r§email.lmyz.net",
+              "objective": "lmyz",
+              "value": 1
+            }
+          },
+          {
+            "chat": {
+              "position": 0,
+              "text": "§a§lStarting map video playback..."
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 68,
+              "sha256": "659954f0aa0910d6e519cf48e2a756cf9d5a4d7abf7272680593ae94914f42e6"
+            },
+            "packet_id": 2
+          },
+          {
+            "chat": {
+              "position": 0,
+              "text": "§7Maps: §f2 §7| FPS: §f1 §7| Dither: §f1 §7| Contrast: §f3.0"
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 84,
+              "sha256": "1f7585eedfb87671bf99ad8435be0ed9567a5286baf43c927a9144282ed3dcc9"
+            },
+            "packet_id": 2
+          },
+          {
+            "chat": {
+              "position": 0,
+              "text": "§7Use §fbarrier item §7or §f/video stop §7to stop"
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 70,
+              "sha256": "72a5131510d7040379d1e247b3a524275755e31f3ebd8b8686a6b9b5927ec0cb"
+            },
+            "packet_id": 2
+          },
+          {
+            "block_change": {
+              "state": 2480,
+              "x": 0,
+              "y": 161,
+              "z": -3
+            },
+            "data_length": 0,
+            "packet_id": 35
+          },
+          {
+            "block_change": {
+              "state": 0,
+              "x": 0,
+              "y": 161,
+              "z": -2
+            },
+            "data_length": 0,
+            "packet_id": 35
+          },
+          {
+            "data_length": 0,
+            "packet_id": 14,
+            "spawn": {
+              "entity_id": 0,
+              "object_data": 0,
+              "pitch": 0,
+              "type": 71,
+              "x_fixed": 16,
+              "y_fixed": 5168,
+              "yaw": 0,
+              "z_fixed": -63
+            }
+          },
+          {
+            "data_length": 0,
+            "map_item": {
+              "entity_id": 0,
+              "map_id": 0
+            },
+            "packet_id": 28
+          },
+          {
+            "data_length": 16396,
+            "map": {
+              "columns": 128,
+              "icon_count": 0,
+              "pixels": {
+                "length": 16384,
+                "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+              },
+              "relative_map_id": 0,
+              "rows": 128,
+              "scale": 0,
+              "x_offset": 0,
+              "z_offset": 0
+            },
+            "packet_id": 52
+          },
+          {
+            "block_change": {
+              "state": 2480,
+              "x": 1,
+              "y": 161,
+              "z": -3
+            },
+            "data_length": 0,
+            "packet_id": 35
+          },
+          {
+            "block_change": {
+              "state": 0,
+              "x": 1,
+              "y": 161,
+              "z": -2
+            },
+            "data_length": 0,
+            "packet_id": 35
+          },
+          {
+            "data_length": 0,
+            "packet_id": 14,
+            "spawn": {
+              "entity_id": 1,
+              "object_data": 0,
+              "pitch": 0,
+              "type": 71,
+              "x_fixed": 48,
+              "y_fixed": 5168,
+              "yaw": 0,
+              "z_fixed": -63
+            }
+          },
+          {
+            "data_length": 0,
+            "map_item": {
+              "entity_id": 1,
+              "map_id": 1
+            },
+            "packet_id": 28
+          },
+          {
+            "data_length": 16396,
+            "map": {
+              "columns": 128,
+              "icon_count": 0,
+              "pixels": {
+                "length": 16384,
+                "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+              },
+              "relative_map_id": 1,
+              "rows": 128,
+              "scale": 0,
+              "x_offset": 0,
+              "z_offset": 0
+            },
+            "packet_id": 52
+          },
+          {
+            "block_change": {
+              "state": 2480,
+              "x": 0,
+              "y": 160,
+              "z": -3
+            },
+            "data_length": 0,
+            "packet_id": 35
+          },
+          {
+            "block_change": {
+              "state": 0,
+              "x": 0,
+              "y": 160,
+              "z": -2
+            },
+            "data_length": 0,
+            "packet_id": 35
+          },
+          {
+            "data_length": 0,
+            "packet_id": 14,
+            "spawn": {
+              "entity_id": 2,
+              "object_data": 0,
+              "pitch": 0,
+              "type": 71,
+              "x_fixed": 16,
+              "y_fixed": 5136,
+              "yaw": 0,
+              "z_fixed": -63
+            }
+          },
+          {
+            "data_length": 0,
+            "map_item": {
+              "entity_id": 2,
+              "map_id": 2
+            },
+            "packet_id": 28
+          },
+          {
+            "data_length": 16396,
+            "map": {
+              "columns": 128,
+              "icon_count": 0,
+              "pixels": {
+                "length": 16384,
+                "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+              },
+              "relative_map_id": 2,
+              "rows": 128,
+              "scale": 0,
+              "x_offset": 0,
+              "z_offset": 0
+            },
+            "packet_id": 52
+          },
+          {
+            "block_change": {
+              "state": 2480,
+              "x": 1,
+              "y": 160,
+              "z": -3
+            },
+            "data_length": 0,
+            "packet_id": 35
+          },
+          {
+            "block_change": {
+              "state": 0,
+              "x": 1,
+              "y": 160,
+              "z": -2
+            },
+            "data_length": 0,
+            "packet_id": 35
+          },
+          {
+            "data_length": 0,
+            "packet_id": 14,
+            "spawn": {
+              "entity_id": 3,
+              "object_data": 0,
+              "pitch": 0,
+              "type": 71,
+              "x_fixed": 48,
+              "y_fixed": 5136,
+              "yaw": 0,
+              "z_fixed": -63
+            }
+          },
+          {
+            "data_length": 0,
+            "map_item": {
+              "entity_id": 3,
+              "map_id": 3
+            },
+            "packet_id": 28
+          },
+          {
+            "data_length": 16396,
+            "map": {
+              "columns": 128,
+              "icon_count": 0,
+              "pixels": {
+                "length": 16384,
+                "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+              },
+              "relative_map_id": 3,
+              "rows": 128,
+              "scale": 0,
+              "x_offset": 0,
+              "z_offset": 0
+            },
+            "packet_id": 52
+          },
+          {
+            "chat": {
+              "position": 0,
+              "text": "§7Map wall: §f2×2 §7maps (§f256×256§7 px), §f1§7 fps"
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 92,
+              "sha256": "a9826cd526eceaff871ce7b6e6b0f159fb162361607e6db99cc88cc06eb02e19"
+            },
+            "packet_id": 2
+          },
+          {
+            "chat": {
+              "position": 0,
+              "text": "§7Starting in 2..."
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 50,
+              "sha256": "3b7ced4ead2aa5ae856a4b8039c11c8cd75e5cfce122ba99110f04b5f6755c40"
+            },
+            "packet_id": 2
+          },
+          {
+            "chat": {
+              "position": 0,
+              "text": "§7Starting in 1..."
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 50,
+              "sha256": "5ecdd04973bdcaf32125498047bce1a769938021587237510c608fd34ae5d5e9"
+            },
+            "packet_id": 2
+          },
+          {
+            "chat": {
+              "position": 0,
+              "text": "§a▶ Playing!"
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 47,
+              "sha256": "c48ad2359e9b69f2b5c722f10ceb3384c6513b59324a46fcaea0ae47fadd8143"
+            },
+            "packet_id": 2
+          }
+        ],
+        "skipped_scheduled_packets": 0,
+        "unordered_block_changes": [],
+        "wire_bytes": 1730
+      },
+      "stop_protocol": {
+        "expanded_bytes": 1251,
+        "packet_counts": [
+          [
+            2,
+            2
+          ],
+          [
+            9,
+            1
+          ],
+          [
+            19,
+            1
+          ],
+          [
+            35,
+            8
+          ],
+          [
+            47,
+            9
+          ],
+          [
+            59,
+            4
+          ],
+          [
+            60,
+            20
+          ],
+          [
+            61,
+            2
+          ]
+        ],
+        "packets": [
+          {
+            "chat": {
+              "position": 0,
+              "text": "§aStopping video playback..."
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 61,
+              "sha256": "3d659c83d81ade9d0440f59e15c3d808905ff5dc7b0dfc5943ee0d2f1fb98d27"
+            },
+            "packet_id": 2
+          },
+          {
+            "data_length": 0,
+            "destroy_entities": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "packet_id": 19
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 8,
+              "sha256": "c1da7cbd879b044f506e12b8b5d60fd5b81271f14a04d5bc1cd2e98ba953ec1c"
+            },
+            "packet_id": 47
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 8,
+              "sha256": "4ecdaae026a170da3fd068797cac729be8c4dd0b357740b40f657f9989a13284"
+            },
+            "packet_id": 47
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 8,
+              "sha256": "381a6ccc0c8dd00cef1fc9f6428227deb5e8a2f02c7a5aebe8144be0d46ebe9e"
+            },
+            "packet_id": 47
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 8,
+              "sha256": "7563c851e1666322e67bf5f4c61cfe8b69f412ba58c4626ed3246aa9f174d36f"
+            },
+            "packet_id": 47
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 8,
+              "sha256": "81247005fdb8411d0059f5e11e00a9d77864f23e583ff1acb65b2ed9edfefc74"
+            },
+            "packet_id": 47
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 8,
+              "sha256": "1f976a3d8dc452aeb53135cdf203daea079fc5e35a361a90219d0344b9792224"
+            },
+            "packet_id": 47
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 8,
+              "sha256": "e5683044c133586d9f9d6ff062b6e9e087fee0b0a10052c1b666fbae20900d44"
+            },
+            "packet_id": 47
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 30,
+              "sha256": "53d3bf98930333abe2c0f3c44d32d05f4ed37da256707dcf8f2dc4d600950442"
+            },
+            "packet_id": 47
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 142,
+              "sha256": "190ae2184077eb88a43e15382f6786d89f0bb8c35c6579d9b646b77eaef0265e"
+            },
+            "packet_id": 47
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 4,
+              "sha256": "66eb83bb3c908858d9e4d9c61e538c3316d88505dc2709a6ca369acb1d853add"
+            },
+            "packet_id": 9
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 9,
+              "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+            },
+            "packet_id": 59
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 30,
+              "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+            },
+            "packet_id": 59
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 9,
+              "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+            },
+            "packet_id": 61
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 59,
+              "sha256": "e012f15f170d94372f62123b87e501e427549413df97c58e563b31dd165842d8"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§0§r§7━━━━━━━━━━━━━",
+              "objective": "lmyz",
+              "value": 10
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 44,
+              "sha256": "881c42f792ba16078a1ec674240a14d3d49e37c0927746fbb83dbeaf415f4d41"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§1§r§fPlayer: §aPassAuthProbe",
+              "objective": "lmyz",
+              "value": 9
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 45,
+              "sha256": "144eb79d856aca62fe0ae4876c1bc3bdda2caa643d2e360268f006ce2af9dc6d"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§2§r§fEmail: §bqa@example.test",
+              "objective": "lmyz",
+              "value": 8
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 17,
+              "sha256": "97039c6adb84706113c3e1fcf18f6568d849b66937ff564163ba64c47a452791"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§3§r",
+              "objective": "lmyz",
+              "value": 7
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 42,
+              "sha256": "87213ec86c2ff615d14684d8b055d142024163ef12109256b783a3fc73570aea"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§4§r§fRender: §e10×20 maps",
+              "objective": "lmyz",
+              "value": 6
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 33,
+              "sha256": "b678627e4c9abbe82cba776b7a1b8de9634a18cf2feee6c4364c07817a15db16"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§5§r§fFont: §e20px",
+              "objective": "lmyz",
+              "value": 5
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 17,
+              "sha256": "2ea137b30495c7cade1e243af53687e36fd82756586a35cd837f340de4c1d705"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§6§r",
+              "objective": "lmyz",
+              "value": 4
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 42,
+              "sha256": "16a1cc012b7162b2890938ab038821db199c1eae8050085666bc7cebf938b47c"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§7§r§f/menu §7→ Open menu",
+              "objective": "lmyz",
+              "value": 3
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 59,
+              "sha256": "3d062ae4b88594a0f111de7355f0d42bfba2a8f01bcd823fe7aef377fd22e635"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§8§r§7━━━━━━━━━━━━━",
+              "objective": "lmyz",
+              "value": 2
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 33,
+              "sha256": "ab365cbfd1f14dc5cc28056ab4e32d8fe69b56de3e4f0b885e005b941d314f02"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§9§r§email.lmyz.net",
+              "objective": "lmyz",
+              "value": 1
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 9,
+              "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+            },
+            "packet_id": 59
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 30,
+              "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+            },
+            "packet_id": 59
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 9,
+              "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+            },
+            "packet_id": 61
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 59,
+              "sha256": "e012f15f170d94372f62123b87e501e427549413df97c58e563b31dd165842d8"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§0§r§7━━━━━━━━━━━━━",
+              "objective": "lmyz",
+              "value": 10
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 44,
+              "sha256": "881c42f792ba16078a1ec674240a14d3d49e37c0927746fbb83dbeaf415f4d41"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§1§r§fPlayer: §aPassAuthProbe",
+              "objective": "lmyz",
+              "value": 9
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 45,
+              "sha256": "144eb79d856aca62fe0ae4876c1bc3bdda2caa643d2e360268f006ce2af9dc6d"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§2§r§fEmail: §bqa@example.test",
+              "objective": "lmyz",
+              "value": 8
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 17,
+              "sha256": "97039c6adb84706113c3e1fcf18f6568d849b66937ff564163ba64c47a452791"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§3§r",
+              "objective": "lmyz",
+              "value": 7
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 42,
+              "sha256": "87213ec86c2ff615d14684d8b055d142024163ef12109256b783a3fc73570aea"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§4§r§fRender: §e10×20 maps",
+              "objective": "lmyz",
+              "value": 6
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 33,
+              "sha256": "b678627e4c9abbe82cba776b7a1b8de9634a18cf2feee6c4364c07817a15db16"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§5§r§fFont: §e20px",
+              "objective": "lmyz",
+              "value": 5
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 17,
+              "sha256": "2ea137b30495c7cade1e243af53687e36fd82756586a35cd837f340de4c1d705"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§6§r",
+              "objective": "lmyz",
+              "value": 4
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 42,
+              "sha256": "16a1cc012b7162b2890938ab038821db199c1eae8050085666bc7cebf938b47c"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§7§r§f/menu §7→ Open menu",
+              "objective": "lmyz",
+              "value": 3
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 59,
+              "sha256": "3d062ae4b88594a0f111de7355f0d42bfba2a8f01bcd823fe7aef377fd22e635"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§8§r§7━━━━━━━━━━━━━",
+              "objective": "lmyz",
+              "value": 2
+            }
+          },
+          {
+            "data_length": 0,
+            "frame": {
+              "length": 33,
+              "sha256": "ab365cbfd1f14dc5cc28056ab4e32d8fe69b56de3e4f0b885e005b941d314f02"
+            },
+            "packet_id": 60,
+            "score": {
+              "action": 0,
+              "name": "§9§r§email.lmyz.net",
+              "objective": "lmyz",
+              "value": 1
+            }
+          },
+          {
+            "chat": {
+              "position": 0,
+              "text": "§aMap video playback finished!"
+            },
+            "data_length": 0,
+            "frame": {
+              "length": 63,
+              "sha256": "cd3ad27e764f6dca8a634c31d564dc2fad446e5df0a14cde59d75f2ef60b268d"
+            },
+            "packet_id": 2
+          }
+        ],
+        "skipped_scheduled_packets": 0,
+        "unordered_block_changes": [
+          {
+            "block_change": {
+              "state": 0,
+              "x": 0,
+              "y": 160,
+              "z": -3
+            },
+            "data_length": 0,
+            "packet_id": 35
+          },
+          {
+            "block_change": {
+              "state": 0,
+              "x": 0,
+              "y": 160,
+              "z": -2
+            },
+            "data_length": 0,
+            "packet_id": 35
+          },
+          {
+            "block_change": {
+              "state": 0,
+              "x": 0,
+              "y": 161,
+              "z": -3
+            },
+            "data_length": 0,
+            "packet_id": 35
+          },
+          {
+            "block_change": {
+              "state": 0,
+              "x": 0,
+              "y": 161,
+              "z": -2
+            },
+            "data_length": 0,
+            "packet_id": 35
+          },
+          {
+            "block_change": {
+              "state": 0,
+              "x": 1,
+              "y": 160,
+              "z": -3
+            },
+            "data_length": 0,
+            "packet_id": 35
+          },
+          {
+            "block_change": {
+              "state": 0,
+              "x": 1,
+              "y": 160,
+              "z": -2
+            },
+            "data_length": 0,
+            "packet_id": 35
+          },
+          {
+            "block_change": {
+              "state": 0,
+              "x": 1,
+              "y": 161,
+              "z": -3
+            },
+            "data_length": 0,
+            "packet_id": 35
+          },
+          {
+            "block_change": {
+              "state": 0,
+              "x": 1,
+              "y": 161,
+              "z": -2
+            },
+            "data_length": 0,
+            "packet_id": 35
+          }
+        ],
+        "wire_bytes": 1346
+      },
+      "wall": {
+        "blocks": [
+          {
+            "state": 2480,
+            "x": 0,
+            "y": 161,
+            "z": -3
+          },
+          {
+            "state": 0,
+            "x": 0,
+            "y": 161,
+            "z": -2
+          },
+          {
+            "state": 2480,
+            "x": 1,
+            "y": 161,
+            "z": -3
+          },
+          {
+            "state": 0,
+            "x": 1,
+            "y": 161,
+            "z": -2
+          },
+          {
+            "state": 2480,
+            "x": 0,
+            "y": 160,
+            "z": -3
+          },
+          {
+            "state": 0,
+            "x": 0,
+            "y": 160,
+            "z": -2
+          },
+          {
+            "state": 2480,
+            "x": 1,
+            "y": 160,
+            "z": -3
+          },
+          {
+            "state": 0,
+            "x": 1,
+            "y": 160,
+            "z": -2
+          }
+        ],
+        "frames": [
+          {
+            "entity_id": 0,
+            "object_data": 0,
+            "pitch": 0,
+            "type": 71,
+            "x_fixed": 16,
+            "y_fixed": 5168,
+            "yaw": 0,
+            "z_fixed": -63
+          },
+          {
+            "entity_id": 1,
+            "object_data": 0,
+            "pitch": 0,
+            "type": 71,
+            "x_fixed": 48,
+            "y_fixed": 5168,
+            "yaw": 0,
+            "z_fixed": -63
+          },
+          {
+            "entity_id": 2,
+            "object_data": 0,
+            "pitch": 0,
+            "type": 71,
+            "x_fixed": 16,
+            "y_fixed": 5136,
+            "yaw": 0,
+            "z_fixed": -63
+          },
+          {
+            "entity_id": 3,
+            "object_data": 0,
+            "pitch": 0,
+            "type": 71,
+            "x_fixed": 48,
+            "y_fixed": 5136,
+            "yaw": 0,
+            "z_fixed": -63
+          }
+        ],
+        "map_assignments": [
+          {
+            "entity_id": 0,
+            "map_id": 0
+          },
+          {
+            "entity_id": 1,
+            "map_id": 1
+          },
+          {
+            "entity_id": 2,
+            "map_id": 2
+          },
+          {
+            "entity_id": 3,
+            "map_id": 3
+          }
+        ]
+      }
+    },
+    "resource": {
+      "bytes": {
+        "length": 15048248,
+        "sha256": "0e76229bb77ebcf471aec692fa34709cfbbe3dc192127a852a518e34bdd0ecc7"
+      },
+      "candidate_path": "crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+      "container": {
+        "audio": "AAC-LC, 44100 Hz, stereo",
+        "duration_seconds": 66.292971,
+        "format": "ISO Base Media",
+        "video": "H.264 High, 1920x1080, yuv420p, 30 fps, 1987 frames"
+      },
+      "jar_member": "BOOT-INF/classes/skibidi_toilet_episode_1.mp4"
+    }
+  },
+  "schema_version": 2
+}

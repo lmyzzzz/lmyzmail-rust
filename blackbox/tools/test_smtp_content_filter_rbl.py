@@ -22,7 +22,7 @@ from lmyzmail_blackbox.protocols import BoundedSocket, RawSmtpClient, read_smtp_
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.smtp_contract import capture_delivery
 
-_GOLDEN = "managed-smtp-content-filter-rbl-v5"
+_GOLDEN = "managed-smtp-content-filter-rbl-v8"
 _PROFILE = "managed-smtp-content-filter-rbl"
 _RBL_SERVERS = ("listed-one.rbl.test", "absent.rbl.test", "listed-two.rbl.test")
 _RBL_ENVIRONMENT = (

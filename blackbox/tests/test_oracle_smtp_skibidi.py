@@ -29,7 +29,7 @@ def test_managed_java_smtp_skibidi_golden(record_java_golden: bool) -> None:
     paths = JavaOracleRuntime().paths
     differential = DifferentialRunner(
         paths.repository,
-            paths.repository / "blackbox/golden/java/managed-smtp-skibidi-v7",
+            paths.repository / "blackbox/golden/java/managed-smtp-skibidi-v10",
         "managed-smtp-skibidi",
         record_java=record_java_golden,
     )
@@ -47,7 +47,7 @@ def test_rust_candidate_smtp_skibidi_matches_frozen_java_golden() -> None:
     repository = Path(__file__).resolve().parents[2]
     differential = DifferentialRunner(
         repository,
-            repository / "blackbox/golden/java/managed-smtp-skibidi-v7",
+            repository / "blackbox/golden/java/managed-smtp-skibidi-v10",
         "managed-smtp-skibidi",
     )
     with _candidate(repository) as candidate:

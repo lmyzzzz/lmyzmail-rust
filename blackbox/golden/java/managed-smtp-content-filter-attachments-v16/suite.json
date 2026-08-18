@@ -1,0 +1,584 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "b0ce09dd6c4bf3fc0baa8f817d2bfe1ce9b8c35034dd5c099d2fc811f764f703",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "suite-manifest-v1"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-smtp-content-filter-attachments"
+  },
+  "observation": {
+    "profile": "managed-smtp-content-filter-attachments",
+    "scenarios": [
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "expected": {
+            "has_attachments": false,
+            "has_attachments_note": "Java indexes only the first MIME part",
+            "rules": [],
+            "score": "0.0",
+            "storage_folder": "spam"
+          },
+          "message_id": "<bb-attachment-safe-001@example.test>",
+          "message_sha256": "470f7f77680db4ae664b41350a9dbe2681d45ad51d554a91f8e847892b89f1fe",
+          "operation": "content-filter-attachment-phase",
+          "protocol": "smtp",
+          "rules_enabled": [
+            "DANGEROUS_EXTENSION",
+            "DOUBLE_EXTENSION",
+            "MIME_TYPE_MISMATCH"
+          ],
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ]
+        },
+        "name": "smtp/content-filter/attachment-safe-pdf",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:data-dot-unstuff"
+        ]
+      },
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "expected": {
+            "has_attachments": false,
+            "has_attachments_note": "Java indexes only the first MIME part",
+            "rules": [
+              [
+                "DANGEROUS_EXTENSION",
+                "5.0"
+              ]
+            ],
+            "score": "5.0",
+            "storage_folder": "spam"
+          },
+          "message_id": "<bb-attachment-dangerous-001@example.test>",
+          "message_sha256": "3405eb1101242873ef127014cb4f2873ccf7c459f7f530abdb9f8d3a6fdbac58",
+          "operation": "content-filter-attachment-phase",
+          "protocol": "smtp",
+          "rules_enabled": [
+            "DANGEROUS_EXTENSION",
+            "DOUBLE_EXTENSION",
+            "MIME_TYPE_MISMATCH"
+          ],
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ]
+        },
+        "name": "smtp/content-filter/attachment-dangerous-extension",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:data-dot-unstuff"
+        ]
+      },
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "expected": {
+            "has_attachments": false,
+            "has_attachments_note": "Java indexes only the first MIME part",
+            "rules": [
+              [
+                "DANGEROUS_EXTENSION",
+                "5.0"
+              ],
+              [
+                "DOUBLE_EXTENSION",
+                "4.0"
+              ],
+              [
+                "MIME_TYPE_MISMATCH",
+                "4.5"
+              ]
+            ],
+            "score": "13.5",
+            "storage_folder": "spam"
+          },
+          "message_id": "<bb-attachment-double-001@example.test>",
+          "message_sha256": "ba9edd38909ef5755fb35e8acb18dd3f56a992a0d9ddfb5324ab5c48a16b4cf1",
+          "operation": "content-filter-attachment-phase",
+          "protocol": "smtp",
+          "rules_enabled": [
+            "DANGEROUS_EXTENSION",
+            "DOUBLE_EXTENSION",
+            "MIME_TYPE_MISMATCH"
+          ],
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ]
+        },
+        "name": "smtp/content-filter/attachment-double-mime-mismatch",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:data-dot-unstuff"
+        ]
+      },
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "expected": {
+            "has_attachments": false,
+            "has_attachments_note": "Java indexes only the first MIME part",
+            "rules": [
+              [
+                "DANGEROUS_EXTENSION",
+                "5.0"
+              ]
+            ],
+            "score": "5.0",
+            "storage_folder": "spam"
+          },
+          "message_id": "<bb-attachment-rfc2231-001@example.test>",
+          "message_sha256": "8000362038a75495ade608a4518ab23a980bf9d11b74bc926f8b4a82743a982f",
+          "operation": "content-filter-attachment-phase",
+          "protocol": "smtp",
+          "rules_enabled": [
+            "DANGEROUS_EXTENSION",
+            "DOUBLE_EXTENSION",
+            "MIME_TYPE_MISMATCH"
+          ],
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ]
+        },
+        "name": "smtp/content-filter/attachment-rfc2231-filename",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:data-dot-unstuff"
+        ]
+      },
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "expected": {
+            "has_attachments": false,
+            "has_attachments_note": "Java indexes only the first MIME part",
+            "rules": [
+              [
+                "DANGEROUS_EXTENSION",
+                "5.5"
+              ]
+            ],
+            "score": "5.5",
+            "storage_folder": "spam"
+          },
+          "message_id": "<bb-attachment-multiple-001@example.test>",
+          "message_sha256": "7af1f5d384d161cc2fec394ccaa2cfdd76a2790ade74e9f730a1948a6e013def",
+          "operation": "content-filter-attachment-phase",
+          "protocol": "smtp",
+          "rules_enabled": [
+            "DANGEROUS_EXTENSION",
+            "DOUBLE_EXTENSION",
+            "MIME_TYPE_MISMATCH"
+          ],
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ]
+        },
+        "name": "smtp/content-filter/attachment-multiple-dangerous",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:data-dot-unstuff"
+        ]
+      },
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "expected": {
+            "has_attachments": false,
+            "has_attachments_note": "Java indexes only the first MIME part",
+            "rules": [
+              [
+                "DANGEROUS_EXTENSION",
+                "5.0"
+              ],
+              [
+                "MIME_TYPE_MISMATCH",
+                "4.5"
+              ]
+            ],
+            "score": "9.5",
+            "storage_folder": "spam"
+          },
+          "message_id": "<bb-attachment-unicode-001@example.test>",
+          "message_sha256": "8b7b09a01e679159d1dc10435183ef215bc396fb4b6eec665ee81ce4d6a58014",
+          "operation": "content-filter-attachment-phase",
+          "protocol": "smtp",
+          "rules_enabled": [
+            "DANGEROUS_EXTENSION",
+            "DOUBLE_EXTENSION",
+            "MIME_TYPE_MISMATCH"
+          ],
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ]
+        },
+        "name": "smtp/content-filter/attachment-unicode-extension",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:data-dot-unstuff"
+        ]
+      },
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "expected": {
+            "has_attachments": false,
+            "has_attachments_note": "Java indexes only the first MIME part",
+            "rules": [],
+            "score": "0.0",
+            "storage_folder": "spam"
+          },
+          "message_id": "<bb-attachment-continuation-001@example.test>",
+          "message_sha256": "58750519185eff60fc1a6e53982853e92aec010a1a1ab8cbfdfe6fdc3837103b",
+          "operation": "content-filter-attachment-phase",
+          "protocol": "smtp",
+          "rules_enabled": [
+            "DANGEROUS_EXTENSION",
+            "DOUBLE_EXTENSION",
+            "MIME_TYPE_MISMATCH"
+          ],
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ]
+        },
+        "name": "smtp/content-filter/attachment-rfc2231-continuation",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:data-dot-unstuff"
+        ]
+      },
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "expected": {
+            "has_attachments": false,
+            "has_attachments_note": "Java indexes only the first MIME part",
+            "rules": [
+              [
+                "DANGEROUS_EXTENSION",
+                "5.0"
+              ]
+            ],
+            "score": "5.0",
+            "storage_folder": "spam"
+          },
+          "message_id": "<bb-attachment-type-name-001@example.test>",
+          "message_sha256": "f536b5648cb15db4063f5f06d77593ecd2c1bdabaebdee54c94650201d4883ee",
+          "operation": "content-filter-attachment-phase",
+          "protocol": "smtp",
+          "rules_enabled": [
+            "DANGEROUS_EXTENSION",
+            "DOUBLE_EXTENSION",
+            "MIME_TYPE_MISMATCH"
+          ],
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ]
+        },
+        "name": "smtp/content-filter/attachment-content-type-name",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:data-dot-unstuff"
+        ]
+      },
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "expected": {
+            "has_attachments": false,
+            "has_attachments_note": "Java indexes only the first MIME part",
+            "rules": [
+              [
+                "DANGEROUS_EXTENSION",
+                "5.0"
+              ]
+            ],
+            "score": "5.0",
+            "storage_folder": "spam"
+          },
+          "message_id": "<bb-attachment-folded-001@example.test>",
+          "message_sha256": "53ff95f025410240f2f71222a53ad62aff1b50eb2371698ff889852e42204630",
+          "operation": "content-filter-attachment-phase",
+          "protocol": "smtp",
+          "rules_enabled": [
+            "DANGEROUS_EXTENSION",
+            "DOUBLE_EXTENSION",
+            "MIME_TYPE_MISMATCH"
+          ],
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ]
+        },
+        "name": "smtp/content-filter/attachment-folded-filename",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:data-dot-unstuff"
+        ]
+      },
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "expected": {
+            "has_attachments": false,
+            "has_attachments_note": "Java indexes only the first MIME part",
+            "rules": [],
+            "score": "0.0",
+            "storage_folder": "spam"
+          },
+          "message_id": "<bb-attachment-closed-boundary-epilogue-001@example.test>",
+          "message_sha256": "57bba582f383259be108b2fe232628d52bed800358b064e081636c872677cde0",
+          "operation": "content-filter-attachment-phase",
+          "protocol": "smtp",
+          "rules_enabled": [
+            "DANGEROUS_EXTENSION",
+            "DOUBLE_EXTENSION",
+            "MIME_TYPE_MISMATCH"
+          ],
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ]
+        },
+        "name": "smtp/content-filter/attachment-closed-boundary-epilogue",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:data-dot-unstuff"
+        ]
+      },
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "expected": {
+            "has_attachments": false,
+            "has_attachments_note": "Java indexes only the first MIME part",
+            "rules": [
+              [
+                "DANGEROUS_EXTENSION",
+                "5.0"
+              ]
+            ],
+            "score": "5.0",
+            "storage_folder": "spam"
+          },
+          "message_id": "<bb-attachment-quoted-space-boundary-001@example.test>",
+          "message_sha256": "8927a8bc52ef03ac892d51ed5e27242fe6372336d4178385baf13284b76fb7b1",
+          "operation": "content-filter-attachment-phase",
+          "protocol": "smtp",
+          "rules_enabled": [
+            "DANGEROUS_EXTENSION",
+            "DOUBLE_EXTENSION",
+            "MIME_TYPE_MISMATCH"
+          ],
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ]
+        },
+        "name": "smtp/content-filter/attachment-quoted-space-boundary",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:data-dot-unstuff"
+        ]
+      },
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "expected": {
+            "has_attachments": false,
+            "has_attachments_note": "Java indexes only the first MIME part",
+            "rules": [
+              [
+                "DANGEROUS_EXTENSION",
+                "5.0"
+              ]
+            ],
+            "score": "5.0",
+            "storage_folder": "spam"
+          },
+          "message_id": "<bb-attachment-message-rfc822-001@example.test>",
+          "message_sha256": "69e3d963fbb22a29bf49d96f232133c021aa30ecb226e91786f185c3a201e81c",
+          "operation": "content-filter-attachment-phase",
+          "protocol": "smtp",
+          "rules_enabled": [
+            "DANGEROUS_EXTENSION",
+            "DOUBLE_EXTENSION",
+            "MIME_TYPE_MISMATCH"
+          ],
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ]
+        },
+        "name": "smtp/content-filter/attachment-message-rfc822",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:data-dot-unstuff"
+        ]
+      },
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "expected": {
+            "has_attachments": false,
+            "has_attachments_note": "Java indexes only the first MIME part",
+            "rules": [],
+            "score": "0.0",
+            "storage_folder": "spam"
+          },
+          "message_id": "<bb-attachment-non-multipart-boundary-001@example.test>",
+          "message_sha256": "5fea49495200b80ac660548c37155cfe1fbcac25a12d30477e19b8f042b330cb",
+          "operation": "content-filter-attachment-phase",
+          "protocol": "smtp",
+          "rules_enabled": [
+            "DANGEROUS_EXTENSION",
+            "DOUBLE_EXTENSION",
+            "MIME_TYPE_MISMATCH"
+          ],
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ]
+        },
+        "name": "smtp/content-filter/attachment-non-multipart-boundary",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:data-dot-unstuff"
+        ]
+      }
+    ]
+  },
+  "schema_version": 2
+}

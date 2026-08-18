@@ -24,11 +24,11 @@ from lmyzmail_blackbox.runtime import (
 from lmyzmail_blackbox.snapshots import http_bytes_snapshot, http_json_snapshot
 
 _PROFILE = "managed-cringe-api"
-_GOLDEN = "blackbox/golden/java/managed-cringe-api-v13"
+_GOLDEN = "blackbox/golden/java/managed-cringe-api-v16"
 _BOUNDARY_PROFILE = "managed-cringe-api-oracle-boundaries"
-_BOUNDARY_GOLDEN = "blackbox/golden/java/managed-cringe-api-oracle-boundaries-v12"
+_BOUNDARY_GOLDEN = "blackbox/golden/java/managed-cringe-api-oracle-boundaries-v15"
 _DECAY_PROFILE = "managed-cringe-decay"
-_DECAY_GOLDEN = "blackbox/golden/java/managed-cringe-decay-v9"
+_DECAY_GOLDEN = "blackbox/golden/java/managed-cringe-decay-v12"
 _ADMIN_HEADERS = (("X-API-Key", API_KEY),)
 _READ_ONLY_HEADERS = (("X-API-Key", READ_ONLY_API_KEY),)
 _WRITE_ONLY_HEADERS = (("X-API-Key", WRITE_ONLY_API_KEY),)
@@ -241,15 +241,21 @@ def _capture_cringe_api(target: RuntimeTarget) -> dict[str, Any]:
         "above_current": json_request(
             "/api/cringe-ips/above-score/10?scoreType=current"
         ),
-        "insults": json_request("/api/cringe-ips/insults?page=0&size=1"),
+        "insults": json_request(
+            "/api/cringe-ips/insults?page=0&size=1",
+            canonicalize_object_order=True,
+        ),
         "insults_search": json_request(
-            "/api/cringe-ips/insults?page=0&size=50&search=203.0"
+            "/api/cringe-ips/insults?page=0&size=50&search=203.0",
+            canonicalize_object_order=True,
         ),
         "activities_first": json_request(
-            "/api/cringe-ips/203.0.113.77/activities?page=0&size=2"
+            "/api/cringe-ips/203.0.113.77/activities?page=0&size=2",
+            canonicalize_object_order=True,
         ),
         "activities_last": json_request(
-            "/api/cringe-ips/203.0.113.77/activities?page=1&size=2"
+            "/api/cringe-ips/203.0.113.77/activities?page=1&size=2",
+            canonicalize_object_order=True,
         ),
         "export_total_case_preserved": http_bytes_snapshot(export),
         "missing_key": json_request(
@@ -277,8 +283,9 @@ cast(Any, _capture_cringe_api).__lmyzmail_contract__ = {
     ],
     "state": "isolated PostgreSQL schema and deterministic timestamps",
     "normalization": (
-        "HTTP Date and proven Java Map.of member order for the two API-key errors only; "
-        "data JSON order, timestamp precision, and export bytes are exact"
+        "HTTP Date, proven Java Map.of member order for the two API-key errors, and "
+        "proven Java Spring Page top-level object order for the four paginated responses; "
+        "JSON values and array order, timestamp precision, and export bytes are exact"
     ),
 }
 
@@ -560,7 +567,10 @@ CRINGE_SCENARIOS = (
     Scenario(
         "http/cringe/data-plane",
         _capture_cringe_api,
-        normalizers=("json-object-order:jdk-map-of:cringe-api-key-errors",),
+        normalizers=(
+            "json-object-order:jdk-map-of:cringe-api-key-errors",
+            "json-object-order:spring-page",
+        ),
     ),
 )
 CRINGE_BOUNDARY_SCENARIOS = (

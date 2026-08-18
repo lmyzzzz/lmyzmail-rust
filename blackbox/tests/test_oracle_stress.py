@@ -287,8 +287,8 @@ def _assert_queue_recoverable(candidate: CandidateRuntime) -> None:
 
 def _profile(enabled: bool) -> tuple[str, tuple[Scenario, ...]]:
     if enabled:
-        return "managed-stress-enabled-v8", STRESS_ENABLED_SCENARIOS
-    return "managed-stress-disabled-v8", STRESS_DISABLED_SCENARIOS
+        return "managed-stress-enabled-v11", STRESS_ENABLED_SCENARIOS
+    return "managed-stress-disabled-v11", STRESS_DISABLED_SCENARIOS
 
 
 def _runner(
@@ -344,7 +344,7 @@ def test_managed_java_stress_streaming_golden(record_java_golden: bool) -> None:
     paths = JavaOracleRuntime().paths
     runner = DifferentialRunner(
         paths.repository,
-        paths.repository / "blackbox/golden/java/managed-stress-streaming-v6",
+        paths.repository / "blackbox/golden/java/managed-stress-streaming-v9",
         "managed-stress-streaming",
         record_java=record_java_golden,
     )
@@ -366,7 +366,7 @@ def test_rust_candidate_stress_streaming_matches_frozen_java_golden() -> None:
     repository = Path(__file__).resolve().parents[2]
     runner = DifferentialRunner(
         repository,
-        repository / "blackbox/golden/java/managed-stress-streaming-v6",
+        repository / "blackbox/golden/java/managed-stress-streaming-v9",
         "managed-stress-streaming",
     )
     with _candidate(repository, True, 32) as candidate:
@@ -383,7 +383,7 @@ def test_managed_java_stress_concurrent_start_evidence(
     runner = DifferentialRunner(
         paths.repository,
         paths.repository
-        / "blackbox/golden/java/managed-stress-oracle-evidence-v7",
+        / "blackbox/golden/java/managed-stress-oracle-evidence-v10",
         "managed-stress-oracle-evidence",
         record_java=record_java_golden,
     )
@@ -404,7 +404,7 @@ def test_managed_java_stress_cleanup_race_evidence(
     runner = DifferentialRunner(
         paths.repository,
         paths.repository
-        / "blackbox/golden/java/managed-stress-cleanup-oracle-evidence-v6",
+        / "blackbox/golden/java/managed-stress-cleanup-oracle-evidence-v9",
         "managed-stress-cleanup-oracle-evidence",
         record_java=record_java_golden,
     )

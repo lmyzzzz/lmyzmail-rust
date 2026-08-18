@@ -50,7 +50,7 @@ from lmyzmail_blackbox.runtime import QA_ADDRESS
 from lmyzmail_blackbox.scripted_smtp import ScriptedSmtpServer, SmtpScenario
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_PROFILE = "managed-minecraft-outbound-v8"
+_PROFILE = "managed-minecraft-outbound-v11"
 _REDIS_PREFIX = "botmail:mail:queue:"
 _USERNAME = b"MinecraftSender"
 _BUTTON_SEND = (5, 161, 6)

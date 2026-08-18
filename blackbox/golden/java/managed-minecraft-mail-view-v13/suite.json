@@ -1,0 +1,109 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "b0ce09dd6c4bf3fc0baa8f817d2bfe1ce9b8c35034dd5c099d2fc811f764f703",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "suite-manifest-v1"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-minecraft-mail-view-v13"
+  },
+  "observation": {
+    "profile": "managed-minecraft-mail-view-v13",
+    "scenarios": [
+      {
+        "contract": {
+          "budgets": {
+            "expanded_bytes": 16777216,
+            "login_read_timeout_seconds": 60.0,
+            "packets": 512,
+            "phase_timeout_seconds": 90.0,
+            "scheduled_packets": 128,
+            "wire_bytes": 8388608
+          },
+          "capture": [
+            "stable-frame-length-and-sha256-plus-exact-relative-dynamic-packet-semantics",
+            "row-major-reassembled-page-pixel-length-and-sha256",
+            "map-palette-histograms",
+            "map-wall-setup",
+            "all-pages",
+            "first-and-last-page-boundaries",
+            "page-one-and-page-two-replay",
+            "teardown-and-authenticated-hotbar-scoreboard-restore",
+            "authenticated-menu-after-close"
+          ],
+          "compression_threshold": 256,
+          "failure_classes": [
+            "renderer-unavailable",
+            "renderer-busy",
+            "maildir-index-read-error",
+            "native-render-error",
+            "phase-timeout",
+            "disconnect",
+            "packet-budget",
+            "scheduled-packet-budget",
+            "wire-byte-budget",
+            "expanded-byte-budget",
+            "protocol-error",
+            "golden-mismatch"
+          ],
+          "fixture": {
+            "content_type": "multipart/mixed",
+            "font_fixture": {
+              "monospace": "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+              "monospace_sha256": "c805f9436dbc268644c1d9584f01a601a653e028e08fd74b9b949f6cf8304d88",
+              "sans": "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+              "sans_sha256": "ae7b7855e115a5966d8b1b3f80f254ccc117ec86f9965e202ee2940453837280"
+            },
+            "font_px": 16,
+            "java_native": {
+              "jar_member": "BOOT-INF/classes/native/linux-x86_64/libasciiart.so",
+              "sha256": "7eaff9429e056f867955236eadbb0474caa2c2492fa34a86ba479181fb53c505",
+              "size": 31626672
+            },
+            "maps_x": 2,
+            "max_page_maps_y": 2,
+            "message_sha256": "d7fb8eb206756a46e4ebd6f71a7bb08938af8655a95b91dc81c9145c6a362230",
+            "minimum_pages": 3,
+            "parts": [
+              "plain",
+              "html",
+              "cid-png",
+              "attachment-with-html-sensitive-name"
+            ],
+            "path": "blackbox/fixtures/minecraft/mail-view-v2.eml",
+            "simd_mode": "SCALAR",
+            "source_sha256": "e4f436c626cefe7c9a5a317ed646c99b9e37c3817bac3e8b0b3fa0ff2f875ba0"
+          },
+          "flow": "authenticated Maildir email to paged map wall and close recovery",
+          "normalization": [
+            "exclude scheduled 0x03/0x18 PLAY ticks with explicit bounded counts",
+            "relative map/entity IDs",
+            "sort only HashMap-backed teardown block restoration"
+          ],
+          "protocol": "minecraft-1.8.9",
+          "protocol_version": 47
+        },
+        "name": "minecraft/mail-view",
+        "normalizers": []
+      }
+    ]
+  },
+  "schema_version": 2
+}

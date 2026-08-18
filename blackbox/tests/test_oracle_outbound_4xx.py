@@ -111,7 +111,7 @@ def _assert_golden(
     *,
     record_java: bool,
 ) -> None:
-    path = repository / "blackbox/golden/java/managed-outbound-4xx-v7.json"
+    path = repository / "blackbox/golden/java/managed-outbound-4xx-v10.json"
     attestation = GoldenAttestation.from_repository(
         repository,
         profile="managed-outbound-4xx",
@@ -124,7 +124,7 @@ def _assert_golden(
 def _assert_candidate_checkpoint_difference(
     repository: Path, observed: dict[str, object]
 ) -> None:
-    path = repository / "blackbox/golden/java/managed-outbound-4xx-v7.json"
+    path = repository / "blackbox/golden/java/managed-outbound-4xx-v10.json"
     envelope = cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
     attestation = GoldenAttestation.from_repository(
         repository,

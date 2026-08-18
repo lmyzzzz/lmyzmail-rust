@@ -151,13 +151,13 @@ def _candidate(repository: Path, profile: _Profile) -> CandidateRuntime:
 
 def _profile_settings(profile: _Profile) -> tuple[str, tuple[Scenario, ...]]:
     if profile == "reject":
-        return "managed-smtp-spamhaus-v5", SMTP_SPAMHAUS_REJECT_SCENARIOS
+        return "managed-smtp-spamhaus-v8", SMTP_SPAMHAUS_REJECT_SCENARIOS
     if profile == "reject-disabled":
         return (
-            "managed-smtp-spamhaus-reject-disabled-v5",
+            "managed-smtp-spamhaus-reject-disabled-v8",
             SMTP_SPAMHAUS_REJECT_DISABLED_SCENARIOS,
         )
-    return "managed-smtp-spamhaus-disabled-v5", SMTP_SPAMHAUS_DISABLED_SCENARIOS
+    return "managed-smtp-spamhaus-disabled-v8", SMTP_SPAMHAUS_DISABLED_SCENARIOS
 
 
 def _runner(

@@ -27,7 +27,7 @@ from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-authenticated-commands-v8"
+_GOLDEN = "managed-minecraft-authenticated-commands-v11"
 _COMMANDS = (
     ("help", "  /HeLp  ", (0x02,) * 8),
     ("stuck", "/stuck", (0x08, 0x02)),

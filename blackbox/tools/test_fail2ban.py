@@ -15,7 +15,7 @@ from lmyzmail_blackbox.persistent_runtime import PersistentJavaOracleRuntime
 from lmyzmail_blackbox.ports import PortSet
 from lmyzmail_blackbox.runtime import CandidateRuntime
 
-_GOLDEN = "managed-fail2ban-v4"
+_GOLDEN = "managed-fail2ban-v7"
 _PROFILE = "managed-fail2ban"
 _LOG_NAME = "auth.log"
 _STARTUP_IP = "198.51.100.10"

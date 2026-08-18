@@ -1,0 +1,225 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "0c1a5f9c7c747d9c7658935842b10ec78682f5dba375ad80afc3c29b63ac7b8c",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "suite-manifest-v1"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-smtp-data"
+  },
+  "observation": {
+    "profile": "managed-smtp-data",
+    "scenarios": [
+      {
+        "contract": {
+          "max_message_size_bytes": 15728640,
+          "message_id": "<bb-fragmented-data-001@example.test>",
+          "message_sha256": "c8384c331cc40661357c70945276bac5a4607fd8295e25e42b53461cc4824647",
+          "mode": "DATA",
+          "operation": "inbound-data-framing",
+          "protocol": "smtp",
+          "requirements": [
+            "incremental-framing",
+            "bounded-buffering",
+            "exact-bdat-octet-count",
+            "partial-disconnect-cleans-state",
+            "fresh-session-recovery"
+          ],
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ]
+        },
+        "name": "smtp/data/fragmented-terminator-storage",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:data-dot-unstuff"
+        ]
+      },
+      {
+        "contract": {
+          "max_message_size_bytes": 15728640,
+          "message_id": "<bb-fragmented-bdat-001@example.test>",
+          "message_sha256": "314986ff40c468908d1b3d2e64ecbe7a7ebb6f242e0b01a493cdb823b25bc60f",
+          "mode": "BDAT",
+          "operation": "inbound-data-framing",
+          "protocol": "smtp",
+          "requirements": [
+            "incremental-framing",
+            "bounded-buffering",
+            "exact-bdat-octet-count",
+            "partial-disconnect-cleans-state",
+            "fresh-session-recovery"
+          ],
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ]
+        },
+        "name": "smtp/bdat/fragmented-binary-storage",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:bdat-exact-octet-count"
+        ]
+      },
+      {
+        "contract": {
+          "chunk_count": 2,
+          "coalesced_after_confirmed_prerequisites": true,
+          "max_message_size_bytes": 15728640,
+          "message_id": "<bb-coalesced-bdat-chunks-001@example.test>",
+          "message_sha256": "5015b92906a62dae74c8a4615610c89fafb79a5ae7d98ba4733c4c4089acd86d",
+          "mode": "BDAT",
+          "operation": "inbound-data-framing",
+          "protocol": "smtp",
+          "reply_per_chunk": true,
+          "requirements": [
+            "incremental-framing",
+            "bounded-buffering",
+            "exact-bdat-octet-count",
+            "partial-disconnect-cleans-state",
+            "fresh-session-recovery"
+          ],
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ]
+        },
+        "name": "smtp/bdat/coalesced-multi-chunk-storage",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:bdat-coalesced-multi-chunk"
+        ]
+      },
+      {
+        "contract": {
+          "connection_remains_usable": true,
+          "operation": "bdat-size-and-zero-state",
+          "oversize_declared_bytes": 15728641,
+          "oversize_rejected_before_payload": true,
+          "oversize_resets_transaction": true,
+          "protocol": "smtp",
+          "zero_non_last_reply": "250 2.0.0 0 bytes received"
+        },
+        "name": "smtp/bdat/zero-and-oversize-state",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size"
+        ]
+      },
+      {
+        "contract": {
+          "connection_remains_usable": true,
+          "empty_zero_last": "250 2.0.0 0 bytes received",
+          "non_last_chunk_is_acknowledged": true,
+          "non_last_chunk_then_zero_last": "discarded-without-delivery",
+          "operation": "bdat-zero-last-transaction-state",
+          "protocol": "smtp",
+          "transaction_resets": true
+        },
+        "name": "smtp/bdat/zero-last-transaction-state",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:bdat-zero-last-state"
+        ]
+      },
+      {
+        "contract": {
+          "fresh_session": "normal-delivery-after-disconnect",
+          "mode": "DATA",
+          "operation": "partial-disconnect-recovery",
+          "partial_delivery": "no-maildir-no-index-no-temp",
+          "protocol": "smtp"
+        },
+        "name": "smtp/data/partial-disconnect-recovery",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:disconnect-no-delivery"
+        ]
+      },
+      {
+        "contract": {
+          "fresh_session": "normal-delivery-after-disconnect",
+          "mode": "BDAT",
+          "operation": "partial-disconnect-recovery",
+          "partial_delivery": "no-maildir-no-index-no-temp",
+          "protocol": "smtp"
+        },
+        "name": "smtp/bdat/partial-disconnect-recovery",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:disconnect-no-delivery"
+        ]
+      }
+    ]
+  },
+  "schema_version": 2
+}

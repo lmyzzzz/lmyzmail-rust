@@ -25,7 +25,7 @@ from lmyzmail_blackbox.persistent_runtime import PersistentJavaOracleRuntime
 from lmyzmail_blackbox.ports import PortSet
 from lmyzmail_blackbox.runtime import CandidateRuntime
 
-_GOLDEN = "managed-minecraft-online-v8"
+_GOLDEN = "managed-minecraft-online-v11"
 _USERNAME = "OnlineUser"
 _RSA_FIELD = 512
 

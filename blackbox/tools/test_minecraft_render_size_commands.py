@@ -27,7 +27,7 @@ from test_minecraft_static_play import (
 from lmyzmail_blackbox.differential import DifferentialRunner, RuntimeTarget, Scenario
 from lmyzmail_blackbox.runtime import CandidateRuntime
 
-_GOLDEN = "managed-minecraft-render-size-commands-v8"
+_GOLDEN = "managed-minecraft-render-size-commands-v11"
 _DIRECT_UPDATE_IDS = (0x3B, 0x3B, 0x3D) + (0x3C,) * 10 + (0x02,)
 _ERROR_IDS = (0x02,)
 _EDITOR_IDS = (0x35, 0x36) + (0x02,) * 4

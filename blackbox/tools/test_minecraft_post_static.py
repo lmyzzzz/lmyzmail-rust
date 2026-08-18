@@ -24,7 +24,7 @@ from lmyzmail_blackbox.errors import ProtocolError
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-post-static-v8"
+_GOLDEN = "managed-minecraft-post-static-v11"
 _USERNAME = b"PostStaticProbe"
 _POST_STATIC_IDS = (
     0x33,

@@ -16,7 +16,7 @@ from lmyzmail_blackbox.ports import PortSet
 from lmyzmail_blackbox.runtime import CandidateRuntime
 from lmyzmail_blackbox.snapshots import bytes_snapshot
 
-_GOLDEN = "managed-minecraft-login-admission-v9"
+_GOLDEN = "managed-minecraft-login-admission-v12"
 _MAX_FRAME = 2 * 1024 * 1024
 
 

@@ -107,7 +107,7 @@ class _SpfDkimCandidateRuntime(CandidateRuntime):
 def _runner(repository: Path, *, record_java: bool = False) -> DifferentialRunner:
     return DifferentialRunner(
         repository,
-        repository / "blackbox/golden/java/managed-smtp-spf-dkim-v5",
+        repository / "blackbox/golden/java/managed-smtp-spf-dkim-v8",
         "managed-smtp-spf-dkim",
         record_java=record_java,
     )

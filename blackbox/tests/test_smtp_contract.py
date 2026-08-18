@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import pytest
 
 from lmyzmail_blackbox.smtp_contract import (
     _assert_path_chain_without_symlinks,
     _check_maildir_delta,
+    _logical_maildir_path,
     _maildir_files,
     _parse_java_rfc1123,
     _parse_maildir_filename_time,
 )
+
+_ENCODED_QA = "7161406578616D706C652E74657374"
 
 
 def test_java_rfc1123_parser_freezes_oracle_wire_format() -> None:
@@ -99,3 +102,54 @@ def test_maildir_walk_and_path_chain_reject_symlinks(tmp_path: Path) -> None:
         _maildir_files(workspace)
     with pytest.raises(AssertionError, match="SMTP contract violation"):
         _assert_path_chain_without_symlinks(workspace, link / "message.eml")
+
+
+@pytest.mark.parametrize(
+    ("encoded", "expected"),
+    (
+        (
+            f"v2/c-{_ENCODED_QA}/z-0000000F/spam/1/message.eml",
+            "qa@example.test/spam/1/message.eml",
+        ),
+        (
+            "v2/c-71614065/c-78616D706C652E74657374/"
+            "z-0000000F/spam/1/message.eml",
+            "qa@example.test/spam/1/message.eml",
+        ),
+    ),
+)
+def test_logical_maildir_path_decodes_valid_v2_paths(encoded: str, expected: str) -> None:
+    assert _logical_maildir_path(PurePosixPath(encoded)) == expected
+
+
+@pytest.mark.parametrize(
+    "encoded",
+    (
+        f"v2/c-{_ENCODED_QA}/z-00000010/spam/1/message.eml",
+        "v2/c-7161406578616d706C652E74657374/z-0000000F/spam/1/message.eml",
+        f"v2/c-{_ENCODED_QA}/z-0000000f/spam/1/message.eml",
+        "v2/c-FF/z-00000001/spam/1/message.eml",
+    ),
+)
+def test_logical_maildir_path_preserves_malformed_v2_paths(encoded: str) -> None:
+    assert _logical_maildir_path(PurePosixPath(encoded)) == encoded
+
+
+def test_maildir_walk_rejects_duplicate_logical_v2_path(tmp_path: Path) -> None:
+    relative = Path("spam", "1", "message.eml")
+    legacy = tmp_path / "maildir" / "qa@example.test" / relative
+    encoded = (
+        tmp_path
+        / "maildir"
+        / "v2"
+        / f"c-{_ENCODED_QA}"
+        / "z-0000000F"
+        / relative
+    )
+    legacy.parent.mkdir(parents=True)
+    encoded.parent.mkdir(parents=True)
+    legacy.write_bytes(b"legacy")
+    encoded.write_bytes(b"encoded")
+
+    with pytest.raises(AssertionError, match="duplicate logical Maildir path"):
+        _maildir_files(tmp_path)

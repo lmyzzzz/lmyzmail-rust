@@ -68,6 +68,7 @@ _MAILDIR_HASH_CHUNK_BYTES = 1024 * 1024
 _MAX_CAPTURED_MESSAGE_BYTES = 16 * 1024 * 1024
 
 type _MaildirSnapshot = dict[str, tuple[int, str]]
+type _MaildirPaths = dict[str, Path]
 type SmtpSessionSetup = Callable[[RuntimeTarget, RawSmtpClient, bytes], dict[str, Any]]
 
 
@@ -262,18 +263,56 @@ def _file_identity(path: Path, *, deadline: float | None) -> tuple[int, str]:
     return total, digest.hexdigest()
 
 
-def _maildir_files(
+def _logical_maildir_path(relative: PurePosixPath) -> str:
+    parts = relative.parts
+    if len(parts) < 5 or parts[0] != "v2":
+        return relative.as_posix()
+    marker_index = next(
+        (index for index, part in enumerate(parts[1:], 1) if part.startswith("z-")),
+        None,
+    )
+    if marker_index is None or marker_index < 2 or len(parts) - marker_index < 3:
+        return relative.as_posix()
+    marker = parts[marker_index]
+    if (
+        len(marker) != 10
+        or not marker.startswith("z-")
+        or any(character not in "0123456789ABCDEF" for character in marker[2:])
+    ):
+        return relative.as_posix()
+    encoded_chunks = parts[1:marker_index]
+    if any(
+        not chunk.startswith("c-")
+        or len(chunk) <= 2
+        or len(chunk) > 242
+        or len(chunk[2:]) % 2 != 0
+        or any(character not in "0123456789ABCDEF" for character in chunk[2:])
+        for chunk in encoded_chunks
+    ):
+        return relative.as_posix()
+    try:
+        mailbox_bytes = b"".join(bytes.fromhex(chunk[2:]) for chunk in encoded_chunks)
+        mailbox = mailbox_bytes.decode("utf-8")
+    except (UnicodeDecodeError, ValueError):
+        return relative.as_posix()
+    if not mailbox or len(mailbox_bytes) != int(marker[2:], 16):
+        return relative.as_posix()
+    return PurePosixPath(mailbox, *parts[marker_index + 1 :]).as_posix()
+
+
+def _maildir_inventory(
     workspace: Path,
     *,
     deadline: float | None = None,
-) -> _MaildirSnapshot:
+) -> tuple[_MaildirSnapshot, _MaildirPaths]:
     root = workspace / "maildir"
     _check(not root.is_symlink(), root)
     if not root.exists():
-        return {}
+        return {}, {}
     _check(root.is_dir(), root)
 
     files: _MaildirSnapshot = {}
+    paths: _MaildirPaths = {}
     pending = [root]
     entry_count = 0
     while pending:
@@ -293,11 +332,23 @@ def _maildir_files(
                     pending.append(entry_path)
                 elif entry.is_file(follow_symlinks=False):
                     relative = entry_path.relative_to(root).as_posix()
-                    files[relative] = _file_identity(entry_path, deadline=deadline)
+                    logical = _logical_maildir_path(PurePosixPath(relative))
+                    _check(logical not in files, ("duplicate logical Maildir path", logical))
+                    files[logical] = _file_identity(entry_path, deadline=deadline)
+                    paths[logical] = entry_path
                 else:
                     raise AssertionError(
                         f"SMTP contract violation: unsupported Maildir entry {entry_path!r}"
                     )
+    return files, paths
+
+
+def _maildir_files(
+    workspace: Path,
+    *,
+    deadline: float | None = None,
+) -> _MaildirSnapshot:
+    files, _ = _maildir_inventory(workspace, deadline=deadline)
     return files
 
 
@@ -440,6 +491,11 @@ def _wait_for_delivery_state(
     last_details: object = "delivery state was not observed"
 
     while True:
+        if time.monotonic() >= deadline:
+            raise AssertionError(
+                "SMTP contract violation: delivery did not converge before "
+                f"the deadline: {last_details!r}"
+            )
         rows = _index_rows(connection, message_id, folder=folder, deadline=deadline)
         maildir_after = _maildir_files(workspace, deadline=deadline)
         count_key = f"mail:count:{_QA_ADDRESS}:{folder}"
@@ -622,15 +678,22 @@ def _storage_snapshot(
     if workspace is None:
         raise AssertionError("SMTP target is not started")
     maildir_root = workspace / "maildir"
-    folder_root = maildir_root / _QA_ADDRESS / expected_folder
-    file_path = folder_root / str(subdirectory) / file_name
+    expected_relative = PurePosixPath(
+        _QA_ADDRESS,
+        expected_folder,
+        str(subdirectory),
+        file_name,
+    ).as_posix()
+    current_maildir, physical_paths = _maildir_inventory(workspace, deadline=deadline)
+    _check(current_maildir == maildir_after, "Maildir changed before message read")
+    file_path = physical_paths.get(expected_relative)
+    if file_path is None:
+        raise AssertionError(f"SMTP contract violation: {expected_relative!r}")
     _assert_path_chain_without_symlinks(workspace, file_path)
-    _check(folder_root.is_dir(), folder_root)
     _check(file_path.is_file(), file_path)
     resolved_root = maildir_root.resolve(strict=True)
     resolved_file = file_path.resolve(strict=True)
     _check(resolved_root in resolved_file.parents, resolved_file)
-    expected_relative = resolved_file.relative_to(resolved_root).as_posix()
     _check_maildir_delta(maildir_before, maildir_after, expected_relative)
     _remaining(deadline, "Maildir message read")
     _check(size_bytes <= _MAX_CAPTURED_MESSAGE_BYTES, size_bytes)

@@ -1,0 +1,494 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "b0ce09dd6c4bf3fc0baa8f817d2bfe1ce9b8c35034dd5c099d2fc811f764f703",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "minecraft-outbound:queue-id",
+      "minecraft-outbound:message-id",
+      "smtp:date-and-dkim-excluded-by-semantic-projection"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-minecraft-outbound-v11"
+  },
+  "observation": {
+    "permanent_failure": {
+      "book_response": [
+        {
+          "chat": "§7Book saved: 2 page(s)",
+          "packet_id": 2,
+          "position": 0
+        }
+      ],
+      "case": "permanent-failure",
+      "delivery": [
+        {
+          "chat": "§6Sending email...",
+          "packet_id": 2,
+          "position": 0
+        },
+        {
+          "chat": "§7Email queued (ID: <QUEUE_ID>), waiting for delivery...",
+          "packet_id": 2,
+          "position": 0
+        },
+        {
+          "chat": "§c§l✗ Email delivery failed!",
+          "packet_id": 2,
+          "position": 0
+        },
+        {
+          "chat": "§cAll domains failed: {outbound.fixture.test=Message not accepted: 550 5.7.1 fixture policy rejection}",
+          "packet_id": 2,
+          "position": 0
+        },
+        {
+          "chat": "§7Your draft is preserved. Fix and retry.",
+          "packet_id": 2,
+          "position": 0
+        }
+      ],
+      "edits": [
+        {
+          "field": "to",
+          "lines": [
+            "a@outbound.fixt",
+            "ure.test, ; b@o",
+            "utbound.fixture",
+            ".test"
+          ],
+          "response": [
+            {
+              "chat": "§7To set to: §fa@outbound.fixture.test, ; b@outbound.fixture.test",
+              "packet_id": 2,
+              "position": 0
+            },
+            {
+              "frame": {
+                "base64": "bAAzAAAAgoQAAAMaeyJ0ZXh0IjoiYUBvdXRib3VuZC5maXh0In0aeyJ0ZXh0IjoidXJlLnRlc3QsIDsgYkBvIn0aeyJ0ZXh0IjoidXRib3VuZC5maXh0dXJlIn0QeyJ0ZXh0IjoiLnRlc3QifQ==",
+                "length": 109,
+                "sha256": "90afe1a6d44843cc29104a5f028625c65152035e3762d966ed9764bf3b3d3246"
+              },
+              "packet_id": 51
+            }
+          ],
+          "value": "a@outbound.fixture.test, ; b@outbound.fixture.test"
+        },
+        {
+          "field": "subject",
+          "lines": [
+            "Minecraft outbo",
+            "und subject",
+            "",
+            ""
+          ],
+          "response": [
+            {
+              "chat": "§7Subject set to: §fMinecraft outbound subject",
+              "packet_id": 2,
+              "position": 0
+            },
+            {
+              "frame": {
+                "base64": "VAAzAAACAoQAAAMaeyJ0ZXh0IjoiTWluZWNyYWZ0IG91dGJvIn0WeyJ0ZXh0IjoidW5kIHN1YmplY3QifQt7InRleHQiOiIifQt7InRleHQiOiIifQ==",
+                "length": 85,
+                "sha256": "fbc10378ecdd8fb587d5720066ac06e35eeb6bbf281b9954533295a86ffb3ded"
+              },
+              "packet_id": 51
+            }
+          ],
+          "value": "Minecraft outbound subject"
+        },
+        {
+          "field": "cc",
+          "lines": [
+            "c@outbound.fixt",
+            "ure.test",
+            "",
+            ""
+          ],
+          "response": [
+            {
+              "chat": "§7CC set to: §fc@outbound.fixture.test",
+              "packet_id": 2,
+              "position": 0
+            },
+            {
+              "frame": {
+                "base64": "UQAzAAABAoQAAAMaeyJ0ZXh0IjoiY0BvdXRib3VuZC5maXh0In0TeyJ0ZXh0IjoidXJlLnRlc3QifQt7InRleHQiOiIifQt7InRleHQiOiIifQ==",
+                "length": 82,
+                "sha256": "4e0a53b74e90cc5cd80c8c68ec6ee9c3ddb40d2e9af50a67d9bc9b8858247a3a"
+              },
+              "packet_id": 51
+            }
+          ],
+          "value": "c@outbound.fixture.test"
+        },
+        {
+          "field": "bcc",
+          "lines": [
+            "d@outbound.fixt",
+            "ure.test",
+            "",
+            ""
+          ],
+          "response": [
+            {
+              "chat": "§7BCC set to: §fd@outbound.fixture.test",
+              "packet_id": 2,
+              "position": 0
+            },
+            {
+              "frame": {
+                "base64": "UQAzAAABgoQAAAMaeyJ0ZXh0IjoiZEBvdXRib3VuZC5maXh0In0TeyJ0ZXh0IjoidXJlLnRlc3QifQt7InRleHQiOiIifQt7InRleHQiOiIifQ==",
+                "length": 82,
+                "sha256": "7325d2a0cb58da6764e5604fed9bce53fe19d8ce13a4694e5e543ca3a98cbb46"
+              },
+              "packet_id": 51
+            }
+          ],
+          "value": "d@outbound.fixture.test"
+        }
+      ],
+      "queue": {
+        "body_text": null,
+        "last_error": "All domains failed: {outbound.fixture.test=Message not accepted: 550 5.7.1 fixture policy rejection}",
+        "max_retries": 5,
+        "message_id_present": true,
+        "retry_count": 0,
+        "sent_file_present": true,
+        "status": "FAILED",
+        "subject": "Minecraft outbound subject"
+      },
+      "reconnect": {
+        "authentication_packet_ids": [
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          51,
+          51,
+          51,
+          51,
+          47,
+          59,
+          59,
+          61,
+          60,
+          60,
+          60,
+          60,
+          60,
+          60,
+          60,
+          60,
+          60,
+          60
+        ],
+        "draft": [
+          "§e§lCurrent Draft:",
+          "§7To: §fa@outbound.fixture.test, ; b@outbound.fixture.test",
+          "§7CC: §fc@outbound.fixture.test",
+          "§7BCC: §fd@outbound.fixture.test",
+          "§7Subject: §fMinecraft outbound subject",
+          "§7Body: §f2 page(s)"
+        ]
+      },
+      "same_connection_draft": null,
+      "sent_maildir_delta": 1,
+      "smtp": {
+        "accepted": false,
+        "bcc_absent": true,
+        "body": "First outbound page\r\nSecond outbound page\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n--- Sent with lmyzmail from Minecraft 1.8.9 ---\r\n",
+        "cc": "c@outbound.fixture.test",
+        "envelope_recipients": [
+          "a@outbound.fixture.test",
+          "b@outbound.fixture.test",
+          "c@outbound.fixture.test",
+          "d@outbound.fixture.test"
+        ],
+        "footer_count": 1,
+        "from": "qa@example.test",
+        "sender": "qa@example.test",
+        "subject": "Minecraft outbound subject",
+        "to": "a@outbound.fixture.test, b@outbound.fixture.test"
+      },
+      "validation": {
+        "empty_body": "§cPlease write something in the book first!",
+        "empty_subject": "§cPlease set a subject first!",
+        "empty_to": "§cPlease set a recipient (To) first!"
+      },
+      "worklists": {
+        "delta": {
+          "archive": 0,
+          "pending": 0,
+          "processing": 0,
+          "retry": 0,
+          "status_updates": 0
+        },
+        "task_membership": {
+          "pending": false,
+          "processing": false,
+          "retry": false,
+          "task_detail": false
+        }
+      }
+    },
+    "success": {
+      "book_response": [
+        {
+          "chat": "§7Book saved: 2 page(s)",
+          "packet_id": 2,
+          "position": 0
+        }
+      ],
+      "case": "success",
+      "delivery": [
+        {
+          "chat": "§6Sending email...",
+          "packet_id": 2,
+          "position": 0
+        },
+        {
+          "chat": "§7Email queued (ID: <QUEUE_ID>), waiting for delivery...",
+          "packet_id": 2,
+          "position": 0
+        },
+        {
+          "chat": "§a§l✓ Email sent successfully!",
+          "packet_id": 2,
+          "position": 0
+        },
+        {
+          "chat": "§7Message ID: <MESSAGE_ID>",
+          "packet_id": 2,
+          "position": 0
+        },
+        {
+          "frame": {
+            "base64": "QQAzAAAAgoQAAAMSeyJ0ZXh0IjoiwqcxW1RvXSJ9C3sidGV4dCI6IiJ9C3sidGV4dCI6IiJ9C3sidGV4dCI6IiJ9",
+            "length": 66,
+            "sha256": "f85eaf6830f3fa1a7a9d21e9b3cbf48d8f32cc46237b7aadbd41dc36949dec59"
+          },
+          "packet_id": 51
+        },
+        {
+          "frame": {
+            "base64": "QQAzAAABAoQAAAMSeyJ0ZXh0IjoiwqcxW0NDXSJ9C3sidGV4dCI6IiJ9C3sidGV4dCI6IiJ9C3sidGV4dCI6IiJ9",
+            "length": 66,
+            "sha256": "86d4f7b898ab4928e02d6e66b9d18164d009ceeefccba50f746a3065cdaacbe5"
+          },
+          "packet_id": 51
+        },
+        {
+          "frame": {
+            "base64": "QgAzAAABgoQAAAMTeyJ0ZXh0IjoiwqcxW0JDQ10ifQt7InRleHQiOiIifQt7InRleHQiOiIifQt7InRleHQiOiIifQ==",
+            "length": 67,
+            "sha256": "2224f1f73e4c7bb16109291aabba8c3865f954be59ba88f206d9c9c4b69ec4aa"
+          },
+          "packet_id": 51
+        },
+        {
+          "frame": {
+            "base64": "RgAzAAACAoQAAAMXeyJ0ZXh0IjoiwqcxW1N1YmplY3RdIn0LeyJ0ZXh0IjoiIn0LeyJ0ZXh0IjoiIn0LeyJ0ZXh0IjoiIn0=",
+            "length": 71,
+            "sha256": "4a6636361660a6269d56d4e97d56840ba2bce11f0734c6f712d0e43b549f5b27"
+          },
+          "packet_id": 51
+        },
+        {
+          "frame": {
+            "base64": "HQAvAAAkAYIBAAAKAAAJAAVwYWdlcwgAAAABAAAA",
+            "length": 30,
+            "sha256": "53d3bf98930333abe2c0f3c44d32d05f4ed37da256707dcf8f2dc4d600950442"
+          },
+          "packet_id": 47
+        }
+      ],
+      "edits": [
+        {
+          "field": "to",
+          "lines": [
+            "a@outbound.fixt",
+            "ure.test, ; b@o",
+            "utbound.fixture",
+            ".test"
+          ],
+          "response": [
+            {
+              "chat": "§7To set to: §fa@outbound.fixture.test, ; b@outbound.fixture.test",
+              "packet_id": 2,
+              "position": 0
+            },
+            {
+              "frame": {
+                "base64": "bAAzAAAAgoQAAAMaeyJ0ZXh0IjoiYUBvdXRib3VuZC5maXh0In0aeyJ0ZXh0IjoidXJlLnRlc3QsIDsgYkBvIn0aeyJ0ZXh0IjoidXRib3VuZC5maXh0dXJlIn0QeyJ0ZXh0IjoiLnRlc3QifQ==",
+                "length": 109,
+                "sha256": "90afe1a6d44843cc29104a5f028625c65152035e3762d966ed9764bf3b3d3246"
+              },
+              "packet_id": 51
+            }
+          ],
+          "value": "a@outbound.fixture.test, ; b@outbound.fixture.test"
+        },
+        {
+          "field": "subject",
+          "lines": [
+            "Minecraft outbo",
+            "und subject",
+            "",
+            ""
+          ],
+          "response": [
+            {
+              "chat": "§7Subject set to: §fMinecraft outbound subject",
+              "packet_id": 2,
+              "position": 0
+            },
+            {
+              "frame": {
+                "base64": "VAAzAAACAoQAAAMaeyJ0ZXh0IjoiTWluZWNyYWZ0IG91dGJvIn0WeyJ0ZXh0IjoidW5kIHN1YmplY3QifQt7InRleHQiOiIifQt7InRleHQiOiIifQ==",
+                "length": 85,
+                "sha256": "fbc10378ecdd8fb587d5720066ac06e35eeb6bbf281b9954533295a86ffb3ded"
+              },
+              "packet_id": 51
+            }
+          ],
+          "value": "Minecraft outbound subject"
+        },
+        {
+          "field": "cc",
+          "lines": [
+            "c@outbound.fixt",
+            "ure.test",
+            "",
+            ""
+          ],
+          "response": [
+            {
+              "chat": "§7CC set to: §fc@outbound.fixture.test",
+              "packet_id": 2,
+              "position": 0
+            },
+            {
+              "frame": {
+                "base64": "UQAzAAABAoQAAAMaeyJ0ZXh0IjoiY0BvdXRib3VuZC5maXh0In0TeyJ0ZXh0IjoidXJlLnRlc3QifQt7InRleHQiOiIifQt7InRleHQiOiIifQ==",
+                "length": 82,
+                "sha256": "4e0a53b74e90cc5cd80c8c68ec6ee9c3ddb40d2e9af50a67d9bc9b8858247a3a"
+              },
+              "packet_id": 51
+            }
+          ],
+          "value": "c@outbound.fixture.test"
+        },
+        {
+          "field": "bcc",
+          "lines": [
+            "d@outbound.fixt",
+            "ure.test",
+            "",
+            ""
+          ],
+          "response": [
+            {
+              "chat": "§7BCC set to: §fd@outbound.fixture.test",
+              "packet_id": 2,
+              "position": 0
+            },
+            {
+              "frame": {
+                "base64": "UQAzAAABgoQAAAMaeyJ0ZXh0IjoiZEBvdXRib3VuZC5maXh0In0TeyJ0ZXh0IjoidXJlLnRlc3QifQt7InRleHQiOiIifQt7InRleHQiOiIifQ==",
+                "length": 82,
+                "sha256": "7325d2a0cb58da6764e5604fed9bce53fe19d8ce13a4694e5e543ca3a98cbb46"
+              },
+              "packet_id": 51
+            }
+          ],
+          "value": "d@outbound.fixture.test"
+        }
+      ],
+      "queue": {
+        "body_text": null,
+        "last_error": null,
+        "max_retries": 5,
+        "message_id_present": true,
+        "retry_count": 0,
+        "sent_file_present": true,
+        "status": "SENT",
+        "subject": "Minecraft outbound subject"
+      },
+      "reconnect": null,
+      "same_connection_draft": [
+        "§e§lCurrent Draft:",
+        "§7To: §f(empty)",
+        "§7CC: §f(empty)",
+        "§7BCC: §f(empty)",
+        "§7Subject: §f(empty)",
+        "§7Body: §f0 page(s)"
+      ],
+      "sent_maildir_delta": 1,
+      "smtp": {
+        "accepted": true,
+        "bcc_absent": true,
+        "body": "First outbound page\r\nSecond outbound page\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n--- Sent with lmyzmail from Minecraft 1.8.9 ---\r\n",
+        "cc": "c@outbound.fixture.test",
+        "envelope_recipients": [
+          "a@outbound.fixture.test",
+          "b@outbound.fixture.test",
+          "c@outbound.fixture.test",
+          "d@outbound.fixture.test"
+        ],
+        "footer_count": 1,
+        "from": "qa@example.test",
+        "sender": "qa@example.test",
+        "subject": "Minecraft outbound subject",
+        "to": "a@outbound.fixture.test, b@outbound.fixture.test"
+      },
+      "validation": {
+        "empty_body": "§cPlease write something in the book first!",
+        "empty_subject": "§cPlease set a subject first!",
+        "empty_to": "§cPlease set a recipient (To) first!"
+      },
+      "worklists": {
+        "delta": {
+          "archive": 0,
+          "pending": 0,
+          "processing": 0,
+          "retry": 0,
+          "status_updates": 0
+        },
+        "task_membership": {
+          "pending": false,
+          "processing": false,
+          "retry": false,
+          "task_detail": false
+        }
+      }
+    }
+  },
+  "schema_version": 2
+}

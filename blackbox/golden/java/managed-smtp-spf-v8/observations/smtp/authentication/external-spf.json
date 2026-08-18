@@ -1,0 +1,445 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "b0ce09dd6c4bf3fc0baa8f817d2bfe1ce9b8c35034dd5c099d2fc811f764f703",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "smtp:greeting-skibidi-grammar",
+      "smtp:server-hostname",
+      "smtp:session-id",
+      "maildir:generated-filename",
+      "maildir:server-hostname",
+      "maildir:received-id",
+      "maildir:received-at",
+      "postgres:identity-timestamps-and-hostname-derived-size",
+      "dns:nxdomain-retry-count"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-smtp-spf"
+  },
+  "observation": {
+    "cases": [
+      {
+        "delivery": {
+          "mode": "data",
+          "storage": {
+            "maildir": {
+              "new_regular_files": 1,
+              "orphan_files": 0,
+              "path": "qa@example.test/inbox/1/<generated>.eml",
+              "preexisting_files_unchanged": true,
+              "raw": {
+                "base64": "UmVjZWl2ZWQ6IGZyb20gYmxhY2tib3guZXhhbXBsZSAodW52ZXJpZmllZCBbMTI3LjAuMC41MV0pDQoJYnkgPGhvc3RuYW1lPiB3aXRoIEVTTVRQIGlkIDxyZWNlaXZlZC1pZD4NCglmb3IgPHFhQGV4YW1wbGUudGVzdD47DQoJPHJlY2VpdmVkLWF0Pg0KQXV0aGVudGljYXRpb24tUmVzdWx0czogPGhvc3RuYW1lPjsNCglzcGY9cGFzcyAoTWF0Y2hlZCBpcDQ6MTI3LjAuMC41MSkgc210cC5jbGllbnQtaXA9MTI3LjAuMC41MSBzbXRwLm1haWxmcm9tPXNlbmRlckBzcGYtcGFzcy5ibGFja2JveC1leGFtcGxlLmNvbTsNCglka2ltPW5vbmUgKE5vIERLSU0gc2lnbmF0dXJlIHByZXNlbnQpOw0KCWRtYXJjPW5vbmUgTm8gRE1BUkMgcmVjb3JkIGZvdW5kDQpYLVNwYW0tU3RhdHVzOiBObw0KWC1TcGFtLVNjb3JlOiAwLjANClN1YmplY3Q6IGJiLXNwZi1wYXNzDQpNZXNzYWdlLUlEOiA8YmItc3BmLXBhc3NAZXhhbXBsZS50ZXN0Pg0KTUlNRS1WZXJzaW9uOiAxLjANCkNvbnRlbnQtVHlwZTogdGV4dC9wbGFpbjsgY2hhcnNldD11cy1hc2NpaQ0KDQpFeHRlcm5hbCBTUEYgcGFzcyBmaXh0dXJlLg0K",
+                "length": 564,
+                "sha256": "e207efb424c17a47d9aed1c66ca148d0f1ac1701e660b9609a3fd48ac0e2c73e"
+              },
+              "residual_temp_files": 0,
+              "symlinks": 0
+            },
+            "postgres": {
+              "file_name": "<generated>.eml",
+              "folder": "inbox",
+              "from_address": null,
+              "has_attachments": false,
+              "id": "<identity>",
+              "indexed_at": "<timestamp>",
+              "mailbox_address": "qa@example.test",
+              "matching_rows": 1,
+              "message_id": "<bb-spf-pass@example.test>",
+              "received_at": "<timestamp>",
+              "size_bytes": "<maildir-byte-length>",
+              "subdirectory": 1,
+              "subject": "bb-spf-pass",
+              "to_addresses": "[]"
+            },
+            "redis": {
+              "after": 1,
+              "before": null,
+              "delta": 1,
+              "key": "mail:count:qa@example.test:inbox",
+              "pttl": -1,
+              "type": "string"
+            },
+            "size_contract": "postgres-size_bytes-equals-maildir-byte-length"
+          },
+          "wire": {
+            "accepted": [
+              "250 2.0.0 Message accepted for delivery, id=<session-id>\r\n"
+            ],
+            "data_ready": [
+              "354 Start mail input; end with <CRLF>.<CRLF>\r\n"
+            ],
+            "ehlo": [
+              "250-<hostname> Hello blackbox.example\r\n",
+              "250-PIPELINING\r\n",
+              "250-SIZE 15728640\r\n",
+              "250-8BITMIME\r\n",
+              "250-CHUNKING\r\n",
+              "250-ENHANCEDSTATUSCODES\r\n",
+              "250-SMTPUTF8\r\n",
+              "250 SKIBIDITOILET\r\n"
+            ],
+            "greeting": [
+              "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+            ],
+            "mail_from": [
+              "250 2.1.0 Sender OK\r\n"
+            ],
+            "quit": [
+              "221 2.0.0 <hostname> closing connection\r\n"
+            ],
+            "rcpt_to": [
+              "250 2.1.5 Recipient OK\r\n"
+            ]
+          }
+        },
+        "expected_folder": "inbox",
+        "name": "pass",
+        "sender": "sender@spf-pass.blackbox-example.com",
+        "source": "127.0.0.51",
+        "spf_record": "v=spf1 ip4:127.0.0.51 -all",
+        "spf_txt_query_count": 1
+      },
+      {
+        "delivery": {
+          "mode": "data",
+          "storage": {
+            "maildir": {
+              "new_regular_files": 1,
+              "orphan_files": 0,
+              "path": "qa@example.test/spam/1/<generated>.eml",
+              "preexisting_files_unchanged": true,
+              "raw": {
+                "base64": "UmVjZWl2ZWQ6IGZyb20gYmxhY2tib3guZXhhbXBsZSAodW52ZXJpZmllZCBbMTI3LjAuMC41Ml0pDQoJYnkgPGhvc3RuYW1lPiB3aXRoIEVTTVRQIGlkIDxyZWNlaXZlZC1pZD4NCglmb3IgPHFhQGV4YW1wbGUudGVzdD47DQoJPHJlY2VpdmVkLWF0Pg0KQXV0aGVudGljYXRpb24tUmVzdWx0czogPGhvc3RuYW1lPjsNCglzcGY9ZmFpbCAoTWF0Y2hlZCAnYWxsJykgc210cC5jbGllbnQtaXA9MTI3LjAuMC41MiBzbXRwLm1haWxmcm9tPXNlbmRlckBzcGYtZmFpbC5ibGFja2JveC1leGFtcGxlLm5ldDsNCglka2ltPW5vbmUgKE5vIERLSU0gc2lnbmF0dXJlIHByZXNlbnQpOw0KCWRtYXJjPW5vbmUgTm8gRE1BUkMgcmVjb3JkIGZvdW5kDQpYLVNwYW0tU3RhdHVzOiBZZXMNClgtU3BhbS1TY29yZTogMy4wDQpTdWJqZWN0OiBiYi1zcGYtZmFpbA0KTWVzc2FnZS1JRDogPGJiLXNwZi1mYWlsQGV4YW1wbGUudGVzdD4NCk1JTUUtVmVyc2lvbjogMS4wDQpDb250ZW50LVR5cGU6IHRleHQvcGxhaW47IGNoYXJzZXQ9dXMtYXNjaWkNCg0KRXh0ZXJuYWwgU1BGIGZhaWwgZml4dHVyZS4NCg==",
+                "length": 556,
+                "sha256": "a359df3e32d71c798c2d65e32fef0a6574d28395052d8dc2d3f6fc5b7dca402f"
+              },
+              "residual_temp_files": 0,
+              "symlinks": 0
+            },
+            "postgres": {
+              "file_name": "<generated>.eml",
+              "folder": "spam",
+              "from_address": null,
+              "has_attachments": false,
+              "id": "<identity>",
+              "indexed_at": "<timestamp>",
+              "mailbox_address": "qa@example.test",
+              "matching_rows": 1,
+              "message_id": "<bb-spf-fail@example.test>",
+              "received_at": "<timestamp>",
+              "size_bytes": "<maildir-byte-length>",
+              "subdirectory": 1,
+              "subject": "bb-spf-fail",
+              "to_addresses": "[]"
+            },
+            "redis": {
+              "after": 1,
+              "before": null,
+              "delta": 1,
+              "key": "mail:count:qa@example.test:spam",
+              "pttl": -1,
+              "type": "string"
+            },
+            "size_contract": "postgres-size_bytes-equals-maildir-byte-length"
+          },
+          "wire": {
+            "accepted": [
+              "250 2.0.0 Message accepted for delivery, id=<session-id>\r\n"
+            ],
+            "data_ready": [
+              "354 Start mail input; end with <CRLF>.<CRLF>\r\n"
+            ],
+            "ehlo": [
+              "250-<hostname> Hello blackbox.example\r\n",
+              "250-PIPELINING\r\n",
+              "250-SIZE 15728640\r\n",
+              "250-8BITMIME\r\n",
+              "250-CHUNKING\r\n",
+              "250-ENHANCEDSTATUSCODES\r\n",
+              "250-SMTPUTF8\r\n",
+              "250 SKIBIDITOILET\r\n"
+            ],
+            "greeting": [
+              "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+            ],
+            "mail_from": [
+              "250 2.1.0 Sender OK\r\n"
+            ],
+            "quit": [
+              "221 2.0.0 <hostname> closing connection\r\n"
+            ],
+            "rcpt_to": [
+              "250 2.1.5 Recipient OK\r\n"
+            ]
+          }
+        },
+        "expected_folder": "spam",
+        "name": "fail",
+        "sender": "sender@spf-fail.blackbox-example.net",
+        "source": "127.0.0.52",
+        "spf_record": "v=spf1 -all",
+        "spf_txt_query_count": 1
+      },
+      {
+        "delivery": {
+          "mode": "data",
+          "storage": {
+            "maildir": {
+              "new_regular_files": 1,
+              "orphan_files": 0,
+              "path": "qa@example.test/spam/1/<generated>.eml",
+              "preexisting_files_unchanged": true,
+              "raw": {
+                "base64": "UmVjZWl2ZWQ6IGZyb20gYmxhY2tib3guZXhhbXBsZSAodW52ZXJpZmllZCBbMTI3LjAuMC41M10pDQoJYnkgPGhvc3RuYW1lPiB3aXRoIEVTTVRQIGlkIDxyZWNlaXZlZC1pZD4NCglmb3IgPHFhQGV4YW1wbGUudGVzdD47DQoJPHJlY2VpdmVkLWF0Pg0KQXV0aGVudGljYXRpb24tUmVzdWx0czogPGhvc3RuYW1lPjsNCglzcGY9c29mdGZhaWwgKE1hdGNoZWQgJ2FsbCcpIHNtdHAuY2xpZW50LWlwPTEyNy4wLjAuNTMgc210cC5tYWlsZnJvbT1zZW5kZXJAc3BmLXNvZnRmYWlsLmJsYWNrYm94LWV4YW1wbGUub3JnOw0KCWRraW09bm9uZSAoTm8gREtJTSBzaWduYXR1cmUgcHJlc2VudCk7DQoJZG1hcmM9bm9uZSBObyBETUFSQyByZWNvcmQgZm91bmQNClgtU3BhbS1TdGF0dXM6IE5vDQpYLVNwYW0tU2NvcmU6IDEuMA0KU3ViamVjdDogYmItc3BmLXNvZnRmYWlsDQpNZXNzYWdlLUlEOiA8YmItc3BmLXNvZnRmYWlsQGV4YW1wbGUudGVzdD4NCk1JTUUtVmVyc2lvbjogMS4wDQpDb250ZW50LVR5cGU6IHRleHQvcGxhaW47IGNoYXJzZXQ9dXMtYXNjaWkNCg0KRXh0ZXJuYWwgU1BGIHNvZnRmYWlsIGZpeHR1cmUuDQo=",
+                "length": 575,
+                "sha256": "17a5f3f0cd5a2ca04b468ae5d9b17e51e83027018e814f853e7209359b30750e"
+              },
+              "residual_temp_files": 0,
+              "symlinks": 0
+            },
+            "postgres": {
+              "file_name": "<generated>.eml",
+              "folder": "spam",
+              "from_address": null,
+              "has_attachments": false,
+              "id": "<identity>",
+              "indexed_at": "<timestamp>",
+              "mailbox_address": "qa@example.test",
+              "matching_rows": 1,
+              "message_id": "<bb-spf-softfail@example.test>",
+              "received_at": "<timestamp>",
+              "size_bytes": "<maildir-byte-length>",
+              "subdirectory": 1,
+              "subject": "bb-spf-softfail",
+              "to_addresses": "[]"
+            },
+            "redis": {
+              "after": 2,
+              "before": 1,
+              "delta": 1,
+              "key": "mail:count:qa@example.test:spam",
+              "pttl": -1,
+              "type": "string"
+            },
+            "size_contract": "postgres-size_bytes-equals-maildir-byte-length"
+          },
+          "wire": {
+            "accepted": [
+              "250 2.0.0 Message accepted for delivery, id=<session-id>\r\n"
+            ],
+            "data_ready": [
+              "354 Start mail input; end with <CRLF>.<CRLF>\r\n"
+            ],
+            "ehlo": [
+              "250-<hostname> Hello blackbox.example\r\n",
+              "250-PIPELINING\r\n",
+              "250-SIZE 15728640\r\n",
+              "250-8BITMIME\r\n",
+              "250-CHUNKING\r\n",
+              "250-ENHANCEDSTATUSCODES\r\n",
+              "250-SMTPUTF8\r\n",
+              "250 SKIBIDITOILET\r\n"
+            ],
+            "greeting": [
+              "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+            ],
+            "mail_from": [
+              "250 2.1.0 Sender OK\r\n"
+            ],
+            "quit": [
+              "221 2.0.0 <hostname> closing connection\r\n"
+            ],
+            "rcpt_to": [
+              "250 2.1.5 Recipient OK\r\n"
+            ]
+          }
+        },
+        "expected_folder": "spam",
+        "name": "softfail",
+        "sender": "sender@spf-softfail.blackbox-example.org",
+        "source": "127.0.0.53",
+        "spf_record": "v=spf1 ~all",
+        "spf_txt_query_count": 1
+      },
+      {
+        "delivery": {
+          "mode": "data",
+          "storage": {
+            "maildir": {
+              "new_regular_files": 1,
+              "orphan_files": 0,
+              "path": "qa@example.test/spam/1/<generated>.eml",
+              "preexisting_files_unchanged": true,
+              "raw": {
+                "base64": "UmVjZWl2ZWQ6IGZyb20gYmxhY2tib3guZXhhbXBsZSAodW52ZXJpZmllZCBbMTI3LjAuMC41NF0pDQoJYnkgPGhvc3RuYW1lPiB3aXRoIEVTTVRQIGlkIDxyZWNlaXZlZC1pZD4NCglmb3IgPHFhQGV4YW1wbGUudGVzdD47DQoJPHJlY2VpdmVkLWF0Pg0KQXV0aGVudGljYXRpb24tUmVzdWx0czogPGhvc3RuYW1lPjsNCglzcGY9bmV1dHJhbCAoTWF0Y2hlZCAnYWxsJykgc210cC5jbGllbnQtaXA9MTI3LjAuMC41NCBzbXRwLm1haWxmcm9tPXNlbmRlckBzcGYtbmV1dHJhbC5ibGFja2JveC1leGFtcGxlLmluZm87DQoJZGtpbT1ub25lIChObyBES0lNIHNpZ25hdHVyZSBwcmVzZW50KTsNCglkbWFyYz1ub25lIE5vIERNQVJDIHJlY29yZCBmb3VuZA0KWC1TcGFtLVN0YXR1czogTm8NClgtU3BhbS1TY29yZTogMC4wDQpTdWJqZWN0OiBiYi1zcGYtbmV1dHJhbA0KTWVzc2FnZS1JRDogPGJiLXNwZi1uZXV0cmFsQGV4YW1wbGUudGVzdD4NCk1JTUUtVmVyc2lvbjogMS4wDQpDb250ZW50LVR5cGU6IHRleHQvcGxhaW47IGNoYXJzZXQ9dXMtYXNjaWkNCg0KRXh0ZXJuYWwgU1BGIG5ldXRyYWwgZml4dHVyZS4NCg==",
+                "length": 571,
+                "sha256": "848fa8afb14b92687e76bbe6572cd4c62562cc96cba46264eb5886417e1577e4"
+              },
+              "residual_temp_files": 0,
+              "symlinks": 0
+            },
+            "postgres": {
+              "file_name": "<generated>.eml",
+              "folder": "spam",
+              "from_address": null,
+              "has_attachments": false,
+              "id": "<identity>",
+              "indexed_at": "<timestamp>",
+              "mailbox_address": "qa@example.test",
+              "matching_rows": 1,
+              "message_id": "<bb-spf-neutral@example.test>",
+              "received_at": "<timestamp>",
+              "size_bytes": "<maildir-byte-length>",
+              "subdirectory": 1,
+              "subject": "bb-spf-neutral",
+              "to_addresses": "[]"
+            },
+            "redis": {
+              "after": 3,
+              "before": 2,
+              "delta": 1,
+              "key": "mail:count:qa@example.test:spam",
+              "pttl": -1,
+              "type": "string"
+            },
+            "size_contract": "postgres-size_bytes-equals-maildir-byte-length"
+          },
+          "wire": {
+            "accepted": [
+              "250 2.0.0 Message accepted for delivery, id=<session-id>\r\n"
+            ],
+            "data_ready": [
+              "354 Start mail input; end with <CRLF>.<CRLF>\r\n"
+            ],
+            "ehlo": [
+              "250-<hostname> Hello blackbox.example\r\n",
+              "250-PIPELINING\r\n",
+              "250-SIZE 15728640\r\n",
+              "250-8BITMIME\r\n",
+              "250-CHUNKING\r\n",
+              "250-ENHANCEDSTATUSCODES\r\n",
+              "250-SMTPUTF8\r\n",
+              "250 SKIBIDITOILET\r\n"
+            ],
+            "greeting": [
+              "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+            ],
+            "mail_from": [
+              "250 2.1.0 Sender OK\r\n"
+            ],
+            "quit": [
+              "221 2.0.0 <hostname> closing connection\r\n"
+            ],
+            "rcpt_to": [
+              "250 2.1.5 Recipient OK\r\n"
+            ]
+          }
+        },
+        "expected_folder": "spam",
+        "name": "neutral",
+        "sender": "sender@spf-neutral.blackbox-example.info",
+        "source": "127.0.0.54",
+        "spf_record": "v=spf1 ?all",
+        "spf_txt_query_count": 1
+      },
+      {
+        "delivery": {
+          "mode": "data",
+          "storage": {
+            "maildir": {
+              "new_regular_files": 1,
+              "orphan_files": 0,
+              "path": "qa@example.test/spam/1/<generated>.eml",
+              "preexisting_files_unchanged": true,
+              "raw": {
+                "base64": "UmVjZWl2ZWQ6IGZyb20gYmxhY2tib3guZXhhbXBsZSAodW52ZXJpZmllZCBbMTI3LjAuMC41NV0pDQoJYnkgPGhvc3RuYW1lPiB3aXRoIEVTTVRQIGlkIDxyZWNlaXZlZC1pZD4NCglmb3IgPHFhQGV4YW1wbGUudGVzdD47DQoJPHJlY2VpdmVkLWF0Pg0KQXV0aGVudGljYXRpb24tUmVzdWx0czogPGhvc3RuYW1lPjsNCglzcGY9bm9uZSAoTm8gU1BGIHJlY29yZCBmb3VuZCBmb3Igc3BmLW5vbmUuYmxhY2tib3gtZXhhbXBsZS5jbykgc210cC5jbGllbnQtaXA9MTI3LjAuMC41NSBzbXRwLm1haWxmcm9tPXNlbmRlckBzcGYtbm9uZS5ibGFja2JveC1leGFtcGxlLmNvOw0KCWRraW09bm9uZSAoTm8gREtJTSBzaWduYXR1cmUgcHJlc2VudCk7DQoJZG1hcmM9bm9uZSBObyBETUFSQyByZWNvcmQgZm91bmQNClgtU3BhbS1TdGF0dXM6IE5vDQpYLVNwYW0tU2NvcmU6IDAuMA0KU3ViamVjdDogYmItc3BmLW5vbmUNCk1lc3NhZ2UtSUQ6IDxiYi1zcGYtbm9uZUBleGFtcGxlLnRlc3Q+DQpNSU1FLVZlcnNpb246IDEuMA0KQ29udGVudC1UeXBlOiB0ZXh0L3BsYWluOyBjaGFyc2V0PXVzLWFzY2lpDQoNCkV4dGVybmFsIFNQRiBub25lIGZpeHR1cmUuDQo=",
+                "length": 593,
+                "sha256": "ccb54cf35eff158b0a69de37b2b041a4916cdd4247af293bdfd61d2ec4774583"
+              },
+              "residual_temp_files": 0,
+              "symlinks": 0
+            },
+            "postgres": {
+              "file_name": "<generated>.eml",
+              "folder": "spam",
+              "from_address": null,
+              "has_attachments": false,
+              "id": "<identity>",
+              "indexed_at": "<timestamp>",
+              "mailbox_address": "qa@example.test",
+              "matching_rows": 1,
+              "message_id": "<bb-spf-none@example.test>",
+              "received_at": "<timestamp>",
+              "size_bytes": "<maildir-byte-length>",
+              "subdirectory": 1,
+              "subject": "bb-spf-none",
+              "to_addresses": "[]"
+            },
+            "redis": {
+              "after": 4,
+              "before": 3,
+              "delta": 1,
+              "key": "mail:count:qa@example.test:spam",
+              "pttl": -1,
+              "type": "string"
+            },
+            "size_contract": "postgres-size_bytes-equals-maildir-byte-length"
+          },
+          "wire": {
+            "accepted": [
+              "250 2.0.0 Message accepted for delivery, id=<session-id>\r\n"
+            ],
+            "data_ready": [
+              "354 Start mail input; end with <CRLF>.<CRLF>\r\n"
+            ],
+            "ehlo": [
+              "250-<hostname> Hello blackbox.example\r\n",
+              "250-PIPELINING\r\n",
+              "250-SIZE 15728640\r\n",
+              "250-8BITMIME\r\n",
+              "250-CHUNKING\r\n",
+              "250-ENHANCEDSTATUSCODES\r\n",
+              "250-SMTPUTF8\r\n",
+              "250 SKIBIDITOILET\r\n"
+            ],
+            "greeting": [
+              "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+            ],
+            "mail_from": [
+              "250 2.1.0 Sender OK\r\n"
+            ],
+            "quit": [
+              "221 2.0.0 <hostname> closing connection\r\n"
+            ],
+            "rcpt_to": [
+              "250 2.1.5 Recipient OK\r\n"
+            ]
+          }
+        },
+        "expected_folder": "spam",
+        "name": "none",
+        "sender": "sender@spf-none.blackbox-example.co",
+        "source": "127.0.0.55",
+        "spf_record": null,
+        "spf_txt_query_count": "at-least-one"
+      }
+    ]
+  },
+  "schema_version": 2
+}
