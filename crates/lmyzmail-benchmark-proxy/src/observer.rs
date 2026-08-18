@@ -906,6 +906,7 @@ struct RoundState {
     seen: Vec<u64>,
     message_ids: HashSet<[u8; 32]>,
     verified: usize,
+    latest_accepted_at_monotonic_ns: Option<u64>,
     duplicates: u64,
     failure_count: u64,
     failures: Vec<String>,
@@ -952,6 +953,7 @@ impl RoundState {
             seen: vec![0; words],
             message_ids: HashSet::with_capacity(expected_messages),
             verified: 0,
+            latest_accepted_at_monotonic_ns: None,
             duplicates: 0,
             failure_count: 0,
             failures: Vec::new(),
@@ -1148,6 +1150,12 @@ impl RoundState {
         }
         self.seen[word] |= mask;
         self.verified += 1;
+        self.latest_accepted_at_monotonic_ns = Some(
+            self.latest_accepted_at_monotonic_ns
+                .map_or(boundary.completed_at_monotonic_ns, |latest| {
+                    latest.max(boundary.completed_at_monotonic_ns)
+                }),
+        );
         self.total_wire_bytes = self
             .total_wire_bytes
             .saturating_add(message.wire_bytes as u64);
@@ -1213,20 +1221,13 @@ impl RoundState {
                 }
             }
         }
-        let duration_ns = self.final_boundary.as_ref().map(|boundary| {
-            boundary
-                .completed_at_monotonic_ns
-                .saturating_sub(self.armed_at_monotonic_ns)
-        });
-        let progress_duration_ns = self
+        let duration_ns = self
             .final_boundary
             .as_ref()
-            .map(|boundary| boundary.completed_at_monotonic_ns)
-            .or_else(|| {
-                self.last_samples
-                    .back()
-                    .map(|sample| sample.accepted_at_monotonic_ns)
-            })
+            .and(self.latest_accepted_at_monotonic_ns)
+            .map(|completed_at| completed_at.saturating_sub(self.armed_at_monotonic_ns));
+        let progress_duration_ns = self
+            .latest_accepted_at_monotonic_ns
             .map(|completed_at| completed_at.saturating_sub(self.armed_at_monotonic_ns));
         let throughput_messages_per_second = duration_ns.and_then(|duration| {
             (duration > 0).then_some(self.verified as f64 * 1_000_000_000.0 / duration as f64)
@@ -2725,6 +2726,26 @@ mod tests {
         assert!(summary.final_250_boundary.is_none());
         assert!(summary.duration_ns.is_none());
         assert!(summary.progress_duration_ns.is_some_and(|value| value > 0));
+    }
+
+    #[test]
+    fn out_of_order_final_reply_forwarding_keeps_progress_duration_monotonic() {
+        let hub = ObserverHub::new(ObserverLimits::default()).unwrap();
+        let payload_len = message(22, 0, 1_024).len();
+        hub.begin(spec(2, payload_len)).unwrap();
+        let (_earlier_client, mut earlier_server, _) = pending_data_exchange(&hub, 22, 0, 1_024);
+        std::thread::sleep(std::time::Duration::from_millis(1));
+        let (_later_client, mut later_server, _) = pending_data_exchange(&hub, 22, 1, 1_024);
+
+        later_server.acknowledge_forwarded().unwrap();
+        let first_progress = hub.summary().unwrap().progress_duration_ns.unwrap();
+        earlier_server.acknowledge_forwarded().unwrap();
+        let summary = hub.finalize().unwrap();
+
+        assert!(summary.qualification, "{summary:#?}");
+        assert_eq!(summary.verified, 2);
+        assert!(summary.progress_duration_ns.unwrap() >= first_progress);
+        assert_eq!(summary.duration_ns, summary.progress_duration_ns);
     }
 
     #[tokio::test]
