@@ -1227,3 +1227,27 @@ artifact. After restoring the retained v83/v84 shape, all 15 inbound-delivery
 module tests pass, including batch replay, legacy count-state initialization,
 batch/single recovery concurrency, request-failure isolation, and rollback
 accounting.
+
+V90b reran the restored mutation-fused shape from commit `816f7da4` after the
+recovery audit. Two clean rebuilds from that commit produced the same profiling
+ELF SHA-256,
+`0a20582506be4eeda1257176b82488c55aeaf1fd1493c26e006a0999cb5b9de5`,
+and Build ID `c435828cacdd1c15f2be21abeccc19d0a9aa3e0c`. The run delivered
+4,096/4,096 messages with zero failure, exception, retry, or loss in 36.345
+seconds at 112.70 messages/second; delivery took 19.135 seconds. It used 743
+inbound index transactions, or 5.513 messages per transaction, which restores
+the v83/v84 transaction shape and throughput. Its quartile rates were 89.71,
+112.94, 145.15, and 147.01 messages/second, so it failed only the unchanged
+30% ramp-up stability gate and is diagnostic rather than formal throughput
+evidence.
+
+The v90b console and cleanup-receipt hashes are
+`558654a1df75adf4ab7107aaa6ebf8b0dbf8d07f5ac7b328898daa44c36dc86d`
+and
+`08bb7ec6486722cf3fa34b79d993d4a2100c1560c8aa47ecff3801fc302be601`.
+Run `b991fdca-9cd1-454b-826d-d91afbd9d131` ended with `request=ABORT`,
+`cleanup=passed`, and `lazy_unmount=0`. The watchdog refused to signal the
+already-exited runner after the failed stability assertion, so no qualified
+artifact or runner-success receipt exists. A root audit confirmed that its
+cgroup, mount, image, loop device, artifacts, candidate, PostgreSQL, and Redis
+processes were absent before this unqualified receipt was retained.
