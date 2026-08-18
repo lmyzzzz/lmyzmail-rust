@@ -26,6 +26,39 @@ contains 1,585 spam phrases, 758 phishing phrases, 69 shortener domains, and
 124 suspicious TLDs. Explicit `lmyzmail.*` keys still win over profile and
 legacy `botmail.*` values per field.
 
+## Filesystem durability
+
+`lmyzmail.storage.fsync-enabled` defaults to `true`; the exact legacy alias is
+`botmail.storage.fsync-enabled`, and the new key wins when both are present.
+The semantic JSON spelling is `storage.fsync_enabled`. Enabled mode preserves
+the file and directory barriers around lmyzmail-owned Maildir staging and
+publication, outbound spool and quarantine transitions, mailbox mutations,
+multipart upload files, and honeypot journals.
+
+Disabled mode skips those filesystem `fsync`/`fdatasync` barriers to match the
+frozen Java implementation's close-only file behavior for throughput-sensitive
+deployments that explicitly accept possible loss of acknowledged filesystem
+data after a process, kernel, or power failure. It does not disable atomic
+rename/publication, ownership and path checks, bounded queues, cancellation,
+or database state transitions. It also does not alter PostgreSQL WAL settings,
+PostgreSQL `synchronous_commit`, Redis persistence, or evidence-tool durability.
+Benchmark evidence records this setting explicitly: `off` is the Java
+throughput comparison mode, while `on` is the durability and long-running
+stability mode.
+
+The fsync-off stress endpoint also uses a 256-request bounded handoff, a
+64-message maximum PostgreSQL batch, and a two-millisecond maximum collection
+window. One batch holds the existing global queue admission lock while a single
+statement inserts queue, Rust spool, content-authority, and Sent-index rows,
+then performs one commit. Queue capacity is still computed from the union of
+PostgreSQL and Redis active IDs under that lock. Cancellation is rechecked
+before any mutation; cancellation after mutation starts waits for commit
+classification, and a lost commit response uses the same exact-identity
+reconciliation as the single-message path. This batching is limited to the
+stress endpoint's already-unmetered admission path: authenticated user mail,
+per-sender quota enforcement, DSNs, and default fsync-on operation retain the
+existing per-message transaction path.
+
 Generated product identifiers use the new `lmyzmail` brand. The intentional
 wire-level exception is the TLSRPT HTTPS User-Agent, which is
 `lmyzmail-TLSRPT/1.0`; all delivery status, request framing, TLS, DNS, and
@@ -37,12 +70,11 @@ there is no whole-response masking or assertion weakening.
 
 ## Native Skibidi banner
 
-SMTP banner generation is implemented entirely in Rust. The frozen Skibidi
-1.8.0 C library is retained as a read-only probability, table, and behavior
-oracle; it is not compiled, linked, or loaded by the production binary. Its
-grammar, probability thresholds, seed behavior, batch behavior, ABI, and memory
-ownership are authoritative. lmyzmail does not reproduce the Java 26.85% outer
-fast path or maintain a second probability implementation.
+SMTP banner generation calls the frozen Skibidi 1.8.0 C library through a
+narrow Rust FFI. Its grammar, probability thresholds, seed behavior, batch
+behavior, ABI, and memory ownership are authoritative. lmyzmail does not
+reproduce the Java 26.85% outer fast path or maintain a second probability
+implementation in Rust.
 
 The frozen source commit is `4bc484c15b780d578ee8e53cab968f2819958215`.
 `skibidi_avx.c` has SHA-256
@@ -51,18 +83,18 @@ and `skibidi_avx.h` has SHA-256
 `bde8e9d19d6668c644aba1cdd81fb9f56c2236ff827ddd16fb366369bc68bbea`.
 The build rejects either source if its digest changes.
 
-Legacy `JAVA` mode is retained only as a configuration alias for the Rust
-scalar backend; it never starts a JVM or selects a C implementation. `SCALAR`
-is the explicit spelling. `AVX2` and `AVX512` require OS-aware runtime
-support, while `AUTO`, `AUTO_SAFE`, and `NATIVE` choose the best permitted
-Rust backend. The AVX-labelled modes retain capability reporting and are
-selected only when the process has the required OS-managed extended state.
+Legacy `JAVA` mode is retained only as a configuration alias for the frozen C
+scalar object; it never starts a JVM or selects a simulated Java fast path.
+`SCALAR` is the explicit spelling. `AVX2` and `AVX512` require OS-aware
+runtime support, while `AUTO`, `AUTO_SAFE`, and `NATIVE` choose the best
+permitted C object. The AVX-labelled modes retain capability reporting and are
+entered only when the process has the required OS-managed extended state.
 
 The managed Java oracle runs in `JAVA` mode in WSL because its historical
 bundled native library can execute an unsupported instruction. It therefore
 remains the banner wire-grammar oracle, while frozen C tests and external Rust
-candidate sampling verify that the Rust implementation follows those
-probability authorities.
+candidate sampling verify that the production FFI follows the C probability
+authority. The lmyzmail runtime itself has no Java/JVM dependency.
 
 ## Java parity edge cases
 
@@ -417,6 +449,17 @@ The candidate reads `lmyzmail.outbound.helo-hostname` with
 non-ASCII, whitespace/control-bearing, or over-253-byte values are rejected at
 startup. The differential fixtures use `blackbox.example` through the legacy
 key for Java and the new key for Rust.
+
+Outbound SMTP connection reuse follows the frozen Java defaults and accepts
+the exact `botmail.outbound.pool-enabled`, `max-connections-per-host`,
+`max-messages-per-connection`, `max-idle-time-ms`,
+`connection-life-time-ms`, and `pool-cleanup-interval-ms` suffixes. Their
+`lmyzmail.outbound.*` forms take precedence per field. A successful final DATA
+reply is followed by `RSET`; only a 250 response returns the session to the
+pool. Rejected, failed, cancelled, ambiguous, expired, or over-limit sessions
+close and are never reused. In addition to the configured per-endpoint limit,
+the Rust process hard-caps the idle pool at 256 endpoint keys and 256 total
+connections so adversarial MX churn cannot create unbounded state.
 
 The active `managed-outbound-dsn-oracle-evidence-v3.json` recording freezes a
 real RCPT 550 followed by an eight-second bounded Java observation. The oracle
@@ -1131,3 +1174,34 @@ and the bounded PostgreSQL no-side-effect observation window. The managed TLS
 candidate receives its ephemeral PKCS#12 password only through
 `LMYZMAIL_SSL_KEYSTORE_PASSWORD`; neither runtime configuration nor goldens
 contain the password or private key.
+
+## Inbound durability and mail-count projection
+
+New inbound delivery uses the additive
+`lmyzmail_inbound_delivery_intent` journal without changing `email_index`.
+The accepted bytes are first fsynced under the Maildir-local
+`.lmyzmail-inbound` directory and bound to a durable intent by device, inode,
+size, and SHA-256. Publication uses `RENAME_NOREPLACE`; both staging and final
+directories are fsynced, and the final file is reopened and hashed before and
+after the index transaction. The SMTP listener does not open until the bounded
+intent backlog has converged. Runtime admission and recovery serialize per
+mailbox, and an unknown PostgreSQL commit is resolved from the exact intent and
+index identity instead of deleting a published file.
+
+The legacy `mail:count:{mailbox}:{folder}` key remains a repairable projection.
+Insertion and HTTP deletion compute the desired count while holding the same
+PostgreSQL mailbox lock that protects `email_index`. Work is coalesced into one
+`lmyzmail_inbound_mail_count_projection` row per mailbox and folder, so a Redis
+outage does not create one durable row per accepted message. The worker holds
+the projection row lock while issuing idempotent `SET ... KEEPTTL`; this keeps
+an existing TTL and prevents an older generation from overwriting a newer
+count. As in the frozen Java implementation, Redis failure does not roll back a
+durable Maildir file or index row.
+
+Failing closed before SMTP acceptance when PostgreSQL cannot durably record the
+intent is an intentional safety difference from Java's file-first best-effort
+indexing. Existing installations with pre-existing Maildir/`email_index` drift
+need separate bounded legacy audit evidence before takeover; this inbound
+state machine prevents new drift but does not infer unindexed historical files.
+Outbound/Sent count repair is owned by the outbound durability path and is not
+part of this inbound migration.

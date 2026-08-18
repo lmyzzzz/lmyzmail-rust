@@ -1,4 +1,7 @@
-use std::fmt;
+use std::{
+    fmt,
+    sync::{Arc, Mutex},
+};
 
 use chrono::{DateTime, Utc};
 use getrandom::fill as fill_random;
@@ -11,7 +14,8 @@ use crate::{
         LegacyStatusMaterialization, PostgresDeliveryState,
     },
     outbound_queue::{
-        LegacyListClaim, LegacyListKind, LegacyListRecord, LegacyOutboundQueue, QueueError,
+        EmptyReceiptPolicy, LegacyListClaim, LegacyListKind, LegacyListRecord, LegacyOutboundQueue,
+        QueueError,
     },
 };
 
@@ -23,6 +27,18 @@ const RECONCILIATION_ATTEMPTS: usize = 3;
 pub struct LegacyQueueMigrator {
     queue: LegacyOutboundQueue,
     state: PostgresDeliveryState,
+    tokens: Arc<Mutex<MigrationTokens>>,
+}
+
+#[derive(Default)]
+struct MigrationTokens {
+    archive: Option<MigrationToken>,
+    status_updates: Option<MigrationToken>,
+}
+
+struct MigrationToken {
+    value: String,
+    empty_seen: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -69,7 +85,11 @@ impl From<DeliveryStateError> for LegacyMigrationError {
 
 impl LegacyQueueMigrator {
     pub fn new(queue: LegacyOutboundQueue, state: PostgresDeliveryState) -> Self {
-        Self { queue, state }
+        Self {
+            queue,
+            state,
+            tokens: Arc::new(Mutex::new(MigrationTokens::default())),
+        }
     }
 
     pub async fn migrate_batch(
@@ -199,14 +219,26 @@ impl LegacyQueueMigrator {
         kind: LegacyListKind,
         max_record_bytes: usize,
     ) -> Result<LegacyListClaim, LegacyMigrationError> {
-        let token = migration_token()?;
+        let (token, empty_receipt_policy) = self.migration_token(kind)?;
         for _ in 0..RECONCILIATION_ATTEMPTS {
             match self
                 .queue
-                .claim_legacy_list_record(kind, &token, max_record_bytes)
+                .claim_legacy_list_record_with_policy(
+                    kind,
+                    &token,
+                    max_record_bytes,
+                    empty_receipt_policy,
+                )
                 .await
             {
-                Ok(claim) => return Ok(claim),
+                Ok(claim) => {
+                    if matches!(&claim, LegacyListClaim::Empty) {
+                        self.mark_migration_token_empty(kind, &token)?;
+                    } else {
+                        self.retire_migration_token(kind, &token)?;
+                    }
+                    return Ok(claim);
+                }
                 Err(QueueError::OutcomeUnknown) => continue,
                 Err(error) => return Err(error.into()),
             }
@@ -214,6 +246,40 @@ impl LegacyQueueMigrator {
         Err(LegacyMigrationError::Reconciliation(
             "legacy Redis list claim could not be reconciled",
         ))
+    }
+
+    fn migration_token(
+        &self,
+        kind: LegacyListKind,
+    ) -> Result<(String, EmptyReceiptPolicy), LegacyMigrationError> {
+        self.tokens
+            .lock()
+            .map_err(|_| LegacyMigrationError::Queue(QueueError::Unavailable))?
+            .get_or_create(kind)
+    }
+
+    fn mark_migration_token_empty(
+        &self,
+        kind: LegacyListKind,
+        token: &str,
+    ) -> Result<(), LegacyMigrationError> {
+        self.tokens
+            .lock()
+            .map_err(|_| LegacyMigrationError::Queue(QueueError::Unavailable))?
+            .mark_empty(kind, token);
+        Ok(())
+    }
+
+    fn retire_migration_token(
+        &self,
+        kind: LegacyListKind,
+        token: &str,
+    ) -> Result<(), LegacyMigrationError> {
+        self.tokens
+            .lock()
+            .map_err(|_| LegacyMigrationError::Queue(QueueError::Unavailable))?
+            .retire(kind, token);
+        Ok(())
     }
 
     async fn acknowledge(&self, record: &LegacyListRecord) -> Result<(), LegacyMigrationError> {
@@ -498,9 +564,87 @@ fn migration_token() -> Result<String, LegacyMigrationError> {
     Ok(token)
 }
 
+impl MigrationTokens {
+    fn get_or_create(
+        &mut self,
+        kind: LegacyListKind,
+    ) -> Result<(String, EmptyReceiptPolicy), LegacyMigrationError> {
+        let slot = match kind {
+            LegacyListKind::Archive => &mut self.archive,
+            LegacyListKind::StatusUpdates => &mut self.status_updates,
+        };
+        if let Some(token) = slot.as_ref() {
+            let policy = if token.empty_seen {
+                EmptyReceiptPolicy::Suppress
+            } else {
+                EmptyReceiptPolicy::Create
+            };
+            return Ok((token.value.clone(), policy));
+        }
+        let token = migration_token()?;
+        *slot = Some(MigrationToken {
+            value: token.clone(),
+            empty_seen: false,
+        });
+        Ok((token, EmptyReceiptPolicy::Create))
+    }
+
+    fn mark_empty(&mut self, kind: LegacyListKind, token: &str) {
+        let slot = match kind {
+            LegacyListKind::Archive => &mut self.archive,
+            LegacyListKind::StatusUpdates => &mut self.status_updates,
+        };
+        if let Some(active) = slot.as_mut()
+            && active.value == token
+        {
+            active.empty_seen = true;
+        }
+    }
+
+    fn retire(&mut self, kind: LegacyListKind, token: &str) {
+        let slot = match kind {
+            LegacyListKind::Archive => &mut self.archive,
+            LegacyListKind::StatusUpdates => &mut self.status_updates,
+        };
+        if slot.as_ref().map(|active| active.value.as_str()) == Some(token) {
+            *slot = None;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn migration_tokens_are_stable_per_empty_namespace_until_retired() {
+        let mut tokens = MigrationTokens::default();
+        let (archive, archive_policy) = tokens.get_or_create(LegacyListKind::Archive).unwrap();
+        assert_eq!(archive_policy, EmptyReceiptPolicy::Create);
+        assert_eq!(
+            tokens.get_or_create(LegacyListKind::Archive).unwrap(),
+            (archive.clone(), EmptyReceiptPolicy::Create)
+        );
+        tokens.mark_empty(LegacyListKind::Archive, &archive);
+        assert_eq!(
+            tokens.get_or_create(LegacyListKind::Archive).unwrap(),
+            (archive.clone(), EmptyReceiptPolicy::Suppress)
+        );
+        let (status, status_policy) = tokens.get_or_create(LegacyListKind::StatusUpdates).unwrap();
+        assert_eq!(status_policy, EmptyReceiptPolicy::Create);
+        assert_ne!(archive, status);
+
+        tokens.retire(LegacyListKind::Archive, "migrate:not-the-active-token");
+        assert_eq!(
+            tokens.get_or_create(LegacyListKind::Archive).unwrap(),
+            (archive.clone(), EmptyReceiptPolicy::Suppress)
+        );
+        tokens.retire(LegacyListKind::Archive, &archive);
+        let (replacement, replacement_policy) =
+            tokens.get_or_create(LegacyListKind::Archive).unwrap();
+        assert_ne!(replacement, archive);
+        assert_eq!(replacement_policy, EmptyReceiptPolicy::Create);
+    }
 
     #[test]
     fn parses_frozen_archive_and_status_shapes() {

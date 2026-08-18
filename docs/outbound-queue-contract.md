@@ -108,6 +108,14 @@ The Rust producer now applies the following bounded order:
    permits materialized files to be removed; an exact triple proves committed,
    while partial state, conflicting identity, or another read failure is
    `OutcomeUnknown` and preserves Sent/spool files.
+   With filesystem fsync explicitly disabled, the unmetered stress endpoint may
+   coalesce at most 64 already-materialized messages for at most two
+   milliseconds. A single data-modifying CTE inserts all four PostgreSQL
+   authorities (queue, Rust spool, content, and Sent index) and commits once
+   while holding the same global capacity lock. The handoff holds at most 256
+   requests, canceled requests are removed before mutation, and every caller
+   receives a committed, definitely-not-committed, or commit-uncertain result.
+   The last case runs the exact per-message identity reconciliation above.
 6. Atomically create the exact legacy task JSON, domain-status hash, sent-file
    index, and pending reference in Redis. Repeated publication succeeds only
    when the task and every domain JSON value are identical. A response-loss
@@ -128,6 +136,10 @@ rebuilt from the Sent copy: small messages are Base64-encoded with a bounded
 read, while a missing large-message spool is atomically reconstructed at the
 same stable path. The same path runs after process restart and does not depend
 on Java or an in-memory request object.
+The managed candidate restart gate removes the complete Redis projection of a
+real HTTP-admitted row, sends SIGKILL, and then requires the restarted process
+to recreate the exact task, domain, pending, and sent-file-index state without
+duplicating either the PostgreSQL row, `email_index` row, or Sent file.
 
 ## Rust Claim And Lease Primitive
 
@@ -185,6 +197,12 @@ no pending/retry reference or task JSON. A missing lease/attempt without a
 matching receipt is `NotFound`, never proof of success. A delayed mutation that
 arrives after lease expiry is rejected and remains recoverable only through the
 expired-claim path.
+
+The Redis durability gate runs an isolated AOF instance with
+`appendfsync=always`, kills it after a fenced claim and again after terminal
+acknowledgement, and restarts from the same data directory and port. The active
+lease, reverse claim, absolute task/domain TTLs, terminal receipt, and exact
+legacy postconditions must remain reconcilable after their respective restart.
 
 Expired-claim discovery uses bounded `SSCAN` pages and only reports processing
 members whose Rust lease key is absent. Recovery checks absence again inside
@@ -331,12 +349,18 @@ forces claim, heartbeat, retry, terminal, and ledger mutation timeouts; while
 the lock is still held, `pg_stat_activity` must show no waiting mutation, and
 the row must remain unchanged after release. A transparent proxy also refuses
 the fallback CancelRequest transport while withholding the server response;
-server timeout still prevents a late claim or commit. It also covers reverse-token claim binding,
-sidecarless takeover quarantine, recipient roster integrity, monotonic terminal
-states, generation fencing, armed crash/cancellation recovery, and fail-closed
-cross-table corruption. Poisoned negative, inverted, and negative maximum
-retry counters are also exercised. The internal coordinator calls Redis
-acknowledgement or retry scheduling only after PostgreSQL projection commits.
+server timeout still prevents a late claim or commit. A durability fixture with
+`fsync=on`, `synchronous_commit=on`, and `full_page_writes=on` SIGKILLs and
+restarts the real PostgreSQL postmaster after a `COMMIT_ARMED` recipient
+checkpoint and again after terminal projection. The exact claim remains fenced
+and resumable after the first crash; the second recovery retains one queue row,
+one attempt, one recipient, and the `SENT`/`PROJECTED` terminal state. The suite
+also covers reverse-token claim binding, sidecarless takeover quarantine,
+recipient roster integrity, monotonic terminal states, generation fencing,
+armed crash/cancellation recovery, and fail-closed cross-table corruption.
+Poisoned negative, inverted, and negative maximum retry counters are also
+exercised. The internal coordinator calls Redis acknowledgement or retry
+scheduling only after PostgreSQL projection commits.
 Producer publication, MIME/DKIM, Sent Maildir storage, coordinator delivery,
 and queue maintenance now run inside the production lifecycle in `main`.
 
@@ -499,6 +523,12 @@ prove whether the terminator reached the peer.
   processing, retry, or archive reference remains. Migration must preserve
   existing TTLs and extend or repair only records that are actively owned by
   the Rust runtime.
+  The maintenance loop rotates through at most 1,024 pending references per
+  pass and refreshes the exact task/domain keys only after the complete page
+  passes type, ID, and existence validation. Its process-local cursor restarts
+  at the list head after a process restart; at the one-million-reference hard
+  cap and five-second maintenance cadence, a complete pass remains well below
+  the seven-day TTL.
 - Message bytes and the sent Maildir copy are retained until the durable send
   result is archived. Publication uses a same-filesystem temporary file,
   flush, atomic no-clobber link, temporary unlink, and directory fsync.

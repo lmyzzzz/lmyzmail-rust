@@ -1,5 +1,7 @@
 use std::{
-    env, fs,
+    env,
+    fmt::Write as _,
+    fs,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -86,6 +88,37 @@ const LITEHTML_SOURCES: &[&str] = &[
 const FFMPEG_NORMALIZATION_VERSION: &str = "lf-text-v2";
 const FFMPEG_BUILD_VERSION: &str = "n7.1-minimal-static-v2-reproducible-paths-lf-text-v2";
 const XDP_CLANG_VERSION: &str = "18.1.3";
+const SKIBIDI_FROZEN_SOURCES: &[(&str, &str)] = &[
+    (
+        "skibidi_avx.c",
+        "7e8e7f3ee5bea0ac8d0857bd5bc8d806b44e5142c17ec8b5b6583db7c62fc613",
+    ),
+    (
+        "skibidi_avx.h",
+        "bde8e9d19d6668c644aba1cdd81fb9f56c2236ff827ddd16fb366369bc68bbea",
+    ),
+];
+const SKIBIDI_EXPORTS: &[&str] = &[
+    "skibidi_init",
+    "skibidi_configure",
+    "skibidi_get_config",
+    "skibidi_generate",
+    "skibidi_generate_variant",
+    "skibidi_generate_batch",
+    "skibidi_destroy",
+    "skibidi_alloc_context",
+    "skibidi_alloc_context_array",
+    "skibidi_free_context",
+    "skibidi_version",
+    "skibidi_has_avx2",
+    "skibidi_has_avx512",
+    "skibidi_get_capabilities",
+    "skibidi_get_active_simd",
+    "skibidi_is_avx512_enabled",
+    "skibidi_get_rng_state_size",
+    "skibidi_get_context_size",
+    "skibidi_get_context_alignment",
+];
 const XDP_FROZEN_SOURCES: &[(&str, &str)] = &[
     (
         "vmlinux.h",
@@ -123,9 +156,11 @@ fn main() {
         env::var_os("CARGO_MANIFEST_DIR").expect("Cargo did not set CARGO_MANIFEST_DIR"),
     );
     let native_dir = manifest_dir.join("native");
+    let skibidi_source = manifest_dir.join("../../native/lmyzmail-skibidi/upstream");
     let xdp_source = manifest_dir.join("../../native/lmyzmail-xdp");
     let ffmpeg_source = manifest_dir.join("../../vendor/ffmpeg-n7.1");
     let out_dir = PathBuf::from(env::var_os("OUT_DIR").expect("Cargo did not set OUT_DIR"));
+    build_skibidi(&skibidi_source, &out_dir);
     let (ffmpeg_include, ffmpeg_lib) = build_ffmpeg(&ffmpeg_source, &out_dir);
     build_xdp(&xdp_source, &native_dir, &out_dir);
     let litehtml_dir = manifest_dir.join("../../vendor/litehtml");
@@ -136,6 +171,7 @@ fn main() {
     let gumbo_include = gumbo_dir.join("include");
 
     println!("cargo:rerun-if-changed={}", native_dir.display());
+    println!("cargo:rerun-if-changed={}", skibidi_source.display());
     println!("cargo:rerun-if-changed={}", xdp_source.display());
     println!("cargo:rerun-if-changed={}", ffmpeg_source.display());
     println!("cargo:rerun-if-changed={}", litehtml_src.display());
@@ -223,6 +259,421 @@ fn main() {
     for library in ["bpf", "elf", "cap", "z", "m", "dl", "pthread"] {
         println!("cargo:rustc-link-lib=dylib={library}");
     }
+}
+
+struct SkibidiCompilerIdentity {
+    path: PathBuf,
+    family: &'static str,
+    version: &'static str,
+    version_line: String,
+}
+
+struct SkibidiVariantBuild {
+    name: String,
+    library: String,
+    effective_compiler_args: Vec<String>,
+}
+
+fn build_skibidi(source: &Path, out_dir: &Path) {
+    verify_frozen_sources("Skibidi 1.8.0", source, SKIBIDI_FROZEN_SOURCES);
+    reject_skibidi_cflags();
+    let compiler = resolve_skibidi_compiler();
+
+    let scalar = build_skibidi_variant(
+        source,
+        &compiler,
+        "scalar",
+        "lmyzmail_skibidi_scalar",
+        &[
+            "-march=x86-64",
+            "-mno-avx",
+            "-mno-avx2",
+            "-mno-avx512f",
+            "-mno-avx512vl",
+            "-mno-avx512bw",
+            "-mno-avx512dq",
+            "-mno-fma",
+        ],
+    );
+    let avx2 = build_skibidi_variant(
+        source,
+        &compiler,
+        "avx2",
+        "lmyzmail_skibidi_avx2",
+        &[
+            "-march=x86-64",
+            "-mavx2",
+            "-mno-avx512f",
+            "-mno-avx512vl",
+            "-mno-avx512bw",
+            "-mno-avx512dq",
+            "-mno-fma",
+        ],
+    );
+    let avx512 = build_skibidi_variant(
+        source,
+        &compiler,
+        "avx512",
+        "lmyzmail_skibidi_avx512",
+        &[
+            "-march=x86-64",
+            "-mavx2",
+            "-mavx512f",
+            "-mavx512vl",
+            "-mavx512bw",
+            "-mavx512dq",
+            "-mno-fma",
+        ],
+    );
+    write_skibidi_build_manifest(out_dir, &compiler, &[scalar, avx2, avx512]);
+}
+
+fn build_skibidi_variant(
+    source: &Path,
+    compiler: &SkibidiCompilerIdentity,
+    variant: &str,
+    library: &str,
+    flags: &[&str],
+) -> SkibidiVariantBuild {
+    let mut native = cc::Build::new();
+    native
+        .compiler(&compiler.path)
+        .cargo_metadata(false)
+        .no_default_flags(true)
+        .inherit_rustflags(false)
+        .include(source)
+        .file(source.join("skibidi_avx.c"))
+        .flag("--target=x86_64-unknown-linux-gnu")
+        .flag("-O3")
+        .flag("-std=c11")
+        .flag("-fPIC")
+        .flag("-fno-lto")
+        .flag("-Werror")
+        .warnings(true)
+        .extra_warnings(true)
+        .flag("-Wpedantic");
+    for flag in flags {
+        native.flag(flag);
+    }
+    for symbol in SKIBIDI_EXPORTS {
+        let stem = symbol
+            .strip_prefix("skibidi_")
+            .expect("Skibidi export must have the skibidi_ prefix");
+        let renamed = format!("lmyzmail_skibidi_{variant}_{stem}");
+        native.define(symbol, Some(renamed.as_str()));
+    }
+
+    let tool = native.get_compiler();
+    if !tool.is_like_clang() || tool.is_like_clang_cl() {
+        panic!(
+            "frozen Skibidi variants require clang family; cc identified {:?}",
+            tool.path()
+        );
+    }
+    let command = tool.to_command();
+    let actual_program = fs::canonicalize(command.get_program()).unwrap_or_else(|error| {
+        panic!(
+            "failed to canonicalize effective Skibidi compiler {:?}: {error}",
+            command.get_program()
+        )
+    });
+    assert_eq!(
+        actual_program, compiler.path,
+        "cc selected a compiler wrapper or a different compiler for frozen Skibidi"
+    );
+    let effective_compiler_args = command
+        .get_args()
+        .map(|argument| {
+            argument
+                .to_str()
+                .unwrap_or_else(|| panic!("Skibidi compiler argument is not UTF-8: {:?}", argument))
+                .to_owned()
+        })
+        .collect::<Vec<_>>();
+    validate_skibidi_compiler_args(variant, &effective_compiler_args);
+    native.compile(library);
+    SkibidiVariantBuild {
+        name: variant.to_owned(),
+        library: library.to_owned(),
+        effective_compiler_args,
+    }
+}
+
+fn reject_skibidi_cflags() {
+    let target = env::var("TARGET").expect("Cargo did not set TARGET");
+    let host = env::var("HOST").expect("Cargo did not set HOST");
+    let normalized_target = target.replace(['-', '.'], "_");
+    let kind = if target == host { "HOST" } else { "TARGET" };
+    let names = [
+        "CFLAGS".to_owned(),
+        format!("{kind}_CFLAGS"),
+        "CFLAGS_x86_64".to_owned(),
+        format!("CFLAGS_{target}"),
+        format!("CFLAGS_{normalized_target}"),
+    ];
+    for name in names {
+        println!("cargo:rerun-if-env-changed={name}");
+        if env::var_os(&name).is_some_and(|value| !value.is_empty()) {
+            panic!(
+                "{name} must be unset when compiling frozen Skibidi variants; \
+                 per-variant ISA flags are part of the SIGILL safety contract"
+            );
+        }
+    }
+}
+
+fn resolve_skibidi_compiler() -> SkibidiCompilerIdentity {
+    println!("cargo:rerun-if-env-changed=LMYZMAIL_SKIBIDI_CC");
+    println!("cargo:rerun-if-env-changed=LMYZMAIL_BPF_CLANG");
+    println!("cargo:rerun-if-env-changed=PATH");
+    let configured = env::var_os("LMYZMAIL_SKIBIDI_CC")
+        .or_else(|| env::var_os("LMYZMAIL_BPF_CLANG"))
+        .unwrap_or_else(|| "clang".into());
+    let path = resolve_program(&configured).unwrap_or_else(|| {
+        panic!(
+            "Skibidi compiler {:?} was not found as one executable path; embedded compiler arguments are forbidden",
+            configured
+        )
+    });
+    let path = fs::canonicalize(&path).unwrap_or_else(|error| {
+        panic!(
+            "failed to canonicalize Skibidi compiler {}: {error}",
+            path.display()
+        )
+    });
+    assert!(
+        path.is_file(),
+        "Skibidi compiler is not a file: {}",
+        path.display()
+    );
+
+    let output = Command::new(&path)
+        .arg("--version")
+        .output()
+        .unwrap_or_else(|error| {
+            panic!(
+                "failed to run Skibidi compiler {} --version: {error}",
+                path.display()
+            )
+        });
+    assert!(
+        output.status.success(),
+        "Skibidi compiler {} --version failed: {}",
+        path.display(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout)
+        .expect("Skibidi compiler --version stdout must be valid UTF-8");
+    let version_line = stdout
+        .lines()
+        .next()
+        .filter(|line| !line.is_empty())
+        .unwrap_or_else(|| {
+            panic!(
+                "Skibidi compiler {} --version returned no first line",
+                path.display()
+            )
+        })
+        .to_owned();
+    let marker = "clang version ";
+    let marker_start = version_line
+        .to_ascii_lowercase()
+        .find(marker)
+        .unwrap_or_else(|| panic!("Skibidi compiler must identify as clang; got {version_line:?}"));
+    let version = version_line[marker_start + marker.len()..]
+        .split_ascii_whitespace()
+        .next()
+        .expect("clang --version line must contain a version");
+    assert_eq!(
+        version, XDP_CLANG_VERSION,
+        "Skibidi compiler must be clang {}; got {version_line:?}",
+        XDP_CLANG_VERSION
+    );
+    SkibidiCompilerIdentity {
+        path,
+        family: "clang",
+        version: XDP_CLANG_VERSION,
+        version_line,
+    }
+}
+
+fn resolve_program(program: &std::ffi::OsStr) -> Option<PathBuf> {
+    let configured = PathBuf::from(program);
+    if configured.is_absolute() || configured.components().count() > 1 {
+        return configured.is_file().then_some(configured);
+    }
+    env::var_os("PATH").and_then(|path| {
+        env::split_paths(&path)
+            .map(|directory| directory.join(&configured))
+            .find(|candidate| candidate.is_file())
+    })
+}
+
+fn validate_skibidi_compiler_args(variant: &str, args: &[String]) {
+    let march = args
+        .iter()
+        .filter(|argument| argument.starts_with("-march"))
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        march,
+        ["-march=x86-64"],
+        "unexpected -march flags for Skibidi {variant}: {march:?}"
+    );
+
+    let actual_avx = args
+        .iter()
+        .filter(|argument| argument.starts_with("-mavx"))
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    let expected_avx: &[&str] = match variant {
+        "scalar" => &[],
+        "avx2" => &["-mavx2"],
+        "avx512" => &[
+            "-mavx2",
+            "-mavx512f",
+            "-mavx512vl",
+            "-mavx512bw",
+            "-mavx512dq",
+        ],
+        _ => panic!("unknown Skibidi variant {variant:?}"),
+    };
+    assert_eq!(
+        actual_avx, expected_avx,
+        "unexpected -mavx flags for Skibidi {variant}: {actual_avx:?}"
+    );
+    let target = args
+        .iter()
+        .filter(|argument| argument.starts_with("--target") || argument.starts_with("-target"))
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        target,
+        ["--target=x86_64-unknown-linux-gnu"],
+        "unexpected target flags for Skibidi {variant}: {target:?}"
+    );
+    assert!(
+        args.iter().any(|argument| argument == "-fno-lto"),
+        "Skibidi {variant} is missing -fno-lto"
+    );
+    assert!(
+        !args.iter().any(|argument| {
+            argument.starts_with("-flto")
+                || argument == "-fuse-linker-plugin"
+                || argument.contains("target-feature")
+        }),
+        "unexpected LTO or target-feature argument for Skibidi {variant}: {args:?}"
+    );
+}
+
+fn write_skibidi_build_manifest(
+    out_dir: &Path,
+    compiler: &SkibidiCompilerIdentity,
+    variants: &[SkibidiVariantBuild],
+) {
+    let mut manifest = String::new();
+    writeln!(&mut manifest, "{{").unwrap();
+    writeln!(&mut manifest, "  \"schema_version\": 1,").unwrap();
+    writeln!(
+        &mut manifest,
+        "  \"target\": {},",
+        json_string("x86_64-unknown-linux-gnu")
+    )
+    .unwrap();
+    writeln!(&mut manifest, "  \"compiler\": {{").unwrap();
+    writeln!(
+        &mut manifest,
+        "    \"path\": {},",
+        json_string(&compiler.path.to_string_lossy())
+    )
+    .unwrap();
+    writeln!(
+        &mut manifest,
+        "    \"family\": {},",
+        json_string(compiler.family)
+    )
+    .unwrap();
+    writeln!(
+        &mut manifest,
+        "    \"version\": {},",
+        json_string(compiler.version)
+    )
+    .unwrap();
+    writeln!(
+        &mut manifest,
+        "    \"version_line\": {}",
+        json_string(&compiler.version_line)
+    )
+    .unwrap();
+    writeln!(&mut manifest, "  }},").unwrap();
+    writeln!(&mut manifest, "  \"variants\": [").unwrap();
+    for (index, variant) in variants.iter().enumerate() {
+        writeln!(&mut manifest, "    {{").unwrap();
+        writeln!(
+            &mut manifest,
+            "      \"name\": {},",
+            json_string(&variant.name)
+        )
+        .unwrap();
+        writeln!(
+            &mut manifest,
+            "      \"library\": {},",
+            json_string(&variant.library)
+        )
+        .unwrap();
+        writeln!(&mut manifest, "      \"effective_compiler_args\": [").unwrap();
+        for (argument_index, argument) in variant.effective_compiler_args.iter().enumerate() {
+            let comma = if argument_index + 1 == variant.effective_compiler_args.len() {
+                ""
+            } else {
+                ","
+            };
+            writeln!(&mut manifest, "        {}{comma}", json_string(argument)).unwrap();
+        }
+        writeln!(&mut manifest, "      ]").unwrap();
+        let comma = if index + 1 == variants.len() { "" } else { "," };
+        writeln!(&mut manifest, "    }}{comma}").unwrap();
+    }
+    writeln!(&mut manifest, "  ]").unwrap();
+    writeln!(&mut manifest, "}}").unwrap();
+
+    let path = out_dir.join("lmyzmail-skibidi-build-manifest.json");
+    let temporary = out_dir.join(format!(
+        ".lmyzmail-skibidi-build-manifest.{}.tmp",
+        std::process::id()
+    ));
+    fs::write(&temporary, manifest).unwrap_or_else(|error| {
+        panic!(
+            "failed to write Skibidi build manifest {}: {error}",
+            temporary.display()
+        )
+    });
+    fs::rename(&temporary, &path).unwrap_or_else(|error| {
+        panic!(
+            "failed to publish Skibidi build manifest {}: {error}",
+            path.display()
+        )
+    });
+}
+
+fn json_string(value: &str) -> String {
+    let mut encoded = String::with_capacity(value.len() + 2);
+    encoded.push('"');
+    for character in value.chars() {
+        match character {
+            '"' => encoded.push_str("\\\""),
+            '\\' => encoded.push_str("\\\\"),
+            '\n' => encoded.push_str("\\n"),
+            '\r' => encoded.push_str("\\r"),
+            '\t' => encoded.push_str("\\t"),
+            character if character <= '\u{001f}' => {
+                write!(&mut encoded, "\\u{:04x}", character as u32).unwrap();
+            }
+            character => encoded.push(character),
+        }
+    }
+    encoded.push('"');
+    encoded
 }
 
 fn build_xdp(source: &Path, native_dir: &Path, out_dir: &Path) {

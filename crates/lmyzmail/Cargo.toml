@@ -10,8 +10,14 @@ description = "lmyzmail modular monolith runtime"
 name = "lmyzmail"
 path = "src/main.rs"
 
+[[bin]]
+name = "renderer-simd-bench"
+path = "src/bin/renderer-simd-bench.rs"
+required-features = ["renderer-simd-bench"]
+
 [features]
 default = []
+renderer-simd-bench = []
 xdp-test-hooks = []
 
 [dependencies]
@@ -34,7 +40,7 @@ icu_casemap = "=1.5.1"
 image = { version = "0.25.8", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "webp"] }
 ipnet = "2.11.0"
 mail-parser = "0.11.5"
-mail-auth = { version = "0.11.2", default-features = false, features = ["dns-hickory", "rust-crypto"] }
+mail-auth = { version = "0.11.2", default-features = false, features = ["dns-hickory", "ring"] }
 mail-builder = { version = "0.4.4", default-features = false }
 md-5 = "0.11.0"
 memmap2 = "0.9.11"
@@ -50,7 +56,7 @@ safetensors = "0.8.0"
 reqwest = { version = "0.13.4", default-features = false, features = ["rustls-no-provider"] }
 regex = "1.11.1"
 resvg = { version = "0.45.1", default-features = false, features = ["raster-images"] }
-rustix = { version = "1.1.4", features = ["fs"] }
+rustix = { version = "1.1.4", features = ["fs", "net"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = { version = "1.0.140", features = ["arbitrary_precision", "preserve_order"] }
 sha1 = "0.11.0"

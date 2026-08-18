@@ -40,7 +40,7 @@ use zeroize::{Zeroize, Zeroizing};
 use crate::{
     auth::{AuthError, AuthService, LoginOutcome},
     bounded_blocking::{BoundedBlockingPool, SubmitError},
-    config::{MinecraftConfig, RuntimeConfig},
+    config::{MailRenderSimdMode, MinecraftConfig, RuntimeConfig},
     ffmpeg_video::VideoDecoder,
     mail_render,
     mailbox::{EmailListItem, EmailListPage, MailboxService},
@@ -1340,6 +1340,7 @@ fn parse_allowed_external_image_url(source: &str) -> Option<reqwest::Url> {
 
 struct StatusService {
     config: MinecraftConfig,
+    mail_render_simd_mode: MailRenderSimdMode,
     status_frame: Arc<[u8]>,
     blacklist_frame: Arc<[u8]>,
     whitelist_frame: Arc<[u8]>,
@@ -1370,7 +1371,15 @@ struct StatusService {
 }
 
 impl StatusService {
+    #[cfg(test)]
     fn new(config: &MinecraftConfig) -> io::Result<Self> {
+        Self::new_with_mail_render_simd(config, MailRenderSimdMode::Auto)
+    }
+
+    fn new_with_mail_render_simd(
+        config: &MinecraftConfig,
+        mail_render_simd_mode: MailRenderSimdMode,
+    ) -> io::Result<Self> {
         let status_frame = build_status_frame(config, 0)?;
         let blacklist_frame =
             login_disconnect_frame(r#"{"text":"You are banned from this server.","color":"red"}"#)?;
@@ -1379,6 +1388,7 @@ impl StatusService {
         let world = WorldTemplate::load_shared(&config.world_template)?;
         Ok(Self {
             config: config.clone(),
+            mail_render_simd_mode,
             status_frame: status_frame.into(),
             blacklist_frame: blacklist_frame.into(),
             whitelist_frame: whitelist_frame.into(),
@@ -1428,11 +1438,12 @@ impl StatusService {
 
     fn with_services(
         config: &MinecraftConfig,
+        mail_render_simd_mode: MailRenderSimdMode,
         auth: Arc<AuthService>,
         mailbox: Arc<MailboxService>,
         outbound: Arc<OutboundService>,
     ) -> io::Result<Self> {
-        let mut service = Self::new(config)?;
+        let mut service = Self::new_with_mail_render_simd(config, mail_render_simd_mode)?;
         service.auth = Some(auth);
         service.mailbox = Some(mailbox);
         service.outbound = Some(outbound);
@@ -1723,13 +1734,15 @@ impl PendingMapVideo {
         if self.pending_conversion.is_none() {
             let contrast = self.contrast;
             let dither = self.dither;
+            let backend =
+                mail_render::resolve_render_backend_for_mode(service.mail_render_simd_mode);
             let conversion_cancellation = self.cancellation.child_token();
             let conversion_cancel_for_worker = conversion_cancellation.clone();
             let conversion_deadline = deadline.into_std();
             let receiver = service
                 .video_conversion_pool
                 .submit(move || {
-                    let mut rgb = mail_render::resize_rgb24_box(
+                    let mut rgb = mail_render::resize_rgb24_box_with_backend(
                         &rgb,
                         mail_render::Rgb24ResizeSpec {
                             source_width: VIDEO_SOURCE_WIDTH,
@@ -1738,31 +1751,36 @@ impl PendingMapVideo {
                             output_height: height,
                             max_output_bytes: width.saturating_mul(height).saturating_mul(3),
                         },
+                        backend,
                         &conversion_cancel_for_worker,
                         conversion_deadline,
                     )
                     .map_err(|error| error.to_string())?;
                     if (contrast - 1.0).abs() > f32::EPSILON {
-                        for pixel in rgb.chunks_exact_mut(3) {
-                            for channel in pixel {
-                                let adjusted = (f32::from(*channel) - 128.0) * contrast + 128.0;
-                                *channel = (adjusted.clamp(0.0, 255.0) + 0.5).floor() as u8;
-                            }
-                        }
+                        mail_render::apply_rgb24_contrast(
+                            &mut rgb,
+                            contrast,
+                            backend,
+                            &conversion_cancel_for_worker,
+                            conversion_deadline,
+                        )
+                        .map_err(|error| error.to_string())?;
                     }
                     let representative_rgb =
-                        crate::minecraft_block_palette::convert_rgb24_to_palette_rgb(
+                        crate::minecraft_block_palette::convert_rgb24_to_palette_rgb_with_backend(
                             &rgb,
                             width.saturating_mul(height),
                             &conversion_cancel_for_worker,
                             conversion_deadline,
+                            backend,
                         )?;
-                    mail_render::rgb24_to_map_colors_with_dither(
+                    mail_render::rgb24_to_minecraft_map_colors_with_dither_and_backend(
                         &representative_rgb,
                         width,
                         height,
                         width.saturating_mul(height),
                         dither,
+                        backend,
                         &conversion_cancel_for_worker,
                         conversion_deadline,
                     )
@@ -2307,13 +2325,15 @@ impl PendingBlockVideo {
             let width = wall.width;
             let height = wall.height;
             let contrast = self.contrast;
+            let backend =
+                mail_render::resolve_render_backend_for_mode(service.mail_render_simd_mode);
             let conversion_cancellation = self.cancellation.child_token();
             let conversion_cancel_for_worker = conversion_cancellation.clone();
             let conversion_deadline = deadline.into_std();
             let receiver = service
                 .video_conversion_pool
                 .submit(move || {
-                    let mut resized = mail_render::resize_rgb24_box(
+                    let mut resized = mail_render::resize_rgb24_box_with_backend(
                         &rgb,
                         mail_render::Rgb24ResizeSpec {
                             source_width: VIDEO_SOURCE_WIDTH,
@@ -2322,19 +2342,25 @@ impl PendingBlockVideo {
                             output_height: height,
                             max_output_bytes: width.saturating_mul(height).saturating_mul(3),
                         },
+                        backend,
                         &conversion_cancel_for_worker,
                         conversion_deadline,
                     )
                     .map_err(|error| error.to_string())?;
-                    for channel in &mut resized {
-                        let adjusted = (f32::from(*channel) - 128.0) * contrast + 128.0;
-                        *channel = (adjusted.clamp(0.0, 255.0) + 0.5).floor() as u8;
-                    }
-                    crate::minecraft_block_palette::convert_rgb24_to_states(
+                    mail_render::apply_rgb24_contrast(
+                        &mut resized,
+                        contrast,
+                        backend,
+                        &conversion_cancel_for_worker,
+                        conversion_deadline,
+                    )
+                    .map_err(|error| error.to_string())?;
+                    crate::minecraft_block_palette::convert_rgb24_to_states_with_backend(
                         &resized,
                         width.saturating_mul(height),
                         &conversion_cancel_for_worker,
                         conversion_deadline,
+                        backend,
                     )
                 })
                 .map_err(|error| format!("block video conversion queue is {error}"))?;
@@ -2466,6 +2492,7 @@ pub async fn serve_minecraft(
     let mailbox = MailboxService::from_config(&config, database_pool);
     let service = Arc::new(StatusService::with_services(
         &config.minecraft,
+        config.mail_render.simd_mode,
         Arc::new(auth),
         Arc::new(mailbox),
         outbound,
@@ -2621,10 +2648,11 @@ async fn handle_connection(
                     if keep_pending {
                         pending_outbound_send = Some(pending);
                     }
+                    let write_deadline = Instant::now() + service.connection_timeout;
+                    deadline = write_deadline;
                     if responses.is_empty() {
                         continue;
                     }
-                    let write_deadline = Instant::now() + service.connection_timeout;
                     if let Err(error) = write_packet_list(
                         &mut writer,
                         &service,
@@ -2638,7 +2666,6 @@ async fn handle_connection(
                     {
                         return finish_write_error(error);
                     }
-                    deadline = write_deadline;
                     continue;
                 }
                 folder_result = async {
@@ -6244,6 +6271,7 @@ fn start_mail_render(
     })?;
     let email = email.to_owned();
     let cancellation = CancellationToken::new();
+    let simd_mode = service.mail_render_simd_mode;
     let future_cancellation = cancellation.clone();
     let render_deadline = connection_deadline.min(Instant::now() + MAIL_RENDER_TIMEOUT);
     let future = Box::pin(async move {
@@ -6407,6 +6435,7 @@ fn start_mail_render(
                         )
                     }
                 };
+                request.simd_mode = simd_mode;
                 request.style.font_size_px = f64::from(settings.font_size);
                 mail_render::render(&request)
             })

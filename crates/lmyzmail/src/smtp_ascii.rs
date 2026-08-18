@@ -2,15 +2,17 @@
 //!
 //! This is a Rust-owned port of the frozen ASCII renderer's externally visible
 //! math. The resize operation is shared with `mail_render`; no legacy ASCII C
-//! implementation is linked or called. Scalar character selection deliberately
-//! truncates its charset index, while complete AVX2 and AVX-512 chunks round the
-//! index, matching the frozen implementation's backend-specific semantics.
+//! implementation is linked or called. Every runtime backend preserves the
+//! frozen accelerated renderer's eight-pixel rounded chunks and scalar-tail
+//! charset semantics so dispatch never changes visible frame bytes.
 
 use std::{fmt, time::Instant};
 
 use tokio_util::sync::CancellationToken;
 
-use crate::mail_render::{RenderError, Rgb24ResizeSpec, resize_rgb24_box};
+use crate::mail_render::{
+    RenderBackend, RenderError, Rgb24ResizeSpec, resize_rgb24_box_with_backend,
+};
 
 pub(crate) const DEFAULT_ASCII_RAMP: &[u8] =
     b" .'`^\",:;Il!i><~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$";
@@ -168,7 +170,12 @@ pub(crate) fn render_rgb24_ascii(
     let resized_bytes = output_pixels
         .checked_mul(3)
         .ok_or(AsciiRenderError::LimitExceeded("resize bytes"))?;
-    let resized = resize_rgb24_box(
+    let resize_backend = match backend {
+        AsciiBackend::Scalar => RenderBackend::Scalar,
+        AsciiBackend::Avx2 => RenderBackend::Avx2Fma,
+        AsciiBackend::Avx512 => RenderBackend::Avx512,
+    };
+    let resized = resize_rgb24_box_with_backend(
         rgb,
         Rgb24ResizeSpec {
             source_width: spec.source_width,
@@ -177,6 +184,7 @@ pub(crate) fn render_rgb24_ascii(
             output_height,
             max_output_bytes: resized_bytes,
         },
+        resize_backend,
         cancellation,
         deadline,
     )
@@ -377,10 +385,14 @@ fn convert_row_scalar(
     output: &mut [u8],
 ) {
     debug_assert_eq!(rgb.len(), output.len() * 3);
-    for (pixel, character) in rgb.chunks_exact(3).zip(output) {
+    let accelerated_pixels = output.len() & !7;
+    for (index, (pixel, character)) in rgb.chunks_exact(3).zip(output).enumerate() {
         let luma = bt601_luma(pixel[0], pixel[1], pixel[2]);
-        let value = scalar_adjusted_value(gamma_lut[luma], contrast, brightness, invert);
-        let charset_index = usize::from(value) * (DEFAULT_ASCII_RAMP.len() - 1) / 255;
+        let charset_index = if index < accelerated_pixels {
+            accelerated_charset_index(gamma_lut[luma], contrast, brightness, invert)
+        } else {
+            scalar_tail_charset_index(gamma_lut[luma], contrast, brightness, invert)
+        };
         *character = DEFAULT_ASCII_RAMP[charset_index];
     }
 }
@@ -391,11 +403,35 @@ fn bt601_luma(red: u8, green: u8, blue: u8) -> usize {
 }
 
 #[inline]
-fn scalar_adjusted_value(gamma_luma: u8, contrast: f32, brightness: f32, invert: bool) -> u8 {
+fn accelerated_charset_index(
+    gamma_luma: u8,
+    contrast: f32,
+    brightness: f32,
+    invert: bool,
+) -> usize {
+    let mut value = (f32::from(gamma_luma) - 128.0).mul_add(contrast, 128.0) + brightness;
+    value = value.clamp(0.0, 255.0);
+    if invert {
+        value = 255.0 - value;
+    }
+    let scale = (DEFAULT_ASCII_RAMP.len() - 1) as f32 / 255.0;
+    (value * scale + 0.5)
+        .trunc()
+        .clamp(0.0, (DEFAULT_ASCII_RAMP.len() - 1) as f32) as usize
+}
+
+#[inline]
+fn scalar_tail_charset_index(
+    gamma_luma: u8,
+    contrast: f32,
+    brightness: f32,
+    invert: bool,
+) -> usize {
     let adjusted = ((f32::from(gamma_luma) - 128.0) * contrast + 128.0 + brightness + 0.5)
         .trunc()
         .clamp(0.0, 255.0) as u8;
-    if invert { 255 - adjusted } else { adjusted }
+    let value = if invert { 255 - adjusted } else { adjusted };
+    usize::from(value) * (DEFAULT_ASCII_RAMP.len() - 1) / 255
 }
 
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
@@ -676,6 +712,77 @@ mod tests {
         Instant::now() + Duration::from_secs(30)
     }
 
+    fn patterned_rgb(pixel_count: usize) -> Vec<u8> {
+        (0..pixel_count)
+            .flat_map(|index| {
+                let value = index as u32;
+                [
+                    value.wrapping_mul(47).wrapping_add(19) as u8,
+                    value.wrapping_mul(113).wrapping_add(7) as u8,
+                    value.wrapping_mul(197).wrapping_add(31) as u8,
+                ]
+            })
+            .collect()
+    }
+
+    fn scalar_row_chars(
+        rgb: &[u8],
+        gamma_lut: &[u8; 256],
+        contrast: f32,
+        brightness: f32,
+        invert: bool,
+    ) -> Vec<u8> {
+        let mut output = vec![0_u8; rgb.len() / 3];
+        convert_row_scalar(rgb, gamma_lut, contrast, brightness, invert, &mut output);
+        output
+    }
+
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    fn assert_backend_matches_scalar(
+        backend: &str,
+        mut convert: impl FnMut(&[u8], &[u8; 256], f32, f32, bool, &mut [u8]),
+    ) {
+        let identity = std::array::from_fn(|index| index as u8);
+        let grayscale = (0_u8..=u8::MAX)
+            .flat_map(|value| [value, value, value])
+            .collect::<Vec<_>>();
+        let expected = scalar_row_chars(&grayscale, &identity, 1.0, 0.0, false);
+        let mut actual = vec![0_u8; expected.len()];
+        convert(&grayscale, &identity, 1.0, 0.0, false, &mut actual);
+        assert_eq!(actual, expected, "{backend} exhaustive grayscale mismatch");
+
+        let rgb = patterned_rgb(256);
+        for &(gamma, contrast, brightness, invert) in &[
+            (1.0, 1.0, 0.0, false),
+            (1.7, 1.2, -4.0, true),
+            (0.5, 0.25, 63.75, false),
+            (2.4, 3.0, -400.0, false),
+            (2.4, 3.0, 400.0, true),
+        ] {
+            let gamma_lut =
+                build_gamma_lut(gamma, &CancellationToken::new(), live_deadline()).unwrap();
+            let expected = scalar_row_chars(&rgb, &gamma_lut, contrast, brightness, invert);
+            let mut actual = vec![0_u8; expected.len()];
+            convert(&rgb, &gamma_lut, contrast, brightness, invert, &mut actual);
+            assert_eq!(
+                actual, expected,
+                "{backend} mismatch for gamma={gamma}, contrast={contrast}, brightness={brightness}, invert={invert}"
+            );
+        }
+
+        let gamma_lut = build_gamma_lut(1.7, &CancellationToken::new(), live_deadline()).unwrap();
+        for pixel_count in 1..=31 {
+            let rgb = patterned_rgb(pixel_count);
+            let expected = scalar_row_chars(&rgb, &gamma_lut, 1.2, -4.0, true);
+            let mut actual = vec![0_u8; expected.len()];
+            convert(&rgb, &gamma_lut, 1.2, -4.0, true, &mut actual);
+            assert_eq!(
+                actual, expected,
+                "{backend} remainder mismatch for {pixel_count} pixels"
+            );
+        }
+    }
+
     #[test]
     fn default_ramp_and_auto_height_match_frozen_contract() {
         assert_eq!(DEFAULT_ASCII_RAMP.len(), 69);
@@ -685,23 +792,14 @@ mod tests {
     }
 
     #[test]
-    fn scalar_preserves_integer_luma_gamma_and_truncated_mapping() {
+    fn scalar_preserves_frozen_accelerated_chunks_and_scalar_tail() {
         let cancellation = CancellationToken::new();
-        let mut request = spec(4, 1, 4);
+        let mut request = spec(10, 1, 10);
         request.output_height = Some(1);
-        request.contrast = 1.5;
-        request.brightness = -10.0;
-        request.gamma = 2.0;
-        request.invert = true;
-        let input = [0, 0, 0, 2, 2, 2, 128, 128, 128, 255, 255, 255];
+        let input = vec![2_u8; 10 * 3];
         let frame = render_rgb24_ascii(&input, request, &cancellation, live_deadline()).unwrap();
-        let lut = build_gamma_lut(2.0, &cancellation, live_deadline()).unwrap();
-        let expected = [0_u8, 2, 128, 255].map(|value| {
-            let adjusted =
-                scalar_adjusted_value(lut[bt601_luma(value, value, value)], 1.5, -10.0, true);
-            DEFAULT_ASCII_RAMP[usize::from(adjusted) * (DEFAULT_ASCII_RAMP.len() - 1) / 255]
-        });
-        assert_eq!(frame.chars, expected);
+        assert_eq!(&frame.chars[..8], &[DEFAULT_ASCII_RAMP[1]; 8]);
+        assert_eq!(&frame.chars[8..], &[DEFAULT_ASCII_RAMP[0]; 2]);
         assert_eq!(frame.backend, AsciiBackend::Scalar);
     }
 
@@ -766,51 +864,41 @@ mod tests {
 
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     #[test]
-    fn avx2_rounds_complete_chunks_but_keeps_scalar_remainder() {
+    fn avx2_matches_scalar_for_all_luma_values_adjustments_and_remainders() {
         if !host_ascii_capabilities().avx2_fma {
             return;
         }
-        let gamma_lut = std::array::from_fn(|index| index as u8);
-        let rgb = vec![2_u8; 9 * 3];
-        let mut scalar = vec![0_u8; 9];
-        let mut vector = vec![0_u8; 9];
-        convert_row_scalar(&rgb, &gamma_lut, 1.0, 0.0, false, &mut scalar);
-        // SAFETY: the test is gated by the same OS-aware feature detector.
-        unsafe {
-            convert_row_avx2(&rgb, &gamma_lut, 1.0, 0.0, false, &mut vector);
-        }
-        assert_eq!(&scalar, &[DEFAULT_ASCII_RAMP[0]; 9]);
-        assert_eq!(&vector[..8], &[DEFAULT_ASCII_RAMP[1]; 8]);
-        assert_eq!(vector[8], DEFAULT_ASCII_RAMP[0]);
+        assert_backend_matches_scalar(
+            "AVX2",
+            |rgb, gamma_lut, contrast, brightness, invert, output| {
+                // SAFETY: this test is gated by the production OS-aware detector.
+                unsafe {
+                    convert_row_avx2(rgb, gamma_lut, contrast, brightness, invert, output);
+                }
+            },
+        );
     }
 
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     #[test]
-    fn avx512_and_avx2_match_for_complete_vector_chunks() {
-        let capabilities = host_ascii_capabilities();
-        if !capabilities.avx2_fma || !capabilities.avx512f_bw {
+    fn avx512_matches_scalar_for_all_luma_values_adjustments_and_remainders() {
+        if !host_ascii_capabilities().avx512f_bw {
             return;
         }
-        let gamma_lut = build_gamma_lut(1.7, &CancellationToken::new(), live_deadline()).unwrap();
-        let rgb: Vec<u8> = (0..32 * 3)
-            .map(|index| ((index * 47 + 19) % 256) as u8)
-            .collect();
-        let mut avx2 = vec![0_u8; 32];
-        let mut avx512 = vec![0_u8; 32];
-        // SAFETY: the test is gated by the same OS-aware feature detector.
-        unsafe {
-            convert_row_avx2(&rgb, &gamma_lut, 1.2, -4.0, true, &mut avx2);
-            convert_row_avx512(&rgb, &gamma_lut, 1.2, -4.0, true, &mut avx512);
-        }
-        assert_eq!(avx512, avx2);
+        assert_backend_matches_scalar(
+            "AVX-512",
+            |rgb, gamma_lut, contrast, brightness, invert, output| {
+                // SAFETY: this test is gated by the production OS-aware detector.
+                unsafe {
+                    convert_row_avx512(rgb, gamma_lut, contrast, brightness, invert, output);
+                }
+            },
+        );
     }
 
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     #[test]
-    fn frozen_video_second_decoded_frame_matches_managed_smtp_golden() {
-        if !host_ascii_capabilities().avx2_fma {
-            return;
-        }
+    fn frozen_video_second_decoded_frame_matches_managed_smtp_golden_for_all_backends() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("assets/skibidi_toilet_episode_1.mp4");
         let mut decoder =
@@ -831,15 +919,34 @@ mod tests {
         let cancellation = CancellationToken::new();
         let mut request = spec(1920, 1080, 10);
         request.contrast = 1.2;
-        request.simd_mode = AsciiSimdMode::Avx2;
         request.max_source_pixels = 1920 * 1080;
         request.max_output_bytes = 30;
-        let frame = render_rgb24_ascii(&rgb, request, &cancellation, live_deadline()).unwrap();
-        assert_eq!((frame.width, frame.height), (10, 3));
-        assert_eq!(frame.backend, AsciiBackend::Avx2);
+        let scalar = render_rgb24_ascii(&rgb, request, &cancellation, live_deadline()).unwrap();
+        assert_eq!((scalar.width, scalar.height), (10, 3));
+        assert_eq!(scalar.backend, AsciiBackend::Scalar);
         assert_eq!(
-            frame.chars, b"?[/fxu|{cC<luzYJ<}Yr^l1{vLYj->",
+            scalar.chars, b"?[/fxu|{cC<luzYJ<}Yr^l1{vLYj->",
             "managed golden rows must match without SMTP framing"
         );
+
+        let capabilities = host_ascii_capabilities();
+        if capabilities.avx2_fma {
+            request.simd_mode = AsciiSimdMode::Avx2;
+            let avx2 = render_rgb24_ascii(&rgb, request, &cancellation, live_deadline()).unwrap();
+            assert_eq!(avx2.backend, AsciiBackend::Avx2);
+            assert_eq!(
+                avx2.chars, scalar.chars,
+                "AVX2 changed managed golden bytes"
+            );
+        }
+        if capabilities.avx512f_bw {
+            request.simd_mode = AsciiSimdMode::Avx512;
+            let avx512 = render_rgb24_ascii(&rgb, request, &cancellation, live_deadline()).unwrap();
+            assert_eq!(avx512.backend, AsciiBackend::Avx512);
+            assert_eq!(
+                avx512.chars, scalar.chars,
+                "AVX-512 changed managed golden bytes"
+            );
+        }
     }
 }

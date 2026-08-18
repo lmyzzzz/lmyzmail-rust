@@ -1,0 +1,415 @@
+use std::{
+    env,
+    fmt::Write as _,
+    sync::{
+        OnceLock,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::{Duration, Instant},
+};
+
+const ENABLE_ENV: &str = "LMYZMAIL_COORDINATOR_OBSERVER";
+const SCHEMA: &str = "lmyzmail.coordinator-stage-observation.v1";
+const SNAPSHOT_INTERVAL: u64 = 256;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(usize)]
+pub(crate) enum CoordinatorStage {
+    QueueClaim,
+    DatabaseClaim,
+    RecipientRoster,
+    BeginAttempt,
+    InitialLedger,
+    DsnLookup,
+    DomainStatusRead,
+    ContentAuthority,
+    RouteResolve,
+    SmtpPrepare,
+    SmtpAuthorize,
+    SmtpConnect,
+    SmtpGreeting,
+    SmtpEhlo,
+    SmtpStartTls,
+    SmtpEnvelope,
+    SmtpMessagePrepare,
+    SmtpDataReady,
+    SmtpBodyWrite,
+    PreparedCheckpoint,
+    SmtpCommit,
+    SmtpFinalDot,
+    SmtpFinalReply,
+    SmtpQuit,
+    ResultCheckpoint,
+    DomainLedgerRefresh,
+    ProjectionLedgerRead,
+    LegacyProjection,
+    FinalLedgerRead,
+    LegacyAttemptRead,
+    DomainStatusWrite,
+    QueueRenew,
+    KeepaliveQuiesce,
+    QueueAcknowledge,
+    QueueAckSpoolCleanup,
+    QueueAckSpoolSnapshot,
+    QueueAckSpoolPermit,
+    QueueAckSpoolSetup,
+    QueueAckSpoolProofValidation,
+    QueueAckSpoolSentCompare,
+    QueueAckSpoolMutation,
+    QueueAckSpoolDurability,
+    QueueAckSpoolProofCleanup,
+    QueueAckSpoolCheckpoint,
+    QueueAckMutation,
+    QueueAckReconciliation,
+    QueueAckSidecarCleanup,
+    InboundPrepareFile,
+    InboundIntentInsert,
+    InboundPublishFile,
+    InboundIndexCommit,
+    InboundIndexPool,
+    InboundIndexBegin,
+    InboundIndexIntentLock,
+    InboundIndexIntentRead,
+    InboundIndexMailboxRead,
+    InboundIndexExistingRead,
+    InboundIndexInsert,
+    InboundIndexCountState,
+    InboundIndexProjectionState,
+    InboundIndexIntentAdvance,
+    InboundIndexMutation,
+    InboundIndexTransactionCommit,
+    InboundPublishVerify,
+    InboundIntentComplete,
+    InboundProjectionFlush,
+}
+
+impl CoordinatorStage {
+    const ALL: [Self; 66] = [
+        Self::QueueClaim,
+        Self::DatabaseClaim,
+        Self::RecipientRoster,
+        Self::BeginAttempt,
+        Self::InitialLedger,
+        Self::DsnLookup,
+        Self::DomainStatusRead,
+        Self::ContentAuthority,
+        Self::RouteResolve,
+        Self::SmtpPrepare,
+        Self::SmtpAuthorize,
+        Self::SmtpConnect,
+        Self::SmtpGreeting,
+        Self::SmtpEhlo,
+        Self::SmtpStartTls,
+        Self::SmtpEnvelope,
+        Self::SmtpMessagePrepare,
+        Self::SmtpDataReady,
+        Self::SmtpBodyWrite,
+        Self::PreparedCheckpoint,
+        Self::SmtpCommit,
+        Self::SmtpFinalDot,
+        Self::SmtpFinalReply,
+        Self::SmtpQuit,
+        Self::ResultCheckpoint,
+        Self::DomainLedgerRefresh,
+        Self::ProjectionLedgerRead,
+        Self::LegacyProjection,
+        Self::FinalLedgerRead,
+        Self::LegacyAttemptRead,
+        Self::DomainStatusWrite,
+        Self::QueueRenew,
+        Self::KeepaliveQuiesce,
+        Self::QueueAcknowledge,
+        Self::QueueAckSpoolCleanup,
+        Self::QueueAckSpoolSnapshot,
+        Self::QueueAckSpoolPermit,
+        Self::QueueAckSpoolSetup,
+        Self::QueueAckSpoolProofValidation,
+        Self::QueueAckSpoolSentCompare,
+        Self::QueueAckSpoolMutation,
+        Self::QueueAckSpoolDurability,
+        Self::QueueAckSpoolProofCleanup,
+        Self::QueueAckSpoolCheckpoint,
+        Self::QueueAckMutation,
+        Self::QueueAckReconciliation,
+        Self::QueueAckSidecarCleanup,
+        Self::InboundPrepareFile,
+        Self::InboundIntentInsert,
+        Self::InboundPublishFile,
+        Self::InboundIndexCommit,
+        Self::InboundIndexPool,
+        Self::InboundIndexBegin,
+        Self::InboundIndexIntentLock,
+        Self::InboundIndexIntentRead,
+        Self::InboundIndexMailboxRead,
+        Self::InboundIndexExistingRead,
+        Self::InboundIndexInsert,
+        Self::InboundIndexCountState,
+        Self::InboundIndexProjectionState,
+        Self::InboundIndexIntentAdvance,
+        Self::InboundIndexMutation,
+        Self::InboundIndexTransactionCommit,
+        Self::InboundPublishVerify,
+        Self::InboundIntentComplete,
+        Self::InboundProjectionFlush,
+    ];
+
+    const fn name(self) -> &'static str {
+        match self {
+            Self::QueueClaim => "queue_claim",
+            Self::DatabaseClaim => "database_claim",
+            Self::RecipientRoster => "recipient_roster",
+            Self::BeginAttempt => "begin_attempt",
+            Self::InitialLedger => "initial_ledger",
+            Self::DsnLookup => "dsn_lookup",
+            Self::DomainStatusRead => "domain_status_read",
+            Self::ContentAuthority => "content_authority",
+            Self::RouteResolve => "route_resolve",
+            Self::SmtpPrepare => "smtp_prepare",
+            Self::SmtpAuthorize => "smtp_authorize",
+            Self::SmtpConnect => "smtp_connect",
+            Self::SmtpGreeting => "smtp_greeting",
+            Self::SmtpEhlo => "smtp_ehlo",
+            Self::SmtpStartTls => "smtp_starttls",
+            Self::SmtpEnvelope => "smtp_envelope",
+            Self::SmtpMessagePrepare => "smtp_message_prepare",
+            Self::SmtpDataReady => "smtp_data_ready",
+            Self::SmtpBodyWrite => "smtp_body_write",
+            Self::PreparedCheckpoint => "prepared_checkpoint",
+            Self::SmtpCommit => "smtp_commit",
+            Self::SmtpFinalDot => "smtp_final_dot",
+            Self::SmtpFinalReply => "smtp_final_reply",
+            Self::SmtpQuit => "smtp_quit",
+            Self::ResultCheckpoint => "result_checkpoint",
+            Self::DomainLedgerRefresh => "domain_ledger_refresh",
+            Self::ProjectionLedgerRead => "projection_ledger_read",
+            Self::LegacyProjection => "legacy_projection",
+            Self::FinalLedgerRead => "final_ledger_read",
+            Self::LegacyAttemptRead => "legacy_attempt_read",
+            Self::DomainStatusWrite => "domain_status_write",
+            Self::QueueRenew => "queue_renew",
+            Self::KeepaliveQuiesce => "keepalive_quiesce",
+            Self::QueueAcknowledge => "queue_acknowledge",
+            Self::QueueAckSpoolCleanup => "queue_ack_spool_cleanup",
+            Self::QueueAckSpoolSnapshot => "queue_ack_spool_snapshot",
+            Self::QueueAckSpoolPermit => "queue_ack_spool_permit",
+            Self::QueueAckSpoolSetup => "queue_ack_spool_setup",
+            Self::QueueAckSpoolProofValidation => "queue_ack_spool_proof_validation",
+            Self::QueueAckSpoolSentCompare => "queue_ack_spool_sent_compare",
+            Self::QueueAckSpoolMutation => "queue_ack_spool_mutation",
+            Self::QueueAckSpoolDurability => "queue_ack_spool_durability",
+            Self::QueueAckSpoolProofCleanup => "queue_ack_spool_proof_cleanup",
+            Self::QueueAckSpoolCheckpoint => "queue_ack_spool_checkpoint",
+            Self::QueueAckMutation => "queue_ack_mutation",
+            Self::QueueAckReconciliation => "queue_ack_reconciliation",
+            Self::QueueAckSidecarCleanup => "queue_ack_sidecar_cleanup",
+            Self::InboundPrepareFile => "inbound_prepare_file",
+            Self::InboundIntentInsert => "inbound_intent_insert",
+            Self::InboundPublishFile => "inbound_publish_file",
+            Self::InboundIndexCommit => "inbound_index_commit",
+            Self::InboundIndexPool => "inbound_index_pool",
+            Self::InboundIndexBegin => "inbound_index_begin",
+            Self::InboundIndexIntentLock => "inbound_index_intent_lock",
+            Self::InboundIndexIntentRead => "inbound_index_intent_read",
+            Self::InboundIndexMailboxRead => "inbound_index_mailbox_read",
+            Self::InboundIndexExistingRead => "inbound_index_existing_read",
+            Self::InboundIndexInsert => "inbound_index_insert",
+            Self::InboundIndexCountState => "inbound_index_count_state",
+            Self::InboundIndexProjectionState => "inbound_index_projection_state",
+            Self::InboundIndexIntentAdvance => "inbound_index_intent_advance",
+            Self::InboundIndexMutation => "inbound_index_mutation",
+            Self::InboundIndexTransactionCommit => "inbound_index_transaction_commit",
+            Self::InboundPublishVerify => "inbound_publish_verify",
+            Self::InboundIntentComplete => "inbound_intent_complete",
+            Self::InboundProjectionFlush => "inbound_projection_flush",
+        }
+    }
+}
+
+struct StageCounters {
+    count: AtomicU64,
+    total_ns: AtomicU64,
+    max_ns: AtomicU64,
+}
+
+impl StageCounters {
+    const fn new() -> Self {
+        Self {
+            count: AtomicU64::new(0),
+            total_ns: AtomicU64::new(0),
+            max_ns: AtomicU64::new(0),
+        }
+    }
+
+    fn record(&self, elapsed: Duration) {
+        let elapsed_ns = u64::try_from(elapsed.as_nanos()).unwrap_or(u64::MAX);
+        self.count.fetch_add(1, Ordering::Relaxed);
+        let _ = self
+            .total_ns
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |total| {
+                Some(total.saturating_add(elapsed_ns))
+            });
+        self.max_ns.fetch_max(elapsed_ns, Ordering::Relaxed);
+    }
+}
+
+struct Observer {
+    stages: [StageCounters; CoordinatorStage::ALL.len()],
+    completed_tasks: AtomicU64,
+    completed_total_ns: AtomicU64,
+    completed_max_ns: AtomicU64,
+    sequence: AtomicU64,
+    snapshot_interval: u64,
+}
+
+impl Observer {
+    fn new(snapshot_interval: u64) -> Self {
+        Self {
+            stages: std::array::from_fn(|_| StageCounters::new()),
+            completed_tasks: AtomicU64::new(0),
+            completed_total_ns: AtomicU64::new(0),
+            completed_max_ns: AtomicU64::new(0),
+            sequence: AtomicU64::new(0),
+            snapshot_interval,
+        }
+    }
+
+    fn from_environment() -> Option<Self> {
+        (env::var(ENABLE_ENV).as_deref() == Ok("1")).then(|| Self::new(SNAPSHOT_INTERVAL))
+    }
+
+    fn record_stage(&self, stage: CoordinatorStage, elapsed: Duration) {
+        self.stages[stage as usize].record(elapsed);
+    }
+
+    fn record_completed_task(&self, elapsed: Duration) {
+        let elapsed_ns = u64::try_from(elapsed.as_nanos()).unwrap_or(u64::MAX);
+        let completed = self.completed_tasks.fetch_add(1, Ordering::Relaxed) + 1;
+        let _ =
+            self.completed_total_ns
+                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |total| {
+                    Some(total.saturating_add(elapsed_ns))
+                });
+        self.completed_max_ns
+            .fetch_max(elapsed_ns, Ordering::Relaxed);
+        if completed.is_multiple_of(self.snapshot_interval) {
+            eprintln!("LMYZMAIL_COORDINATOR_OBSERVER {}", self.snapshot());
+        }
+    }
+
+    fn snapshot(&self) -> String {
+        let sequence = self.sequence.fetch_add(1, Ordering::Relaxed) + 1;
+        let completed = self.completed_tasks.load(Ordering::Relaxed);
+        let mut output = String::with_capacity(4_096);
+        write!(
+            output,
+            concat!(
+                "{{\"schema\":\"{}\",\"sequence\":{},\"pid\":{},",
+                "\"completed_tasks\":{},\"completed_total_ns\":{},",
+                "\"completed_max_ns\":{},\"stages\":{{"
+            ),
+            SCHEMA,
+            sequence,
+            std::process::id(),
+            completed,
+            self.completed_total_ns.load(Ordering::Relaxed),
+            self.completed_max_ns.load(Ordering::Relaxed),
+        )
+        .expect("writing a bounded coordinator observation to String cannot fail");
+        for (index, stage) in CoordinatorStage::ALL.into_iter().enumerate() {
+            if index != 0 {
+                output.push(',');
+            }
+            let counters = &self.stages[stage as usize];
+            write!(
+                output,
+                "\"{}\":{{\"count\":{},\"total_ns\":{},\"max_ns\":{}}}",
+                stage.name(),
+                counters.count.load(Ordering::Relaxed),
+                counters.total_ns.load(Ordering::Relaxed),
+                counters.max_ns.load(Ordering::Relaxed),
+            )
+            .expect("writing a bounded coordinator observation to String cannot fail");
+        }
+        output.push_str("}}");
+        output
+    }
+}
+
+static OBSERVER: OnceLock<Option<Observer>> = OnceLock::new();
+
+fn observer() -> Option<&'static Observer> {
+    OBSERVER.get_or_init(Observer::from_environment).as_ref()
+}
+
+pub(crate) struct StageTimer {
+    stage: CoordinatorStage,
+    started: Option<Instant>,
+}
+
+impl StageTimer {
+    pub(crate) fn start(stage: CoordinatorStage) -> Self {
+        Self {
+            stage,
+            started: observer().map(|_| Instant::now()),
+        }
+    }
+}
+
+impl Drop for StageTimer {
+    fn drop(&mut self) {
+        if let (Some(observer), Some(started)) = (observer(), self.started) {
+            observer.record_stage(self.stage, started.elapsed());
+        }
+    }
+}
+
+pub(crate) struct CompletedTaskTimer {
+    started: Option<Instant>,
+}
+
+impl CompletedTaskTimer {
+    pub(crate) fn start() -> Self {
+        Self {
+            started: observer().map(|_| Instant::now()),
+        }
+    }
+
+    pub(crate) fn complete(mut self) {
+        if let (Some(observer), Some(started)) = (observer(), self.started.take()) {
+            observer.record_completed_task(started.elapsed());
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{collections::HashSet, time::Duration};
+
+    use super::{CoordinatorStage, Observer};
+
+    #[test]
+    fn stage_names_are_unique() {
+        let names = CoordinatorStage::ALL
+            .into_iter()
+            .map(CoordinatorStage::name)
+            .collect::<HashSet<_>>();
+        assert_eq!(names.len(), CoordinatorStage::ALL.len());
+    }
+
+    #[test]
+    fn snapshot_reports_cumulative_stage_and_completion_totals() {
+        let observer = Observer::new(2);
+        observer.record_stage(CoordinatorStage::DatabaseClaim, Duration::from_nanos(11));
+        observer.record_stage(CoordinatorStage::DatabaseClaim, Duration::from_nanos(13));
+        observer.record_completed_task(Duration::from_nanos(101));
+
+        let value: serde_json::Value = serde_json::from_str(&observer.snapshot()).unwrap();
+        assert_eq!(value["schema"], "lmyzmail.coordinator-stage-observation.v1");
+        assert_eq!(value["completed_tasks"], 1);
+        assert_eq!(value["completed_total_ns"], 101);
+        assert_eq!(value["completed_max_ns"], 101);
+        assert_eq!(value["stages"]["database_claim"]["count"], 2);
+        assert_eq!(value["stages"]["database_claim"]["total_ns"], 24);
+        assert_eq!(value["stages"]["database_claim"]["max_ns"], 13);
+    }
+}

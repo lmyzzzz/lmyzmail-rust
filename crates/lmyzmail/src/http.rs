@@ -351,7 +351,12 @@ pub async fn serve_http(
         tasks.abort_all();
         while tasks.join_next().await.is_some() {}
     }
-    stress.shutdown(shutdown_deadline).await;
+    if !stress.shutdown(shutdown_deadline).await {
+        eprintln!(
+            "lmyzmail final shutdown could not reclaim stress blocking workers; aborting instead of detaching live file owners"
+        );
+        std::process::abort();
+    }
     if timeout_at(shutdown_deadline, &mut reconciliation_task)
         .await
         .is_err()

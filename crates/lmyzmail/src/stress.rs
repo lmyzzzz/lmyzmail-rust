@@ -6,8 +6,8 @@ use std::{
     os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt},
     path::{Path, PathBuf},
     sync::{
-        Arc,
-        atomic::{AtomicI32, Ordering},
+        Arc, OnceLock,
+        atomic::{AtomicBool, AtomicI32, AtomicI64, Ordering},
     },
     time::Duration,
 };
@@ -17,7 +17,7 @@ use serde::Serialize;
 use tokio::{
     sync::{Mutex, OwnedSemaphorePermit, Semaphore},
     task::JoinSet,
-    time::{Instant, sleep, timeout},
+    time::{Instant, sleep, timeout, timeout_at},
 };
 use tokio_util::sync::CancellationToken;
 
@@ -26,22 +26,48 @@ use crate::{
     bounded_blocking::{BoundedBlockingPool, SubmitError},
     config::{RuntimeConfig, StressConfig},
     mailbox::MailboxService,
-    outbound::{OutboundError, OutboundService, SendRequest, StreamingTextInput},
+    outbound::{
+        OutboundError, OutboundService, SendRequest, StreamingTextInput, StressEnqueueError,
+        StressTaskIdentity, StressTaskIdentitySink,
+    },
 };
 
 const IN_MEMORY_THRESHOLD_BYTES: usize = 20 * 1024;
 const DEFAULT_MAX_CONCURRENCY: usize = 1_500;
 const BODY_WORKERS: usize = 4;
-const BODY_QUEUE_CAPACITY: usize = 4;
-const BODY_MEMORY_BUDGET_BYTES: usize = 64 * 1024 * 1024;
+const OUTBOUND_QUEUE_CAPACITY: usize = 64;
+// Each active enqueue owns at most one body generation, materialization, or
+// rollback job. Keep admission bounded while covering the endpoint's largest
+// frozen concurrency tier; the separate byte semaphore bounds payload memory.
+const BODY_QUEUE_CAPACITY: usize = DEFAULT_MAX_CONCURRENCY;
+const BODY_MEMORY_BUDGET_BYTES: usize = 1024 * 1024 * 1024;
+const STREAMING_BODY_BUFFER_BYTES: usize = 32 * 1024;
+const STREAMING_BODY_HEADER_BYTES: usize = 512;
+// Outbound persistence currently materializes streaming text after generation, so
+// admission must cover the complete body plus the bounded writer/header scratch.
+const STREAMING_BODY_SCRATCH_BYTES: usize =
+    STREAMING_BODY_BUFFER_BYTES + STREAMING_BODY_HEADER_BYTES;
 const QUEUE_WAIT: Duration = Duration::from_secs(30 * 60);
 const DELIVERY_WAIT: Duration = Duration::from_secs(20 * 60);
 const DELIVERY_POLL: Duration = Duration::from_secs(1);
-const FINAL_CLEANUP_DEADLINE: Duration = Duration::from_secs(10);
+const DELIVERY_STABLE_POLLS: usize = 2;
+const TASK_QUIESCENCE_BATCH_SIZE: usize = 512;
+const TASK_QUIESCENCE_POLL: Duration = Duration::from_millis(250);
+const DEFERRED_RECOVERY_RETRY: Duration = Duration::from_secs(1);
+const DEFERRED_RECOVERY_MAX_RETRY: Duration = Duration::from_secs(30);
+const FINAL_CLEANUP_BASE_SECONDS: u64 = 10;
+const FINAL_CLEANUP_BASE_SECONDS_DURATION: Duration =
+    Duration::from_secs(FINAL_CLEANUP_BASE_SECONDS);
+const FINAL_CLEANUP_MAX_SECONDS: u64 = 90;
+const CLEANUP_MAILBOX_COPIES: u64 = 2;
+const CLEANUP_MESSAGES_PER_SECOND: u64 = 20_000;
+const CLEANUP_BYTES_PER_SECOND: u64 = 500_000_000;
 const TEMP_CLEANUP_DEADLINE: Duration = Duration::from_secs(5);
 const BLOCKING_SHUTDOWN_DEADLINE: Duration = Duration::from_secs(5);
+const BLOCKING_QUIESCENCE_DEADLINE: Duration = Duration::from_secs(5);
 const MAX_CLEANUP_ENTRIES: usize = 1_100_000;
 const FILLER: &str = "The quick brown fox jumps over the lazy dog. Lorem ipsum dolor sit amet. ";
+static LAST_RUN_MARKER: AtomicI64 = AtomicI64::new(0);
 
 #[derive(Debug)]
 pub(crate) enum StressError {
@@ -114,10 +140,110 @@ pub(crate) struct StressCleanupResponse {
     pub(crate) message: String,
 }
 
-#[derive(Default)]
 struct RunCounters {
     queued: std::sync::atomic::AtomicUsize,
     failed: std::sync::atomic::AtomicUsize,
+    first_failure: OnceLock<String>,
+    tasks: StressTaskIdentitySink,
+}
+
+impl RunCounters {
+    fn with_capacity(capacity: usize) -> Self {
+        Self {
+            queued: std::sync::atomic::AtomicUsize::new(0),
+            failed: std::sync::atomic::AtomicUsize::new(0),
+            first_failure: OnceLock::new(),
+            tasks: StressTaskIdentitySink::with_capacity(capacity),
+        }
+    }
+
+    fn record_failure(&self, reason: impl Into<String>) {
+        self.failed.fetch_add(1, Ordering::Relaxed);
+        let _ = self.first_failure.set(reason.into());
+    }
+
+    fn queue_target(&self, requested: usize) -> Result<i64, StressError> {
+        let queued = self.queued_count();
+        let failed = self.failed_count();
+        if queued != requested || failed != 0 {
+            eprintln!(
+                "lmyzmail stress enqueue failed: requested={requested}, queued={queued}, \
+                 failed={failed}, first_failure={}",
+                self.first_failure
+                    .get()
+                    .map(String::as_str)
+                    .unwrap_or("unrecorded")
+            );
+            return Err(StressError::Backend);
+        }
+        i64::try_from(requested).map_err(|_| StressError::Backend)
+    }
+
+    fn queued_target(&self) -> Result<i64, StressError> {
+        i64::try_from(self.queued_count()).map_err(|_| StressError::Backend)
+    }
+
+    fn queued_count(&self) -> usize {
+        self.queued.load(Ordering::Relaxed)
+    }
+
+    fn failed_count(&self) -> usize {
+        self.failed.load(Ordering::Relaxed)
+    }
+
+    fn record_task(&self, task: StressTaskIdentity) {
+        let _ = self.tasks.record(task);
+    }
+
+    fn task_sink(&self) -> StressTaskIdentitySink {
+        self.tasks.clone()
+    }
+
+    fn task_snapshot(&self) -> Result<Vec<StressTaskIdentity>, StressError> {
+        self.tasks.snapshot().map_err(|()| StressError::Backend)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct DeliveryOutcome {
+    delivered: i64,
+    timed_out: bool,
+}
+
+struct DeliveryWaitContext<'a> {
+    receiver: &'a str,
+    baseline: i64,
+    subject_suffix: &'a str,
+    target: i64,
+    requested: usize,
+    started: Instant,
+    deadline: Instant,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum StressPhase {
+    Enqueue,
+    DeliveryWait,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct StressSchedule {
+    active_enqueue_cap: usize,
+}
+
+impl StressSchedule {
+    fn for_email_size_kb(email_size_kb: i32) -> Self {
+        Self {
+            active_enqueue_cap: max_concurrency(email_size_kb),
+        }
+    }
+
+    fn active_job_cap(self, phase: StressPhase) -> usize {
+        match phase {
+            StressPhase::Enqueue => self.active_enqueue_cap,
+            StressPhase::DeliveryWait => 0,
+        }
+    }
 }
 
 struct StressInner {
@@ -133,7 +259,11 @@ struct StressInner {
     blocking_admission: Arc<Semaphore>,
     body_memory: Arc<Semaphore>,
     blocking_pool: Arc<BoundedBlockingPool>,
+    outbound_admission: Arc<Semaphore>,
+    outbound_blocking_pool: Arc<BoundedBlockingPool>,
     tasks: Mutex<JoinSet<()>>,
+    quiescence_tasks: Mutex<JoinSet<()>>,
+    clean: AtomicBool,
     cancellation: CancellationToken,
 }
 
@@ -150,10 +280,17 @@ impl StressService {
         outbound: Arc<OutboundService>,
         cancellation: CancellationToken,
     ) -> io::Result<Self> {
+        let outbound_workers =
+            outbound_worker_count(config.stress.email_size_kb, config.storage.fsync_enabled);
         let blocking_pool = Arc::new(BoundedBlockingPool::new(
             "lmyzmail-stress-body",
             BODY_WORKERS,
             BODY_QUEUE_CAPACITY,
+        )?);
+        let outbound_blocking_pool = Arc::new(BoundedBlockingPool::new(
+            "lmyzmail-stress-outbound",
+            outbound_workers,
+            OUTBOUND_QUEUE_CAPACITY,
         )?);
         let (send_domain, receive_domain) = stress_domains(config);
         Ok(Self {
@@ -167,10 +304,14 @@ impl StressService {
                 outbound,
                 round: AtomicI32::new(0),
                 active: Arc::new(Semaphore::new(1)),
-                blocking_admission: Arc::new(Semaphore::new(BODY_WORKERS + BODY_QUEUE_CAPACITY)),
+                blocking_admission: Arc::new(Semaphore::new(BODY_QUEUE_CAPACITY)),
                 body_memory: Arc::new(Semaphore::new(BODY_MEMORY_BUDGET_BYTES)),
                 blocking_pool,
+                outbound_admission: Arc::new(Semaphore::new(outbound_workers)),
+                outbound_blocking_pool,
                 tasks: Mutex::new(JoinSet::new()),
+                quiescence_tasks: Mutex::new(JoinSet::new()),
+                clean: AtomicBool::new(false),
                 cancellation,
             }),
         })
@@ -201,16 +342,34 @@ impl StressService {
             Err(error) => return Err(io::Error::other(error)),
         }
         let (sender, receiver) = self.optional_addresses();
-        if let Some(sender) = sender {
-            self.cleanup_address_result(&sender, cancellation)
+        if let Some(sender) = sender.as_deref() {
+            let active_tasks = self
+                .inner
+                .outbound
+                .stress_active_tasks(sender, cancellation)
                 .await
                 .map_err(io::Error::other)?;
+            wait_for_task_quiescence(
+                &self.inner.outbound,
+                &active_tasks,
+                Instant::now() + DELIVERY_WAIT,
+                cancellation,
+            )
+            .await
+            .map_err(io::Error::other)?;
         }
-        if let Some(receiver) = receiver {
-            self.cleanup_address_result(&receiver, cancellation)
+        match (sender.as_deref(), receiver.as_deref()) {
+            (Some(sender), Some(receiver)) => self
+                .cleanup_addresses_best_effort(sender, receiver, cancellation, None)
                 .await
-                .map_err(io::Error::other)?;
+                .map_err(io::Error::other)?,
+            (Some(address), None) | (None, Some(address)) => self
+                .cleanup_address_result(address, cancellation)
+                .await
+                .map_err(io::Error::other)?,
+            (None, None) => {}
         }
+        self.inner.clean.store(true, Ordering::Release);
         Ok(())
     }
 
@@ -237,7 +396,8 @@ impl StressService {
             warmup_count: self.inner.config.warmup_count,
             production_count: self.inner.config.production_count,
             email_size_kb: self.inner.config.email_size_kb,
-            max_concurrency: max_concurrency(self.inner.config.email_size_kb),
+            max_concurrency: StressSchedule::for_email_size_kb(self.inner.config.email_size_kb)
+                .active_job_cap(StressPhase::Enqueue),
             streaming_enabled: !in_memory,
             in_memory_mode: in_memory,
             in_memory_threshold_kb: IN_MEMORY_THRESHOLD_BYTES / 1024,
@@ -255,12 +415,24 @@ impl StressService {
 
     pub(crate) async fn start(&self) -> Result<StressStartResponse, StressError> {
         self.require_enabled()?;
+        if self.addresses().is_none() {
+            return Err(StressError::NoDomain);
+        }
         let active = self
             .inner
             .active
             .clone()
             .try_acquire_owned()
             .map_err(|_| StressError::Busy)?;
+        if self
+            .inner
+            .clean
+            .compare_exchange(true, false, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            drop(active);
+            return Err(StressError::Backend);
+        }
         let current = self.inner.round.fetch_add(1, Ordering::SeqCst);
         let warmup = current < self.inner.config.warmup_rounds;
         let email_count = if warmup {
@@ -268,7 +440,8 @@ impl StressService {
         } else {
             self.inner.config.production_count
         };
-        let max_concurrency = max_concurrency(self.inner.config.email_size_kb);
+        let schedule = StressSchedule::for_email_size_kb(self.inner.config.email_size_kb);
+        let max_concurrency = schedule.active_job_cap(StressPhase::Enqueue);
         let in_memory = self.in_memory_mode();
         let response = StressStartResponse {
             message: if in_memory {
@@ -296,7 +469,7 @@ impl StressService {
         let mut tasks = self.inner.tasks.lock().await;
         while tasks.try_join_next().is_some() {}
         tasks.spawn(async move {
-            run_stress(inner, active, current, warmup, email_count, max_concurrency).await;
+            run_stress(inner, active, current, warmup, email_count, schedule).await;
         });
         Ok(response)
     }
@@ -306,39 +479,87 @@ impl StressService {
         cancellation: &CancellationToken,
     ) -> Result<StressCleanupResponse, StressError> {
         self.require_enabled()?;
-        let _active = self
+        let active = self
             .inner
             .active
             .clone()
             .try_acquire_owned()
             .map_err(|_| StressError::Busy)?;
         let (sender, receiver) = self.addresses().ok_or(StressError::NoDomain)?;
-        self.cleanup_address(&sender, cancellation).await;
-        self.cleanup_address(&receiver, cancellation).await;
+        self.inner.clean.store(false, Ordering::Release);
+        let active_tasks = match self
+            .inner
+            .outbound
+            .stress_active_tasks(&sender, cancellation)
+            .await
+        {
+            Ok(tasks) => tasks,
+            Err(_) => {
+                retain_active_for_recovery(
+                    Arc::clone(&self.inner),
+                    active,
+                    sender,
+                    receiver,
+                    None,
+                    FINAL_CLEANUP_BASE_SECONDS_DURATION,
+                )
+                .await;
+                return Err(StressError::Backend);
+            }
+        };
+        let deadline = Instant::now() + FINAL_CLEANUP_BASE_SECONDS_DURATION;
+        let cleanup_result = finish_cleanup_attempt(
+            &self.inner,
+            &sender,
+            &receiver,
+            Some(&active_tasks),
+            deadline,
+            cancellation,
+        )
+        .await;
+        if let Err(error) = cleanup_result {
+            retain_active_for_recovery(
+                Arc::clone(&self.inner),
+                active,
+                sender,
+                receiver,
+                Some(active_tasks),
+                FINAL_CLEANUP_BASE_SECONDS_DURATION,
+            )
+            .await;
+            return Err(error);
+        }
+        self.inner.clean.store(true, Ordering::Release);
+        drop(active);
         Ok(StressCleanupResponse {
             message: format!("Cleanup completed for {sender} and {receiver}"),
         })
     }
 
-    pub(crate) async fn shutdown(&self, deadline: Instant) {
+    pub(crate) async fn shutdown(&self, deadline: Instant) -> bool {
         self.inner.cancellation.cancel();
-        let mut tasks = self.inner.tasks.lock().await;
-        if tokio::time::timeout_at(deadline, async {
-            while tasks.join_next().await.is_some() {}
-        })
-        .await
-        .is_err()
-        {
-            tasks.abort_all();
-            while tasks.join_next().await.is_some() {}
-        }
-        drop(tasks);
+        shutdown_task_set(&self.inner.tasks, deadline).await;
+        shutdown_task_set(&self.inner.quiescence_tasks, deadline).await;
         let blocking_deadline = deadline
             .saturating_duration_since(Instant::now())
             .min(BLOCKING_SHUTDOWN_DEADLINE);
-        if !self.inner.blocking_pool.shutdown(blocking_deadline).await {
-            eprintln!("lmyzmail stress blocking pool exceeded its shutdown deadline");
+        let (body_quiesced, outbound_quiesced) = tokio::join!(
+            self.inner.blocking_pool.shutdown_strict(blocking_deadline),
+            self.inner
+                .outbound_blocking_pool
+                .shutdown_strict(blocking_deadline),
+        );
+        if !body_quiesced {
+            eprintln!(
+                "lmyzmail stress body blocking pool did not quiesce before the shutdown deadline"
+            );
         }
+        if !outbound_quiesced {
+            eprintln!(
+                "lmyzmail stress outbound blocking pool did not quiesce before the shutdown deadline"
+            );
+        }
+        body_quiesced && outbound_quiesced
     }
 
     fn require_enabled(&self) -> Result<(), StressError> {
@@ -374,24 +595,37 @@ impl StressService {
         )
     }
 
-    async fn cleanup_address(&self, address: &str, cancellation: &CancellationToken) {
-        if let Err(error) = self.cleanup_address_result(address, cancellation).await {
-            eprintln!("lmyzmail stress cleanup failed for {address}: {error}");
-        }
-    }
-
     async fn cleanup_address_result(
         &self,
         address: &str,
         cancellation: &CancellationToken,
     ) -> Result<(), StressError> {
+        self.cleanup_address_result_with_deadline(address, cancellation, None)
+            .await
+    }
+
+    async fn cleanup_address_result_with_deadline(
+        &self,
+        address: &str,
+        cancellation: &CancellationToken,
+        database_deadline: Option<Instant>,
+    ) -> Result<(), StressError> {
         let Ok(path) = self.inner.mailbox.user_directory(address) else {
             return Err(StressError::Backend);
         };
-        let index_cleanup = self
-            .inner
-            .mailbox
-            .delete_indexes_for_mailbox(address, cancellation);
+        let index_cleanup = async {
+            if let Some(deadline) = database_deadline {
+                self.inner
+                    .mailbox
+                    .delete_indexes_for_mailbox_with_deadline(address, cancellation, deadline)
+                    .await
+            } else {
+                self.inner
+                    .mailbox
+                    .delete_indexes_for_mailbox(address, cancellation)
+                    .await
+            }
+        };
         let file_cleanup = self.run_blocking(cancellation, move |job_cancellation| {
             remove_tree(&path, &job_cancellation)
         });
@@ -400,6 +634,21 @@ impl StressService {
             return Err(StressError::Backend);
         }
         Ok(())
+    }
+
+    async fn cleanup_addresses_best_effort(
+        &self,
+        sender: &str,
+        receiver: &str,
+        cancellation: &CancellationToken,
+        database_deadline: Option<Instant>,
+    ) -> Result<(), StressError> {
+        let (sender_result, receiver_result) = run_best_effort_pair(
+            self.cleanup_address_result_with_deadline(sender, cancellation, database_deadline),
+            self.cleanup_address_result_with_deadline(receiver, cancellation, database_deadline),
+        )
+        .await;
+        combine_cleanup_results(sender_result, receiver_result)
     }
 
     async fn run_blocking<T, F>(
@@ -415,13 +664,47 @@ impl StressService {
     }
 }
 
+async fn shutdown_task_set(tasks: &Mutex<JoinSet<()>>, deadline: Instant) {
+    let mut tasks = tasks.lock().await;
+    if timeout_at(deadline, async {
+        while tasks.join_next().await.is_some() {}
+    })
+    .await
+    .is_err()
+    {
+        tasks.abort_all();
+        while tasks.join_next().await.is_some() {}
+    }
+}
+
+async fn run_best_effort_pair<A, B>(first: A, second: B) -> (A::Output, B::Output)
+where
+    A: std::future::Future,
+    B: std::future::Future,
+{
+    tokio::join!(first, second)
+}
+
+fn combine_cleanup_results(
+    sender: Result<(), StressError>,
+    receiver: Result<(), StressError>,
+) -> Result<(), StressError> {
+    match (sender, receiver) {
+        (Ok(()), Ok(())) => Ok(()),
+        (sender, receiver) => {
+            eprintln!("lmyzmail stress cleanup errors: sender={sender:?}, receiver={receiver:?}");
+            Err(StressError::Backend)
+        }
+    }
+}
+
 async fn run_stress(
     inner: Arc<StressInner>,
-    _active: OwnedSemaphorePermit,
+    active: OwnedSemaphorePermit,
     round: i32,
     warmup: bool,
     email_count: i32,
-    max_concurrency: usize,
+    schedule: StressSchedule,
 ) {
     let service = StressService {
         inner: Arc::clone(&inner),
@@ -434,54 +717,122 @@ async fn run_stress(
         return;
     };
     let cancellation = inner.cancellation.child_token();
+    let run_marker = next_run_marker();
+    let subject_suffix = format!(" - {run_marker}");
+    let requested = usize::try_from(email_count.max(0)).unwrap_or_default();
+    let counters = Arc::new(RunCounters::with_capacity(requested));
     let mode = if warmup { "WARMUP" } else { "PRODUCTION" };
-    let started = Instant::now();
-    let result = async {
-        ensure_mailbox(&inner.auth, &sender, &inner.config.password, &cancellation).await?;
-        ensure_mailbox(
-            &inner.auth,
-            &receiver,
-            &inner.config.password,
-            &cancellation,
-        )
-        .await?;
-        let counters = Arc::new(RunCounters::default());
-        let queue_input_cancellation = cancellation.clone();
-        let queueing = stream::iter(0..email_count)
+    eprintln!(
+        "========== [STRESS TEST] ROUND {} ({mode}) STARTING ==========",
+        round.wrapping_add(1)
+    );
+    let result =
+        async {
+            ensure_mailbox(&inner.auth, &sender, &inner.config.password, &cancellation).await?;
+            ensure_mailbox(
+                &inner.auth,
+                &receiver,
+                &inner.config.password,
+                &cancellation,
+             )
+             .await?;
+            let stale_tasks = inner
+                .outbound
+                .stress_active_tasks(&sender, &cancellation)
+                .await
+                .map_err(|_| StressError::Backend)?;
+            if !stale_tasks.is_empty() {
+                eprintln!(
+                    "lmyzmail stress clean-state gate found {} active outbound tasks",
+                    stale_tasks.len()
+                );
+                for task in stale_tasks {
+                    counters.record_task(task);
+                }
+                return Err(StressError::Backend);
+            }
+            let sender_before = inner
+                .mailbox
+                .count_folder(&sender, "sent", &cancellation)
+                .await
+                .map_err(|_| StressError::Backend)?;
+            let receiver_before = inner
+                .mailbox
+                .count_folder_run_marker(
+                    &receiver,
+                    "inbox",
+                    &subject_suffix,
+                    &cancellation,
+                )
+                .await
+                .map_err(|_| StressError::Backend)?;
+            if sender_before != 0 || receiver_before.total != 0 || receiver_before.matching != 0 {
+                eprintln!(
+                    "lmyzmail stress clean-state gate rejected residual mail: \
+                     sender_sent={sender_before}, receiver_inbox={}, marker_matches={}",
+                    receiver_before.total,
+                    receiver_before.matching,
+                );
+                return Err(StressError::Backend);
+            }
+            let receiver_baseline = receiver_before.total;
+            eprintln!(
+                "[STRESS TEST] Config: Round={}, Mode={mode}, Sender={sender}, Receiver={receiver}, \
+                 Count={email_count}, EmailSize={}KB, MaxConcurrency={}, InMemory={}",
+                round.wrapping_add(1),
+                inner.config.email_size_kb,
+                schedule.active_job_cap(StressPhase::Enqueue),
+                inner.config.email_size_kb as usize * 1024 <= IN_MEMORY_THRESHOLD_BYTES,
+            );
+            eprintln!(
+                "[STRESS TEST] Queueing {email_count} emails ({}KB each) with max concurrency {} ({} mode)...",
+                inner.config.email_size_kb,
+                schedule.active_job_cap(StressPhase::Enqueue),
+                if inner.config.email_size_kb as usize * 1024 <= IN_MEMORY_THRESHOLD_BYTES {
+                    "in-memory"
+                } else {
+                    "streaming"
+                },
+            );
+            let started = Instant::now();
+            let queue_input_cancellation = cancellation.clone();
+            let queueing = stream::iter(0..email_count)
             .take_until(queue_input_cancellation.cancelled_owned())
-            .for_each_concurrent(Some(max_concurrency), |index| {
+            .for_each_concurrent(
+                Some(schedule.active_job_cap(StressPhase::Enqueue)),
+                |index| {
                 let inner = Arc::clone(&inner);
                 let counters = Arc::clone(&counters);
+                let task_identities = counters.task_sink();
                 let sender = sender.clone();
                 let receiver = receiver.clone();
                 let cancellation = cancellation.clone();
                 async move {
                     if cancellation.is_cancelled() {
-                        counters.failed.fetch_add(1, Ordering::Relaxed);
+                        counters.record_failure("cancelled before body admission");
                         return;
                     }
-                    let subject_millis = chrono::Utc::now().timestamp_millis();
                     let subject = format!(
-                        "Stress Test R{} #{} - {subject_millis}",
+                        "Stress Test R{} #{} - {run_marker}",
                         round.wrapping_add(1),
                         index
                     );
                     let body_size = usize::try_from(inner.config.email_size_kb)
                         .unwrap_or_default()
                         .saturating_mul(1024);
-                    let body_permits = u32::try_from(body_size)
+                    let body_permits = u32::try_from(body_memory_per_job(body_size))
                         .expect("validated stress body size fits semaphore permits");
                     let body_memory = Arc::new(tokio::select! {
                         biased;
                         _ = cancellation.cancelled() => {
-                            counters.failed.fetch_add(1, Ordering::Relaxed);
+                            counters.record_failure("cancelled waiting for body memory");
                             return;
                         }
                         result = inner.body_memory.clone().acquire_many_owned(body_permits) => {
                             match result {
                                 Ok(permit) => permit,
                                 Err(_) => {
-                                    counters.failed.fetch_add(1, Ordering::Relaxed);
+                                    counters.record_failure("body memory admission closed");
                                     return;
                                 }
                             }
@@ -518,9 +869,18 @@ async fn run_stress(
                         }
                     })
                     .await;
-                    let Ok(Ok(body)) = generated else {
-                        counters.failed.fetch_add(1, Ordering::Relaxed);
-                        return;
+                    let body = match generated {
+                        Ok(Ok(body)) => body,
+                        Err(error) => {
+                            counters.record_failure(format!(
+                                "body generation admission failed: {error}"
+                            ));
+                            return;
+                        }
+                        Ok(Err(error)) => {
+                            counters.record_failure(format!("body generation failed: {error}"));
+                            return;
+                        }
                     };
                     let mut request = SendRequest {
                         from: Some(sender),
@@ -539,27 +899,34 @@ async fn run_stress(
                     let result = match body {
                         GeneratedBody::Memory(body) => {
                             request.text = Some(body);
-                            inner
+                            let enqueue = inner
                                 .outbound
-                                .enqueue_stress_with_cancellation(request, &cancellation)
-                                .await
+                                .enqueue_stress_with_cancellation(
+                                    request,
+                                    &task_identities,
+                                    Arc::clone(&inner.outbound_blocking_pool),
+                                    Arc::clone(&inner.outbound_admission),
+                                    &cancellation,
+                                )
+                                .await;
+                            drop(body_memory);
+                            enqueue
                         }
                         GeneratedBody::File(mut body) => {
                             let path = body.path().to_path_buf();
+                            body.disarm();
                             let enqueue = inner
                                 .outbound
                                 .enqueue_stress_streaming_text_with_cancellation(
                                     request,
-                                    StreamingTextInput {
-                                        path: path.clone(),
-                                        size: body_size as u64,
-                                    },
+                                    StreamingTextInput::owned(path, body_size as u64),
+                                    &task_identities,
+                                    Arc::clone(&inner.outbound_blocking_pool),
+                                    Arc::clone(&inner.outbound_admission),
                                     &cancellation,
                                 )
                                 .await;
-                            if cleanup_temp_file(&inner, path).await {
-                                body.disarm();
-                            }
+                            drop(body_memory);
                             enqueue
                         }
                     };
@@ -567,37 +934,88 @@ async fn run_stress(
                         Ok(_) => {
                             counters.queued.fetch_add(1, Ordering::Relaxed);
                         }
-                        Err(_) => {
-                            counters.failed.fetch_add(1, Ordering::Relaxed);
+                        Err(StressEnqueueError {
+                            error,
+                            stage,
+                            diagnostic,
+                        }) => {
+                            counters.record_failure(format!(
+                                "outbound enqueue failed: stage={}, diagnostic={}, error={error:?}",
+                                stage.as_str(),
+                                diagnostic.unwrap_or("unspecified")
+                            ));
                         }
                     }
-                    drop(body_memory);
                 }
-            });
-        tokio::pin!(queueing);
-        if timeout(QUEUE_WAIT, &mut queueing).await.is_err() {
-            cancellation.cancel();
-            if timeout(TEMP_CLEANUP_DEADLINE, &mut queueing).await.is_err() {
+            },
+            );
+            tokio::pin!(queueing);
+            if timeout(QUEUE_WAIT, &mut queueing).await.is_err() {
+                cancellation.cancel();
+                if timeout(TEMP_CLEANUP_DEADLINE, &mut queueing).await.is_err() {
+                    eprintln!(
+                        "[STRESS TEST] Queue timed out and active enqueue jobs did not quiesce within {}s",
+                        TEMP_CLEANUP_DEADLINE.as_secs()
+                    );
+                    return Err(StressError::Backend);
+                }
                 return Err(StressError::Backend);
             }
-            return Err(StressError::Backend);
+            if cancellation.is_cancelled() {
+                return Err(StressError::Cancelled);
+            }
+            let queue_finished = Instant::now();
+            let queued = counters.queued_count();
+            let failed = counters.failed_count();
+            let queue_duration = queue_finished.saturating_duration_since(started);
+            eprintln!(
+                "[STRESS TEST] Queue completed in {} ms: success={queued}, failed={failed}, \
+                 exceptions=0, oom=0, rateLimited=0",
+                queue_duration.as_millis()
+            );
+            eprintln!("[STRESS TEST] Waiting for delivery...");
+            let target = counters.queued_target()?;
+            debug_assert_eq!(schedule.active_job_cap(StressPhase::DeliveryWait), 0);
+            let delivery = wait_for_delivery(
+                &inner.mailbox,
+                DeliveryWaitContext {
+                    receiver: &receiver,
+                    baseline: receiver_baseline,
+                    subject_suffix: &subject_suffix,
+                    target,
+                    requested,
+                    started,
+                    deadline: started + DELIVERY_WAIT,
+                },
+                &cancellation,
+            )
+            .await?;
+            let finished = Instant::now();
+            log_stress_results(
+                round,
+                mode,
+                warmup,
+                requested,
+                inner.config.email_size_kb,
+                schedule.active_job_cap(StressPhase::Enqueue),
+                queued,
+                failed,
+                delivery.delivered,
+                finished.saturating_duration_since(started),
+                queue_duration,
+                inner.config.warmup_rounds,
+                inner.config.production_count,
+            );
+            if delivery.timed_out {
+                return Err(StressError::Backend);
+            }
+            // Preserve Java's drain semantics: every successfully queued message
+            // reaches the mailbox before partial admission is reported as failed.
+            counters.queue_target(requested)?;
+            Ok::<(), StressError>(())
         }
-        if cancellation.is_cancelled() {
-            return Err(StressError::Cancelled);
-        }
-        let target = counters.queued.load(Ordering::Relaxed) as i64;
-        wait_for_delivery(
-            &inner.mailbox,
-            &receiver,
-            target,
-            started + DELIVERY_WAIT,
-            &cancellation,
-        )
-        .await?;
-        Ok::<(), StressError>(())
-    }
-    .await;
-    if let Err(error) = result
+        .await;
+    if let Err(error) = &result
         && !matches!(error, StressError::Cancelled)
     {
         eprintln!(
@@ -605,24 +1023,396 @@ async fn run_stress(
             round.wrapping_add(1)
         );
     }
+    // Shutdown cancels the round first, but bounded rollback and owned-file
+    // cleanup must still run to completion after enqueue jobs have quiesced.
     let cleanup_cancellation = CancellationToken::new();
-    if timeout(FINAL_CLEANUP_DEADLINE, async {
-        service
-            .cleanup_address(&sender, &cleanup_cancellation)
-            .await;
-        service
-            .cleanup_address(&receiver, &cleanup_cancellation)
-            .await;
-    })
-    .await
-    .is_err()
-    {
-        cleanup_cancellation.cancel();
+    let cleanup_budget = final_cleanup_deadline(email_count, inner.config.email_size_kb);
+    let cleanup_deadline = Instant::now() + cleanup_budget;
+    let task_snapshot = counters.task_snapshot().ok();
+    eprintln!("[STRESS TEST] Cleaning up data...");
+    let cleanup_result = finish_cleanup_attempt(
+        &inner,
+        &sender,
+        &receiver,
+        task_snapshot.as_deref(),
+        cleanup_deadline,
+        &cleanup_cancellation,
+    )
+    .await;
+    if cleanup_result.is_ok() {
+        inner.clean.store(true, Ordering::Release);
+        eprintln!("[STRESS TEST] Cleanup finished.");
+        drop(active);
+    } else {
         eprintln!(
-            "lmyzmail stress round {} cleanup exceeded its deadline",
+            "lmyzmail stress round {} cleanup failed; residual data may remain",
+            round.wrapping_add(1)
+        );
+        retain_active_for_recovery(
+            Arc::clone(&inner),
+            active,
+            sender.clone(),
+            receiver.clone(),
+            task_snapshot,
+            cleanup_budget,
+        )
+        .await;
+    }
+    if result.is_ok() && cleanup_result.is_ok() {
+        eprintln!(
+            "========== [STRESS TEST] ROUND {} ({mode}) COMPLETED ==========",
+            round.wrapping_add(1)
+        );
+    } else {
+        eprintln!(
+            "========== [STRESS TEST] ROUND {} ({mode}) FAILED ==========",
             round.wrapping_add(1)
         );
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn log_stress_results(
+    round: i32,
+    mode: &str,
+    warmup: bool,
+    requested: usize,
+    email_size_kb: i32,
+    max_concurrency: usize,
+    queued: usize,
+    failed: usize,
+    delivered: i64,
+    total_duration: Duration,
+    queue_duration: Duration,
+    warmup_rounds: i32,
+    production_count: i32,
+) {
+    let seconds = total_duration.as_secs_f64();
+    let throughput = if seconds > 0.0 {
+        queued as f64 / seconds
+    } else {
+        0.0
+    };
+    let data_throughput_mb = if seconds > 0.0 {
+        queued as f64 * f64::from(email_size_kb) / 1024.0 / seconds
+    } else {
+        0.0
+    };
+    let lost = requested.saturating_sub(queued.saturating_add(failed));
+    let delivery_duration = total_duration.saturating_sub(queue_duration);
+
+    eprintln!("[RESULT] Round: {} ({mode})", round.wrapping_add(1));
+    eprintln!("[RESULT] Target Email Count: {requested}");
+    eprintln!("[RESULT] Email Size: {email_size_kb} KB");
+    eprintln!("[RESULT] Max Concurrency: {max_concurrency}");
+    eprintln!(
+        "[RESULT] Body Generation Mode: {}",
+        if email_size_kb as usize * 1024 <= IN_MEMORY_THRESHOLD_BYTES {
+            "IN-MEMORY"
+        } else {
+            "STREAMING"
+        }
+    );
+    eprintln!(
+        "[RESULT] Actually Queued: {queued} (success={queued}, failed={failed}, \
+         exceptions=0, oom=0, rateLimited=0)"
+    );
+    eprintln!(
+        "[RESULT] Lost Count: {lost} \
+         (target - success - failed - exceptions - oom) [IMPORTANT]"
+    );
+    eprintln!("[RESULT] Received: {delivered}");
+    eprintln!(
+        "[RESULT] Total Time: {} ms ({seconds:.2} s)",
+        total_duration.as_millis()
+    );
+    eprintln!("[RESULT] Throughput: {throughput:.2} emails/second");
+    eprintln!("[RESULT] Data Throughput: {data_throughput_mb:.2} MB/second");
+    eprintln!("[RESULT] Queueing Time: {} ms", queue_duration.as_millis());
+    eprintln!(
+        "[RESULT] Delivery Time: {} ms",
+        delivery_duration.as_millis()
+    );
+    if warmup {
+        let remaining = warmup_rounds.saturating_sub(round).saturating_sub(1);
+        if remaining > 0 {
+            eprintln!("[RESULT] Warmup rounds remaining: {remaining}");
+        } else {
+            eprintln!(
+                "[RESULT] Warmup complete! Next round will use production count: \
+                 {production_count}"
+            );
+        }
+    }
+    eprintln!("===========================================");
+}
+
+fn next_run_marker() -> i64 {
+    let now = chrono::Utc::now().timestamp_millis().max(1);
+    let mut previous = LAST_RUN_MARKER.load(Ordering::Acquire);
+    loop {
+        let next = now.max(previous.saturating_add(1));
+        match LAST_RUN_MARKER.compare_exchange_weak(
+            previous,
+            next,
+            Ordering::AcqRel,
+            Ordering::Acquire,
+        ) {
+            Ok(_) => return next,
+            Err(observed) => previous = observed,
+        }
+    }
+}
+
+async fn wait_for_task_quiescence(
+    outbound: &OutboundService,
+    tasks: &[StressTaskIdentity],
+    deadline: Instant,
+    cancellation: &CancellationToken,
+) -> Result<(), StressError> {
+    loop {
+        let mut all_quiesced = true;
+        for batch in tasks.chunks(TASK_QUIESCENCE_BATCH_SIZE) {
+            let quiesced = tokio::select! {
+                biased;
+                _ = cancellation.cancelled() => return Err(StressError::Cancelled),
+                result = timeout_at(
+                    deadline,
+                    outbound.stress_tasks_quiesced(batch, cancellation),
+                ) => result
+                    .map_err(|_| StressError::Backend)?
+                    .map_err(|_| StressError::Backend)?,
+            };
+            if !quiesced {
+                all_quiesced = false;
+                break;
+            }
+        }
+        if all_quiesced {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            return Err(StressError::Backend);
+        }
+        tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => return Err(StressError::Cancelled),
+            result = timeout_at(deadline, sleep(TASK_QUIESCENCE_POLL)) => {
+                result.map_err(|_| StressError::Backend)?;
+            }
+        }
+    }
+}
+
+async fn wait_for_blocking_quiescence(
+    blocking_admission: Arc<Semaphore>,
+    deadline: Instant,
+    cancellation: &CancellationToken,
+) -> Result<(), StressError> {
+    let permits = u32::try_from(BODY_QUEUE_CAPACITY).expect("blocking queue capacity fits u32");
+    let deadline = deadline.min(Instant::now() + BLOCKING_QUIESCENCE_DEADLINE);
+    let quiescence = tokio::select! {
+        biased;
+        _ = cancellation.cancelled() => return Err(StressError::Cancelled),
+        result = timeout_at(
+            deadline,
+            blocking_admission.acquire_many_owned(permits),
+        ) => result
+            .map_err(|_| StressError::Backend)?
+            .map_err(|_| StressError::Backend)?,
+    };
+    drop(quiescence);
+    Ok(())
+}
+
+async fn finish_cleanup_attempt(
+    inner: &Arc<StressInner>,
+    sender: &str,
+    receiver: &str,
+    tasks: Option<&[StressTaskIdentity]>,
+    deadline: Instant,
+    cancellation: &CancellationToken,
+) -> Result<(), StressError> {
+    let tasks = tasks.ok_or(StressError::Backend)?;
+    wait_for_task_quiescence(&inner.outbound, tasks, deadline, cancellation).await?;
+    let service = StressService {
+        inner: Arc::clone(inner),
+    };
+    let temp_dir = inner.temp_dir.clone();
+    let temp_cleanup = timeout_at(
+        deadline,
+        service.run_blocking(cancellation, move |job_cancellation| {
+            remove_tree(&temp_dir, &job_cancellation)
+        }),
+    )
+    .await
+    .map_err(|_| StressError::Backend)?
+    .map_err(|_| StressError::Backend)?;
+    temp_cleanup.map_err(|_| StressError::Backend)?;
+    timeout_at(
+        deadline,
+        service.cleanup_addresses_best_effort(sender, receiver, cancellation, Some(deadline)),
+    )
+    .await
+    .map_err(|_| StressError::Backend)??;
+
+    let mut stable_clean_polls = 0;
+    while stable_clean_polls < DELIVERY_STABLE_POLLS {
+        wait_for_task_quiescence(&inner.outbound, tasks, deadline, cancellation).await?;
+        let (sender_count, receiver_count) = timeout_at(deadline, async {
+            let sender_count = inner
+                .mailbox
+                .count_folder(sender, "sent", cancellation)
+                .await
+                .map_err(|_| StressError::Backend)?;
+            let receiver_count = inner
+                .mailbox
+                .count_folder(receiver, "inbox", cancellation)
+                .await
+                .map_err(|_| StressError::Backend)?;
+            Ok::<_, StressError>((sender_count, receiver_count))
+        })
+        .await
+        .map_err(|_| StressError::Backend)??;
+        stable_clean_polls =
+            cleanup_stability_after_poll(stable_clean_polls, sender_count, receiver_count)?;
+        if stable_clean_polls < DELIVERY_STABLE_POLLS {
+            tokio::select! {
+                biased;
+                _ = cancellation.cancelled() => return Err(StressError::Cancelled),
+                result = timeout_at(deadline, sleep(TASK_QUIESCENCE_POLL)) => {
+                    result.map_err(|_| StressError::Backend)?;
+                }
+            }
+        }
+    }
+    wait_for_blocking_quiescence(
+        Arc::clone(&inner.blocking_admission),
+        deadline,
+        cancellation,
+    )
+    .await
+}
+
+fn cleanup_stability_after_poll(
+    previous_stable_polls: usize,
+    sender_count: i64,
+    receiver_count: i64,
+) -> Result<usize, StressError> {
+    if sender_count != 0 || receiver_count != 0 {
+        return Err(StressError::Backend);
+    }
+    Ok(previous_stable_polls.saturating_add(1))
+}
+
+async fn retain_active_for_recovery(
+    inner: Arc<StressInner>,
+    active: OwnedSemaphorePermit,
+    sender: String,
+    receiver: String,
+    tasks: Option<Vec<StressTaskIdentity>>,
+    attempt_budget: Duration,
+) {
+    let recovery_inner = Arc::clone(&inner);
+    let mut quiescence_tasks = inner.quiescence_tasks.lock().await;
+    while quiescence_tasks.try_join_next().is_some() {}
+    quiescence_tasks.spawn(async move {
+        let active = active;
+        let inner = recovery_inner;
+        let mut uncertain = tasks
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .filter(|identity| identity.requires_complete_rescan())
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut tasks = if uncertain.is_empty() { tasks } else { None };
+        let mut retry_delay = DEFERRED_RECOVERY_RETRY;
+        if tasks.is_none() {
+            eprintln!(
+                "lmyzmail stress task identity snapshot was unavailable; retrying complete active-task scans"
+            );
+        }
+        loop {
+            if inner.cancellation.is_cancelled() {
+                drop(active);
+                return;
+            }
+            if tasks.is_none() {
+                match inner
+                    .outbound
+                    .stress_active_tasks(&sender, &inner.cancellation)
+                    .await
+                {
+                    Ok(mut active_tasks) => {
+                        let active_ids = active_tasks
+                            .iter()
+                            .map(|identity| identity.queue_id)
+                            .collect::<std::collections::BTreeSet<_>>();
+                        active_tasks.extend(
+                            uncertain
+                                .iter()
+                                .filter(|identity| !active_ids.contains(&identity.queue_id))
+                                .cloned(),
+                        );
+                        tasks = Some(active_tasks);
+                        retry_delay = DEFERRED_RECOVERY_RETRY;
+                    }
+                    Err(_) => {
+                        if !sleep_for_deferred_recovery(&inner, retry_delay).await {
+                            drop(active);
+                            return;
+                        }
+                        retry_delay = next_deferred_recovery_retry(retry_delay);
+                        continue;
+                    }
+                }
+            }
+            let deadline = Instant::now() + attempt_budget;
+            if finish_cleanup_attempt(
+                &inner,
+                &sender,
+                &receiver,
+                tasks.as_deref(),
+                deadline,
+                &inner.cancellation,
+            )
+            .await
+            .is_ok()
+            {
+                inner.clean.store(true, Ordering::Release);
+                drop(active);
+                eprintln!("lmyzmail stress deferred cleanup reached quiescence");
+                return;
+            }
+            // A failed proof may reflect a previously unknown enqueue or a
+            // task that changed state after the snapshot. Never retry forever
+            // against the same dead view.
+            uncertain = tasks
+                .take()
+                .unwrap_or_default()
+                .into_iter()
+                .filter(StressTaskIdentity::requires_complete_rescan)
+                .collect();
+            if !sleep_for_deferred_recovery(&inner, retry_delay).await {
+                drop(active);
+                return;
+            }
+            retry_delay = next_deferred_recovery_retry(retry_delay);
+        }
+    });
+}
+
+async fn sleep_for_deferred_recovery(inner: &StressInner, delay: Duration) -> bool {
+    tokio::select! {
+        biased;
+        _ = inner.cancellation.cancelled() => false,
+        _ = sleep(delay) => true,
+    }
+}
+
+fn next_deferred_recovery_retry(current: Duration) -> Duration {
+    current.saturating_mul(2).min(DEFERRED_RECOVERY_MAX_RETRY)
 }
 
 fn stress_domains(config: &RuntimeConfig) -> (Option<&str>, Option<&str>) {
@@ -666,32 +1456,99 @@ async fn ensure_mailbox(
 
 async fn wait_for_delivery(
     mailbox: &MailboxService,
-    receiver: &str,
-    target: i64,
-    deadline: Instant,
+    context: DeliveryWaitContext<'_>,
     cancellation: &CancellationToken,
-) -> Result<(), StressError> {
+) -> Result<DeliveryOutcome, StressError> {
+    let DeliveryWaitContext {
+        receiver,
+        baseline,
+        subject_suffix,
+        target,
+        requested,
+        started,
+        deadline,
+    } = context;
     if target <= 0 {
-        return Ok(());
+        return Ok(DeliveryOutcome {
+            delivered: 0,
+            timed_out: false,
+        });
     }
+    let mut stable_polls = 0;
+    let mut last_progress_second = None;
     loop {
         tokio::select! {
             biased;
             _ = cancellation.cancelled() => return Err(StressError::Cancelled),
             _ = sleep(DELIVERY_POLL) => {}
         }
-        if mailbox
-            .count_folder(receiver, "inbox", cancellation)
+        let observation = mailbox
+            .count_folder_run_marker(receiver, "inbox", subject_suffix, cancellation)
             .await
-            .map_err(|_| StressError::Backend)?
-            >= target
-        {
-            return Ok(());
+            .map_err(|_| StressError::Backend)?;
+        let (delivered, next_stable_polls, stable) = delivery_stability_after_poll(
+            stable_polls,
+            baseline,
+            observation.total,
+            observation.matching,
+            target,
+        )?;
+        stable_polls = next_stable_polls;
+        let elapsed_seconds = Instant::now().saturating_duration_since(started).as_secs();
+        if elapsed_seconds.is_multiple_of(5) && last_progress_second != Some(elapsed_seconds) {
+            eprintln!(
+                "[STRESS TEST] Progress: {delivered}/{requested} received \
+                 ({elapsed_seconds}s elapsed, target={target})"
+            );
+            last_progress_second = Some(elapsed_seconds);
+        }
+        if stable {
+            return Ok(DeliveryOutcome {
+                delivered,
+                timed_out: false,
+            });
         }
         if Instant::now() >= deadline {
-            return Ok(());
+            eprintln!(
+                "[STRESS TEST] TIMED OUT waiting for delivery! Received: \
+                 {delivered}/{requested} (queued: {target})"
+            );
+            return Ok(DeliveryOutcome {
+                delivered,
+                timed_out: true,
+            });
         }
     }
+}
+
+fn delivery_stability_after_poll(
+    previous_stable_polls: usize,
+    baseline: i64,
+    total: i64,
+    matching: i64,
+    target: i64,
+) -> Result<(i64, usize, bool), StressError> {
+    let delta = total.checked_sub(baseline).ok_or(StressError::Backend)?;
+    if baseline < 0
+        || target < 0
+        || delta < 0
+        || matching < 0
+        || matching > delta
+        || matching > target
+        || delta > target
+    {
+        return Err(StressError::Backend);
+    }
+    let stable_polls = if matching == target && delta == target {
+        previous_stable_polls.saturating_add(1)
+    } else {
+        0
+    };
+    Ok((
+        matching,
+        stable_polls,
+        stable_polls >= DELIVERY_STABLE_POLLS,
+    ))
 }
 
 async fn run_blocking<T, F>(
@@ -740,6 +1597,41 @@ fn max_concurrency(email_size_kb: i32) -> usize {
         10.. => 1_000,
         _ => DEFAULT_MAX_CONCURRENCY,
     }
+}
+
+fn outbound_worker_count(email_size_kb: i32, filesystem_fsync_enabled: bool) -> usize {
+    if email_size_kb >= 1_000 {
+        4
+    } else if filesystem_fsync_enabled {
+        8
+    } else {
+        32
+    }
+}
+
+fn body_memory_per_job(body_size: usize) -> usize {
+    if body_size <= IN_MEMORY_THRESHOLD_BYTES {
+        body_size
+    } else {
+        body_size.saturating_add(STREAMING_BODY_SCRATCH_BYTES)
+    }
+}
+
+fn final_cleanup_deadline(email_count: i32, email_size_kb: i32) -> Duration {
+    let message_count = u64::try_from(email_count.max(0)).unwrap_or_default();
+    let message_bytes = u64::try_from(email_size_kb.max(0))
+        .unwrap_or_default()
+        .saturating_mul(1024);
+    let cleanup_items = message_count.saturating_mul(CLEANUP_MAILBOX_COPIES);
+    let total_bytes = cleanup_items.saturating_mul(message_bytes);
+    let message_seconds = cleanup_items.div_ceil(CLEANUP_MESSAGES_PER_SECOND);
+    let byte_seconds = total_bytes.div_ceil(CLEANUP_BYTES_PER_SECOND);
+    Duration::from_secs(
+        FINAL_CLEANUP_BASE_SECONDS
+            .saturating_add(message_seconds)
+            .saturating_add(byte_seconds)
+            .min(FINAL_CLEANUP_MAX_SECONDS),
+    )
 }
 
 fn generate_body(
@@ -846,7 +1738,7 @@ fn generate_body_to_file(
         .open(&path)
         .map_err(|_| StressError::Backend)?;
     let result = write_body(
-        BufWriter::with_capacity(32 * 1024, file),
+        BufWriter::with_capacity(STREAMING_BODY_BUFFER_BYTES, file),
         body,
         "STREAMING",
         cancellation,
@@ -870,7 +1762,9 @@ fn write_body(
         size,
         millis,
     } = body;
-    let header = format!(
+    let mut header = String::with_capacity(STREAMING_BODY_HEADER_BYTES);
+    let _ = write!(
+        header,
         "=== Stress Test Email ===\r\n\
          Round: {}\r\n\
          Mode: {mode}\r\n\
@@ -882,6 +1776,9 @@ fn write_body(
         round.wrapping_add(1),
         size / 1024,
     );
+    if header.len() > STREAMING_BODY_HEADER_BYTES {
+        return Err(StressError::Backend);
+    }
     output
         .write_all(header.as_bytes())
         .map_err(|_| StressError::Backend)?;
@@ -939,28 +1836,6 @@ fn ensure_private_temp_dir(path: &Path) -> io::Result<()> {
         Err(error) => return Err(error),
     }
     fs::set_permissions(path, fs::Permissions::from_mode(0o700))
-}
-
-async fn cleanup_temp_file(inner: &StressInner, path: PathBuf) -> bool {
-    let cleanup_cancellation = CancellationToken::new();
-    let cleanup = run_blocking(inner, &cleanup_cancellation, move |_| fs::remove_file(path));
-    match timeout(TEMP_CLEANUP_DEADLINE, cleanup).await {
-        Ok(Ok(Ok(()))) => true,
-        Ok(Ok(Err(error))) if error.kind() == io::ErrorKind::NotFound => true,
-        Ok(Ok(Err(error))) => {
-            eprintln!("lmyzmail stress body temp cleanup failed: {error}");
-            false
-        }
-        Ok(Err(error)) => {
-            eprintln!("lmyzmail stress body temp cleanup failed: {error}");
-            false
-        }
-        Err(_) => {
-            cleanup_cancellation.cancel();
-            eprintln!("lmyzmail stress body temp cleanup exceeded its deadline");
-            false
-        }
-    }
 }
 
 fn remove_tree(root: &Path, cancellation: &CancellationToken) -> io::Result<()> {
@@ -1124,13 +1999,199 @@ mod tests {
     use crate::config::Properties;
 
     #[test]
-    fn concurrency_matches_frozen_thresholds() {
-        assert_eq!(max_concurrency(1), 1_500);
-        assert_eq!(max_concurrency(10), 1_000);
-        assert_eq!(max_concurrency(100), 400);
-        assert_eq!(max_concurrency(1_000), 200);
-        assert_eq!(max_concurrency(5_000), 120);
-        assert_eq!(max_concurrency(10_000), 80);
+    fn schedule_matches_frozen_enqueue_caps_and_releases_jobs_before_delivery_wait() {
+        for (email_size_kb, expected_cap) in [
+            (1, 1_500),
+            (10, 1_000),
+            (100, 400),
+            (1_000, 200),
+            (5_000, 120),
+            (10_000, 80),
+            (10_240, 80),
+        ] {
+            let schedule = StressSchedule::for_email_size_kb(email_size_kb);
+            assert_eq!(schedule.active_job_cap(StressPhase::Enqueue), expected_cap);
+            assert_eq!(schedule.active_job_cap(StressPhase::DeliveryWait), 0);
+        }
+    }
+
+    #[test]
+    fn blocking_queue_covers_every_frozen_enqueue_concurrency_tier() {
+        for email_size_kb in [1, 10, 100, 1_000, 5_000, 10_000] {
+            assert!(
+                BODY_QUEUE_CAPACITY >= max_concurrency(email_size_kb),
+                "blocking queue is smaller than the {email_size_kb}KB enqueue tier"
+            );
+        }
+    }
+
+    #[test]
+    fn outbound_workers_scale_by_durability_and_frozen_body_size_boundary() {
+        for (email_size_kb, filesystem_fsync_enabled, expected_workers) in [
+            (1, true, 8),
+            (10, true, 8),
+            (999, true, 8),
+            (1, false, 32),
+            (10, false, 32),
+            (999, false, 32),
+            (1_000, true, 4),
+            (1_000, false, 4),
+            (9_999, false, 4),
+            (10_000, false, 4),
+        ] {
+            assert_eq!(
+                outbound_worker_count(email_size_kb, filesystem_fsync_enabled),
+                expected_workers,
+                "unexpected worker bound for the {email_size_kb}KB tier with filesystem fsync={filesystem_fsync_enabled}"
+            );
+        }
+    }
+
+    #[test]
+    fn delivery_stability_uses_the_round_delta_and_requires_exact_target() {
+        assert_eq!(
+            delivery_stability_after_poll(0, 40, 40, 0, 1).unwrap(),
+            (0, 0, false)
+        );
+        assert_eq!(
+            delivery_stability_after_poll(0, 40, 41, 1, 1).unwrap(),
+            (1, 1, false)
+        );
+        assert_eq!(
+            delivery_stability_after_poll(1, 40, 41, 1, 1).unwrap(),
+            (1, 2, true)
+        );
+        assert!(delivery_stability_after_poll(0, 40, 42, 2, 1).is_err());
+        assert_eq!(
+            delivery_stability_after_poll(0, 40, 41, 0, 1).unwrap(),
+            (0, 0, false)
+        );
+        assert!(delivery_stability_after_poll(0, 40, 42, 1, 1).is_err());
+        assert!(delivery_stability_after_poll(0, 40, 39, 0, 1).is_err());
+    }
+
+    #[test]
+    fn late_delivery_resurrection_breaks_cleanup_stability() {
+        assert_eq!(cleanup_stability_after_poll(0, 0, 0).unwrap(), 1);
+        assert!(cleanup_stability_after_poll(1, 0, 1).is_err());
+        assert!(cleanup_stability_after_poll(1, 1, 0).is_err());
+        assert_eq!(cleanup_stability_after_poll(1, 0, 0).unwrap(), 2);
+    }
+
+    #[test]
+    fn run_markers_are_strictly_monotonic() {
+        let first = next_run_marker();
+        let second = next_run_marker();
+        assert!(first > 0);
+        assert!(second > first);
+    }
+
+    #[test]
+    fn streaming_body_budget_accounts_for_full_outbound_materialization() {
+        assert_eq!(body_memory_per_job(1024), 1024);
+        assert_eq!(
+            body_memory_per_job(IN_MEMORY_THRESHOLD_BYTES),
+            IN_MEMORY_THRESHOLD_BYTES
+        );
+        assert_eq!(
+            body_memory_per_job(IN_MEMORY_THRESHOLD_BYTES + 1),
+            IN_MEMORY_THRESHOLD_BYTES + 1 + STREAMING_BODY_SCRATCH_BYTES
+        );
+
+        let ten_megabytes = 10 * 1024 * 1024;
+        assert_eq!(
+            body_memory_per_job(ten_megabytes),
+            ten_megabytes + STREAMING_BODY_BUFFER_BYTES + STREAMING_BODY_HEADER_BYTES
+        );
+        let active_cap =
+            StressSchedule::for_email_size_kb(10_240).active_job_cap(StressPhase::Enqueue);
+        assert_eq!(active_cap, 80);
+        assert!(body_memory_per_job(ten_megabytes) * active_cap <= BODY_MEMORY_BUDGET_BYTES);
+        assert_eq!(BODY_MEMORY_BUDGET_BYTES / ten_megabytes, 102);
+    }
+
+    #[test]
+    fn final_cleanup_deadline_scales_and_stays_below_harness_recovery_window() {
+        assert_eq!(final_cleanup_deadline(0, 1), Duration::from_secs(10));
+        assert_eq!(final_cleanup_deadline(500_000, 1), Duration::from_secs(63));
+        assert_eq!(final_cleanup_deadline(500_000, 10), Duration::from_secs(81));
+        assert_eq!(
+            final_cleanup_deadline(1_000, 10_240),
+            Duration::from_secs(53)
+        );
+        assert_eq!(
+            final_cleanup_deadline(i32::MAX, i32::MAX),
+            Duration::from_secs(FINAL_CLEANUP_MAX_SECONDS)
+        );
+        assert!(final_cleanup_deadline(i32::MAX, i32::MAX) < Duration::from_secs(120));
+    }
+
+    #[test]
+    fn deferred_recovery_backoff_is_bounded() {
+        let mut delay = DEFERRED_RECOVERY_RETRY;
+        for _ in 0..32 {
+            delay = next_deferred_recovery_retry(delay);
+            assert!(delay <= DEFERRED_RECOVERY_MAX_RETRY);
+        }
+        assert_eq!(delay, DEFERRED_RECOVERY_MAX_RETRY);
+    }
+
+    #[test]
+    fn queue_target_exposes_partial_delivery_target_before_rejecting_admission() {
+        let complete = RunCounters::with_capacity(64);
+        complete.queued.store(64, Ordering::Relaxed);
+        assert_eq!(complete.queue_target(64).unwrap(), 64);
+
+        let partial = RunCounters::with_capacity(64);
+        partial.queued.store(63, Ordering::Relaxed);
+        partial.record_failure("database pool timeout");
+        assert_eq!(partial.queued_target().unwrap(), 63);
+        assert!(matches!(
+            partial.queue_target(64),
+            Err(StressError::Backend)
+        ));
+        assert_eq!(
+            partial.first_failure.get().map(String::as_str),
+            Some("database pool timeout")
+        );
+    }
+
+    #[test]
+    fn run_counters_preserve_outcome_unknown_task_identities() {
+        let counters = RunCounters::with_capacity(1);
+        counters.record_task(StressTaskIdentity {
+            queue_id: 41,
+            lifecycle: crate::outbound::StressTaskLifecycle::Unknown {
+                sent_file_name: Some("stress.eml".into()),
+                owned_files: None,
+            },
+        });
+        assert_eq!(
+            counters.task_snapshot().unwrap(),
+            [StressTaskIdentity {
+                queue_id: 41,
+                lifecycle: crate::outbound::StressTaskLifecycle::Unknown {
+                    sent_file_name: Some("stress.eml".into()),
+                    owned_files: None,
+                },
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn first_cleanup_failure_still_polls_the_second_cleanup() {
+        let second_polled = Arc::new(AtomicBool::new(false));
+        let second_flag = Arc::clone(&second_polled);
+        let (first, second) =
+            run_best_effort_pair(async { Err::<(), _>(StressError::Backend) }, async move {
+                second_flag.store(true, Ordering::Release);
+                Ok::<(), StressError>(())
+            })
+            .await;
+        assert!(first.is_err());
+        assert!(second.is_ok());
+        assert!(second_polled.load(Ordering::Acquire));
+        assert!(combine_cleanup_results(first, second).is_err());
     }
 
     #[test]
@@ -1307,6 +2368,56 @@ botmail.domains.main.sendEnabled=false\n",
         release_sender.send(()).unwrap();
         worker.join().unwrap();
         assert!(budget.try_acquire_owned().is_ok());
+    }
+
+    #[tokio::test]
+    async fn blocking_quiescence_cannot_complete_while_a_job_is_running() {
+        let blocking = Arc::new(Semaphore::new(BODY_QUEUE_CAPACITY));
+        let running_job = Arc::clone(&blocking).acquire_owned().await.unwrap();
+        assert!(
+            wait_for_blocking_quiescence(
+                Arc::clone(&blocking),
+                Instant::now() + Duration::from_millis(1),
+                &CancellationToken::new(),
+            )
+            .await
+            .is_err()
+        );
+        drop(running_job);
+        wait_for_blocking_quiescence(
+            Arc::clone(&blocking),
+            Instant::now() + Duration::from_secs(1),
+            &CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn shutdown_joins_or_aborts_every_service_held_quiescence_task() {
+        struct Dropped(Arc<AtomicBool>);
+
+        impl Drop for Dropped {
+            fn drop(&mut self) {
+                self.0.store(true, Ordering::Release);
+            }
+        }
+
+        let tasks = Mutex::new(JoinSet::new());
+        let dropped = Arc::new(AtomicBool::new(false));
+        let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+        tasks.lock().await.spawn({
+            let dropped = Arc::clone(&dropped);
+            async move {
+                let _dropped = Dropped(dropped);
+                let _ = started_tx.send(());
+                std::future::pending::<()>().await;
+            }
+        });
+        started_rx.await.unwrap();
+        shutdown_task_set(&tasks, Instant::now() + Duration::from_millis(1)).await;
+        assert!(dropped.load(Ordering::Acquire));
+        assert!(tasks.lock().await.is_empty());
     }
 
     #[test]

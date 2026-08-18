@@ -2,6 +2,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
     future::Future,
+    path::{Component, Path},
     time::Duration,
 };
 
@@ -36,6 +37,8 @@ const OUTBOUND_SPOOL_SCHEMA: &str = include_str!("../migrations/002_outbound_spo
 const OUTBOUND_DSN_SCHEMA: &str = include_str!("../migrations/003_outbound_dsn.sql");
 const OUTBOUND_SPOOL_CLEANUP_SCHEMA: &str =
     include_str!("../migrations/004_outbound_spool_cleanup.sql");
+const OUTBOUND_CONTENT_SCHEMA: &str =
+    include_str!("../migrations/005_outbound_content_authority.sql");
 
 pub(crate) fn legacy_smtp_failure_is_retryable(code: u16) -> bool {
     matches!(code, 421 | 450 | 451 | 452)
@@ -164,6 +167,61 @@ pub struct LegacyRedisTaskMaterialization {
     pub mail_size_bytes: i64,
     pub has_attachments: bool,
     pub to_addresses_json: String,
+    pub content_authority: OutboundContentAuthority,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum OutboundContentRoot {
+    Spool,
+    Maildir,
+}
+
+impl OutboundContentRoot {
+    pub(crate) fn database_value(self) -> &'static str {
+        match self {
+            Self::Spool => "SPOOL",
+            Self::Maildir => "MAILDIR",
+        }
+    }
+
+    fn from_database(value: &str) -> Result<Self, DeliveryStateError> {
+        match value {
+            "SPOOL" => Ok(Self::Spool),
+            "MAILDIR" => Ok(Self::Maildir),
+            _ => Err(DeliveryStateError::Unavailable),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OutboundContentAuthority {
+    pub task_id: i64,
+    pub source_root: OutboundContentRoot,
+    pub relative_path: String,
+    pub content_size: u64,
+    pub content_sha256: [u8; 32],
+}
+
+impl OutboundContentAuthority {
+    pub(crate) fn validate(&self) -> Result<(), DeliveryStateError> {
+        if self.task_id <= 0 || self.relative_path.len() > 4_096 {
+            return Err(DeliveryStateError::InvalidInput(
+                "outbound content authority identity is invalid",
+            ));
+        }
+        let mut components = Path::new(&self.relative_path).components();
+        if !matches!(components.next(), Some(Component::Normal(_)))
+            || components.any(|component| !matches!(component, Component::Normal(_)))
+        {
+            return Err(DeliveryStateError::InvalidInput(
+                "outbound content authority path is invalid",
+            ));
+        }
+        i64::try_from(self.content_size).map_err(|_| {
+            DeliveryStateError::InvalidInput("outbound content authority size is invalid")
+        })?;
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -594,6 +652,7 @@ impl PostgresDeliveryState {
             transaction
                 .batch_execute(OUTBOUND_SPOOL_CLEANUP_SCHEMA)
                 .await?;
+            transaction.batch_execute(OUTBOUND_CONTENT_SCHEMA).await?;
             transaction.commit().await?;
             Ok(())
         })
@@ -899,6 +958,125 @@ impl PostgresDeliveryState {
         Ok(row.get(0))
     }
 
+    pub async fn content_authority(
+        &self,
+        task_id: i64,
+    ) -> Result<Option<OutboundContentAuthority>, DeliveryStateError> {
+        if task_id <= 0 {
+            return Err(DeliveryStateError::InvalidInput(
+                "outbound content authority task ID is invalid",
+            ));
+        }
+        let deadline = Instant::now() + self.operation_timeout;
+        let client = self.client(deadline).await?;
+        let row = read_deadline(
+            deadline,
+            client.query_opt(
+                "SELECT source_root,relative_path,content_size,content_sha256
+                 FROM lmyzmail_outbound_content WHERE task_id=$1",
+                &[&task_id],
+            ),
+        )
+        .await?;
+        row.map(|row| {
+            let content_size =
+                u64::try_from(row.get::<_, i64>(2)).map_err(|_| DeliveryStateError::Unavailable)?;
+            let digest = row.get::<_, Vec<u8>>(3);
+            let content_sha256: [u8; 32] = digest
+                .try_into()
+                .map_err(|_| DeliveryStateError::Unavailable)?;
+            let authority = OutboundContentAuthority {
+                task_id,
+                source_root: OutboundContentRoot::from_database(row.get(0))?,
+                relative_path: row.get(1),
+                content_size,
+                content_sha256,
+            };
+            authority.validate()?;
+            Ok(authority)
+        })
+        .transpose()
+    }
+
+    pub async fn register_content_authority(
+        &self,
+        authority: &OutboundContentAuthority,
+        now: DateTime<Utc>,
+    ) -> Result<bool, DeliveryStateError> {
+        authority.validate()?;
+        let content_size = i64::try_from(authority.content_size)
+            .map_err(|_| DeliveryStateError::InvalidInput("outbound content size is invalid"))?;
+        let digest = authority.content_sha256.as_slice();
+        let now = postgres_timestamp(now)?;
+        let deadline = Instant::now() + self.operation_timeout;
+        let mut client = self.client(deadline).await?;
+        let cancel_token = client.cancel_token();
+        ledger_mutation(deadline, cancel_token, async {
+            let transaction = client.transaction().await?;
+            configure_transaction_deadline(&transaction, deadline).await?;
+            transaction
+                .query_one(
+                    "SELECT pg_advisory_xact_lock($1)",
+                    &[&(LEGACY_REDIS_TAKEOVER_LOCK ^ authority.task_id)],
+                )
+                .await?;
+            let parent_exists = transaction
+                .query_opt(
+                    "SELECT 1 FROM outbound_mail_queue WHERE id=$1 FOR UPDATE",
+                    &[&authority.task_id],
+                )
+                .await?
+                .is_some();
+            if !parent_exists {
+                return Err(DeliveryStateError::InvalidTransition(
+                    "outbound content authority parent is missing",
+                )
+                .into());
+            }
+            let inserted = transaction
+                .execute(
+                    "INSERT INTO lmyzmail_outbound_content
+                     (task_id,source_root,relative_path,content_size,content_sha256,
+                      created_at,updated_at)
+                     VALUES ($1,$2,$3,$4,$5,$6,$6)
+                     ON CONFLICT (task_id) DO NOTHING",
+                    &[
+                        &authority.task_id,
+                        &authority.source_root.database_value(),
+                        &authority.relative_path,
+                        &content_size,
+                        &digest,
+                        &now,
+                    ],
+                )
+                .await?;
+            let exact = transaction
+                .query_opt(
+                    "SELECT 1 FROM lmyzmail_outbound_content
+                     WHERE task_id=$1 AND source_root=$2 AND relative_path=$3
+                       AND content_size=$4 AND content_sha256=$5",
+                    &[
+                        &authority.task_id,
+                        &authority.source_root.database_value(),
+                        &authority.relative_path,
+                        &content_size,
+                        &digest,
+                    ],
+                )
+                .await?
+                .is_some();
+            if !exact {
+                return Err(DeliveryStateError::InvalidTransition(
+                    "outbound content authority conflicts with durable state",
+                )
+                .into());
+            }
+            transaction.commit().await?;
+            Ok(inserted == 1)
+        })
+        .await
+    }
+
     pub async fn register_outbound_spool(
         &self,
         task_id: i64,
@@ -1087,11 +1265,13 @@ impl PostgresDeliveryState {
                      WHERE task_id=$1 FOR UPDATE",
                     &[&task_id],
                 )
-                .await?
-                .ok_or(DeliveryStateError::InvalidTransition(
-                    "outbound spool ownership is missing",
-                ))?;
+                .await?;
+            let Some(row) = row else {
+                transaction.commit().await?;
+                return Ok(false);
+            };
             if row.get::<_, &str>(0) != spool_path {
+                transaction.commit().await?;
                 return Err(DeliveryStateError::InvalidTransition(
                     "outbound spool path conflicts with durable state",
                 )
@@ -1109,7 +1289,10 @@ impl PostgresDeliveryState {
                         .await?;
                     true
                 }
-                _ => return Err(DeliveryStateError::Unavailable.into()),
+                _ => {
+                    transaction.commit().await?;
+                    return Err(DeliveryStateError::Unavailable.into());
+                }
             };
             transaction.commit().await?;
             Ok(changed)
@@ -1238,6 +1421,18 @@ impl PostgresDeliveryState {
         now: DateTime<Utc>,
     ) -> Result<bool, DeliveryStateError> {
         validate_legacy_redis_materialization(task)?;
+        task.content_authority.validate()?;
+        if task.content_authority.task_id != task.task_id
+            || task.content_authority.source_root != OutboundContentRoot::Maildir
+        {
+            return Err(DeliveryStateError::InvalidInput(
+                "legacy Redis content authority is invalid",
+            ));
+        }
+        let content_size = i64::try_from(task.content_authority.content_size).map_err(|_| {
+            DeliveryStateError::InvalidInput("legacy Redis content authority size is invalid")
+        })?;
+        let content_sha256 = task.content_authority.content_sha256.as_slice();
         let now = postgres_timestamp(now)?;
         let deadline = Instant::now() + self.operation_timeout;
         let mut client = self.client(deadline).await?;
@@ -1334,6 +1529,43 @@ impl PostgresDeliveryState {
                     ],
                 )
                 .await?;
+
+            transaction
+                .execute(
+                    "INSERT INTO lmyzmail_outbound_content
+                     (task_id,source_root,relative_path,content_size,content_sha256,
+                      created_at,updated_at)
+                     VALUES ($1,'MAILDIR',$2,$3,$4,$5,$5)
+                     ON CONFLICT (task_id) DO NOTHING",
+                    &[
+                        &task.task_id,
+                        &task.content_authority.relative_path,
+                        &content_size,
+                        &content_sha256,
+                        &now,
+                    ],
+                )
+                .await?;
+            let authority_exact = transaction
+                .query_opt(
+                    "SELECT 1 FROM lmyzmail_outbound_content
+                     WHERE task_id=$1 AND source_root='MAILDIR' AND relative_path=$2
+                       AND content_size=$3 AND content_sha256=$4",
+                    &[
+                        &task.task_id,
+                        &task.content_authority.relative_path,
+                        &content_size,
+                        &content_sha256,
+                    ],
+                )
+                .await?
+                .is_some();
+            if !authority_exact {
+                return Err(DeliveryStateError::InvalidTransition(
+                    "legacy Redis content authority conflicts with PostgreSQL state",
+                )
+                .into());
+            }
 
             advance_legacy_sequence(&transaction, task.task_id).await?;
             transaction.commit().await?;
@@ -2437,7 +2669,8 @@ impl PostgresDeliveryState {
             match lock_legacy_claim(&transaction, claim).await {
                 Ok(_) => {}
                 Err(LedgerMutationError::State(DeliveryStateError::Fenced)) => {
-                    transaction.rollback().await?;
+                    // No writes occurred; do not count routine claim fencing as a rollback.
+                    transaction.commit().await?;
                     return Ok(false);
                 }
                 Err(error) => return Err(error),
@@ -4017,8 +4250,9 @@ mod tests {
         use crate::{
             config::{Properties, RuntimeConfig},
             database,
+            mailbox::sanitize_address_for_path,
             outbound::{DsnAdmission, OutboundService},
-            outbound_queue::LegacyOutboundQueue,
+            outbound_queue::{LegacyOutboundQueue, PublicationState},
             redis as redis_config,
         };
         use tokio_util::sync::CancellationToken;
@@ -4784,7 +5018,9 @@ mod tests {
                 .unwrap()
                 .get::<_, i32>(0);
             let sent_path = storage
-                .join("maildir/qa@example.test/sent")
+                .join("maildir")
+                .join(sanitize_address_for_path("qa@example.test"))
+                .join("sent")
                 .join(sent_subdirectory.to_string())
                 .join(&admission.sent_file_name);
             fs::copy(&sent_path, &spool_path).unwrap();
@@ -4816,12 +5052,23 @@ mod tests {
             let redis_queue = LegacyOutboundQueue::new(redis_pool);
             let publication_deadline = Instant::now() + Duration::from_secs(3);
             loop {
-                if redis_queue
-                    .is_complete_task(dsn_task_id, &admission.sent_file_name)
+                if let Some(task) = redis_queue
+                    .read_persisted_task_strict(dsn_task_id)
                     .await
                     .unwrap()
                 {
-                    break;
+                    let domains = redis_queue
+                        .read_persisted_domain_statuses(dsn_task_id)
+                        .await
+                        .unwrap();
+                    if redis_queue
+                        .publication_state(&task, &domains)
+                        .await
+                        .unwrap()
+                        == PublicationState::Exact
+                    {
+                        break;
+                    }
                 }
                 assert!(
                     Instant::now() < publication_deadline,

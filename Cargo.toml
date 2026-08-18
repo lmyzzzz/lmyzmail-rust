@@ -1,8 +1,8 @@
 [workspace]
 resolver = "3"
-members = ["crates/lmyzmail"]
+members = ["crates/lmyzmail", "crates/lmyzmail-benchmark-proxy"]
 exclude = ["tools/lmyzmail-xdp-check"]
-default-members = ["crates/lmyzmail"]
+default-members = ["crates/lmyzmail", "crates/lmyzmail-benchmark-proxy"]
 
 [workspace.package]
 version = "0.1.0"

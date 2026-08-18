@@ -20,9 +20,10 @@ use lmyzmail::{
     config::{Properties, RuntimeConfig},
     outbound_queue::{
         ClaimReconciliation, DomainStatus, LegacyListClaim, LegacyListKind, LegacyOutboundQueue,
-        QueueClaim, QueueError, QueueSettlement, SettlementReconciliation, TaskDetail,
+        PublicationState, QueueClaim, QueueError, QueueSettlement, SettlementReconciliation,
+        TaskDetail,
     },
-    redis::create_pool,
+    redis::{create_pool, verify_pool_ready},
 };
 use sha2::{Digest, Sha256};
 
@@ -30,6 +31,9 @@ struct RedisProcess {
     child: Child,
     directory: PathBuf,
     port: u16,
+    binary: PathBuf,
+    library_directory: PathBuf,
+    persistent: bool,
 }
 
 // Keep the bind(0)-release-spawn window exclusive so parallel tests cannot
@@ -245,6 +249,14 @@ impl Drop for DropResponseProxy {
 
 impl RedisProcess {
     fn start() -> Self {
+        Self::start_with_persistence(false)
+    }
+
+    fn start_persistent() -> Self {
+        Self::start_with_persistence(true)
+    }
+
+    fn start_with_persistence(persistent: bool) -> Self {
         let _start_guard = REDIS_START_LOCK
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -279,7 +291,26 @@ impl RedisProcess {
             std::process::id()
         ));
         fs::create_dir(&directory).unwrap();
-        let child = Command::new(binary)
+        let child = Self::spawn_child(&binary, &library_directory, &directory, port, persistent);
+        Self::wait_until_ready(port);
+        Self {
+            child,
+            directory,
+            port,
+            binary,
+            library_directory,
+            persistent,
+        }
+    }
+
+    fn spawn_child(
+        binary: &Path,
+        library_directory: &Path,
+        directory: &Path,
+        port: u16,
+        persistent: bool,
+    ) -> Child {
+        Command::new(binary)
             .args([
                 "--bind",
                 "127.0.0.1",
@@ -288,7 +319,9 @@ impl RedisProcess {
                 "--save",
                 "",
                 "--appendonly",
-                "no",
+                if persistent { "yes" } else { "no" },
+                "--appendfsync",
+                "always",
                 "--protected-mode",
                 "yes",
                 "--dir",
@@ -299,7 +332,10 @@ impl RedisProcess {
             .stderr(Stdio::null())
             .env("LD_LIBRARY_PATH", library_directory)
             .spawn()
-            .unwrap();
+            .unwrap()
+    }
+
+    fn wait_until_ready(port: u16) {
         let deadline = Instant::now() + Duration::from_secs(5);
         while TcpStream::connect(("127.0.0.1", port)).is_err() {
             assert!(
@@ -308,15 +344,28 @@ impl RedisProcess {
             );
             std::thread::sleep(Duration::from_millis(20));
         }
-        Self {
-            child,
-            directory,
-            port,
-        }
     }
 
     fn port(&self) -> u16 {
         self.port
+    }
+
+    fn restart_after_kill(&mut self) {
+        self.child.kill().unwrap();
+        self.child.wait().unwrap();
+        self.child = Self::spawn_child(
+            &self.binary,
+            &self.library_directory,
+            &self.directory,
+            self.port,
+            self.persistent,
+        );
+        Self::wait_until_ready(self.port);
+    }
+
+    fn kill(&mut self) {
+        self.child.kill().unwrap();
+        self.child.wait().unwrap();
     }
 }
 
@@ -413,6 +462,41 @@ fn pool_at(port: u16) -> deadpool_redis::Pool {
         .unwrap();
     let config = RuntimeConfig::from_properties(properties).unwrap();
     create_pool(&config).unwrap()
+}
+
+#[tokio::test]
+async fn startup_ping_primes_pool_before_concurrent_queue_scans() {
+    let process = RedisProcess::start();
+    let pool = pool_at(process.port());
+    verify_pool_ready(&pool).await.unwrap();
+
+    let queue = LegacyOutboundQueue::new(pool);
+    let scans = (0..64)
+        .map(|_| {
+            let queue = queue.clone();
+            tokio::spawn(async move { queue.active_task_ids(1).await })
+        })
+        .collect::<Vec<_>>();
+    for scan in scans {
+        assert!(scan.await.unwrap().unwrap().is_empty());
+    }
+}
+
+#[tokio::test]
+async fn startup_ping_fails_closed_after_redis_disconnects() {
+    let mut process = RedisProcess::start();
+    let pool = pool_at(process.port());
+    verify_pool_ready(&pool).await.unwrap();
+    process.kill();
+
+    let error = verify_pool_ready(&pool).await.unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .starts_with("Redis connection unavailable:")
+            || error.to_string().starts_with("Redis startup PING failed:"),
+        "unexpected startup failure: {error}"
+    );
 }
 
 async fn dump_keys(pool: &deadpool_redis::Pool, keys: &[String]) -> Vec<Option<Vec<u8>>> {
@@ -705,12 +789,51 @@ async fn terminal_acknowledgement_proof_tracks_all_active_references() {
             .await
             .unwrap()
     );
-    assert!(queue.acknowledge(&claim).await.unwrap());
+    let mut retry_task = claim.task.clone().unwrap();
+    retry_task.retry_count = 1;
+    retry_task.next_retry_at = Some("2026-08-15T00:00:01Z".into());
+    let retry_at = now_millis() + 1;
+    assert!(
+        queue
+            .schedule_retry(&claim, &retry_task, retry_at)
+            .await
+            .unwrap()
+    );
+    assert!(
+        !queue
+            .terminal_acknowledgement_proven(task_id, &sent_file)
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        queue.move_due_retries(retry_at, 1).await.unwrap(),
+        vec![task_id]
+    );
+    let retry_claim = queue
+        .claim_next("ack-proof:retry-claim", Duration::from_secs(30), retry_at)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        !queue
+            .terminal_acknowledgement_proven(task_id, &sent_file)
+            .await
+            .unwrap()
+    );
+    assert!(queue.acknowledge(&retry_claim).await.unwrap());
     assert!(
         queue
             .terminal_acknowledgement_proven(task_id, &sent_file)
             .await
             .unwrap()
+    );
+    assert_eq!(
+        queue
+            .publication_state(&task(task_id), &domains())
+            .await
+            .unwrap(),
+        PublicationState::Conflict,
+        "retained acknowledgement history must not be classified as a missing publication"
     );
 }
 
@@ -1338,7 +1461,6 @@ async fn assert_wrong_type_complete_check_is_atomic(corrupt_key: &str, expected_
     let queue = LegacyOutboundQueue::new(pool.clone());
     let task_id = 9_007_199_254_742_218_i64;
     let published = task(task_id);
-    let sent_file = published.sent_file_name.clone().unwrap();
     assert!(queue.publish(&published, &domains()).await.unwrap());
     let state_keys = legacy_active_task_state_keys(task_id);
     let mut connection = pool.get().await.unwrap();
@@ -1356,7 +1478,7 @@ async fn assert_wrong_type_complete_check_is_atomic(corrupt_key: &str, expected_
 
     assert_eq!(
         queue
-            .is_complete_task(task_id, &sent_file)
+            .publication_state(&published, &domains())
             .await
             .unwrap_err(),
         QueueError::OutcomeUnknown,
@@ -1665,6 +1787,48 @@ async fn task_id_reservation_rejects_corrupt_and_exhausted_sequences_without_mut
 }
 
 #[tokio::test]
+async fn task_id_block_reservation_advances_the_legacy_sequence_once_and_is_bounded() {
+    let process = RedisProcess::start();
+    let pool = pool_at(process.port());
+    let queue = LegacyOutboundQueue::new(pool.clone());
+    let sequence_key = "botmail:mail:queue:seq";
+
+    assert_eq!(queue.reserve_task_id_block(10, 3).await.unwrap(), (11, 13));
+    let mut connection = pool.get().await.unwrap();
+    assert_eq!(
+        redis::cmd("GET")
+            .arg(sequence_key)
+            .query_async::<String>(&mut connection)
+            .await
+            .unwrap(),
+        "13"
+    );
+    drop(connection);
+    assert_eq!(queue.reserve_task_id(13).await.unwrap(), 14);
+
+    assert_eq!(
+        queue.reserve_task_id_block(14, 0).await.unwrap_err(),
+        QueueError::InvalidTask("task ID reservation count is invalid")
+    );
+    assert_eq!(
+        queue.reserve_task_id_block(14, 4_097).await.unwrap_err(),
+        QueueError::InvalidTask("task ID reservation count is invalid")
+    );
+
+    let mut connection = pool.get().await.unwrap();
+    redis::cmd("DEL")
+        .arg(sequence_key)
+        .query_async::<i64>(&mut connection)
+        .await
+        .unwrap();
+    drop(connection);
+    assert_eq!(
+        queue.reserve_task_id_block(i64::MAX - 2, 2).await.unwrap(),
+        (i64::MAX - 1, i64::MAX)
+    );
+}
+
+#[tokio::test]
 async fn active_task_renew_preflight_rejects_every_wrong_type_without_ttl_changes() {
     let task_id = 9_007_199_254_742_217_i64;
     for (key, expected_string) in [
@@ -1676,6 +1840,102 @@ async fn active_task_renew_preflight_rejects_every_wrong_type_without_ttl_change
     ] {
         assert_wrong_type_active_renew_is_atomic(&key, expected_string).await;
     }
+}
+
+#[tokio::test]
+async fn pending_task_ttl_renewal_rotates_and_fails_closed_on_missing_metadata() {
+    let process = RedisProcess::start();
+    let pool = pool_at(process.port());
+    let queue = LegacyOutboundQueue::new(pool.clone());
+    let task_ids = [
+        9_007_199_254_742_220_i64,
+        9_007_199_254_742_221_i64,
+        9_007_199_254_742_222_i64,
+    ];
+    for task_id in task_ids {
+        assert!(queue.publish(&task(task_id), &domains()).await.unwrap());
+    }
+
+    let mut connection = pool.get().await.unwrap();
+    for task_id in task_ids {
+        for key in [
+            format!("botmail:mail:queue:task:{task_id}"),
+            format!("botmail:mail:queue:domains:{task_id}"),
+        ] {
+            redis::cmd("EXPIRE")
+                .arg(key)
+                .arg(120)
+                .query_async::<bool>(&mut connection)
+                .await
+                .unwrap();
+        }
+    }
+    drop(connection);
+
+    let first = queue.renew_pending_task_ttls(0, 2).await.unwrap();
+    assert_eq!((first.next_offset, first.renewed_tasks), (2, 2));
+    let mut connection = pool.get().await.unwrap();
+    for task_id in &task_ids[..2] {
+        for key in [
+            format!("botmail:mail:queue:task:{task_id}"),
+            format!("botmail:mail:queue:domains:{task_id}"),
+        ] {
+            assert!(
+                redis::cmd("TTL")
+                    .arg(key)
+                    .query_async::<i64>(&mut connection)
+                    .await
+                    .unwrap()
+                    > 600_000
+            );
+        }
+    }
+    assert!(
+        redis::cmd("TTL")
+            .arg(format!("botmail:mail:queue:task:{}", task_ids[2]))
+            .query_async::<i64>(&mut connection)
+            .await
+            .unwrap()
+            <= 120
+    );
+    drop(connection);
+
+    let second = queue
+        .renew_pending_task_ttls(first.next_offset, 2)
+        .await
+        .unwrap();
+    assert_eq!((second.next_offset, second.renewed_tasks), (0, 1));
+
+    let missing_id = task_ids[2] + 1;
+    let mut connection = pool.get().await.unwrap();
+    redis::cmd("EXPIRE")
+        .arg(format!("botmail:mail:queue:task:{}", task_ids[2]))
+        .arg(120)
+        .query_async::<bool>(&mut connection)
+        .await
+        .unwrap();
+    redis::cmd("RPUSH")
+        .arg("botmail:mail:queue:pending")
+        .arg(missing_id)
+        .query_async::<i64>(&mut connection)
+        .await
+        .unwrap();
+    drop(connection);
+
+    assert_eq!(
+        queue.renew_pending_task_ttls(2, 2).await.unwrap_err(),
+        QueueError::InvalidTask("pending task detail is missing during TTL renewal")
+    );
+    let mut connection = pool.get().await.unwrap();
+    assert!(
+        redis::cmd("TTL")
+            .arg(format!("botmail:mail:queue:task:{}", task_ids[2]))
+            .query_async::<i64>(&mut connection)
+            .await
+            .unwrap()
+            <= 120,
+        "a page with missing metadata refreshed earlier entries before failing"
+    );
 }
 
 #[tokio::test]
@@ -1892,7 +2152,7 @@ async fn publish_bounded_is_atomic_and_idempotent() {
             .publish_bounded(&task(second_id), &domains(), 1)
             .await
             .unwrap_err(),
-        QueueError::Unavailable
+        QueueError::Full
     );
 
     let mut connection = pool.get().await.unwrap();
@@ -1923,10 +2183,430 @@ async fn publish_bounded_is_atomic_and_idempotent() {
 }
 
 #[tokio::test]
-async fn claim_result_index_cap_is_atomic_and_reclaims_expired_members() {
+async fn active_reference_upper_bound_is_capped_and_conservative() {
     let process = RedisProcess::start();
     let pool = pool_at(process.port());
     let queue = LegacyOutboundQueue::new(pool.clone());
+    let mut connection = pool.get().await.unwrap();
+    redis::cmd("RPUSH")
+        .arg("botmail:mail:queue:pending")
+        .arg("1")
+        .arg("1")
+        .query_async::<i64>(&mut connection)
+        .await
+        .unwrap();
+    redis::cmd("SADD")
+        .arg("botmail:mail:queue:processing")
+        .arg("1")
+        .arg("2")
+        .query_async::<i64>(&mut connection)
+        .await
+        .unwrap();
+    redis::cmd("ZADD")
+        .arg("botmail:mail:queue:retry")
+        .arg(3)
+        .arg("3")
+        .query_async::<i64>(&mut connection)
+        .await
+        .unwrap();
+    drop(connection);
+
+    assert_eq!(queue.active_reference_upper_bound(10).await.unwrap(), 5);
+    assert_eq!(queue.active_reference_upper_bound(4).await.unwrap(), 4);
+    assert_eq!(
+        queue.active_reference_upper_bound(0).await.unwrap_err(),
+        QueueError::InvalidTask("invalid active queue bound")
+    );
+
+    let mut connection = pool.get().await.unwrap();
+    redis::cmd("SET")
+        .arg("botmail:mail:queue:pending")
+        .arg("wrong-type")
+        .query_async::<String>(&mut connection)
+        .await
+        .unwrap();
+    drop(connection);
+    assert_eq!(
+        queue.active_reference_upper_bound(10).await.unwrap_err(),
+        QueueError::Unavailable
+    );
+}
+
+#[tokio::test]
+async fn redis_error_reply_exposes_a_stable_response_detail() {
+    let process = RedisProcess::start();
+    let pool = pool_at(process.port());
+    let mut connection = pool.get().await.unwrap();
+    let error = redis::cmd("EVAL")
+        .arg("return redis.error_reply('TASK_ID_CONFLICT')")
+        .arg(0)
+        .query_async::<i64>(&mut connection)
+        .await
+        .unwrap_err();
+    assert_eq!(
+        error.code(),
+        Some("ERR"),
+        "unexpected error mapping: kind={:?} detail={:?} error={error}",
+        error.kind(),
+        error.detail(),
+    );
+    assert_eq!(error.detail(), Some("TASK_ID_CONFLICT"));
+}
+
+#[tokio::test]
+async fn publish_bounded_counts_mixed_active_states_at_the_exact_cap() {
+    let process = RedisProcess::start();
+    let pool = pool_at(process.port());
+    let queue = LegacyOutboundQueue::new(pool.clone());
+    let first_id = 9_007_199_254_742_010_i64;
+    let second_id = first_id + 1;
+    let pending = (1..=3_333).map(|id| id.to_string()).collect::<Vec<_>>();
+    let processing = (3_334..=6_666).map(|id| id.to_string()).collect::<Vec<_>>();
+
+    let mut connection = pool.get().await.unwrap();
+    redis::cmd("RPUSH")
+        .arg("botmail:mail:queue:pending")
+        .arg(&pending)
+        .query_async::<i64>(&mut connection)
+        .await
+        .unwrap();
+    redis::cmd("SADD")
+        .arg("botmail:mail:queue:processing")
+        .arg(&processing)
+        .query_async::<i64>(&mut connection)
+        .await
+        .unwrap();
+    let mut retry = redis::cmd("ZADD");
+    retry.arg("botmail:mail:queue:retry");
+    for id in 6_667..=9_999 {
+        retry.arg(id).arg(id);
+    }
+    retry.query_async::<i64>(&mut connection).await.unwrap();
+    drop(connection);
+
+    assert!(
+        queue
+            .publish_bounded(&task(first_id), &domains(), 10_000)
+            .await
+            .unwrap(),
+        "the 10,000th active task must be admitted"
+    );
+    assert!(
+        !queue
+            .publish_bounded(&task(first_id), &domains(), 10_000)
+            .await
+            .unwrap(),
+        "an exact replay must remain idempotent at the cap"
+    );
+    assert_eq!(
+        queue
+            .publish_bounded(&task(second_id), &domains(), 10_000)
+            .await
+            .unwrap_err(),
+        QueueError::Full
+    );
+
+    let mut connection = pool.get().await.unwrap();
+    assert_eq!(
+        redis::cmd("LLEN")
+            .arg("botmail:mail:queue:pending")
+            .query_async::<i64>(&mut connection)
+            .await
+            .unwrap(),
+        3_334
+    );
+    assert_eq!(
+        redis::cmd("SCARD")
+            .arg("botmail:mail:queue:processing")
+            .query_async::<i64>(&mut connection)
+            .await
+            .unwrap(),
+        3_333
+    );
+    assert_eq!(
+        redis::cmd("ZCARD")
+            .arg("botmail:mail:queue:retry")
+            .query_async::<i64>(&mut connection)
+            .await
+            .unwrap(),
+        3_333
+    );
+    for key in [
+        format!("botmail:mail:queue:task:{second_id}"),
+        format!("botmail:mail:queue:domains:{second_id}"),
+    ] {
+        assert_eq!(
+            redis::cmd("EXISTS")
+                .arg(key)
+                .query_async::<i64>(&mut connection)
+                .await
+                .unwrap(),
+            0,
+            "a rejected task must not create Redis metadata"
+        );
+    }
+    assert_eq!(
+        redis::cmd("HGET")
+            .arg("botmail:mail:queue:sentfile_index")
+            .arg(task(second_id).sent_file_name.unwrap())
+            .query_async::<Option<String>>(&mut connection)
+            .await
+            .unwrap(),
+        None,
+        "a rejected task must not mutate the sent-file index"
+    );
+}
+
+#[tokio::test]
+async fn exact_publication_proof_rejects_missing_partial_and_conflicting_same_id_state() {
+    let process = RedisProcess::start();
+    let pool = pool_at(process.port());
+    let queue = LegacyOutboundQueue::new(pool.clone());
+    let task_id = 9_007_199_254_742_002_i64;
+    let expected_task = task(task_id);
+    let expected_domains = two_domains();
+    let task_key = format!("botmail:mail:queue:task:{task_id}");
+    let domain_key = format!("botmail:mail:queue:domains:{task_id}");
+    let sent_file = expected_task.sent_file_name.clone().unwrap();
+    assert!(
+        queue
+            .publish(&expected_task, &expected_domains)
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        queue
+            .publication_state(&expected_task, &expected_domains)
+            .await
+            .unwrap(),
+        PublicationState::Exact
+    );
+
+    let mut connection = pool.get().await.unwrap();
+    redis::cmd("EXPIRE")
+        .arg(&task_key)
+        .arg(120)
+        .query_async::<bool>(&mut connection)
+        .await
+        .unwrap();
+    redis::cmd("EXPIRE")
+        .arg(&domain_key)
+        .arg(120)
+        .query_async::<bool>(&mut connection)
+        .await
+        .unwrap();
+    redis::cmd("HDEL")
+        .arg("botmail:mail:queue:sentfile_index")
+        .arg(&sent_file)
+        .query_async::<i64>(&mut connection)
+        .await
+        .unwrap();
+    drop(connection);
+    assert_eq!(
+        queue
+            .publication_state(&expected_task, &expected_domains)
+            .await
+            .unwrap(),
+        PublicationState::Missing
+    );
+    let mut connection = pool.get().await.unwrap();
+    for key in [&task_key, &domain_key] {
+        let ttl: i64 = redis::cmd("TTL")
+            .arg(key)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        assert!((1..=120).contains(&ttl), "Missing refreshed TTL for {key}");
+    }
+    redis::cmd("HSET")
+        .arg("botmail:mail:queue:sentfile_index")
+        .arg(&sent_file)
+        .arg(task_id)
+        .query_async::<i64>(&mut connection)
+        .await
+        .unwrap();
+    redis::cmd("HDEL")
+        .arg(&domain_key)
+        .arg("other.test")
+        .query_async::<i64>(&mut connection)
+        .await
+        .unwrap();
+    drop(connection);
+    assert_eq!(
+        queue
+            .publication_state(&expected_task, &expected_domains)
+            .await
+            .unwrap(),
+        PublicationState::Conflict
+    );
+    let mut connection = pool.get().await.unwrap();
+    for key in [&task_key, &domain_key] {
+        let ttl: i64 = redis::cmd("TTL")
+            .arg(key)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        assert!((1..=120).contains(&ttl), "Conflict refreshed TTL for {key}");
+    }
+
+    redis::cmd("HSET")
+        .arg(&domain_key)
+        .arg("other.test")
+        .arg(serde_json::to_string(&expected_domains["other.test"]).unwrap())
+        .arg("extra.test")
+        .arg("{}")
+        .query_async::<i64>(&mut connection)
+        .await
+        .unwrap();
+    drop(connection);
+    assert_eq!(
+        queue
+            .publication_state(&expected_task, &expected_domains)
+            .await
+            .unwrap(),
+        PublicationState::Conflict
+    );
+}
+
+#[tokio::test]
+async fn lost_publish_reply_is_proven_exact_after_restart() {
+    let process = RedisProcess::start();
+    let direct_pool = pool_at(process.port());
+    let task_id = 9_007_199_254_742_003_i64;
+    let expected_task = task(task_id);
+    let expected_domains = domains();
+    let proxy = DropResponseProxy::start(process.port(), b"local task_json = ARGV[2]");
+    let lossy_queue = LegacyOutboundQueue::new(pool_at(proxy.port()));
+    assert_eq!(
+        lossy_queue
+            .publish(&expected_task, &expected_domains)
+            .await
+            .unwrap_err(),
+        QueueError::OutcomeUnknown
+    );
+    drop(lossy_queue);
+    proxy.wait();
+
+    let restarted = LegacyOutboundQueue::new(direct_pool);
+    assert_eq!(
+        restarted
+            .publication_state(&expected_task, &expected_domains)
+            .await
+            .unwrap(),
+        PublicationState::Exact
+    );
+}
+
+#[tokio::test]
+async fn redis_sigkill_restart_preserves_claim_ttls_and_settlement_proof() {
+    let mut process = RedisProcess::start_persistent();
+    let pool = pool_at(process.port());
+    let queue = LegacyOutboundQueue::new(pool.clone());
+    let task_id = 9_007_199_254_742_004_i64;
+    let token = "redis-restart:claim";
+    assert!(queue.publish(&task(task_id), &domains()).await.unwrap());
+    let claim = queue
+        .claim_next(token, Duration::from_secs(60), now_millis())
+        .await
+        .unwrap()
+        .unwrap();
+    let task_key = format!("botmail:mail:queue:task:{task_id}");
+    let domain_key = format!("botmail:mail:queue:domains:{task_id}");
+    let mut connection = pool.get().await.unwrap();
+    for key in [&task_key, &domain_key] {
+        assert!(
+            redis::cmd("EXPIRE")
+                .arg(key)
+                .arg(300)
+                .query_async::<bool>(&mut connection)
+                .await
+                .unwrap()
+        );
+    }
+    drop(connection);
+    drop(queue);
+    drop(pool);
+
+    process.restart_after_kill();
+    let pool = pool_at(process.port());
+    let queue = LegacyOutboundQueue::new(pool.clone());
+    let reconciled = match queue.reconcile_claim(token).await.unwrap() {
+        ClaimReconciliation::Active(active) => active,
+        other => panic!("active claim was not recovered after Redis restart: {other:?}"),
+    };
+    assert_eq!(reconciled.claim, claim);
+    assert!(reconciled.lease_ttl_millis > 50_000);
+    let mut connection = pool.get().await.unwrap();
+    for key in [&task_key, &domain_key] {
+        let ttl: i64 = redis::cmd("PTTL")
+            .arg(key)
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        assert!(
+            (280_000..=300_000).contains(&ttl),
+            "Redis restart did not preserve the absolute TTL for {key}: {ttl}"
+        );
+    }
+    drop(connection);
+    assert!(queue.acknowledge(&claim).await.unwrap());
+    drop(queue);
+    drop(pool);
+
+    process.restart_after_kill();
+    let pool = pool_at(process.port());
+    let queue = LegacyOutboundQueue::new(pool.clone());
+    assert_eq!(
+        queue.reconcile_claim(token).await.unwrap(),
+        ClaimReconciliation::NotFound
+    );
+    assert_eq!(
+        queue
+            .reconcile_settlement(&claim, QueueSettlement::Acknowledge)
+            .await
+            .unwrap(),
+        SettlementReconciliation::Applied
+    );
+    assert!(queue.acknowledge(&claim).await.unwrap());
+
+    let mut connection = pool.get().await.unwrap();
+    let task_exists: i64 = redis::cmd("EXISTS")
+        .arg(&task_key)
+        .query_async(&mut connection)
+        .await
+        .unwrap();
+    let domain_exists: i64 = redis::cmd("EXISTS")
+        .arg(&domain_key)
+        .query_async(&mut connection)
+        .await
+        .unwrap();
+    let settlement_exists: i64 = redis::cmd("EXISTS")
+        .arg(format!("lmyzmail:mail:queue:settlement:{token}"))
+        .query_async(&mut connection)
+        .await
+        .unwrap();
+    let pending: Option<i64> = redis::cmd("LPOS")
+        .arg("botmail:mail:queue:pending")
+        .arg(task_id)
+        .query_async(&mut connection)
+        .await
+        .unwrap();
+    let processing: bool = redis::cmd("SISMEMBER")
+        .arg("botmail:mail:queue:processing")
+        .arg(task_id)
+        .query_async(&mut connection)
+        .await
+        .unwrap();
+    assert_eq!((task_exists, domain_exists, settlement_exists), (0, 1, 1));
+    assert_eq!(pending, None);
+    assert!(!processing);
+}
+
+#[tokio::test]
+async fn claim_result_index_cap_is_atomic_and_reclaims_expired_members() {
+    let process = RedisProcess::start();
+    let pool = pool_at(process.port());
+    let queue = LegacyOutboundQueue::with_receipt_index_capacity_for_tests(pool.clone(), 4_096);
     let task_id = 9_007_199_254_742_010_i64;
     let token = "cap:claim";
     assert!(queue.publish(&task(task_id), &domains()).await.unwrap());
@@ -2000,7 +2680,7 @@ async fn claim_result_index_cap_is_atomic_and_reclaims_expired_members() {
 async fn settlement_index_cap_is_atomic_and_reclaims_expired_members() {
     let process = RedisProcess::start();
     let pool = pool_at(process.port());
-    let queue = LegacyOutboundQueue::new(pool.clone());
+    let queue = LegacyOutboundQueue::with_receipt_index_capacity_for_tests(pool.clone(), 4_096);
     let task_id = 9_007_199_254_742_020_i64;
     assert!(queue.publish(&task(task_id), &domains()).await.unwrap());
     let claim = queue
@@ -3462,10 +4142,166 @@ async fn legacy_list_migration_claims_are_crash_recoverable_and_quarantined_with
 }
 
 #[tokio::test]
-async fn migration_done_receipt_index_cap_is_atomic_and_reclaims_expired_members() {
+async fn reused_empty_legacy_list_poll_receipts_are_bounded_and_do_not_block_recovery() {
     let process = RedisProcess::start();
     let pool = pool_at(process.port());
     let queue = LegacyOutboundQueue::new(pool.clone());
+    let archive_token = "migrate:00000000000000000000000000000001";
+    let status_token = "migrate:00000000000000000000000000000002";
+
+    for _ in 0..32 {
+        assert_eq!(
+            queue
+                .claim_legacy_list_record(LegacyListKind::Archive, archive_token, 1_024)
+                .await
+                .unwrap(),
+            LegacyListClaim::Empty
+        );
+        assert_eq!(
+            queue
+                .claim_legacy_list_record(LegacyListKind::StatusUpdates, status_token, 1_024)
+                .await
+                .unwrap(),
+            LegacyListClaim::Empty
+        );
+    }
+
+    let mut connection = pool.get().await.unwrap();
+    let migration_keys: Vec<String> = redis::cmd("KEYS")
+        .arg("lmyzmail:mail:queue:migration:*")
+        .query_async(&mut connection)
+        .await
+        .unwrap();
+    assert_eq!(
+        migration_keys.len(),
+        4,
+        "reused empty polling created unbounded migration state: {migration_keys:?}"
+    );
+    for (namespace, token) in [("archive", archive_token), ("status-updates", status_token)] {
+        let done_index = format!("lmyzmail:mail:queue:migration:{namespace}:done-index");
+        let done_key = format!("lmyzmail:mail:queue:migration:{namespace}:done:{token}");
+        assert_eq!(
+            redis::cmd("ZCARD")
+                .arg(done_index)
+                .query_async::<i64>(&mut connection)
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            redis::cmd("GET")
+                .arg(done_key)
+                .query_async::<String>(&mut connection)
+                .await
+                .unwrap(),
+            "EMPTY"
+        );
+    }
+    let archive_done = format!("lmyzmail:mail:queue:migration:archive:done:{archive_token}");
+    assert!(
+        redis::cmd("PEXPIRE")
+            .arg(&archive_done)
+            .arg(1_000)
+            .query_async::<bool>(&mut connection)
+            .await
+            .unwrap()
+    );
+    drop(connection);
+    assert_eq!(
+        queue
+            .claim_legacy_list_record(LegacyListKind::Archive, archive_token, 1_024)
+            .await
+            .unwrap(),
+        LegacyListClaim::Empty
+    );
+    let mut connection = pool.get().await.unwrap();
+    assert!(
+        redis::cmd("PTTL")
+            .arg(&archive_done)
+            .query_async::<i64>(&mut connection)
+            .await
+            .unwrap()
+            > 250_000,
+        "reused empty receipt TTL was not refreshed"
+    );
+    redis::cmd("RPUSH")
+        .arg("botmail:mail:queue:archive")
+        .arg("post-empty-record")
+        .query_async::<i64>(&mut connection)
+        .await
+        .unwrap();
+    drop(connection);
+    let claimed = match queue
+        .claim_legacy_list_record(LegacyListKind::Archive, archive_token, 1_024)
+        .await
+        .unwrap()
+    {
+        LegacyListClaim::Record(record) => record,
+        other => panic!("expected a record after empty polling, got {other:?}"),
+    };
+    let recovered = match queue
+        .claim_legacy_list_record(LegacyListKind::Archive, "post-empty:restart", 1_024)
+        .await
+        .unwrap()
+    {
+        LegacyListClaim::Record(record) => record,
+        other => panic!("expected the inflight record after restart, got {other:?}"),
+    };
+    assert_eq!(recovered, claimed);
+    assert!(
+        queue
+            .acknowledge_legacy_list_record(&claimed)
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        queue
+            .claim_legacy_list_record(LegacyListKind::Archive, archive_token, 1_024)
+            .await
+            .unwrap(),
+        LegacyListClaim::Settled
+    );
+}
+
+#[tokio::test]
+async fn empty_legacy_receipt_missing_its_index_member_fails_closed() {
+    let process = RedisProcess::start();
+    let pool = pool_at(process.port());
+    let queue = LegacyOutboundQueue::new(pool.clone());
+    let token = "migrate:00000000000000000000000000000003";
+    assert_eq!(
+        queue
+            .claim_legacy_list_record(LegacyListKind::Archive, token, 1_024)
+            .await
+            .unwrap(),
+        LegacyListClaim::Empty
+    );
+    let state_keys = archive_migration_state_keys(token);
+    let mut connection = pool.get().await.unwrap();
+    redis::cmd("ZREM")
+        .arg("lmyzmail:mail:queue:migration:archive:done-index")
+        .arg(token)
+        .query_async::<i64>(&mut connection)
+        .await
+        .unwrap();
+    drop(connection);
+    let before = dump_keys(&pool, &state_keys).await;
+
+    assert_eq!(
+        queue
+            .claim_legacy_list_record(LegacyListKind::Archive, token, 1_024)
+            .await
+            .unwrap_err(),
+        QueueError::Unavailable
+    );
+    assert_eq!(dump_keys(&pool, &state_keys).await, before);
+}
+
+#[tokio::test]
+async fn migration_done_receipt_index_cap_is_atomic_and_reclaims_expired_members() {
+    let process = RedisProcess::start();
+    let pool = pool_at(process.port());
+    let queue = LegacyOutboundQueue::with_receipt_index_capacity_for_tests(pool.clone(), 4_096);
     let mut connection = pool.get().await.unwrap();
     redis::cmd("RPUSH")
         .arg("botmail:mail:queue:archive")
@@ -3589,7 +4425,7 @@ async fn migration_done_receipt_index_cap_is_atomic_and_reclaims_expired_members
 async fn cleanup_receipt_index_cap_is_atomic_and_reclaims_expired_members() {
     let process = RedisProcess::start();
     let pool = pool_at(process.port());
-    let queue = LegacyOutboundQueue::new(pool.clone());
+    let queue = LegacyOutboundQueue::with_receipt_index_capacity_for_tests(pool.clone(), 4_096);
     let task_id = 9_007_199_254_742_100_i64;
     let sent_file = "bounded-cleanup.eml";
     let task_key = format!("botmail:mail:queue:task:{task_id}");

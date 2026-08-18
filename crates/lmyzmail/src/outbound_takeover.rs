@@ -5,15 +5,17 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
+use sha2::{Digest, Sha256};
 use tokio::{fs::File, io::AsyncReadExt};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
     outbound_delivery::{
-        DeliveryStateError, LegacyRedisTaskMaterialization, PostgresDeliveryState,
-        parse_recipient_roster_json, recipient_domain,
+        DeliveryStateError, LegacyRedisTaskMaterialization, OutboundContentAuthority,
+        OutboundContentRoot, PostgresDeliveryState, parse_recipient_roster_json, recipient_domain,
     },
     outbound_queue::{DomainStatus, LegacyOutboundQueue, QueueClaim, QueueError, TaskDetail},
+    outbound_smtp::{MessageContentProof, TrustedFileSource},
 };
 
 const MAX_SENT_HEADER_BYTES: u64 = 256 * 1024;
@@ -108,24 +110,11 @@ impl LegacyRedisTakeover {
         validate_domain_rosters(&statuses, &domain_rosters)?;
 
         let sent_copy = self.resolve_sent_copy(task).await?;
-        let sent_headers = read_headers(&sent_copy.path).await?;
+        let (sent_headers, content_proof) =
+            read_headers_and_proof(&sent_copy.source, self.max_message_bytes, cancellation).await?;
         let mut replacement = task.clone();
         replacement.message_file_path = Some(sent_copy.path_string);
         replacement.signed_content_base64 = None;
-        match self
-            .queue
-            .replace_claimed_task_source(claim, &replacement)
-            .await
-        {
-            Ok(()) => {}
-            Err(QueueError::OutcomeUnknown) => {
-                if self.queue.read_claimed_task(claim).await? != replacement {
-                    return Err(QueueError::OutcomeUnknown.into());
-                }
-            }
-            Err(error) => return Err(error.into()),
-        }
-
         check_cancellation(cancellation)?;
         let created_at = parse_timestamp(
             &task.created_at,
@@ -163,74 +152,93 @@ impl LegacyRedisTakeover {
             mail_size_bytes: sent_copy.size_bytes,
             has_attachments: header_has_attachment(&sent_headers),
             to_addresses_json: header_to_addresses(&sent_headers),
+            content_authority: OutboundContentAuthority {
+                task_id: task.id,
+                source_root: OutboundContentRoot::Maildir,
+                relative_path: sent_copy.relative_path,
+                content_size: content_proof.size,
+                content_sha256: content_proof.sha256,
+            },
         };
         self.state
             .materialize_legacy_redis_task(&input, Utc::now())
             .await?;
+        match self
+            .queue
+            .replace_claimed_task_source(claim, &replacement)
+            .await
+        {
+            Ok(()) => {}
+            Err(QueueError::OutcomeUnknown) => {
+                if self.queue.read_claimed_task(claim).await? != replacement {
+                    return Err(QueueError::OutcomeUnknown.into());
+                }
+            }
+            Err(error) => return Err(error.into()),
+        }
         Ok(replacement)
     }
 
     async fn resolve_sent_copy(&self, task: &TaskDetail) -> Result<SentCopy, LegacyTakeoverError> {
-        let file_name = task
-            .sent_file_name
-            .as_deref()
-            .ok_or(LegacyTakeoverError::Invalid(
-                "legacy Redis Sent filename is missing",
-            ))?;
-        validate_file_name(file_name)?;
-        let subdirectory = task.sent_subdirectory.filter(|value| *value > 0).ok_or(
-            LegacyTakeoverError::Invalid("legacy Redis Sent subdirectory is invalid"),
-        )?;
-        let address = java_maildir_address(&task.sender_address);
-        if address == "unknown" {
-            return Err(LegacyTakeoverError::Invalid(
-                "legacy Redis sender cannot identify a Maildir",
-            ));
-        }
-        let base = tokio::fs::canonicalize(&self.maildir_base)
-            .await
-            .map_err(|_| LegacyTakeoverError::Invalid("Maildir base is unavailable"))?;
-        let requested = base
-            .join(address)
-            .join("sent")
-            .join(subdirectory.to_string())
-            .join(file_name);
-        let path = tokio::fs::canonicalize(&requested)
-            .await
+        let relative = legacy_sent_relative_path(task)?;
+        let source = TrustedFileSource::new(&self.maildir_base, &relative)
             .map_err(|_| LegacyTakeoverError::Invalid("legacy Redis Sent copy is unavailable"))?;
-        if !path.starts_with(&base) {
-            return Err(LegacyTakeoverError::Invalid(
-                "legacy Redis Sent copy escapes the Maildir",
-            ));
-        }
-        let metadata = tokio::fs::metadata(&path)
-            .await
-            .map_err(|_| LegacyTakeoverError::Invalid("legacy Redis Sent copy is unavailable"))?;
-        if !metadata.is_file() || metadata.len() == 0 || metadata.len() > self.max_message_bytes {
+        if source.initial_size() == 0 || source.initial_size() > self.max_message_bytes {
             return Err(LegacyTakeoverError::Invalid(
                 "legacy Redis Sent copy violates the message size budget",
             ));
         }
-        let path_string = path
+        let path_string = source
+            .compatibility_path()
             .to_str()
             .map(str::to_owned)
             .ok_or(LegacyTakeoverError::Invalid(
                 "legacy Redis Sent copy path is not UTF-8",
             ))?;
-        let size_bytes = i64::try_from(metadata.len()).map_err(|_| {
+        let size_bytes = i64::try_from(source.initial_size()).map_err(|_| {
             LegacyTakeoverError::Invalid("legacy Redis Sent copy violates the message size budget")
         })?;
         Ok(SentCopy {
-            path,
+            source,
             path_string,
+            relative_path: relative.to_str().map(str::to_owned).ok_or(
+                LegacyTakeoverError::Invalid("legacy Redis Sent copy relative path is not UTF-8"),
+            )?,
             size_bytes,
         })
     }
 }
 
+pub(crate) fn legacy_sent_relative_path(task: &TaskDetail) -> Result<PathBuf, LegacyTakeoverError> {
+    let file_name = task
+        .sent_file_name
+        .as_deref()
+        .ok_or(LegacyTakeoverError::Invalid(
+            "legacy Redis Sent filename is missing",
+        ))?;
+    validate_file_name(file_name)?;
+    let subdirectory =
+        task.sent_subdirectory
+            .filter(|value| *value > 0)
+            .ok_or(LegacyTakeoverError::Invalid(
+                "legacy Redis Sent subdirectory is invalid",
+            ))?;
+    let address = java_maildir_address(&task.sender_address);
+    if address == "unknown" {
+        return Err(LegacyTakeoverError::Invalid(
+            "legacy Redis sender cannot identify a Maildir",
+        ));
+    }
+    Ok(PathBuf::from(address)
+        .join("sent")
+        .join(subdirectory.to_string())
+        .join(file_name))
+}
+
 struct SentCopy {
-    path: PathBuf,
+    source: TrustedFileSource,
     path_string: String,
+    relative_path: String,
     size_bytes: i64,
 }
 
@@ -344,15 +352,66 @@ fn java_maildir_address(address: &str) -> String {
     }
 }
 
-async fn read_headers(path: &Path) -> Result<Vec<u8>, LegacyTakeoverError> {
-    let file = File::open(path)
-        .await
+async fn read_headers_and_proof(
+    source: &TrustedFileSource,
+    maximum: u64,
+    cancellation: &CancellationToken,
+) -> Result<(Vec<u8>, MessageContentProof), LegacyTakeoverError> {
+    let mut file = source
+        .open_initial(maximum)
+        .map(File::from_std)
+        .map_err(|_| LegacyTakeoverError::Invalid("legacy Redis Sent copy is unavailable"))?;
+    source
+        .validate_opened_metadata(
+            &file.metadata().await.map_err(|_| {
+                LegacyTakeoverError::Invalid("legacy Redis Sent copy is unavailable")
+            })?,
+            maximum,
+        )
         .map_err(|_| LegacyTakeoverError::Invalid("legacy Redis Sent copy is unavailable"))?;
     let mut bytes = Vec::new();
-    file.take(MAX_SENT_HEADER_BYTES)
-        .read_to_end(&mut bytes)
-        .await
-        .map_err(|_| LegacyTakeoverError::Invalid("legacy Redis Sent copy is unavailable"))?;
+    let mut digest = Sha256::new();
+    let mut observed = 0_u64;
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let read = tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => return Err(LegacyTakeoverError::Cancelled),
+            result = file.read(&mut buffer) => result
+                .map_err(|_| LegacyTakeoverError::Invalid("legacy Redis Sent copy is unavailable"))?,
+        };
+        if read == 0 {
+            break;
+        }
+        observed = observed
+            .checked_add(read as u64)
+            .ok_or(LegacyTakeoverError::Invalid(
+                "legacy Redis Sent copy violates the message size budget",
+            ))?;
+        if observed > maximum {
+            return Err(LegacyTakeoverError::Invalid(
+                "legacy Redis Sent copy violates the message size budget",
+            ));
+        }
+        digest.update(&buffer[..read]);
+        let remaining = (MAX_SENT_HEADER_BYTES as usize).saturating_sub(bytes.len());
+        bytes.extend_from_slice(&buffer[..read.min(remaining)]);
+    }
+    if observed != source.initial_size() {
+        return Err(LegacyTakeoverError::Invalid(
+            "legacy Redis Sent copy changed while hashing",
+        ));
+    }
+    source
+        .validate_opened_metadata(
+            &file.metadata().await.map_err(|_| {
+                LegacyTakeoverError::Invalid("legacy Redis Sent copy is unavailable")
+            })?,
+            maximum,
+        )
+        .map_err(|_| {
+            LegacyTakeoverError::Invalid("legacy Redis Sent copy changed while hashing")
+        })?;
     let end = bytes
         .windows(4)
         .position(|window| window == b"\r\n\r\n")
@@ -365,7 +424,10 @@ async fn read_headers(path: &Path) -> Result<Vec<u8>, LegacyTakeoverError> {
         })
         .unwrap_or(bytes.len());
     bytes.truncate(end);
-    Ok(bytes)
+    Ok((
+        bytes,
+        MessageContentProof::new(observed, digest.finalize().into()),
+    ))
 }
 
 fn unfolded_header(headers: &[u8], wanted: &str) -> Option<String> {

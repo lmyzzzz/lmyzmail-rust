@@ -6,9 +6,10 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use lmyzmail::config::{Properties, RuntimeConfig};
 use lmyzmail::outbound_smtp::{
     DataStatus, DeliveryErrorKind, DeliveryPreparation, DeliveryRequest, DeliveryStage,
-    MessageSource, OutboundSmtpClient, RecipientStatus, SmtpEndpoint, TlsMode,
+    MessageContentProof, MessageSource, OutboundSmtpClient, RecipientStatus, SmtpEndpoint, TlsMode,
 };
 use openssl::{
     asn1::Asn1Time,
@@ -26,6 +27,7 @@ use rustls::{
     ClientConfig, RootCertStore, ServerConfig,
     pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer},
 };
+use sha2::{Digest, Sha256};
 use tokio::{
     fs,
     io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWriteExt, BufReader},
@@ -40,6 +42,10 @@ async fn read_line<R: AsyncRead + Unpin>(reader: &mut BufReader<R>) -> Vec<u8> {
     reader.read_until(b'\n', &mut line).await.unwrap();
     assert!(line.ends_with(b"\r\n"));
     line
+}
+
+fn message_content_proof(bytes: &[u8]) -> MessageContentProof {
+    MessageContentProof::new(bytes.len() as u64, Sha256::digest(bytes).into())
 }
 
 async fn read_data<R: AsyncRead + Unpin>(reader: &mut BufReader<R>) -> Vec<u8> {
@@ -135,6 +141,387 @@ fn temporary_message_path() -> PathBuf {
         "lmyzmail-outbound-smtp-{}-{nonce}.eml",
         std::process::id()
     ))
+}
+
+#[tokio::test]
+async fn configured_pool_reuses_rset_session_and_honors_message_limit() {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let mut reader = BufReader::new(stream);
+        reader
+            .get_mut()
+            .write_all(b"220 fixture.example ESMTP\r\n")
+            .await
+            .unwrap();
+        assert_eq!(read_line(&mut reader).await, b"EHLO mail.example.test\r\n");
+        reader
+            .get_mut()
+            .write_all(b"250 fixture.example\r\n")
+            .await
+            .unwrap();
+
+        for ordinal in 0..2 {
+            assert_eq!(
+                read_line(&mut reader).await,
+                b"MAIL FROM:<sender@example.test>\r\n"
+            );
+            reader
+                .get_mut()
+                .write_all(b"250 2.1.0 sender accepted\r\n")
+                .await
+                .unwrap();
+            assert_eq!(
+                read_line(&mut reader).await,
+                b"RCPT TO:<accepted@example.test>\r\n"
+            );
+            reader
+                .get_mut()
+                .write_all(b"250 2.1.5 recipient accepted\r\n")
+                .await
+                .unwrap();
+            assert_eq!(read_line(&mut reader).await, b"DATA\r\n");
+            reader
+                .get_mut()
+                .write_all(b"354 send message\r\n")
+                .await
+                .unwrap();
+            let data = read_data(&mut reader).await;
+            assert!(data.starts_with(format!("Subject: pooled-{ordinal}\r\n").as_bytes()));
+            reader
+                .get_mut()
+                .write_all(b"250 2.0.0 accepted\r\n")
+                .await
+                .unwrap();
+            if ordinal == 0 {
+                assert_eq!(read_line(&mut reader).await, b"RSET\r\n");
+                reader
+                    .get_mut()
+                    .write_all(b"250 2.0.0 reset\r\n")
+                    .await
+                    .unwrap();
+            }
+        }
+
+        let mut trailing = [0_u8; 1];
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(2), reader.read(&mut trailing))
+                .await
+                .unwrap()
+                .unwrap(),
+            0,
+            "connection remained open after reaching its message limit"
+        );
+        assert!(
+            tokio::time::timeout(Duration::from_millis(100), listener.accept())
+                .await
+                .is_err(),
+            "client opened a second connection instead of reusing the first"
+        );
+    });
+
+    let config = RuntimeConfig::from_properties(
+        Properties::parse(
+            b"lmyzmail.outbound.pool-enabled=true\n\
+              lmyzmail.outbound.max-connections-per-host=1\n\
+              lmyzmail.outbound.max-messages-per-connection=2\n\
+              lmyzmail.outbound.max-idle-time-ms=60000\n\
+              lmyzmail.outbound.connection-life-time-ms=60000\n",
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let client = OutboundSmtpClient::from_config(&config).unwrap();
+    for ordinal in 0..2 {
+        let message = MessageSource::Bytes(Arc::from(
+            format!("Subject: pooled-{ordinal}\r\n\r\nbody\r\n").into_bytes(),
+        ));
+        let result = client
+            .deliver(
+                &request(port, message, vec!["accepted@example.test"]),
+                &CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(result.data_status, DataStatus::Accepted);
+    }
+    server.await.unwrap();
+}
+
+#[tokio::test]
+async fn configured_pool_lifetime_includes_connect_and_handshake_time() {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = tokio::spawn(async move {
+        for ordinal in 0..2 {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut reader = BufReader::new(stream);
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            reader
+                .get_mut()
+                .write_all(b"220 fixture.example ESMTP\r\n")
+                .await
+                .unwrap();
+            assert_eq!(read_line(&mut reader).await, b"EHLO mail.example.test\r\n");
+            reader
+                .get_mut()
+                .write_all(b"250 fixture.example\r\n")
+                .await
+                .unwrap();
+            assert_eq!(
+                read_line(&mut reader).await,
+                b"MAIL FROM:<sender@example.test>\r\n"
+            );
+            reader
+                .get_mut()
+                .write_all(b"250 2.1.0 sender accepted\r\n")
+                .await
+                .unwrap();
+            assert_eq!(
+                read_line(&mut reader).await,
+                b"RCPT TO:<accepted@example.test>\r\n"
+            );
+            reader
+                .get_mut()
+                .write_all(b"250 2.1.5 recipient accepted\r\n")
+                .await
+                .unwrap();
+            assert_eq!(read_line(&mut reader).await, b"DATA\r\n");
+            reader
+                .get_mut()
+                .write_all(b"354 send message\r\n")
+                .await
+                .unwrap();
+            let data = read_data(&mut reader).await;
+            assert!(data.starts_with(format!("Subject: lifetime-{ordinal}\r\n").as_bytes()));
+            reader
+                .get_mut()
+                .write_all(b"250 2.0.0 accepted\r\n")
+                .await
+                .unwrap();
+
+            let mut trailing = [0_u8; 1];
+            assert_eq!(
+                tokio::time::timeout(Duration::from_secs(2), reader.read(&mut trailing))
+                    .await
+                    .unwrap()
+                    .unwrap(),
+                0,
+                "connection outlived its configured lifetime or received RSET"
+            );
+        }
+    });
+
+    let config = RuntimeConfig::from_properties(
+        Properties::parse(
+            b"lmyzmail.outbound.pool-enabled=true\n\
+              lmyzmail.outbound.max-connections-per-host=1\n\
+              lmyzmail.outbound.max-messages-per-connection=100\n\
+              lmyzmail.outbound.connection-life-time-ms=100\n",
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let client = OutboundSmtpClient::from_config(&config).unwrap();
+    for ordinal in 0..2 {
+        let message = MessageSource::Bytes(Arc::from(
+            format!("Subject: lifetime-{ordinal}\r\n\r\nbody\r\n").into_bytes(),
+        ));
+        let result = client
+            .deliver(
+                &request(port, message, vec!["accepted@example.test"]),
+                &CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(result.data_status, DataStatus::Accepted);
+    }
+    server.await.unwrap();
+}
+
+#[tokio::test]
+async fn failed_rset_preserves_delivery_success_and_forces_a_new_connection() {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = tokio::spawn(async move {
+        for connection_ordinal in 0..2 {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut reader = BufReader::new(stream);
+            reader
+                .get_mut()
+                .write_all(b"220 fixture.example ESMTP\r\n")
+                .await
+                .unwrap();
+            assert_eq!(read_line(&mut reader).await, b"EHLO mail.example.test\r\n");
+            reader
+                .get_mut()
+                .write_all(b"250 fixture.example\r\n")
+                .await
+                .unwrap();
+            assert_eq!(
+                read_line(&mut reader).await,
+                b"MAIL FROM:<sender@example.test>\r\n"
+            );
+            reader
+                .get_mut()
+                .write_all(b"250 2.1.0 sender accepted\r\n")
+                .await
+                .unwrap();
+            assert_eq!(
+                read_line(&mut reader).await,
+                b"RCPT TO:<accepted@example.test>\r\n"
+            );
+            reader
+                .get_mut()
+                .write_all(b"250 2.1.5 recipient accepted\r\n")
+                .await
+                .unwrap();
+            assert_eq!(read_line(&mut reader).await, b"DATA\r\n");
+            reader
+                .get_mut()
+                .write_all(b"354 send message\r\n")
+                .await
+                .unwrap();
+            let _ = read_data(&mut reader).await;
+            reader
+                .get_mut()
+                .write_all(b"250 2.0.0 accepted\r\n")
+                .await
+                .unwrap();
+            assert_eq!(read_line(&mut reader).await, b"RSET\r\n");
+            if connection_ordinal == 0 {
+                continue;
+            }
+            reader
+                .get_mut()
+                .write_all(b"250 2.0.0 reset\r\n")
+                .await
+                .unwrap();
+            let mut trailing = [0_u8; 1];
+            assert_eq!(reader.read(&mut trailing).await.unwrap(), 0);
+        }
+    });
+
+    let config = RuntimeConfig::from_properties(
+        Properties::parse(
+            b"lmyzmail.outbound.pool-enabled=true\n\
+              lmyzmail.outbound.max-connections-per-host=1\n\
+              lmyzmail.outbound.max-messages-per-connection=100\n",
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let client = OutboundSmtpClient::from_config(&config).unwrap();
+    for ordinal in 0..2 {
+        let message = MessageSource::Bytes(Arc::from(
+            format!("Subject: reset-failure-{ordinal}\r\n\r\nbody\r\n").into_bytes(),
+        ));
+        let result = client
+            .deliver(
+                &request(port, message, vec!["accepted@example.test"]),
+                &CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(result.data_status, DataStatus::Accepted);
+    }
+    drop(client);
+    server.await.unwrap();
+}
+
+#[tokio::test]
+async fn remotely_closed_idle_session_is_not_reused() {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = tokio::spawn(async move {
+        for ordinal in 0..2 {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut reader = BufReader::new(stream);
+            reader
+                .get_mut()
+                .write_all(b"220 fixture.example ESMTP\r\n")
+                .await
+                .unwrap();
+            assert_eq!(read_line(&mut reader).await, b"EHLO mail.example.test\r\n");
+            reader
+                .get_mut()
+                .write_all(b"250 fixture.example\r\n")
+                .await
+                .unwrap();
+            assert_eq!(
+                read_line(&mut reader).await,
+                b"MAIL FROM:<sender@example.test>\r\n"
+            );
+            reader
+                .get_mut()
+                .write_all(b"250 2.1.0 sender accepted\r\n")
+                .await
+                .unwrap();
+            assert_eq!(
+                read_line(&mut reader).await,
+                b"RCPT TO:<accepted@example.test>\r\n"
+            );
+            reader
+                .get_mut()
+                .write_all(b"250 2.1.5 recipient accepted\r\n")
+                .await
+                .unwrap();
+            assert_eq!(read_line(&mut reader).await, b"DATA\r\n");
+            reader
+                .get_mut()
+                .write_all(b"354 send message\r\n")
+                .await
+                .unwrap();
+            let data = read_data(&mut reader).await;
+            assert!(data.starts_with(format!("Subject: remote-close-{ordinal}\r\n").as_bytes()));
+            reader
+                .get_mut()
+                .write_all(b"250 2.0.0 accepted\r\n")
+                .await
+                .unwrap();
+            assert_eq!(read_line(&mut reader).await, b"RSET\r\n");
+            reader
+                .get_mut()
+                .write_all(b"250 2.0.0 reset\r\n")
+                .await
+                .unwrap();
+            if ordinal == 0 {
+                continue;
+            }
+            let mut trailing = [0_u8; 1];
+            assert_eq!(reader.read(&mut trailing).await.unwrap(), 0);
+        }
+    });
+
+    let config = RuntimeConfig::from_properties(
+        Properties::parse(
+            b"lmyzmail.outbound.pool-enabled=true\n\
+              lmyzmail.outbound.max-connections-per-host=1\n\
+              lmyzmail.outbound.max-messages-per-connection=100\n",
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let client = OutboundSmtpClient::from_config(&config).unwrap();
+    for ordinal in 0..2 {
+        let message = MessageSource::Bytes(Arc::from(
+            format!("Subject: remote-close-{ordinal}\r\n\r\nbody\r\n").into_bytes(),
+        ));
+        let result = client
+            .deliver(
+                &request(port, message, vec!["accepted@example.test"]),
+                &CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(result.data_status, DataStatus::Accepted);
+        if ordinal == 0 {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    }
+    drop(client);
+    server.await.unwrap();
 }
 
 #[tokio::test]
@@ -391,7 +778,12 @@ async fn pipelines_recipients_and_streams_dot_stuffed_file_after_354() {
         .deliver(
             &request(
                 port,
-                MessageSource::File(path.clone()),
+                MessageSource::file_under_root(
+                    path.parent().unwrap(),
+                    path.file_name().unwrap(),
+                    message_content_proof(&message),
+                )
+                .unwrap(),
                 vec![
                     "temporary@example.test",
                     "permanent@example.test",
@@ -907,59 +1299,14 @@ async fn normalizes_mixed_line_endings_and_supports_null_reverse_path() {
 
 #[tokio::test]
 async fn unavailable_file_is_rejected_before_data() {
-    let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
-    let port = listener.local_addr().unwrap().port();
-    let server = tokio::spawn(async move {
-        let (stream, _) = listener.accept().await.unwrap();
-        let mut reader = BufReader::new(stream);
-        reader
-            .get_mut()
-            .write_all(b"220 fixture.example ESMTP\r\n")
-            .await
-            .unwrap();
-        assert_eq!(read_line(&mut reader).await, b"EHLO mail.example.test\r\n");
-        reader
-            .get_mut()
-            .write_all(b"250 fixture.example\r\n")
-            .await
-            .unwrap();
-        assert_eq!(
-            read_line(&mut reader).await,
-            b"MAIL FROM:<sender@example.test>\r\n"
-        );
-        reader
-            .get_mut()
-            .write_all(b"250 2.1.0 sender accepted\r\n")
-            .await
-            .unwrap();
-        assert_eq!(
-            read_line(&mut reader).await,
-            b"RCPT TO:<accepted@example.test>\r\n"
-        );
-        reader
-            .get_mut()
-            .write_all(b"250 2.1.5 recipient accepted\r\n")
-            .await
-            .unwrap();
-        let mut trailing = Vec::new();
-        reader.read_to_end(&mut trailing).await.unwrap();
-        assert!(trailing.is_empty());
-    });
     let missing = temporary_message_path();
-    let failure = OutboundSmtpClient::default()
-        .deliver(
-            &request(
-                port,
-                MessageSource::File(missing),
-                vec!["accepted@example.test"],
-            ),
-            &CancellationToken::new(),
-        )
-        .await
-        .unwrap_err();
-    server.await.unwrap();
+    let failure = MessageSource::file_under_root(
+        missing.parent().unwrap(),
+        missing.file_name().unwrap(),
+        MessageContentProof::new(0, [0; 32]),
+    )
+    .unwrap_err();
     assert_eq!(failure.kind, DeliveryErrorKind::Permanent);
-    assert_eq!(failure.recipients.len(), 1);
 }
 
 #[tokio::test]

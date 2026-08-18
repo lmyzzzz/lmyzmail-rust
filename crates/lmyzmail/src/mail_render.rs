@@ -2,11 +2,11 @@
 //!
 //! The renderer owns layout, pagination, palette matching, dithering, and tile
 //! addressing. Cairo and FreeType provide font rasterization; pinned litehtml
-//! source provides HTML layout through an ABI-versioned C boundary. All
-//! `unsafe` code is confined to that FFI boundary, whose input lifetimes,
-//! ownership, cancellation callback, and single-threaded context invariants are
-//! documented at each call. No raw native handle or surface data escapes this
-//! module.
+//! source provides HTML layout through an ABI-versioned C boundary. `unsafe`
+//! is limited to that FFI boundary and OS-gated x86_64 SIMD kernels. Input
+//! lifetimes, ownership, cancellation, pointer bounds, and runtime CPU-feature
+//! invariants are documented at each call. No raw native handle or surface data
+//! escapes this module.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -23,6 +23,11 @@ use std::{
 use cairo::{Context, FontFace, Format, ImageSurface};
 use image::{DynamicImage, ImageDecoder, ImageReader, Limits};
 use tokio_util::sync::CancellationToken;
+
+use crate::{
+    config::MailRenderSimdMode,
+    dispatch_observer::{self, DispatchComponent},
+};
 
 pub const MAP_EDGE: usize = 128;
 pub const MAP_PIXELS: usize = MAP_EDGE * MAP_EDGE;
@@ -688,6 +693,7 @@ pub struct RenderRequest<'a> {
     pub max_page_maps_y: u8,
     pub style: PlainTextStyle,
     pub limits: RenderLimits,
+    pub simd_mode: MailRenderSimdMode,
     pub cancellation: &'a CancellationToken,
     pub deadline: Instant,
 }
@@ -706,6 +712,7 @@ impl<'a> RenderRequest<'a> {
             max_page_maps_y,
             style: PlainTextStyle::default(),
             limits: RenderLimits::default(),
+            simd_mode: MailRenderSimdMode::Auto,
             cancellation,
             deadline,
         }
@@ -729,20 +736,25 @@ impl<'a> RenderRequest<'a> {
             max_page_maps_y,
             style: PlainTextStyle::default(),
             limits,
+            simd_mode: MailRenderSimdMode::Auto,
             cancellation,
             deadline,
         }
     }
+
+    pub fn with_simd_mode(mut self, simd_mode: MailRenderSimdMode) -> Self {
+        self.simd_mode = simd_mode;
+        self
+    }
 }
 
-/// The implementation selected for palette matching.
-///
-/// AVX2 and AVX-512 host support is reported separately. They are deliberately
-/// not advertised here until distinct, tested kernels exist.
+/// The implementation selected for palette matching and frame conversion.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum RenderBackend {
     Scalar,
+    Avx2Fma,
+    Avx512,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -767,6 +779,66 @@ pub fn host_simd_capabilities() -> HostSimdCapabilities {
             avx2: false,
             avx512f: false,
             fma: false,
+        }
+    }
+}
+
+/// Select the fastest backend whose instruction set is enabled by both the
+/// CPU and the operating system. Callers dispatch only through functions with
+/// matching `target_feature` attributes.
+pub(crate) fn resolve_render_backend_for_mode(mode: MailRenderSimdMode) -> RenderBackend {
+    let capabilities = host_simd_capabilities();
+    let avx2 = capabilities.avx2 && capabilities.fma;
+    match mode {
+        MailRenderSimdMode::Scalar => RenderBackend::Scalar,
+        MailRenderSimdMode::Avx2 => {
+            if avx2 {
+                RenderBackend::Avx2Fma
+            } else {
+                RenderBackend::Scalar
+            }
+        }
+        MailRenderSimdMode::Avx512 => {
+            if capabilities.avx512f {
+                RenderBackend::Avx512
+            } else if avx2 {
+                RenderBackend::Avx2Fma
+            } else {
+                RenderBackend::Scalar
+            }
+        }
+        MailRenderSimdMode::Auto => {
+            if capabilities.avx512f {
+                RenderBackend::Avx512
+            } else if avx2 {
+                RenderBackend::Avx2Fma
+            } else {
+                RenderBackend::Scalar
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn resolve_render_backend() -> RenderBackend {
+    resolve_render_backend_for_mode(MailRenderSimdMode::Auto)
+}
+
+fn validate_render_backend(requested: RenderBackend) -> RenderBackend {
+    let mode = match requested {
+        RenderBackend::Scalar => MailRenderSimdMode::Scalar,
+        RenderBackend::Avx2Fma => MailRenderSimdMode::Avx2,
+        RenderBackend::Avx512 => MailRenderSimdMode::Avx512,
+    };
+    resolve_render_backend_for_mode(mode)
+}
+
+impl RenderBackend {
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Scalar => "scalar",
+            Self::Avx2Fma => "avx2+fma",
+            Self::Avx512 => "avx512f",
         }
     }
 }
@@ -979,6 +1051,7 @@ pub fn render(request: &RenderRequest<'_>) -> Result<RenderResult, RenderError> 
 /// indices. The input slice is borrowed for the duration of conversion and is
 /// never copied; only the one-byte-per-pixel output and two error rows are
 /// allocated. `max_output_bytes` applies to the returned map-index buffer.
+#[cfg(test)]
 pub(crate) fn rgb24_to_map_colors(
     rgb: &[u8],
     width: usize,
@@ -987,23 +1060,117 @@ pub(crate) fn rgb24_to_map_colors(
     cancellation: &CancellationToken,
     deadline: Instant,
 ) -> Result<Vec<u8>, RenderError> {
-    rgb24_to_map_colors_with_dither(
+    rgb24_to_map_colors_with_backend(
         rgb,
         width,
         height,
         max_output_bytes,
-        1,
+        resolve_render_backend(),
         cancellation,
         deadline,
     )
 }
 
+pub(crate) fn rgb24_to_map_colors_with_backend(
+    rgb: &[u8],
+    width: usize,
+    height: usize,
+    max_output_bytes: usize,
+    backend: RenderBackend,
+    cancellation: &CancellationToken,
+    deadline: Instant,
+) -> Result<Vec<u8>, RenderError> {
+    rgb24_to_map_colors_with_dither_and_backend(
+        rgb,
+        width,
+        height,
+        max_output_bytes,
+        1,
+        backend,
+        cancellation,
+        deadline,
+    )
+}
+
+#[cfg(test)]
 pub(crate) fn rgb24_to_map_colors_with_dither(
     rgb: &[u8],
     width: usize,
     height: usize,
     max_output_bytes: usize,
     dither: u8,
+    cancellation: &CancellationToken,
+    deadline: Instant,
+) -> Result<Vec<u8>, RenderError> {
+    rgb24_to_map_colors_with_dither_and_backend(
+        rgb,
+        width,
+        height,
+        max_output_bytes,
+        dither,
+        resolve_render_backend(),
+        cancellation,
+        deadline,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn rgb24_to_map_colors_with_dither_and_backend(
+    rgb: &[u8],
+    width: usize,
+    height: usize,
+    max_output_bytes: usize,
+    dither: u8,
+    backend: RenderBackend,
+    cancellation: &CancellationToken,
+    deadline: Instant,
+) -> Result<Vec<u8>, RenderError> {
+    rgb24_to_map_colors_with_component(
+        rgb,
+        width,
+        height,
+        max_output_bytes,
+        dither,
+        backend,
+        DispatchComponent::MailRenderMapPalette,
+        cancellation,
+        deadline,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn rgb24_to_minecraft_map_colors_with_dither_and_backend(
+    rgb: &[u8],
+    width: usize,
+    height: usize,
+    max_output_bytes: usize,
+    dither: u8,
+    backend: RenderBackend,
+    cancellation: &CancellationToken,
+    deadline: Instant,
+) -> Result<Vec<u8>, RenderError> {
+    rgb24_to_map_colors_with_component(
+        rgb,
+        width,
+        height,
+        max_output_bytes,
+        dither,
+        backend,
+        DispatchComponent::MinecraftMapPalette,
+        cancellation,
+        deadline,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn rgb24_to_map_colors_with_component(
+    rgb: &[u8],
+    width: usize,
+    height: usize,
+    max_output_bytes: usize,
+    dither: u8,
+    backend: RenderBackend,
+    component: DispatchComponent,
     cancellation: &CancellationToken,
     deadline: Instant,
 ) -> Result<Vec<u8>, RenderError> {
@@ -1029,10 +1196,13 @@ pub(crate) fn rgb24_to_map_colors_with_dither(
         return Err(RenderError::LimitExceeded("RGB24 output bytes"));
     }
     checkpoint_at(cancellation, deadline)?;
+    let requested_backend = backend;
+    let backend = validate_render_backend(requested_backend);
+    dispatch_observer::observe(component, requested_backend, backend);
     match dither {
-        0 => nearest_map_colors(rgb, width, height, cancellation, deadline),
-        2 => ordered_map_colors(rgb, width, height, cancellation, deadline),
-        _ => floyd_steinberg(rgb, width, height, cancellation, deadline),
+        0 => nearest_map_colors(rgb, width, height, backend, cancellation, deadline),
+        2 => ordered_map_colors(rgb, width, height, backend, cancellation, deadline),
+        _ => floyd_steinberg(rgb, width, height, backend, cancellation, deadline),
     }
 }
 
@@ -1045,12 +1215,25 @@ pub(crate) struct Rgb24ResizeSpec {
 }
 
 /// Resizes one bounded RGB24 frame with the frozen Java/C integer box filter.
+#[cfg(test)]
 pub(crate) fn resize_rgb24_box(
     rgb: &[u8],
     spec: Rgb24ResizeSpec,
     cancellation: &CancellationToken,
     deadline: Instant,
 ) -> Result<Vec<u8>, RenderError> {
+    resize_rgb24_box_with_backend(rgb, spec, resolve_render_backend(), cancellation, deadline)
+}
+
+pub(crate) fn resize_rgb24_box_with_backend(
+    rgb: &[u8],
+    spec: Rgb24ResizeSpec,
+    backend: RenderBackend,
+    cancellation: &CancellationToken,
+    deadline: Instant,
+) -> Result<Vec<u8>, RenderError> {
+    let requested_backend = backend;
+    let backend = validate_render_backend(requested_backend);
     let Rgb24ResizeSpec {
         source_width,
         source_height,
@@ -1083,32 +1266,80 @@ pub(crate) fn resize_rgb24_box(
         return Err(RenderError::LimitExceeded("RGB24 resize output bytes"));
     }
     checkpoint_at(cancellation, deadline)?;
+    dispatch_observer::observe(
+        DispatchComponent::MailRenderResize,
+        requested_backend,
+        backend,
+    );
+    if source_width == output_width && source_height == output_height {
+        return Ok(copy_rgb24_backend(rgb, backend));
+    }
+    let max_source_box_width = source_width.div_ceil(output_width);
+    let max_source_box_height = source_height.div_ceil(output_height);
+    let max_accumulated_pixels = i32::MAX as usize / usize::from(u8::MAX);
+    let simd_accumulation_safe =
+        max_source_box_height <= max_accumulated_pixels / max_source_box_width.max(1);
+    if max_source_box_width < 8 && simd_accumulation_safe && rgb.len() <= i32::MAX as usize {
+        match backend {
+            RenderBackend::Avx2Fma if output_width >= 8 => {
+                #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+                {
+                    // SAFETY: backend validation proved AVX2/FMA support. The
+                    // narrow kernel masks every gather lane and bounds indices.
+                    return unsafe {
+                        resize_rgb24_box_narrow_avx2(
+                            rgb,
+                            source_width,
+                            source_height,
+                            output_width,
+                            output_height,
+                            output_bytes,
+                            cancellation,
+                            deadline,
+                        )
+                    };
+                }
+            }
+            RenderBackend::Avx512 if output_width >= 16 => {
+                #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+                {
+                    // SAFETY: backend validation proved AVX-512F support. The
+                    // narrow kernel masks every gather lane and bounds indices.
+                    return unsafe {
+                        resize_rgb24_box_narrow_avx512(
+                            rgb,
+                            source_width,
+                            source_height,
+                            output_width,
+                            output_height,
+                            output_bytes,
+                            cancellation,
+                            deadline,
+                        )
+                    };
+                }
+            }
+            _ => {}
+        }
+    }
     let mut output = vec![0_u8; output_bytes];
     for output_y in 0..output_height {
         checkpoint_at(cancellation, deadline)?;
-        let source_y0 = output_y * source_height / output_height;
-        let source_y1 = ((output_y + 1) * source_height / output_height)
-            .max(source_y0 + 1)
-            .min(source_height);
+        let (source_y0, source_y1) = box_bounds(output_y, source_height, output_height);
         for output_x in 0..output_width {
             if output_x % CHECKPOINT_PIXEL_INTERVAL == 0 {
                 checkpoint_at(cancellation, deadline)?;
             }
-            let source_x0 = output_x * source_width / output_width;
-            let source_x1 = ((output_x + 1) * source_width / output_width)
-                .max(source_x0 + 1)
-                .min(source_width);
+            let (source_x0, source_x1) = box_bounds(output_x, source_width, output_width);
             let mut sums = [0_u64; 3];
-            let mut count = 0_u64;
             for source_y in source_y0..source_y1 {
                 let row = &rgb[source_y * source_width * 3..(source_y + 1) * source_width * 3];
-                for pixel in row[source_x0 * 3..source_x1 * 3].chunks_exact(3) {
-                    sums[0] += u64::from(pixel[0]);
-                    sums[1] += u64::from(pixel[1]);
-                    sums[2] += u64::from(pixel[2]);
-                    count += 1;
-                }
+                let row_sums = sum_rgb24_row_backend(&row[source_x0 * 3..source_x1 * 3], backend);
+                sums[0] += row_sums[0];
+                sums[1] += row_sums[1];
+                sums[2] += row_sums[2];
             }
+            let count = ((source_x1 - source_x0) * (source_y1 - source_y0)) as u64;
             let destination = &mut output[(output_y * output_width + output_x) * 3..][..3];
             if count == 0 {
                 destination.fill(0);
@@ -1120,6 +1351,616 @@ pub(crate) fn resize_rgb24_box(
         }
     }
     Ok(output)
+}
+
+#[inline]
+fn box_bounds(output_index: usize, source_len: usize, output_len: usize) -> (usize, usize) {
+    debug_assert!(output_index < output_len);
+    let start = ((output_index as u128 * source_len as u128) / output_len as u128) as usize;
+    let end = (((output_index + 1) as u128 * source_len as u128) / output_len as u128) as usize;
+    (start, end.max(start + 1).min(source_len))
+}
+
+fn resize_pixel_sums(
+    rgb: &[u8],
+    source_width: usize,
+    source_y0: usize,
+    source_y1: usize,
+    source_x0: usize,
+    source_x1: usize,
+) -> ([u64; 3], u64) {
+    let mut sums = [0_u64; 3];
+    for source_y in source_y0..source_y1 {
+        let row = &rgb[source_y * source_width * 3..(source_y + 1) * source_width * 3];
+        let row_sums = sum_rgb24_row_scalar(&row[source_x0 * 3..source_x1 * 3]);
+        sums[0] += row_sums[0];
+        sums[1] += row_sums[1];
+        sums[2] += row_sums[2];
+    }
+    let count = ((source_x1 - source_x0) * (source_y1 - source_y0)) as u64;
+    (sums, count)
+}
+
+#[inline]
+fn write_resized_pixel(output: &mut [u8], output_index: usize, sums: [u64; 3], count: u64) {
+    let destination = &mut output[output_index * 3..][..3];
+    debug_assert_ne!(count, 0);
+    destination[0] = (sums[0] / count) as u8;
+    destination[1] = (sums[1] / count) as u8;
+    destination[2] = (sums[2] / count) as u8;
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[allow(clippy::too_many_arguments)]
+#[target_feature(enable = "avx2,fma")]
+unsafe fn resize_rgb24_box_narrow_avx2(
+    rgb: &[u8],
+    source_width: usize,
+    source_height: usize,
+    output_width: usize,
+    output_height: usize,
+    output_bytes: usize,
+    cancellation: &CancellationToken,
+    deadline: Instant,
+) -> Result<Vec<u8>, RenderError> {
+    use std::arch::x86_64::*;
+
+    const LANES: usize = 8;
+    let byte_mask = _mm256_set1_epi32(255);
+    let zero = _mm256_setzero_si256();
+    let mut output = vec![0_u8; output_bytes];
+    for output_y in 0..output_height {
+        checkpoint_at(cancellation, deadline)?;
+        let (source_y0, source_y1) = box_bounds(output_y, source_height, output_height);
+        let mut output_x = 0;
+        while output_x + LANES <= output_width {
+            if output_x % CHECKPOINT_PIXEL_INTERVAL == 0 {
+                checkpoint_at(cancellation, deadline)?;
+            }
+            let mut source_x0 = [0_usize; LANES];
+            let mut source_x1 = [0_usize; LANES];
+            let mut counts = [0_u64; LANES];
+            let mut max_width = 0;
+            for lane in 0..LANES {
+                (source_x0[lane], source_x1[lane]) =
+                    box_bounds(output_x + lane, source_width, output_width);
+                let width = source_x1[lane] - source_x0[lane];
+                max_width = max_width.max(width);
+                counts[lane] = (width * (source_y1 - source_y0)) as u64;
+            }
+            debug_assert!(max_width < 8);
+            let mut red = zero;
+            let mut green = zero;
+            let mut blue = zero;
+            let mut scalar_red = [0_u64; LANES];
+            let mut scalar_green = [0_u64; LANES];
+            let mut scalar_blue = [0_u64; LANES];
+            for source_y in source_y0..source_y1 {
+                for source_offset in 0..max_width {
+                    let mut indices = [0_i32; LANES];
+                    let mut masks = [0_i32; LANES];
+                    for lane in 0..LANES {
+                        let source_x = source_x0[lane] + source_offset;
+                        if source_x >= source_x1[lane] {
+                            continue;
+                        }
+                        let byte_index = (source_y * source_width + source_x) * 3;
+                        if byte_index + 4 <= rgb.len() {
+                            indices[lane] = byte_index as i32;
+                            masks[lane] = -1;
+                        } else {
+                            scalar_red[lane] += u64::from(rgb[byte_index]);
+                            scalar_green[lane] += u64::from(rgb[byte_index + 1]);
+                            scalar_blue[lane] += u64::from(rgb[byte_index + 2]);
+                        }
+                    }
+                    // SAFETY: all active byte indices were proven to have four
+                    // readable bytes in `rgb`; inactive lanes are masked off.
+                    let packed = unsafe {
+                        let indices = _mm256_loadu_si256(indices.as_ptr().cast());
+                        let masks = _mm256_loadu_si256(masks.as_ptr().cast());
+                        _mm256_mask_i32gather_epi32(zero, rgb.as_ptr().cast(), indices, masks, 1)
+                    };
+                    red = _mm256_add_epi32(red, _mm256_and_si256(packed, byte_mask));
+                    green = _mm256_add_epi32(
+                        green,
+                        _mm256_and_si256(_mm256_srli_epi32::<8>(packed), byte_mask),
+                    );
+                    blue = _mm256_add_epi32(
+                        blue,
+                        _mm256_and_si256(_mm256_srli_epi32::<16>(packed), byte_mask),
+                    );
+                }
+            }
+            let mut red_lanes = [0_i32; LANES];
+            let mut green_lanes = [0_i32; LANES];
+            let mut blue_lanes = [0_i32; LANES];
+            // SAFETY: every destination array has exactly eight i32 lanes.
+            unsafe {
+                _mm256_storeu_si256(red_lanes.as_mut_ptr().cast(), red);
+                _mm256_storeu_si256(green_lanes.as_mut_ptr().cast(), green);
+                _mm256_storeu_si256(blue_lanes.as_mut_ptr().cast(), blue);
+            }
+            for lane in 0..LANES {
+                write_resized_pixel(
+                    &mut output,
+                    output_y * output_width + output_x + lane,
+                    [
+                        red_lanes[lane] as u64 + scalar_red[lane],
+                        green_lanes[lane] as u64 + scalar_green[lane],
+                        blue_lanes[lane] as u64 + scalar_blue[lane],
+                    ],
+                    counts[lane],
+                );
+            }
+            output_x += LANES;
+        }
+        while output_x < output_width {
+            if output_x % CHECKPOINT_PIXEL_INTERVAL == 0 {
+                checkpoint_at(cancellation, deadline)?;
+            }
+            let (source_x0, source_x1) = box_bounds(output_x, source_width, output_width);
+            let (sums, count) = resize_pixel_sums(
+                rgb,
+                source_width,
+                source_y0,
+                source_y1,
+                source_x0,
+                source_x1,
+            );
+            write_resized_pixel(&mut output, output_y * output_width + output_x, sums, count);
+            output_x += 1;
+        }
+    }
+    Ok(output)
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[allow(clippy::too_many_arguments)]
+#[target_feature(enable = "avx512f")]
+unsafe fn resize_rgb24_box_narrow_avx512(
+    rgb: &[u8],
+    source_width: usize,
+    source_height: usize,
+    output_width: usize,
+    output_height: usize,
+    output_bytes: usize,
+    cancellation: &CancellationToken,
+    deadline: Instant,
+) -> Result<Vec<u8>, RenderError> {
+    use std::arch::x86_64::*;
+
+    const LANES: usize = 16;
+    let byte_mask = _mm512_set1_epi32(255);
+    let zero = _mm512_setzero_si512();
+    let mut output = vec![0_u8; output_bytes];
+    for output_y in 0..output_height {
+        checkpoint_at(cancellation, deadline)?;
+        let (source_y0, source_y1) = box_bounds(output_y, source_height, output_height);
+        let mut output_x = 0;
+        while output_x + LANES <= output_width {
+            if output_x % CHECKPOINT_PIXEL_INTERVAL == 0 {
+                checkpoint_at(cancellation, deadline)?;
+            }
+            let mut source_x0 = [0_usize; LANES];
+            let mut source_x1 = [0_usize; LANES];
+            let mut counts = [0_u64; LANES];
+            let mut max_width = 0;
+            for lane in 0..LANES {
+                (source_x0[lane], source_x1[lane]) =
+                    box_bounds(output_x + lane, source_width, output_width);
+                let width = source_x1[lane] - source_x0[lane];
+                max_width = max_width.max(width);
+                counts[lane] = (width * (source_y1 - source_y0)) as u64;
+            }
+            debug_assert!(max_width < 8);
+            let mut red = zero;
+            let mut green = zero;
+            let mut blue = zero;
+            let mut scalar_red = [0_u64; LANES];
+            let mut scalar_green = [0_u64; LANES];
+            let mut scalar_blue = [0_u64; LANES];
+            for source_y in source_y0..source_y1 {
+                for source_offset in 0..max_width {
+                    let mut indices = [0_i32; LANES];
+                    let mut lane_mask: __mmask16 = 0;
+                    for lane in 0..LANES {
+                        let source_x = source_x0[lane] + source_offset;
+                        if source_x >= source_x1[lane] {
+                            continue;
+                        }
+                        let byte_index = (source_y * source_width + source_x) * 3;
+                        if byte_index + 4 <= rgb.len() {
+                            indices[lane] = byte_index as i32;
+                            lane_mask |= 1_u16 << lane;
+                        } else {
+                            scalar_red[lane] += u64::from(rgb[byte_index]);
+                            scalar_green[lane] += u64::from(rgb[byte_index + 1]);
+                            scalar_blue[lane] += u64::from(rgb[byte_index + 2]);
+                        }
+                    }
+                    // SAFETY: all active byte indices were proven to have four
+                    // readable bytes in `rgb`; inactive lanes are masked off.
+                    let packed = unsafe {
+                        let indices = _mm512_loadu_si512(indices.as_ptr().cast());
+                        _mm512_mask_i32gather_epi32(
+                            zero,
+                            lane_mask,
+                            indices,
+                            rgb.as_ptr().cast(),
+                            1,
+                        )
+                    };
+                    red = _mm512_add_epi32(red, _mm512_and_si512(packed, byte_mask));
+                    green = _mm512_add_epi32(
+                        green,
+                        _mm512_and_si512(_mm512_srli_epi32::<8>(packed), byte_mask),
+                    );
+                    blue = _mm512_add_epi32(
+                        blue,
+                        _mm512_and_si512(_mm512_srli_epi32::<16>(packed), byte_mask),
+                    );
+                }
+            }
+            let mut red_lanes = [0_i32; LANES];
+            let mut green_lanes = [0_i32; LANES];
+            let mut blue_lanes = [0_i32; LANES];
+            // SAFETY: every destination array has exactly sixteen i32 lanes.
+            unsafe {
+                _mm512_storeu_si512(red_lanes.as_mut_ptr().cast(), red);
+                _mm512_storeu_si512(green_lanes.as_mut_ptr().cast(), green);
+                _mm512_storeu_si512(blue_lanes.as_mut_ptr().cast(), blue);
+            }
+            for lane in 0..LANES {
+                write_resized_pixel(
+                    &mut output,
+                    output_y * output_width + output_x + lane,
+                    [
+                        red_lanes[lane] as u64 + scalar_red[lane],
+                        green_lanes[lane] as u64 + scalar_green[lane],
+                        blue_lanes[lane] as u64 + scalar_blue[lane],
+                    ],
+                    counts[lane],
+                );
+            }
+            output_x += LANES;
+        }
+        while output_x < output_width {
+            if output_x % CHECKPOINT_PIXEL_INTERVAL == 0 {
+                checkpoint_at(cancellation, deadline)?;
+            }
+            let (source_x0, source_x1) = box_bounds(output_x, source_width, output_width);
+            let (sums, count) = resize_pixel_sums(
+                rgb,
+                source_width,
+                source_y0,
+                source_y1,
+                source_x0,
+                source_x1,
+            );
+            write_resized_pixel(&mut output, output_y * output_width + output_x, sums, count);
+            output_x += 1;
+        }
+    }
+    Ok(output)
+}
+
+#[inline]
+fn sum_rgb24_row_backend(rgb: &[u8], backend: RenderBackend) -> [u64; 3] {
+    debug_assert_eq!(rgb.len() % 3, 0);
+    match backend {
+        RenderBackend::Scalar => sum_rgb24_row_scalar(rgb),
+        RenderBackend::Avx2Fma => {
+            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+            {
+                // SAFETY: the public resize dispatcher revalidates AVX2/FMA
+                // before entering the loop which calls this private helper.
+                unsafe { sum_rgb24_row_avx2(rgb) }
+            }
+            #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+            {
+                sum_rgb24_row_scalar(rgb)
+            }
+        }
+        RenderBackend::Avx512 => {
+            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+            {
+                // SAFETY: the public resize dispatcher revalidates AVX-512F
+                // before entering the loop which calls this private helper.
+                unsafe { sum_rgb24_row_avx512(rgb) }
+            }
+            #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+            {
+                sum_rgb24_row_scalar(rgb)
+            }
+        }
+    }
+}
+
+fn sum_rgb24_row_scalar(rgb: &[u8]) -> [u64; 3] {
+    let mut sums = [0_u64; 3];
+    for pixel in rgb.chunks_exact(3) {
+        sums[0] += u64::from(pixel[0]);
+        sums[1] += u64::from(pixel[1]);
+        sums[2] += u64::from(pixel[2]);
+    }
+    sums
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[target_feature(enable = "avx2,fma")]
+unsafe fn sum_rgb24_row_avx2(rgb: &[u8]) -> [u64; 3] {
+    use std::arch::x86_64::*;
+
+    const RED_MASK: [u8; 32] = [
+        255, 0, 0, 255, 0, 0, 255, 0, 0, 255, 0, 0, 255, 0, 0, 255, 0, 0, 255, 0, 0, 255, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0,
+    ];
+    const GREEN_MASK: [u8; 32] = [
+        0, 255, 0, 0, 255, 0, 0, 255, 0, 0, 255, 0, 0, 255, 0, 0, 255, 0, 0, 255, 0, 0, 255, 0, 0,
+        0, 0, 0, 0, 0, 0, 0,
+    ];
+    const BLUE_MASK: [u8; 32] = [
+        0, 0, 255, 0, 0, 255, 0, 0, 255, 0, 0, 255, 0, 0, 255, 0, 0, 255, 0, 0, 255, 0, 0, 255, 0,
+        0, 0, 0, 0, 0, 0, 0,
+    ];
+
+    // SAFETY: the constant arrays contain 32 initialized bytes each.
+    let red_mask = unsafe { _mm256_loadu_si256(RED_MASK.as_ptr().cast()) };
+    let green_mask = unsafe { _mm256_loadu_si256(GREEN_MASK.as_ptr().cast()) };
+    let blue_mask = unsafe { _mm256_loadu_si256(BLUE_MASK.as_ptr().cast()) };
+    let zero = _mm256_setzero_si256();
+    let mut sums = [0_u64; 3];
+    let mut offset = 0;
+    while offset + 24 <= rgb.len() {
+        // SAFETY: the loop condition proves the 16-byte and following 8-byte
+        // loads stay within this exact eight-pixel RGB24 group.
+        let packed = unsafe {
+            let low = _mm_loadu_si128(rgb.as_ptr().add(offset).cast());
+            let high = _mm_loadl_epi64(rgb.as_ptr().add(offset + 16).cast());
+            _mm256_inserti128_si256(_mm256_castsi128_si256(low), high, 1)
+        };
+        for (channel, mask) in [red_mask, green_mask, blue_mask].into_iter().enumerate() {
+            let partial = _mm256_sad_epu8(_mm256_and_si256(packed, mask), zero);
+            let mut lanes = [0_u64; 4];
+            // SAFETY: `lanes` provides exactly 32 writable bytes.
+            unsafe { _mm256_storeu_si256(lanes.as_mut_ptr().cast(), partial) };
+            sums[channel] += lanes.into_iter().sum::<u64>();
+        }
+        offset += 24;
+    }
+    let tail = sum_rgb24_row_scalar(&rgb[offset..]);
+    [sums[0] + tail[0], sums[1] + tail[1], sums[2] + tail[2]]
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[target_feature(enable = "avx512f")]
+unsafe fn sum_rgb24_row_avx512(rgb: &[u8]) -> [u64; 3] {
+    use std::arch::x86_64::*;
+
+    const RGB_INDICES: [i32; 16] = [0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45];
+    // SAFETY: the constant array contains exactly sixteen initialized lanes.
+    let indices = unsafe { _mm512_loadu_si512(RGB_INDICES.as_ptr().cast()) };
+    let byte_mask = _mm512_set1_epi32(255);
+    let zero = _mm512_setzero_si512();
+    let mut sums = [0_u64; 3];
+    let mut offset = 0;
+    while (rgb.len() - offset) / 3 >= 8 {
+        let pixels = ((rgb.len() - offset) / 3).min(16);
+        let bytes = pixels * 3;
+        let mut padded = [0_u8; 64];
+        padded[..bytes].copy_from_slice(&rgb[offset..offset + bytes]);
+        let lane_mask: __mmask16 = if pixels == 16 {
+            u16::MAX
+        } else {
+            (1_u16 << pixels) - 1
+        };
+        for (channel, sum) in sums.iter_mut().enumerate() {
+            // SAFETY: the 64-byte padded buffer covers the furthest four-byte
+            // gather. The lane mask disables every synthetic trailing pixel.
+            let packed = unsafe {
+                _mm512_mask_i32gather_epi32(
+                    zero,
+                    lane_mask,
+                    indices,
+                    padded.as_ptr().add(channel).cast(),
+                    1,
+                )
+            };
+            let values = _mm512_and_si512(packed, byte_mask);
+            let mut lanes = [0_i32; 16];
+            // SAFETY: `lanes` provides exactly 64 writable bytes.
+            unsafe { _mm512_storeu_si512(lanes.as_mut_ptr().cast(), values) };
+            *sum += lanes.into_iter().map(|value| value as u64).sum::<u64>();
+        }
+        offset += bytes;
+    }
+    let tail = sum_rgb24_row_scalar(&rgb[offset..]);
+    [sums[0] + tail[0], sums[1] + tail[1], sums[2] + tail[2]]
+}
+
+fn copy_rgb24_backend(rgb: &[u8], backend: RenderBackend) -> Vec<u8> {
+    let backend = validate_render_backend(backend);
+    match backend {
+        RenderBackend::Scalar => rgb.to_vec(),
+        RenderBackend::Avx2Fma => {
+            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+            {
+                // SAFETY: backend resolution checks AVX2/FMA before this call.
+                unsafe { copy_rgb24_avx2(rgb) }
+            }
+            #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+            {
+                rgb.to_vec()
+            }
+        }
+        RenderBackend::Avx512 => {
+            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+            {
+                // SAFETY: backend resolution checks AVX-512F before this call.
+                unsafe { copy_rgb24_avx512(rgb) }
+            }
+            #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+            {
+                rgb.to_vec()
+            }
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[target_feature(enable = "avx2,fma")]
+unsafe fn copy_rgb24_avx2(rgb: &[u8]) -> Vec<u8> {
+    use std::arch::x86_64::*;
+    let mut output = vec![0_u8; rgb.len()];
+    let chunks = rgb.len() / 32;
+    for index in 0..chunks {
+        let offset = index * 32;
+        // SAFETY: `offset + 32` is within both slices because `chunks` is the
+        // floor division of the exact byte length. Unaligned loads/stores are
+        // intentional and the output allocation is uniquely owned here.
+        unsafe {
+            let source = _mm256_loadu_si256(rgb.as_ptr().add(offset).cast());
+            _mm256_storeu_si256(output.as_mut_ptr().add(offset).cast(), source);
+        }
+    }
+    let offset = chunks * 32;
+    output[offset..].copy_from_slice(&rgb[offset..]);
+    output
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[target_feature(enable = "avx512f")]
+unsafe fn copy_rgb24_avx512(rgb: &[u8]) -> Vec<u8> {
+    use std::arch::x86_64::*;
+    let mut output = vec![0_u8; rgb.len()];
+    let chunks = rgb.len() / 64;
+    for index in 0..chunks {
+        let offset = index * 64;
+        // SAFETY: `offset + 64` is within both slices for the same floor
+        // division invariant as the AVX2 path; unaligned access is allowed.
+        unsafe {
+            let source = _mm512_loadu_si512(rgb.as_ptr().add(offset).cast());
+            _mm512_storeu_si512(output.as_mut_ptr().add(offset).cast(), source);
+        }
+    }
+    let offset = chunks * 64;
+    output[offset..].copy_from_slice(&rgb[offset..]);
+    output
+}
+
+pub(crate) fn apply_rgb24_contrast(
+    rgb: &mut [u8],
+    contrast: f32,
+    backend: RenderBackend,
+    cancellation: &CancellationToken,
+    deadline: Instant,
+) -> Result<(), RenderError> {
+    if !rgb.len().is_multiple_of(3) {
+        return Err(RenderError::InvalidRequest("RGB24 contrast input length"));
+    }
+    if !contrast.is_finite() || contrast < 0.0 {
+        return Err(RenderError::InvalidRequest("RGB24 contrast value"));
+    }
+    let requested_backend = backend;
+    let backend = validate_render_backend(requested_backend);
+    for chunk in rgb.chunks_mut(64 * 1024) {
+        checkpoint_at(cancellation, deadline)?;
+        dispatch_observer::observe(
+            DispatchComponent::MailRenderContrast,
+            requested_backend,
+            backend,
+        );
+        match backend {
+            RenderBackend::Scalar => apply_rgb24_contrast_scalar(chunk, contrast),
+            RenderBackend::Avx2Fma => {
+                #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+                {
+                    // SAFETY: `validate_render_backend` proved AVX2 and FMA OS
+                    // support, and the kernel bounds every vector load/store.
+                    unsafe { apply_rgb24_contrast_avx2(chunk, contrast) };
+                }
+                #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+                apply_rgb24_contrast_scalar(chunk, contrast);
+            }
+            RenderBackend::Avx512 => {
+                #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+                {
+                    // SAFETY: `validate_render_backend` proved AVX-512F OS
+                    // support, and the kernel bounds every vector load/store.
+                    unsafe { apply_rgb24_contrast_avx512(chunk, contrast) };
+                }
+                #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+                apply_rgb24_contrast_scalar(chunk, contrast);
+            }
+        }
+    }
+    checkpoint_at(cancellation, deadline)
+}
+
+fn apply_rgb24_contrast_scalar(rgb: &mut [u8], contrast: f32) {
+    for channel in rgb {
+        let adjusted = (f32::from(*channel) - 128.0) * contrast + 128.0;
+        *channel = (adjusted.clamp(0.0, 255.0) + 0.5).floor() as u8;
+    }
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[target_feature(enable = "avx2,fma")]
+unsafe fn apply_rgb24_contrast_avx2(rgb: &mut [u8], contrast: f32) {
+    use std::arch::x86_64::*;
+    let center = _mm256_set1_ps(128.0);
+    let scale = _mm256_set1_ps(contrast);
+    let half = _mm256_set1_ps(0.5);
+    let zero = _mm256_setzero_ps();
+    let maximum = _mm256_set1_ps(255.0);
+    let mut offset = 0;
+    while offset + 8 <= rgb.len() {
+        // SAFETY: the loop condition proves the eight-byte load is in bounds.
+        let packed = unsafe { _mm_loadl_epi64(rgb.as_ptr().add(offset).cast()) };
+        let integers = _mm256_cvtepu8_epi32(packed);
+        let values = _mm256_cvtepi32_ps(integers);
+        let adjusted = _mm256_add_ps(_mm256_mul_ps(_mm256_sub_ps(values, center), scale), center);
+        let clamped = _mm256_max_ps(zero, _mm256_min_ps(maximum, adjusted));
+        let rounded = _mm256_cvttps_epi32(_mm256_floor_ps(_mm256_add_ps(clamped, half)));
+        let mut lanes = [0_i32; 8];
+        // SAFETY: `lanes` has exactly eight initialized i32 destinations.
+        unsafe { _mm256_storeu_si256(lanes.as_mut_ptr().cast(), rounded) };
+        for (destination, value) in rgb[offset..offset + 8].iter_mut().zip(lanes) {
+            *destination = value as u8;
+        }
+        offset += 8;
+    }
+    apply_rgb24_contrast_scalar(&mut rgb[offset..], contrast);
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[target_feature(enable = "avx512f")]
+unsafe fn apply_rgb24_contrast_avx512(rgb: &mut [u8], contrast: f32) {
+    use std::arch::x86_64::*;
+    let center = _mm512_set1_ps(128.0);
+    let scale = _mm512_set1_ps(contrast);
+    let half = _mm512_set1_ps(0.5);
+    let zero = _mm512_setzero_ps();
+    let maximum = _mm512_set1_ps(255.0);
+    let mut offset = 0;
+    while offset + 16 <= rgb.len() {
+        // SAFETY: the loop condition proves the sixteen-byte load is in bounds.
+        let packed = unsafe { _mm_loadu_si128(rgb.as_ptr().add(offset).cast()) };
+        let integers = _mm512_cvtepu8_epi32(packed);
+        let values = _mm512_cvtepi32_ps(integers);
+        let adjusted = _mm512_add_ps(_mm512_mul_ps(_mm512_sub_ps(values, center), scale), center);
+        let clamped = _mm512_max_ps(zero, _mm512_min_ps(maximum, adjusted));
+        let rounded = _mm512_cvttps_epi32(_mm512_add_ps(clamped, half));
+        let mut lanes = [0_i32; 16];
+        // SAFETY: `lanes` has exactly sixteen initialized i32 destinations.
+        unsafe { _mm512_storeu_si512(lanes.as_mut_ptr().cast(), rounded) };
+        for (destination, value) in rgb[offset..offset + 16].iter_mut().zip(lanes) {
+            *destination = value as u8;
+        }
+        offset += 16;
+    }
+    apply_rgb24_contrast_scalar(&mut rgb[offset..], contrast);
 }
 
 fn render_plain_text(request: &RenderRequest<'_>) -> Result<RenderResult, RenderError> {
@@ -1198,7 +2039,7 @@ fn render_plain_text(request: &RenderRequest<'_>) -> Result<RenderResult, Render
         content_width: viewport_width as u32,
         content_height: layout.content_height,
         truncated: layout.truncated,
-        backend: RenderBackend::Scalar,
+        backend: resolve_render_backend_for_mode(request.simd_mode),
     })
 }
 
@@ -1344,11 +2185,12 @@ fn render_html(
             )
         };
         map_native_status(status, &error, request)?;
-        let map_colors = rgb24_to_map_colors(
+        let map_colors = rgb24_to_map_colors_with_backend(
             &rgb,
             viewport_width,
             pixel_height,
             request.limits.max_output_bytes,
+            resolve_render_backend_for_mode(request.simd_mode),
             request.cancellation,
             request.deadline,
         )?;
@@ -1369,7 +2211,7 @@ fn render_html(
         content_width,
         content_height,
         truncated: false,
-        backend: RenderBackend::Scalar,
+        backend: resolve_render_backend_for_mode(request.simd_mode),
     })
 }
 
@@ -1824,11 +2666,12 @@ fn render_page(
     drop(surface);
     checkpoint(request)?;
 
-    let map_colors = rgb24_to_map_colors(
+    let map_colors = rgb24_to_map_colors_with_backend(
         &rgb,
         pixel_width,
         pixel_height,
         request.limits.max_output_bytes,
+        resolve_render_backend_for_mode(request.simd_mode),
         request.cancellation,
         request.deadline,
     )?;
@@ -1962,6 +2805,7 @@ fn floyd_steinberg(
     rgb: &[u8],
     width: usize,
     height: usize,
+    backend: RenderBackend,
     cancellation: &CancellationToken,
     deadline: Instant,
 ) -> Result<Vec<u8>, RenderError> {
@@ -1976,6 +2820,7 @@ fn floyd_steinberg(
         vec![[0.0; 3]; width]
     };
     let palette = minecraft_palette();
+    let dispatcher = PaletteDispatcher::new(backend);
 
     for y in 0..height {
         checkpoint_at(cancellation, deadline)?;
@@ -1993,7 +2838,7 @@ fn floyd_steinberg(
                 (clamped[1] + 0.5) as u8,
                 (clamped[2] + 0.5) as u8,
             ];
-            let selected = nearest_palette(rgb_to_lab(rounded), palette);
+            let selected = dispatcher.nearest(rgb_to_lab(rounded), palette);
             output[y * width + x] = selected.protocol_index;
             let error = [
                 clamped[0] - f32::from(selected.rgb[0]),
@@ -2030,6 +2875,46 @@ fn nearest_map_colors(
     rgb: &[u8],
     width: usize,
     height: usize,
+    backend: RenderBackend,
+    cancellation: &CancellationToken,
+    deadline: Instant,
+) -> Result<Vec<u8>, RenderError> {
+    let backend = validate_render_backend(backend);
+    match backend {
+        RenderBackend::Scalar => {
+            nearest_map_colors_scalar(rgb, width, height, cancellation, deadline)
+        }
+        RenderBackend::Avx2Fma => {
+            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+            {
+                // SAFETY: backend validation proves AVX2/FMA OS support, and
+                // the batch kernel bounds every input chunk and output index.
+                unsafe { nearest_map_colors_avx2(rgb, width, height, cancellation, deadline) }
+            }
+            #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+            {
+                nearest_map_colors_scalar(rgb, width, height, cancellation, deadline)
+            }
+        }
+        RenderBackend::Avx512 => {
+            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+            {
+                // SAFETY: backend validation proves AVX-512F OS support, and
+                // the batch kernel bounds every input chunk and output index.
+                unsafe { nearest_map_colors_avx512(rgb, width, height, cancellation, deadline) }
+            }
+            #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+            {
+                nearest_map_colors_scalar(rgb, width, height, cancellation, deadline)
+            }
+        }
+    }
+}
+
+fn nearest_map_colors_scalar(
+    rgb: &[u8],
+    width: usize,
+    height: usize,
     cancellation: &CancellationToken,
     deadline: Instant,
 ) -> Result<Vec<u8>, RenderError> {
@@ -2045,10 +2930,98 @@ fn nearest_map_colors(
     Ok(output)
 }
 
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[target_feature(enable = "avx2,fma")]
+unsafe fn nearest_map_colors_avx2(
+    rgb: &[u8],
+    width: usize,
+    height: usize,
+    cancellation: &CancellationToken,
+    deadline: Instant,
+) -> Result<Vec<u8>, RenderError> {
+    const PIXELS_PER_BATCH: usize = 8;
+    const BYTES_PER_BATCH: usize = PIXELS_PER_BATCH * 3;
+    let palette = minecraft_palette();
+    let mut output = vec![0_u8; width * height];
+    let batches = rgb.len() / BYTES_PER_BATCH;
+    for batch in 0..batches {
+        let output_offset = batch * PIXELS_PER_BATCH;
+        if output_offset.is_multiple_of(CHECKPOINT_PIXEL_INTERVAL) {
+            checkpoint_at(cancellation, deadline)?;
+        }
+        let input_offset = batch * BYTES_PER_BATCH;
+        // SAFETY: this function's target feature is established by the safe
+        // dispatcher, and the exact-size slice is proven by `batches`.
+        let labs = unsafe { rgb24_to_lab_avx2(&rgb[input_offset..input_offset + BYTES_PER_BATCH]) };
+        for (lane, lab) in labs.into_iter().enumerate() {
+            // SAFETY: the enclosing function already has AVX2/FMA enabled.
+            output[output_offset + lane] =
+                unsafe { nearest_palette_avx2(lab, palette) }.protocol_index;
+        }
+    }
+    let tail_pixel = batches * PIXELS_PER_BATCH;
+    for (lane, pixel) in rgb[batches * BYTES_PER_BATCH..].chunks_exact(3).enumerate() {
+        let index = tail_pixel + lane;
+        if index.is_multiple_of(CHECKPOINT_PIXEL_INTERVAL) {
+            checkpoint_at(cancellation, deadline)?;
+        }
+        // SAFETY: the enclosing function already has AVX2/FMA enabled.
+        output[index] =
+            unsafe { nearest_palette_avx2(rgb_to_lab([pixel[0], pixel[1], pixel[2]]), palette) }
+                .protocol_index;
+    }
+    Ok(output)
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[target_feature(enable = "avx512f")]
+unsafe fn nearest_map_colors_avx512(
+    rgb: &[u8],
+    width: usize,
+    height: usize,
+    cancellation: &CancellationToken,
+    deadline: Instant,
+) -> Result<Vec<u8>, RenderError> {
+    const PIXELS_PER_BATCH: usize = 16;
+    const BYTES_PER_BATCH: usize = PIXELS_PER_BATCH * 3;
+    let palette = minecraft_palette();
+    let mut output = vec![0_u8; width * height];
+    let batches = rgb.len() / BYTES_PER_BATCH;
+    for batch in 0..batches {
+        let output_offset = batch * PIXELS_PER_BATCH;
+        if output_offset.is_multiple_of(CHECKPOINT_PIXEL_INTERVAL) {
+            checkpoint_at(cancellation, deadline)?;
+        }
+        let input_offset = batch * BYTES_PER_BATCH;
+        // SAFETY: this function's target feature is established by the safe
+        // dispatcher, and the exact-size slice is proven by `batches`.
+        let labs =
+            unsafe { rgb24_to_lab_avx512(&rgb[input_offset..input_offset + BYTES_PER_BATCH]) };
+        for (lane, lab) in labs.into_iter().enumerate() {
+            // SAFETY: the enclosing function already has AVX-512F enabled.
+            output[output_offset + lane] =
+                unsafe { nearest_palette_avx512(lab, palette) }.protocol_index;
+        }
+    }
+    let tail_pixel = batches * PIXELS_PER_BATCH;
+    for (lane, pixel) in rgb[batches * BYTES_PER_BATCH..].chunks_exact(3).enumerate() {
+        let index = tail_pixel + lane;
+        if index.is_multiple_of(CHECKPOINT_PIXEL_INTERVAL) {
+            checkpoint_at(cancellation, deadline)?;
+        }
+        // SAFETY: the enclosing function already has AVX-512F enabled.
+        output[index] =
+            unsafe { nearest_palette_avx512(rgb_to_lab([pixel[0], pixel[1], pixel[2]]), palette) }
+                .protocol_index;
+    }
+    Ok(output)
+}
+
 fn ordered_map_colors(
     rgb: &[u8],
     width: usize,
     height: usize,
+    backend: RenderBackend,
     cancellation: &CancellationToken,
     deadline: Instant,
 ) -> Result<Vec<u8>, RenderError> {
@@ -2060,6 +3033,7 @@ fn ordered_map_colors(
     ];
     const SPREAD: f32 = 48.0;
     let palette = minecraft_palette();
+    let dispatcher = PaletteDispatcher::new(backend);
     let mut output = vec![0_u8; width * height];
     for y in 0..height {
         checkpoint_at(cancellation, deadline)?;
@@ -2074,7 +3048,9 @@ fn ordered_map_colors(
                 (f32::from(pixel[1]) + offset + 0.5).clamp(0.0, 255.0) as u8,
                 (f32::from(pixel[2]) + offset + 0.5).clamp(0.0, 255.0) as u8,
             ];
-            output[y * width + x] = nearest_palette(rgb_to_lab(adjusted), palette).protocol_index;
+            output[y * width + x] = dispatcher
+                .nearest(rgb_to_lab(adjusted), palette)
+                .protocol_index;
         }
     }
     Ok(output)
@@ -2113,18 +3089,320 @@ fn nearest_palette(lab: [f32; 3], palette: &[PaletteEntry; 140]) -> PaletteEntry
     best
 }
 
-pub(crate) fn rgb_to_lab(rgb: [u8; 3]) -> [f32; 3] {
-    let red = srgb_linearize(f32::from(rgb[0]) / 255.0);
-    let green = srgb_linearize(f32::from(rgb[1]) / 255.0);
-    let blue = srgb_linearize(f32::from(rgb[2]) / 255.0);
+#[derive(Clone, Copy)]
+struct PaletteDispatcher {
+    backend: RenderBackend,
+}
 
+impl PaletteDispatcher {
+    fn new(requested: RenderBackend) -> Self {
+        Self {
+            backend: validate_render_backend(requested),
+        }
+    }
+
+    #[inline]
+    fn nearest(self, lab: [f32; 3], palette: &[PaletteEntry; 140]) -> PaletteEntry {
+        match self.backend {
+            RenderBackend::Scalar => nearest_palette(lab, palette),
+            RenderBackend::Avx2Fma => {
+                #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+                {
+                    // SAFETY: the private dispatcher records AVX2/FMA only
+                    // after revalidating CPU and operating-system support.
+                    unsafe { nearest_palette_avx2(lab, palette) }
+                }
+                #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+                {
+                    nearest_palette(lab, palette)
+                }
+            }
+            RenderBackend::Avx512 => {
+                #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+                {
+                    // SAFETY: the private dispatcher records AVX-512F only
+                    // after revalidating CPU and operating-system support.
+                    unsafe { nearest_palette_avx512(lab, palette) }
+                }
+                #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+                {
+                    nearest_palette(lab, palette)
+                }
+            }
+        }
+    }
+}
+
+struct PaletteComponents {
+    l: [f32; 140],
+    a: [f32; 140],
+    b: [f32; 140],
+}
+
+fn minecraft_palette_components() -> &'static PaletteComponents {
+    static COMPONENTS: OnceLock<PaletteComponents> = OnceLock::new();
+    COMPONENTS.get_or_init(|| {
+        let palette = minecraft_palette();
+        PaletteComponents {
+            l: std::array::from_fn(|index| palette[index].lab[0]),
+            a: std::array::from_fn(|index| palette[index].lab[1]),
+            b: std::array::from_fn(|index| palette[index].lab[2]),
+        }
+    })
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[target_feature(enable = "avx2,fma")]
+unsafe fn nearest_palette_avx2(lab: [f32; 3], palette: &[PaletteEntry; 140]) -> PaletteEntry {
+    use std::arch::x86_64::*;
+
+    let components = minecraft_palette_components();
+    let query_l = _mm256_set1_ps(lab[0]);
+    let query_a = _mm256_set1_ps(lab[1]);
+    let query_b = _mm256_set1_ps(lab[2]);
+    let mut best = palette[0];
+    let mut minimum = f32::MAX;
+    let vector_end = palette.len() / 8 * 8;
+    for offset in (0..vector_end).step_by(8) {
+        // SAFETY: `offset` advances only across complete eight-lane ranges in
+        // each fixed 140-entry component array.
+        let distance = unsafe {
+            let dl = _mm256_sub_ps(query_l, _mm256_loadu_ps(components.l.as_ptr().add(offset)));
+            let da = _mm256_sub_ps(query_a, _mm256_loadu_ps(components.a.as_ptr().add(offset)));
+            let db = _mm256_sub_ps(query_b, _mm256_loadu_ps(components.b.as_ptr().add(offset)));
+            _mm256_add_ps(
+                _mm256_add_ps(_mm256_mul_ps(dl, dl), _mm256_mul_ps(da, da)),
+                _mm256_mul_ps(db, db),
+            )
+        };
+        let mut distances = [0.0_f32; 8];
+        // SAFETY: `distances` has exactly eight f32 slots for this store.
+        unsafe { _mm256_storeu_ps(distances.as_mut_ptr(), distance) };
+        for (index, distance) in distances.into_iter().enumerate() {
+            if distance < minimum {
+                minimum = distance;
+                best = palette[offset + index];
+            }
+        }
+    }
+    for &candidate in palette.iter().skip(vector_end) {
+        let dl = lab[0] - candidate.lab[0];
+        let da = lab[1] - candidate.lab[1];
+        let db = lab[2] - candidate.lab[2];
+        let distance = dl * dl + da * da + db * db;
+        if distance < minimum {
+            minimum = distance;
+            best = candidate;
+        }
+    }
+    best
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[target_feature(enable = "avx512f")]
+unsafe fn nearest_palette_avx512(lab: [f32; 3], palette: &[PaletteEntry; 140]) -> PaletteEntry {
+    use std::arch::x86_64::*;
+
+    let components = minecraft_palette_components();
+    let query_l = _mm512_set1_ps(lab[0]);
+    let query_a = _mm512_set1_ps(lab[1]);
+    let query_b = _mm512_set1_ps(lab[2]);
+    let mut best = palette[0];
+    let mut minimum = f32::MAX;
+    let vector_end = palette.len() / 16 * 16;
+    for offset in (0..vector_end).step_by(16) {
+        // SAFETY: `offset` advances only across complete sixteen-lane ranges
+        // in each fixed 140-entry component array.
+        let distance = unsafe {
+            let dl = _mm512_sub_ps(query_l, _mm512_loadu_ps(components.l.as_ptr().add(offset)));
+            let da = _mm512_sub_ps(query_a, _mm512_loadu_ps(components.a.as_ptr().add(offset)));
+            let db = _mm512_sub_ps(query_b, _mm512_loadu_ps(components.b.as_ptr().add(offset)));
+            _mm512_add_ps(
+                _mm512_add_ps(_mm512_mul_ps(dl, dl), _mm512_mul_ps(da, da)),
+                _mm512_mul_ps(db, db),
+            )
+        };
+        let mut distances = [0.0_f32; 16];
+        // SAFETY: `distances` has exactly sixteen f32 slots for this store.
+        unsafe { _mm512_storeu_ps(distances.as_mut_ptr(), distance) };
+        for (index, distance) in distances.into_iter().enumerate() {
+            if distance < minimum {
+                minimum = distance;
+                best = palette[offset + index];
+            }
+        }
+    }
+    for &candidate in palette.iter().skip(vector_end) {
+        let dl = lab[0] - candidate.lab[0];
+        let da = lab[1] - candidate.lab[1];
+        let db = lab[2] - candidate.lab[2];
+        let distance = dl * dl + da * da + db * db;
+        if distance < minimum {
+            minimum = distance;
+            best = candidate;
+        }
+    }
+    best
+}
+
+pub(crate) fn rgb_to_lab(rgb: [u8; 3]) -> [f32; 3] {
+    let linear = srgb_linearization_table();
+    rgb_linear_to_lab(
+        linear[usize::from(rgb[0])],
+        linear[usize::from(rgb[1])],
+        linear[usize::from(rgb[2])],
+    )
+}
+
+fn srgb_linearization_table() -> &'static [f32; 256] {
+    static TABLE: OnceLock<[f32; 256]> = OnceLock::new();
+    TABLE.get_or_init(|| std::array::from_fn(|value| srgb_linearize(value as f32 / 255.0)))
+}
+
+#[inline]
+fn rgb_linear_to_lab(red: f32, green: f32, blue: f32) -> [f32; 3] {
     let x = 0.412_456_4 * red + 0.357_576_1 * green + 0.180_437_5 * blue;
     let y = 0.212_672_9 * red + 0.715_152_2 * green + 0.072_175 * blue;
     let z = 0.019_333_9 * red + 0.096_104_5 * green + 0.950_304_1 * blue;
+    xyz_to_lab(x, y, z)
+}
+
+#[inline]
+fn xyz_to_lab(x: f32, y: f32, z: f32) -> [f32; 3] {
     let fx = lab_component(x / 0.950_47);
     let fy = lab_component(y);
     let fz = lab_component(z / 1.088_83);
     [116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz)]
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+/// Converts exactly eight RGB24 pixels without changing scalar floating-point
+/// operation order.
+///
+/// # Safety
+/// The caller must establish AVX2 and FMA CPU/OS support before calling.
+#[target_feature(enable = "avx2,fma")]
+pub(crate) unsafe fn rgb24_to_lab_avx2(rgb: &[u8]) -> [[f32; 3]; 8] {
+    use std::arch::x86_64::*;
+
+    debug_assert_eq!(rgb.len(), 8 * 3);
+    let mut red_indices = [0_i32; 8];
+    let mut green_indices = [0_i32; 8];
+    let mut blue_indices = [0_i32; 8];
+    for (lane, pixel) in rgb.chunks_exact(3).enumerate() {
+        red_indices[lane] = i32::from(pixel[0]);
+        green_indices[lane] = i32::from(pixel[1]);
+        blue_indices[lane] = i32::from(pixel[2]);
+    }
+    let table = srgb_linearization_table();
+    // SAFETY: each index vector has eight initialized lanes in 0..=255, so
+    // all scale-4 gathers remain inside the 256-entry linearization table.
+    let (red, green, blue) = unsafe {
+        let red_index = _mm256_loadu_si256(red_indices.as_ptr().cast());
+        let green_index = _mm256_loadu_si256(green_indices.as_ptr().cast());
+        let blue_index = _mm256_loadu_si256(blue_indices.as_ptr().cast());
+        (
+            _mm256_i32gather_ps(table.as_ptr(), red_index, 4),
+            _mm256_i32gather_ps(table.as_ptr(), green_index, 4),
+            _mm256_i32gather_ps(table.as_ptr(), blue_index, 4),
+        )
+    };
+    let x = _mm256_add_ps(
+        _mm256_add_ps(
+            _mm256_mul_ps(_mm256_set1_ps(0.412_456_4), red),
+            _mm256_mul_ps(_mm256_set1_ps(0.357_576_1), green),
+        ),
+        _mm256_mul_ps(_mm256_set1_ps(0.180_437_5), blue),
+    );
+    let y = _mm256_add_ps(
+        _mm256_add_ps(
+            _mm256_mul_ps(_mm256_set1_ps(0.212_672_9), red),
+            _mm256_mul_ps(_mm256_set1_ps(0.715_152_2), green),
+        ),
+        _mm256_mul_ps(_mm256_set1_ps(0.072_175), blue),
+    );
+    let z = _mm256_add_ps(
+        _mm256_add_ps(
+            _mm256_mul_ps(_mm256_set1_ps(0.019_333_9), red),
+            _mm256_mul_ps(_mm256_set1_ps(0.096_104_5), green),
+        ),
+        _mm256_mul_ps(_mm256_set1_ps(0.950_304_1), blue),
+    );
+    let mut x_lanes = [0.0_f32; 8];
+    let mut y_lanes = [0.0_f32; 8];
+    let mut z_lanes = [0.0_f32; 8];
+    // SAFETY: each destination has exactly eight initialized f32 slots.
+    unsafe {
+        _mm256_storeu_ps(x_lanes.as_mut_ptr(), x);
+        _mm256_storeu_ps(y_lanes.as_mut_ptr(), y);
+        _mm256_storeu_ps(z_lanes.as_mut_ptr(), z);
+    }
+    std::array::from_fn(|lane| xyz_to_lab(x_lanes[lane], y_lanes[lane], z_lanes[lane]))
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+/// Converts exactly sixteen RGB24 pixels without changing scalar
+/// floating-point operation order.
+///
+/// # Safety
+/// The caller must establish AVX-512F CPU/OS support before calling.
+#[target_feature(enable = "avx512f")]
+pub(crate) unsafe fn rgb24_to_lab_avx512(rgb: &[u8]) -> [[f32; 3]; 16] {
+    use std::arch::x86_64::*;
+
+    debug_assert_eq!(rgb.len(), 16 * 3);
+    let mut red_indices = [0_i32; 16];
+    let mut green_indices = [0_i32; 16];
+    let mut blue_indices = [0_i32; 16];
+    for (lane, pixel) in rgb.chunks_exact(3).enumerate() {
+        red_indices[lane] = i32::from(pixel[0]);
+        green_indices[lane] = i32::from(pixel[1]);
+        blue_indices[lane] = i32::from(pixel[2]);
+    }
+    let table = srgb_linearization_table();
+    // SAFETY: each index vector has sixteen initialized lanes in 0..=255, so
+    // all scale-4 gathers remain inside the 256-entry linearization table.
+    let (red, green, blue) = unsafe {
+        let red_index = _mm512_loadu_si512(red_indices.as_ptr().cast());
+        let green_index = _mm512_loadu_si512(green_indices.as_ptr().cast());
+        let blue_index = _mm512_loadu_si512(blue_indices.as_ptr().cast());
+        (
+            _mm512_i32gather_ps(red_index, table.as_ptr(), 4),
+            _mm512_i32gather_ps(green_index, table.as_ptr(), 4),
+            _mm512_i32gather_ps(blue_index, table.as_ptr(), 4),
+        )
+    };
+    let x = _mm512_add_ps(
+        _mm512_add_ps(
+            _mm512_mul_ps(_mm512_set1_ps(0.412_456_4), red),
+            _mm512_mul_ps(_mm512_set1_ps(0.357_576_1), green),
+        ),
+        _mm512_mul_ps(_mm512_set1_ps(0.180_437_5), blue),
+    );
+    let y = _mm512_add_ps(
+        _mm512_add_ps(
+            _mm512_mul_ps(_mm512_set1_ps(0.212_672_9), red),
+            _mm512_mul_ps(_mm512_set1_ps(0.715_152_2), green),
+        ),
+        _mm512_mul_ps(_mm512_set1_ps(0.072_175), blue),
+    );
+    let z = _mm512_add_ps(
+        _mm512_add_ps(
+            _mm512_mul_ps(_mm512_set1_ps(0.019_333_9), red),
+            _mm512_mul_ps(_mm512_set1_ps(0.096_104_5), green),
+        ),
+        _mm512_mul_ps(_mm512_set1_ps(0.950_304_1), blue),
+    );
+    let mut x_lanes = [0.0_f32; 16];
+    let mut y_lanes = [0.0_f32; 16];
+    let mut z_lanes = [0.0_f32; 16];
+    // SAFETY: each destination has exactly sixteen initialized f32 slots.
+    unsafe {
+        _mm512_storeu_ps(x_lanes.as_mut_ptr(), x);
+        _mm512_storeu_ps(y_lanes.as_mut_ptr(), y);
+        _mm512_storeu_ps(z_lanes.as_mut_ptr(), z);
+    }
+    std::array::from_fn(|lane| xyz_to_lab(x_lanes[lane], y_lanes[lane], z_lanes[lane]))
 }
 
 fn srgb_linearize(component: f32) -> f32 {
@@ -2624,7 +3902,7 @@ mod tests {
         let cancellation = CancellationToken::new();
         let result = render(&request(&text, &cancellation)).unwrap();
 
-        assert_eq!(result.backend(), RenderBackend::Scalar);
+        assert_eq!(result.backend(), resolve_render_backend());
         assert_eq!(result.content_width(), 256);
         assert_eq!(result.content_height(), 2368);
         assert_eq!(result.pages().len(), 10);
@@ -2765,6 +4043,138 @@ mod tests {
     }
 
     #[test]
+    fn real_box_resize_backends_are_byte_exact() {
+        let source_width = 131;
+        let source_height = 19;
+        let output_width = 3;
+        let output_height = 5;
+        let input: Vec<u8> = (0..source_width * source_height)
+            .flat_map(|index| {
+                let value = index as u32;
+                [
+                    value.wrapping_mul(17) as u8,
+                    value.wrapping_mul(73).wrapping_add(11) as u8,
+                    value.wrapping_mul(151).wrapping_add(29) as u8,
+                ]
+            })
+            .collect();
+        let cancellation = CancellationToken::new();
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let resize = |backend| {
+            resize_rgb24_box_with_backend(
+                &input,
+                Rgb24ResizeSpec {
+                    source_width,
+                    source_height,
+                    output_width,
+                    output_height,
+                    max_output_bytes: output_width * output_height * 3,
+                },
+                backend,
+                &cancellation,
+                deadline,
+            )
+            .unwrap()
+        };
+        let scalar = resize(RenderBackend::Scalar);
+        assert_eq!(resize(RenderBackend::Avx2Fma), scalar);
+        assert_eq!(resize(RenderBackend::Avx512), scalar);
+    }
+
+    #[test]
+    fn narrow_box_resize_lane_kernels_are_byte_exact() {
+        let source_width = 67;
+        let source_height = 31;
+        let output_width = 32;
+        let output_height = 13;
+        let input: Vec<u8> = (0..source_width * source_height)
+            .flat_map(|index| {
+                let value = index as u32;
+                [
+                    value.wrapping_mul(29).wrapping_add(3) as u8,
+                    value.wrapping_mul(101).wrapping_add(17) as u8,
+                    value.wrapping_mul(211).wrapping_add(47) as u8,
+                ]
+            })
+            .collect();
+        let cancellation = CancellationToken::new();
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let resize = |backend| {
+            resize_rgb24_box_with_backend(
+                &input,
+                Rgb24ResizeSpec {
+                    source_width,
+                    source_height,
+                    output_width,
+                    output_height,
+                    max_output_bytes: output_width * output_height * 3,
+                },
+                backend,
+                &cancellation,
+                deadline,
+            )
+            .unwrap()
+        };
+        let scalar = resize(RenderBackend::Scalar);
+        assert_eq!(resize(RenderBackend::Avx2Fma), scalar);
+        assert_eq!(resize(RenderBackend::Avx512), scalar);
+    }
+
+    #[test]
+    fn contrast_backends_are_byte_exact_for_all_channel_values() {
+        let original: Vec<u8> = (0_u8..=u8::MAX).cycle().take(4098).collect();
+        let cancellation = CancellationToken::new();
+        let deadline = Instant::now() + Duration::from_secs(30);
+        for contrast in [0.0, 0.25, 0.999, 1.0, 1.5, 3.0] {
+            let apply = |backend| {
+                let mut output = original.clone();
+                apply_rgb24_contrast(&mut output, contrast, backend, &cancellation, deadline)
+                    .unwrap();
+                output
+            };
+            let scalar = apply(RenderBackend::Scalar);
+            assert_eq!(apply(RenderBackend::Avx2Fma), scalar, "contrast={contrast}");
+            assert_eq!(apply(RenderBackend::Avx512), scalar, "contrast={contrast}");
+        }
+    }
+
+    #[test]
+    fn all_dither_modes_match_scalar_for_each_requested_backend() {
+        let width = 32;
+        let height = 17;
+        let rgb: Vec<u8> = (0..width * height)
+            .flat_map(|index| {
+                let value = index as u32;
+                [
+                    value.wrapping_mul(31) as u8,
+                    value.wrapping_mul(97).wrapping_add(7) as u8,
+                    value.wrapping_mul(193).wrapping_add(17) as u8,
+                ]
+            })
+            .collect();
+        let cancellation = CancellationToken::new();
+        let deadline = Instant::now() + Duration::from_secs(30);
+        for dither in [0, 1, 2] {
+            let convert = |backend| {
+                rgb24_to_map_colors_with_dither_and_backend(
+                    &rgb,
+                    width,
+                    height,
+                    width * height,
+                    dither,
+                    backend,
+                    &cancellation,
+                    deadline,
+                )
+                .unwrap()
+            };
+            let scalar = convert(RenderBackend::Scalar);
+            assert_eq!(convert(RenderBackend::Avx2Fma), scalar, "dither={dither}");
+            assert_eq!(convert(RenderBackend::Avx512), scalar, "dither={dither}");
+        }
+    }
+
+    #[test]
     fn cancellation_and_deadline_are_observed_before_font_or_output_work() {
         let cancellation = CancellationToken::new();
         cancellation.cancel();
@@ -2897,7 +4307,7 @@ mod tests {
 
     proptest! {
         #[test]
-        fn rgb_to_lab_and_palette_matching_are_finite_and_in_protocol_range(
+    fn rgb_to_lab_and_palette_matching_are_finite_and_in_protocol_range(
             red in any::<u8>(),
             green in any::<u8>(),
             blue in any::<u8>(),
@@ -2907,5 +4317,171 @@ mod tests {
             let selected = nearest_palette(lab, minecraft_palette());
             prop_assert!((4..=143).contains(&selected.protocol_index));
         }
+    }
+
+    #[test]
+    fn palette_component_arrays_preserve_frozen_candidate_order() {
+        let palette = minecraft_palette();
+        let components = minecraft_palette_components();
+        for (index, entry) in palette.iter().enumerate() {
+            assert_eq!(
+                [
+                    components.l[index],
+                    components.a[index],
+                    components.b[index],
+                ],
+                entry.lab
+            );
+        }
+    }
+
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    #[test]
+    fn avx2_palette_backend_matches_scalar_for_representative_frame() {
+        if !host_simd_capabilities().avx2 || !host_simd_capabilities().fma {
+            return;
+        }
+        assert_eq!(
+            validate_render_backend(RenderBackend::Avx2Fma),
+            RenderBackend::Avx2Fma
+        );
+        let cancellation = CancellationToken::new();
+        let deadline = Instant::now() + std::time::Duration::from_secs(5);
+        let mut rgb = Vec::with_capacity(256 * 256 * 3);
+        for index in 0..(256 * 256) {
+            let value = index as u32;
+            rgb.extend_from_slice(&[
+                (value.wrapping_mul(17) & 255) as u8,
+                (value.wrapping_mul(73).wrapping_add(11) & 255) as u8,
+                (value.wrapping_mul(151).wrapping_add(29) & 255) as u8,
+            ]);
+        }
+        for chunk in rgb[..24 * 64].chunks_exact(24) {
+            // SAFETY: this test established AVX2/FMA support above.
+            let labs = unsafe { rgb24_to_lab_avx2(chunk) };
+            for (lane, pixel) in chunk.chunks_exact(3).enumerate() {
+                assert_eq!(
+                    labs[lane],
+                    rgb_to_lab([pixel[0], pixel[1], pixel[2]]),
+                    "AVX2 RGB-to-Lab lane {lane}"
+                );
+            }
+        }
+        let scalar = nearest_map_colors(
+            &rgb,
+            256,
+            256,
+            RenderBackend::Scalar,
+            &cancellation,
+            deadline,
+        )
+        .unwrap();
+        let simd = nearest_map_colors(
+            &rgb,
+            256,
+            256,
+            RenderBackend::Avx2Fma,
+            &cancellation,
+            deadline,
+        )
+        .unwrap();
+        let mismatch = scalar
+            .iter()
+            .zip(&simd)
+            .enumerate()
+            .find(|(_, (left, right))| left != right);
+        if let Some((index, (left, right))) = mismatch {
+            let pixel = [rgb[index * 3], rgb[index * 3 + 1], rgb[index * 3 + 2]];
+            let lab = rgb_to_lab(pixel);
+            let scalar_entry = nearest_palette(lab, minecraft_palette());
+            let simd_entry = unsafe { nearest_palette_avx2(lab, minecraft_palette()) };
+            eprintln!(
+                "pixel={pixel:?} scalar={left}({:?}) simd={right}({:?}) lab={lab:?}",
+                scalar_entry.rgb, simd_entry.rgb
+            );
+        }
+        assert!(mismatch.is_none(), "first SIMD mismatch: {mismatch:?}");
+    }
+
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    #[test]
+    fn avx2_resize_copy_backend_is_byte_exact() {
+        let capabilities = host_simd_capabilities();
+        if !capabilities.avx2 || !capabilities.fma {
+            return;
+        }
+        let input: Vec<u8> = (0..(97 * 3)).map(|value| value as u8).collect();
+        let scalar = copy_rgb24_backend(&input, RenderBackend::Scalar);
+        let simd = copy_rgb24_backend(&input, RenderBackend::Avx2Fma);
+        assert_eq!(scalar, simd);
+    }
+
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    #[test]
+    fn avx512_palette_and_resize_backends_match_scalar_when_available() {
+        let capabilities = host_simd_capabilities();
+        if !capabilities.avx512f {
+            return;
+        }
+        assert_eq!(
+            validate_render_backend(RenderBackend::Avx512),
+            RenderBackend::Avx512
+        );
+        let cancellation = CancellationToken::new();
+        let deadline = Instant::now() + std::time::Duration::from_secs(5);
+        let mut rgb = Vec::with_capacity(128 * 128 * 3);
+        for index in 0..(128 * 128) {
+            let value = index as u32;
+            rgb.extend_from_slice(&[
+                (value.wrapping_mul(31) & 255) as u8,
+                (value.wrapping_mul(97).wrapping_add(7) & 255) as u8,
+                (value.wrapping_mul(193).wrapping_add(17) & 255) as u8,
+            ]);
+        }
+        for chunk in rgb[..48 * 32].chunks_exact(48) {
+            // SAFETY: this test established AVX-512F support above.
+            let labs = unsafe { rgb24_to_lab_avx512(chunk) };
+            for (lane, pixel) in chunk.chunks_exact(3).enumerate() {
+                assert_eq!(
+                    labs[lane],
+                    rgb_to_lab([pixel[0], pixel[1], pixel[2]]),
+                    "AVX-512 RGB-to-Lab lane {lane}"
+                );
+            }
+        }
+        let scalar = nearest_map_colors(
+            &rgb,
+            128,
+            128,
+            RenderBackend::Scalar,
+            &cancellation,
+            deadline,
+        )
+        .unwrap();
+        let simd = nearest_map_colors(
+            &rgb,
+            128,
+            128,
+            RenderBackend::Avx512,
+            &cancellation,
+            deadline,
+        )
+        .unwrap();
+        assert_eq!(scalar, simd);
+
+        let resize_spec = Rgb24ResizeSpec {
+            source_width: 97,
+            source_height: 1,
+            output_width: 97,
+            output_height: 1,
+            max_output_bytes: 97 * 3,
+        };
+        let resized =
+            resize_rgb24_box(&rgb[..97 * 3], resize_spec, &cancellation, deadline).unwrap();
+        let scalar_copy = copy_rgb24_backend(&rgb[..97 * 3], RenderBackend::Scalar);
+        let direct_copy = copy_rgb24_backend(&rgb[..97 * 3], RenderBackend::Avx512);
+        assert_eq!(resized, scalar_copy);
+        assert_eq!(scalar_copy, direct_copy);
+        assert_eq!(resolve_render_backend(), RenderBackend::Avx512);
     }
 }

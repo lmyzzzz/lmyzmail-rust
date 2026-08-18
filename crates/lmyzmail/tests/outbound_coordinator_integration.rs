@@ -28,8 +28,8 @@ use lmyzmail::{
         QueueMaintenanceOutcome, RouteLookup,
     },
     outbound_delivery::{
-        DeliveryStateError, LegacyProjection, OutboundSpoolKind, OutboundSpoolState,
-        PostgresDeliveryState, TerminalStatus,
+        DeliveryStateError, LegacyProjection, OutboundContentAuthority, OutboundContentRoot,
+        OutboundSpoolKind, OutboundSpoolState, PostgresDeliveryState, TerminalStatus,
     },
     outbound_legacy::{LegacyQueueMigrator, MigrationSummary},
     outbound_queue::{DomainStatus, LegacyOutboundQueue, TaskDetail},
@@ -39,6 +39,7 @@ use lmyzmail::{
     outbound_smtp::{OutboundSmtpClient, SmtpEndpoint, TlsMode},
     redis as redis_config,
 };
+use sha2::{Digest, Sha256};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
@@ -1115,6 +1116,7 @@ async fn coordinator_takes_over_java_redis_only_tasks_without_acknowledging_fail
     let (port, server) = smtp_server(postgres_pool.clone(), task_id, FinalReply::Accepted).await;
     let mut coordinator_config = coordinator_configuration();
     coordinator_config.maildir_base = maildir.clone();
+    coordinator_config.spool_dir = maildir.join("spool-unused");
     let coordinator = OutboundCoordinator::with_components(
         coordinator_config.clone(),
         LegacyOutboundQueue::new(redis_pool.clone()),
@@ -1124,8 +1126,7 @@ async fn coordinator_takes_over_java_redis_only_tasks_without_acknowledging_fail
     )
     .unwrap();
     assert_eq!(
-        coordinator
-            .process_next(&CancellationToken::new())
+        Box::pin(coordinator.process_next(&CancellationToken::new()))
             .await
             .unwrap(),
         CoordinatorOutcome::Released { task_id }
@@ -1192,31 +1193,59 @@ async fn coordinator_takes_over_java_redis_only_tasks_without_acknowledging_fail
     );
     assert!(redis_task["signedContentBase64"].is_null());
 
-    assert!(matches!(
-        coordinator
-            .process_next(&CancellationToken::new())
-            .await
-            .unwrap(),
+    let takeover_outcome = Box::pin(coordinator.process_next(&CancellationToken::new()))
+        .await
+        .unwrap();
+    let takeover_diagnostic = if matches!(
+        takeover_outcome,
         CoordinatorOutcome::Completed {
             projection: LegacyProjection::Terminal(TerminalStatus::Sent),
             ..
         }
-    ));
+    ) {
+        None
+    } else {
+        let client = postgres_pool.get().await.unwrap();
+        let row = client
+            .query_one(
+                "SELECT queue.last_error,recipient.detail
+                 FROM outbound_mail_queue queue
+                 LEFT JOIN lmyzmail_outbound_delivery_recipient recipient
+                   ON recipient.task_id=queue.id
+                 WHERE queue.id=$1",
+                &[&task_id],
+            )
+            .await
+            .unwrap();
+        Some((
+            row.get::<_, Option<String>>(0),
+            row.get::<_, Option<String>>(1),
+        ))
+    };
+    assert!(
+        matches!(
+            takeover_outcome,
+            CoordinatorOutcome::Completed {
+                projection: LegacyProjection::Terminal(TerminalStatus::Sent),
+                ..
+            }
+        ),
+        "unexpected Java Redis-only takeover outcome: {takeover_outcome:?}; {takeover_diagnostic:?}"
+    );
     server.await.unwrap();
     assert!(!redis_task_exists(&redis_pool, task_id).await);
 
     let missing_task_id = 7_102;
     seed_java_redis_only_task(&redis_pool, missing_task_id, "missing-sent-copy.eml").await;
-    let missing = OutboundCoordinator::with_components(
+    let missing_coordinator = OutboundCoordinator::with_components(
         coordinator_config,
         LegacyOutboundQueue::new(redis_pool.clone()),
         PostgresDeliveryState::new(postgres_pool.clone()),
         Arc::new(StaticRoute { port }),
         Arc::new(OutboundSmtpClient::default()),
     )
-    .unwrap()
-    .process_next(&CancellationToken::new())
-    .await;
+    .unwrap();
+    let missing = Box::pin(missing_coordinator.process_next(&CancellationToken::new())).await;
     assert!(matches!(
         missing,
         Err(lmyzmail::outbound_coordinator::CoordinatorError::Takeover(
@@ -1272,7 +1301,7 @@ async fn coordinator_reconciles_dropped_redis_claim_ack_and_retry_responses() {
         .await
         .unwrap();
 
-    run_dropped_redis_mutation(
+    Box::pin(run_dropped_redis_mutation(
         &postgres_pool,
         &redis_pool,
         postgres.port,
@@ -1283,9 +1312,9 @@ async fn coordinator_reconciles_dropped_redis_claim_ack_and_retry_responses() {
             final_reply: FinalReply::Accepted,
             expect_retry: false,
         },
-    )
+    ))
     .await;
-    run_dropped_redis_mutation(
+    Box::pin(run_dropped_redis_mutation(
         &postgres_pool,
         &redis_pool,
         postgres.port,
@@ -1296,9 +1325,9 @@ async fn coordinator_reconciles_dropped_redis_claim_ack_and_retry_responses() {
             final_reply: FinalReply::Accepted,
             expect_retry: false,
         },
-    )
+    ))
     .await;
-    run_dropped_redis_mutation(
+    Box::pin(run_dropped_redis_mutation(
         &postgres_pool,
         &redis_pool,
         postgres.port,
@@ -1309,7 +1338,7 @@ async fn coordinator_reconciles_dropped_redis_claim_ack_and_retry_responses() {
             final_reply: FinalReply::Temporary,
             expect_retry: true,
         },
-    )
+    ))
     .await;
 }
 
@@ -1546,13 +1575,19 @@ async fn maintenance_cleans_terminal_postgres_spool_without_redis_task() {
     let maildir_base = root.join("maildir");
     fs::create_dir_all(&spool_dir).unwrap();
     fs::create_dir_all(&maildir_base).unwrap();
-    let spool_path = spool_dir.join(format!("message-{task_id}.eml"));
-    fs::write(&spool_path, b"durable outbound message\r\n").unwrap();
+    let message = b"From: sender@example.test\r\nTo: user@remote.test\r\nSubject: durable outbound message\r\n\r\nbody\r\n";
+    let sent_path = maildir_base
+        .join("sender@example.test/sent/1")
+        .join(format!("{task_id}.eml"));
+    fs::create_dir_all(sent_path.parent().unwrap()).unwrap();
+    fs::write(&sent_path, message).unwrap();
+    let spool_path = spool_dir.join(format!("signed-{task_id}.eml"));
+    fs::write(&spool_path, message).unwrap();
     state
         .register_outbound_spool(
             task_id,
             spool_path.to_str().unwrap(),
-            OutboundSpoolKind::Rust,
+            OutboundSpoolKind::LegacyJava,
             now,
         )
         .await
@@ -1620,17 +1655,43 @@ async fn dropped_ack_response_still_deletes_exact_removed_spool_sidecar() {
     let maildir_base = root.join("maildir");
     fs::create_dir_all(&spool_dir).unwrap();
     fs::create_dir_all(&maildir_base).unwrap();
-    let spool_path = spool_dir.join(format!("message-{task_id}.eml"));
-    fs::write(
-        &spool_path,
-        b"Subject: durable coordinator spool\r\n\r\nbody\r\n",
-    )
-    .unwrap();
+    let message = b"From: sender@example.test\r\nTo: user@remote.test\r\nSubject: durable coordinator spool\r\n\r\nbody\r\n";
+    let sent_path = maildir_base
+        .join("sender@example.test/sent/1")
+        .join(format!("{task_id}.eml"));
+    fs::create_dir_all(sent_path.parent().unwrap()).unwrap();
+    fs::write(&sent_path, message).unwrap();
+    let spool_file_name = format!("signed-{task_id}.eml");
+    let spool_path = spool_dir.join(&spool_file_name);
+    fs::write(&spool_path, message).unwrap();
     state
         .register_outbound_spool(
             task_id,
             spool_path.to_str().unwrap(),
-            OutboundSpoolKind::Rust,
+            OutboundSpoolKind::LegacyJava,
+            Utc::now(),
+        )
+        .await
+        .unwrap();
+    postgres_pool
+        .get()
+        .await
+        .unwrap()
+        .execute(
+            "DELETE FROM lmyzmail_outbound_content WHERE task_id=$1",
+            &[&task_id],
+        )
+        .await
+        .unwrap();
+    state
+        .register_content_authority(
+            &OutboundContentAuthority {
+                task_id,
+                source_root: OutboundContentRoot::Spool,
+                relative_path: spool_file_name,
+                content_size: message.len() as u64,
+                content_sha256: Sha256::digest(message).into(),
+            },
             Utc::now(),
         )
         .await
@@ -1726,9 +1787,9 @@ async fn maintenance_retains_removed_sidecar_until_redis_ack_is_proven() {
         .await
         .unwrap();
     drop(client);
-    let spool_path = format!("/var/lib/lmyzmail/spool/message-{task_id}.eml");
+    let spool_path = format!("/var/lib/lmyzmail/spool/signed-{task_id}.eml");
     state
-        .register_outbound_spool(task_id, &spool_path, OutboundSpoolKind::Rust, now)
+        .register_outbound_spool(task_id, &spool_path, OutboundSpoolKind::LegacyJava, now)
         .await
         .unwrap();
     state
@@ -2375,21 +2436,32 @@ async fn insert_pending_for_recipients(
 ) {
     let now = Utc::now() - chrono::Duration::seconds(1);
     let recipients_json = serde_json::to_string(recipients).unwrap();
+    let message = b"Subject: coordinator integration\r\n\r\nbody\r\n";
+    let content_sha256: [u8; 32] = Sha256::digest(message).into();
     pool.get()
         .await
         .unwrap()
         .execute(
-            "INSERT INTO outbound_mail_queue
-             (id,sender_address,recipients_json,subject,message_id,sent_file_name,
-              sent_subdirectory,status,retry_count,max_retries,next_retry_at,created_at,updated_at)
-             VALUES ($1,'sender@example.test',$2,'integration',
-                     $3,$4,1,'PENDING',0,5,$5,$5,$5)",
+            "WITH admitted AS (
+                 INSERT INTO outbound_mail_queue
+                 (id,sender_address,recipients_json,subject,message_id,sent_file_name,
+                  sent_subdirectory,status,retry_count,max_retries,next_retry_at,created_at,updated_at)
+                 VALUES ($1,'sender@example.test',$2,'integration',
+                         $3,$4,1,'PENDING',0,5,$5,$5,$5)
+                 RETURNING id
+             )
+             INSERT INTO lmyzmail_outbound_content
+             (task_id,source_root,relative_path,content_size,content_sha256,created_at,updated_at)
+             SELECT id,'SPOOL',$6,$7,$8,$5,$5 FROM admitted",
             &[
                 &task_id,
                 &recipients_json,
                 &format!("<{task_id}@example.test>"),
                 &format!("{task_id}.eml"),
                 &now,
+                &format!("message-{task_id}.eml"),
+                &(message.len() as i64),
+                &content_sha256.as_slice(),
             ],
         )
         .await
@@ -2592,6 +2664,183 @@ async fn redis_domain_status(pool: &deadpool_redis::Pool, task_id: i64) -> Domai
         .await
         .unwrap();
     serde_json::from_str(&value).unwrap()
+}
+
+#[tokio::test]
+async fn empty_legacy_migration_polling_keeps_one_receipt_per_namespace() {
+    let postgres = PostgresProcess::start();
+    let redis_process = RedisProcess::start();
+    let runtime = configuration(postgres.port, redis_process.port);
+    let postgres_pool = database::create_pool(&runtime).unwrap();
+    let redis_pool = redis_config::create_pool(&runtime).unwrap();
+    let migrator = LegacyQueueMigrator::new(
+        LegacyOutboundQueue::new(redis_pool.clone()),
+        PostgresDeliveryState::new(postgres_pool),
+    );
+
+    for _ in 0..32 {
+        assert_eq!(
+            migrator
+                .migrate_batch(10, &CancellationToken::new())
+                .await
+                .unwrap(),
+            MigrationSummary::default()
+        );
+    }
+
+    let mut connection = redis_pool.get().await.unwrap();
+    let keys: Vec<String> = redis::cmd("KEYS")
+        .arg("lmyzmail:mail:queue:migration:*")
+        .query_async(&mut connection)
+        .await
+        .unwrap();
+    assert_eq!(
+        keys.len(),
+        4,
+        "empty migration receipt set changed: {keys:?}"
+    );
+    let mut stable_receipts = Vec::new();
+    for namespace in ["archive", "status-updates"] {
+        let index = format!("lmyzmail:mail:queue:migration:{namespace}:done-index");
+        assert_eq!(
+            redis::cmd("ZCARD")
+                .arg(&index)
+                .query_async::<i64>(&mut connection)
+                .await
+                .unwrap(),
+            1
+        );
+        let receipt_keys: Vec<String> = redis::cmd("KEYS")
+            .arg(format!(
+                "lmyzmail:mail:queue:migration:{namespace}:done:migrate:*"
+            ))
+            .query_async(&mut connection)
+            .await
+            .unwrap();
+        assert_eq!(receipt_keys.len(), 1);
+        assert_eq!(
+            redis::cmd("GET")
+                .arg(&receipt_keys[0])
+                .query_async::<String>(&mut connection)
+                .await
+                .unwrap(),
+            "EMPTY"
+        );
+        let token = receipt_keys[0]
+            .split_once(":done:")
+            .expect("migration receipt key contains its done namespace")
+            .1
+            .to_owned();
+        let score = redis::cmd("ZSCORE")
+            .arg(&index)
+            .arg(&token)
+            .query_async::<f64>(&mut connection)
+            .await
+            .unwrap();
+        assert!(
+            redis::cmd("PEXPIRE")
+                .arg(&receipt_keys[0])
+                .arg(10_000)
+                .query_async::<bool>(&mut connection)
+                .await
+                .unwrap()
+        );
+        stable_receipts.push((index, receipt_keys[0].clone(), token, score));
+    }
+    drop(connection);
+    tokio::time::sleep(Duration::from_millis(1_100)).await;
+    assert_eq!(
+        migrator
+            .migrate_batch(10, &CancellationToken::new())
+            .await
+            .unwrap(),
+        MigrationSummary::default()
+    );
+    let mut connection = redis_pool.get().await.unwrap();
+    for (index, receipt, token, expected_score) in &stable_receipts {
+        assert_eq!(
+            redis::cmd("ZSCORE")
+                .arg(index)
+                .arg(token)
+                .query_async::<f64>(&mut connection)
+                .await
+                .unwrap(),
+            *expected_score,
+            "known-empty migration polling refreshed the done-index score"
+        );
+        let pttl = redis::cmd("PTTL")
+            .arg(receipt)
+            .query_async::<i64>(&mut connection)
+            .await
+            .unwrap();
+        assert!(
+            (1..=10_000).contains(&pttl),
+            "known-empty migration polling refreshed the receipt TTL: {pttl}"
+        );
+    }
+    redis::cmd("FLUSHDB")
+        .query_async::<()>(&mut connection)
+        .await
+        .unwrap();
+    drop(connection);
+
+    for _ in 0..32 {
+        assert_eq!(
+            migrator
+                .migrate_batch(10, &CancellationToken::new())
+                .await
+                .unwrap(),
+            MigrationSummary::default()
+        );
+    }
+
+    let mut connection = redis_pool.get().await.unwrap();
+    let keys: Vec<String> = redis::cmd("KEYS")
+        .arg("lmyzmail:mail:queue:migration:*")
+        .query_async(&mut connection)
+        .await
+        .unwrap();
+    assert!(
+        keys.is_empty(),
+        "known-empty polling recreated externally purged receipts: {keys:?}"
+    );
+
+    redis::cmd("RPUSH")
+        .arg("botmail:mail:queue:archive")
+        .arg("post-purge-invalid-record")
+        .query_async::<i64>(&mut connection)
+        .await
+        .unwrap();
+    drop(connection);
+    assert_eq!(
+        migrator
+            .migrate_batch(1, &CancellationToken::new())
+            .await
+            .unwrap(),
+        MigrationSummary {
+            quarantined: 1,
+            ..MigrationSummary::default()
+        }
+    );
+    let mut connection = redis_pool.get().await.unwrap();
+    assert_eq!(
+        redis::cmd("LLEN")
+            .arg("botmail:mail:queue:archive")
+            .query_async::<i64>(&mut connection)
+            .await
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        redis::cmd("LRANGE")
+            .arg("lmyzmail:mail:queue:migration:archive:quarantine")
+            .arg(0)
+            .arg(-1)
+            .query_async::<Vec<String>>(&mut connection)
+            .await
+            .unwrap(),
+        vec!["post-purge-invalid-record"]
+    );
 }
 
 #[tokio::test]
@@ -2830,8 +3079,10 @@ async fn queue_maintenance_requeues_only_claims_past_the_processing_timeout() {
     let queue = LegacyOutboundQueue::new(redis_pool.clone());
     let old_id = 7_401;
     let recent_id = 7_402;
+    let pending_id = 7_403;
     queue.publish(&task(old_id), &domains()).await.unwrap();
     queue.publish(&task(recent_id), &domains()).await.unwrap();
+    queue.publish(&task(pending_id), &domains()).await.unwrap();
     let now_millis = Utc::now().timestamp_millis();
     queue
         .claim_next(
@@ -2848,6 +3099,19 @@ async fn queue_maintenance_requeues_only_claims_past_the_processing_timeout() {
         .unwrap()
         .unwrap();
     tokio::time::sleep(Duration::from_millis(1_100)).await;
+    let mut connection = redis_pool.get().await.unwrap();
+    for key in [
+        format!("botmail:mail:queue:task:{pending_id}"),
+        format!("botmail:mail:queue:domains:{pending_id}"),
+    ] {
+        redis::cmd("EXPIRE")
+            .arg(key)
+            .arg(120)
+            .query_async::<bool>(&mut connection)
+            .await
+            .unwrap();
+    }
+    drop(connection);
 
     let mut config = coordinator_configuration();
     config.task_deadline = Duration::from_secs(2);
@@ -2870,6 +3134,7 @@ async fn queue_maintenance_requeues_only_claims_past_the_processing_timeout() {
         QueueMaintenanceOutcome {
             next_expired_cursor: 0,
             moved_retries: 0,
+            renewed_pending_tasks: 1,
             recovered_claims: 1,
             terminal_cleanups: 0,
             removed_spool_sidecars: 0,
@@ -2877,6 +3142,19 @@ async fn queue_maintenance_requeues_only_claims_past_the_processing_timeout() {
     );
     assert!(redis_pending_exists(&redis_pool, old_id).await);
     let mut connection = redis_pool.get().await.unwrap();
+    for key in [
+        format!("botmail:mail:queue:task:{pending_id}"),
+        format!("botmail:mail:queue:domains:{pending_id}"),
+    ] {
+        assert!(
+            redis::cmd("TTL")
+                .arg(key)
+                .query_async::<i64>(&mut connection)
+                .await
+                .unwrap()
+                > 600_000
+        );
+    }
     assert!(
         redis::cmd("SISMEMBER")
             .arg("botmail:mail:queue:processing")

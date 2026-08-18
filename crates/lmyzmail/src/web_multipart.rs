@@ -12,7 +12,10 @@ use tokio::{
     io::AsyncWriteExt,
 };
 
-use crate::outbound::{SendRequest, StreamingAttachmentInput};
+use crate::{
+    durability::sync_data,
+    outbound::{SendRequest, StreamingAttachmentInput},
+};
 
 const MAX_DATA_BYTES: usize = 64 * 1024;
 const MAX_MULTIPART_FILES: usize = 256;
@@ -152,8 +155,7 @@ where
                 .flush()
                 .await
                 .map_err(|_| WebMultipartError::Unavailable)?;
-            output
-                .sync_data()
+            sync_data(&output)
                 .await
                 .map_err(|_| WebMultipartError::Unavailable)?;
             Ok(())

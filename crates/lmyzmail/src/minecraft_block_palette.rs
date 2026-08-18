@@ -1,6 +1,13 @@
-use std::time::Instant;
+use std::{sync::OnceLock, time::Instant};
 
 use tokio_util::sync::CancellationToken;
+
+#[cfg(test)]
+use crate::mail_render::resolve_render_backend;
+use crate::{
+    dispatch_observer::{self, DispatchComponent},
+    mail_render::RenderBackend,
+};
 
 const MAX_BLOCK_PIXELS: usize = 4096;
 const MAX_MAP_VIDEO_PIXELS: usize = 16 * 16 * 128 * 128;
@@ -782,11 +789,28 @@ const BLOCK_PALETTE_RGB: [[u8; 3]; 152] = [
     [240, 251, 251],
 ];
 
+#[cfg(test)]
 pub(crate) fn convert_rgb24_to_states(
     rgb: &[u8],
     expected_pixels: usize,
     cancellation: &CancellationToken,
     deadline: Instant,
+) -> Result<Vec<u16>, String> {
+    convert_rgb24_to_states_with_backend(
+        rgb,
+        expected_pixels,
+        cancellation,
+        deadline,
+        resolve_render_backend(),
+    )
+}
+
+pub(crate) fn convert_rgb24_to_states_with_backend(
+    rgb: &[u8],
+    expected_pixels: usize,
+    cancellation: &CancellationToken,
+    deadline: Instant,
+    requested_backend: RenderBackend,
 ) -> Result<Vec<u16>, String> {
     if expected_pixels == 0 || expected_pixels > MAX_BLOCK_PIXELS {
         return Err("block video frame exceeds the pixel budget".to_owned());
@@ -795,26 +819,42 @@ pub(crate) fn convert_rgb24_to_states(
         return Err("block video RGB frame length is invalid".to_owned());
     }
     let mut output = Vec::with_capacity(expected_pixels);
-    for (index, pixel) in rgb.chunks_exact(3).enumerate() {
-        if index % 256 == 0 {
-            if cancellation.is_cancelled() {
-                return Err("block video conversion cancelled".to_owned());
-            }
-            if Instant::now() >= deadline {
-                return Err("block video conversion deadline exceeded".to_owned());
-            }
-        }
-        let best = nearest_palette_index([pixel[0], pixel[1], pixel[2]]);
-        output.push(BLOCK_PALETTE[best].state_id);
-    }
+    convert_palette_indices(
+        rgb,
+        cancellation,
+        deadline,
+        requested_backend,
+        DispatchComponent::MinecraftBlockPaletteStates,
+        "block video",
+        |best| {
+            output.push(BLOCK_PALETTE[best].state_id);
+        },
+    )?;
     Ok(output)
 }
 
+#[cfg(test)]
 pub(crate) fn convert_rgb24_to_palette_rgb(
     rgb: &[u8],
     expected_pixels: usize,
     cancellation: &CancellationToken,
     deadline: Instant,
+) -> Result<Vec<u8>, String> {
+    convert_rgb24_to_palette_rgb_with_backend(
+        rgb,
+        expected_pixels,
+        cancellation,
+        deadline,
+        resolve_render_backend(),
+    )
+}
+
+pub(crate) fn convert_rgb24_to_palette_rgb_with_backend(
+    rgb: &[u8],
+    expected_pixels: usize,
+    cancellation: &CancellationToken,
+    deadline: Instant,
+    requested_backend: RenderBackend,
 ) -> Result<Vec<u8>, String> {
     if expected_pixels == 0 || expected_pixels > MAX_MAP_VIDEO_PIXELS {
         return Err("map video frame exceeds the block-palette pixel budget".to_owned());
@@ -826,20 +866,120 @@ pub(crate) fn convert_rgb24_to_palette_rgb(
         return Err("map video RGB frame length is invalid".to_owned());
     }
     let mut output = Vec::with_capacity(expected_bytes);
-    for (index, pixel) in rgb.chunks_exact(3).enumerate() {
-        if index % 256 == 0 {
+    convert_palette_indices(
+        rgb,
+        cancellation,
+        deadline,
+        requested_backend,
+        DispatchComponent::MinecraftBlockPaletteRgb,
+        "map video block-palette",
+        |best| output.extend_from_slice(&BLOCK_PALETTE_RGB[best]),
+    )?;
+    Ok(output)
+}
+
+fn convert_palette_indices(
+    rgb: &[u8],
+    cancellation: &CancellationToken,
+    deadline: Instant,
+    requested_backend: RenderBackend,
+    component: DispatchComponent,
+    label: &str,
+    mut emit: impl FnMut(usize),
+) -> Result<(), String> {
+    let dispatcher = BlockPaletteDispatcher::new(requested_backend);
+    let checkpoint = |index: usize| -> Result<(), String> {
+        if index.is_multiple_of(256) {
             if cancellation.is_cancelled() {
-                return Err("map video block-palette conversion cancelled".to_owned());
+                return Err(format!("{label} conversion cancelled"));
             }
             if Instant::now() >= deadline {
-                return Err("map video block-palette conversion deadline exceeded".to_owned());
+                return Err(format!("{label} conversion deadline exceeded"));
             }
         }
-        output.extend_from_slice(
-            &BLOCK_PALETTE_RGB[nearest_palette_index([pixel[0], pixel[1], pixel[2]])],
-        );
+        Ok(())
+    };
+    checkpoint(0)?;
+    dispatch_observer::observe(component, requested_backend, dispatcher.backend);
+    match dispatcher.backend {
+        RenderBackend::Scalar => {
+            for (index, pixel) in rgb.chunks_exact(3).enumerate() {
+                checkpoint(index)?;
+                emit(nearest_palette_index([pixel[0], pixel[1], pixel[2]]));
+            }
+        }
+        RenderBackend::Avx2Fma => {
+            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+            {
+                const PIXELS: usize = 8;
+                const BYTES: usize = PIXELS * 3;
+                let batches = rgb.len() / BYTES;
+                for batch in 0..batches {
+                    let pixel_offset = batch * PIXELS;
+                    checkpoint(pixel_offset)?;
+                    let byte_offset = batch * BYTES;
+                    // SAFETY: the private dispatcher established AVX2/FMA
+                    // support and the slice contains exactly eight pixels.
+                    let labs = unsafe {
+                        crate::mail_render::rgb24_to_lab_avx2(
+                            &rgb[byte_offset..byte_offset + BYTES],
+                        )
+                    };
+                    for lab in labs {
+                        // SAFETY: the same validated backend remains active.
+                        emit(unsafe { nearest_palette_lab_avx2(lab) });
+                    }
+                }
+                for (lane, pixel) in rgb[batches * BYTES..].chunks_exact(3).enumerate() {
+                    checkpoint(batches * PIXELS + lane)?;
+                    // SAFETY: the private dispatcher established AVX2/FMA.
+                    emit(unsafe {
+                        nearest_palette_lab_avx2(crate::mail_render::rgb_to_lab([
+                            pixel[0], pixel[1], pixel[2],
+                        ]))
+                    });
+                }
+            }
+            #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+            unreachable!("AVX2 block palette backend cannot resolve on this target");
+        }
+        RenderBackend::Avx512 => {
+            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+            {
+                const PIXELS: usize = 16;
+                const BYTES: usize = PIXELS * 3;
+                let batches = rgb.len() / BYTES;
+                for batch in 0..batches {
+                    let pixel_offset = batch * PIXELS;
+                    checkpoint(pixel_offset)?;
+                    let byte_offset = batch * BYTES;
+                    // SAFETY: the private dispatcher established AVX-512F
+                    // support and the slice contains exactly sixteen pixels.
+                    let labs = unsafe {
+                        crate::mail_render::rgb24_to_lab_avx512(
+                            &rgb[byte_offset..byte_offset + BYTES],
+                        )
+                    };
+                    for lab in labs {
+                        // SAFETY: the same validated backend remains active.
+                        emit(unsafe { nearest_palette_lab_avx512(lab) });
+                    }
+                }
+                for (lane, pixel) in rgb[batches * BYTES..].chunks_exact(3).enumerate() {
+                    checkpoint(batches * PIXELS + lane)?;
+                    // SAFETY: the private dispatcher established AVX-512F.
+                    emit(unsafe {
+                        nearest_palette_lab_avx512(crate::mail_render::rgb_to_lab([
+                            pixel[0], pixel[1], pixel[2],
+                        ]))
+                    });
+                }
+            }
+            #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+            unreachable!("AVX-512 block palette backend cannot resolve on this target");
+        }
     }
-    Ok(output)
+    Ok(())
 }
 
 fn nearest_palette_index(rgb: [u8; 3]) -> usize {
@@ -847,6 +987,232 @@ fn nearest_palette_index(rgb: [u8; 3]) -> usize {
     let mut best = 0;
     let mut minimum = f32::MAX;
     for (index, entry) in BLOCK_PALETTE.iter().enumerate() {
+        let dl = lab[0] - entry.lab[0];
+        let da = lab[1] - entry.lab[1];
+        let db = lab[2] - entry.lab[2];
+        let distance = dl * dl + da * da + db * db;
+        if distance < minimum {
+            minimum = distance;
+            best = index;
+        }
+    }
+    best
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct BlockPaletteSimdCapabilities {
+    avx2_fma: bool,
+    avx512f: bool,
+}
+
+fn host_block_palette_simd_capabilities() -> BlockPaletteSimdCapabilities {
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    {
+        let capabilities = crate::mail_render::host_simd_capabilities();
+        BlockPaletteSimdCapabilities {
+            avx2_fma: capabilities.avx2 && capabilities.fma,
+            avx512f: capabilities.avx512f,
+        }
+    }
+    #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+    {
+        BlockPaletteSimdCapabilities {
+            avx2_fma: false,
+            avx512f: false,
+        }
+    }
+}
+
+fn select_block_palette_backend(
+    requested: RenderBackend,
+    capabilities: BlockPaletteSimdCapabilities,
+) -> RenderBackend {
+    match requested {
+        RenderBackend::Scalar => RenderBackend::Scalar,
+        RenderBackend::Avx2Fma => {
+            if capabilities.avx2_fma {
+                RenderBackend::Avx2Fma
+            } else {
+                RenderBackend::Scalar
+            }
+        }
+        RenderBackend::Avx512 => {
+            if capabilities.avx512f {
+                RenderBackend::Avx512
+            } else if capabilities.avx2_fma {
+                RenderBackend::Avx2Fma
+            } else {
+                RenderBackend::Scalar
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct BlockPaletteDispatcher {
+    backend: RenderBackend,
+}
+
+impl BlockPaletteDispatcher {
+    fn new(requested_backend: RenderBackend) -> Self {
+        Self {
+            backend: select_block_palette_backend(
+                requested_backend,
+                host_block_palette_simd_capabilities(),
+            ),
+        }
+    }
+
+    #[cfg(test)]
+    fn nearest(self, rgb: [u8; 3]) -> usize {
+        match self.backend {
+            RenderBackend::Scalar => nearest_palette_index(rgb),
+            RenderBackend::Avx2Fma => {
+                #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+                {
+                    // SAFETY: the private dispatcher can only be constructed by
+                    // revalidating OS-aware AVX2/FMA support on this host.
+                    unsafe { nearest_palette_index_avx2(rgb) }
+                }
+                #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+                {
+                    nearest_palette_index(rgb)
+                }
+            }
+            RenderBackend::Avx512 => {
+                #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+                {
+                    // SAFETY: the private dispatcher can only be constructed by
+                    // revalidating OS-aware AVX-512F support on this host.
+                    unsafe { nearest_palette_index_avx512(rgb) }
+                }
+                #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+                {
+                    nearest_palette_index(rgb)
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+fn nearest_palette_index_dispatch(rgb: [u8; 3], requested_backend: RenderBackend) -> usize {
+    BlockPaletteDispatcher::new(requested_backend).nearest(rgb)
+}
+
+struct BlockPaletteComponents {
+    l: [f32; 152],
+    a: [f32; 152],
+    b: [f32; 152],
+}
+
+fn block_palette_components() -> &'static BlockPaletteComponents {
+    static COMPONENTS: OnceLock<BlockPaletteComponents> = OnceLock::new();
+    COMPONENTS.get_or_init(|| BlockPaletteComponents {
+        l: std::array::from_fn(|index| BLOCK_PALETTE[index].lab[0]),
+        a: std::array::from_fn(|index| BLOCK_PALETTE[index].lab[1]),
+        b: std::array::from_fn(|index| BLOCK_PALETTE[index].lab[2]),
+    })
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[cfg(test)]
+#[target_feature(enable = "avx2,fma")]
+unsafe fn nearest_palette_index_avx2(rgb: [u8; 3]) -> usize {
+    // SAFETY: this function's target feature contract is identical to the Lab
+    // kernel's contract.
+    unsafe { nearest_palette_lab_avx2(crate::mail_render::rgb_to_lab(rgb)) }
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[target_feature(enable = "avx2,fma")]
+unsafe fn nearest_palette_lab_avx2(lab: [f32; 3]) -> usize {
+    use std::arch::x86_64::*;
+    let components = block_palette_components();
+    let query_l = _mm256_set1_ps(lab[0]);
+    let query_a = _mm256_set1_ps(lab[1]);
+    let query_b = _mm256_set1_ps(lab[2]);
+    let mut best = 0;
+    let mut minimum = f32::MAX;
+    let vector_end = BLOCK_PALETTE.len() / 8 * 8;
+    for offset in (0..vector_end).step_by(8) {
+        // SAFETY: `offset` advances only across complete eight-lane ranges in
+        // each fixed 152-entry component array.
+        let distance = unsafe {
+            let dl = _mm256_sub_ps(query_l, _mm256_loadu_ps(components.l.as_ptr().add(offset)));
+            let da = _mm256_sub_ps(query_a, _mm256_loadu_ps(components.a.as_ptr().add(offset)));
+            let db = _mm256_sub_ps(query_b, _mm256_loadu_ps(components.b.as_ptr().add(offset)));
+            _mm256_add_ps(
+                _mm256_add_ps(_mm256_mul_ps(dl, dl), _mm256_mul_ps(da, da)),
+                _mm256_mul_ps(db, db),
+            )
+        };
+        let mut distances = [0.0_f32; 8];
+        // SAFETY: `distances` has exactly eight f32 slots for this store.
+        unsafe { _mm256_storeu_ps(distances.as_mut_ptr(), distance) };
+        for (index, distance) in distances.into_iter().enumerate() {
+            if distance < minimum {
+                minimum = distance;
+                best = offset + index;
+            }
+        }
+    }
+    for (index, &entry) in BLOCK_PALETTE.iter().enumerate().skip(vector_end) {
+        let dl = lab[0] - entry.lab[0];
+        let da = lab[1] - entry.lab[1];
+        let db = lab[2] - entry.lab[2];
+        let distance = dl * dl + da * da + db * db;
+        if distance < minimum {
+            minimum = distance;
+            best = index;
+        }
+    }
+    best
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[cfg(test)]
+#[target_feature(enable = "avx512f")]
+unsafe fn nearest_palette_index_avx512(rgb: [u8; 3]) -> usize {
+    // SAFETY: this function's target feature contract is identical to the Lab
+    // kernel's contract.
+    unsafe { nearest_palette_lab_avx512(crate::mail_render::rgb_to_lab(rgb)) }
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[target_feature(enable = "avx512f")]
+unsafe fn nearest_palette_lab_avx512(lab: [f32; 3]) -> usize {
+    use std::arch::x86_64::*;
+    let components = block_palette_components();
+    let query_l = _mm512_set1_ps(lab[0]);
+    let query_a = _mm512_set1_ps(lab[1]);
+    let query_b = _mm512_set1_ps(lab[2]);
+    let mut best = 0;
+    let mut minimum = f32::MAX;
+    let vector_end = BLOCK_PALETTE.len() / 16 * 16;
+    for offset in (0..vector_end).step_by(16) {
+        // SAFETY: `offset` advances only across complete sixteen-lane ranges
+        // in each fixed 152-entry component array.
+        let distance = unsafe {
+            let dl = _mm512_sub_ps(query_l, _mm512_loadu_ps(components.l.as_ptr().add(offset)));
+            let da = _mm512_sub_ps(query_a, _mm512_loadu_ps(components.a.as_ptr().add(offset)));
+            let db = _mm512_sub_ps(query_b, _mm512_loadu_ps(components.b.as_ptr().add(offset)));
+            _mm512_add_ps(
+                _mm512_add_ps(_mm512_mul_ps(dl, dl), _mm512_mul_ps(da, da)),
+                _mm512_mul_ps(db, db),
+            )
+        };
+        let mut distances = [0.0_f32; 16];
+        // SAFETY: `distances` has exactly sixteen f32 slots for this store.
+        unsafe { _mm512_storeu_ps(distances.as_mut_ptr(), distance) };
+        for (index, distance) in distances.into_iter().enumerate() {
+            if distance < minimum {
+                minimum = distance;
+                best = offset + index;
+            }
+        }
+    }
+    for (index, &entry) in BLOCK_PALETTE.iter().enumerate().skip(vector_end) {
         let dl = lab[0] - entry.lab[0];
         let da = lab[1] - entry.lab[1];
         let db = lab[2] - entry.lab[2];
@@ -871,6 +1237,21 @@ mod tests {
     }
 
     #[test]
+    fn palette_component_arrays_preserve_frozen_candidate_order() {
+        let components = block_palette_components();
+        for (index, entry) in BLOCK_PALETTE.iter().enumerate() {
+            assert_eq!(
+                [
+                    components.l[index],
+                    components.a[index],
+                    components.b[index],
+                ],
+                entry.lab
+            );
+        }
+    }
+
+    #[test]
     fn representative_rgb_conversion_matches_the_frozen_native_palette() {
         let cancellation = CancellationToken::new();
         let deadline = Instant::now() + std::time::Duration::from_secs(1);
@@ -883,5 +1264,166 @@ mod tests {
             convert_rgb24_to_states(&input, 2, &cancellation, deadline).unwrap(),
             [2768, 1280]
         );
+    }
+
+    #[test]
+    fn unsupported_requested_backends_have_deterministic_fallbacks() {
+        let none = BlockPaletteSimdCapabilities {
+            avx2_fma: false,
+            avx512f: false,
+        };
+        let avx2_only = BlockPaletteSimdCapabilities {
+            avx2_fma: true,
+            avx512f: false,
+        };
+        assert_eq!(
+            select_block_palette_backend(RenderBackend::Avx2Fma, none),
+            RenderBackend::Scalar
+        );
+        assert_eq!(
+            select_block_palette_backend(RenderBackend::Avx512, none),
+            RenderBackend::Scalar
+        );
+        assert_eq!(
+            select_block_palette_backend(RenderBackend::Avx512, avx2_only),
+            RenderBackend::Avx2Fma
+        );
+    }
+
+    #[test]
+    fn every_requested_backend_matches_scalar_on_this_host() {
+        let capabilities = host_block_palette_simd_capabilities();
+        for requested in [
+            RenderBackend::Scalar,
+            RenderBackend::Avx2Fma,
+            RenderBackend::Avx512,
+        ] {
+            let dispatcher = BlockPaletteDispatcher::new(requested);
+            assert_eq!(
+                dispatcher.backend,
+                select_block_palette_backend(requested, capabilities)
+            );
+            for value in 0..4096_u32 {
+                let rgb = [
+                    (value & 0xff) as u8,
+                    ((value >> 4) & 0xff) as u8,
+                    ((value >> 8) & 0xff) as u8,
+                ];
+                let scalar = nearest_palette_index_dispatch(rgb, RenderBackend::Scalar);
+                assert_eq!(
+                    scalar,
+                    dispatcher.nearest(rgb),
+                    "palette mismatch for {rgb:?} with {requested:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn explicit_backend_conversion_matches_scalar_and_auto() {
+        let cancellation = CancellationToken::new();
+        let mut input = Vec::with_capacity(64 * 3);
+        for value in 0..64_u8 {
+            input.extend_from_slice(&[
+                value.wrapping_mul(17),
+                value.wrapping_mul(73).wrapping_add(11),
+                value.wrapping_mul(151).wrapping_add(29),
+            ]);
+        }
+        let convert = |backend| {
+            convert_rgb24_to_states_with_backend(
+                &input,
+                64,
+                &cancellation,
+                Instant::now() + std::time::Duration::from_secs(2),
+                backend,
+            )
+            .unwrap()
+        };
+        let scalar = convert(RenderBackend::Scalar);
+        assert_eq!(convert(RenderBackend::Avx2Fma), scalar);
+        assert_eq!(convert(RenderBackend::Avx512), scalar);
+        assert_eq!(
+            convert_rgb24_to_states(
+                &input,
+                64,
+                &cancellation,
+                Instant::now() + std::time::Duration::from_secs(2),
+            )
+            .unwrap(),
+            scalar
+        );
+
+        let convert_palette_rgb = |backend| {
+            convert_rgb24_to_palette_rgb_with_backend(
+                &input,
+                64,
+                &cancellation,
+                Instant::now() + std::time::Duration::from_secs(2),
+                backend,
+            )
+            .unwrap()
+        };
+        let scalar_palette_rgb = convert_palette_rgb(RenderBackend::Scalar);
+        assert_eq!(
+            convert_palette_rgb(RenderBackend::Avx2Fma),
+            scalar_palette_rgb
+        );
+        assert_eq!(
+            convert_palette_rgb(RenderBackend::Avx512),
+            scalar_palette_rgb
+        );
+        assert_eq!(
+            convert_rgb24_to_palette_rgb(
+                &input,
+                64,
+                &cancellation,
+                Instant::now() + std::time::Duration::from_secs(2),
+            )
+            .unwrap(),
+            scalar_palette_rgb
+        );
+    }
+
+    #[test]
+    fn duplicate_palette_colors_keep_first_entry_tie_breaking() {
+        assert_eq!(BLOCK_PALETTE[4].lab, BLOCK_PALETTE[5].lab);
+        assert_eq!(BLOCK_PALETTE_RGB[4], BLOCK_PALETTE_RGB[5]);
+        for requested in [
+            RenderBackend::Scalar,
+            RenderBackend::Avx2Fma,
+            RenderBackend::Avx512,
+        ] {
+            let index = nearest_palette_index_dispatch(BLOCK_PALETTE_RGB[4], requested);
+            assert_eq!(index, 4, "tie changed for {requested:?}");
+            assert_eq!(BLOCK_PALETTE[index].state_id, 1792);
+        }
+    }
+
+    #[test]
+    fn explicit_backend_conversion_enforces_frame_boundaries() {
+        let cancellation = CancellationToken::new();
+        let convert = |rgb: &[u8], pixels| {
+            convert_rgb24_to_states_with_backend(
+                rgb,
+                pixels,
+                &cancellation,
+                Instant::now() + std::time::Duration::from_secs(1),
+                RenderBackend::Avx512,
+            )
+        };
+        assert_eq!(
+            convert(&[], 0).unwrap_err(),
+            "block video frame exceeds the pixel budget"
+        );
+        assert_eq!(
+            convert(&[], MAX_BLOCK_PIXELS + 1).unwrap_err(),
+            "block video frame exceeds the pixel budget"
+        );
+        assert_eq!(
+            convert(&[0, 0], 1).unwrap_err(),
+            "block video RGB frame length is invalid"
+        );
+        assert_eq!(convert(&[0, 0, 0], 1).unwrap().len(), 1);
     }
 }

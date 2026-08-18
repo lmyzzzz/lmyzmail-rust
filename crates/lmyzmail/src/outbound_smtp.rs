@@ -1,9 +1,11 @@
 use std::{
+    collections::{HashMap, VecDeque},
     fmt,
     future::Future,
+    io::SeekFrom,
     net::{IpAddr, SocketAddr},
-    path::PathBuf,
-    sync::Arc,
+    path::{Component, Path, PathBuf},
+    sync::{Arc, Mutex},
     time::Duration,
 };
 
@@ -11,16 +13,20 @@ use idna::domain_to_ascii_strict;
 use rustls::{
     AlertDescription, ClientConfig, Error as RustlsError, RootCertStore, pki_types::ServerName,
 };
+use sha2::{Digest, Sha256};
 use tokio::{
     fs::File,
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
     net::TcpStream,
     time::{Instant, timeout_at},
 };
 use tokio_rustls::{TlsConnector, client::TlsStream};
 use tokio_util::sync::CancellationToken;
 
-use crate::config::RuntimeConfig;
+use crate::{
+    config::RuntimeConfig,
+    coordinator_observer::{CoordinatorStage, StageTimer},
+};
 
 const MAX_REPLY_LINE_BYTES: usize = 2_048;
 const MAX_REPLY_BYTES: usize = 64 * 1024;
@@ -32,8 +38,10 @@ const MAX_RECIPIENTS: usize = 1_000;
 const MAX_HOST_BYTES: usize = 253;
 const MAX_ADDRESS_BYTES: usize = 254;
 const MAX_REPLY_SUMMARY_CHARS: usize = 2_048;
+const MAX_POOL_KEYS: usize = 256;
+const MAX_POOL_IDLE_CONNECTIONS: usize = 256;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum TlsMode {
     Disabled,
     Opportunistic,
@@ -86,7 +94,307 @@ impl SmtpEndpoint {
 #[derive(Clone)]
 pub enum MessageSource {
     Bytes(Arc<[u8]>),
-    File(PathBuf),
+    File(TrustedFileSource),
+}
+
+#[derive(Clone)]
+pub struct TrustedFileSource {
+    root: Arc<TrustedFileRoot>,
+    relative: PathBuf,
+    initial_identity: FileIdentity,
+    authority: Option<MessageContentProof>,
+}
+
+struct TrustedFileRoot {
+    absolute_path: PathBuf,
+    device: u64,
+    #[cfg(target_os = "linux")]
+    descriptor: std::os::fd::OwnedFd,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct FileIdentity {
+    device: u64,
+    inode: u64,
+    size: u64,
+    links: u64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct FileProof {
+    identity: FileIdentity,
+    sha256: [u8; 32],
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MessageContentProof {
+    pub size: u64,
+    pub sha256: [u8; 32],
+}
+
+impl MessageContentProof {
+    pub fn new(size: u64, sha256: [u8; 32]) -> Self {
+        Self { size, sha256 }
+    }
+}
+
+impl MessageSource {
+    pub fn file_under_root(
+        root: impl AsRef<Path>,
+        relative: impl AsRef<Path>,
+        proof: MessageContentProof,
+    ) -> Result<Self, DeliveryError> {
+        TrustedFileSource::with_authority(root.as_ref(), relative.as_ref(), proof)
+            .map(Self::File)
+            .map_err(|_| {
+                error(
+                    DeliveryErrorKind::Permanent,
+                    "outbound message source is not a trusted regular file",
+                )
+            })
+    }
+}
+
+impl TrustedFileSource {
+    pub(crate) fn new(root: &Path, relative: &Path) -> std::io::Result<Self> {
+        validate_relative_source_path(relative)?;
+        let root = Arc::new(TrustedFileRoot::open(root)?);
+        let file = root.open_relative(relative)?;
+        let initial_identity = file_identity(&file)?;
+        validate_file_identity(&initial_identity, root.device, u64::MAX)?;
+        Ok(Self {
+            root,
+            relative: relative.to_path_buf(),
+            initial_identity,
+            authority: None,
+        })
+    }
+
+    pub(crate) fn with_authority(
+        root: &Path,
+        relative: &Path,
+        authority: MessageContentProof,
+    ) -> std::io::Result<Self> {
+        let mut source = Self::new(root, relative)?;
+        if source.initial_identity.size != authority.size {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "outbound message source size conflicts with durable authority",
+            ));
+        }
+        source.authority = Some(authority);
+        Ok(source)
+    }
+
+    pub(crate) fn compatibility_path(&self) -> PathBuf {
+        // The caller may persist this only for the frozen Java/Redis schema. It
+        // is never accepted back as authority without rebuilding this contract.
+        self.root.absolute_path.join(&self.relative)
+    }
+
+    pub(crate) fn initial_size(&self) -> u64 {
+        self.initial_identity.size
+    }
+
+    pub(crate) fn validate_opened_metadata(
+        &self,
+        metadata: &std::fs::Metadata,
+        maximum: u64,
+    ) -> std::io::Result<()> {
+        let observed = file_identity_from_metadata(metadata)?;
+        validate_file_identity(&observed, self.root.device, maximum)?;
+        if observed != self.initial_identity {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "outbound message source identity changed",
+            ));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn open_initial(&self, maximum: u64) -> std::io::Result<std::fs::File> {
+        self.open_matching(self.initial_identity, maximum)
+    }
+
+    fn open_matching(
+        &self,
+        expected: FileIdentity,
+        maximum: u64,
+    ) -> std::io::Result<std::fs::File> {
+        let file = self.root.open_relative(&self.relative)?;
+        let observed = file_identity(&file)?;
+        validate_file_identity(&observed, self.root.device, maximum)?;
+        if observed != expected {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "outbound message source identity changed",
+            ));
+        }
+        Ok(file)
+    }
+}
+
+impl TrustedFileRoot {
+    #[cfg(target_os = "linux")]
+    fn open(path: &Path) -> std::io::Result<Self> {
+        use rustix::fs::{CWD, FileType, Mode, OFlags, ResolveFlags, fstat, openat2};
+
+        let absolute_path = std::path::absolute(path)?;
+        let descriptor = openat2(
+            CWD,
+            &absolute_path,
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::empty(),
+            ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
+        )
+        .map_err(std::io::Error::from)?;
+        let stat = fstat(&descriptor).map_err(std::io::Error::from)?;
+        if FileType::from_raw_mode(stat.st_mode) != FileType::Directory {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "outbound message root is not a directory",
+            ));
+        }
+        Ok(Self {
+            absolute_path,
+            device: stat.st_dev,
+            descriptor,
+        })
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    fn open(path: &Path) -> std::io::Result<Self> {
+        let absolute_path = std::path::absolute(path)?;
+        reject_symlink_components(&absolute_path)?;
+        let metadata = std::fs::metadata(&absolute_path)?;
+        if !metadata.is_dir() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "outbound message root is not a directory",
+            ));
+        }
+        Ok(Self {
+            absolute_path,
+            device: 0,
+        })
+    }
+
+    #[cfg(target_os = "linux")]
+    fn open_relative(&self, relative: &Path) -> std::io::Result<std::fs::File> {
+        use rustix::fs::{Mode, OFlags, ResolveFlags, openat2};
+
+        let descriptor = openat2(
+            &self.descriptor,
+            relative,
+            OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC | OFlags::NONBLOCK,
+            Mode::empty(),
+            ResolveFlags::BENEATH
+                | ResolveFlags::NO_SYMLINKS
+                | ResolveFlags::NO_MAGICLINKS
+                | ResolveFlags::NO_XDEV,
+        )
+        .map_err(std::io::Error::from)?;
+        Ok(std::fs::File::from(descriptor))
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    fn open_relative(&self, relative: &Path) -> std::io::Result<std::fs::File> {
+        let path = self.absolute_path.join(relative);
+        reject_symlink_components(&path)?;
+        std::fs::File::open(path)
+    }
+}
+
+fn validate_relative_source_path(path: &Path) -> std::io::Result<()> {
+    let mut components = path.components();
+    if !matches!(components.next(), Some(Component::Normal(_)))
+        || components.any(|component| !matches!(component, Component::Normal(_)))
+    {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "outbound message path is not a safe relative path",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn file_identity(file: &std::fs::File) -> std::io::Result<FileIdentity> {
+    file_identity_from_metadata(&file.metadata()?)
+}
+
+#[cfg(target_os = "linux")]
+fn file_identity_from_metadata(metadata: &std::fs::Metadata) -> std::io::Result<FileIdentity> {
+    use std::os::unix::fs::MetadataExt;
+
+    if !metadata.is_file() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "outbound message source is not a regular file",
+        ));
+    }
+    Ok(FileIdentity {
+        device: metadata.dev(),
+        inode: metadata.ino(),
+        size: metadata.len(),
+        links: metadata.nlink(),
+    })
+}
+
+#[cfg(not(target_os = "linux"))]
+fn file_identity(file: &std::fs::File) -> std::io::Result<FileIdentity> {
+    file_identity_from_metadata(&file.metadata()?)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn file_identity_from_metadata(metadata: &std::fs::Metadata) -> std::io::Result<FileIdentity> {
+    if !metadata.is_file() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "outbound message source is not a regular file",
+        ));
+    }
+    Ok(FileIdentity {
+        device: 0,
+        inode: 0,
+        size: metadata.len(),
+        links: 1,
+    })
+}
+
+fn validate_file_identity(
+    identity: &FileIdentity,
+    root_device: u64,
+    maximum: u64,
+) -> std::io::Result<()> {
+    if identity.links != 1
+        || identity.size > maximum
+        || (cfg!(target_os = "linux") && identity.device != root_device)
+    {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "outbound message source violates its trusted-root contract",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn reject_symlink_components(path: &Path) -> std::io::Result<()> {
+    let mut current = PathBuf::new();
+    for component in path.components() {
+        current.push(component.as_os_str());
+        if std::fs::symlink_metadata(&current)?
+            .file_type()
+            .is_symlink()
+        {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "outbound message source contains a symlink",
+            ));
+        }
+    }
+    Ok(())
 }
 
 impl fmt::Debug for MessageSource {
@@ -161,6 +469,9 @@ pub struct DeliveryResult {
     pub pipelining: bool,
 }
 
+// Commit-ready values are bounded by the coordinator concurrency limit. Boxing
+// this variant would add one allocator round trip to every delivered message.
+#[allow(clippy::large_enum_variant)]
 pub enum DeliveryPreparation {
     Complete(DeliveryResult),
     CommitReady(PreparedDelivery),
@@ -176,7 +487,8 @@ impl fmt::Debug for DeliveryPreparation {
 }
 
 pub struct PreparedDelivery {
-    session: SmtpSession,
+    connection: PooledConnection,
+    pool_return: Option<(Arc<SmtpConnectionPool>, PoolKey)>,
     recipients: Vec<RecipientResult>,
     tls: bool,
     smtp_utf8: bool,
@@ -273,6 +585,45 @@ pub struct OutboundSmtpClient {
     connect_timeout: Duration,
     command_timeout: Duration,
     session_timeout: Duration,
+    pool: Option<Arc<SmtpConnectionPool>>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct SmtpPoolConfig {
+    max_connections_per_host: usize,
+    max_messages_per_connection: usize,
+    max_idle_time: Duration,
+    max_lifetime: Duration,
+    cleanup_interval: Duration,
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct PoolKey {
+    connect_addr: SocketAddr,
+    tls_name: String,
+    hello_name: String,
+    tls_mode: TlsMode,
+    attempt_tls: bool,
+}
+
+struct PooledConnection {
+    session: SmtpSession,
+    extensions: Extensions,
+    tls_active: bool,
+    created_at: Instant,
+    last_used_at: Instant,
+    message_count: usize,
+}
+
+struct SmtpConnectionPool {
+    config: SmtpPoolConfig,
+    state: Mutex<SmtpPoolState>,
+}
+
+struct SmtpPoolState {
+    connections: HashMap<PoolKey, VecDeque<PooledConnection>>,
+    idle_connections: usize,
+    next_cleanup: Instant,
 }
 
 impl Default for OutboundSmtpClient {
@@ -291,7 +642,121 @@ impl Default for OutboundSmtpClient {
             connect_timeout: Duration::from_secs(10),
             command_timeout: Duration::from_secs(15),
             session_timeout: Duration::from_secs(90),
+            pool: None,
         }
+    }
+}
+
+impl SmtpConnectionPool {
+    fn new(config: SmtpPoolConfig) -> Self {
+        let now = Instant::now();
+        Self {
+            config,
+            state: Mutex::new(SmtpPoolState {
+                connections: HashMap::new(),
+                idle_connections: 0,
+                next_cleanup: now + config.cleanup_interval,
+            }),
+        }
+    }
+
+    fn checkout(
+        &self,
+        key: &PoolKey,
+        command_timeout: Duration,
+        session_deadline: Instant,
+        cancellation: CancellationToken,
+    ) -> Option<PooledConnection> {
+        let now = Instant::now();
+        let mut state = self.state.lock().ok()?;
+        state.prune_if_due(now, self.config);
+        let mut selected = None;
+        let mut remove_key = false;
+        let mut removed = 0_usize;
+        if let Some(connections) = state.connections.get_mut(key) {
+            while let Some(connection) = connections.pop_front() {
+                removed += 1;
+                if self.idle_connection_is_reusable(&connection, now) {
+                    selected = Some(connection);
+                    break;
+                }
+            }
+            remove_key = connections.is_empty();
+        }
+        state.idle_connections = state.idle_connections.saturating_sub(removed);
+        if remove_key {
+            state.connections.remove(key);
+        }
+        drop(state);
+        selected.map(|mut connection| {
+            connection
+                .session
+                .rebind(command_timeout, session_deadline, cancellation);
+            connection
+        })
+    }
+
+    fn can_reset_after_message(&self, connection: &PooledConnection, now: Instant) -> bool {
+        connection.message_count < self.config.max_messages_per_connection
+            && now.duration_since(connection.created_at) <= self.config.max_lifetime
+            && connection.session.is_reusable()
+    }
+
+    fn checkin(&self, key: PoolKey, mut connection: PooledConnection) {
+        let now = Instant::now();
+        connection.last_used_at = now;
+        connection.session.make_idle();
+        if !self.idle_connection_is_reusable(&connection, now) {
+            return;
+        }
+        let Ok(mut state) = self.state.lock() else {
+            return;
+        };
+        state.prune_if_due(now, self.config);
+        if state.idle_connections >= MAX_POOL_IDLE_CONNECTIONS {
+            state.prune_expired(now, self.config);
+        }
+        if state.idle_connections >= MAX_POOL_IDLE_CONNECTIONS
+            || (!state.connections.contains_key(&key) && state.connections.len() >= MAX_POOL_KEYS)
+        {
+            return;
+        }
+        let connections = state.connections.entry(key).or_default();
+        if connections.len() >= self.config.max_connections_per_host {
+            return;
+        }
+        connections.push_back(connection);
+        state.idle_connections += 1;
+    }
+
+    fn idle_connection_is_reusable(&self, connection: &PooledConnection, now: Instant) -> bool {
+        connection.message_count < self.config.max_messages_per_connection
+            && now.duration_since(connection.last_used_at) <= self.config.max_idle_time
+            && now.duration_since(connection.created_at) <= self.config.max_lifetime
+            && connection.session.is_reusable()
+    }
+}
+
+impl SmtpPoolState {
+    fn prune_if_due(&mut self, now: Instant, config: SmtpPoolConfig) {
+        if now >= self.next_cleanup {
+            self.prune_expired(now, config);
+        }
+    }
+
+    fn prune_expired(&mut self, now: Instant, config: SmtpPoolConfig) {
+        for connections in self.connections.values_mut() {
+            connections.retain(|connection| {
+                connection.message_count < config.max_messages_per_connection
+                    && now.duration_since(connection.last_used_at) <= config.max_idle_time
+                    && now.duration_since(connection.created_at) <= config.max_lifetime
+                    && connection.session.is_reusable()
+            });
+        }
+        self.connections
+            .retain(|_, connections| !connections.is_empty());
+        self.idle_connections = self.connections.values().map(VecDeque::len).sum();
+        self.next_cleanup = now + config.cleanup_interval;
     }
 }
 
@@ -312,10 +777,14 @@ impl OutboundSmtpClient {
         let session_timeout = Duration::from_secs(90)
             .max(connect_timeout)
             .max(command_timeout);
+        let pool = outbound_pool_config(config)?
+            .map(SmtpConnectionPool::new)
+            .map(Arc::new);
         Ok(Self {
             connect_timeout,
             command_timeout,
             session_timeout,
+            pool,
             ..Self::default()
         })
     }
@@ -342,6 +811,7 @@ impl OutboundSmtpClient {
             connect_timeout,
             command_timeout,
             session_timeout,
+            pool: None,
         })
     }
 
@@ -363,19 +833,38 @@ impl OutboundSmtpClient {
     ) -> Result<DeliveryPreparation, DeliveryError> {
         validate_request(request)?;
         let session_deadline = Instant::now() + self.session_timeout;
-        self.prepare_with_tls_policy(request, cancellation, session_deadline)
+        let authorized_message = {
+            let _timer = StageTimer::start(CoordinatorStage::SmtpAuthorize);
+            authorize_message(
+                &request.message,
+                request.max_message_bytes,
+                cancellation,
+                self.command_timeout,
+                session_deadline,
+            )
+            .await
+        }
+        .map_err(|failure| failure.at(DeliveryStage::MessageSource))?;
+        self.prepare_with_tls_policy(request, &authorized_message, cancellation, session_deadline)
             .await
     }
 
     async fn prepare_with_tls_policy(
         &self,
         request: &DeliveryRequest,
+        authorized_message: &AuthorizedMessage<'_>,
         cancellation: &CancellationToken,
         session_deadline: Instant,
     ) -> Result<DeliveryPreparation, DeliveryError> {
         let attempt_tls = request.tls_mode != TlsMode::Disabled;
         match self
-            .prepare_once(request, cancellation, attempt_tls, session_deadline)
+            .prepare_once(
+                request,
+                authorized_message,
+                cancellation,
+                attempt_tls,
+                session_deadline,
+            )
             .await
         {
             Err(failure)
@@ -383,8 +872,14 @@ impl OutboundSmtpClient {
                     && failure.kind == DeliveryErrorKind::Temporary
                     && failure.stage == DeliveryStage::StartTls =>
             {
-                self.prepare_once(request, cancellation, false, session_deadline)
-                    .await
+                self.prepare_once(
+                    request,
+                    authorized_message,
+                    cancellation,
+                    false,
+                    session_deadline,
+                )
+                .await
             }
             Err(failure) if request.tls_mode == TlsMode::Required => {
                 Err(required_tls_failure(failure))
@@ -396,109 +891,158 @@ impl OutboundSmtpClient {
     async fn prepare_once(
         &self,
         request: &DeliveryRequest,
+        authorized_message: &AuthorizedMessage<'_>,
         cancellation: &CancellationToken,
         attempt_tls: bool,
         session_deadline: Instant,
     ) -> Result<DeliveryPreparation, DeliveryError> {
-        let stream = io_deadline(
-            cancellation,
-            self.connect_timeout,
-            session_deadline,
-            TcpStream::connect(request.endpoint.connect_addr),
-            DeliveryErrorKind::Temporary,
-            "SMTP connect",
-        )
-        .await
-        .map_err(|failure| failure.at(DeliveryStage::Connect))?;
-        stream.set_nodelay(true).map_err(|_| {
-            error(
-                DeliveryErrorKind::Temporary,
-                "SMTP socket configuration failed",
-            )
-            .at(DeliveryStage::Connect)
-        })?;
-        let mut session = SmtpSession::new(
-            stream,
-            self.command_timeout,
-            session_deadline,
-            cancellation.clone(),
-        );
-        let greeting = session
-            .read_reply(false)
-            .await
-            .map_err(|failure| failure.at(DeliveryStage::Greeting))?;
-        if greeting.code != 220 {
-            return Err(reply_error(
-                DeliveryStage::Greeting,
-                true,
-                "SMTP greeting rejected",
-                &greeting,
-            ));
-        }
-        let mut extensions = session.ehlo(&request.hello_name).await?;
-        let mut tls_active = false;
-        if attempt_tls && extensions.has("STARTTLS") {
-            let reply = session
-                .command("STARTTLS")
+        let pool_key = self.pool.as_ref().map(|_| PoolKey {
+            connect_addr: request.endpoint.connect_addr,
+            tls_name: request.endpoint.tls_name.clone(),
+            hello_name: request.hello_name.clone(),
+            tls_mode: request.tls_mode,
+            attempt_tls,
+        });
+        let pooled = self
+            .pool
+            .as_ref()
+            .zip(pool_key.as_ref())
+            .and_then(|(pool, key)| {
+                pool.checkout(
+                    key,
+                    self.command_timeout,
+                    session_deadline,
+                    cancellation.clone(),
+                )
+            });
+        let mut connection = if let Some(connection) = pooled {
+            connection
+        } else {
+            let created_at = Instant::now();
+            let stream = {
+                let _timer = StageTimer::start(CoordinatorStage::SmtpConnect);
+                io_deadline(
+                    cancellation,
+                    self.connect_timeout,
+                    session_deadline,
+                    TcpStream::connect(request.endpoint.connect_addr),
+                    DeliveryErrorKind::Temporary,
+                    "SMTP connect",
+                )
                 .await
-                .map_err(|failure| failure.at(DeliveryStage::StartTls))?;
-            if reply.code != 220 {
+            }
+            .map_err(|failure| failure.at(DeliveryStage::Connect))?;
+            stream.set_nodelay(true).map_err(|_| {
+                error(
+                    DeliveryErrorKind::Temporary,
+                    "SMTP socket configuration failed",
+                )
+                .at(DeliveryStage::Connect)
+            })?;
+            let mut session = SmtpSession::new(
+                stream,
+                self.command_timeout,
+                session_deadline,
+                cancellation.clone(),
+            );
+            let greeting = {
+                let _timer = StageTimer::start(CoordinatorStage::SmtpGreeting);
+                session.read_reply(false).await
+            }
+            .map_err(|failure| failure.at(DeliveryStage::Greeting))?;
+            if greeting.code != 220 {
+                return Err(reply_error(
+                    DeliveryStage::Greeting,
+                    true,
+                    "SMTP greeting rejected",
+                    &greeting,
+                ));
+            }
+            let mut extensions = {
+                let _timer = StageTimer::start(CoordinatorStage::SmtpEhlo);
+                session.ehlo(&request.hello_name).await
+            }?;
+            let mut tls_active = false;
+            if attempt_tls && extensions.has("STARTTLS") {
+                let _timer = StageTimer::start(CoordinatorStage::SmtpStartTls);
+                let reply = session
+                    .command("STARTTLS")
+                    .await
+                    .map_err(|failure| failure.at(DeliveryStage::StartTls))?;
+                if reply.code != 220 {
+                    return Err(error(
+                        DeliveryErrorKind::Temporary,
+                        format!("STARTTLS command rejected: {}", reply.summary()),
+                    )
+                    .at(DeliveryStage::StartTls)
+                    .with_smtp_code(reply.code));
+                }
+                let server_name =
+                    ServerName::try_from(request.endpoint.tls_name.clone()).map_err(|_| {
+                        error(
+                            DeliveryErrorKind::Configuration,
+                            "invalid outbound SMTP TLS name",
+                        )
+                    })?;
+                session
+                    .start_tls(
+                        TlsConnector::from(Arc::clone(&self.tls_config)),
+                        server_name,
+                    )
+                    .await
+                    .map_err(|mut failure| {
+                        failure.message =
+                            format!("STARTTLS negotiation failed: {}", failure.message);
+                        failure.at(DeliveryStage::StartTls)
+                    })?;
+                tls_active = true;
+                extensions = session
+                    .ehlo(&request.hello_name)
+                    .await
+                    .map_err(|mut failure| {
+                        failure.message = format!("post-STARTTLS EHLO failed: {}", failure.message);
+                        failure.at(DeliveryStage::StartTls)
+                    })?;
+            } else if request.tls_mode == TlsMode::Required {
                 return Err(error(
                     DeliveryErrorKind::Temporary,
-                    format!("STARTTLS command rejected: {}", reply.summary()),
+                    "MTA-STS policy requires TLS, but server does not support STARTTLS",
                 )
-                .at(DeliveryStage::StartTls)
-                .with_smtp_code(reply.code));
+                .at(DeliveryStage::StartTls));
             }
-            let server_name =
-                ServerName::try_from(request.endpoint.tls_name.clone()).map_err(|_| {
-                    error(
-                        DeliveryErrorKind::Configuration,
-                        "invalid outbound SMTP TLS name",
-                    )
-                })?;
-            session
-                .start_tls(
-                    TlsConnector::from(Arc::clone(&self.tls_config)),
-                    server_name,
-                )
-                .await
-                .map_err(|mut failure| {
-                    failure.message = format!("STARTTLS negotiation failed: {}", failure.message);
-                    failure.at(DeliveryStage::StartTls)
-                })?;
-            tls_active = true;
-            extensions = session
-                .ehlo(&request.hello_name)
-                .await
-                .map_err(|mut failure| {
-                    failure.message = format!("post-STARTTLS EHLO failed: {}", failure.message);
-                    failure.at(DeliveryStage::StartTls)
-                })?;
-        } else if request.tls_mode == TlsMode::Required {
-            return Err(error(
-                DeliveryErrorKind::Temporary,
-                "MTA-STS policy requires TLS, but server does not support STARTTLS",
-            )
-            .at(DeliveryStage::StartTls));
-        }
+            let now = Instant::now();
+            PooledConnection {
+                session,
+                extensions,
+                tls_active,
+                created_at,
+                last_used_at: now,
+                message_count: 0,
+            }
+        };
+        let smtp_utf8_supported = connection.extensions.has("SMTPUTF8");
+        let pipelining = connection.extensions.has("PIPELINING");
+        let tls_active = connection.tls_active;
 
         let envelope = prepare_envelope(
             &request.envelope_from,
             &request.recipients,
-            extensions.has("SMTPUTF8"),
+            smtp_utf8_supported,
         )
         .map_err(|failure| failure.at(DeliveryStage::Envelope))?;
-        let pipelining = extensions.has("PIPELINING");
-        let (mail_reply, recipient_replies) = session
-            .envelope(
-                &envelope.sender,
-                &envelope.recipients,
-                envelope.smtp_utf8,
-                pipelining,
-            )
-            .await
-            .map_err(|failure| failure.at(DeliveryStage::Envelope))?;
+        let (mail_reply, recipient_replies) = {
+            let _timer = StageTimer::start(CoordinatorStage::SmtpEnvelope);
+            connection
+                .session
+                .envelope(
+                    &envelope.sender,
+                    &envelope.recipients,
+                    envelope.smtp_utf8,
+                    pipelining,
+                )
+                .await
+        }
+        .map_err(|failure| failure.at(DeliveryStage::Envelope))?;
         if mail_reply.code != 250 {
             return Err(if matches!(mail_reply.code / 100, 4 | 5) {
                 reply_error(
@@ -545,15 +1089,23 @@ impl OutboundSmtpClient {
             }));
         }
 
-        let mut message = session
-            .prepare_message(&request.message, request.max_message_bytes)
-            .await
-            .map_err(|mut failure| {
-                failure.stage = DeliveryStage::MessageSource;
-                failure.recipients = recipient_results.clone();
-                failure
-            })?;
-        let data_ready = session.command("DATA").await.map_err(|mut failure| {
+        let mut message = {
+            let _timer = StageTimer::start(CoordinatorStage::SmtpMessagePrepare);
+            connection
+                .session
+                .prepare_message(authorized_message, request.max_message_bytes)
+                .await
+        }
+        .map_err(|mut failure| {
+            failure.stage = DeliveryStage::MessageSource;
+            failure.recipients = recipient_results.clone();
+            failure
+        })?;
+        let data_ready = {
+            let _timer = StageTimer::start(CoordinatorStage::SmtpDataReady);
+            connection.session.command("DATA").await
+        }
+        .map_err(|mut failure| {
             failure.stage = DeliveryStage::DataCommand;
             failure.recipients = recipient_results.clone();
             failure
@@ -576,18 +1128,23 @@ impl OutboundSmtpClient {
                 pipelining,
             }));
         }
-        session
-            .write_message_body(&mut message, request.max_message_bytes)
-            .await
-            .map_err(|mut failure| {
-                if failure.stage == DeliveryStage::Request {
-                    failure.stage = DeliveryStage::DataBody;
-                }
-                failure.recipients = recipient_results.clone();
-                failure
-            })?;
+        {
+            let _timer = StageTimer::start(CoordinatorStage::SmtpBodyWrite);
+            connection
+                .session
+                .write_message_body(&mut message, request.max_message_bytes)
+                .await
+        }
+        .map_err(|mut failure| {
+            if failure.stage == DeliveryStage::Request {
+                failure.stage = DeliveryStage::DataBody;
+            }
+            failure.recipients = recipient_results.clone();
+            failure
+        })?;
         Ok(DeliveryPreparation::CommitReady(PreparedDelivery {
-            session,
+            connection,
+            pool_return: self.pool.as_ref().cloned().zip(pool_key),
             recipients: recipient_results,
             tls: tls_active,
             smtp_utf8: envelope.smtp_utf8,
@@ -601,38 +1158,68 @@ impl PreparedDelivery {
         &self.recipients
     }
 
-    pub async fn commit(mut self) -> Result<DeliveryResult, DeliveryError> {
-        self.session
-            .write_all(b".\r\n", true)
-            .await
-            .map_err(|mut failure| {
-                failure.stage = DeliveryStage::DataFinal;
-                failure.recipients = self.recipients.clone();
-                failure
-            })?;
-        let data_result = self.session.read_reply(true).await.map_err(|mut failure| {
+    pub async fn commit(self) -> Result<DeliveryResult, DeliveryError> {
+        let Self {
+            mut connection,
+            pool_return,
+            recipients,
+            tls,
+            smtp_utf8,
+            pipelining,
+        } = self;
+        {
+            let _timer = StageTimer::start(CoordinatorStage::SmtpFinalDot);
+            connection.session.write_all(b".\r\n", true).await
+        }
+        .map_err(|mut failure| {
             failure.stage = DeliveryStage::DataFinal;
-            failure.recipients = self.recipients.clone();
+            failure.recipients = recipients.clone();
+            failure
+        })?;
+        let data_result = {
+            let _timer = StageTimer::start(CoordinatorStage::SmtpFinalReply);
+            connection.session.read_reply(true).await
+        }
+        .map_err(|mut failure| {
+            failure.stage = DeliveryStage::DataFinal;
+            failure.recipients = recipients.clone();
             failure
         })?;
         let Some(status) = final_data_status(data_result.code) else {
             let mut failure = protocol_error(true, "unexpected final DATA reply code")
                 .at(DeliveryStage::DataFinal)
                 .with_smtp_code(data_result.code);
-            failure.recipients = self.recipients;
+            failure.recipients = recipients;
             return Err(failure);
         };
         if status == DataStatus::Accepted {
-            let _ = self.session.command("QUIT").await;
+            let _timer = StageTimer::start(CoordinatorStage::SmtpQuit);
+            connection.message_count = connection.message_count.saturating_add(1);
+            connection.last_used_at = Instant::now();
+            if let Some((pool, key)) = pool_return {
+                if pool.can_reset_after_message(&connection, connection.last_used_at) {
+                    connection.session.refresh_deadline();
+                    if connection
+                        .session
+                        .command("RSET")
+                        .await
+                        .is_ok_and(|reply| reply.code == 250)
+                    {
+                        pool.checkin(key, connection);
+                    }
+                }
+            } else {
+                let _ = connection.session.command("QUIT").await;
+            }
         }
         Ok(DeliveryResult {
-            recipients: self.recipients,
+            recipients,
             data_status: status,
             data_code: Some(data_result.code),
             data_reply: Some(data_result.summary()),
-            tls: self.tls,
-            smtp_utf8: self.smtp_utf8,
-            pipelining: self.pipelining,
+            tls,
+            smtp_utf8,
+            pipelining,
         })
     }
 }
@@ -687,9 +1274,218 @@ enum Transport {
     Tls(Box<TlsStream<TcpStream>>),
 }
 
+impl Transport {
+    #[cfg(target_os = "linux")]
+    fn idle_socket_is_quiet(&self) -> bool {
+        use rustix::net::{RecvFlags, recv};
+
+        let stream = match self {
+            Self::Plain(stream) => stream,
+            Self::Tls(stream) => stream.get_ref().0,
+        };
+        let mut byte = [0_u8; 1];
+        matches!(
+            recv(
+                stream,
+                &mut byte,
+                RecvFlags::PEEK | RecvFlags::DONTWAIT
+            ),
+            Err(error) if error == rustix::io::Errno::AGAIN
+        )
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    fn idle_socket_is_quiet(&self) -> bool {
+        true
+    }
+}
+
+enum AuthorizedMessage<'a> {
+    Bytes(&'a [u8]),
+    File(Box<AuthorizedFile>),
+}
+
+struct AuthorizedFile {
+    source: TrustedFileSource,
+    proof: FileProof,
+}
+
 enum PreparedMessage<'a> {
     Bytes(&'a [u8]),
-    File(File),
+    File(Box<PreparedFile>),
+}
+
+struct PreparedFile {
+    file: File,
+    source: TrustedFileSource,
+    proof: FileProof,
+}
+
+async fn authorize_message<'a>(
+    source: &'a MessageSource,
+    max_message_bytes: u64,
+    cancellation: &CancellationToken,
+    command_timeout: Duration,
+    session_deadline: Instant,
+) -> Result<AuthorizedMessage<'a>, DeliveryError> {
+    // File delivery deliberately pays three bounded verification passes per
+    // SMTP attempt (authorization, retained-fd pre-DATA, and post-DATA) in
+    // addition to the streamed pass. This avoids whole-message buffering while
+    // making every path/identity/hash transition fail closed.
+    match source {
+        MessageSource::Bytes(bytes) => {
+            if bytes.len() as u64 > max_message_bytes {
+                return Err(error(
+                    DeliveryErrorKind::Permanent,
+                    "outbound message exceeds configured size",
+                ));
+            }
+            Ok(AuthorizedMessage::Bytes(bytes))
+        }
+        MessageSource::File(source) => {
+            let authority = source.authority.ok_or_else(|| {
+                message_source_failure(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "outbound message source has no durable content authority",
+                ))
+            })?;
+            if authority.size > max_message_bytes {
+                return Err(error(
+                    DeliveryErrorKind::Permanent,
+                    "outbound message exceeds configured size",
+                ));
+            }
+            let file = source
+                .open_initial(max_message_bytes)
+                .map_err(message_source_failure)?;
+            let mut file = File::from_std(file);
+            let proof = hash_verified_file(
+                &mut file,
+                source.initial_identity,
+                max_message_bytes,
+                cancellation,
+                command_timeout,
+                session_deadline,
+                "outbound message source authorization",
+            )
+            .await?;
+            if proof.identity.size != authority.size || proof.sha256 != authority.sha256 {
+                return Err(message_source_failure(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "outbound message source conflicts with durable content authority",
+                )));
+            }
+            Ok(AuthorizedMessage::File(Box::new(AuthorizedFile {
+                source: source.clone(),
+                proof,
+            })))
+        }
+    }
+}
+
+async fn hash_verified_file(
+    file: &mut File,
+    expected: FileIdentity,
+    max_message_bytes: u64,
+    cancellation: &CancellationToken,
+    command_timeout: Duration,
+    session_deadline: Instant,
+    operation: &'static str,
+) -> Result<FileProof, DeliveryError> {
+    let before = io_deadline(
+        cancellation,
+        command_timeout,
+        session_deadline,
+        file.metadata(),
+        DeliveryErrorKind::Temporary,
+        operation,
+    )
+    .await
+    .and_then(|metadata| file_identity_from_metadata(&metadata).map_err(message_source_failure))?;
+    validate_file_identity(&before, expected.device, max_message_bytes)
+        .map_err(message_source_failure)?;
+    if before != expected {
+        return Err(message_source_failure(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "outbound message source identity changed",
+        )));
+    }
+    io_deadline(
+        cancellation,
+        command_timeout,
+        session_deadline,
+        file.seek(SeekFrom::Start(0)),
+        DeliveryErrorKind::Temporary,
+        operation,
+    )
+    .await?;
+    let mut digest = Sha256::new();
+    let mut observed = 0_u64;
+    let mut buffer = [0_u8; MESSAGE_CHUNK_BYTES];
+    loop {
+        let read = io_deadline(
+            cancellation,
+            command_timeout,
+            session_deadline,
+            file.read(&mut buffer),
+            DeliveryErrorKind::Temporary,
+            operation,
+        )
+        .await?;
+        if read == 0 {
+            break;
+        }
+        observed = observed.saturating_add(read as u64);
+        if observed > max_message_bytes {
+            return Err(error(
+                DeliveryErrorKind::Permanent,
+                "outbound message exceeds configured size",
+            ));
+        }
+        digest.update(&buffer[..read]);
+    }
+    if observed != expected.size {
+        return Err(message_source_failure(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "outbound message source size changed",
+        )));
+    }
+    let after = io_deadline(
+        cancellation,
+        command_timeout,
+        session_deadline,
+        file.metadata(),
+        DeliveryErrorKind::Temporary,
+        operation,
+    )
+    .await
+    .and_then(|metadata| file_identity_from_metadata(&metadata).map_err(message_source_failure))?;
+    if after != expected {
+        return Err(message_source_failure(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "outbound message source changed while hashing",
+        )));
+    }
+    io_deadline(
+        cancellation,
+        command_timeout,
+        session_deadline,
+        file.seek(SeekFrom::Start(0)),
+        DeliveryErrorKind::Temporary,
+        operation,
+    )
+    .await?;
+    Ok(FileProof {
+        identity: expected,
+        sha256: digest.finalize().into(),
+    })
+}
+
+fn message_source_failure(_: std::io::Error) -> DeliveryError {
+    error(
+        DeliveryErrorKind::Permanent,
+        "outbound message source failed trusted-root verification",
+    )
 }
 
 struct SmtpSession {
@@ -698,6 +1494,8 @@ struct SmtpSession {
     command_timeout: Duration,
     session_deadline: Instant,
     cancellation: CancellationToken,
+    #[cfg(test)]
+    data_chunk_hook: Option<Arc<dyn Fn(u64) + Send + Sync>>,
 }
 
 impl SmtpSession {
@@ -713,7 +1511,36 @@ impl SmtpSession {
             command_timeout,
             session_deadline,
             cancellation,
+            #[cfg(test)]
+            data_chunk_hook: None,
         }
+    }
+
+    fn rebind(
+        &mut self,
+        command_timeout: Duration,
+        session_deadline: Instant,
+        cancellation: CancellationToken,
+    ) {
+        self.command_timeout = command_timeout;
+        self.session_deadline = session_deadline;
+        self.cancellation = cancellation;
+    }
+
+    fn refresh_deadline(&mut self) {
+        self.session_deadline = Instant::now() + self.command_timeout;
+    }
+
+    fn make_idle(&mut self) {
+        self.cancellation = CancellationToken::new();
+        self.refresh_deadline();
+    }
+
+    fn is_reusable(&self) -> bool {
+        self.transport
+            .as_ref()
+            .is_some_and(Transport::idle_socket_is_quiet)
+            && self.read_buffer.is_empty()
     }
 
     async fn ehlo(&mut self, hello_name: &str) -> Result<Extensions, DeliveryError> {
@@ -934,45 +1761,38 @@ impl SmtpSession {
 
     async fn prepare_message<'a>(
         &self,
-        source: &'a MessageSource,
+        source: &AuthorizedMessage<'a>,
         max_message_bytes: u64,
     ) -> Result<PreparedMessage<'a>, DeliveryError> {
         match source {
-            MessageSource::Bytes(bytes) => {
-                if bytes.len() as u64 > max_message_bytes {
-                    return Err(error(
-                        DeliveryErrorKind::Permanent,
-                        "outbound message exceeds configured size",
-                    ));
+            AuthorizedMessage::Bytes(bytes) => Ok(PreparedMessage::Bytes(bytes)),
+            AuthorizedMessage::File(authorized) => {
+                let file = authorized
+                    .source
+                    .open_matching(authorized.proof.identity, max_message_bytes)
+                    .map_err(message_source_failure)?;
+                let mut file = File::from_std(file);
+                let observed = hash_verified_file(
+                    &mut file,
+                    authorized.proof.identity,
+                    max_message_bytes,
+                    &self.cancellation,
+                    self.command_timeout,
+                    self.session_deadline,
+                    "outbound message source pre-DATA verification",
+                )
+                .await?;
+                if observed != authorized.proof {
+                    return Err(message_source_failure(std::io::Error::new(
+                        std::io::ErrorKind::PermissionDenied,
+                        "outbound message source digest changed before DATA",
+                    )));
                 }
-                Ok(PreparedMessage::Bytes(bytes))
-            }
-            MessageSource::File(path) => {
-                let metadata = self
-                    .file_deadline(
-                        tokio::fs::metadata(path),
-                        "outbound message source metadata",
-                    )
-                    .await?;
-                if !metadata.is_file() || metadata.len() > max_message_bytes {
-                    return Err(error(
-                        DeliveryErrorKind::Permanent,
-                        "outbound message exceeds configured size",
-                    ));
-                }
-                let file = self
-                    .file_deadline(File::open(path), "outbound message source open")
-                    .await?;
-                let metadata = self
-                    .file_deadline(file.metadata(), "outbound message source metadata")
-                    .await?;
-                if !metadata.is_file() || metadata.len() > max_message_bytes {
-                    return Err(error(
-                        DeliveryErrorKind::Permanent,
-                        "outbound message exceeds configured size",
-                    ));
-                }
-                Ok(PreparedMessage::File(file))
+                Ok(PreparedMessage::File(Box::new(PreparedFile {
+                    file,
+                    source: authorized.source.clone(),
+                    proof: authorized.proof,
+                })))
             }
         }
     }
@@ -988,14 +1808,15 @@ impl SmtpSession {
                 state.input_bytes = bytes.len() as u64;
                 self.write_dot_stuffed(bytes, &mut state).await?;
             }
-            PreparedMessage::File(file) => {
+            PreparedMessage::File(prepared) => {
+                let mut digest = Sha256::new();
                 let mut buffer = [0_u8; MESSAGE_CHUNK_BYTES];
                 loop {
                     let read = io_deadline(
                         &self.cancellation,
                         self.command_timeout,
                         self.session_deadline,
-                        file.read(&mut buffer),
+                        prepared.file.read(&mut buffer),
                         DeliveryErrorKind::Temporary,
                         "outbound message source read",
                     )
@@ -1010,7 +1831,61 @@ impl SmtpSession {
                             "outbound message exceeds configured size",
                         ));
                     }
+                    digest.update(&buffer[..read]);
+                    #[cfg(test)]
+                    if let Some(hook) = self.data_chunk_hook.as_ref() {
+                        hook(state.input_bytes);
+                    }
                     self.write_dot_stuffed(&buffer[..read], &mut state).await?;
+                }
+                let streamed_sha256: [u8; 32] = digest.finalize().into();
+                if state.input_bytes != prepared.proof.identity.size
+                    || streamed_sha256 != prepared.proof.sha256
+                {
+                    return Err(message_source_failure(std::io::Error::new(
+                        std::io::ErrorKind::PermissionDenied,
+                        "outbound message source changed during DATA",
+                    )));
+                }
+                let streamed_identity = self
+                    .file_deadline(
+                        prepared.file.metadata(),
+                        "outbound message source post-DATA metadata",
+                    )
+                    .await
+                    .and_then(|metadata| {
+                        file_identity_from_metadata(&metadata).map_err(message_source_failure)
+                    })?;
+                if streamed_identity != prepared.proof.identity {
+                    return Err(message_source_failure(std::io::Error::new(
+                        std::io::ErrorKind::PermissionDenied,
+                        "outbound message source identity changed during DATA",
+                    )));
+                }
+
+                // A complete post-stream pass is intentionally paid before the
+                // SMTP terminator. This bounds replacement/in-place-write races
+                // without ever buffering the message in memory.
+                let post_file = prepared
+                    .source
+                    .open_matching(prepared.proof.identity, max_message_bytes)
+                    .map_err(message_source_failure)?;
+                let mut post_file = File::from_std(post_file);
+                let post = hash_verified_file(
+                    &mut post_file,
+                    prepared.proof.identity,
+                    max_message_bytes,
+                    &self.cancellation,
+                    self.command_timeout,
+                    self.session_deadline,
+                    "outbound message source post-DATA verification",
+                )
+                .await?;
+                if post != prepared.proof {
+                    return Err(message_source_failure(std::io::Error::new(
+                        std::io::ErrorKind::PermissionDenied,
+                        "outbound message source changed after DATA",
+                    )));
                 }
             }
         }
@@ -1464,6 +2339,122 @@ fn outbound_timeout(
     Ok(Duration::from_millis(millis))
 }
 
+fn outbound_pool_config(config: &RuntimeConfig) -> Result<Option<SmtpPoolConfig>, DeliveryError> {
+    let enabled = match config.preferred_value(
+        "lmyzmail.outbound.pool-enabled",
+        "botmail.outbound.pool-enabled",
+    ) {
+        Some(value) if value.eq_ignore_ascii_case("true") => true,
+        Some(value) if value.eq_ignore_ascii_case("false") => false,
+        Some(_) => {
+            return Err(error(
+                DeliveryErrorKind::Configuration,
+                "invalid outbound SMTP pool configuration",
+            ));
+        }
+        None => true,
+    };
+    if !enabled {
+        return Ok(None);
+    }
+    let max_connections_per_host = outbound_pool_usize(
+        config,
+        "lmyzmail.outbound.max-connections-per-host",
+        "botmail.outbound.max-connections-per-host",
+        5,
+        MAX_POOL_IDLE_CONNECTIONS,
+    )?;
+    let max_messages_per_connection = outbound_pool_usize(
+        config,
+        "lmyzmail.outbound.max-messages-per-connection",
+        "botmail.outbound.max-messages-per-connection",
+        100,
+        1_000_000,
+    )?;
+    let max_idle_time = outbound_pool_duration(
+        config,
+        "lmyzmail.outbound.max-idle-time-ms",
+        "botmail.outbound.max-idle-time-ms",
+        60_000,
+        24 * 60 * 60 * 1_000,
+    )?;
+    let max_lifetime = outbound_pool_duration(
+        config,
+        "lmyzmail.outbound.connection-life-time-ms",
+        "botmail.outbound.connection-life-time-ms",
+        300_000,
+        24 * 60 * 60 * 1_000,
+    )?;
+    let cleanup_interval = outbound_pool_duration(
+        config,
+        "lmyzmail.outbound.pool-cleanup-interval-ms",
+        "botmail.outbound.pool-cleanup-interval-ms",
+        30_000,
+        60 * 60 * 1_000,
+    )?;
+    Ok(Some(SmtpPoolConfig {
+        max_connections_per_host,
+        max_messages_per_connection,
+        max_idle_time,
+        max_lifetime,
+        cleanup_interval,
+    }))
+}
+
+fn outbound_pool_usize(
+    config: &RuntimeConfig,
+    new_key: &str,
+    legacy_key: &str,
+    default: usize,
+    maximum: usize,
+) -> Result<usize, DeliveryError> {
+    let value = config
+        .preferred_value(new_key, legacy_key)
+        .map(str::parse::<usize>)
+        .transpose()
+        .map_err(|_| {
+            error(
+                DeliveryErrorKind::Configuration,
+                "invalid outbound SMTP pool configuration",
+            )
+        })?
+        .unwrap_or(default);
+    if value == 0 || value > maximum {
+        return Err(error(
+            DeliveryErrorKind::Configuration,
+            "invalid outbound SMTP pool configuration",
+        ));
+    }
+    Ok(value)
+}
+
+fn outbound_pool_duration(
+    config: &RuntimeConfig,
+    new_key: &str,
+    legacy_key: &str,
+    default_millis: u64,
+    maximum_millis: u64,
+) -> Result<Duration, DeliveryError> {
+    let millis = config
+        .preferred_value(new_key, legacy_key)
+        .map(str::parse::<u64>)
+        .transpose()
+        .map_err(|_| {
+            error(
+                DeliveryErrorKind::Configuration,
+                "invalid outbound SMTP pool configuration",
+            )
+        })?
+        .unwrap_or(default_millis);
+    if millis == 0 || millis > maximum_millis {
+        return Err(error(
+            DeliveryErrorKind::Configuration,
+            "invalid outbound SMTP pool configuration",
+        ));
+    }
+    Ok(Duration::from_millis(millis))
+}
+
 fn required_tls_failure(mut failure: DeliveryError) -> DeliveryError {
     if failure.stage != DeliveryStage::StartTls
         || matches!(
@@ -1639,7 +2630,54 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use tokio::io::{AsyncBufReadExt, BufReader};
+
+    static NEXT_FILE_TEST: AtomicU64 = AtomicU64::new(1);
+
+    struct FileTestDirectory(PathBuf);
+
+    impl FileTestDirectory {
+        fn new() -> Self {
+            let id = NEXT_FILE_TEST.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "lmyzmail-outbound-source-{}-{id}",
+                std::process::id()
+            ));
+            std::fs::create_dir_all(&path).unwrap();
+            Self(path)
+        }
+    }
+
+    impl Drop for FileTestDirectory {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn message_content_proof(bytes: &[u8]) -> MessageContentProof {
+        MessageContentProof::new(bytes.len() as u64, Sha256::digest(bytes).into())
+    }
+
+    async fn unconnected_session() -> (SmtpSession, tokio::net::TcpStream) {
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+            .await
+            .unwrap();
+        let address = listener.local_addr().unwrap();
+        let (client, accepted) =
+            tokio::join!(tokio::net::TcpStream::connect(address), listener.accept());
+        let client = client.unwrap();
+        let (server, _) = accepted.unwrap();
+        (
+            SmtpSession::new(
+                client,
+                Duration::from_secs(5),
+                Instant::now() + Duration::from_secs(20),
+                CancellationToken::new(),
+            ),
+            server,
+        )
+    }
 
     #[test]
     fn smtp_utf8_downgrades_only_domains() {
@@ -1802,9 +2840,16 @@ mod tests {
         assert!(rendered.contains("byte_count: 11"));
         assert!(!rendered.contains("secret"));
 
+        let root = FileTestDirectory::new();
+        std::fs::write(root.0.join("secret.eml"), b"secret").unwrap();
         let rendered = format!(
             "{:?}",
-            MessageSource::File(PathBuf::from("/private/spool/secret.eml"))
+            MessageSource::file_under_root(
+                &root.0,
+                Path::new("secret.eml"),
+                message_content_proof(b"secret"),
+            )
+            .unwrap()
         );
         assert_eq!(rendered, "File(<redacted>)");
     }
@@ -2002,6 +3047,71 @@ mod tests {
     }
 
     #[test]
+    fn outbound_smtp_pool_accepts_legacy_aliases_with_new_precedence() {
+        use crate::config::Properties;
+
+        let legacy = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.outbound.pool-enabled=true\n\
+                  botmail.outbound.max-connections-per-host=7\n\
+                  botmail.outbound.max-messages-per-connection=23\n\
+                  botmail.outbound.max-idle-time-ms=1200\n\
+                  botmail.outbound.connection-life-time-ms=3400\n\
+                  botmail.outbound.pool-cleanup-interval-ms=5600\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let client = OutboundSmtpClient::from_config(&legacy).unwrap();
+        let pool = client.pool.unwrap();
+        assert_eq!(pool.config.max_connections_per_host, 7);
+        assert_eq!(pool.config.max_messages_per_connection, 23);
+        assert_eq!(pool.config.max_idle_time, Duration::from_millis(1_200));
+        assert_eq!(pool.config.max_lifetime, Duration::from_millis(3_400));
+        assert_eq!(pool.config.cleanup_interval, Duration::from_millis(5_600));
+
+        let both = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.outbound.max-connections-per-host=7\n\
+                  lmyzmail.outbound.max-connections-per-host=3\n\
+                  botmail.outbound.max-messages-per-connection=23\n\
+                  lmyzmail.outbound.max-messages-per-connection=11\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let client = OutboundSmtpClient::from_config(&both).unwrap();
+        let pool = client.pool.unwrap();
+        assert_eq!(pool.config.max_connections_per_host, 3);
+        assert_eq!(pool.config.max_messages_per_connection, 11);
+
+        let disabled = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.outbound.pool-enabled=true\n\
+                  lmyzmail.outbound.pool-enabled=false\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(
+            OutboundSmtpClient::from_config(&disabled)
+                .unwrap()
+                .pool
+                .is_none()
+        );
+
+        let invalid = RuntimeConfig::from_properties(
+            Properties::parse(b"lmyzmail.outbound.max-connections-per-host=0\n").unwrap(),
+        )
+        .unwrap();
+        let failure = match OutboundSmtpClient::from_config(&invalid) {
+            Ok(_) => panic!("zero outbound SMTP pool capacity must be rejected"),
+            Err(failure) => failure,
+        };
+        assert_eq!(failure.kind, DeliveryErrorKind::Configuration);
+    }
+
+    #[test]
     fn file_errors_distinguish_missing_content_from_transient_resources() {
         assert_eq!(
             file_error_kind(std::io::ErrorKind::NotFound),
@@ -2019,5 +3129,151 @@ mod tests {
             file_error_kind(std::io::ErrorKind::Other),
             DeliveryErrorKind::Temporary
         );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn trusted_file_source_rejects_escape_symlink_and_out_of_root_hardlink() {
+        use std::os::unix::fs::symlink;
+
+        let root = FileTestDirectory::new();
+        let outside = root.0.parent().unwrap().join(format!(
+            "lmyzmail-outbound-outside-{}",
+            NEXT_FILE_TEST.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::write(&outside, b"outside secret").unwrap();
+        let outside_proof = message_content_proof(b"outside secret");
+        assert!(
+            MessageSource::file_under_root(&root.0, Path::new("../outside"), outside_proof)
+                .is_err()
+        );
+
+        symlink(&outside, root.0.join("symlink.eml")).unwrap();
+        assert!(
+            MessageSource::file_under_root(&root.0, Path::new("symlink.eml"), outside_proof)
+                .is_err()
+        );
+
+        let hardlink = root.0.join("hardlink.eml");
+        std::fs::hard_link(&outside, &hardlink).unwrap();
+        assert!(
+            MessageSource::file_under_root(&root.0, Path::new("hardlink.eml"), outside_proof)
+                .is_err()
+        );
+        std::fs::remove_file(hardlink).unwrap();
+        std::fs::remove_file(outside).unwrap();
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn replacement_between_authorization_and_data_is_rejected() {
+        let root = FileTestDirectory::new();
+        let path = root.0.join("message.eml");
+        let original = b"Subject: original\r\n\r\noriginal\r\n";
+        std::fs::write(&path, original).unwrap();
+        let message = MessageSource::file_under_root(
+            &root.0,
+            Path::new("message.eml"),
+            message_content_proof(original),
+        )
+        .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(20);
+        let authorized = authorize_message(
+            &message,
+            1_024,
+            &CancellationToken::new(),
+            Duration::from_secs(5),
+            deadline,
+        )
+        .await
+        .unwrap();
+
+        let replacement = root.0.join("replacement.eml");
+        std::fs::write(&replacement, b"Subject: replacement\r\n\r\nsecret\r\n").unwrap();
+        std::fs::rename(replacement, &path).unwrap();
+
+        let (session, _server) = unconnected_session().await;
+        let failure = match session.prepare_message(&authorized, 1_024).await {
+            Ok(_) => panic!("replacement source must be rejected before DATA"),
+            Err(failure) => failure,
+        };
+        assert_eq!(failure.kind, DeliveryErrorKind::Permanent);
+    }
+
+    #[cfg(target_os = "linux")]
+    async fn mid_data_path_change_is_rejected(replace: bool) {
+        let root = FileTestDirectory::new();
+        let path = root.0.join("message.eml");
+        let mut original = b"Subject: original\r\n\r\n".to_vec();
+        original.resize(MESSAGE_CHUNK_BYTES * 2, b'a');
+        std::fs::write(&path, &original).unwrap();
+        let message = MessageSource::file_under_root(
+            &root.0,
+            Path::new("message.eml"),
+            message_content_proof(&original),
+        )
+        .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(20);
+        let authorized = authorize_message(
+            &message,
+            original.len() as u64,
+            &CancellationToken::new(),
+            Duration::from_secs(5),
+            deadline,
+        )
+        .await
+        .unwrap();
+        let (mut session, mut server) = unconnected_session().await;
+        let mut prepared = session
+            .prepare_message(&authorized, original.len() as u64)
+            .await
+            .unwrap();
+
+        let changed = Arc::new(AtomicBool::new(false));
+        let hook_changed = Arc::clone(&changed);
+        let hook_path = path.clone();
+        let moved = root.0.join("moved.eml");
+        let replacement = root.0.join("replacement.eml");
+        if replace {
+            std::fs::write(&replacement, b"local replacement secret").unwrap();
+        }
+        session.data_chunk_hook = Some(Arc::new(move |_| {
+            if hook_changed.swap(true, Ordering::SeqCst) {
+                return;
+            }
+            if replace {
+                std::fs::rename(&replacement, &hook_path).unwrap();
+            } else {
+                std::fs::rename(&hook_path, &moved).unwrap();
+            }
+        }));
+
+        let failure = session
+            .write_message_body(&mut prepared, original.len() as u64)
+            .await
+            .unwrap_err();
+        assert_eq!(failure.kind, DeliveryErrorKind::Permanent);
+        assert!(changed.load(Ordering::SeqCst));
+        drop(session);
+        let mut wire = Vec::new();
+        server.read_to_end(&mut wire).await.unwrap();
+        assert!(
+            !wire
+                .windows(b"local replacement secret".len())
+                .any(|window| { window == b"local replacement secret" })
+        );
+        assert!(!wire.ends_with(b".\r\n"));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn replacement_during_data_is_rejected_before_terminator() {
+        mid_data_path_change_is_rejected(true).await;
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn rename_during_data_is_rejected_before_terminator() {
+        mid_data_path_change_is_rejected(false).await;
     }
 }

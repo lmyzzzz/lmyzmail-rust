@@ -341,6 +341,8 @@ struct JsonRuntimeConfig {
     postgres: JsonDatabaseConfig,
     redis: JsonRedisConfig,
     maildir: String,
+    #[serde(default)]
+    storage: JsonStorageConfig,
     domain: String,
     #[serde(default)]
     domains: Vec<JsonDomainConfig>,
@@ -444,6 +446,21 @@ struct JsonRedisConfig {
     password: String,
     #[serde(default)]
     tls: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct JsonStorageConfig {
+    #[serde(default = "default_true")]
+    fsync_enabled: bool,
+}
+
+impl Default for JsonStorageConfig {
+    fn default() -> Self {
+        Self {
+            fsync_enabled: true,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -1283,6 +1300,24 @@ struct JsonLimitConfig {
     max_total_attachments_size_bytes: u64,
     #[serde(default = "default_outbound_poll_interval_ms")]
     outbound_poll_interval_ms: u64,
+    #[serde(default = "default_outbound_max_concurrent_sends")]
+    outbound_max_concurrent_sends: usize,
+    #[serde(default = "default_outbound_batch_size")]
+    outbound_batch_size: usize,
+    #[serde(default = "default_outbound_migration_batch_size")]
+    outbound_migration_batch_size: usize,
+    #[serde(default = "default_outbound_pool_enabled")]
+    outbound_pool_enabled: bool,
+    #[serde(default = "default_outbound_max_connections_per_host")]
+    outbound_max_connections_per_host: usize,
+    #[serde(default = "default_outbound_max_messages_per_connection")]
+    outbound_max_messages_per_connection: usize,
+    #[serde(default = "default_outbound_max_idle_time_ms")]
+    outbound_max_idle_time_ms: u64,
+    #[serde(default = "default_outbound_connection_life_time_ms")]
+    outbound_connection_life_time_ms: u64,
+    #[serde(default = "default_outbound_pool_cleanup_interval_ms")]
+    outbound_pool_cleanup_interval_ms: u64,
 }
 
 impl Default for JsonLimitConfig {
@@ -1302,12 +1337,57 @@ impl Default for JsonLimitConfig {
             max_attachment_size_bytes: default_max_attachment_size_bytes(),
             max_total_attachments_size_bytes: default_max_total_attachments_size_bytes(),
             outbound_poll_interval_ms: default_outbound_poll_interval_ms(),
+            outbound_max_concurrent_sends: default_outbound_max_concurrent_sends(),
+            outbound_batch_size: default_outbound_batch_size(),
+            outbound_migration_batch_size: default_outbound_migration_batch_size(),
+            outbound_pool_enabled: default_outbound_pool_enabled(),
+            outbound_max_connections_per_host: default_outbound_max_connections_per_host(),
+            outbound_max_messages_per_connection: default_outbound_max_messages_per_connection(),
+            outbound_max_idle_time_ms: default_outbound_max_idle_time_ms(),
+            outbound_connection_life_time_ms: default_outbound_connection_life_time_ms(),
+            outbound_pool_cleanup_interval_ms: default_outbound_pool_cleanup_interval_ms(),
         }
     }
 }
 
 const fn default_outbound_poll_interval_ms() -> u64 {
     1_000
+}
+
+const fn default_outbound_max_concurrent_sends() -> usize {
+    100
+}
+
+const fn default_outbound_batch_size() -> usize {
+    50
+}
+
+const fn default_outbound_migration_batch_size() -> usize {
+    1_000
+}
+
+const fn default_outbound_pool_enabled() -> bool {
+    true
+}
+
+const fn default_outbound_max_connections_per_host() -> usize {
+    5
+}
+
+const fn default_outbound_max_messages_per_connection() -> usize {
+    100
+}
+
+const fn default_outbound_max_idle_time_ms() -> u64 {
+    60_000
+}
+
+const fn default_outbound_connection_life_time_ms() -> u64 {
+    300_000
+}
+
+const fn default_outbound_pool_cleanup_interval_ms() -> u64 {
+    30_000
 }
 
 fn default_schema_version() -> u32 {
@@ -2087,6 +2167,10 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         value.redis.tls.to_string(),
     )?;
     properties.insert("lmyzmail.maildir.base".to_owned(), value.maildir)?;
+    properties.insert(
+        "lmyzmail.storage.fsync-enabled".to_owned(),
+        value.storage.fsync_enabled.to_string(),
+    )?;
     let primary_domain = value.domain.to_ascii_lowercase();
     properties.insert("lmyzmail.domain".to_owned(), value.domain)?;
     for (index, domain) in value.domains.into_iter().enumerate() {
@@ -2640,6 +2724,45 @@ fn parse_semantic_json(bytes: &[u8]) -> Result<Properties, ConfigError> {
         "lmyzmail.queue.poll-interval-ms".to_owned(),
         value.limits.outbound_poll_interval_ms.to_string(),
     )?;
+    properties.insert(
+        "lmyzmail.queue.max-concurrent-sends".to_owned(),
+        value.limits.outbound_max_concurrent_sends.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.queue.batch-size".to_owned(),
+        value.limits.outbound_batch_size.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.queue.migration-batch-size".to_owned(),
+        value.limits.outbound_migration_batch_size.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.outbound.pool-enabled".to_owned(),
+        value.limits.outbound_pool_enabled.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.outbound.max-connections-per-host".to_owned(),
+        value.limits.outbound_max_connections_per_host.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.outbound.max-messages-per-connection".to_owned(),
+        value
+            .limits
+            .outbound_max_messages_per_connection
+            .to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.outbound.max-idle-time-ms".to_owned(),
+        value.limits.outbound_max_idle_time_ms.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.outbound.connection-life-time-ms".to_owned(),
+        value.limits.outbound_connection_life_time_ms.to_string(),
+    )?;
+    properties.insert(
+        "lmyzmail.outbound.pool-cleanup-interval-ms".to_owned(),
+        value.limits.outbound_pool_cleanup_interval_ms.to_string(),
+    )?;
     Ok(properties)
 }
 
@@ -2760,6 +2883,7 @@ pub struct RuntimeConfig {
     pub postgres: DatabaseConfig,
     pub redis: RedisConfig,
     pub maildir: PathBuf,
+    pub storage: StorageConfig,
     pub domain: String,
     /// Normalized domain configurations. `domain` remains the primary-domain
     /// compatibility fallback for modules that have not migrated yet.
@@ -2832,6 +2956,11 @@ pub struct RedisConfig {
     pub username: Option<String>,
     pub password: Option<String>,
     pub tls: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct StorageConfig {
+    pub fsync_enabled: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -3471,6 +3600,14 @@ impl RuntimeConfig {
                 false,
             )?,
         };
+        let storage = StorageConfig {
+            fsync_enabled: preferred_bool(
+                &properties,
+                &["lmyzmail.storage.fsync-enabled"],
+                &["botmail.storage.fsync-enabled"],
+                true,
+            )?,
+        };
         validate_redis(&redis)?;
 
         let maildir = preferred(
@@ -3870,6 +4007,7 @@ impl RuntimeConfig {
             postgres,
             redis,
             maildir: PathBuf::from(maildir),
+            storage,
             domain,
             domains,
             allowed_origins,
@@ -7293,6 +7431,55 @@ lmyzmail.htcpcp.pots[{index}].supported-additions=\n"
     }
 
     #[test]
+    fn filesystem_fsync_defaults_aliases_and_new_key_precedence() {
+        let defaults = RuntimeConfig::from_properties(Properties::default()).unwrap();
+        assert!(defaults.storage.fsync_enabled);
+
+        let legacy = RuntimeConfig::from_properties(
+            Properties::parse(b"botmail.storage.fsync-enabled=false\n").unwrap(),
+        )
+        .unwrap();
+        assert!(!legacy.storage.fsync_enabled);
+
+        let both = RuntimeConfig::from_properties(
+            Properties::parse(
+                b"botmail.storage.fsync-enabled=true\n\
+lmyzmail.storage.fsync-enabled=false\n",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(!both.storage.fsync_enabled);
+
+        let invalid = Properties::parse(b"lmyzmail.storage.fsync-enabled=sometimes\n").unwrap();
+        assert!(RuntimeConfig::from_properties(invalid).is_err());
+    }
+
+    #[test]
+    fn filesystem_fsync_semantic_json_defaults_and_maps_nested_setting() {
+        let omitted = RuntimeConfig::from_properties(
+            parse_semantic_json(&semantic_json_with_htcpcp(serde_json::json!({
+                "enabled": true,
+                "default_brew_time_seconds": 1
+            })))
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(omitted.storage.fsync_enabled);
+
+        let mut value: serde_json::Value = serde_json::from_slice(&semantic_json_with_htcpcp(
+            serde_json::json!({"enabled": true, "default_brew_time_seconds": 1}),
+        ))
+        .unwrap();
+        value["storage"] = serde_json::json!({"fsync_enabled": false});
+        let disabled = RuntimeConfig::from_properties(
+            parse_semantic_json(&serde_json::to_vec(&value).unwrap()).unwrap(),
+        )
+        .unwrap();
+        assert!(!disabled.storage.fsync_enabled);
+    }
+
+    #[test]
     fn multi_domain_configuration_matches_java_normalization_and_filters() {
         let properties = Properties::parse(
             b"lmyzmail.domain=primary.example\n\
@@ -9673,7 +9860,15 @@ lmyzmail.stress-test-count=9\n",
                 "warmup_rounds": 1,
                 "email_size_kb": 256
             },
-            "limits": {"outbound_poll_interval_ms": 60000}
+            "limits": {
+                "outbound_poll_interval_ms": 60000,
+                "outbound_pool_enabled": true,
+                "outbound_max_connections_per_host": 17,
+                "outbound_max_messages_per_connection": 1500,
+                "outbound_max_idle_time_ms": 30000,
+                "outbound_connection_life_time_ms": 300000,
+                "outbound_pool_cleanup_interval_ms": 1000
+            }
         }"#;
         let config = RuntimeConfig::from_properties(parse_semantic_json(json).unwrap()).unwrap();
         assert!(config.stress.enabled);
@@ -9690,6 +9885,40 @@ lmyzmail.stress-test-count=9\n",
             ),
             Some("60000")
         );
+        for (new_key, legacy_key, expected) in [
+            (
+                "lmyzmail.outbound.pool-enabled",
+                "botmail.outbound.pool-enabled",
+                "true",
+            ),
+            (
+                "lmyzmail.outbound.max-connections-per-host",
+                "botmail.outbound.max-connections-per-host",
+                "17",
+            ),
+            (
+                "lmyzmail.outbound.max-messages-per-connection",
+                "botmail.outbound.max-messages-per-connection",
+                "1500",
+            ),
+            (
+                "lmyzmail.outbound.max-idle-time-ms",
+                "botmail.outbound.max-idle-time-ms",
+                "30000",
+            ),
+            (
+                "lmyzmail.outbound.connection-life-time-ms",
+                "botmail.outbound.connection-life-time-ms",
+                "300000",
+            ),
+            (
+                "lmyzmail.outbound.pool-cleanup-interval-ms",
+                "botmail.outbound.pool-cleanup-interval-ms",
+                "1000",
+            ),
+        ] {
+            assert_eq!(config.preferred_value(new_key, legacy_key), Some(expected));
+        }
     }
 
     #[test]

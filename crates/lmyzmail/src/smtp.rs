@@ -1,5 +1,5 @@
 use std::{
-    collections::hash_map::DefaultHasher,
+    collections::{HashMap, hash_map::DefaultHasher},
     future::Future,
     hash::{Hash, Hasher},
     io,
@@ -7,12 +7,15 @@ use std::{
     path::Path,
     pin::Pin,
     sync::{
-        Arc,
+        Arc, Mutex as StdMutex,
         atomic::{AtomicU64, Ordering},
     },
     task::{Context, Poll},
     time::Duration,
 };
+
+#[cfg(test)]
+use std::ffi::OsString;
 
 use chrono::{DateTime, Datelike, Timelike, Utc, Weekday};
 use deadpool_postgres::Pool;
@@ -27,16 +30,18 @@ use rustls::{
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf},
     net::{TcpListener, TcpStream},
-    sync::{Mutex, Semaphore, mpsc},
+    sync::{Notify, RwLock, Semaphore, mpsc},
     task::{JoinSet, spawn_blocking},
-    time::{Instant, sleep, timeout},
+    time::{Instant, sleep, timeout, timeout_at},
 };
 use tokio_rustls::{TlsAcceptor, server::TlsStream};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
     config::{ContentFilterConfig, MailRenderSimdMode, RuntimeConfig},
+    coordinator_observer::{CoordinatorStage, StageTimer},
     cringe::{CringeError, CringeService},
+    mailbox::{normalize_mailbox, secure_directory_child, secure_mailbox_folder},
     skibidi::SkibidiGenerator,
     skibidi_inferx::InferxService,
     smtp_ascii::AsciiSimdMode,
@@ -54,6 +59,12 @@ use crate::{
     video_asset::locate_frozen_video_asset,
 };
 
+#[cfg(test)]
+use crate::durability::{fsync, sync_all};
+
+#[path = "smtp_inbound_delivery.rs"]
+pub(crate) mod inbound_delivery;
+
 const HOSTNAME: &str = "lmyzmail";
 const MAX_COMMAND_BYTES: usize = 1_000;
 const MAX_MESSAGE_BYTES: usize = 15_728_640;
@@ -68,9 +79,182 @@ const SMTP_QUEUE_CAPACITY: usize = 256;
 const CRINGE_QUEUE_CAPACITY: usize = 256;
 const CRINGE_SHUTDOWN_DEADLINE: Duration = Duration::from_secs(10);
 const CRINGE_FORCED_SHUTDOWN_DEADLINE: Duration = Duration::from_secs(2);
+const INBOUND_RECOVERY_INTERVAL: Duration = Duration::from_secs(1);
+const INBOUND_MAINTENANCE_SHUTDOWN_DEADLINE: Duration = Duration::from_secs(5);
+const INBOUND_INDEX_SHUTDOWN_DEADLINE: Duration = Duration::from_secs(10);
 const MAX_SMTP_REPLY_TEXT_BYTES: usize = 506;
 const MAILDIR_SHARD_LOCKS: usize = 64;
+const MAX_INBOUND_SHARD_CACHE_ENTRIES: usize = 4_096;
+const MAX_INBOUND_SHARD_CACHE_ENTRIES_PER_LOCK: usize =
+    MAX_INBOUND_SHARD_CACHE_ENTRIES / MAILDIR_SHARD_LOCKS;
+const INBOUND_SHARD_RESCAN_INTERVAL: usize = 256;
 static FILE_COUNTER: AtomicU64 = AtomicU64::new(1);
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct InboundFolderKey {
+    mailbox: String,
+    folder: String,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct InboundShardState {
+    current_shard: i32,
+    allocated: usize,
+    in_flight: usize,
+    reservations_since_scan: usize,
+    last_used: u64,
+}
+
+#[derive(Debug)]
+struct InboundShardAllocator {
+    shards: [StdMutex<HashMap<InboundFolderKey, InboundShardState>>; MAILDIR_SHARD_LOCKS],
+    clock: AtomicU64,
+    capacity_available: Notify,
+}
+
+#[derive(Debug)]
+struct InboundShardReservation {
+    allocator: Arc<InboundShardAllocator>,
+    shard_index: usize,
+    key: InboundFolderKey,
+    subdirectory: i32,
+    preserve_allocation: bool,
+}
+
+#[derive(Debug)]
+enum InboundPrepareAttempt {
+    Prepared {
+        prepared: inbound_delivery::PreparedInbound,
+        shard_reservation: Option<InboundShardReservation>,
+    },
+    Backpressured {
+        raw: Vec<u8>,
+        index: inbound_delivery::InboundIndexMetadata,
+        intent_id: String,
+    },
+}
+
+impl Default for InboundShardAllocator {
+    fn default() -> Self {
+        Self {
+            shards: std::array::from_fn(|_| StdMutex::new(HashMap::new())),
+            clock: AtomicU64::new(1),
+            capacity_available: Notify::new(),
+        }
+    }
+}
+
+impl InboundShardAllocator {
+    fn reserve(
+        self: &Arc<Self>,
+        folder_root: &Path,
+        mailbox: &str,
+        folder: &str,
+        max_files: usize,
+    ) -> io::Result<InboundShardReservation> {
+        if max_files == 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Maildir shard capacity must be positive",
+            ));
+        }
+        let key = InboundFolderKey {
+            mailbox: mailbox.to_owned(),
+            folder: folder.to_owned(),
+        };
+        let shard_index = maildir_lock_index(mailbox, folder);
+        let mut states = self.shards[shard_index]
+            .lock()
+            .map_err(|_| io::Error::other("SMTP inbound shard allocator is poisoned"))?;
+        let now = self.clock.fetch_add(1, Ordering::Relaxed);
+        if !states.contains_key(&key) {
+            let (current_shard, allocated) = inspect_inbound_subdirectory(folder_root)?;
+            if states.len() >= MAX_INBOUND_SHARD_CACHE_ENTRIES_PER_LOCK
+                && let Some(evicted) = states
+                    .iter()
+                    .filter(|(_, state)| state.in_flight == 0)
+                    .min_by_key(|(_, state)| state.last_used)
+                    .map(|(key, _)| key.clone())
+            {
+                states.remove(&evicted);
+            }
+            if states.len() >= MAX_INBOUND_SHARD_CACHE_ENTRIES_PER_LOCK {
+                return Err(io::Error::new(
+                    io::ErrorKind::WouldBlock,
+                    "SMTP inbound shard cache partition is fully reserved",
+                ));
+            }
+            states.insert(
+                key.clone(),
+                InboundShardState {
+                    current_shard,
+                    allocated,
+                    in_flight: 0,
+                    reservations_since_scan: 0,
+                    last_used: now,
+                },
+            );
+        }
+        let state = states.get_mut(&key).ok_or_else(|| {
+            io::Error::other("SMTP inbound shard state disappeared while reserved")
+        })?;
+        if state.reservations_since_scan >= INBOUND_SHARD_RESCAN_INTERVAL {
+            let (observed_shard, observed_count) = inspect_inbound_subdirectory(folder_root)?;
+            if observed_shard > state.current_shard {
+                state.current_shard = observed_shard;
+                state.allocated = observed_count;
+            } else if observed_shard == state.current_shard {
+                state.allocated = state.allocated.max(observed_count);
+            }
+            state.reservations_since_scan = 0;
+        }
+        if state.allocated >= max_files {
+            state.current_shard = state
+                .current_shard
+                .checked_add(1)
+                .ok_or_else(|| io::Error::other("Maildir shard index overflow"))?;
+            state.allocated = 0;
+            state.reservations_since_scan = 0;
+        }
+        let selected = state.current_shard;
+        state.allocated = state.allocated.saturating_add(1);
+        state.in_flight = state.in_flight.saturating_add(1);
+        state.reservations_since_scan = state.reservations_since_scan.saturating_add(1);
+        state.last_used = now;
+        Ok(InboundShardReservation {
+            allocator: Arc::clone(self),
+            shard_index,
+            key,
+            subdirectory: selected,
+            preserve_allocation: false,
+        })
+    }
+}
+
+impl InboundShardReservation {
+    fn subdirectory(&self) -> i32 {
+        self.subdirectory
+    }
+
+    fn mark_durable(&mut self) {
+        self.preserve_allocation = true;
+    }
+}
+
+impl Drop for InboundShardReservation {
+    fn drop(&mut self) {
+        if let Ok(mut states) = self.allocator.shards[self.shard_index].lock()
+            && let Some(state) = states.get_mut(&self.key)
+        {
+            state.in_flight = state.in_flight.saturating_sub(1);
+            if !self.preserve_allocation && state.current_shard == self.subdirectory {
+                state.allocated = state.allocated.saturating_sub(1);
+            }
+            state.last_used = self.allocator.clock.fetch_add(1, Ordering::Relaxed);
+        }
+        self.allocator.capacity_available.notify_one();
+    }
+}
 
 #[derive(Debug)]
 pub enum SmtpError {
@@ -89,6 +273,17 @@ impl std::fmt::Display for SmtpError {
 
 impl std::error::Error for SmtpError {}
 
+pub async fn initialize_inbound_storage(
+    pool: &Pool,
+    cancellation: &CancellationToken,
+) -> io::Result<bool> {
+    tokio::select! {
+        biased;
+        () = cancellation.cancelled() => Ok(false),
+        result = inbound_delivery::initialize_schema(pool) => result.map(|()| true),
+    }
+}
+
 #[derive(Clone)]
 pub struct SmtpService {
     config: Arc<RuntimeConfig>,
@@ -97,7 +292,10 @@ pub struct SmtpService {
     blocking_permits: Arc<Semaphore>,
     delivery_queue: Arc<Semaphore>,
     maildir_max_files_per_directory: Option<usize>,
-    maildir_shard_locks: Arc<[Mutex<()>; MAILDIR_SHARD_LOCKS]>,
+    inbound_shard_allocator: Arc<InboundShardAllocator>,
+    active_inbound_intents: Arc<inbound_delivery::ActiveInboundIntents>,
+    inbound_index_committer: Arc<inbound_delivery::IndexCommitter>,
+    inbound_staging_gate: Arc<RwLock<()>>,
     tls_acceptor: Option<TlsAcceptor>,
     rbl_scanner: RblScanner,
     new_domain_scanner: NewDomainScanner,
@@ -305,12 +503,15 @@ impl SmtpService {
         };
         Ok(Self {
             config,
-            pool,
+            pool: pool.clone(),
             redis_pool,
             blocking_permits: Arc::new(Semaphore::new(4)),
             delivery_queue: Arc::new(Semaphore::new(SMTP_QUEUE_CAPACITY)),
             maildir_max_files_per_directory,
-            maildir_shard_locks: Arc::new(std::array::from_fn(|_| Mutex::new(()))),
+            inbound_shard_allocator: Arc::new(InboundShardAllocator::default()),
+            active_inbound_intents: Arc::new(inbound_delivery::ActiveInboundIntents::default()),
+            inbound_index_committer: inbound_delivery::IndexCommitter::start(pool.clone()),
+            inbound_staging_gate: Arc::new(RwLock::new(())),
             tls_acceptor,
             rbl_scanner,
             new_domain_scanner,
@@ -515,11 +716,13 @@ impl SmtpService {
             scan_attachments(&envelope.data, &self.config.content_filter)
                 .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?,
         );
-        let mailbox = envelope
-            .recipients
-            .first()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "recipient missing"))?
-            .to_ascii_lowercase();
+        let mailbox = normalize_mailbox(
+            envelope
+                .recipients
+                .first()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "recipient missing"))?,
+        )
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid recipient mailbox"))?;
         let message_id = headers.first_trimmed("message-id").unwrap_or_else(|| {
             format!(
                 "<smtp-{}@{}>",
@@ -539,7 +742,8 @@ impl SmtpService {
             .unwrap_or_else(|| "[]".to_owned());
         let has_attachments = has_first_mime_attachment(&envelope.data)
             .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
-        let received_at = Utc::now();
+        let received_at = DateTime::<Utc>::from_timestamp_micros(Utc::now().timestamp_micros())
+            .expect("current UTC timestamp is representable at PostgreSQL precision");
         let received_id = random_hex_upper(7).map_err(io::Error::other)?;
         let accepted_id = random_hex(4).map_err(io::Error::other)?;
         if envelope
@@ -600,101 +804,196 @@ impl SmtpService {
             counter,
             counter,
         );
-        let folder_root = self.config.maildir.join(&mailbox).join(folder);
-        let temporary_path = self
-            .config
-            .maildir
-            .join(&mailbox)
-            .join("temp")
-            .join(format!("incoming-{counter}.tmp"));
-        let blocking_permit = self
+        let intent_id = random_hex(16).map_err(io::Error::other)?;
+        let index = inbound_delivery::InboundIndexMetadata {
+            mailbox: mailbox.clone(),
+            folder: folder.to_owned(),
+            subdirectory: None,
+            file_name: file_name.clone(),
+            has_attachments,
+            received_at,
+            size_bytes: raw_len as i64,
+            from_address,
+            message_id,
+            subject,
+            to_addresses,
+        };
+        let active_intent = self
+            .active_inbound_intents
+            .reserve(intent_id.clone(), mailbox.clone())?;
+        let staging_guard = self.inbound_staging_gate.read().await;
+        let max_files_per_directory = self.maildir_max_files_per_directory;
+        let maildir = self.config.maildir.clone();
+        let mailbox_for_write = mailbox.clone();
+        let folder_for_write = folder.to_owned();
+        let inbound_shard_allocator = Arc::clone(&self.inbound_shard_allocator);
+        let prepare_deadline = Instant::now() + STORAGE_TIMEOUT;
+        let mut pending_raw = Some(raw);
+        let mut pending_index = Some(index);
+        let mut pending_intent_id = Some(intent_id);
+        let (prepared, mut shard_reservation) = loop {
+            let notified = inbound_shard_allocator.capacity_available.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
+            let blocking_permit = timeout_at(
+                prepare_deadline,
+                self.blocking_permits.clone().acquire_owned(),
+            )
+            .await
+            .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "SMTP storage timeout"))?
+            .map_err(|_| io::Error::other("SMTP blocking pool closed"))?;
+            let raw = pending_raw
+                .take()
+                .ok_or_else(|| io::Error::other("SMTP inbound body disappeared"))?;
+            let index = pending_index
+                .take()
+                .ok_or_else(|| io::Error::other("SMTP inbound index disappeared"))?;
+            let intent_id = pending_intent_id
+                .take()
+                .ok_or_else(|| io::Error::other("SMTP inbound intent id disappeared"))?;
+            let maildir = maildir.clone();
+            let mailbox_for_write = mailbox_for_write.clone();
+            let folder_for_write = folder_for_write.clone();
+            let inbound_shard_allocator = Arc::clone(&inbound_shard_allocator);
+            let attempt = {
+                let _timer = StageTimer::start(CoordinatorStage::InboundPrepareFile);
+                timeout_at(
+                    prepare_deadline,
+                    spawn_blocking(move || {
+                        let _permit = blocking_permit;
+                        let folder_root =
+                            secure_mailbox_folder(&maildir, &mailbox_for_write, &folder_for_write)?;
+                        let shard_reservation = match max_files_per_directory {
+                            Some(max_files) => {
+                                match inbound_shard_allocator.reserve(
+                                    &folder_root,
+                                    &mailbox_for_write,
+                                    &folder_for_write,
+                                    max_files,
+                                ) {
+                                    Ok(reservation) => Some(reservation),
+                                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                                        return Ok(InboundPrepareAttempt::Backpressured {
+                                            raw,
+                                            index,
+                                            intent_id,
+                                        });
+                                    }
+                                    Err(error) => return Err(error),
+                                }
+                            }
+                            None => None,
+                        };
+                        let subdirectory = shard_reservation
+                            .as_ref()
+                            .map(InboundShardReservation::subdirectory);
+                        let final_parent = match subdirectory {
+                            Some(value) => {
+                                secure_directory_child(&folder_root, &value.to_string())?
+                            }
+                            None => folder_root,
+                        };
+                        let mut index = index;
+                        index.subdirectory = subdirectory;
+                        let prepared = inbound_delivery::prepare_file(
+                            &maildir,
+                            final_parent,
+                            intent_id,
+                            &raw,
+                            index,
+                        )?;
+                        Ok(InboundPrepareAttempt::Prepared {
+                            prepared,
+                            shard_reservation,
+                        })
+                    }),
+                )
+                .await
+                .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "SMTP storage timeout"))?
+                .map_err(|error| io::Error::other(error.to_string()))??
+            };
+            match attempt {
+                InboundPrepareAttempt::Prepared {
+                    prepared,
+                    shard_reservation,
+                } => break (prepared, shard_reservation),
+                InboundPrepareAttempt::Backpressured {
+                    raw,
+                    index,
+                    intent_id,
+                } => {
+                    pending_raw = Some(raw);
+                    pending_index = Some(index);
+                    pending_intent_id = Some(intent_id);
+                    timeout_at(prepare_deadline, notified).await.map_err(|_| {
+                        io::Error::new(
+                            io::ErrorKind::TimedOut,
+                            "SMTP inbound shard cache backpressure timeout",
+                        )
+                    })?;
+                }
+            }
+        };
+        {
+            let _timer = StageTimer::start(CoordinatorStage::InboundIntentInsert);
+            inbound_delivery::insert_intent(&self.pool, &prepared).await?;
+        }
+        if let Some(reservation) = shard_reservation.as_mut() {
+            reservation.mark_durable();
+        }
+        active_intent.mark_durable()?;
+        drop(staging_guard);
+        let publish_permit = self
             .blocking_permits
             .clone()
             .acquire_owned()
             .await
             .map_err(|_| io::Error::other("SMTP blocking pool closed"))?;
-        let lock_index = maildir_lock_index(&mailbox, folder);
-        let shard_guard = self.maildir_shard_locks[lock_index].lock().await;
-        let max_files_per_directory = self.maildir_max_files_per_directory;
-        let temporary_path_for_write = temporary_path.clone();
-        let file_name_for_write = file_name.clone();
-        let (subdirectory, final_path) = spawn_blocking(move || {
-            let _permit = blocking_permit;
-            let subdirectory = select_inbound_subdirectory(&folder_root, max_files_per_directory)?;
-            let final_parent = subdirectory.map_or_else(
-                || folder_root.clone(),
-                |value| folder_root.join(value.to_string()),
-            );
-            let final_path = final_parent.join(file_name_for_write);
-            atomic_publish(&temporary_path_for_write, &final_path, &raw)?;
-            Ok::<_, io::Error>((subdirectory, final_path))
-        })
-        .await
-        .map_err(|error| io::Error::other(error.to_string()))??;
-        drop(shard_guard);
-
-        let client = timeout(DATABASE_TIMEOUT, self.pool.get())
+        let prepared_for_publish = prepared.clone();
+        {
+            let _timer = StageTimer::start(CoordinatorStage::InboundPublishFile);
+            spawn_blocking(move || {
+                let _permit = publish_permit;
+                inbound_delivery::publish_file(&prepared_for_publish)
+            })
             .await
-            .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "database pool timeout"))?
-            .map_err(|error| io::Error::other(error.to_string()))?;
-        let index_result = timeout(
-            DATABASE_TIMEOUT,
-            client.execute(
-                "INSERT INTO email_index (has_attachments, subdirectory, indexed_at, received_at, size_bytes, folder, from_address, message_id, subject, to_addresses, file_name, mailbox_address) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
-                &[
-                    &has_attachments,
-                    &subdirectory,
-                    &received_at,
-                    &received_at,
-                    &(raw_len as i64),
-                    &folder,
-                    &from_address,
-                    &message_id,
-                    &subject,
-                    &to_addresses,
-                    &file_name,
-                    &mailbox,
-                ],
-            ),
-        )
-        .await;
-        match index_result {
-            Ok(Ok(_)) => {}
-            Ok(Err(error)) => {
-                if let Err(cleanup) = self.remove_published(&final_path).await {
-                    eprintln!("lmyzmail SMTP Maildir rollback failed: {cleanup}");
-                }
-                return Err(io::Error::other(error.to_string()));
-            }
-            Err(_) => {
-                if let Err(cleanup) = self.remove_published(&final_path).await {
-                    eprintln!("lmyzmail SMTP Maildir rollback failed: {cleanup}");
-                }
-                return Err(io::Error::new(
-                    io::ErrorKind::TimedOut,
-                    "database insert timeout",
-                ));
-            }
+            .map_err(|error| io::Error::other(error.to_string()))??;
         }
-        let redis_key = format!("mail:count:{mailbox}:{folder}");
-        if let Err(error) = crate::redis::increment(&self.redis_pool, &redis_key).await {
-            let _ = timeout(
-                DATABASE_TIMEOUT,
-                client.execute(
-                    "DELETE FROM email_index WHERE mailbox_address=$1 AND file_name=$2",
-                    &[&mailbox, &file_name],
-                ),
-            )
-            .await;
-            if let Err(cleanup) = self.remove_published(&final_path).await {
-                eprintln!("lmyzmail SMTP Maildir rollback failed: {cleanup}");
-            }
-            return Err(error);
+        drop(shard_reservation);
+        {
+            let _timer = StageTimer::start(CoordinatorStage::InboundIndexCommit);
+            self.inbound_index_committer.submit(&prepared).await?;
         }
+        let verify_permit = self
+            .blocking_permits
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|_| io::Error::other("SMTP blocking pool closed"))?;
+        let prepared_for_verify = prepared.clone();
+        {
+            let _timer = StageTimer::start(CoordinatorStage::InboundPublishVerify);
+            spawn_blocking(move || {
+                let _permit = verify_permit;
+                inbound_delivery::verify_published_file(&prepared_for_verify)
+            })
+            .await
+            .map_err(|error| io::Error::other(error.to_string()))??;
+        }
+        {
+            let _timer = StageTimer::start(CoordinatorStage::InboundIntentComplete);
+            inbound_delivery::complete_intent(&self.pool, &prepared).await?;
+        }
+        active_intent.complete()?;
+        // The index transaction durably coalesces this Redis projection; bounded
+        // inbound maintenance flushes and acknowledges the newest generation.
         Ok(accepted_id)
     }
 
     async fn mailbox_exists(&self, address: &str) -> io::Result<bool> {
+        let address = normalize_mailbox(address).map_err(|_| {
+            io::Error::new(io::ErrorKind::InvalidInput, "invalid recipient mailbox")
+        })?;
         let client = timeout(DATABASE_TIMEOUT, self.pool.get())
             .await
             .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "database pool timeout"))?
@@ -703,7 +1002,7 @@ impl SmtpService {
             DATABASE_TIMEOUT,
             client.query_one(
                 "SELECT EXISTS(SELECT 1 FROM mailbox WHERE address=$1)",
-                &[&address.to_ascii_lowercase()],
+                &[&address],
             ),
         )
         .await
@@ -712,20 +1011,92 @@ impl SmtpService {
         Ok(row.get(0))
     }
 
-    async fn remove_published(&self, path: &Path) -> io::Result<()> {
-        let permit = self
-            .blocking_permits
-            .clone()
-            .acquire_owned()
+    async fn recover_inbound_batch(&self) -> io::Result<usize> {
+        let active_ids = self.active_inbound_intents.active_ids()?;
+        let intents = inbound_delivery::load_unowned_intent_batch(
+            &self.pool,
+            inbound_delivery::RECOVERY_BATCH_SIZE,
+            &active_ids,
+        )
+        .await?;
+        let recovered = intents.len();
+        for intent in intents {
+            if self.active_inbound_intents.is_active(&intent.intent_id)? {
+                continue;
+            }
+            let Some(intent) = inbound_delivery::load_intent(&self.pool, &intent.intent_id).await?
+            else {
+                continue;
+            };
+            let permit = self
+                .blocking_permits
+                .clone()
+                .acquire_owned()
+                .await
+                .map_err(|_| io::Error::other("SMTP blocking pool closed"))?;
+            let maildir = self.config.maildir.clone();
+            let intent = spawn_blocking(move || {
+                let _permit = permit;
+                let mut intent = intent;
+                intent.bind_paths(&maildir)?;
+                inbound_delivery::publish_file(&intent)?;
+                Ok::<_, io::Error>(intent)
+            })
             .await
-            .map_err(|_| io::Error::other("SMTP blocking pool closed"))?;
-        let path = path.to_owned();
-        spawn_blocking(move || {
-            let _permit = permit;
-            remove_published_file(&path)
-        })
-        .await
-        .map_err(|error| io::Error::other(error.to_string()))?
+            .map_err(|error| io::Error::other(error.to_string()))??;
+            inbound_delivery::commit_index_and_compact(&self.pool, &intent).await?;
+            let verify_permit = self
+                .blocking_permits
+                .clone()
+                .acquire_owned()
+                .await
+                .map_err(|_| io::Error::other("SMTP blocking pool closed"))?;
+            let intent_for_verify = intent.clone();
+            spawn_blocking(move || {
+                let _permit = verify_permit;
+                inbound_delivery::verify_published_file(&intent_for_verify)
+            })
+            .await
+            .map_err(|error| io::Error::other(error.to_string()))??;
+            inbound_delivery::complete_intent(&self.pool, &intent).await?;
+        }
+        for mailbox in self.active_inbound_intents.blocked_mailboxes()? {
+            let active_ids = self.active_inbound_intents.active_ids()?;
+            if !inbound_delivery::has_unowned_pending_for(&self.pool, &mailbox, &active_ids).await?
+            {
+                self.active_inbound_intents
+                    .clear_blocked_mailbox(&mailbox)?;
+            }
+        }
+        Ok(recovered)
+    }
+
+    async fn recover_inbound_startup(&self, cancellation: &CancellationToken) -> io::Result<bool> {
+        let count = inbound_delivery::pending_intent_count(&self.pool).await?;
+        if count < 0 || count as usize > inbound_delivery::MAX_STARTUP_RECOVERY_INTENTS {
+            return Err(io::Error::other(format!(
+                "SMTP inbound recovery backlog {count} exceeds the startup bound {}",
+                inbound_delivery::MAX_STARTUP_RECOVERY_INTENTS
+            )));
+        }
+        let mut recovered = 0_usize;
+        loop {
+            let batch = tokio::select! {
+                biased;
+                () = cancellation.cancelled() => return Ok(false),
+                batch = self.recover_inbound_batch() => batch?,
+            };
+            if batch == 0 {
+                break;
+            }
+            recovered = recovered.saturating_add(batch);
+            if recovered > inbound_delivery::MAX_STARTUP_RECOVERY_INTENTS {
+                return Err(io::Error::other(
+                    "SMTP inbound recovery exceeded its startup work bound",
+                ));
+            }
+        }
+        Ok(true)
     }
 }
 
@@ -868,6 +1239,59 @@ async fn persist_cringe_activity(
     }
 }
 
+async fn run_inbound_maintenance(service: Arc<SmtpService>, cancellation: CancellationToken) {
+    let mut cleanup_ticks = 300_u16;
+    let mut audit_cursor = None;
+    loop {
+        tokio::select! {
+            biased;
+            () = cancellation.cancelled() => return,
+            () = sleep(INBOUND_RECOVERY_INTERVAL) => {}
+        }
+        match service.recover_inbound_batch().await {
+            Ok(_) => {}
+            Err(error) => eprintln!("lmyzmail SMTP inbound recovery deferred: {error}"),
+        }
+        match inbound_delivery::flush_projection_batch(
+            &service.pool,
+            &service.redis_pool,
+            inbound_delivery::PROJECTION_BATCH_SIZE,
+        )
+        .await
+        {
+            Ok(_) => {}
+            Err(error) => eprintln!("lmyzmail SMTP mail-count projection deferred: {error}"),
+        }
+        cleanup_ticks = cleanup_ticks.saturating_add(1);
+        if cleanup_ticks >= 300 {
+            match inbound_delivery::audit_projection_batch(
+                &service.pool,
+                audit_cursor.as_ref(),
+                inbound_delivery::AUDIT_BATCH_SIZE,
+            )
+            .await
+            {
+                Ok((_, cursor)) => audit_cursor = cursor,
+                Err(error) => eprintln!("lmyzmail SMTP projection audit deferred: {error}"),
+            }
+            let _staging_guard = service.inbound_staging_gate.write().await;
+            match inbound_delivery::cleanup_untracked_staging(
+                &service.config.maildir,
+                &service.pool,
+                &service.blocking_permits,
+                inbound_delivery::STAGING_ORPHAN_MIN_AGE,
+                inbound_delivery::STAGING_ENTRY_LIMIT,
+            )
+            .await
+            {
+                Ok(_) => {}
+                Err(error) => eprintln!("lmyzmail SMTP staging cleanup deferred: {error}"),
+            }
+            cleanup_ticks = 0;
+        }
+    }
+}
+
 pub async fn serve_smtp(
     config: Arc<RuntimeConfig>,
     database_pool: Pool,
@@ -876,7 +1300,6 @@ pub async fn serve_smtp(
     cringe_service: CringeService,
     cancellation: CancellationToken,
 ) -> io::Result<()> {
-    let listener = TcpListener::bind((config.listen.host.as_str(), config.listen.smtp)).await?;
     let (cringe_sender, cringe_receiver) = mpsc::channel(CRINGE_QUEUE_CAPACITY);
     let cringe_cancellation = CancellationToken::new();
     let service = Arc::new(
@@ -889,10 +1312,42 @@ pub async fn serve_smtp(
         )
         .map_err(io::Error::other)?,
     );
+    let staging_permit = service
+        .blocking_permits
+        .clone()
+        .acquire_owned()
+        .await
+        .map_err(|_| io::Error::other("SMTP blocking pool closed"))?;
+    let maildir = service.config.maildir.clone();
+    spawn_blocking(move || {
+        let _permit = staging_permit;
+        inbound_delivery::initialize_staging(&maildir)
+    })
+    .await
+    .map_err(|error| io::Error::other(error.to_string()))??;
+    if !service.recover_inbound_startup(&cancellation).await? {
+        return Ok(());
+    }
+    let staging_guard = service.inbound_staging_gate.write().await;
+    inbound_delivery::cleanup_untracked_staging(
+        &service.config.maildir,
+        &service.pool,
+        &service.blocking_permits,
+        inbound_delivery::STAGING_ORPHAN_MIN_AGE,
+        inbound_delivery::STAGING_ENTRY_LIMIT,
+    )
+    .await?;
+    drop(staging_guard);
+    let listener = TcpListener::bind((config.listen.host.as_str(), config.listen.smtp)).await?;
     let mut cringe_task = tokio::spawn(run_cringe_persistence(
         cringe_receiver,
         cringe_service,
         cringe_cancellation.clone(),
+    ));
+    let maintenance_cancellation = CancellationToken::new();
+    let mut maintenance_task = tokio::spawn(run_inbound_maintenance(
+        Arc::clone(&service),
+        maintenance_cancellation.clone(),
     ));
     let connections = Arc::new(Semaphore::new(MAX_CONNECTIONS));
     let mut tasks = JoinSet::new();
@@ -920,6 +1375,21 @@ pub async fn serve_smtp(
     }
     tasks.abort_all();
     while tasks.join_next().await.is_some() {}
+    maintenance_cancellation.cancel();
+    if timeout(INBOUND_MAINTENANCE_SHUTDOWN_DEADLINE, &mut maintenance_task)
+        .await
+        .is_err()
+    {
+        maintenance_task.abort();
+        let _ = maintenance_task.await;
+    }
+    if !service
+        .inbound_index_committer
+        .shutdown(Instant::now() + INBOUND_INDEX_SHUTDOWN_DEADLINE)
+        .await
+    {
+        eprintln!("lmyzmail SMTP inbound index worker exceeded its shutdown deadline");
+    }
     if let Some(video) = service.skibidi_video.as_ref()
         && !video.shutdown().await
     {
@@ -1425,6 +1895,7 @@ async fn handle_connection(
     peer: IpAddr,
     service: Arc<SmtpService>,
 ) -> io::Result<()> {
+    configure_connection_socket(&stream)?;
     let connection_cancellation = CancellationToken::new();
     let _cancel_on_drop = CancelOnDrop(connection_cancellation.clone());
     let session_id = random_hex(4).map_err(io::Error::other)?;
@@ -1637,7 +2108,11 @@ async fn handle_connection(
                             .await
                         {
                             Ok(id) => io.write_all(format!("250 2.0.0 Message accepted for delivery, id={id}\r\n").as_bytes()).await?,
-                            Err(_) => io.write_all(b"451 4.3.0 Temporary delivery failure\r\n").await?,
+                            Err(error) => {
+                                eprintln!("lmyzmail SMTP DATA delivery failed: {error}");
+                                io.write_all(b"451 4.3.0 Temporary delivery failure\r\n")
+                                    .await?
+                            }
                         }
                         envelope.reset();
                     }
@@ -1676,7 +2151,11 @@ async fn handle_connection(
                                 .await
                             {
                                 Ok(id) => io.write_all(format!("250 2.0.0 Message accepted for delivery, id={id}\r\n").as_bytes()).await?,
-                                Err(_) => io.write_all(b"451 4.3.0 Temporary delivery failure\r\n").await?,
+                                Err(error) => {
+                                    eprintln!("lmyzmail SMTP BDAT delivery failed: {error}");
+                                    io.write_all(b"451 4.3.0 Temporary delivery failure\r\n")
+                                        .await?
+                                }
                             }
                             envelope.reset();
                         } else {
@@ -1760,6 +2239,10 @@ async fn handle_connection(
     }
 }
 
+fn configure_connection_socket(stream: &TcpStream) -> io::Result<()> {
+    stream.set_nodelay(true)
+}
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 enum ParseError {
     Invalid,
@@ -1831,8 +2314,10 @@ fn parse_recipient(argument: &str) -> Option<String> {
         .strip_prefix('<')
         .and_then(|value| value.strip_suffix('>'))
         .unwrap_or(rest);
-    (value.contains('@') && !value.contains(char::is_whitespace))
-        .then(|| value.to_ascii_lowercase())
+    if !value.contains('@') || value.contains(char::is_whitespace) {
+        return None;
+    }
+    normalize_mailbox(value).ok()
 }
 
 fn parse_bdat(argument: &str) -> Result<(usize, bool), ParseError> {
@@ -2060,15 +2545,9 @@ fn maildir_lock_index(mailbox: &str, folder: &str) -> usize {
     (hasher.finish() as usize) % MAILDIR_SHARD_LOCKS
 }
 
-fn select_inbound_subdirectory(
-    folder_root: &Path,
-    max_files_per_directory: Option<usize>,
-) -> io::Result<Option<i32>> {
-    let Some(max_files) = max_files_per_directory else {
-        return Ok(None);
-    };
+fn inspect_inbound_subdirectory(folder_root: &Path) -> io::Result<(i32, usize)> {
     if !folder_root.exists() {
-        return Ok(Some(1));
+        return Ok((1, 0));
     }
 
     let mut maximum = 0_i32;
@@ -2089,7 +2568,7 @@ fn select_inbound_subdirectory(
         maximum = maximum.max(index);
     }
     if maximum == 0 {
-        return Ok(Some(1));
+        return Ok((1, 0));
     }
 
     let maximum_path = folder_root.join(maximum.to_string());
@@ -2107,71 +2586,156 @@ fn select_inbound_subdirectory(
             file_count = file_count.saturating_add(1);
         }
     }
-    if file_count >= max_files {
-        maximum
-            .checked_add(1)
-            .map(Some)
-            .ok_or_else(|| io::Error::other("Maildir shard index overflow"))
-    } else {
-        Ok(Some(maximum))
-    }
+    Ok((maximum, file_count))
 }
 
-fn atomic_publish(temporary: &Path, final_path: &Path, data: &[u8]) -> io::Result<()> {
-    if temporary.exists() || final_path.exists() {
-        return Err(io::Error::new(
-            io::ErrorKind::AlreadyExists,
-            "maildir path collision",
-        ));
-    }
+#[cfg(test)]
+#[derive(Clone, Debug)]
+struct PublishedInboundOwnership {
+    parent: std::path::PathBuf,
+    file_name: OsString,
+    device: u64,
+    inode: u64,
+}
+
+#[cfg(test)]
+fn atomic_publish(
+    temporary: &Path,
+    final_path: &Path,
+    data: &[u8],
+) -> io::Result<PublishedInboundOwnership> {
+    use rustix::fs::{
+        AtFlags, FileType, Mode, OFlags, RenameFlags, ResolveFlags, fstat, openat2, renameat_with,
+        statat, unlinkat,
+    };
+
     let temporary_parent = temporary
         .parent()
         .ok_or_else(|| io::Error::other("missing temp parent"))?;
     let final_parent = final_path
         .parent()
         .ok_or_else(|| io::Error::other("missing final parent"))?;
-    std::fs::create_dir_all(temporary_parent)?;
-    std::fs::create_dir_all(final_parent)?;
-    let mut published = false;
-    let result = (|| {
-        let mut file = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(temporary)?;
-        use std::io::Write;
+    let temporary_name = temporary
+        .file_name()
+        .ok_or_else(|| io::Error::other("missing temp filename"))?;
+    let final_name = final_path
+        .file_name()
+        .ok_or_else(|| io::Error::other("missing final filename"))?;
+    let temporary_directory = open_maildir_directory(temporary_parent)?;
+    let final_directory = open_maildir_directory(final_parent)?;
+    let descriptor = openat2(
+        &temporary_directory,
+        temporary_name,
+        OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::RUSR | Mode::WUSR,
+        ResolveFlags::BENEATH | ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
+    )
+    .map_err(io::Error::from)?;
+    let mut file = std::fs::File::from(descriptor);
+    let identity = (|| {
+        use std::io::Write as _;
         file.write_all(data)?;
         file.flush()?;
-        file.sync_all()?;
-        std::fs::rename(temporary, final_path)?;
-        published = true;
-        std::fs::File::open(final_parent)?.sync_all()
+        sync_all(&file)?;
+        fstat(&file).map_err(io::Error::from)
     })();
-    if result.is_err() {
-        let cleanup_path = if published { final_path } else { temporary };
-        let _ = std::fs::remove_file(cleanup_path);
-        let _ = std::fs::File::open(if published {
-            final_parent
-        } else {
-            temporary_parent
-        })
-        .and_then(|directory| directory.sync_all());
-    }
-    result
-}
-
-fn remove_published_file(path: &Path) -> io::Result<()> {
-    let metadata = std::fs::symlink_metadata(path)?;
-    if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
+    let identity = match identity {
+        Ok(identity) => identity,
+        Err(error) => {
+            let _ = unlinkat(&temporary_directory, temporary_name, AtFlags::empty());
+            let _ = fsync(&temporary_directory);
+            return Err(error);
+        }
+    };
+    if FileType::from_raw_mode(identity.st_mode) != FileType::RegularFile
+        || identity.st_size < 0
+        || identity.st_size as usize != data.len()
+    {
+        let _ = unlinkat(&temporary_directory, temporary_name, AtFlags::empty());
+        let _ = fsync(&temporary_directory);
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            "published Maildir path is not a regular file",
+            "SMTP temporary is not the expected regular file",
         ));
     }
-    let parent = path
-        .parent()
-        .ok_or_else(|| io::Error::other("published Maildir path has no parent"))?;
-    std::fs::remove_file(path)?;
-    std::fs::File::open(parent)?.sync_all()
+    let mut published = false;
+    let result = (|| {
+        renameat_with(
+            &temporary_directory,
+            temporary_name,
+            &final_directory,
+            final_name,
+            RenameFlags::NOREPLACE,
+        )
+        .map_err(io::Error::from)?;
+        published = true;
+        fsync(&final_directory).map_err(io::Error::from)?;
+        fsync(&temporary_directory).map_err(io::Error::from)
+    })();
+    if let Err(error) = result {
+        let (directory, name) = if published {
+            (&final_directory, final_name)
+        } else {
+            (&temporary_directory, temporary_name)
+        };
+        let owned = statat(directory, name, AtFlags::SYMLINK_NOFOLLOW).is_ok_and(|stat| {
+            FileType::from_raw_mode(stat.st_mode) == FileType::RegularFile
+                && stat.st_dev == identity.st_dev
+                && stat.st_ino == identity.st_ino
+        });
+        if owned {
+            let _ = unlinkat(directory, name, AtFlags::empty());
+            let _ = fsync(directory);
+        }
+        return Err(error);
+    }
+    Ok(PublishedInboundOwnership {
+        parent: final_parent.to_path_buf(),
+        file_name: final_name.to_os_string(),
+        device: identity.st_dev,
+        inode: identity.st_ino,
+    })
+}
+
+fn open_maildir_directory(path: &Path) -> io::Result<std::os::fd::OwnedFd> {
+    use rustix::fs::{CWD, FileType, Mode, OFlags, ResolveFlags, fstat, openat2};
+
+    let directory = openat2(
+        CWD,
+        path,
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+        ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
+    )
+    .map_err(io::Error::from)?;
+    let stat = fstat(&directory).map_err(io::Error::from)?;
+    if FileType::from_raw_mode(stat.st_mode) != FileType::Directory {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "SMTP Maildir parent is not a directory",
+        ));
+    }
+    Ok(directory)
+}
+
+#[cfg(test)]
+fn remove_published_file(published: &PublishedInboundOwnership) -> io::Result<()> {
+    use rustix::fs::{AtFlags, FileType, statat, unlinkat};
+
+    let parent = open_maildir_directory(&published.parent)?;
+    let stat = statat(&parent, &published.file_name, AtFlags::SYMLINK_NOFOLLOW)
+        .map_err(io::Error::from)?;
+    if FileType::from_raw_mode(stat.st_mode) != FileType::RegularFile
+        || stat.st_dev != published.device
+        || stat.st_ino != published.inode
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "published Maildir path no longer references the owned inode",
+        ));
+    }
+    unlinkat(&parent, &published.file_name, AtFlags::empty()).map_err(io::Error::from)?;
+    fsync(&parent).map_err(io::Error::from)
 }
 
 #[cfg(test)]
@@ -2179,6 +2743,151 @@ mod tests {
     use sha2::{Digest as _, Sha256};
 
     use super::*;
+
+    fn smtp_test_directory(label: &str) -> std::path::PathBuf {
+        let mut nonce = [0_u8; 16];
+        fill_random(&mut nonce).unwrap();
+        let path = std::env::temp_dir().join(format!(
+            "lmyzmail-smtp-{label}-{}",
+            nonce
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>()
+        ));
+        std::fs::create_dir(&path).unwrap();
+        path
+    }
+
+    #[tokio::test]
+    async fn accepted_connection_enables_tcp_nodelay_before_smtp_io() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let (client, accepted) = tokio::join!(TcpStream::connect(address), listener.accept());
+        let _client = client.unwrap();
+        let (server, _) = accepted.unwrap();
+        server.set_nodelay(false).unwrap();
+        assert!(!server.nodelay().unwrap());
+
+        configure_connection_socket(&server).unwrap();
+
+        assert!(server.nodelay().unwrap());
+    }
+
+    #[test]
+    fn inbound_shard_allocator_reserves_without_overfilling_a_shard() {
+        let root = smtp_test_directory("shard-reservation");
+        std::fs::create_dir(root.join("1")).unwrap();
+        std::fs::write(root.join("1/one.eml"), b"one").unwrap();
+        std::fs::write(root.join("1/two.eml"), b"two").unwrap();
+        let allocator = InboundShardAllocator::default();
+        let allocator = Arc::new(allocator);
+        for expected in [2, 2, 3] {
+            let mut reservation = allocator
+                .reserve(&root, "qa@example.test", "inbox", 2)
+                .unwrap();
+            assert_eq!(reservation.subdirectory(), expected);
+            reservation.mark_durable();
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn inbound_shard_allocator_rolls_back_only_nondurable_reservations() {
+        let root = smtp_test_directory("shard-rollback");
+        let allocator = Arc::new(InboundShardAllocator::default());
+        let reservation = allocator
+            .reserve(&root, "qa@example.test", "inbox", 1)
+            .unwrap();
+        assert_eq!(reservation.subdirectory(), 1);
+        drop(reservation);
+
+        let mut durable = allocator
+            .reserve(&root, "qa@example.test", "inbox", 1)
+            .unwrap();
+        assert_eq!(durable.subdirectory(), 1);
+        durable.mark_durable();
+        drop(durable);
+        let next = allocator
+            .reserve(&root, "qa@example.test", "inbox", 1)
+            .unwrap();
+        assert_eq!(next.subdirectory(), 2);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn inbound_shard_allocator_cache_has_a_hard_bound() {
+        let root = smtp_test_directory("shard-cache-bound");
+        let allocator = Arc::new(InboundShardAllocator::default());
+        for value in 0..MAX_INBOUND_SHARD_CACHE_ENTRIES {
+            allocator
+                .reserve(&root, &format!("mailbox-{value}@example.test"), "inbox", 10)
+                .unwrap();
+        }
+        allocator
+            .reserve(&root, "overflow@example.test", "inbox", 10)
+            .unwrap();
+        let lengths = allocator
+            .shards
+            .iter()
+            .map(|shard| shard.lock().unwrap().len())
+            .collect::<Vec<_>>();
+        assert!(
+            lengths
+                .iter()
+                .all(|length| *length <= MAX_INBOUND_SHARD_CACHE_ENTRIES_PER_LOCK)
+        );
+        assert!(lengths.iter().sum::<usize>() <= MAX_INBOUND_SHARD_CACHE_ENTRIES);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn inbound_shard_allocator_never_evicts_in_flight_entries() {
+        let root = smtp_test_directory("shard-active-bound");
+        let allocator = Arc::new(InboundShardAllocator::default());
+        let partition = 0;
+        let mut mailboxes = Vec::new();
+        let mut value = 0_u64;
+        while mailboxes.len() <= MAX_INBOUND_SHARD_CACHE_ENTRIES_PER_LOCK {
+            let mailbox = format!("active-{value}@example.test");
+            if maildir_lock_index(&mailbox, "inbox") == partition {
+                mailboxes.push(mailbox);
+            }
+            value = value.saturating_add(1);
+        }
+        let mut active = Vec::new();
+        for mailbox in mailboxes
+            .iter()
+            .take(MAX_INBOUND_SHARD_CACHE_ENTRIES_PER_LOCK)
+        {
+            active.push(allocator.reserve(&root, mailbox, "inbox", 10).unwrap());
+        }
+        let error = allocator
+            .reserve(
+                &root,
+                &mailboxes[MAX_INBOUND_SHARD_CACHE_ENTRIES_PER_LOCK],
+                "inbox",
+                10,
+            )
+            .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::WouldBlock);
+        assert_eq!(allocator.shards[partition].lock().unwrap().len(), 64);
+
+        drop(active.remove(0));
+        let replacement = allocator
+            .reserve(
+                &root,
+                &mailboxes[MAX_INBOUND_SHARD_CACHE_ENTRIES_PER_LOCK],
+                "inbox",
+                10,
+            )
+            .unwrap();
+        let states = allocator.shards[partition].lock().unwrap();
+        assert_eq!(states.len(), 64);
+        assert!(active.iter().all(|guard| states.contains_key(&guard.key)));
+        assert!(states.contains_key(&replacement.key));
+        drop(states);
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn skibidi_help_wire_is_exactly_frozen() {
@@ -2230,6 +2939,67 @@ mod tests {
         assert_eq!(parse_bdat("10 LAST"), Ok((10, true)));
         assert_eq!(parse_bdat("10"), Ok((10, false)));
         assert!(parse_bdat("10 LAST extra").is_err());
+    }
+
+    #[test]
+    fn recipient_parser_canonicalizes_pathish_eai_and_boundary_addresses() {
+        for address in [
+            "foo/bar@example.test".to_owned(),
+            "/absolute/qa@example.test".to_owned(),
+            "../qa@example.test".to_owned(),
+            "foo%bar@example.test".to_owned(),
+            format!("{}@example.test", "邮".repeat(50)),
+            format!("{}@example.test", "a".repeat(242)),
+        ] {
+            assert_eq!(
+                parse_recipient(&format!("TO:<{address}>")),
+                Some(address.to_lowercase())
+            );
+        }
+        assert!(parse_recipient(&format!("TO:<{}@example.test>", "a".repeat(243))).is_none());
+        assert!(parse_recipient("TO:<qa user@example.test>").is_none());
+    }
+
+    #[test]
+    fn inbound_atomic_publish_is_dirfd_bound_and_replacement_safe() {
+        let root = smtp_test_directory("atomic");
+        let temporary_root = secure_mailbox_folder(&root, "qa@example.test", "temp").unwrap();
+        let final_root = secure_mailbox_folder(&root, "qa@example.test", "inbox").unwrap();
+        let temporary =
+            temporary_root.join(".lmyzmail-incoming-00112233445566778899aabbccddeeff.tmp");
+        let final_path = final_root.join("message.eml");
+        let published = atomic_publish(&temporary, &final_path, b"owned message").unwrap();
+        assert_eq!(std::fs::read(&final_path).unwrap(), b"owned message");
+
+        let displaced = root.join("displaced.eml");
+        std::fs::rename(&final_path, &displaced).unwrap();
+        std::fs::write(&final_path, b"replacement").unwrap();
+        assert!(remove_published_file(&published).is_err());
+        assert_eq!(std::fs::read(&final_path).unwrap(), b"replacement");
+        assert_eq!(std::fs::read(&displaced).unwrap(), b"owned message");
+
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn inbound_atomic_publish_rejects_symlink_parent_without_outside_write() {
+        use std::os::unix::fs::symlink;
+
+        let root = smtp_test_directory("atomic-link");
+        let outside = smtp_test_directory("atomic-outside");
+        let temporary_root = root.join("temp");
+        std::fs::create_dir(&temporary_root).unwrap();
+        symlink(&outside, root.join("inbox")).unwrap();
+        let temporary =
+            temporary_root.join(".lmyzmail-incoming-00112233445566778899aabbccddeeff.tmp");
+        let final_path = root.join("inbox/message.eml");
+
+        assert!(atomic_publish(&temporary, &final_path, b"must not escape").is_err());
+        assert_eq!(std::fs::read_dir(&outside).unwrap().count(), 0);
+
+        std::fs::remove_dir_all(root).unwrap();
+        std::fs::remove_dir_all(outside).unwrap();
     }
 
     #[test]
@@ -2448,7 +3218,7 @@ Subject: binary\r\nMessage-ID: <binary@example.test>\r\n\r\n\x00\xff\x80";
         ));
         drop(sender);
 
-        let observed = Arc::new(Mutex::new(Vec::new()));
+        let observed = Arc::new(tokio::sync::Mutex::new(Vec::new()));
         let worker_observed = Arc::clone(&observed);
         run_cringe_persistence_with(receiver, CancellationToken::new(), move |activity, _| {
             let worker_observed = Arc::clone(&worker_observed);

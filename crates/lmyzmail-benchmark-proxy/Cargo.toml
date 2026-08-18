@@ -1,0 +1,22 @@
+[package]
+name = "lmyzmail-benchmark-proxy"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "Auditable transparent SMTP benchmark observer and calibration proxy"
+
+[[bin]]
+name = "lmyzmail-benchmark-proxy"
+path = "src/main.rs"
+
+[dependencies]
+memchr = "2.8.3"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+sha2 = "0.11.0"
+tokio = { version = "1.47.1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+
+[dev-dependencies]
+tempfile = "3.23.0"
+tokio = { version = "1.47.1", features = ["test-util"] }

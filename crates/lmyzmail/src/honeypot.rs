@@ -51,6 +51,7 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     bounded_blocking::{BoundedBlockingPool, SubmitError},
     config::{HoneypotConfig, RuntimeConfig},
+    durability::{fsync, sync_all},
 };
 
 const DATABASE_TIMEOUT: Duration = Duration::from_secs(8);
@@ -885,7 +886,7 @@ fn initialize_journal_directory(
 ) -> io::Result<(std::os::fd::OwnedFd, BTreeMap<String, JournalEntryState>)> {
     use rustix::fs::{
         AtFlags, Dir, FileType, FlockOperation, Mode, OFlags, ResolveFlags, fchmod, flock, fstat,
-        fsync, open, statat, unlinkat,
+        open, statat, unlinkat,
     };
 
     fs::create_dir_all(maildir)?;
@@ -994,7 +995,7 @@ fn open_or_create_journal_directory<Fd: std::os::fd::AsFd>(
     directory_flags: rustix::fs::OFlags,
     resolve: rustix::fs::ResolveFlags,
 ) -> io::Result<std::os::fd::OwnedFd> {
-    use rustix::fs::{FileType, Mode, fchmod, fstat, fsync, mkdirat, openat2};
+    use rustix::fs::{FileType, Mode, fchmod, fstat, mkdirat, openat2};
 
     match mkdirat(&parent, name, Mode::RWXU) {
         Ok(()) | Err(rustix::io::Errno::EXIST) => {}
@@ -1023,8 +1024,7 @@ fn write_journal_record(
     bytes: &[u8],
 ) -> JournalWriteOutcome {
     use rustix::fs::{
-        AtFlags, Mode, OFlags, RenameFlags, ResolveFlags, fchmod, fsync, openat2, renameat_with,
-        unlinkat,
+        AtFlags, Mode, OFlags, RenameFlags, ResolveFlags, fchmod, openat2, renameat_with, unlinkat,
     };
 
     if parse_journal_file_name(file_name).is_none() || !file_name.ends_with(".json") {
@@ -1063,7 +1063,7 @@ fn write_journal_record(
     let mut renamed = false;
     let result: io::Result<()> = (|| {
         file.write_all(bytes)?;
-        file.sync_all()?;
+        sync_all(&file)?;
         drop(file);
         renameat_with(
             directory,
@@ -1138,7 +1138,7 @@ fn read_journal_record(directory: &std::os::fd::OwnedFd, file_name: &str) -> io:
 
 fn remove_journal_record(directory: &std::os::fd::OwnedFd, file_name: &str) -> io::Result<()> {
     use rustix::fs::{
-        AtFlags, FileType, Mode, OFlags, ResolveFlags, fstat, fsync, openat2, statat, unlinkat,
+        AtFlags, FileType, Mode, OFlags, ResolveFlags, fstat, openat2, statat, unlinkat,
     };
 
     if parse_journal_file_name(file_name).is_none() || !file_name.ends_with(".json") {

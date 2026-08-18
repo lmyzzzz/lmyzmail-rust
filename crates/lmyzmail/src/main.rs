@@ -3,7 +3,7 @@ use std::{env, io, path::PathBuf, sync::Arc, time::Duration};
 use lmyzmail::{
     config::{Properties, RuntimeConfig},
     cringe::CringeService,
-    cringe_decay, database, fail2ban, honeypot, htcpcp, http, lifecycle, minecraft,
+    cringe_decay, database, durability, fail2ban, honeypot, htcpcp, http, lifecycle, minecraft,
     outbound::OutboundService,
     outbound_worker::OutboundWorker,
     redis,
@@ -14,13 +14,17 @@ use lmyzmail::{
     xdp_pps,
     xdp_sync::XdpSyncService,
 };
-use tokio::{task::JoinSet, time::timeout};
+use tokio::{
+    task::JoinSet,
+    time::{Instant, timeout},
+};
 use tokio_util::sync::CancellationToken;
 
 const PROCESS_SHUTDOWN_DEADLINE: Duration = Duration::from_secs(35);
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    lmyzmail::dispatch_observer::initialize();
     let cli = Cli::parse(env::args().skip(1))?;
     if cli.help {
         print_help();
@@ -34,12 +38,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut properties = Properties::from_path(&config_path)?;
     properties.overlay(cli.overrides)?;
     let config = Arc::new(RuntimeConfig::from_properties(properties)?);
+    durability::configure_filesystem_fsync(config.storage.fsync_enabled)?;
+    if !config.storage.fsync_enabled {
+        eprintln!(
+            "WARNING: lmyzmail filesystem fsync is disabled; acknowledged mail and queue files may be lost after a process, kernel, or power failure"
+        );
+    }
     if cli.check_config {
         print_config_summary(&config, &config_path);
         return Ok(());
     }
     let database_pool = database::create_pool(&config)?;
     let redis_pool = redis::create_pool(&config)?;
+    redis::verify_pool_ready(&redis_pool).await?;
     let outbound_worker =
         OutboundWorker::from_config(&config, database_pool.clone(), redis_pool.clone())?;
     let reporting_service = Arc::new(ReportingService::new(
@@ -68,6 +79,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let signal_cancellation = cancellation.clone();
     let signal_task = tokio::spawn(lifecycle::wait_for_shutdown(signal_cancellation));
     if !outbound_worker.initialize(&cancellation).await? {
+        let _ = signal_task.await;
+        return Ok(());
+    }
+    if !smtp::initialize_inbound_storage(&database_pool, &cancellation).await? {
         let _ = signal_task.await;
         return Ok(());
     }
@@ -285,6 +300,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     signal_task.abort();
     let _ = signal_task.await;
+    if !outbound_service
+        .shutdown(Instant::now() + PROCESS_SHUTDOWN_DEADLINE)
+        .await
+        && failure.is_none()
+    {
+        failure = Some(io::Error::new(
+            io::ErrorKind::TimedOut,
+            "lmyzmail outbound batch persistence exceeded the shutdown deadline",
+        ));
+    }
     if let Some(task) = xdp_startup_task {
         let _ = task.await;
     }
@@ -371,13 +396,14 @@ fn default_config_path() -> PathBuf {
 
 fn print_config_summary(config: &RuntimeConfig, path: &std::path::Path) {
     println!(
-        "config={} http={} smtp={} htcpcp={} minecraft={} maildir={} api_keys={} xdp={}",
+        "config={} http={} smtp={} htcpcp={} minecraft={} maildir={} fsync={} api_keys={} xdp={}",
         path.display(),
         config.listen.http,
         config.listen.smtp,
         config.listen.htcpcp,
         config.listen.minecraft,
         config.maildir.display(),
+        config.storage.fsync_enabled,
         config.api_keys.len(),
         config.xdp.enabled
     );

@@ -37,3 +37,13 @@
 *.obj
 *.pdb
 *.so
+
+# Local recovery copies and raw profiler/soak captures are not source evidence.
+*.orig
+/evidence/performance/*.data
+/evidence/performance/*.log
+/evidence/performance/*.jsonl
+/evidence/performance/*.txt
+/evidence/performance/smtp-endpoint-throughput-*-smoke-*.json
+/evidence/compatibility/*.jsonl
+/evidence/compatibility/smtp-self-stress-*-formal-*.json

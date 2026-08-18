@@ -9,6 +9,11 @@ use serde::{Deserialize, Serialize, ser::SerializeStruct};
 use sha2::{Digest, Sha256};
 use tokio::time::timeout;
 
+use crate::queue_observer::{
+    Operation as QueueObservedOperation, PublishFailure, Timer as QueueObserverTimer,
+    record_publish_failure,
+};
+
 const KEY_PREFIX: &str = "botmail:mail:queue:";
 const PENDING_KEY: &str = "botmail:mail:queue:pending";
 const PROCESSING_KEY: &str = "botmail:mail:queue:processing";
@@ -27,8 +32,11 @@ const SETTLEMENT_INDEX_KEY: &str = "lmyzmail:mail:queue:settlement-index";
 const CLEANUP_RECEIPT_INDEX_KEY: &str = "lmyzmail:mail:queue:migration:cleanup-index";
 const TASK_TTL_SECONDS: u64 = 7 * 24 * 60 * 60;
 const RECEIPT_TTL_SECONDS: u64 = 300;
-const MAX_RECEIPT_INDEX_ENTRIES: usize = 4_096;
 const MAX_ACTIVE_TASK_REFERENCES: usize = 1_000_000;
+// Five-minute outcome receipts must not throttle a queue that is otherwise
+// within its active-reference bound. Redis scripts still prune expired entries
+// and reject growth at this explicit ceiling.
+const MAX_RECEIPT_INDEX_ENTRIES: usize = MAX_ACTIVE_TASK_REFERENCES;
 const POOL_TIMEOUT: Duration = Duration::from_secs(5);
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
 const MIN_LEASE_MILLIS: u64 = 1_000;
@@ -47,6 +55,7 @@ const MAX_LEASE_TTL_SKEW_MILLIS: u64 = 10;
 const MAX_SETTLEMENT_VALUE_BYTES: usize = 64;
 const MAX_MIGRATION_TOKEN_BYTES: usize = 128;
 const MAX_MIGRATION_REASON_BYTES: usize = 64;
+const MAX_ID_RESERVATION_BLOCK: usize = 4_096;
 const MAX_LEGACY_LIST_RECORD_BYTES: usize = 16 * 1024 * 1024;
 const MAX_LEGACY_QUARANTINE_RECORDS: usize = 4_096;
 const MAX_LEGACY_QUARANTINE_BYTES: usize = 64 * 1024 * 1024;
@@ -62,12 +71,16 @@ local current = '0'
 if sequence_type == 'string' then current = redis.call('GET', KEYS[1]) end
 local floor = ARGV[1]
 local maximum = ARGV[2]
+local count = tonumber(ARGV[3])
+local maximum_start = ARGV[4]
+if not count or count < 1 or count > tonumber(ARGV[5]) then
+  return redis.error_reply('INVALID_RESERVATION_COUNT')
+end
 if (current ~= '0' and not string.match(current, '^[1-9][0-9]*$'))
   or string.len(current) > string.len(maximum)
   or (string.len(current) == string.len(maximum) and current > maximum) then
   return redis.error_reply('INVALID_SEQUENCE')
 end
-if current == maximum then return redis.error_reply('SEQUENCE_EXHAUSTED') end
 local function normalize(value)
   local normalized = string.gsub(value, '^0+', '')
   if normalized == '' then return '0' end
@@ -81,11 +94,21 @@ local function less(left, right)
   end
   return left < right
 end
+if not less(floor, maximum) or less(maximum_start, floor) then
+  return redis.error_reply('SEQUENCE_EXHAUSTED')
+end
+if not less(current, maximum) or less(maximum_start, current) then
+  return redis.error_reply('SEQUENCE_EXHAUSTED')
+end
 if less(current, floor) then
   redis.call('SET', KEYS[1], floor)
 end
-redis.call('INCR', KEYS[1])
-return redis.call('GET', KEYS[1])
+local first = false
+for index = 1, count do
+  redis.call('INCR', KEYS[1])
+  if index == 1 then first = redis.call('GET', KEYS[1]) end
+end
+return {first, redis.call('GET', KEYS[1])}
 "#;
 
 const PUBLISH_SCRIPT: &str = r#"
@@ -204,6 +227,66 @@ end
 return result
 "#;
 
+const ACTIVE_REFERENCE_UPPER_BOUND_SCRIPT: &str = r#"
+local limit = tonumber(ARGV[1])
+local pending_type = redis.call('TYPE', KEYS[1]).ok
+local processing_type = redis.call('TYPE', KEYS[2]).ok
+local retry_type = redis.call('TYPE', KEYS[3]).ok
+if (pending_type ~= 'none' and pending_type ~= 'list')
+  or (processing_type ~= 'none' and processing_type ~= 'set')
+  or (retry_type ~= 'none' and retry_type ~= 'zset') then
+  return redis.error_reply('WRONGTYPE')
+end
+local references = redis.call('LLEN', KEYS[1])
+  + redis.call('SCARD', KEYS[2])
+  + redis.call('ZCARD', KEYS[3])
+return math.min(references, limit)
+"#;
+
+const RENEW_PENDING_TTLS_SCRIPT: &str = r#"
+local pending_type = redis.call('TYPE', KEYS[1]).ok
+if pending_type == 'none' then return {'OK', '0', '0'} end
+if pending_type ~= 'list' then return redis.error_reply('WRONGTYPE') end
+
+local offset = tonumber(ARGV[1])
+local limit = tonumber(ARGV[2])
+local ttl = tonumber(ARGV[3])
+local length = redis.call('LLEN', KEYS[1])
+if length == 0 then return {'OK', '0', '0'} end
+if offset < 0 or offset >= length then offset = 0 end
+local last = math.min(offset + limit - 1, length - 1)
+local ids = redis.call('LRANGE', KEYS[1], offset, last)
+local seen = {}
+local tasks = {}
+
+for _, task_id in ipairs(ids) do
+  if not string.match(task_id, '^[1-9][0-9]*$') or string.len(task_id) > 19 then
+    return {'INVALID', task_id}
+  end
+  if not seen[task_id] then
+    seen[task_id] = true
+    local task_key = ARGV[4] .. task_id
+    local domain_key = ARGV[5] .. task_id
+    local task_type = redis.call('TYPE', task_key).ok
+    local domain_type = redis.call('TYPE', domain_key).ok
+    if task_type == 'none' then return {'MISSING', task_id} end
+    if task_type ~= 'string'
+      or (domain_type ~= 'none' and domain_type ~= 'hash') then
+      return redis.error_reply('WRONGTYPE')
+    end
+    table.insert(tasks, {task_key, domain_key, domain_type})
+  end
+end
+
+for _, task in ipairs(tasks) do
+  redis.call('EXPIRE', task[1], ttl)
+  if task[3] == 'hash' then redis.call('EXPIRE', task[2], ttl) end
+end
+local next_offset = last + 1
+if next_offset >= length then next_offset = 0 end
+return {'OK', tostring(next_offset), tostring(#tasks)}
+"#;
+
 const CLAIM_LEGACY_LIST_RECORD_SCRIPT: &str = r#"
 local token = ARGV[1]
 local done_key = ARGV[3] .. token
@@ -234,23 +317,37 @@ local function receipt_slot_available()
 end
 if done_type == 'string' then
   local done = redis.call('GET', done_key)
-  if done == 'EMPTY' then return {'EMPTY'} end
-  if done == 'ACKED'
+  if done == 'EMPTY' then
+    if redis.call('ZSCORE', KEYS[7], token) == false then
+      return {'INCONSISTENT'}
+    end
+    if redis.call('LINDEX', KEYS[1], 0) == false then
+      if ARGV[8] == 'CREATE' then
+        redis.call('EXPIRE', done_key, ARGV[4])
+        redis.call('ZADD', KEYS[7], now + tonumber(ARGV[4]), token)
+      end
+      return {'EMPTY'}
+    end
+    redis.call('DEL', done_key)
+    redis.call('ZREM', KEYS[7], token)
+    done_type = 'none'
+  elseif done == 'ACKED'
     and redis.call('LPOS', KEYS[2], token) == false
     and redis.call('HEXISTS', KEYS[3], token) == 0 then
     return {'SETTLED'}
+  else
+    local bytes, digest = string.match(done, '^QUARANTINED:([0-9]+):([0-9a-f]+)$')
+    local metadata = redis.call('HGET', KEYS[5], token)
+    if bytes and digest
+      and redis.call('LPOS', KEYS[2], token) == false
+      and redis.call('HEXISTS', KEYS[3], token) == 0
+      and metadata
+      and string.sub(metadata, 1, string.len(bytes) + string.len(digest) + 1)
+        == bytes .. ':' .. digest then
+      return {'QUARANTINED', bytes, digest}
+    end
+    return {'INCONSISTENT'}
   end
-  local bytes, digest = string.match(done, '^QUARANTINED:([0-9]+):([0-9a-f]+)$')
-  local metadata = redis.call('HGET', KEYS[5], token)
-  if bytes and digest
-    and redis.call('LPOS', KEYS[2], token) == false
-    and redis.call('HEXISTS', KEYS[3], token) == 0
-    and metadata
-    and string.sub(metadata, 1, string.len(bytes) + string.len(digest) + 1)
-      == bytes .. ':' .. digest then
-    return {'QUARANTINED', bytes, digest}
-  end
-  return {'INCONSISTENT'}
 end
 if done_type ~= 'none' then return {'INCONSISTENT'} end
 
@@ -266,6 +363,10 @@ if redis.call('HLEN', KEYS[3]) ~= 0 then return {'INCONSISTENT'} end
 
 local payload = redis.call('LINDEX', KEYS[1], 0)
 if not payload then
+  if ARGV[8] ~= 'CREATE' then
+    redis.call('ZREMRANGEBYSCORE', KEYS[7], '-inf', now)
+    return {'EMPTY'}
+  end
   if not receipt_slot_available() then return {'RECEIPT_FULL'} end
   redis.call('ZREMRANGEBYSCORE', KEYS[7], '-inf', now)
   redis.call('ZREM', KEYS[7], token)
@@ -558,8 +659,10 @@ return 1
 
 const COMPLETE_TASK_SCRIPT: &str = r#"
 local task_id = ARGV[1]
-local sent_file = ARGV[2]
-local ttl = tonumber(ARGV[3])
+local expected_task_json = ARGV[2]
+local sent_file = ARGV[3]
+local ttl = tonumber(ARGV[4])
+local domain_count = tonumber(ARGV[5])
 local task_type = redis.call('TYPE', KEYS[1]).ok
 local domain_type = redis.call('TYPE', KEYS[2]).ok
 local sent_index_type = redis.call('TYPE', KEYS[3]).ok
@@ -574,15 +677,32 @@ if (task_type ~= 'none' and task_type ~= 'string')
   or (retry_type ~= 'none' and retry_type ~= 'zset') then
   return redis.error_reply('WRONGTYPE')
 end
-if task_type == 'none' or domain_type == 'none' then return 0 end
-if sent_file ~= '' and redis.call('HGET', KEYS[3], sent_file) ~= task_id then return 0 end
+if task_type == 'none' then
+  if domain_type == 'hash' then return 'CONFLICT' end
+  return 'MISSING'
+end
+if domain_type == 'none' then return 'MISSING' end
+if redis.call('GET', KEYS[1]) ~= expected_task_json then return 'CONFLICT' end
+if redis.call('HLEN', KEYS[2]) ~= domain_count then return 'CONFLICT' end
+local offset = 6
+for index = 1, domain_count do
+  if redis.call('HGET', KEYS[2], ARGV[offset]) ~= ARGV[offset + 1] then
+    return 'CONFLICT'
+  end
+  offset = offset + 2
+end
+if sent_file ~= '' then
+  local indexed = redis.call('HGET', KEYS[3], sent_file)
+  if not indexed then return 'MISSING' end
+  if indexed ~= task_id then return 'CONFLICT' end
+end
 local referenced = redis.call('LPOS', KEYS[4], task_id) ~= false
   or redis.call('SISMEMBER', KEYS[5], task_id) == 1
   or redis.call('ZSCORE', KEYS[6], task_id) ~= false
-if not referenced then return 0 end
+if not referenced then return 'MISSING' end
 redis.call('EXPIRE', KEYS[1], ttl)
 redis.call('EXPIRE', KEYS[2], ttl)
-return 1
+return 'EXACT'
 "#;
 
 const CLAIM_SCRIPT: &str = r#"
@@ -1425,6 +1545,7 @@ return 'OK'
 #[derive(Clone)]
 pub struct LegacyOutboundQueue {
     pool: Pool,
+    receipt_index_capacity: usize,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -1434,8 +1555,16 @@ pub enum QueueError {
     StaleClaim,
     MissingDomainStatuses,
     CorruptDomainStatuses,
+    Full,
     Unavailable,
     OutcomeUnknown,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PublicationState {
+    Exact,
+    Missing,
+    Conflict,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1487,9 +1616,30 @@ pub struct ExpiredClaimPage {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PendingTtlRenewalPage {
+    pub next_offset: usize,
+    pub renewed_tasks: usize,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LegacyListKind {
     Archive,
     StatusUpdates,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum EmptyReceiptPolicy {
+    Create,
+    Suppress,
+}
+
+impl EmptyReceiptPolicy {
+    fn redis_argument(self) -> &'static str {
+        match self {
+            Self::Create => "CREATE",
+            Self::Suppress => "SUPPRESS",
+        }
+    }
 }
 
 impl LegacyListKind {
@@ -1541,6 +1691,7 @@ impl fmt::Display for QueueError {
             Self::CorruptDomainStatuses => {
                 formatter.write_str("outbound domain statuses are corrupt")
             }
+            Self::Full => formatter.write_str("Redis outbound queue is full"),
             Self::Unavailable => formatter.write_str("Redis outbound queue unavailable"),
             Self::OutcomeUnknown => formatter.write_str(
                 "Redis outbound queue mutation outcome is unknown and requires reconciliation",
@@ -1625,6 +1776,22 @@ fn permanent_domain_error(error: &str) -> bool {
     .any(|needle| error.contains(needle))
 }
 
+fn classify_publish_failure(code: Option<&str>, detail: Option<&str>) -> PublishFailure {
+    match (code, detail) {
+        (Some("TASK_ID_CONFLICT"), _) | (_, Some("TASK_ID_CONFLICT")) => {
+            PublishFailure::TaskIdConflict
+        }
+        (Some("DOMAIN_STATUS_CONFLICT"), _) | (_, Some("DOMAIN_STATUS_CONFLICT")) => {
+            PublishFailure::DomainStatusConflict
+        }
+        (Some("SENT_FILE_CONFLICT"), _) | (_, Some("SENT_FILE_CONFLICT")) => {
+            PublishFailure::SentFileConflict
+        }
+        (Some("WRONGTYPE"), _) => PublishFailure::WrongType,
+        _ => PublishFailure::Other,
+    }
+}
+
 impl TaskDetail {
     pub(crate) fn validate(&self) -> Result<(), QueueError> {
         if self.id <= 0 {
@@ -1659,7 +1826,19 @@ impl TaskDetail {
 
 impl LegacyOutboundQueue {
     pub fn new(pool: Pool) -> Self {
-        Self { pool }
+        Self {
+            pool,
+            receipt_index_capacity: MAX_RECEIPT_INDEX_ENTRIES,
+        }
+    }
+
+    #[doc(hidden)]
+    pub fn with_receipt_index_capacity_for_tests(pool: Pool, capacity: usize) -> Self {
+        assert!((1..=MAX_RECEIPT_INDEX_ENTRIES).contains(&capacity));
+        Self {
+            pool,
+            receipt_index_capacity: capacity,
+        }
     }
 
     pub async fn claim_legacy_list_record(
@@ -1667,6 +1846,22 @@ impl LegacyOutboundQueue {
         kind: LegacyListKind,
         token: &str,
         max_record_bytes: usize,
+    ) -> Result<LegacyListClaim, QueueError> {
+        self.claim_legacy_list_record_with_policy(
+            kind,
+            token,
+            max_record_bytes,
+            EmptyReceiptPolicy::Create,
+        )
+        .await
+    }
+
+    pub(crate) async fn claim_legacy_list_record_with_policy(
+        &self,
+        kind: LegacyListKind,
+        token: &str,
+        max_record_bytes: usize,
+        empty_receipt_policy: EmptyReceiptPolicy,
     ) -> Result<LegacyListClaim, QueueError> {
         validate_migration_token(token)?;
         if max_record_bytes == 0 || max_record_bytes > MAX_LEGACY_LIST_RECORD_BYTES {
@@ -1703,38 +1898,12 @@ impl LegacyOutboundQueue {
                     .arg(RECEIPT_TTL_SECONDS)
                     .arg(MAX_LEGACY_QUARANTINE_RECORDS)
                     .arg(MAX_LEGACY_QUARANTINE_BYTES)
-                    .arg(MAX_RECEIPT_INDEX_ENTRIES),
+                    .arg(self.receipt_index_capacity)
+                    .arg(empty_receipt_policy.redis_argument()),
                 &mut connection,
             )
             .await?;
-        match values.first().map(String::as_str) {
-            Some("EMPTY") if values.len() == 1 => Ok(LegacyListClaim::Empty),
-            Some("SETTLED") if values.len() == 1 => Ok(LegacyListClaim::Settled),
-            Some("QUARANTINED") if values.len() == 3 => {
-                let bytes = values[1].parse().map_err(|_| QueueError::Unavailable)?;
-                if bytes <= max_record_bytes || !valid_sha1(&values[2]) {
-                    return Err(QueueError::Unavailable);
-                }
-                Ok(LegacyListClaim::Quarantined(LegacyListQuarantine {
-                    bytes,
-                    sha1: values[2].clone(),
-                }))
-            }
-            Some("QUARANTINE_FULL") => Err(QueueError::Unavailable),
-            Some("RECEIPT_FULL") => Err(QueueError::Unavailable),
-            Some("RECORD") if values.len() == 3 => {
-                validate_migration_token(&values[1])?;
-                if values[2].len() > max_record_bytes {
-                    return Err(QueueError::Unavailable);
-                }
-                Ok(LegacyListClaim::Record(LegacyListRecord {
-                    kind,
-                    token: values[1].clone(),
-                    payload: values[2].clone(),
-                }))
-            }
-            _ => Err(QueueError::Unavailable),
-        }
+        decode_legacy_list_claim(values, kind, max_record_bytes)
     }
 
     pub async fn acknowledge_legacy_list_record(
@@ -1759,7 +1928,7 @@ impl LegacyOutboundQueue {
                     .arg(&record.token)
                     .arg(done_prefix)
                     .arg(RECEIPT_TTL_SECONDS)
-                    .arg(MAX_RECEIPT_INDEX_ENTRIES),
+                    .arg(self.receipt_index_capacity),
                 &mut connection,
             )
             .await?;
@@ -1817,7 +1986,7 @@ impl LegacyOutboundQueue {
                     .arg(MAX_LEGACY_LIST_RECORD_BYTES)
                     .arg(MAX_LEGACY_QUARANTINE_RECORDS)
                     .arg(MAX_LEGACY_QUARANTINE_BYTES)
-                    .arg(MAX_RECEIPT_INDEX_ENTRIES),
+                    .arg(self.receipt_index_capacity),
                 &mut connection,
             )
             .await?;
@@ -1863,7 +2032,7 @@ impl LegacyOutboundQueue {
                     .arg(LEASE_PREFIX)
                     .arg(CLEANUP_RECEIPT_PREFIX)
                     .arg(RECEIPT_TTL_SECONDS)
-                    .arg(MAX_RECEIPT_INDEX_ENTRIES),
+                    .arg(self.receipt_index_capacity),
                 &mut connection,
             )
             .await?;
@@ -1879,36 +2048,102 @@ impl LegacyOutboundQueue {
     }
 
     pub async fn reserve_task_id(&self, postgres_id_floor: i64) -> Result<i64, QueueError> {
+        let (first, last) = self.reserve_task_id_block(postgres_id_floor, 1).await?;
+        if first != last {
+            return Err(QueueError::Unavailable);
+        }
+        Ok(first)
+    }
+
+    pub async fn reserve_task_id_block(
+        &self,
+        postgres_id_floor: i64,
+        count: usize,
+    ) -> Result<(i64, i64), QueueError> {
         if postgres_id_floor < 0 {
             return Err(QueueError::InvalidTask("task ID floor cannot be negative"));
         }
-        if postgres_id_floor == i64::MAX {
+        if count == 0 || count > MAX_ID_RESERVATION_BLOCK {
+            return Err(QueueError::InvalidTask(
+                "task ID reservation count is invalid",
+            ));
+        }
+        let count = i64::try_from(count)
+            .map_err(|_| QueueError::InvalidTask("task ID reservation count is invalid"))?;
+        let maximum_start = i64::MAX
+            .checked_sub(count)
+            .ok_or(QueueError::InvalidTask("task ID space is exhausted"))?;
+        if postgres_id_floor > maximum_start {
             return Err(QueueError::InvalidTask("task ID space is exhausted"));
         }
         let mut connection = self.connection().await?;
-        let id: i64 = self
+        let ids: Vec<String> = self
             .mutation_query(
                 redis::cmd("EVAL")
                     .arg(RESERVE_ID_SCRIPT)
                     .arg(1)
                     .arg(SEQUENCE_KEY)
                     .arg(postgres_id_floor)
-                    .arg(i64::MAX),
+                    .arg(i64::MAX)
+                    .arg(count)
+                    .arg(maximum_start)
+                    .arg(MAX_ID_RESERVATION_BLOCK),
                 &mut connection,
             )
             .await?;
-        if id <= postgres_id_floor {
+        if ids.len() != 2 {
             return Err(QueueError::Unavailable);
         }
-        Ok(id)
+        let first = ids[0].parse::<i64>().map_err(|_| QueueError::Unavailable)?;
+        let last = ids[1].parse::<i64>().map_err(|_| QueueError::Unavailable)?;
+        let expected_last = first
+            .checked_add(count - 1)
+            .ok_or(QueueError::Unavailable)?;
+        if first <= postgres_id_floor || last != expected_last {
+            return Err(QueueError::Unavailable);
+        }
+        Ok((first, last))
+    }
+
+    pub async fn active_reference_upper_bound(&self, limit: usize) -> Result<usize, QueueError> {
+        if limit == 0 || limit > MAX_ACTIVE_TASK_REFERENCES {
+            return Err(QueueError::InvalidTask("invalid active queue bound"));
+        }
+        let mut connection = self.connection().await?;
+        let references: i64 = self
+            .query(
+                redis::cmd("EVAL")
+                    .arg(ACTIVE_REFERENCE_UPPER_BOUND_SCRIPT)
+                    .arg(3)
+                    .arg(PENDING_KEY)
+                    .arg(PROCESSING_KEY)
+                    .arg(RETRY_KEY)
+                    .arg(limit),
+                &mut connection,
+            )
+            .await?;
+        usize::try_from(references)
+            .ok()
+            .filter(|references| *references <= limit)
+            .ok_or(QueueError::Unavailable)
     }
 
     pub async fn active_task_ids(&self, limit: usize) -> Result<Vec<String>, QueueError> {
         if limit == 0 {
             return Ok(Vec::new());
         }
-        let mut connection = self.connection().await?;
-        let values: Vec<String> = self
+        let observation = QueueObserverTimer::start(QueueObservedOperation::ActiveTaskIds);
+        let mut connection = match self.connection().await {
+            Ok(connection) => connection,
+            Err(error) => {
+                observation.finish(false);
+                eprintln!(
+                    "lmyzmail outbound active-task scan could not acquire a Redis connection"
+                );
+                return Err(error);
+            }
+        };
+        let values: Vec<String> = match self
             .query(
                 redis::cmd("EVAL")
                     .arg(ACTIVE_IDS_SCRIPT)
@@ -1919,8 +2154,18 @@ impl LegacyOutboundQueue {
                     .arg(limit),
                 &mut connection,
             )
-            .await?;
+            .await
+        {
+            Ok(values) => values,
+            Err(error) => {
+                observation.finish(false);
+                eprintln!("lmyzmail outbound active-task scan Redis command failed");
+                return Err(error);
+            }
+        };
+        observation.finish(true);
         if values.len() > limit {
+            eprintln!("lmyzmail outbound active-task scan exceeded its result bound");
             return Err(QueueError::Unavailable);
         }
         Ok(values)
@@ -1941,16 +2186,10 @@ impl LegacyOutboundQueue {
         domains: &BTreeMap<String, DomainStatus>,
         max_active: usize,
     ) -> Result<bool, QueueError> {
-        task.validate()?;
         if max_active == 0 || max_active > MAX_ACTIVE_TASK_REFERENCES {
             return Err(QueueError::InvalidTask("invalid active queue bound"));
         }
-        if domains.is_empty() || domains.values().any(|status| status.domain.is_empty()) {
-            return Err(QueueError::InvalidTask(
-                "task domain statuses are incomplete",
-            ));
-        }
-        let task_json = serde_json::to_string(task).map_err(|_| QueueError::Unavailable)?;
+        let expectation = publication_expectation(task, domains)?;
         let task_id = task.id.to_string();
         let task_key = format!("{KEY_PREFIX}task:{task_id}");
         let domain_key = format!("{KEY_PREFIX}domains:{task_id}");
@@ -1966,23 +2205,39 @@ impl LegacyOutboundQueue {
             .arg(PROCESSING_TIME_KEY)
             .arg(RETRY_KEY)
             .arg(&task_id)
-            .arg(task_json)
+            .arg(&expectation.task_json)
             .arg(TASK_TTL_SECONDS)
             .arg(task.sent_file_name.as_deref().unwrap_or_default())
-            .arg(domains.len())
+            .arg(expectation.domains.len())
             .arg(max_active);
-        for (domain, status) in domains {
-            if domain != &status.domain {
-                return Err(QueueError::InvalidTask("domain status key mismatch"));
-            }
-            command
-                .arg(domain)
-                .arg(serde_json::to_string(status).map_err(|_| QueueError::Unavailable)?);
+        for (domain, status_json) in &expectation.domains {
+            command.arg(domain).arg(status_json);
         }
-        let mut connection = self.connection().await?;
-        let created: i64 = self.mutation_query(&mut command, &mut connection).await?;
+        let observation = QueueObserverTimer::start(QueueObservedOperation::Publish);
+        let mut connection = match self.connection().await {
+            Ok(connection) => connection,
+            Err(error) => {
+                record_publish_failure(PublishFailure::Connection);
+                observation.finish(false);
+                return Err(error);
+            }
+        };
+        let result: Result<i64, QueueError> =
+            match timeout(COMMAND_TIMEOUT, command.query_async::<i64>(&mut connection)).await {
+                Ok(Ok(created)) => Ok(created),
+                Ok(Err(error)) => {
+                    record_publish_failure(classify_publish_failure(error.code(), error.detail()));
+                    Err(QueueError::OutcomeUnknown)
+                }
+                Err(_) => {
+                    record_publish_failure(PublishFailure::Timeout);
+                    Err(QueueError::OutcomeUnknown)
+                }
+            };
+        observation.finish(result.is_ok());
+        let created: i64 = result?;
         match created {
-            -1 => Err(QueueError::Unavailable),
+            -1 => Err(QueueError::Full),
             0 => Ok(false),
             1 => Ok(true),
             _ => Err(QueueError::Unavailable),
@@ -2011,36 +2266,96 @@ impl LegacyOutboundQueue {
         .await
     }
 
-    pub async fn is_complete_task(
+    pub async fn renew_pending_task_ttls(
         &self,
-        task_id: i64,
-        sent_file_name: &str,
-    ) -> Result<bool, QueueError> {
-        if task_id <= 0 || sent_file_name.is_empty() {
+        offset: usize,
+        limit: usize,
+    ) -> Result<PendingTtlRenewalPage, QueueError> {
+        if offset > MAX_ACTIVE_TASK_REFERENCES || limit == 0 || limit > MAX_ACTIVE_TASK_REFERENCES {
             return Err(QueueError::InvalidTask(
-                "task storage reference is incomplete",
+                "pending TTL renewal page is invalid",
             ));
         }
-        let id = task_id.to_string();
         let mut connection = self.connection().await?;
-        let complete: i64 = self
+        let values: Vec<String> = self
             .mutation_query(
                 redis::cmd("EVAL")
-                    .arg(COMPLETE_TASK_SCRIPT)
-                    .arg(6)
-                    .arg(format!("{KEY_PREFIX}task:{id}"))
-                    .arg(format!("{KEY_PREFIX}domains:{id}"))
-                    .arg(SENT_FILE_INDEX_KEY)
+                    .arg(RENEW_PENDING_TTLS_SCRIPT)
+                    .arg(1)
                     .arg(PENDING_KEY)
-                    .arg(PROCESSING_KEY)
-                    .arg(RETRY_KEY)
-                    .arg(id)
-                    .arg(sent_file_name)
-                    .arg(TASK_TTL_SECONDS),
+                    .arg(offset)
+                    .arg(limit)
+                    .arg(TASK_TTL_SECONDS)
+                    .arg(format!("{KEY_PREFIX}task:"))
+                    .arg(format!("{KEY_PREFIX}domains:")),
                 &mut connection,
             )
             .await?;
-        Ok(complete == 1)
+        match values.as_slice() {
+            [status, next_offset, renewed_tasks] if status == "OK" => {
+                let next_offset = next_offset
+                    .parse::<usize>()
+                    .map_err(|_| QueueError::OutcomeUnknown)?;
+                let renewed_tasks = renewed_tasks
+                    .parse::<usize>()
+                    .map_err(|_| QueueError::OutcomeUnknown)?;
+                if next_offset > MAX_ACTIVE_TASK_REFERENCES || renewed_tasks > limit {
+                    return Err(QueueError::OutcomeUnknown);
+                }
+                Ok(PendingTtlRenewalPage {
+                    next_offset,
+                    renewed_tasks,
+                })
+            }
+            [status, _] if status == "MISSING" => Err(QueueError::InvalidTask(
+                "pending task detail is missing during TTL renewal",
+            )),
+            [status, _] if status == "INVALID" => Err(QueueError::InvalidTask(
+                "pending task ID is invalid during TTL renewal",
+            )),
+            _ => Err(QueueError::OutcomeUnknown),
+        }
+    }
+
+    pub async fn publication_state(
+        &self,
+        task: &TaskDetail,
+        domains: &BTreeMap<String, DomainStatus>,
+    ) -> Result<PublicationState, QueueError> {
+        let expectation = publication_expectation(task, domains)?;
+        let id = task.id.to_string();
+        let sent_file_name = task
+            .sent_file_name
+            .as_deref()
+            .ok_or(QueueError::InvalidTask(
+                "task storage reference is incomplete",
+            ))?;
+        let mut command = redis::cmd("EVAL");
+        command
+            .arg(COMPLETE_TASK_SCRIPT)
+            .arg(6)
+            .arg(format!("{KEY_PREFIX}task:{id}"))
+            .arg(format!("{KEY_PREFIX}domains:{id}"))
+            .arg(SENT_FILE_INDEX_KEY)
+            .arg(PENDING_KEY)
+            .arg(PROCESSING_KEY)
+            .arg(RETRY_KEY)
+            .arg(&id)
+            .arg(&expectation.task_json)
+            .arg(sent_file_name)
+            .arg(TASK_TTL_SECONDS)
+            .arg(expectation.domains.len());
+        for (domain, status_json) in &expectation.domains {
+            command.arg(domain).arg(status_json);
+        }
+        let mut connection = self.connection().await?;
+        let state: String = self.mutation_query(&mut command, &mut connection).await?;
+        match state.as_str() {
+            "EXACT" => Ok(PublicationState::Exact),
+            "MISSING" => Ok(PublicationState::Missing),
+            "CONFLICT" => Ok(PublicationState::Conflict),
+            _ => Err(QueueError::OutcomeUnknown),
+        }
     }
 
     pub async fn claim_next(
@@ -2070,7 +2385,7 @@ impl LegacyOutboundQueue {
                     .arg(ATTEMPT_PREFIX)
                     .arg(SETTLEMENT_PREFIX)
                     .arg(CLAIM_RESULT_PREFIX)
-                    .arg(MAX_RECEIPT_INDEX_ENTRIES)
+                    .arg(self.receipt_index_capacity)
                     .arg(MAX_TASK_ID_BYTES)
                     .arg(MAX_TASK_JSON_BYTES)
                     .arg(i64::MAX),
@@ -2298,6 +2613,41 @@ impl LegacyOutboundQueue {
         Ok(Some(task))
     }
 
+    /// Recovery proof must distinguish a missing key from a present but
+    /// malformed payload. Treat every present invalid value as corruption so
+    /// callers cannot prove absence by failing to decode durable state.
+    pub(crate) async fn read_persisted_task_strict(
+        &self,
+        task_id: i64,
+    ) -> Result<Option<TaskDetail>, QueueError> {
+        if task_id <= 0 {
+            return Err(QueueError::InvalidTask("task ID must be positive"));
+        }
+        let mut connection = self.connection().await?;
+        let task_json: Option<Vec<u8>> = self
+            .query(
+                redis::cmd("GET").arg(format!("{KEY_PREFIX}task:{task_id}")),
+                &mut connection,
+            )
+            .await?;
+        let Some(task_json) = task_json else {
+            return Ok(None);
+        };
+        if task_json.len() > MAX_TASK_JSON_BYTES {
+            return Err(QueueError::InvalidTask(
+                "persisted task payload exceeds its limit",
+            ));
+        }
+        let task = serde_json::from_slice::<TaskDetail>(&task_json)
+            .map_err(|_| QueueError::InvalidTask("persisted task payload is malformed"))?;
+        if !valid_persisted_status_task(&task, task_id) {
+            return Err(QueueError::InvalidTask(
+                "persisted task payload is inconsistent",
+            ));
+        }
+        Ok(Some(task))
+    }
+
     pub async fn read_task_id_by_sent_file_name(
         &self,
         sent_file_name: &str,
@@ -2516,7 +2866,7 @@ impl LegacyOutboundQueue {
                     .arg(RECEIPT_TTL_SECONDS)
                     .arg(format!("{KEY_PREFIX}task:"))
                     .arg(MAX_TASK_JSON_BYTES)
-                    .arg(MAX_RECEIPT_INDEX_ENTRIES),
+                    .arg(self.receipt_index_capacity),
                 &mut connection,
             )
             .await?;
@@ -2569,7 +2919,7 @@ impl LegacyOutboundQueue {
                     .arg(SETTLEMENT_PREFIX)
                     .arg(settlement.receipt)
                     .arg(RECEIPT_TTL_SECONDS)
-                    .arg(MAX_RECEIPT_INDEX_ENTRIES),
+                    .arg(self.receipt_index_capacity),
                 &mut connection,
             )
             .await?;
@@ -2612,7 +2962,7 @@ impl LegacyOutboundQueue {
                             .and_then(|task| task.sent_file_name.as_deref())
                             .unwrap_or_default(),
                     )
-                    .arg(MAX_RECEIPT_INDEX_ENTRIES),
+                    .arg(self.receipt_index_capacity),
                 &mut connection,
             )
             .await?;
@@ -2867,6 +3217,40 @@ impl LegacyOutboundQueue {
     }
 }
 
+fn decode_legacy_list_claim(
+    values: Vec<String>,
+    kind: LegacyListKind,
+    max_record_bytes: usize,
+) -> Result<LegacyListClaim, QueueError> {
+    match values.first().map(String::as_str) {
+        Some("EMPTY") if values.len() == 1 => Ok(LegacyListClaim::Empty),
+        Some("SETTLED") if values.len() == 1 => Ok(LegacyListClaim::Settled),
+        Some("QUARANTINED") if values.len() == 3 => {
+            let bytes = values[1].parse().map_err(|_| QueueError::Unavailable)?;
+            if bytes <= max_record_bytes || !valid_sha1(&values[2]) {
+                return Err(QueueError::Unavailable);
+            }
+            Ok(LegacyListClaim::Quarantined(LegacyListQuarantine {
+                bytes,
+                sha1: values[2].clone(),
+            }))
+        }
+        Some("QUARANTINE_FULL" | "RECEIPT_FULL") => Err(QueueError::Unavailable),
+        Some("RECORD") if values.len() == 3 => {
+            validate_migration_token(&values[1])?;
+            if values[2].len() > max_record_bytes {
+                return Err(QueueError::Unavailable);
+            }
+            Ok(LegacyListClaim::Record(LegacyListRecord {
+                kind,
+                token: values[1].clone(),
+                payload: values[2].clone(),
+            }))
+        }
+        _ => Err(QueueError::Unavailable),
+    }
+}
+
 fn validate_lease(
     lease_token: &str,
     lease_duration: Duration,
@@ -2947,6 +3331,60 @@ struct SettlementExpectation {
     action: &'static str,
     retry_at_epoch_millis: i64,
     task_json: String,
+}
+
+struct PublicationExpectation {
+    task_json: String,
+    domains: Vec<(String, String)>,
+}
+
+fn publication_expectation(
+    task: &TaskDetail,
+    domains: &BTreeMap<String, DomainStatus>,
+) -> Result<PublicationExpectation, QueueError> {
+    task.validate()?;
+    if domains.is_empty() || domains.len() > MAX_DOMAIN_STATUSES {
+        return Err(QueueError::InvalidTask(
+            "task domain statuses are incomplete",
+        ));
+    }
+    let task_json = serde_json::to_string(task).map_err(|_| QueueError::Unavailable)?;
+    if task_json.len() > MAX_TASK_JSON_BYTES {
+        return Err(QueueError::InvalidTask("task JSON exceeds its bound"));
+    }
+    let mut serialized = Vec::with_capacity(domains.len());
+    let mut total_bytes = 0_usize;
+    let mut total_recipients = 0_usize;
+    for (domain, status) in domains {
+        if !valid_domain_status(domain, status) {
+            return Err(QueueError::InvalidTask("invalid task domain status"));
+        }
+        let json = serde_json::to_string(status).map_err(|_| QueueError::Unavailable)?;
+        total_bytes = total_bytes
+            .checked_add(domain.len())
+            .and_then(|value| value.checked_add(json.len()))
+            .ok_or(QueueError::InvalidTask(
+                "task domain statuses exceed their bound",
+            ))?;
+        total_recipients = total_recipients
+            .checked_add(status.recipients.len())
+            .ok_or(QueueError::InvalidTask(
+                "task recipients exceed their bound",
+            ))?;
+        if json.len() > MAX_DOMAIN_STATUS_JSON_BYTES
+            || total_bytes > MAX_DOMAIN_STATUS_ARCHIVE_BYTES
+            || total_recipients > MAX_DOMAIN_RECIPIENTS
+        {
+            return Err(QueueError::InvalidTask(
+                "task domain statuses exceed their bound",
+            ));
+        }
+        serialized.push((domain.clone(), json));
+    }
+    Ok(PublicationExpectation {
+        task_json,
+        domains: serialized,
+    })
 }
 
 fn settlement_value(
@@ -3181,6 +3619,15 @@ fn valid_persisted_status_task(task: &TaskDetail, expected_id: i64) -> bool {
 mod tests {
     use super::*;
 
+    #[test]
+    fn receipt_capacity_preserves_the_bounded_throughput_window() {
+        assert_eq!(MAX_RECEIPT_INDEX_ENTRIES, MAX_ACTIVE_TASK_REFERENCES);
+        assert!(
+            MAX_RECEIPT_INDEX_ENTRIES / RECEIPT_TTL_SECONDS as usize >= 3_000,
+            "the receipt window must not impose a sub-3000 message/s queue ceiling"
+        );
+    }
+
     fn complete_task() -> TaskDetail {
         TaskDetail {
             id: 42,
@@ -3223,6 +3670,52 @@ mod tests {
         assert!(task.validate().is_ok());
         task.sent_file_name = None;
         assert!(task.validate().is_err());
+    }
+
+    #[test]
+    fn publish_failure_codes_are_classified_without_payloads() {
+        assert!(matches!(
+            classify_publish_failure(Some("TASK_ID_CONFLICT"), None),
+            PublishFailure::TaskIdConflict
+        ));
+        assert!(matches!(
+            classify_publish_failure(Some("ERR"), Some("DOMAIN_STATUS_CONFLICT")),
+            PublishFailure::DomainStatusConflict
+        ));
+        assert!(matches!(
+            classify_publish_failure(Some("ERR"), Some("SENT_FILE_CONFLICT")),
+            PublishFailure::SentFileConflict
+        ));
+        assert!(matches!(
+            classify_publish_failure(Some("WRONGTYPE"), Some("wrong kind of value")),
+            PublishFailure::WrongType
+        ));
+        assert!(matches!(
+            classify_publish_failure(None, None),
+            PublishFailure::Other
+        ));
+    }
+
+    #[test]
+    fn legacy_empty_claim_decoder_accepts_only_the_exact_marker() {
+        assert_eq!(
+            decode_legacy_list_claim(
+                vec!["EMPTY".into()],
+                LegacyListKind::Archive,
+                MAX_LEGACY_LIST_RECORD_BYTES,
+            )
+            .unwrap(),
+            LegacyListClaim::Empty
+        );
+        assert_eq!(
+            decode_legacy_list_claim(
+                vec!["EMPTY".into(), "unexpected".into()],
+                LegacyListKind::Archive,
+                MAX_LEGACY_LIST_RECORD_BYTES,
+            )
+            .unwrap_err(),
+            QueueError::Unavailable
+        );
     }
 
     #[test]

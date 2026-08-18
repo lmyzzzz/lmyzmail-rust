@@ -2,7 +2,7 @@ use std::{io, time::Duration};
 
 use deadpool_redis::{
     Config as RedisPoolConfig, ConnectionAddr, ConnectionInfo, CreatePoolError, Pool, PoolConfig,
-    ProtocolVersion, RedisConnectionInfo, Runtime,
+    ProtocolVersion, RedisConnectionInfo, Runtime, redis,
 };
 use tokio::time::timeout;
 
@@ -39,6 +39,26 @@ pub fn create_pool(config: &RuntimeConfig) -> Result<Pool, CreatePoolError> {
     let mut pool_config = RedisPoolConfig::from_connection_info(connection);
     pool_config.pool = Some(pool);
     pool_config.create_pool(Some(Runtime::Tokio1))
+}
+
+pub async fn verify_pool_ready(pool: &Pool) -> io::Result<()> {
+    let mut connection = timeout(POOL_WAIT_TIMEOUT, pool.get())
+        .await
+        .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "Redis pool wait timeout"))?
+        .map_err(|error| io::Error::other(format!("Redis connection unavailable: {error}")))?;
+    let response: String = timeout(
+        COMMAND_TIMEOUT,
+        redis::cmd("PING").query_async(&mut connection),
+    )
+    .await
+    .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "Redis startup PING timeout"))?
+    .map_err(|error| io::Error::other(format!("Redis startup PING failed: {error}")))?;
+    if response != "PONG" {
+        return Err(io::Error::other(
+            "Redis startup PING returned an invalid response",
+        ));
+    }
+    Ok(())
 }
 
 pub async fn increment(pool: &Pool, key: &str) -> io::Result<i64> {

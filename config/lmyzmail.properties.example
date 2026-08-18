@@ -65,9 +65,20 @@ lmyzmail.redis.username=
 lmyzmail.redis.password=
 lmyzmail.redis.tls-enabled=false
 lmyzmail.maildir.base=/var/lib/lmyzmail/data/mail
+# Keep enabled unless the deployment explicitly accepts acknowledged filesystem
+# data loss after a process, kernel, or power failure in exchange for throughput.
+lmyzmail.storage.fsync-enabled=true
 # Large outbound messages remain here until their durable queue result is archived.
 lmyzmail.outbound.spool-dir=/var/lib/lmyzmail/data/mail/.lmyzmail-outbound
 lmyzmail.outbound.max-pending-tasks=10000
+# Successful SMTP sessions are reset with RSET and reused. Every idle pool is
+# bounded globally and again per endpoint; failed or ambiguous sessions close.
+lmyzmail.outbound.pool-enabled=true
+lmyzmail.outbound.max-connections-per-host=5
+lmyzmail.outbound.max-messages-per-connection=100
+lmyzmail.outbound.max-idle-time-ms=60000
+lmyzmail.outbound.connection-life-time-ms=300000
+lmyzmail.outbound.pool-cleanup-interval-ms=30000
 lmyzmail.queue.worker-id=lmyzmail-worker
 lmyzmail.queue.max-concurrent-sends=100
 lmyzmail.queue.batch-size=50

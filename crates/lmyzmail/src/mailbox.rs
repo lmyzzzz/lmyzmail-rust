@@ -1,7 +1,9 @@
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
+    ffi::{OsStr, OsString},
     fmt,
+    future::Future,
     io::{self, Read},
     path::{Path, PathBuf},
     sync::Arc,
@@ -13,10 +15,17 @@ use deadpool_postgres::Pool;
 use getrandom::fill as fill_random;
 use mail_parser::{MessageParser, MimeHeaders, PartType};
 use serde::Serialize;
-use tokio::{task::spawn_blocking, time::timeout};
+use tokio::{
+    task::spawn_blocking,
+    time::{Instant, timeout, timeout_at},
+};
+use tokio_postgres::IsolationLevel;
 use tokio_util::sync::CancellationToken;
 
-use crate::config::RuntimeConfig;
+use crate::{
+    config::RuntimeConfig,
+    durability::{fsync, sync_all},
+};
 
 const DATABASE_TIMEOUT: Duration = Duration::from_secs(8);
 const MAX_HEADER_BYTES: usize = 256 * 1024;
@@ -24,6 +33,29 @@ const MAX_TEXT_BYTES: usize = 2 * 1024 * 1024;
 const MAX_RAW_BYTES: u64 = 64 * 1024 * 1024;
 pub const MAX_API_RAW_BYTES: u64 = 32 * 1024;
 const MAX_FILENAME_BYTES: usize = 255;
+const LEGACY_MAILBOX_OWNERSHIP_PAGE_ROWS: i64 = 256;
+const MAILBOX_PATH_CHUNK_BYTES: usize = 120;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CleanupDeadline {
+    PerOperation(Duration),
+    Overall(Instant),
+}
+
+impl CleanupDeadline {
+    fn operation_deadline(self, now: Instant) -> Instant {
+        match self {
+            Self::PerOperation(duration) => now + duration,
+            Self::Overall(deadline) => deadline,
+        }
+    }
+
+    fn commit_attempt_deadline(self, now: Instant) -> Instant {
+        let operation_deadline = self.operation_deadline(now);
+        let remaining = operation_deadline.saturating_duration_since(now);
+        operation_deadline - remaining.min(Duration::from_secs(1)) / 2
+    }
+}
 
 #[derive(Debug)]
 pub enum MailboxError {
@@ -53,6 +85,26 @@ impl std::error::Error for MailboxError {}
 impl From<io::Error> for MailboxError {
     fn from(error: io::Error) -> Self {
         Self::Io(error)
+    }
+}
+
+async fn cleanup_operation<T, F>(
+    deadline: CleanupDeadline,
+    cancellation: &CancellationToken,
+    future: F,
+    timeout_message: &'static str,
+) -> Result<T, MailboxError>
+where
+    F: Future<Output = T>,
+{
+    tokio::select! {
+        biased;
+        _ = cancellation.cancelled() => {
+            Err(MailboxError::Database("cleanup cancelled".into()))
+        }
+        result = timeout_at(deadline.operation_deadline(Instant::now()), future) => {
+            result.map_err(|_| MailboxError::Database(timeout_message.into()))
+        }
     }
 }
 
@@ -96,6 +148,12 @@ pub struct EmailListPage {
     pub total_pages: i32,
     pub has_next: bool,
     pub has_previous: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct FolderRunCounts {
+    pub(crate) total: i64,
+    pub(crate) matching: i64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -207,10 +265,86 @@ impl MailboxService {
         }
     }
 
+    pub(crate) async fn count_folder_run_marker(
+        &self,
+        mailbox: &str,
+        folder: &str,
+        subject_suffix: &str,
+        cancellation: &CancellationToken,
+    ) -> Result<FolderRunCounts, MailboxError> {
+        validate_folder(folder)?;
+        if subject_suffix.is_empty() || subject_suffix.len() > 64 || !subject_suffix.is_ascii() {
+            return Err(MailboxError::InvalidInput(
+                "invalid stress run marker".into(),
+            ));
+        }
+        let mailbox = normalize_mailbox(mailbox)?;
+        let client = tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => {
+                return Err(MailboxError::Database("query cancelled".into()));
+            }
+            result = timeout(DATABASE_TIMEOUT, self.pool.get()) => result
+                .map_err(|_| MailboxError::Database("pool timeout".into()))?
+                .map_err(|error| MailboxError::Database(error.to_string()))?,
+        };
+        let params: [&(dyn tokio_postgres::types::ToSql + Sync); 3] =
+            [&mailbox, &folder, &subject_suffix];
+        let row = tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => {
+                return Err(MailboxError::Database("query cancelled".into()));
+            }
+            result = timeout(
+                DATABASE_TIMEOUT,
+                client.query_one(
+                    "SELECT count(*), count(*) FILTER (
+                         WHERE right(COALESCE(subject,''), char_length($3))=$3
+                     ) FROM email_index WHERE mailbox_address=$1 AND folder=$2",
+                    &params,
+                ),
+            ) => result
+                .map_err(|_| MailboxError::Database("query timeout".into()))?
+                .map_err(db_error)?,
+        };
+        Ok(FolderRunCounts {
+            total: row.get(0),
+            matching: row.get(1),
+        })
+    }
+
     pub(crate) async fn delete_indexes_for_mailbox(
         &self,
         mailbox: &str,
         cancellation: &CancellationToken,
+    ) -> Result<(), MailboxError> {
+        self.delete_indexes_for_mailbox_with_policy(
+            mailbox,
+            cancellation,
+            CleanupDeadline::PerOperation(DATABASE_TIMEOUT),
+        )
+        .await
+    }
+
+    pub(crate) async fn delete_indexes_for_mailbox_with_deadline(
+        &self,
+        mailbox: &str,
+        cancellation: &CancellationToken,
+        deadline: Instant,
+    ) -> Result<(), MailboxError> {
+        self.delete_indexes_for_mailbox_with_policy(
+            mailbox,
+            cancellation,
+            CleanupDeadline::Overall(deadline),
+        )
+        .await
+    }
+
+    async fn delete_indexes_for_mailbox_with_policy(
+        &self,
+        mailbox: &str,
+        cancellation: &CancellationToken,
+        deadline: CleanupDeadline,
     ) -> Result<(), MailboxError> {
         let mailbox = normalize_mailbox(mailbox)?;
         let mut client = tokio::select! {
@@ -218,29 +352,34 @@ impl MailboxService {
             _ = cancellation.cancelled() => {
                 return Err(MailboxError::Database("cleanup cancelled".into()));
             }
-            result = timeout(DATABASE_TIMEOUT, self.pool.get()) => result
-                .map_err(|_| MailboxError::Database("pool timeout".into()))?
+            result = cleanup_operation(deadline, cancellation, self.pool.get(), "pool timeout") => result?
                 .map_err(|error| MailboxError::Database(error.to_string()))?,
         };
-        let transaction = timeout(DATABASE_TIMEOUT, client.transaction())
-            .await
-            .map_err(|_| MailboxError::Database("transaction timeout".into()))?
-            .map_err(db_error)?;
+        let transaction = cleanup_operation(
+            deadline,
+            cancellation,
+            client.transaction(),
+            "transaction timeout",
+        )
+        .await?
+        .map_err(db_error)?;
         let mailbox_params: [&(dyn tokio_postgres::types::ToSql + Sync); 1] = [&mailbox];
         tokio::select! {
             biased;
             _ = cancellation.cancelled() => {
                 return Err(MailboxError::Database("cleanup cancelled".into()));
             }
-            result = timeout(
-                DATABASE_TIMEOUT,
+            result = cleanup_operation(
+                deadline,
+                cancellation,
                 transaction.query_one(
                     "SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))",
                     &mailbox_params,
                 ),
+                "cleanup lock timeout",
             ) => {
                 result
-                    .map_err(|_| MailboxError::Database("cleanup lock timeout".into()))?
+                    ?
                     .map_err(db_error)?;
             }
         }
@@ -249,22 +388,78 @@ impl MailboxService {
             _ = cancellation.cancelled() => {
                 return Err(MailboxError::Database("cleanup cancelled".into()));
             }
-            result = timeout(
-                DATABASE_TIMEOUT,
+            result = cleanup_operation(
+                deadline,
+                cancellation,
                 transaction.execute(
                     "DELETE FROM email_index WHERE mailbox_address=$1",
                     &mailbox_params,
                 ),
+                "cleanup delete timeout",
             ) => {
                 result
-                    .map_err(|_| MailboxError::Database("cleanup delete timeout".into()))?
+                    ?
                     .map_err(db_error)?;
+                }
+        }
+        for (statement, operation) in [
+            (
+                "DELETE FROM lmyzmail_inbound_mail_count_state WHERE mailbox_address=$1",
+                "cleanup exact-count state timeout",
+            ),
+            (
+                "DELETE FROM lmyzmail_inbound_mail_count_projection WHERE mailbox_address=$1",
+                "cleanup projection state timeout",
+            ),
+        ] {
+            tokio::select! {
+                biased;
+                _ = cancellation.cancelled() => {
+                    return Err(MailboxError::Database("cleanup cancelled".into()));
+                }
+                result = cleanup_operation(
+                    deadline,
+                    cancellation,
+                    transaction.execute(statement, &mailbox_params),
+                    operation,
+                ) => {
+                    result?
+                        .map_err(db_error)?;
+                }
             }
         }
-        timeout(DATABASE_TIMEOUT, transaction.commit())
-            .await
-            .map_err(|_| MailboxError::Database("cleanup commit timeout".into()))?
-            .map_err(db_error)
+        let commit = timeout_at(
+            deadline.commit_attempt_deadline(Instant::now()),
+            transaction.commit(),
+        )
+        .await;
+        if matches!(commit, Ok(Ok(()))) {
+            return Ok(());
+        }
+
+        // The same PostgreSQL connection orders this query after COMMIT even if
+        // its response was lost. Only a confirmed empty index is a successful
+        // cleanup; an unavailable reconciliation leaves the stress gate dirty.
+        let reconciled = timeout_at(
+            deadline.operation_deadline(Instant::now()),
+            client.query_one(
+                "SELECT NOT EXISTS(
+                     SELECT 1 FROM email_index WHERE mailbox_address=$1
+                 )",
+                &mailbox_params,
+            ),
+        )
+        .await
+        .map_err(|_| MailboxError::Database("cleanup commit outcome unknown".into()))?
+        .map_err(db_error)?
+        .get::<_, bool>(0);
+        if reconciled {
+            Ok(())
+        } else {
+            Err(MailboxError::Database(
+                "cleanup commit was not applied".into(),
+            ))
+        }
     }
 
     pub async fn list_folder(
@@ -820,7 +1015,9 @@ impl MailboxService {
         folder: &str,
         file_name: &str,
     ) -> Result<EmailDetail, MailboxError> {
-        let path = self.authorized_path(mailbox, folder, file_name).await?;
+        let path = self
+            .authorized_path(mailbox, folder, file_name, true)
+            .await?;
         let (starred, labels) = self.decorations(mailbox, folder, file_name).await?;
         let max_size = self.max_email_size.clamp(1, MAX_RAW_BYTES);
         let mut detail = spawn_blocking(move || parse_detail(&path, max_size))
@@ -848,7 +1045,9 @@ impl MailboxService {
         file_name: &str,
         requested_max_size: u64,
     ) -> Result<(tokio::fs::File, u64), MailboxError> {
-        let path = self.authorized_path(mailbox, folder, file_name).await?;
+        let path = self
+            .authorized_path(mailbox, folder, file_name, true)
+            .await?;
         let metadata = tokio::fs::metadata(&path)
             .await
             .map_err(|_| MailboxError::NotFound)?;
@@ -872,7 +1071,9 @@ impl MailboxService {
         file_name: &str,
         prefer_html: bool,
     ) -> Result<String, MailboxError> {
-        let path = self.authorized_path(mailbox, folder, file_name).await?;
+        let path = self
+            .authorized_path(mailbox, folder, file_name, true)
+            .await?;
         let max_size = self.max_email_size.clamp(1, MAX_RAW_BYTES);
         spawn_blocking(move || parse_decoded_text(&path, max_size, prefer_html))
             .await
@@ -888,7 +1089,9 @@ impl MailboxService {
         file_name: &str,
         index: i32,
     ) -> Result<AttachmentData, MailboxError> {
-        let path = self.authorized_path(mailbox, folder, file_name).await?;
+        let path = self
+            .authorized_path(mailbox, folder, file_name, true)
+            .await?;
         let index = usize::try_from(index).map_err(|_| MailboxError::NotFound)?;
         let max_email_size = self.max_email_size.clamp(1, MAX_RAW_BYTES);
         let max_attachment_size = self.max_attachment_size.min(max_email_size);
@@ -912,7 +1115,9 @@ impl MailboxService {
         folder: &str,
         file_name: &str,
     ) -> Result<(), MailboxError> {
-        let path = self.authorized_path(mailbox, folder, file_name).await?;
+        let path = self
+            .authorized_path(mailbox, folder, file_name, false)
+            .await?;
         let parent = path.parent().ok_or(MailboxError::NotFound)?.to_owned();
         let tombstone = deletion_tombstone(&parent)?;
         tokio::fs::rename(&path, &tombstone)
@@ -929,7 +1134,7 @@ impl MailboxService {
         let parent_for_sync = parent.clone();
         spawn_blocking(move || {
             let directory = std::fs::File::open(parent_for_sync)?;
-            directory.sync_all()
+            sync_all(&directory)
         })
         .await
         .map_err(|error| MailboxError::Database(format!("directory sync task failed: {error}")))?
@@ -943,7 +1148,9 @@ impl MailboxService {
         folder: &str,
         file_name: &str,
     ) -> Result<String, MailboxError> {
-        let path = self.authorized_path(mailbox, folder, file_name).await?;
+        let path = self
+            .authorized_path(mailbox, folder, file_name, true)
+            .await?;
         spawn_blocking(move || extract_headers(&path))
             .await
             .map_err(|error| MailboxError::Database(format!("header task failed: {error}")))?
@@ -954,11 +1161,12 @@ impl MailboxService {
         mailbox: &str,
         folder: &str,
         file_name: &str,
+        allow_legacy_read: bool,
     ) -> Result<PathBuf, MailboxError> {
         validate_folder(folder)?;
         validate_filename(file_name)?;
         let mailbox = normalize_mailbox(mailbox)?;
-        let client = self.db().await?;
+        let mut client = self.db().await?;
         let row = timeout(
             DATABASE_TIMEOUT,
             client.query_opt(
@@ -975,6 +1183,101 @@ impl MailboxService {
             .base_dir
             .join(sanitize_address_for_path(&mailbox))
             .join(folder);
+        let path = match subdirectory.filter(|value| *value > 0) {
+            Some(value) => base.join(value.to_string()).join(file_name),
+            None => base.join(file_name),
+        };
+        if let (Ok(normalized_base), Ok(normalized_path)) = (
+            tokio::fs::canonicalize(&base).await,
+            tokio::fs::canonicalize(&path).await,
+        ) {
+            if !normalized_path.starts_with(&normalized_base) {
+                return Err(MailboxError::InvalidInput("path traversal detected".into()));
+            }
+            return Ok(normalized_path);
+        }
+        if !allow_legacy_read {
+            return Err(MailboxError::NotFound);
+        }
+
+        // v1 was used by early Rust candidates and is injective, but a single
+        // percent-encoded component can exceed Linux NAME_MAX. Keep it as a
+        // read-only bridge while every new write uses the bounded v2 tree.
+        let v1_base = self
+            .base_dir
+            .join(v1_sanitize_address_for_path(&mailbox))
+            .join(folder);
+        let v1_path = match subdirectory.filter(|value| *value > 0) {
+            Some(value) => v1_base.join(value.to_string()).join(file_name),
+            None => v1_base.join(file_name),
+        };
+        if let (Ok(normalized_base), Ok(normalized_path)) = (
+            tokio::fs::canonicalize(&v1_base).await,
+            tokio::fs::canonicalize(&v1_path).await,
+        ) {
+            if !normalized_path.starts_with(&normalized_base) {
+                return Err(MailboxError::InvalidInput("path traversal detected".into()));
+            }
+            return Ok(normalized_path);
+        }
+
+        // Frozen Java installations mapped several distinct mailbox names to
+        // the same directory.  Read that alias only when the database proves
+        // that no other registered mailbox shares it; all writes use the v1 path.
+        let legacy_component = legacy_sanitize_address_for_path(&mailbox);
+        let proof_deadline = Instant::now() + DATABASE_TIMEOUT;
+        let transaction = timeout_at(
+            proof_deadline,
+            client
+                .build_transaction()
+                .isolation_level(IsolationLevel::RepeatableRead)
+                .read_only(true)
+                .start(),
+        )
+        .await
+        .map_err(|_| MailboxError::Database("legacy ownership snapshot timeout".into()))?
+        .map_err(db_error)?;
+        let mut requested_owner_found = false;
+        let mut after_id = i64::MIN;
+        loop {
+            let owners = timeout_at(
+                proof_deadline,
+                transaction.query(
+                    "SELECT id,address FROM mailbox
+                     WHERE id > $1
+                     ORDER BY id
+                     LIMIT $2",
+                    &[&after_id, &LEGACY_MAILBOX_OWNERSHIP_PAGE_ROWS],
+                ),
+            )
+            .await
+            .map_err(|_| MailboxError::Database("legacy ownership query timeout".into()))?
+            .map_err(db_error)?;
+            if owners.is_empty() {
+                break;
+            }
+            for owner in &owners {
+                after_id = owner.get(0);
+                let raw_owner: String = owner.get(1);
+                observe_legacy_mailbox_owner(
+                    &mailbox,
+                    &legacy_component,
+                    &raw_owner,
+                    &mut requested_owner_found,
+                )?;
+            }
+            if owners.len() < LEGACY_MAILBOX_OWNERSHIP_PAGE_ROWS as usize {
+                break;
+            }
+        }
+        if !requested_owner_found {
+            return Err(MailboxError::NotFound);
+        }
+        timeout_at(proof_deadline, transaction.commit())
+            .await
+            .map_err(|_| MailboxError::Database("legacy ownership snapshot timeout".into()))?
+            .map_err(db_error)?;
+        let base = self.base_dir.join(legacy_component).join(folder);
         let path = match subdirectory.filter(|value| *value > 0) {
             Some(value) => base.join(value.to_string()).join(file_name),
             None => base.join(file_name),
@@ -1049,6 +1352,52 @@ impl MailboxService {
         if deleted == 0 {
             return Err(MailboxError::NotFound);
         }
+        let count: i64 = timeout(
+            DATABASE_TIMEOUT,
+            transaction.query_one(
+                "SELECT COUNT(*) FROM email_index WHERE mailbox_address=$1 AND folder=$2",
+                &[&mailbox, &folder],
+            ),
+        )
+        .await
+        .map_err(|_| MailboxError::Database("mail-count projection query timeout".into()))?
+        .map_err(db_error)?
+        .get(0);
+        timeout(
+            DATABASE_TIMEOUT,
+            transaction.execute(
+                "INSERT INTO lmyzmail_inbound_mail_count_state
+                 (mailbox_address,folder,exact_count,updated_at)
+                 VALUES ($1,$2,$3,CURRENT_TIMESTAMP)
+                 ON CONFLICT (mailbox_address,folder) DO UPDATE SET
+                     exact_count=EXCLUDED.exact_count,
+                     updated_at=CURRENT_TIMESTAMP",
+                &[&mailbox, &folder, &count],
+            ),
+        )
+        .await
+        .map_err(|_| MailboxError::Database("mail-count exact state timeout".into()))?
+        .map_err(db_error)?;
+        timeout(
+            DATABASE_TIMEOUT,
+            transaction.execute(
+                "INSERT INTO lmyzmail_inbound_mail_count_projection
+                 (mailbox_address,folder,generation,desired_count,updated_at)
+                 VALUES ($1,$2,1,$3,CURRENT_TIMESTAMP)
+                 ON CONFLICT (mailbox_address,folder) DO UPDATE SET
+                     generation=CASE
+                         WHEN lmyzmail_inbound_mail_count_projection.generation=9223372036854775807
+                         THEN 1
+                         ELSE lmyzmail_inbound_mail_count_projection.generation+1
+                     END,
+                     desired_count=EXCLUDED.desired_count,
+                     updated_at=CURRENT_TIMESTAMP",
+                &[&mailbox, &folder, &count],
+            ),
+        )
+        .await
+        .map_err(|_| MailboxError::Database("mail-count projection update timeout".into()))?
+        .map_err(db_error)?;
         timeout(
             DATABASE_TIMEOUT,
             transaction.execute(
@@ -1084,8 +1433,8 @@ fn parse_to_addresses(value: Option<String>) -> Vec<String> {
         .unwrap_or_default()
 }
 
-fn normalize_mailbox(value: &str) -> Result<String, MailboxError> {
-    let value = value.trim().to_ascii_lowercase();
+pub(crate) fn normalize_mailbox(value: &str) -> Result<String, MailboxError> {
+    let value = value.trim().to_lowercase();
     if value.is_empty()
         || value.len() > 255
         || value.bytes().any(|byte| byte < 0x20 || byte == 0x7f)
@@ -1153,9 +1502,207 @@ fn deletion_tombstone(parent: &Path) -> Result<PathBuf, MailboxError> {
     Ok(parent.join(format!(".lmyzmail-delete-{suffix}.tmp")))
 }
 
-fn sanitize_address_for_path(address: &str) -> String {
+pub(crate) fn sanitize_address_for_path(address: &str) -> PathBuf {
+    let normalized = address.trim().to_lowercase();
+    let mut output = PathBuf::from("v2");
+    for chunk in normalized.as_bytes().chunks(MAILBOX_PATH_CHUNK_BYTES) {
+        let mut component = String::with_capacity(2 + chunk.len() * 2);
+        component.push_str("c-");
+        for byte in chunk {
+            use std::fmt::Write as _;
+            let _ = write!(component, "{byte:02X}");
+        }
+        output.push(component);
+    }
+    output.push(format!("z-{:08X}", normalized.len()));
+    output
+}
+
+pub(crate) fn secure_mailbox_folder(
+    base: &Path,
+    address: &str,
+    folder: &str,
+) -> io::Result<PathBuf> {
+    let mut folder_components = Path::new(folder).components();
+    if !matches!(
+        folder_components.next(),
+        Some(std::path::Component::Normal(_))
+    ) || folder_components.next().is_some()
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "mailbox folder is not a single path component",
+        ));
+    }
+    let relative = sanitize_address_for_path(address);
+    let mut relative_components = relative.components();
+    if !matches!(
+        relative_components.next(),
+        Some(std::path::Component::Normal(_))
+    ) || relative_components
+        .any(|component| !matches!(component, std::path::Component::Normal(_)))
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "mailbox address path is not safely relative",
+        ));
+    }
+
+    let mut path = secure_create_directory_tree(base)?;
+    let mut directory = open_secure_directory(&path)?;
+    for component in relative
+        .components()
+        .chain(std::iter::once(std::path::Component::Normal(OsStr::new(
+            folder,
+        ))))
+    {
+        let std::path::Component::Normal(name) = component else {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "mailbox path contains a non-normal component",
+            ));
+        };
+        directory = ensure_secure_child_directory(&directory, name)?;
+        path.push(name);
+    }
+    Ok(path)
+}
+
+pub(crate) fn secure_directory_child(parent: &Path, name: &str) -> io::Result<PathBuf> {
+    let directory = open_secure_directory(parent)?;
+    let _child = ensure_secure_child_directory(&directory, OsStr::new(name))?;
+    Ok(parent.join(name))
+}
+
+pub(crate) fn secure_directory_root(path: &Path) -> io::Result<PathBuf> {
+    secure_create_directory_tree(path)
+}
+
+fn secure_create_directory_tree(path: &Path) -> io::Result<PathBuf> {
+    let mut existing = path.to_path_buf();
+    let mut missing = Vec::<OsString>::new();
+    loop {
+        match std::fs::symlink_metadata(&existing) {
+            Ok(metadata) => {
+                if !metadata.is_dir() || metadata.file_type().is_symlink() {
+                    return Err(io::Error::new(
+                        io::ErrorKind::PermissionDenied,
+                        "mailbox path ancestor is not a real directory",
+                    ));
+                }
+                break;
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                let name = existing.file_name().ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "mailbox directory has no creatable component",
+                    )
+                })?;
+                missing.push(name.to_os_string());
+                existing = existing
+                    .parent()
+                    .filter(|parent| !parent.as_os_str().is_empty())
+                    .unwrap_or_else(|| Path::new("."))
+                    .to_path_buf();
+            }
+            Err(error) => return Err(error),
+        }
+    }
+
+    let mut directory = open_secure_directory(&existing)?;
+    let mut canonical = std::fs::canonicalize(&existing)?;
+    for name in missing.iter().rev() {
+        directory = ensure_secure_child_directory(&directory, name)?;
+        canonical.push(name);
+    }
+    Ok(canonical)
+}
+
+fn open_secure_directory(path: &Path) -> io::Result<std::os::fd::OwnedFd> {
+    use rustix::fs::{CWD, FileType, Mode, OFlags, ResolveFlags, fstat, openat2};
+
+    let directory = openat2(
+        CWD,
+        path,
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+        ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
+    )
+    .map_err(io::Error::from)?;
+    let stat = fstat(&directory).map_err(io::Error::from)?;
+    if FileType::from_raw_mode(stat.st_mode) != FileType::Directory {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "mailbox path is not a directory",
+        ));
+    }
+    Ok(directory)
+}
+
+fn ensure_secure_child_directory(
+    parent: &std::os::fd::OwnedFd,
+    name: &OsStr,
+) -> io::Result<std::os::fd::OwnedFd> {
+    use rustix::fs::{FileType, Mode, OFlags, ResolveFlags, fstat, mkdirat, openat2};
+
+    let mut components = Path::new(name).components();
+    if !matches!(components.next(), Some(std::path::Component::Normal(_)))
+        || components.next().is_some()
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "invalid mailbox directory component",
+        ));
+    }
+    let created = match mkdirat(parent, name, Mode::RWXU) {
+        Ok(()) => true,
+        Err(error) if error == rustix::io::Errno::EXIST => false,
+        Err(error) => return Err(io::Error::from(error)),
+    };
+    let directory = openat2(
+        parent,
+        name,
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+        ResolveFlags::BENEATH | ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
+    )
+    .map_err(io::Error::from)?;
+    let parent_stat = fstat(parent).map_err(io::Error::from)?;
+    let stat = fstat(&directory).map_err(io::Error::from)?;
+    if FileType::from_raw_mode(stat.st_mode) != FileType::Directory
+        || stat.st_uid != parent_stat.st_uid
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "mailbox child is not an owned directory",
+        ));
+    }
+    if created {
+        fsync(&directory).map_err(io::Error::from)?;
+        fsync(parent).map_err(io::Error::from)?;
+    }
+    Ok(directory)
+}
+
+pub(crate) fn v1_sanitize_address_for_path(address: &str) -> String {
+    let normalized = address.trim().to_lowercase();
+    let mut output = String::with_capacity(3 + normalized.len());
+    output.push_str("v1-");
+    for byte in normalized.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'@' | b'.' | b'_' | b'-' | b'+') {
+            output.push(char::from(byte));
+        } else {
+            use std::fmt::Write as _;
+            let _ = write!(output, "%{byte:02X}");
+        }
+    }
+    output
+}
+
+pub(crate) fn legacy_sanitize_address_for_path(address: &str) -> String {
     let mut output = String::with_capacity(address.len());
-    for ch in address.trim().to_ascii_lowercase().chars() {
+    for ch in address.trim().to_lowercase().chars() {
         if ch.is_control() {
             continue;
         }
@@ -1169,6 +1716,66 @@ fn sanitize_address_for_path(address: &str) -> String {
         "unknown".into()
     } else {
         output.replace("..", "__")
+    }
+}
+
+fn observe_legacy_mailbox_owner(
+    requested_mailbox: &str,
+    requested_component: &str,
+    raw_owner: &str,
+    requested_owner_found: &mut bool,
+) -> Result<(), MailboxError> {
+    if legacy_sanitize_address_for_path(raw_owner) != requested_component {
+        return Ok(());
+    }
+    let owner = normalize_mailbox(raw_owner).map_err(|_| MailboxError::NotFound)?;
+    if owner != requested_mailbox {
+        return Err(MailboxError::NotFound);
+    }
+    *requested_owner_found = true;
+    Ok(())
+}
+
+#[cfg(test)]
+fn decode_address_path(path: &Path) -> Option<String> {
+    let components = path
+        .components()
+        .map(|component| match component {
+            std::path::Component::Normal(value) => value.to_str(),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    if components.first().copied() != Some("v2") || components.len() < 2 {
+        return None;
+    }
+    let length = usize::from_str_radix(components.last()?.strip_prefix("z-")?, 16).ok()?;
+    let mut bytes = Vec::with_capacity(length);
+    for component in &components[1..components.len() - 1] {
+        let encoded = component.strip_prefix("c-")?.as_bytes();
+        if encoded.is_empty()
+            || encoded.len() > MAILBOX_PATH_CHUNK_BYTES * 2
+            || encoded.len() % 2 != 0
+        {
+            return None;
+        }
+        for pair in encoded.chunks_exact(2) {
+            bytes.push(hex_value(pair[0])? << 4 | hex_value(pair[1])?);
+        }
+    }
+    if bytes.len() != length {
+        return None;
+    }
+    let decoded = String::from_utf8(bytes).ok()?;
+    (sanitize_address_for_path(&decoded) == path).then_some(decoded)
+}
+
+#[cfg(test)]
+fn hex_value(value: u8) -> Option<u8> {
+    match value {
+        b'0'..=b'9' => Some(value - b'0'),
+        b'a'..=b'f' => Some(value - b'a' + 10),
+        b'A'..=b'F' => Some(value - b'A' + 10),
+        _ => None,
     }
 }
 
@@ -1456,6 +2063,68 @@ mod tests {
     use super::*;
 
     #[test]
+    fn cleanup_deadlines_shrink_only_for_the_explicit_overall_policy() {
+        let started = Instant::now();
+        let later = started + Duration::from_secs(3);
+        let ordinary = CleanupDeadline::PerOperation(DATABASE_TIMEOUT);
+        let overall_deadline = started + Duration::from_secs(5);
+        let overall = CleanupDeadline::Overall(overall_deadline);
+
+        assert_eq!(
+            ordinary
+                .operation_deadline(started)
+                .saturating_duration_since(started),
+            DATABASE_TIMEOUT
+        );
+        assert_eq!(
+            ordinary
+                .operation_deadline(later)
+                .saturating_duration_since(later),
+            DATABASE_TIMEOUT
+        );
+        assert_eq!(overall.operation_deadline(started), overall_deadline);
+        assert_eq!(overall.operation_deadline(later), overall_deadline);
+        assert_eq!(
+            overall_deadline.saturating_duration_since(later),
+            Duration::from_secs(2)
+        );
+    }
+
+    #[tokio::test]
+    async fn cleanup_operation_propagates_the_stage_timeout_message() {
+        let error = cleanup_operation(
+            CleanupDeadline::Overall(Instant::now()),
+            &CancellationToken::new(),
+            std::future::pending::<()>(),
+            "cleanup delete timeout",
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(
+            error,
+            MailboxError::Database(message) if message == "cleanup delete timeout"
+        ));
+    }
+
+    #[tokio::test]
+    async fn cleanup_operation_observes_cancellation_before_a_stalled_stage() {
+        let cancellation = CancellationToken::new();
+        cancellation.cancel();
+        let error = cleanup_operation(
+            CleanupDeadline::PerOperation(DATABASE_TIMEOUT),
+            &cancellation,
+            std::future::pending::<()>(),
+            "transaction timeout",
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(
+            error,
+            MailboxError::Database(message) if message == "cleanup cancelled"
+        ));
+    }
+
+    #[test]
     fn file_validation_rejects_traversal_and_non_eml_names() {
         assert!(validate_filename("safe.eml").is_ok());
         assert!(validate_filename("../safe.eml").is_err());
@@ -1475,12 +2144,194 @@ mod tests {
     }
 
     #[test]
-    fn address_sanitization_is_lowercase_and_not_a_path() {
+    fn address_path_encoding_is_injective_reversible_and_not_a_path() {
         assert_eq!(
-            sanitize_address_for_path("QA/../EXAMPLE.TEST"),
-            "qa____example.test"
+            decode_address_path(&sanitize_address_for_path("QA/../EXAMPLE.TEST")),
+            Some("qa/../example.test".into())
         );
-        assert_eq!(sanitize_address_for_path(""), "unknown");
+        assert_eq!(
+            decode_address_path(&sanitize_address_for_path("")),
+            Some(String::new())
+        );
+        assert_ne!(
+            sanitize_address_for_path("foo/./bar@example.test"),
+            sanitize_address_for_path("foo//bar@example.test")
+        );
+        assert_ne!(
+            sanitize_address_for_path("foo/bar@example.test"),
+            sanitize_address_for_path("foo_bar@example.test")
+        );
+        assert_ne!(
+            sanitize_address_for_path("foo%bar@example.test"),
+            sanitize_address_for_path("foo/bar@example.test")
+        );
+        assert_eq!(
+            decode_address_path(&sanitize_address_for_path("foo%bar@example.test")),
+            Some("foo%bar@example.test".into())
+        );
+        assert!(
+            sanitize_address_for_path("/tmp/mail@example.test")
+                .components()
+                .all(|component| matches!(component, std::path::Component::Normal(_)))
+        );
+        assert_eq!(
+            sanitize_address_for_path("\u{0130}USER@example.test"),
+            sanitize_address_for_path("i\u{307}user@example.test")
+        );
+        assert_eq!(
+            normalize_mailbox("\u{0130}USER@example.test").unwrap(),
+            "i\u{307}user@example.test"
+        );
+        for address in [
+            "foo/bar@example.test",
+            "foo_bar@example.test",
+            "foo%bar@example.test",
+            "\u{90ae}\u{4ef6}@example.test",
+        ] {
+            let normalized = address.trim().to_lowercase();
+            assert_eq!(
+                decode_address_path(&sanitize_address_for_path(address)),
+                Some(normalized)
+            );
+        }
+        assert_eq!(
+            legacy_sanitize_address_for_path("foo/bar@example.test"),
+            legacy_sanitize_address_for_path("foo_bar@example.test")
+        );
+    }
+
+    #[test]
+    fn v2_address_paths_bound_components_and_round_trip_chunk_boundaries() {
+        for length in [0, 1, 119, 120, 121, 239, 240, 241, 255] {
+            let address = "a".repeat(length);
+            let path = sanitize_address_for_path(&address);
+            assert_eq!(decode_address_path(&path), Some(address), "length={length}");
+            assert!(path.components().all(|component| match component {
+                std::path::Component::Normal(value) => value.as_encoded_bytes().len() <= 255,
+                _ => false,
+            }));
+            assert!(path.as_os_str().as_encoded_bytes().len() < 4_096);
+        }
+
+        let unicode = "邮".repeat(50);
+        let path = sanitize_address_for_path(&unicode);
+        assert_eq!(decode_address_path(&path), Some(unicode));
+        assert!(path.components().all(|component| match component {
+            std::path::Component::Normal(value) => value.as_encoded_bytes().len() <= 255,
+            _ => false,
+        }));
+    }
+
+    #[test]
+    fn secure_mailbox_folder_creates_all_address_classes_beneath_root() {
+        let mut nonce = [0_u8; 16];
+        fill_random(&mut nonce).unwrap();
+        let root = std::env::temp_dir().join(format!(
+            "lmyzmail-mailbox-v2-{}",
+            nonce
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>()
+        ));
+        std::fs::create_dir(&root).unwrap();
+        let addresses = [
+            "foo/bar@example.test".to_owned(),
+            "/absolute/qa@example.test".to_owned(),
+            "../qa@example.test".to_owned(),
+            "foo%bar@example.test".to_owned(),
+            format!("{}@example.test", "邮".repeat(50)),
+            format!("{}@example.test", "a".repeat(242)),
+        ];
+        let canonical_root = std::fs::canonicalize(&root).unwrap();
+        for address in addresses {
+            let normalized = normalize_mailbox(&address).unwrap();
+            let first = secure_mailbox_folder(&root, &normalized, "inbox").unwrap();
+            let second = secure_mailbox_folder(&root, &normalized, "inbox").unwrap();
+            assert_eq!(first, second);
+            assert!(first.starts_with(&canonical_root));
+            assert!(first.ends_with(sanitize_address_for_path(&normalized).join("inbox")));
+            assert!(first.is_dir());
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn secure_mailbox_folder_rejects_intermediate_symlink_without_outside_writes() {
+        use std::os::unix::fs::symlink;
+
+        let mut nonce = [0_u8; 16];
+        fill_random(&mut nonce).unwrap();
+        let suffix = nonce
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        let root = std::env::temp_dir().join(format!("lmyzmail-mailbox-link-{suffix}"));
+        let outside = std::env::temp_dir().join(format!("lmyzmail-mailbox-outside-{suffix}"));
+        std::fs::create_dir(&root).unwrap();
+        std::fs::create_dir(&outside).unwrap();
+        symlink(&outside, root.join("v2")).unwrap();
+
+        assert!(secure_mailbox_folder(&root, "qa@example.test", "inbox").is_err());
+        assert_eq!(std::fs::read_dir(&outside).unwrap().count(), 0);
+
+        std::fs::remove_file(root.join("v2")).unwrap();
+        std::fs::remove_dir_all(root).unwrap();
+        std::fs::remove_dir_all(outside).unwrap();
+    }
+
+    #[test]
+    fn invalid_legacy_owner_that_maps_to_requested_component_fails_closed() {
+        let requested = "owner@example.test";
+        let component = legacy_sanitize_address_for_path(requested);
+        let mut found = false;
+        assert!(
+            observe_legacy_mailbox_owner(
+                requested,
+                &component,
+                "own\u{0000}er@example.test",
+                &mut found,
+            )
+            .is_err()
+        );
+        assert!(!found);
+    }
+
+    #[test]
+    fn legacy_ownership_proof_has_no_total_mailbox_limit_and_detects_late_collisions() {
+        let requested = "owner-5000@example.test";
+        let component = legacy_sanitize_address_for_path(requested);
+        let mut found = false;
+        for index in 0..6_000 {
+            let owner = if index == 5_000 {
+                requested.to_owned()
+            } else {
+                format!("owner-{index}@other.test")
+            };
+            observe_legacy_mailbox_owner(requested, &component, &owner, &mut found).unwrap();
+        }
+        assert!(found);
+
+        let requested = "foo/bar@example.test";
+        let component = legacy_sanitize_address_for_path(requested);
+        let mut found = false;
+        observe_legacy_mailbox_owner(requested, &component, requested, &mut found).unwrap();
+        for index in 0..5_000 {
+            observe_legacy_mailbox_owner(
+                requested,
+                &component,
+                &format!("unrelated-{index}@example.test"),
+                &mut found,
+            )
+            .unwrap();
+        }
+        assert!(observe_legacy_mailbox_owner(
+            requested,
+            &component,
+            "foo_bar@example.test",
+            &mut found,
+        )
+        .is_err());
     }
 
     #[test]

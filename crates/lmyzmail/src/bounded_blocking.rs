@@ -3,6 +3,7 @@ use std::{
     panic::{AssertUnwindSafe, catch_unwind},
     sync::{
         Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver, SyncSender, TrySendError},
     },
     thread::{self, JoinHandle},
@@ -32,6 +33,7 @@ impl fmt::Display for SubmitError {
 pub(crate) struct BoundedBlockingPool {
     sender: Mutex<Option<SyncSender<Job>>>,
     workers: Mutex<Vec<JoinHandle<()>>>,
+    strict_shutdown_started: AtomicBool,
 }
 
 impl BoundedBlockingPool {
@@ -66,6 +68,7 @@ impl BoundedBlockingPool {
         Ok(Self {
             sender: Mutex::new(Some(sender)),
             workers: Mutex::new(workers),
+            strict_shutdown_started: AtomicBool::new(false),
         })
     }
 
@@ -93,12 +96,7 @@ impl BoundedBlockingPool {
     }
 
     pub(crate) async fn shutdown(&self, deadline: Duration) -> bool {
-        let sender = self
-            .sender
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .take();
-        drop(sender);
+        self.close_admission();
 
         let deadline = Instant::now() + deadline;
         loop {
@@ -126,6 +124,53 @@ impl BoundedBlockingPool {
                 .unwrap_or_else(std::sync::PoisonError::into_inner),
         )
     }
+
+    /// Closes admission and waits up to `deadline` for every worker OS thread
+    /// to exit. Unfinished handles remain owned by the pool so a later call can
+    /// retry without detaching workers that still own stress-test resources.
+    pub(crate) async fn shutdown_strict(&self, deadline: Duration) -> bool {
+        self.strict_shutdown_started.store(true, Ordering::Release);
+        self.close_admission();
+
+        let deadline = Instant::now() + deadline;
+        loop {
+            {
+                let mut workers = self
+                    .workers
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                join_finished(workers.as_mut());
+                if workers.is_empty() {
+                    return true;
+                }
+            }
+            if Instant::now() >= deadline {
+                break;
+            }
+            sleep(
+                deadline
+                    .saturating_duration_since(Instant::now())
+                    .min(SHUTDOWN_POLL_INTERVAL),
+            )
+            .await;
+        }
+
+        let mut workers = self
+            .workers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        join_finished(workers.as_mut());
+        workers.is_empty()
+    }
+
+    fn close_admission(&self) {
+        let sender = self
+            .sender
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take();
+        drop(sender);
+    }
 }
 
 impl Drop for BoundedBlockingPool {
@@ -140,6 +185,13 @@ impl Drop for BoundedBlockingPool {
             .workers
             .get_mut()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
+        join_finished(workers);
+        if self.strict_shutdown_started.load(Ordering::Acquire) && !workers.is_empty() {
+            eprintln!(
+                "lmyzmail strict blocking pool dropped with live workers; aborting to preserve ownership invariants"
+            );
+            std::process::abort();
+        }
         join_finished_and_detach_rest(workers);
     }
 }
@@ -155,6 +207,18 @@ fn join_finished_and_detach_rest(workers: &mut Vec<JoinHandle<()>>) -> bool {
         }
     }
     joined_all
+}
+
+fn join_finished(workers: &mut Vec<JoinHandle<()>>) {
+    let mut index = 0;
+    while index < workers.len() {
+        if workers[index].is_finished() {
+            let worker = workers.swap_remove(index);
+            let _ = worker.join();
+        } else {
+            index += 1;
+        }
+    }
 }
 
 fn worker_loop(receiver: &Mutex<Receiver<Job>>) {
@@ -243,6 +307,43 @@ mod tests {
                 .expect("detached worker must remain memory-safe")
                 .unwrap(),
             42
+        );
+    }
+
+    #[tokio::test]
+    async fn strict_shutdown_retains_a_stalled_worker_for_a_later_retry() {
+        let pool = Arc::new(BoundedBlockingPool::new("lmyzmail-test-strict", 1, 1).unwrap());
+        let (started_sender, started_receiver) = mpsc::channel();
+        let (release_sender, release_receiver) = mpsc::channel();
+        let result = pool
+            .submit(move || {
+                started_sender.send(()).unwrap();
+                release_receiver.recv().unwrap();
+                42_u8
+            })
+            .unwrap();
+        started_receiver
+            .recv_timeout(std::time::Duration::from_secs(1))
+            .unwrap();
+
+        assert!(!pool.shutdown_strict(Duration::from_millis(10)).await);
+        assert_eq!(pool.submit(|| ()).unwrap_err(), SubmitError::Closed);
+        assert_eq!(
+            pool.workers
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .len(),
+            1
+        );
+
+        release_sender.send(()).unwrap();
+        assert_eq!(result.await.unwrap(), 42);
+        assert!(pool.shutdown_strict(Duration::from_secs(1)).await);
+        assert!(
+            pool.workers
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_empty()
         );
     }
 }
