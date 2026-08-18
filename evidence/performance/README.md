@@ -1345,3 +1345,37 @@ the dominant part of that stage rather than PostgreSQL execution. The root
 cleanup receipt SHA-256 is
 `8470cc1c481389f1c90172707e001720458a5971dde5e4476683ab829199d1cb` and
 records `request=ABORT`, `cleanup=passed`, and `lazy_unmount=0`.
+
+V95 tested a bounded mailbox-sharded inbound `IndexCommitter` at experiment
+commit `b2501fcd`. Up to eight workers were selected from the PostgreSQL pool;
+the fixed total channel budget remained 256 and a stable mailbox hash kept
+same-mailbox ordering and count-lock semantics on one shard. The complete
+inbound-delivery unit module passed 18/18 tests, including an advisory-lock
+test proving that a blocked mailbox did not block a different shard. Clippy
+passed with warnings denied. The SMTP DATA candidate differential passed; the
+MIME and command candidate suites were independently blocked before candidate
+startup by pre-existing suite-manifest drift and their goldens were not
+changed.
+
+The profiler delivered 2,048/2,048 with zero failure, retry, exception, OOM,
+or loss at 110.44 messages/second. Its four segments were 87.387, 116.195,
+145.712, and 149.436 messages/second, so it failed the unchanged 30% stability
+gate at a 47.383% range. More importantly, its final segment was 0.0325% below
+v94's 149.485 messages/second while average `inbound_index_commit` increased
+17.66% from 47.497 ms to 55.887 ms. The hypothesis therefore produced no
+repeatable end-to-end benefit and was reverted by `17a7be7c`.
+
+The rejected ELF was reproduced twice at SHA-256
+`290608beee4257877e894223745a03c45e53cda8065fd8ab4c9d741c69a2cc1e` and
+Build ID `2b40e8ef03fdfecfbfbebd83e2bdda950899a677`. The derived diagnostic is
+`smtp-rust-mailbox-sharded-profiler-v95-diagnostic.json` with SHA-256
+`6cc0b9ccf5c29a7d80b847f31cab8d89e8071f497d44c68c9489e116105743af`;
+the raw console is
+`smtp-rust-mailbox-sharded-profiler-v95-console.log` with SHA-256
+`3ab09fdaee669d2cb64d39c1bfc0fd1cd354a5ac42733aa5d7b3919d9347a437`.
+Run `c226f54b-82bd-4131-abd9-1ca4e8e79c00` has a root-owned 0400 cleanup
+receipt at SHA-256
+`51e91dd4a7beb092c5a49d4a4f124ba6a5c2fbe424c4b552807e25075cf070d4`
+with `request=ABORT`, `cleanup=passed`, and `lazy_unmount=0`; the independent
+audit found no remaining process, cgroup, loop image, mount, runner artifact,
+or provisional output.

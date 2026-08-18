@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "rejected_profiler_diagnostic",
+  "qualified": false,
+  "retained": false,
+  "qualification_failure": "within_arm_throughput_stability",
+  "rejection_reason": "no repeatable end-to-end throughput benefit over v94",
+  "run_id": "c226f54b-82bd-4131-abd9-1ca4e8e79c00",
+  "experiment_git_head": "b2501fcd420ab14bf128f3af24d48396ccabe5a9",
+  "reverted_by_git_head": "17a7be7c5be9b0abb3e6a78f30e8e2c1ca051da2",
+  "profile": "rust-profiler",
+  "target": "rust-candidate",
+  "tier": "10KB",
+  "rust_filesystem_fsync": "off",
+  "requested_messages": 2048,
+  "observed_messages": 2048,
+  "queue_counters": {
+    "queued": 2048,
+    "success": 2048,
+    "failed": 0,
+    "exceptions": 0,
+    "oom": 0,
+    "rate_limited": 0,
+    "retry": 0,
+    "lost": 0
+  },
+  "timing": {
+    "queueing_ms": 8481,
+    "delivery_ms": 10062,
+    "total_ms": 18543,
+    "throughput_messages_per_second": 110.44
+  },
+  "stability": {
+    "maximum_relative_range": 0.30,
+    "relative_range": 0.47383,
+    "passed": false,
+    "segments_messages_per_second": [
+      87.386607,
+      116.195054,
+      145.712226,
+      149.436316
+    ],
+    "progress_samples_sha256": "64bc179ab1649e7a94bbe53c2fc55f4a7e4900eb8f603e0baba68e125bfd977f"
+  },
+  "top_stage_average_ns": {
+    "smtp_commit": 118273351,
+    "smtp_final_reply": 113245329,
+    "queue_acknowledge": 71534860,
+    "inbound_index_commit": 55886636,
+    "prepared_checkpoint": 51745930,
+    "result_checkpoint": 48947590,
+    "legacy_projection": 48485722,
+    "begin_attempt": 40904327
+  },
+  "inbound_index_transactions": 375,
+  "inbound_index_stage_average_ns": {
+    "inbound_index_pool": 5894,
+    "inbound_index_begin": 2712896,
+    "inbound_index_intent_lock": 4694118,
+    "inbound_index_intent_read": 7862728,
+    "inbound_index_count_state": 5504068,
+    "inbound_index_mutation": 7741995,
+    "inbound_index_transaction_commit": 7881816
+  },
+  "maildir": {
+    "publications": 4096,
+    "removals": 4096
+  },
+  "resource_io": {
+    "application_process_write_bytes": 142663680,
+    "application_process_write_syscalls": 80446,
+    "application_write_bytes": 34578432,
+    "application_write_operations": 81,
+    "services_process_write_bytes": 84516864,
+    "services_process_write_syscalls": 60526
+  },
+  "baseline_comparison": {
+    "baseline": "smtp-rust-next-profiler-v94-diagnostic.json",
+    "baseline_last_segment_messages_per_second": 149.484889,
+    "experiment_last_segment_messages_per_second": 149.436316,
+    "last_segment_change_percent": -0.032494,
+    "baseline_inbound_index_commit_average_ns": 47497287,
+    "experiment_inbound_index_commit_average_ns": 55886636,
+    "inbound_index_commit_change_percent": 17.662796
+  },
+  "artifacts": {
+    "candidate_path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "candidate_sha256": "290608beee4257877e894223745a03c45e53cda8065fd8ab4c9d741c69a2cc1e",
+    "candidate_build_id": "2b40e8ef03fdfecfbfbebd83e2bdda950899a677",
+    "candidate_reproduced_twice": true,
+    "console_path": "evidence/performance/smtp-rust-mailbox-sharded-profiler-v95-console.log",
+    "console_sha256": "3ab09fdaee669d2cb64d39c1bfc0fd1cd354a5ac42733aa5d7b3919d9347a437"
+  },
+  "cleanup": {
+    "request": "ABORT",
+    "cleanup": "passed",
+    "lazy_unmount": 0,
+    "qualified_cleanup": 0,
+    "receipt_path": "/var/lib/lmyzmail-benchmark/journal/c226f54b-82bd-4131-abd9-1ca4e8e79c00.done",
+    "receipt_sha256": "51e91dd4a7beb092c5a49d4a4f124ba6a5c2fbe424c4b552807e25075cf070d4",
+    "intent_sha256": "99d9e68cf511f7940e66ed54e928af6ae8e3855186b564ecf826fb1724f771ab",
+    "resource_audit": "candidate, service, cgroup, loop image, mount, provisional output, and runner artifacts absent"
+  }
+}
