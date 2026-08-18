@@ -52,7 +52,6 @@ const INDEX_BATCH_CHANNEL_CAPACITY: usize = MAX_ACTIVE_INBOUND_INTENTS;
 const MAX_INDEX_BATCH_ROWS: usize = 64;
 const INDEX_BATCH_COLLECTION_WINDOW: Duration = Duration::from_millis(2);
 const INDEX_BATCH_RESPONSE_TIMEOUT: Duration = Duration::from_secs(60);
-const INDEX_WORKER_AFFINITY_MIN_POOL_SIZE: usize = 8;
 const COMPLETION_BATCH_CHANNEL_CAPACITY: usize = MAX_ACTIVE_INBOUND_INTENTS;
 const MAX_COMPLETION_BATCH_ROWS: usize = 64;
 const COMPLETION_BATCH_COLLECTION_WINDOW: Duration = Duration::from_millis(2);
@@ -632,8 +631,6 @@ async fn run_index_commit_worker(
     mut receiver: mpsc::Receiver<IndexCommitRequest>,
     shutdown: CancellationToken,
 ) {
-    let retain_connection = pool.status().max_size >= INDEX_WORKER_AFFINITY_MIN_POOL_SIZE;
-    let mut retained_client = None;
     loop {
         let first = tokio::select! {
             biased;
@@ -675,16 +672,11 @@ async fn run_index_commit_worker(
         }
         record_inbound_index_batch(batch.len());
         let _worker_timer = StageTimer::start(CoordinatorStage::InboundIndexBatchWorker);
-        persist_index_batch(&pool, &mut retained_client, retain_connection, batch).await;
+        persist_index_batch(&pool, batch).await;
     }
 }
 
-async fn persist_index_batch(
-    pool: &Pool,
-    retained_client: &mut Option<Object>,
-    retain_connection: bool,
-    batch: Vec<IndexCommitRequest>,
-) {
+async fn persist_index_batch(pool: &Pool, batch: Vec<IndexCommitRequest>) {
     let mut live = Vec::with_capacity(batch.len());
     for request in batch {
         if !request.response.is_closed() {
@@ -698,7 +690,7 @@ async fn persist_index_batch(
         .iter()
         .map(|request| &request.prepared)
         .collect::<Vec<_>>();
-    match commit_index_batch_for_worker(pool, retained_client, retain_connection, &prepared).await {
+    match commit_index_batch(pool, &prepared).await {
         Ok(()) => {
             for request in live {
                 request.respond(Ok(()));
@@ -718,43 +710,6 @@ async fn persist_index_batch(
             }
         }
     }
-}
-
-async fn commit_index_batch_for_worker(
-    pool: &Pool,
-    retained_client: &mut Option<Object>,
-    retain_connection: bool,
-    prepared: &[&PreparedInbound],
-) -> io::Result<()> {
-    validate_index_batch_input(prepared)?;
-    if !retain_connection {
-        return commit_index_batch(pool, prepared).await;
-    }
-    if retained_client
-        .as_ref()
-        .is_none_or(|client| client.is_closed())
-    {
-        let client = {
-            let _timer = StageTimer::start(CoordinatorStage::InboundIndexPool);
-            database_client(pool).await?
-        };
-        *retained_client = Some(client);
-    }
-    let result = commit_index_batch_with_client(
-        pool,
-        retained_client
-            .as_mut()
-            .expect("retained index client was initialized"),
-        prepared,
-    )
-    .await;
-    if retained_client
-        .as_ref()
-        .is_some_and(|client| client.is_closed())
-    {
-        *retained_client = None;
-    }
-    result
 }
 
 struct CompletionRequest {
@@ -2223,23 +2178,28 @@ pub(crate) async fn commit_index_and_compact(
 }
 
 async fn commit_index_batch(pool: &Pool, prepared: &[&PreparedInbound]) -> io::Result<()> {
-    validate_index_batch_input(prepared)?;
+    if prepared.is_empty() || prepared.len() > MAX_INDEX_BATCH_ROWS {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "inbound index batch size is invalid",
+        ));
+    }
+    let mut ordered = prepared.to_vec();
+    ordered.sort_by(|left, right| left.intent_id.cmp(&right.intent_id));
+    if ordered
+        .windows(2)
+        .any(|pair| pair[0].intent_id == pair[1].intent_id)
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            "inbound index batch contains a duplicate intent",
+        ));
+    }
+
     let mut client = {
         let _timer = StageTimer::start(CoordinatorStage::InboundIndexPool);
         database_client(pool).await?
     };
-    commit_index_batch_with_client(pool, &mut client, prepared).await
-}
-
-async fn commit_index_batch_with_client(
-    pool: &Pool,
-    client: &mut Object,
-    prepared: &[&PreparedInbound],
-) -> io::Result<()> {
-    validate_index_batch_input(prepared)?;
-    let mut ordered = prepared.to_vec();
-    ordered.sort_by(|left, right| left.intent_id.cmp(&right.intent_id));
-
     let transaction = {
         let _timer = StageTimer::start(CoordinatorStage::InboundIndexBegin);
         timeout(DATABASE_TIMEOUT, client.transaction())
@@ -2683,27 +2643,6 @@ async fn commit_index_batch_with_client(
                 .await
         }
     }
-}
-
-fn validate_index_batch_input(prepared: &[&PreparedInbound]) -> io::Result<()> {
-    if prepared.is_empty() || prepared.len() > MAX_INDEX_BATCH_ROWS {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "inbound index batch size is invalid",
-        ));
-    }
-    let mut ordered = prepared.to_vec();
-    ordered.sort_by(|left, right| left.intent_id.cmp(&right.intent_id));
-    if ordered
-        .windows(2)
-        .any(|pair| pair[0].intent_id == pair[1].intent_id)
-    {
-        return Err(io::Error::new(
-            io::ErrorKind::AlreadyExists,
-            "inbound index batch contains a duplicate intent",
-        ));
-    }
-    Ok(())
 }
 
 async fn reconcile_index_batch_commit(
@@ -3736,10 +3675,6 @@ INSERT INTO mailbox (address) VALUES ('qa@example.test');
     }
 
     async fn test_database() -> (TestPostgres, Pool) {
-        test_database_with_pool_size(8).await
-    }
-
-    async fn test_database_with_pool_size(pool_size: usize) -> (TestPostgres, Pool) {
         let postgres = TestPostgres::start();
         let mut properties = Properties::default();
         for (key, value) in [
@@ -3748,7 +3683,7 @@ INSERT INTO mailbox (address) VALUES ('qa@example.test');
             ("lmyzmail.postgres.database", "postgres".to_owned()),
             ("lmyzmail.postgres.username", "lmyzmail_test".to_owned()),
             ("lmyzmail.postgres.password", String::new()),
-            ("lmyzmail.postgres.pool.max-size", pool_size.to_string()),
+            ("lmyzmail.postgres.pool.max-size", "8".to_owned()),
         ] {
             properties.insert(key.to_owned(), value).unwrap();
         }
@@ -3762,25 +3697,6 @@ INSERT INTO mailbox (address) VALUES ('qa@example.test');
             .unwrap();
         initialize_schema(&pool).await.unwrap();
         (postgres, pool)
-    }
-
-    fn unavailable_test_pool() -> Pool {
-        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
-        let port = listener.local_addr().unwrap().port();
-        drop(listener);
-        let mut properties = Properties::default();
-        for (key, value) in [
-            ("lmyzmail.postgres.host", "127.0.0.1".to_owned()),
-            ("lmyzmail.postgres.port", port.to_string()),
-            ("lmyzmail.postgres.database", "postgres".to_owned()),
-            ("lmyzmail.postgres.username", "lmyzmail_test".to_owned()),
-            ("lmyzmail.postgres.password", String::new()),
-            ("lmyzmail.postgres.pool.max-size", "1".to_owned()),
-        ] {
-            properties.insert(key.to_owned(), value).unwrap();
-        }
-        let config = RuntimeConfig::from_properties(properties).unwrap();
-        database::create_pool(&config).unwrap()
     }
 
     fn database_prepared(sequence: u64, folder: &str) -> PreparedInbound {
@@ -3811,28 +3727,6 @@ INSERT INTO mailbox (address) VALUES ('qa@example.test');
             },
             state: IntentState::Prepared,
         }
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn index_batch_validation_precedes_unavailable_database() {
-        let pool = unavailable_test_pool();
-        let empty: [&PreparedInbound; 0] = [];
-        let error = timeout(Duration::from_secs(1), commit_index_batch(&pool, &empty))
-            .await
-            .expect("empty batch validation must not wait for the database")
-            .unwrap_err();
-        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
-
-        let prepared = database_prepared(1_900, "inbox");
-        let duplicate = [&prepared, &prepared];
-        let error = timeout(
-            Duration::from_secs(1),
-            commit_index_batch_for_worker(&pool, &mut None, true, &duplicate),
-        )
-        .await
-        .expect("duplicate batch validation must not wait for the database")
-        .unwrap_err();
-        assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
     }
 
     async fn insert_prepared(pool: &Pool, values: &[PreparedInbound]) {
@@ -4470,48 +4364,6 @@ INSERT INTO mailbox (address) VALUES ('qa@example.test');
         assert_eq!(
             committer.submit(&valid).await.unwrap_err().kind(),
             io::ErrorKind::BrokenPipe
-        );
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn index_committer_retains_and_releases_one_headroom_safe_connection() {
-        let (_postgres, pool) = test_database_with_pool_size(8).await;
-        let prepared = database_prepared(2_100, "inbox");
-        insert_intent(&pool, &prepared).await.unwrap();
-        let committer = IndexCommitter::start(pool.clone());
-
-        committer.submit(&prepared).await.unwrap();
-        let active = pool.status();
-        assert_eq!(active.size.saturating_sub(active.available), 1);
-
-        assert!(
-            committer
-                .shutdown(Instant::now() + Duration::from_secs(10))
-                .await
-        );
-        let stopped = pool.status();
-        assert_eq!(stopped.available, stopped.size);
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn index_committer_does_not_retain_the_only_pool_connection() {
-        let (_postgres, pool) = test_database_with_pool_size(1).await;
-        let prepared = database_prepared(2_200, "sent");
-        insert_intent(&pool, &prepared).await.unwrap();
-        let committer = IndexCommitter::start(pool.clone());
-
-        timeout(Duration::from_secs(10), committer.submit(&prepared))
-            .await
-            .expect("single-slot index submission must not deadlock")
-            .unwrap();
-        let active = pool.status();
-        assert_eq!(active.available, active.size);
-        assert_exact_count(&pool, "sent", 1).await;
-
-        assert!(
-            committer
-                .shutdown(Instant::now() + Duration::from_secs(10))
-                .await
         );
     }
 
