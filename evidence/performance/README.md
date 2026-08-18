@@ -1531,3 +1531,37 @@ one root-owned mode-0555 inode. The optimized final spool cleanup is now
 62.21% checkpoint, 35.76% snapshot, and 2.03% other measured work, so the next
 profiler-driven investigation is the pair of PostgreSQL spool reads rather
 than filesystem mutation or disabled durability.
+
+V105 changed only the retained profiler stage selection and ran commit
+`06a42c35` at 2,048 messages in the same Rust 10KB fsync-off isolation
+profile. It delivered 2,048/2,048 messages with zero failure, retry,
+exception, OOM, or loss at 108.39 messages/second. Its final segment reached
+151.450 messages/second, but the four rates of 88.028, 110.988, 147.142, and
+151.450 messages/second had a 49.1389% range, so the unchanged 30% ramp-up
+stability gate rejected the run. It is not formal throughput qualification
+evidence.
+
+The result checkpoint's final-segment average was 43.556 ms. The normal-path
+ledger snapshot averaged 4.409 ms, while `PostgresDeliveryState` mutation
+averaged 39.170 ms, approximately 89.93% of the enclosing checkpoint. The
+substage counts differ slightly, so this ratio is diagnostic rather than an
+additive decomposition. The result falsifies the ledger pre-read as the
+primary bottleneck and makes the PostgreSQL transaction's acquisition, begin,
+timeout, locks, updates, and commit the next profiler target.
+
+The derived v105 diagnostic, console, cleanup receipt, and root intent SHA-256
+values are
+`89ebe811aa574c2bdfeaabc567d82176b896b35745f5268fcbd0c234cd10eab2`,
+`6b4f69f1436e221ae83f200a38b539e56495926b479056ad921a28d1838e63dd`,
+`5977ff03de702a6275b45643bf787e3022b1de9b00185d92e9a7bb0bded7029b`,
+and
+`6af440379c3c2fbdbde4b5b0429a8af44e675bf955ef2daf9076021614a615a9`.
+The profiling ELF SHA-256 is
+`cd13d0ae1b052a34254d28d5690e50608d7dafba973ee0cf38cc4dc0f5ca918f`
+with Build ID `5d65e2d44f8d91847277e9546c63a0c17e35fc88`; its main and deps
+paths are one root-owned mode-0555 inode. Run
+`2180da44-d533-4250-ba1d-5da72c978fd3` recorded `request=ABORT`,
+`cleanup=passed`, `lazy_unmount=0`, and `recovered=0`. The root audit found no
+remaining candidate or service process, per-run cgroup, loop image, mount,
+provisional or final output, runner artifact or journal, supervisor socket,
+or runner gate.

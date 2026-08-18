@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "derived_profiler_diagnostic",
+  "qualified": false,
+  "retained": true,
+  "qualification_failures": [
+    "within_arm_throughput_stability",
+    "post_cleanup_receipt_publication"
+  ],
+  "source_note": "Derived from the complete v105 runner failure output. The root cleanup journal recorded cleanup=passed, but the launcher did not publish a qualified artifact after the unchanged within-arm stability gate failed closed.",
+  "run_id": "2180da44-d533-4250-ba1d-5da72c978fd3",
+  "source_git_head": "06a42c35a4f8022aeb9a8126835fb9b0dd5cc4bc",
+  "profile": "rust-profiler",
+  "target": "rust-candidate",
+  "tier": "10KB",
+  "rust_filesystem_fsync": "off",
+  "requested_messages": 2048,
+  "observed_messages": 2048,
+  "queue_counters": {
+    "exceptions": 0,
+    "failed": 0,
+    "oom": 0,
+    "queued": 2048,
+    "rate_limited": 0,
+    "success": 2048,
+    "retry": 0,
+    "lost": 0
+  },
+  "timing": {
+    "total_ms": 18894,
+    "throughput_messages_per_second": 108.39,
+    "queueing_ms": 8826,
+    "delivery_ms": 10068
+  },
+  "stability": {
+    "maximum_relative_range": 0.3,
+    "relative_range": 0.491389,
+    "passed": false,
+    "segments_messages_per_second": [
+      88.028308,
+      110.987912,
+      147.142424,
+      151.449551
+    ],
+    "progress_samples_sha256": "53c2ce0e3d54471606c24106885f9e01211d9a1d01f1e14e697b93e94352795c"
+  },
+  "stage_average_ns_by_segment": {
+    "smtp_commit": [153984726, 132974314, 103859896, 102992202],
+    "smtp_final_reply": [146069130, 127310960, 99555457, 99080157],
+    "prepared_checkpoint": [68949788, 58674198, 46822004, 44539711],
+    "result_checkpoint": [67220404, 56909495, 46720232, 43555664],
+    "result_checkpoint_snapshot": [7764537, 6123214, 4276658, 4408858],
+    "result_checkpoint_mutation": [59449485, 50728621, 42441883, 39169885],
+    "legacy_projection": [64174696, 58107427, 46492069, 41212226],
+    "queue_acknowledge": [67705054, 53458851, 41829693, 38582995],
+    "queue_ack_spool_cleanup": [24863267, 19353281, 16897237, 16017182],
+    "queue_ack_spool_snapshot": [9439781, 6615681, 6280451, 5745408],
+    "queue_ack_spool_proof_validation": [33427, 31665, 35096, 31562],
+    "queue_ack_spool_sent_compare": [30017, 30160, 30739, 31268],
+    "queue_ack_spool_mutation": [236181, 37204, 32793, 33160],
+    "queue_ack_spool_durability": [141, 147, 146, 147],
+    "queue_ack_spool_proof_cleanup": [1634032, 133874, 84434, 76640],
+    "queue_ack_spool_checkpoint": [12755342, 11973965, 10253592, 9927027]
+  },
+  "last_segment_analysis": {
+    "result_checkpoint_average_ns": 43555664,
+    "snapshot_average_ns": 4408858,
+    "mutation_average_ns": 39169885,
+    "mutation_to_result_checkpoint_ratio": 0.8993063450944061,
+    "note": "Substage counts differ slightly within the segment, so the ratio is diagnostic rather than an additive decomposition.",
+    "conclusion": "The normal-path ledger snapshot is not the dominant result-checkpoint cost. Profile the PostgreSQL mutation path before changing transaction behavior."
+  },
+  "maildir": {
+    "publications": 4096,
+    "removals": 4096
+  },
+  "resource_io": {
+    "application_process_write_bytes": 142667776,
+    "application_process_write_syscalls": 80488,
+    "application_write_bytes": 34541568,
+    "application_write_operations": 76,
+    "services_process_write_bytes": 83697664,
+    "services_process_write_syscalls": 60341
+  },
+  "artifacts": {
+    "candidate_path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "candidate_sha256": "cd13d0ae1b052a34254d28d5690e50608d7dafba973ee0cf38cc4dc0f5ca918f",
+    "candidate_build_id": "5d65e2d44f8d91847277e9546c63a0c17e35fc88",
+    "candidate_size_bytes": 218807560,
+    "candidate_owner_mode": "root:root 0555",
+    "candidate_main_and_deps_hard_link": true,
+    "console_path": "evidence/performance/smtp-rust-result-checkpoint-stages-profiler-v105-console.log",
+    "console_sha256": "6b4f69f1436e221ae83f200a38b539e56495926b479056ad921a28d1838e63dd"
+  },
+  "cleanup": {
+    "request": "ABORT",
+    "cleanup": "passed",
+    "lazy_unmount": 0,
+    "recovered": 0,
+    "qualified_cleanup": 0,
+    "launcher_receipt_published": false,
+    "receipt_source": "/var/lib/lmyzmail-benchmark/journal/2180da44-d533-4250-ba1d-5da72c978fd3.done",
+    "receipt_path": "evidence/performance/smtp-rust-result-checkpoint-stages-profiler-v105.json.root-cleanup",
+    "receipt_sha256": "5977ff03de702a6275b45643bf787e3022b1de9b00185d92e9a7bb0bded7029b",
+    "intent_sha256": "6af440379c3c2fbdbde4b5b0429a8af44e675bf955ef2daf9076021614a615a9",
+    "resource_audit": "candidate, service, per-run cgroup, loop image, mount, provisional output, final output, runner artifacts, runner journal, supervisor socket, and runner gate absent"
+  }
+}
