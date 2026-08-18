@@ -103,11 +103,17 @@ pub(crate) enum CoordinatorStage {
     InboundIndexTransactionCommit,
     InboundPublishVerify,
     InboundIntentComplete,
+    InboundIntentCompletePool,
+    InboundIntentCompleteBegin,
+    InboundIntentCompleteLock,
+    InboundIntentCompleteRead,
+    InboundIntentCompleteDelete,
+    InboundIntentCompleteTransactionCommit,
     InboundProjectionFlush,
 }
 
 impl CoordinatorStage {
-    const ALL: [Self; 88] = [
+    const ALL: [Self; 94] = [
         Self::QueueClaim,
         Self::DatabaseClaim,
         Self::RecipientRoster,
@@ -195,6 +201,12 @@ impl CoordinatorStage {
         Self::InboundIndexTransactionCommit,
         Self::InboundPublishVerify,
         Self::InboundIntentComplete,
+        Self::InboundIntentCompletePool,
+        Self::InboundIntentCompleteBegin,
+        Self::InboundIntentCompleteLock,
+        Self::InboundIntentCompleteRead,
+        Self::InboundIntentCompleteDelete,
+        Self::InboundIntentCompleteTransactionCommit,
         Self::InboundProjectionFlush,
     ];
 
@@ -287,6 +299,14 @@ impl CoordinatorStage {
             Self::InboundIndexTransactionCommit => "inbound_index_transaction_commit",
             Self::InboundPublishVerify => "inbound_publish_verify",
             Self::InboundIntentComplete => "inbound_intent_complete",
+            Self::InboundIntentCompletePool => "inbound_intent_complete_pool",
+            Self::InboundIntentCompleteBegin => "inbound_intent_complete_begin",
+            Self::InboundIntentCompleteLock => "inbound_intent_complete_lock",
+            Self::InboundIntentCompleteRead => "inbound_intent_complete_read",
+            Self::InboundIntentCompleteDelete => "inbound_intent_complete_delete",
+            Self::InboundIntentCompleteTransactionCommit => {
+                "inbound_intent_complete_transaction_commit"
+            }
             Self::InboundProjectionFlush => "inbound_projection_flush",
         }
     }
@@ -638,6 +658,30 @@ mod tests {
                 "inbound_index_batch_collect",
                 "inbound_index_batch_worker",
                 "inbound_index_batch_response_wait",
+            ]
+        );
+    }
+
+    #[test]
+    fn inbound_intent_completion_stage_names_are_stable() {
+        let names = [
+            CoordinatorStage::InboundIntentCompletePool,
+            CoordinatorStage::InboundIntentCompleteBegin,
+            CoordinatorStage::InboundIntentCompleteLock,
+            CoordinatorStage::InboundIntentCompleteRead,
+            CoordinatorStage::InboundIntentCompleteDelete,
+            CoordinatorStage::InboundIntentCompleteTransactionCommit,
+        ]
+        .map(CoordinatorStage::name);
+        assert_eq!(
+            names,
+            [
+                "inbound_intent_complete_pool",
+                "inbound_intent_complete_begin",
+                "inbound_intent_complete_lock",
+                "inbound_intent_complete_read",
+                "inbound_intent_complete_delete",
+                "inbound_intent_complete_transaction_commit",
             ]
         );
     }

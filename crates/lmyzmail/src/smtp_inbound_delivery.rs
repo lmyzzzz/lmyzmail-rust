@@ -1859,34 +1859,46 @@ async fn reconcile_index_batch_commit(
 }
 
 pub(crate) async fn complete_intent(pool: &Pool, prepared: &PreparedInbound) -> io::Result<()> {
-    let mut client = database_client(pool).await?;
-    let transaction = timeout(DATABASE_TIMEOUT, client.transaction())
-        .await
-        .map_err(|_| timed_out("inbound completion transaction"))?
-        .map_err(database_error)?;
+    let mut client = {
+        let _timer = StageTimer::start(CoordinatorStage::InboundIntentCompletePool);
+        database_client(pool).await?
+    };
+    let transaction = {
+        let _timer = StageTimer::start(CoordinatorStage::InboundIntentCompleteBegin);
+        timeout(DATABASE_TIMEOUT, client.transaction())
+            .await
+            .map_err(|_| timed_out("inbound completion transaction"))?
+            .map_err(database_error)?
+    };
     let intent_lock = intent_lock_id(&prepared.intent_id);
-    timeout(
-        DATABASE_TIMEOUT,
-        transaction.query_one("SELECT pg_advisory_xact_lock($1)", &[&intent_lock]),
-    )
-    .await
-    .map_err(|_| timed_out("inbound completion lock"))?
-    .map_err(database_error)?;
-    let row = timeout(
-        DATABASE_TIMEOUT,
-        transaction.query_opt(
-            "SELECT intent_id,mailbox_address,folder,subdirectory,temporary_file_name,file_name,
-                    device,inode,size_bytes,sha256,has_attachments,received_at,from_address,
-                    message_id,subject,to_addresses,state
-             FROM lmyzmail_inbound_delivery_intent
-             WHERE intent_id=$1
-             FOR UPDATE",
-            &[&prepared.intent_id],
-        ),
-    )
-    .await
-    .map_err(|_| timed_out("inbound completion identity query"))?
-    .map_err(database_error)?;
+    {
+        let _timer = StageTimer::start(CoordinatorStage::InboundIntentCompleteLock);
+        timeout(
+            DATABASE_TIMEOUT,
+            transaction.query_one("SELECT pg_advisory_xact_lock($1)", &[&intent_lock]),
+        )
+        .await
+        .map_err(|_| timed_out("inbound completion lock"))?
+        .map_err(database_error)?;
+    }
+    let row = {
+        let _timer = StageTimer::start(CoordinatorStage::InboundIntentCompleteRead);
+        timeout(
+            DATABASE_TIMEOUT,
+            transaction.query_opt(
+                "SELECT intent_id,mailbox_address,folder,subdirectory,temporary_file_name,file_name,
+                        device,inode,size_bytes,sha256,has_attachments,received_at,from_address,
+                        message_id,subject,to_addresses,state
+                 FROM lmyzmail_inbound_delivery_intent
+                 WHERE intent_id=$1
+                 FOR UPDATE",
+                &[&prepared.intent_id],
+            ),
+        )
+        .await
+        .map_err(|_| timed_out("inbound completion identity query"))?
+        .map_err(database_error)?
+    };
     let Some(row) = row else {
         return Ok(());
     };
@@ -1897,23 +1909,30 @@ pub(crate) async fn complete_intent(pool: &Pool, prepared: &PreparedInbound) -> 
             "inbound completion intent identity changed",
         ));
     }
-    let deleted = timeout(
-        DATABASE_TIMEOUT,
-        transaction.execute(
-            "DELETE FROM lmyzmail_inbound_delivery_intent WHERE intent_id=$1 AND state='INDEXED'",
-            &[&prepared.intent_id],
-        ),
-    )
-    .await
-    .map_err(|_| timed_out("inbound completion delete"))?
-    .map_err(database_error)?;
+    let deleted = {
+        let _timer = StageTimer::start(CoordinatorStage::InboundIntentCompleteDelete);
+        timeout(
+            DATABASE_TIMEOUT,
+            transaction.execute(
+                "DELETE FROM lmyzmail_inbound_delivery_intent WHERE intent_id=$1 AND state='INDEXED'",
+                &[&prepared.intent_id],
+            ),
+        )
+        .await
+        .map_err(|_| timed_out("inbound completion delete"))?
+        .map_err(database_error)?
+    };
     if deleted != 1 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "inbound completion did not delete exactly one intent",
         ));
     }
-    match timeout(DATABASE_TIMEOUT, transaction.commit()).await {
+    let commit = {
+        let _timer = StageTimer::start(CoordinatorStage::InboundIntentCompleteTransactionCommit);
+        timeout(DATABASE_TIMEOUT, transaction.commit()).await
+    };
+    match commit {
         Ok(Ok(())) => Ok(()),
         Ok(Err(error)) => reconcile_intent_completion(pool, prepared, database_error(error)).await,
         Err(_) => {
