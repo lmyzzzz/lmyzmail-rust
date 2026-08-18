@@ -1686,3 +1686,36 @@ the Python performance and launcher suite passed 225 tests, `cargo fmt
 regression results only; the active goal still requires stable qualification,
 full differential coverage, soak, 500k-scale pressure, rendering/model
 goldens, and all other completion gates.
+
+The next inbound-stage diagnostic pass kept the same fsync-off, 2,048-message,
+10 KB isolation. Run v110 was an unqualified launcher attempt whose requested
+stage override was removed by the runner's `env -i` whitelist; it has only a
+cleanup receipt and is not used as performance evidence. The whitelist and
+bounded override were then fixed in commit `d0558f66`, with the empty/default
+case explicitly falling back to the frozen stage list. V111 confirmed that the
+custom inbound stage list reached the candidate. It delivered 2,048/2,048 with
+zero failures, but its 91.244, 108.890, 146.692, and 152.069 messages/second
+segments produced a 47.5969% range and no formal artifact.
+
+V112 retained a complete console and decomposed the final SMTP 250 wait. It
+delivered 2,048/2,048 with zero failures, retries, OOM, or loss at 105.01
+messages/second; the four segments were 87.679, 99.086, 149.811, and 146.632
+messages/second, a 50.5710% range. In the final segment, `inbound_intent_insert`
+averaged 18.687 ms, `inbound_index_commit` 54.634 ms, and
+`inbound_intent_complete` 23.792 ms. File publication plus verification was
+0.354 ms. The batched index substage sum was 34.645 ms, leaving 19.989 ms in
+batch waiting and other measured transaction overhead. This falsifies file I/O
+as the inbound bottleneck and gives one bounded next hypothesis: collapse only
+the INDEXED intent completion read/identity check/DELETE path into one atomic
+statement while preserving every identity predicate, state transition,
+unknown-outcome reconciliation, and failure-atomicity test.
+
+V112 is diagnostic, not qualification evidence because its unchanged 30%
+stability gate failed. The console and diagnostic JSON hashes are
+`c128d0782b85b4a9e4a36f5ea7a7abc8d08db646f7de9c014da18d0ecc04f54c` and
+`57faf5fe586e13e1252bdf577e337a57bc389fcd43a9ca80617455fad8c8e874`.
+Its root cleanup receipt is
+`3ebce0a6ca8ff8794e36a2dec09f31795d7aae01872823fded3ccd7080aad16e`.
+The v111 and v110 cleanup receipts hash to
+`e6b7ec0f0c7569be0ca2c4badfcb6a2e4f7a22ee51b06278fa888b109f84a835` and
+`971a1f3547194d7c01b31702d871897a3a68327937f027038d0710ca95e5d`.
