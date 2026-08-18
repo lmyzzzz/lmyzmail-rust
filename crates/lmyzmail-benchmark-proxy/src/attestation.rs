@@ -31,6 +31,7 @@ pub struct HeadroomEnvironment {
     pub backing_device: String,
     pub io_max_lines: Vec<String>,
     pub io_max_sha256: String,
+    pub memory_high_bytes: u64,
     pub memory_max_bytes: u64,
     pub memory_swap_max_bytes: u64,
     pub pids_max: u64,
@@ -140,7 +141,8 @@ impl HeadroomAttestationConfig {
             || !Path::new(&self.environment.process_cgroup).is_absolute()
             || !Path::new(&self.environment.process_cgroup)
                 .starts_with(&self.environment.cgroup_parent)
-            || self.environment.memory_max_bytes == 0
+            || self.environment.memory_high_bytes == 0
+            || self.environment.memory_high_bytes >= self.environment.memory_max_bytes
             || self.environment.memory_swap_max_bytes != 0
             || self.environment.pids_max == 0
             || self.environment.nofile_soft_and_hard == 0
@@ -548,6 +550,7 @@ mod tests {
                     "7:1 rbps=500000000 wbps=500000000".into(),
                 ],
                 io_max_sha256: "d".repeat(64),
+                memory_high_bytes: 7 * 1024 * 1024 * 1024,
                 memory_max_bytes: 8 * 1024 * 1024 * 1024,
                 memory_swap_max_bytes: 0,
                 pids_max: 8192,
@@ -584,6 +587,16 @@ mod tests {
         let limits = ObserverLimits::default();
         assert!(config_with_nofile(6_511).validate(&limits).is_err());
         assert!(config_with_nofile(6_512).validate(&limits).is_ok());
+    }
+
+    #[test]
+    fn memory_high_watermark_must_stay_below_the_hard_limit() {
+        let limits = ObserverLimits::default();
+        let mut config = config_with_nofile(6_512);
+        config.environment.memory_high_bytes = config.environment.memory_max_bytes;
+        assert!(config.validate(&limits).is_err());
+        config.environment.memory_high_bytes = 0;
+        assert!(config.validate(&limits).is_err());
     }
 
     #[test]

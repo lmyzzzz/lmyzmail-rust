@@ -31,6 +31,7 @@ benchmark_user=${LMYZMAIL_BENCHMARK_USER:-$(stat -c '%U' -- "${repository}")}
 benchmark_cpu=${LMYZMAIL_BENCHMARK_CPU:-23}
 io_bytes_per_second=${LMYZMAIL_BENCHMARK_IO_BPS:-500000000}
 max_pids=${LMYZMAIL_BENCHMARK_MAX_PIDS:-8192}
+memory_high_bytes=${LMYZMAIL_BENCHMARK_MEMORY_HIGH_BYTES:-7516192768}
 max_memory_bytes=${LMYZMAIL_BENCHMARK_MAX_MEMORY_BYTES:-8589934592}
 nofile_limit=${LMYZMAIL_BENCHMARK_NOFILE_LIMIT:-8192}
 host_reserve_bytes=${LMYZMAIL_BENCHMARK_HOST_RESERVE_BYTES:-10737418240}
@@ -89,6 +90,11 @@ if [[ ! ${max_pids} =~ ^[1-9][0-9]*$ ]]; then
 fi
 if [[ ! ${max_memory_bytes} =~ ^[1-9][0-9]*$ ]]; then
     echo "LMYZMAIL_BENCHMARK_MAX_MEMORY_BYTES must be a positive integer" >&2
+    exit 2
+fi
+if [[ ! ${memory_high_bytes} =~ ^[1-9][0-9]*$ \
+    || ${memory_high_bytes} -ge ${max_memory_bytes} ]]; then
+    echo "LMYZMAIL_BENCHMARK_MEMORY_HIGH_BYTES must be positive and below memory.max" >&2
     exit 2
 fi
 if [[ ! ${nofile_limit} =~ ^[1-9][0-9]*$ ]]; then
@@ -2783,6 +2789,7 @@ verify_launcher_isolation_policy() {
     [[ ${image_bytes} -eq 21474836480 \
         && ${host_reserve_bytes} -ge 10737418240 \
         && ${io_bytes_per_second} -eq 500000000 \
+        && ${memory_high_bytes} -eq 7516192768 \
         && ${max_memory_bytes} -eq 8589934592 \
         && ${max_pids} -eq 8192 \
         && ${nofile_limit} -eq 8192 ]]
@@ -2893,6 +2900,7 @@ configure_run_cgroups() {
         "${backing_device_id}" "${io_bytes_per_second}"
     printf '%s\n' "${max_pids}" >"${benchmark_group}/pids.max"
     printf '%s\n' "${max_memory_bytes}" >"${benchmark_group}/memory.max"
+    printf '%s\n' "${memory_high_bytes}" >"${benchmark_group}/memory.high"
     printf '0\n' >"${benchmark_group}/memory.swap.max"
     printf '%s\n' "${housekeeping_cpus}" >"${harness_group}/cpuset.cpus"
     printf '%s\n' "${root_mems}" >"${harness_group}/cpuset.mems"
@@ -2965,6 +2973,7 @@ generate_proxy_attestation() {
                 --io-device "${loop_device_id}" \
                 --backing-device "${backing_device_id}" \
                 --io-bytes-per-second "${io_bytes_per_second}" \
+                --memory-high-bytes "${memory_high_bytes}" \
                 --memory-max-bytes "${max_memory_bytes}" \
                 --pids-max "${max_pids}" \
                 --nofile-soft-and-hard "${nofile_limit}" \
@@ -2993,7 +3002,7 @@ create_external_attestation() {
         "${benchmark_group}" "${harness_group}" \
         "${quota_mount}" "${loop_device_id}" "${backing_device_id}" \
         "${image_bytes}" "${host_reserve_bytes}" "${io_bytes_per_second}" \
-        "${max_memory_bytes}" "${max_pids}" "${nofile_limit}" \
+        "${memory_high_bytes}" "${max_memory_bytes}" "${max_pids}" "${nofile_limit}" \
         "${benchmark_cpu}" "${housekeeping_cpus}" <<'PY'
 import hashlib
 import json
@@ -3022,6 +3031,7 @@ import time
     limit_bytes_raw,
     reserve_bytes_raw,
     io_bps_raw,
+    memory_high_bytes_raw,
     memory_bytes_raw,
     pids_raw,
     nofile_raw,
@@ -3605,6 +3615,7 @@ isolation_policy = {
     "minimum_host_reserve_bytes": 10 * 1024**3,
     "io_bytes_per_second_per_device": 500_000_000,
     "io_devices": "loop-and-backing",
+    "memory_high_bytes": 7 * 1024**3,
     "memory_max_bytes": 8 * 1024**3,
     "memory_swap_max_bytes": 0,
     "pids_max": 8192,
@@ -3629,6 +3640,7 @@ observed_policy = {
     "image_bytes": int(limit_bytes_raw),
     "host_reserve_bytes": int(reserve_bytes_raw),
     "io_bytes_per_second_per_device": int(io_bps_raw),
+    "memory_high_bytes": int(memory_high_bytes_raw),
     "memory_max_bytes": int(memory_bytes_raw),
     "pids_max": int(pids_raw),
     "nofile_soft_and_hard": int(nofile_raw),
@@ -3641,6 +3653,7 @@ policy_passed = (
     and observed_policy["host_reserve_bytes"] >= isolation_policy["minimum_host_reserve_bytes"]
     and observed_policy["io_bytes_per_second_per_device"]
     == isolation_policy["io_bytes_per_second_per_device"]
+    and observed_policy["memory_high_bytes"] == isolation_policy["memory_high_bytes"]
     and observed_policy["memory_max_bytes"] == isolation_policy["memory_max_bytes"]
     and observed_policy["pids_max"] == isolation_policy["pids_max"]
     and observed_policy["nofile_soft_and_hard"] == isolation_policy["nofile_soft_and_hard"]
@@ -4571,6 +4584,7 @@ exec "$@"
             LMYZMAIL_BENCHMARK_BACKING_DEVICE="${backing_device_id}" \
             LMYZMAIL_BENCHMARK_IO_BPS="${io_bytes_per_second}" \
             LMYZMAIL_BENCHMARK_MAX_PIDS="${max_pids}" \
+            LMYZMAIL_BENCHMARK_MEMORY_HIGH_BYTES="${memory_high_bytes}" \
             LMYZMAIL_BENCHMARK_MAX_MEMORY_BYTES="${max_memory_bytes}" \
             LMYZMAIL_BENCHMARK_NOFILE_LIMIT="${nofile_limit}" \
             LMYZMAIL_BENCHMARK_HOST_RESERVE_BYTES="${host_reserve_bytes}" \

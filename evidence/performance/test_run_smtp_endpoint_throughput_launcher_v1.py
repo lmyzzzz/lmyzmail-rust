@@ -1028,6 +1028,7 @@ loop_device_id=7:0
 backing_device_id=8:0
 io_bytes_per_second=500000000
 max_pids=8192
+memory_high_bytes=7516192768
 max_memory_bytes=8589934592
 benchmark_uid=1000
 benchmark_gid=1000
@@ -1055,6 +1056,7 @@ grep -qx '8:0 rbps=500000000 wbps=500000000 riops=max wiops=max' "$benchmark_gro
 [[ $(sed -n '1p' "$io_write_log") == '7:0 rbps=500000000 wbps=500000000' ]]
 [[ $(sed -n '2p' "$io_write_log") == '8:0 rbps=500000000 wbps=500000000' ]]
 [[ $(<"$benchmark_group/pids.max") == 8192 ]]
+[[ $(<"$benchmark_group/memory.high") == 7516192768 ]]
 [[ $(<"$benchmark_group/memory.max") == 8589934592 ]]
 [[ $(<"$benchmark_group/memory.swap.max") == 0 ]]
 [[ $(<"$services_group/cpuset.cpus") == 0-2 ]]
@@ -1162,6 +1164,7 @@ housekeeping_cpus=0-2
 loop_device_id=7:1
 backing_device_id=7:0
 io_bytes_per_second=500000000
+memory_high_bytes=7516192768
 max_memory_bytes=8589934592
 max_pids=8192
 nofile_limit=8192
@@ -1577,6 +1580,7 @@ preflight_image_capacity
 formal_run=1
 java_small_baseline_run=0
 io_bytes_per_second=500000000
+memory_high_bytes=7516192768
 max_memory_bytes=8589934592
 max_pids=8192
 nofile_limit=8192
@@ -1954,6 +1958,7 @@ backing_device_id=7:0
 image_bytes=21474836480
 host_reserve_bytes=10737418240
 io_bytes_per_second=500000000
+memory_high_bytes=7516192768
 max_memory_bytes=8589934592
 max_pids=8192
 nofile_limit=8192

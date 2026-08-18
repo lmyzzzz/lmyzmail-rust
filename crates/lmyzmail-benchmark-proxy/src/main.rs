@@ -48,6 +48,7 @@ async fn run_headroom_attestation_command(
             "--io-device",
             "--backing-device",
             "--io-bytes-per-second",
+            "--memory-high-bytes",
             "--memory-max-bytes",
             "--pids-max",
             "--nofile-soft-and-hard",
@@ -65,6 +66,7 @@ async fn run_headroom_attestation_command(
     let backing_device = required(&options, "--backing-device")?.to_owned();
     let io_bytes_per_second_per_device =
         required(&options, "--io-bytes-per-second")?.parse::<u64>()?;
+    let memory_high_bytes = required(&options, "--memory-high-bytes")?.parse::<u64>()?;
     let memory_max_bytes = required(&options, "--memory-max-bytes")?.parse::<u64>()?;
     let pids_max = required(&options, "--pids-max")?.parse::<u64>()?;
     let nofile_soft_and_hard = required(&options, "--nofile-soft-and-hard")?.parse::<u64>()?;
@@ -81,6 +83,7 @@ async fn run_headroom_attestation_command(
         &io_device,
         &backing_device,
         io_bytes_per_second_per_device,
+        memory_high_bytes,
         memory_max_bytes,
         pids_max,
         nofile_soft_and_hard,
@@ -183,6 +186,7 @@ fn collect_headroom_environment(
     io_device: &str,
     backing_device: &str,
     io_bytes_per_second_per_device: u64,
+    memory_high_bytes: u64,
     memory_max_bytes: u64,
     pids_max: u64,
     nofile_soft_and_hard: u64,
@@ -221,7 +225,8 @@ fn collect_headroom_environment(
         .map(str::to_owned)
         .collect::<Vec<_>>();
     io_max_lines.sort();
-    if read_trimmed(cgroup_parent.join("memory.max"))?.parse::<u64>()? != memory_max_bytes
+    if read_trimmed(cgroup_parent.join("memory.high"))?.parse::<u64>()? != memory_high_bytes
+        || read_trimmed(cgroup_parent.join("memory.max"))?.parse::<u64>()? != memory_max_bytes
         || read_trimmed(cgroup_parent.join("memory.swap.max"))?.parse::<u64>()? != 0
         || read_trimmed(cgroup_parent.join("pids.max"))?.parse::<u64>()? != pids_max
     {
@@ -240,6 +245,7 @@ fn collect_headroom_environment(
         backing_device: backing_device.to_owned(),
         io_max_lines,
         io_max_sha256: hex_sha256(&io_max_payload),
+        memory_high_bytes,
         memory_max_bytes,
         memory_swap_max_bytes: 0,
         pids_max,
@@ -526,6 +532,6 @@ fn write_json_new(path: &Path, value: &impl Serialize) -> Result<(), BoxError> {
 }
 
 fn usage_error() -> BoxError {
-    "usage: lmyzmail-benchmark-proxy proxy --listen ADDR --backend ADDR --control PATH [--max-connections N] [--memory-budget-mib N]\n       lmyzmail-benchmark-proxy calibrate --output PATH [--messages N] [--message-bytes N] [--concurrency N] [--mode data|bdat] [--minimum-ratio R] [--rounds N] [--maximum-spread R]\n       lmyzmail-benchmark-proxy headroom-attest --output-root PATH --runner-sha256 SHA --source-tree-sha256 SHA --cgroup-parent PATH --process-cgroup PATH --benchmark-cpu N --calibration-cpus LIST --io-device MAJ:MIN --backing-device MAJ:MIN --io-bytes-per-second N --memory-max-bytes N --pids-max N --nofile-soft-and-hard N"
+    "usage: lmyzmail-benchmark-proxy proxy --listen ADDR --backend ADDR --control PATH [--max-connections N] [--memory-budget-mib N]\n       lmyzmail-benchmark-proxy calibrate --output PATH [--messages N] [--message-bytes N] [--concurrency N] [--mode data|bdat] [--minimum-ratio R] [--rounds N] [--maximum-spread R]\n       lmyzmail-benchmark-proxy headroom-attest --output-root PATH --runner-sha256 SHA --source-tree-sha256 SHA --cgroup-parent PATH --process-cgroup PATH --benchmark-cpu N --calibration-cpus LIST --io-device MAJ:MIN --backing-device MAJ:MIN --io-bytes-per-second N --memory-high-bytes N --memory-max-bytes N --pids-max N --nofile-soft-and-hard N"
         .into()
 }

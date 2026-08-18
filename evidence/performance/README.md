@@ -2261,3 +2261,33 @@ services, runner, PostgreSQL, and Redis. This does not change the candidate's
 single-CPU placement, the proxy workload, the `0.20` spread gate, or the `2.0`
 headroom requirement; it reduces scheduler migration as indicated by the
 focused evidence.
+
+Formal run `56d97ec2-495e-459c-897a-a8b9504ddd21` then passively verified
+390,475 of 500,000 requested 1 KB fsync-off messages with zero duplicate or
+proxy failure observations before failing closed. Concurrent SMTP replies can
+capture completion timestamps in one order and acquire the observer lock in
+another; the proxy formerly derived progress duration from the back of an
+arrival-ordered sample deque, so a correct count could expose a decreasing
+duration. The run had independently reached the unchanged 8 GiB cgroup hard
+limit, recording `memory.events.max`, and therefore could not qualify even
+without the proxy failure. No result or throughput claim was published.
+
+The proxy now retains the maximum accepted completion timestamp and has a
+deterministic out-of-order forwarding regression. The benchmark continues to
+fail on any `memory.max`, OOM, or OOM-kill event. Its formal cgroup contract now
+adds `memory.high=7 GiB` below the unchanged `memory.max=8 GiB`, so reclaim and
+throttling begin with 1 GiB of hard-limit headroom. The watermark is included
+in root-only cgroup readback, proxy/environment binding, external isolation
+attestation, result snapshots, and formal qualification.
+
+Root-isolated smoke run `481b3c6e-94af-4631-8187-0012228bd0ff` verified all
+`8/8` messages and passed lifecycle, persistence, resource, attestation, and
+cleanup checks. Every sampled `max`, `oom`, and `oom_kill` memory event was
+zero. Its JSON SHA-256 is
+`92fb912f2a6d1f38f47add931d580c68b68b203f892c6e5ee86a955a0b83432b`;
+the cleanup receipt SHA-256 is
+`e21d46682114ea5af4bd4e6ab7a852a330f7a0540fd5c46ba7915e0133ba9db6`.
+The journal records `request=DONE`, `cleanup=passed`, `qualified_cleanup=1`,
+and `lazy_unmount=0`, with no residual process, cgroup, mount, loop, image, or
+artifact. This smoke remains intentionally unqualified; the 500,000-message
+formal tier and queue-scheduler gate still require a complete rerun.

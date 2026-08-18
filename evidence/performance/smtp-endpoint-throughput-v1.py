@@ -87,6 +87,7 @@ IO_ACCOUNTING_MINIMUM_RATIO = 0.95
 FORMAL_DISK_BUDGET_BYTES = 20 * 1024**3
 FORMAL_HOST_RESERVE_BYTES = 10 * 1024**3
 FORMAL_IO_BYTES_PER_SECOND = 500_000_000
+FORMAL_MEMORY_HIGH_BYTES = 7 * 1024**3
 FORMAL_MAX_MEMORY_BYTES = 8 * 1024**3
 FORMAL_MAX_PIDS = 8_192
 FORMAL_NOFILE_LIMIT = 8_192
@@ -982,6 +983,7 @@ class CgroupLayout:
     backing_device: str
     io_bytes_per_second: int
     max_pids: int
+    memory_high_bytes: int
     max_memory_bytes: int
     nofile_limit: int
     host_reserve_bytes: int
@@ -1000,6 +1002,7 @@ class CgroupLayout:
             "backing_device": "LMYZMAIL_BENCHMARK_BACKING_DEVICE",
             "io": "LMYZMAIL_BENCHMARK_IO_BPS",
             "pids": "LMYZMAIL_BENCHMARK_MAX_PIDS",
+            "memory_high": "LMYZMAIL_BENCHMARK_MEMORY_HIGH_BYTES",
             "memory": "LMYZMAIL_BENCHMARK_MAX_MEMORY_BYTES",
             "nofile": "LMYZMAIL_BENCHMARK_NOFILE_LIMIT",
             "reserve": "LMYZMAIL_BENCHMARK_HOST_RESERVE_BYTES",
@@ -1022,6 +1025,7 @@ class CgroupLayout:
             backing_device=os.environ[required["backing_device"]],
             io_bytes_per_second=int(os.environ[required["io"]]),
             max_pids=int(os.environ[required["pids"]]),
+            memory_high_bytes=int(os.environ[required["memory_high"]]),
             max_memory_bytes=int(os.environ[required["memory"]]),
             nofile_limit=int(os.environ[required["nofile"]]),
             host_reserve_bytes=int(os.environ[required["reserve"]]),
@@ -1076,6 +1080,13 @@ class CgroupLayout:
             raise RuntimeError("workload CPU quota does not equal one logical CPU")
         if int((self.parent / "pids.max").read_text(encoding="ascii")) != self.max_pids:
             raise RuntimeError("run PID limit changed")
+        if not 0 < self.memory_high_bytes < self.max_memory_bytes:
+            raise RuntimeError("run memory high watermark is outside the hard limit")
+        if (
+            int((self.parent / "memory.high").read_text(encoding="ascii"))
+            != self.memory_high_bytes
+        ):
+            raise RuntimeError("run memory high watermark changed")
         if (
             int((self.parent / "memory.max").read_text(encoding="ascii"))
             != self.max_memory_bytes
@@ -1103,6 +1114,7 @@ class CgroupLayout:
             control_paths = [
                 self.parent / "cgroup.procs",
                 self.parent / "io.max",
+                self.parent / "memory.high",
                 self.parent / "memory.max",
                 self.parent / "memory.swap.max",
                 self.parent / "pids.max",
@@ -1136,6 +1148,7 @@ class CgroupLayout:
             "backing_device": self.backing_device,
             "io_bytes_per_second": self.io_bytes_per_second,
             "max_pids": self.max_pids,
+            "memory_high_bytes": self.memory_high_bytes,
             "max_memory_bytes": self.max_memory_bytes,
             "nofile_limit": self.nofile_limit,
             "host_reserve_bytes": self.host_reserve_bytes,
@@ -1151,6 +1164,9 @@ class CgroupLayout:
             .strip(),
             "cpu_max": (self.workload / "cpu.max").read_text(encoding="ascii").strip(),
             "io_max": (self.parent / "io.max").read_text(encoding="ascii").strip(),
+            "memory_high": (self.parent / "memory.high")
+            .read_text(encoding="ascii")
+            .strip(),
             "memory_max": (self.parent / "memory.max")
             .read_text(encoding="ascii")
             .strip(),
@@ -8356,6 +8372,7 @@ def _isolation_policy_attestation(
         "minimum_host_reserve_bytes": FORMAL_HOST_RESERVE_BYTES,
         "io_bytes_per_second_per_device": FORMAL_IO_BYTES_PER_SECOND,
         "io_devices": "loop-and-backing",
+        "memory_high_bytes": FORMAL_MEMORY_HIGH_BYTES,
         "memory_max_bytes": FORMAL_MAX_MEMORY_BYTES,
         "memory_swap_max_bytes": 0,
         "pids_max": FORMAL_MAX_PIDS,
@@ -8384,6 +8401,7 @@ def _isolation_policy_attestation(
         "image_bytes": disk_budget_bytes,
         "host_reserve_bytes": layout.host_reserve_bytes,
         "io_bytes_per_second_per_device": layout.io_bytes_per_second,
+        "memory_high_bytes": layout.memory_high_bytes,
         "memory_max_bytes": layout.max_memory_bytes,
         "memory_swap_max_bytes": int(
             (layout.parent / "memory.swap.max").read_text(encoding="ascii").strip()
@@ -8401,6 +8419,7 @@ def _isolation_policy_attestation(
         and disk_budget_bytes == FORMAL_DISK_BUDGET_BYTES
         and layout.host_reserve_bytes >= FORMAL_HOST_RESERVE_BYTES
         and layout.io_bytes_per_second == FORMAL_IO_BYTES_PER_SECOND
+        and layout.memory_high_bytes == FORMAL_MEMORY_HIGH_BYTES
         and layout.max_memory_bytes == FORMAL_MAX_MEMORY_BYTES
         and layout.max_pids == FORMAL_MAX_PIDS
         and layout.nofile_limit == FORMAL_NOFILE_LIMIT
@@ -8917,6 +8936,7 @@ def _validate_proxy_headroom_raw(
         "backing_device": layout.backing_device,
         "io_max_lines": io_max_lines,
         "io_max_sha256": hashlib.sha256(io_max_payload).hexdigest(),
+        "memory_high_bytes": layout.memory_high_bytes,
         "memory_max_bytes": layout.max_memory_bytes,
         "memory_swap_max_bytes": 0,
         "pids_max": layout.max_pids,
@@ -9309,6 +9329,7 @@ def _qualified(
         and disk_budget_bytes == FORMAL_DISK_BUDGET_BYTES
         and layout.host_reserve_bytes >= FORMAL_HOST_RESERVE_BYTES
         and layout.io_bytes_per_second == FORMAL_IO_BYTES_PER_SECOND
+        and layout.memory_high_bytes == FORMAL_MEMORY_HIGH_BYTES
         and layout.max_memory_bytes == FORMAL_MAX_MEMORY_BYTES
         and layout.max_pids == FORMAL_MAX_PIDS
         and layout.nofile_limit == FORMAL_NOFILE_LIMIT
@@ -9334,6 +9355,7 @@ def _candidate_stability_qualified(
         and disk_budget_bytes == FORMAL_DISK_BUDGET_BYTES
         and layout.host_reserve_bytes >= FORMAL_HOST_RESERVE_BYTES
         and layout.io_bytes_per_second == FORMAL_IO_BYTES_PER_SECOND
+        and layout.memory_high_bytes == FORMAL_MEMORY_HIGH_BYTES
         and layout.max_memory_bytes == FORMAL_MAX_MEMORY_BYTES
         and layout.max_pids == FORMAL_MAX_PIDS
         and layout.nofile_limit == FORMAL_NOFILE_LIMIT

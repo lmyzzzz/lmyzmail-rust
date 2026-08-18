@@ -1969,6 +1969,7 @@ class PlanAndComparisonTests(unittest.TestCase):
         layout = SimpleNamespace(
             io_bytes_per_second=500_000_000,
             host_reserve_bytes=10 * 1024**3,
+            memory_high_bytes=7 * 1024**3,
             max_memory_bytes=8 * 1024**3,
             max_pids=8_192,
             nofile_limit=8_192,
@@ -2032,6 +2033,7 @@ class PlanAndComparisonTests(unittest.TestCase):
                 device="7:1",
                 backing_device="7:0",
                 io_bytes_per_second=500_000_000,
+                memory_high_bytes=7 * 1024**3,
                 max_memory_bytes=8 * 1024**3,
                 max_pids=8_192,
                 nofile_limit=8_192,
@@ -2053,6 +2055,7 @@ class PlanAndComparisonTests(unittest.TestCase):
                 "backing_device": "7:0",
                 "io_max_lines": io_payload.decode("ascii").splitlines(),
                 "io_max_sha256": hashlib.sha256(io_payload).hexdigest(),
+                "memory_high_bytes": 7 * 1024**3,
                 "memory_max_bytes": 8 * 1024**3,
                 "memory_swap_max_bytes": 0,
                 "pids_max": 8_192,
@@ -5617,6 +5620,7 @@ class CgroupLayoutTests(unittest.TestCase):
             (services / "cpuset.cpus.effective").write_text("0-2\n", encoding="ascii")
             (workload / "cpu.max").write_text("100000 100000\n", encoding="ascii")
             (parent / "pids.max").write_text("64\n", encoding="ascii")
+            (parent / "memory.high").write_text("786432\n", encoding="ascii")
             (parent / "memory.max").write_text("1048576\n", encoding="ascii")
             (parent / "memory.swap.max").write_text("0\n", encoding="ascii")
             if sys.platform == "linux":
@@ -5625,6 +5629,7 @@ class CgroupLayoutTests(unittest.TestCase):
                 for control in (
                     parent / "cgroup.procs",
                     parent / "io.max",
+                    parent / "memory.high",
                     parent / "memory.max",
                     parent / "memory.swap.max",
                     parent / "pids.max",
@@ -5646,6 +5651,7 @@ class CgroupLayoutTests(unittest.TestCase):
                 backing_device="8:0",
                 io_bytes_per_second=io_bytes_per_second,
                 max_pids=64,
+                memory_high_bytes=786_432,
                 max_memory_bytes=1_048_576,
                 nofile_limit=1_024,
                 host_reserve_bytes=10 * 1024**3,
@@ -5665,6 +5671,16 @@ class CgroupLayoutTests(unittest.TestCase):
                 self.assertEqual(snapshot["cpu_max"], "100000 100000")
                 self.assertIn("rbps=123456", snapshot["io_max"])
                 self.assertIn("wbps=123456", snapshot["io_max"])
+                self.assertEqual(snapshot["memory_high"], "786432")
+
+                (parent / "memory.high").chmod(0o644)
+                (parent / "memory.high").write_text("786433\n", encoding="ascii")
+                (parent / "memory.high").chmod(0o444)
+                with self.assertRaisesRegex(RuntimeError, "high watermark"):
+                    layout.verify()
+                (parent / "memory.high").chmod(0o644)
+                (parent / "memory.high").write_text("786432\n", encoding="ascii")
+                (parent / "memory.high").chmod(0o444)
 
                 (parent / "io.max").chmod(0o644)
                 (parent / "io.max").write_text(
@@ -5719,7 +5735,8 @@ class CgroupLayoutTests(unittest.TestCase):
                 backing_device="9:0",
                 io_bytes_per_second=1,
                 max_pids=1,
-                max_memory_bytes=1,
+                memory_high_bytes=1,
+                max_memory_bytes=2,
                 nofile_limit=1,
                 host_reserve_bytes=1,
                 supervisor_socket=root / "supervisor.sock",
