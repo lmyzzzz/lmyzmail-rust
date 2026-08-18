@@ -2025,15 +2025,17 @@ impl OutboundCoordinator {
         &self,
         task_id: i64,
     ) -> Result<(), CoordinatorError> {
-        let record = self
-            .state
-            .outbound_spool_snapshot(task_id)
-            .await
-            .map_err(|_| {
-                CoordinatorError::SpoolCleanup(
-                    "acknowledged outbound spool sidecar could not be read",
-                )
-            })?;
+        let record = {
+            let _timer = StageTimer::start(CoordinatorStage::QueueAckSidecarSnapshot);
+            self.state
+                .outbound_spool_snapshot(task_id)
+                .await
+                .map_err(|_| {
+                    CoordinatorError::SpoolCleanup(
+                        "acknowledged outbound spool sidecar could not be read",
+                    )
+                })?
+        };
         let Some(record) = record else {
             return Ok(());
         };
@@ -2049,13 +2051,18 @@ impl OutboundCoordinator {
         &self,
         record: &OutboundSpoolRecord,
     ) -> Result<(), CoordinatorError> {
-        self.run_spool_proof_cleanup(record.clone()).await?;
+        {
+            let _timer = StageTimer::start(CoordinatorStage::QueueAckSidecarProofCleanup);
+            self.run_spool_proof_cleanup(record.clone()).await?;
+        }
         for _ in 0..MAX_RECONCILIATION_ATTEMPTS {
-            match self
-                .state
-                .delete_removed_outbound_spool(record.task_id, &record.spool_path)
-                .await
-            {
+            let deletion = {
+                let _timer = StageTimer::start(CoordinatorStage::QueueAckSidecarDelete);
+                self.state
+                    .delete_removed_outbound_spool(record.task_id, &record.spool_path)
+                    .await
+            };
+            match deletion {
                 Ok(_) => return Ok(()),
                 Err(DeliveryStateError::OutcomeUnknown) => {
                     let snapshot = self

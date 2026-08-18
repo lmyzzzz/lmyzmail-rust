@@ -1362,57 +1362,64 @@ impl PostgresDeliveryState {
     ) -> Result<bool, DeliveryStateError> {
         validate_outbound_spool_identity(task_id, spool_path)?;
         let deadline = Instant::now() + self.operation_timeout;
-        let mut client = self.client(deadline).await?;
+        let client = self.client(deadline).await?;
         let cancel_token = client.cancel_token();
-        ledger_mutation(deadline, cancel_token, async {
-            let transaction = client.transaction().await?;
-            configure_transaction_deadline(&transaction, deadline).await?;
-            let row = transaction
+        let statement_timeout = postgres_statement_timeout(deadline);
+        let row = ledger_mutation(deadline, cancel_token, async {
+            client
                 .query_opt(
-                    "SELECT spool.spool_path,spool.cleanup_state,queue.status
-                     FROM lmyzmail_outbound_spool spool
-                     JOIN outbound_mail_queue queue ON queue.id=spool.task_id
-                     WHERE spool.task_id=$1
-                     FOR UPDATE OF spool,queue",
-                    &[&task_id],
+                    "WITH configured AS MATERIALIZED (
+                         SELECT set_config('statement_timeout',$3,true)
+                     ),
+                     candidate AS MATERIALIZED (
+                         SELECT spool.task_id,spool.spool_path,spool.cleanup_state,queue.status
+                         FROM lmyzmail_outbound_spool spool
+                         JOIN outbound_mail_queue queue ON queue.id=spool.task_id
+                         CROSS JOIN configured
+                         WHERE spool.task_id=$1
+                         FOR UPDATE OF spool,queue
+                     ),
+                     deleted AS (
+                         DELETE FROM lmyzmail_outbound_spool spool
+                         USING candidate
+                         WHERE spool.task_id=candidate.task_id
+                           AND candidate.spool_path=$2
+                           AND candidate.cleanup_state='REMOVED'
+                           AND candidate.status IN
+                               ('SENT','PARTIAL_SUCCESS','FAILED','CANCELLED')
+                         RETURNING spool.task_id
+                     )
+                     SELECT candidate.spool_path,candidate.cleanup_state,candidate.status,
+                            EXISTS(SELECT 1 FROM deleted)
+                     FROM candidate",
+                    &[&task_id, &spool_path, &statement_timeout],
                 )
-                .await?;
-            let Some(row) = row else {
-                transaction.commit().await?;
-                return Ok(false);
-            };
-            if row.get::<_, &str>(0) != spool_path {
-                return Err(DeliveryStateError::InvalidTransition(
-                    "removed outbound spool path conflicts with durable state",
-                )
-                .into());
-            }
-            if row.get::<_, &str>(1) != "REMOVED" {
-                return Err(DeliveryStateError::InvalidTransition(
-                    "outbound spool cannot be deleted before removal is durable",
-                )
-                .into());
-            }
-            if !DeliveryRowStatus::from_database(row.get(2))?.is_terminal() {
-                return Err(DeliveryStateError::InvalidTransition(
-                    "outbound spool cannot be deleted before delivery is terminal",
-                )
-                .into());
-            }
-            let deleted = transaction
-                .execute(
-                    "DELETE FROM lmyzmail_outbound_spool
-                     WHERE task_id=$1 AND spool_path=$2 AND cleanup_state='REMOVED'",
-                    &[&task_id, &spool_path],
-                )
-                .await?;
-            if deleted != 1 {
-                return Err(DeliveryStateError::Unavailable.into());
-            }
-            transaction.commit().await?;
-            Ok(true)
+                .await
+                .map_err(Into::into)
         })
-        .await
+        .await?;
+        let Some(row) = row else {
+            return Ok(false);
+        };
+        if row.get::<_, &str>(0) != spool_path {
+            return Err(DeliveryStateError::InvalidTransition(
+                "removed outbound spool path conflicts with durable state",
+            ));
+        }
+        if row.get::<_, &str>(1) != "REMOVED" {
+            return Err(DeliveryStateError::InvalidTransition(
+                "outbound spool cannot be deleted before removal is durable",
+            ));
+        }
+        if !DeliveryRowStatus::from_database(row.get(2))?.is_terminal() {
+            return Err(DeliveryStateError::InvalidTransition(
+                "outbound spool cannot be deleted before delivery is terminal",
+            ));
+        }
+        if !row.get::<_, bool>(3) {
+            return Err(DeliveryStateError::Unavailable);
+        }
+        Ok(true)
     }
 
     pub async fn materialize_legacy_redis_task(
@@ -3260,13 +3267,17 @@ async fn configure_transaction_deadline(
     transaction: &deadpool_postgres::Transaction<'_>,
     deadline: Instant,
 ) -> Result<(), tokio_postgres::Error> {
-    let remaining = deadline.saturating_duration_since(Instant::now());
-    let server_millis = (remaining.as_millis() / 2).clamp(1, i32::MAX as u128);
-    let value = format!("{server_millis}ms");
+    let value = postgres_statement_timeout(deadline);
     transaction
         .query_one("SELECT set_config('statement_timeout',$1,true)", &[&value])
         .await?;
     Ok(())
+}
+
+fn postgres_statement_timeout(deadline: Instant) -> String {
+    let remaining = deadline.saturating_duration_since(Instant::now());
+    let server_millis = (remaining.as_millis() / 2).clamp(1, i32::MAX as u128);
+    format!("{server_millis}ms")
 }
 
 trait ClaimFence {
@@ -4583,6 +4594,26 @@ mod tests {
                 .unwrap();
         }
 
+        async fn insert_spool(
+            pool: &Pool,
+            task_id: i64,
+            spool_path: &str,
+            cleanup_state: &str,
+            now: DateTime<Utc>,
+        ) {
+            pool.get()
+                .await
+                .unwrap()
+                .execute(
+                    "INSERT INTO lmyzmail_outbound_spool
+                     (task_id,spool_path,spool_kind,cleanup_state,created_at,updated_at)
+                     VALUES ($1,$2,'RUST',$3,$4,$4)",
+                    &[&task_id, &spool_path, &cleanup_state, &now],
+                )
+                .await
+                .unwrap();
+        }
+
         async fn insert_ambiguous_recipient(pool: &Pool, task_id: i64, now: DateTime<Utc>) {
             pool.get()
                 .await
@@ -4609,6 +4640,89 @@ mod tests {
                 )
                 .await
                 .unwrap();
+        }
+
+        #[tokio::test]
+        async fn outbound_spool_deletion_preserves_transition_checks_in_one_statement() {
+            let (_process, pool, state) = setup().await;
+            let now = timestamp(1_786_400_000);
+
+            assert!(
+                !state
+                    .delete_removed_outbound_spool(7_407, "/tmp/message-7407.eml")
+                    .await
+                    .unwrap()
+            );
+
+            insert_terminal(&pool, 7_407, "qa@example.test", now).await;
+            insert_spool(&pool, 7_407, "/tmp/message-7407.eml", "REMOVED", now).await;
+            assert!(
+                state
+                    .delete_removed_outbound_spool(7_407, "/tmp/message-7407.eml")
+                    .await
+                    .unwrap()
+            );
+            assert!(
+                !state
+                    .delete_removed_outbound_spool(7_407, "/tmp/message-7407.eml")
+                    .await
+                    .unwrap()
+            );
+
+            insert_terminal(&pool, 7_408, "qa@example.test", now).await;
+            insert_spool(&pool, 7_408, "/tmp/message-7408.eml", "REMOVED", now).await;
+            assert_eq!(
+                state
+                    .delete_removed_outbound_spool(7_408, "/tmp/wrong-7408.eml")
+                    .await,
+                Err(DeliveryStateError::InvalidTransition(
+                    "removed outbound spool path conflicts with durable state",
+                ))
+            );
+
+            insert_terminal(&pool, 7_409, "qa@example.test", now).await;
+            insert_spool(&pool, 7_409, "/tmp/message-7409.eml", "OWNED", now).await;
+            assert_eq!(
+                state
+                    .delete_removed_outbound_spool(7_409, "/tmp/message-7409.eml")
+                    .await,
+                Err(DeliveryStateError::InvalidTransition(
+                    "outbound spool cannot be deleted before removal is durable",
+                ))
+            );
+
+            pool.get()
+                .await
+                .unwrap()
+                .execute(
+                    "INSERT INTO outbound_mail_queue
+                     (id,sender_address,recipients_json,status,retry_count,max_retries,
+                      next_retry_at,created_at,updated_at,subject,message_id)
+                     VALUES (7410,'qa@example.test','[\"recipient@remote.test\"]','PENDING',
+                             0,3,$1,$1,$1,'pending subject','<7410@example.test>')",
+                    &[&now],
+                )
+                .await
+                .unwrap();
+            insert_spool(&pool, 7_410, "/tmp/message-7410.eml", "REMOVED", now).await;
+            assert_eq!(
+                state
+                    .delete_removed_outbound_spool(7_410, "/tmp/message-7410.eml")
+                    .await,
+                Err(DeliveryStateError::InvalidTransition(
+                    "outbound spool cannot be deleted before delivery is terminal",
+                ))
+            );
+
+            let remaining = pool
+                .get()
+                .await
+                .unwrap()
+                .query_one("SELECT count(*) FROM lmyzmail_outbound_spool", &[])
+                .await
+                .unwrap()
+                .get::<_, i64>(0);
+            assert_eq!(remaining, 3);
         }
 
         #[tokio::test]

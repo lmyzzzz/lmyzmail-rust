@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "derived_profiler_diagnostic",
+  "qualified": false,
+  "retained": true,
+  "qualification_failure": "within_arm_throughput_stability",
+  "source_note": "Derived from the complete v99 runner failure output after the profiling ELF and selected-stage list were both verified to contain the three sidecar substages.",
+  "run_id": "77534734-2550-41e4-920e-90774fb0c64e",
+  "source_git_head": "1fccbd392b92c0be8777f14db72c9768688f9999",
+  "diagnostic_patch_sha256": "1b0544fd2a796d470b2f14f7bf52223ff6f541dcb859191362d4ae0fca5753a8",
+  "profile": "rust-profiler",
+  "target": "rust-candidate",
+  "tier": "10KB",
+  "rust_filesystem_fsync": "off",
+  "requested_messages": 2048,
+  "observed_messages": 2048,
+  "console_path": "evidence/performance/smtp-rust-sidecar-stages-profiler-v99-console.log",
+  "console_sha256": "3272838190160b6eb78977fc9cfcfffc62c9167aa1095dbc7fa7f856c6844781",
+  "queue_counters": {
+    "exceptions": 0,
+    "failed": 0,
+    "oom": 0,
+    "queued": 2048,
+    "rate_limited": 0,
+    "success": 2048,
+    "retry": 0,
+    "lost": 0
+  },
+  "timing": {
+    "total_ms": 19482,
+    "throughput_messages_per_second": 105.12,
+    "queueing_ms": 8415,
+    "delivery_ms": 11066
+  },
+  "stability": {
+    "maximum_relative_range": 0.3,
+    "relative_range": 0.418213,
+    "passed": false,
+    "segments_messages_per_second": [
+      86.85664,
+      115.028416,
+      140.185362,
+      140.00289
+    ],
+    "progress_samples_sha256": "b3e94fc649b7087542eb8a319794f6cad13cfe41da1587cdcfb706ac3c8bba82"
+  },
+  "stage_average_ns_by_segment": {
+    "queue_acknowledge": [
+      92558793,
+      73208803,
+      67967221,
+      59427024
+    ],
+    "queue_ack_sidecar_cleanup": [
+      38421225,
+      30694600,
+      29137089,
+      25308010
+    ],
+    "queue_ack_sidecar_snapshot": [
+      7513289,
+      5364400,
+      4682739,
+      4161396
+    ],
+    "queue_ack_sidecar_proof_cleanup": [
+      2693195,
+      1000207,
+      259127,
+      371757
+    ],
+    "queue_ack_sidecar_delete": [
+      28052937,
+      24165812,
+      24140979,
+      20508511
+    ],
+    "inbound_index_commit": [
+      63910123,
+      58863112,
+      53182193,
+      51882434
+    ]
+  },
+  "maildir": {
+    "publications": 4096,
+    "removals": 4096
+  },
+  "resource_io": {
+    "application_process_write_bytes": 142667776,
+    "application_process_write_syscalls": 80764,
+    "application_write_bytes": 34873344,
+    "application_write_operations": 91,
+    "services_process_write_bytes": 83910656,
+    "services_process_write_syscalls": 60522
+  },
+  "artifacts": {
+    "candidate_path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "candidate_sha256": "a115ff629838bb48db8bd9f20c83433dc7aa870d2526225463a56146f3b1519a",
+    "candidate_build_id": "3e5169ae8a15e3424895b43129fbe6b4ef31c6ce",
+    "candidate_size_bytes": 218843224,
+    "candidate_owner_mode": "root:root 0555",
+    "candidate_main_and_deps_hard_link": true
+  },
+  "cleanup": {
+    "request": "ABORT",
+    "cleanup": "passed",
+    "lazy_unmount": 0,
+    "qualified_cleanup": 0,
+    "receipt_path": "evidence/performance/smtp-rust-sidecar-stages-profiler-v99.json.root-cleanup",
+    "receipt_sha256": "be39f4ef5a4b05c51e17d755f919c0545a68867d20fb7e6b75310f81d2b572e6",
+    "intent_sha256": "1e73b2d6e7902ccb80aa851531253e30b88ed8a41111bdc29d1914f4ce80d901",
+    "resource_audit": "candidate, service, per-run cgroup, loop image, mount, provisional output, and runner artifacts absent"
+  }
+}

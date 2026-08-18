@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "derived_profiler_diagnostic",
+  "qualified": false,
+  "retained": true,
+  "qualification_failure": "within_arm_throughput_stability",
+  "source_note": "Derived from the complete v96 runner failure output; it localized queue acknowledgement cost before the narrower v99 sidecar instrumentation.",
+  "run_id": "44395fb4-6785-4659-9df0-4381a5d45930",
+  "git_head": "1fccbd392b92c0be8777f14db72c9768688f9999",
+  "profile": "rust-profiler",
+  "target": "rust-candidate",
+  "tier": "10KB",
+  "rust_filesystem_fsync": "off",
+  "requested_messages": 2048,
+  "observed_messages": 2048,
+  "queue_counters": {
+    "exceptions": 0,
+    "failed": 0,
+    "oom": 0,
+    "queued": 2048,
+    "rate_limited": 0,
+    "success": 2048,
+    "retry": 0,
+    "lost": 0
+  },
+  "timing": {
+    "total_ms": 18633,
+    "throughput_messages_per_second": 109.91,
+    "queueing_ms": 8543,
+    "delivery_ms": 10089
+  },
+  "stability": {
+    "maximum_relative_range": 0.3,
+    "relative_range": 0.471234,
+    "passed": false,
+    "segments_messages_per_second": [
+      87.801908,
+      113.554183,
+      145.60702,
+      148.864679
+    ],
+    "progress_samples_sha256": "9955ec05b0fb9a24e3361768e81f8dd0296aa7d4ba907f5793905eda75a7c6ee"
+  },
+  "stage_average_ns_by_segment": {
+    "queue_acknowledge": [
+      87832464,
+      77087516,
+      65480841,
+      58442973
+    ],
+    "queue_ack_spool_cleanup": [
+      35942878,
+      33349451,
+      28875217,
+      26007678
+    ],
+    "queue_ack_spool_proof_cleanup": [
+      1529920,
+      219019,
+      83076,
+      71726
+    ],
+    "queue_ack_mutation": [
+      6462061,
+      5427350,
+      4760781,
+      3854535
+    ],
+    "queue_ack_reconciliation": [
+      6385701,
+      5590237,
+      4163684,
+      3565937
+    ],
+    "queue_ack_sidecar_cleanup": [
+      39041254,
+      32686530,
+      27531137,
+      25123835
+    ],
+    "inbound_index_commit": [
+      67451404,
+      60145631,
+      49970984,
+      49285117
+    ]
+  },
+  "maildir": {
+    "publications": 4096,
+    "removals": 4096
+  },
+  "artifacts": {
+    "candidate_path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "candidate_sha256": "0a20582506be4eeda1257176b82488c55aeaf1fd1493c26e006a0999cb5b9de5",
+    "candidate_build_id": "c435828cacdd1c15f2be21abeccc19d0a9aa3e0c",
+    "candidate_size_bytes": 218842472,
+    "candidate_owner_mode": "root:root 0555",
+    "console_path": "evidence/performance/smtp-rust-queue-ack-diagnostic-v96-console.log",
+    "console_sha256": "9b179f81a8d681483a13e1657fbe592ae2844c107102f9382f24965cd529c07f"
+  },
+  "cleanup": {
+    "request": "ABORT",
+    "cleanup": "passed",
+    "lazy_unmount": 0,
+    "qualified_cleanup": 0,
+    "receipt_path": "evidence/performance/smtp-rust-queue-ack-diagnostic-v96.json.root-cleanup",
+    "receipt_sha256": "34f55850420aa18b589af8c293c50c384be770f27a693dea9c3c6e8405cfe10c",
+    "intent_sha256": "62e02e6d086f38844b1d9bb92d349e4b12a598699b3e5fbd925a45f97bb5470e",
+    "resource_audit": "candidate, service, per-run cgroup, loop image, mount, provisional output, and runner artifacts absent"
+  }
+}

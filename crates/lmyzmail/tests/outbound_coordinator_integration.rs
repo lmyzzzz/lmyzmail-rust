@@ -246,8 +246,34 @@ struct DropResponseProxy {
     thread: Option<JoinHandle<()>>,
 }
 
+#[derive(Clone, Copy)]
+enum DropResponseMode {
+    FirstResponse,
+    PostgresReadyForQuery,
+}
+
 impl DropResponseProxy {
     fn start(upstream_port: u16, request_marker: &'static [u8]) -> Self {
+        Self::start_with_mode(
+            upstream_port,
+            request_marker,
+            DropResponseMode::FirstResponse,
+        )
+    }
+
+    fn start_after_postgres_ready(upstream_port: u16, request_marker: &'static [u8]) -> Self {
+        Self::start_with_mode(
+            upstream_port,
+            request_marker,
+            DropResponseMode::PostgresReadyForQuery,
+        )
+    }
+
+    fn start_with_mode(
+        upstream_port: u16,
+        request_marker: &'static [u8],
+        mode: DropResponseMode,
+    ) -> Self {
         let listener = StdTcpListener::bind(("127.0.0.1", 0)).unwrap();
         listener.set_nonblocking(true).unwrap();
         let port = listener.local_addr().unwrap().port();
@@ -277,6 +303,7 @@ impl DropResponseProxy {
                                 handler_stop,
                                 handler_claimed,
                                 handler_dropped,
+                                mode,
                             );
                         }));
                     }
@@ -335,6 +362,7 @@ fn relay_connection(
     stop: Arc<AtomicBool>,
     drop_claimed: Arc<AtomicBool>,
     response_dropped: Arc<AtomicBool>,
+    mode: DropResponseMode,
 ) {
     let upstream = match StdTcpStream::connect(("127.0.0.1", upstream_port)) {
         Ok(stream) => stream,
@@ -401,7 +429,9 @@ fn relay_connection(
     let mut upstream_reader = upstream;
     let mut client_writer = client;
     let mut buffer = [0_u8; 16 * 1024];
-    while !stop.load(Ordering::Acquire) {
+    let mut held_postgres_frames = Vec::new();
+    let mut postgres_ready_count = 0_usize;
+    'responses: while !stop.load(Ordering::Acquire) {
         let read = match upstream_reader.read(&mut buffer) {
             Ok(0) => break,
             Ok(read) => read,
@@ -416,10 +446,54 @@ fn relay_connection(
             Err(_) => break,
         };
         if armed.load(Ordering::Acquire) {
-            response_dropped.store(true, Ordering::Release);
-            let _ = client_writer.shutdown(std::net::Shutdown::Both);
-            let _ = upstream_reader.shutdown(std::net::Shutdown::Both);
-            break;
+            match mode {
+                DropResponseMode::FirstResponse => {
+                    response_dropped.store(true, Ordering::Release);
+                    let _ = client_writer.shutdown(std::net::Shutdown::Both);
+                    let _ = upstream_reader.shutdown(std::net::Shutdown::Both);
+                    break;
+                }
+                DropResponseMode::PostgresReadyForQuery => {
+                    held_postgres_frames.extend_from_slice(&buffer[..read]);
+                    assert!(
+                        held_postgres_frames.len() <= 1024 * 1024,
+                        "PostgreSQL fault-injection response exceeded its bound"
+                    );
+                    let mut consumed = 0_usize;
+                    while held_postgres_frames.len().saturating_sub(consumed) >= 5 {
+                        let length = u32::from_be_bytes(
+                            held_postgres_frames[consumed + 1..consumed + 5]
+                                .try_into()
+                                .unwrap(),
+                        ) as usize;
+                        assert!(length >= 4, "invalid PostgreSQL response frame length");
+                        let frame_length = 1 + length;
+                        if held_postgres_frames.len() - consumed < frame_length {
+                            break;
+                        }
+                        let message_type = held_postgres_frames[consumed];
+                        consumed += frame_length;
+                        if message_type == b'Z' {
+                            postgres_ready_count += 1;
+                            if postgres_ready_count == 1 {
+                                if client_writer
+                                    .write_all(&held_postgres_frames[..consumed])
+                                    .is_err()
+                                {
+                                    break 'responses;
+                                }
+                                held_postgres_frames.drain(..consumed);
+                                break;
+                            }
+                            response_dropped.store(true, Ordering::Release);
+                            let _ = client_writer.shutdown(std::net::Shutdown::Both);
+                            let _ = upstream_reader.shutdown(std::net::Shutdown::Both);
+                            break 'responses;
+                        }
+                    }
+                    continue;
+                }
+            }
         }
         if client_writer.write_all(&buffer[..read]).is_err() {
             break;
@@ -1888,7 +1962,10 @@ async fn lost_exact_sidecar_delete_commit_response_is_idempotently_reconciled() 
         .await
         .unwrap();
 
-    let proxy = DropResponseProxy::start(postgres.port, b"COMMIT");
+    let proxy = DropResponseProxy::start_after_postgres_ready(
+        postgres.port,
+        b"WITH configured AS MATERIALIZED",
+    );
     let lossy_runtime = configuration(proxy.port(), redis_process.port);
     let lossy_pool = database::create_pool(&lossy_runtime).unwrap();
     let lossy_state = PostgresDeliveryState::new(lossy_pool.clone());

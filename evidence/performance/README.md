@@ -1379,3 +1379,79 @@ receipt at SHA-256
 with `request=ABORT`, `cleanup=passed`, and `lazy_unmount=0`; the independent
 audit found no remaining process, cgroup, loop image, mount, runner artifact,
 or provisional output.
+
+V96 retained the queue-acknowledgement stage vector without changing the
+delivery path. It delivered 2,048/2,048 messages with zero failure, retry,
+exception, OOM, or loss at 109.91 messages/second. Its final segment reached
+148.865 messages/second, but the four-segment range was 47.1234%, so the
+unchanged 30% ramp-up gate rejected the run. In that final segment,
+`queue_acknowledge` averaged 58.443 ms: terminal spool cleanup was 26.008 ms,
+Redis acknowledgement plus reconciliation was 7.420 ms, and the acknowledged
+sidecar cleanup was 25.124 ms. This excluded the Redis mutation itself as the
+dominant cost and justified narrower sidecar instrumentation.
+
+The v96 diagnostic JSON, console, and cleanup receipt hash to
+`2c4d17a9e63a8c3b4228afe9733b31f88c75fa4e49b208196aa7119853a671c8`,
+`9b179f81a8d681483a13e1657fbe592ae2844c107102f9382f24965cd529c07f`, and
+`34f55850420aa18b589af8c293c50c384be770f27a693dea9c3c6e8405cfe10c`.
+Run `44395fb4-6785-4659-9df0-4381a5d45930` ended with `request=ABORT`,
+`cleanup=passed`, and `lazy_unmount=0`. Two intervening setup attempts were
+discarded because the selected-stage list and rebuilt profiling ELF did not
+match; they produced no retained diagnostic or qualified artifact.
+
+V99 used a profiling ELF that was verified to contain three new substages for
+the acknowledged sidecar path. It delivered 2,048/2,048 messages with zero
+failure, retry, exception, OOM, or loss. Its final segment measured 25.308 ms
+for sidecar cleanup: 4.161 ms for the snapshot, 0.372 ms for proof cleanup, and
+20.509 ms for `delete_removed_outbound_spool`. The database deletion therefore
+accounted for 81.0% of the sidecar path. V99 remained unqualified because its
+four rates of 86.857, 115.028, 140.185, and 140.003 messages/second had a
+41.8213% range.
+
+The retained optimization replaces that deletion's five PostgreSQL exchanges
+(`BEGIN`, server timeout, locked validation, `DELETE`, and `COMMIT`) with one
+atomic data-modifying CTE. The CTE still sets a transaction-local server
+statement timeout, locks both spool and queue rows, validates path, removal
+state, and terminal delivery state before mutation, and maps a timeout or
+database error to the existing unknown-outcome reconciliation path. A real
+PostgreSQL integration test covers absence, successful and repeated deletion,
+path conflict, pre-removal rejection, and nonterminal rejection. The 19
+outbound-coordinator tests, two observer tests, 39 launcher tests, and library
+clippy with warnings denied also pass.
+
+V100 and v101 each delivered 2,048/2,048 with zero failure, retry, exception,
+OOM, or loss. Their final segments reached 144.432 and 147.004
+messages/second. The mean final sidecar deletion fell 51.14%, from 20.509 ms
+to 10.021 ms; sidecar cleanup fell 43.12%, from 25.308 ms to 14.395 ms; and
+`queue_acknowledge` fell 15.20%, from 59.427 ms to 50.393 ms. Their mean final
+throughput was 145.718 messages/second, 4.08% above v99. Both still failed only
+the unchanged ramp-up stability gate, so this proves the targeted optimization
+and its repeatability but is not formal endpoint throughput qualification.
+
+The v99 diagnostic JSON and console hash to
+`14845f900e6d655dc0ac0d4a9c8c3b1101e96ae3df9f234abeedfa75bdc7671a` and
+`3272838190160b6eb78977fc9cfcfffc62c9167aa1095dbc7fa7f856c6844781`.
+Its profiling ELF SHA-256 is
+`a115ff629838bb48db8bd9f20c83433dc7aa870d2526225463a56146f3b1519a`
+with Build ID `3e5169ae8a15e3424895b43129fbe6b4ef31c6ce`. The combined v100/v101
+summary hashes to
+`edf74b10c5446eda5b2253124b6e7423c74f2537de63d3750a33447d625a50a7`;
+their console hashes are
+`3a249cf3b643529bf7545243594dc3e76495335a4eb216375f8206adb1a5ab68`
+and
+`36d354cf21ad023447beae0751b0007e28c2f64a358aee504ca113160ebc952c`.
+The optimized ELF SHA-256 is
+`c3d0565d303b2ee14f0ad9f97a5cb6216cb0ffab8b462a4ebdbf08dc66c47812`
+with Build ID `74ed3d149e3efa545d85114a68b5da4bdc20ce4f`; its main path and deps
+hard link are one root-owned mode-0555 inode.
+
+Runs `77534734-2550-41e4-920e-90774fb0c64e`,
+`968dce7d-51da-40ba-9760-421baea14446`, and
+`c32cf369-fa68-4da6-bdb0-e944972e6434` each ended with `request=ABORT`,
+`cleanup=passed`, and `lazy_unmount=0`. Their cleanup receipts hash to
+`be39f4ef5a4b05c51e17d755f919c0545a68867d20fb7e6b75310f81d2b572e6`,
+`b633fbedb083ceaf1896d4663c632b7d17c6373a6d763b201926e265243f3a50`,
+and
+`9cceef792fbdc2bbdf7f786e69233b496f774dd27b20d15bb928ba5577274942`.
+The root audit found no remaining candidate or service process, per-run cgroup,
+loop image, mount, provisional output, or runner artifact after any run.

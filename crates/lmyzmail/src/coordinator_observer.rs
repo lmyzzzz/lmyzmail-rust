@@ -62,6 +62,9 @@ pub(crate) enum CoordinatorStage {
     QueueAckMutation,
     QueueAckReconciliation,
     QueueAckSidecarCleanup,
+    QueueAckSidecarSnapshot,
+    QueueAckSidecarProofCleanup,
+    QueueAckSidecarDelete,
     InboundPrepareFile,
     InboundIntentInsert,
     InboundPublishFile,
@@ -84,7 +87,7 @@ pub(crate) enum CoordinatorStage {
 }
 
 impl CoordinatorStage {
-    const ALL: [Self; 66] = [
+    const ALL: [Self; 69] = [
         Self::QueueClaim,
         Self::DatabaseClaim,
         Self::RecipientRoster,
@@ -132,6 +135,9 @@ impl CoordinatorStage {
         Self::QueueAckMutation,
         Self::QueueAckReconciliation,
         Self::QueueAckSidecarCleanup,
+        Self::QueueAckSidecarSnapshot,
+        Self::QueueAckSidecarProofCleanup,
+        Self::QueueAckSidecarDelete,
         Self::InboundPrepareFile,
         Self::InboundIntentInsert,
         Self::InboundPublishFile,
@@ -202,6 +208,9 @@ impl CoordinatorStage {
             Self::QueueAckMutation => "queue_ack_mutation",
             Self::QueueAckReconciliation => "queue_ack_reconciliation",
             Self::QueueAckSidecarCleanup => "queue_ack_sidecar_cleanup",
+            Self::QueueAckSidecarSnapshot => "queue_ack_sidecar_snapshot",
+            Self::QueueAckSidecarProofCleanup => "queue_ack_sidecar_proof_cleanup",
+            Self::QueueAckSidecarDelete => "queue_ack_sidecar_delete",
             Self::InboundPrepareFile => "inbound_prepare_file",
             Self::InboundIntentInsert => "inbound_intent_insert",
             Self::InboundPublishFile => "inbound_publish_file",

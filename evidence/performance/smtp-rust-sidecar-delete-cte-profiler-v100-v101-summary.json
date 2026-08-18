@@ -1,0 +1,250 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "retained_profiler_optimization_diagnostic",
+  "qualified": false,
+  "retained": true,
+  "qualification_failure": "within_arm_throughput_stability",
+  "retention_reason": "Two consecutive runs reproduced the targeted sidecar-delete latency reduction and improved last-segment throughput without failure, retry, OOM, or loss.",
+  "source_git_head": "1fccbd392b92c0be8777f14db72c9768688f9999",
+  "diagnostic_patch_sha256": "1b0544fd2a796d470b2f14f7bf52223ff6f541dcb859191362d4ae0fca5753a8",
+  "optimization_patch_sha256": "88e059f3f2b6c55bda45583681147f19d982612b30e2a7db958960c2b8997b7e",
+  "optimization": "Collapse the acknowledged REMOVED-spool validation and deletion transaction into one atomic PostgreSQL CTE while retaining row locks, transition checks, server-side statement timeout, and OutcomeUnknown reconciliation.",
+  "profile": "rust-profiler",
+  "target": "rust-candidate",
+  "tier": "10KB",
+  "rust_filesystem_fsync": "off",
+  "requested_messages_per_run": 2048,
+  "observed_messages_per_run": 2048,
+  "runs": {
+    "v100": {
+      "run_id": "968dce7d-51da-40ba-9760-421baea14446",
+      "console_path": "evidence/performance/smtp-rust-sidecar-delete-cte-profiler-v100-console.log",
+      "console_sha256": "3a249cf3b643529bf7545243594dc3e76495335a4eb216375f8206adb1a5ab68",
+      "queue_counters": {
+        "exceptions": 0,
+        "failed": 0,
+        "oom": 0,
+        "queued": 2048,
+        "rate_limited": 0,
+        "success": 2048,
+        "retry": 0,
+        "lost": 0
+      },
+      "timing": {
+        "total_ms": 19278,
+        "throughput_messages_per_second": 106.23,
+        "queueing_ms": 9211,
+        "delivery_ms": 10066
+      },
+      "stability": {
+        "maximum_relative_range": 0.3,
+        "relative_range": 0.509449,
+        "passed": false,
+        "segments_messages_per_second": [
+          80.64327,
+          112.252222,
+          138.171914,
+          144.432464
+        ],
+        "progress_samples_sha256": "cb3c54e66625900f3df0eb38352e4033d19eb8c733f5a2e4c0209ba43c60c3e6"
+      },
+      "stage_average_ns_by_segment": {
+        "queue_acknowledge": [
+          86889677,
+          65762307,
+          54289460,
+          52607127
+        ],
+        "queue_ack_sidecar_cleanup": [
+          27342203,
+          20047726,
+          15514805,
+          14861559
+        ],
+        "queue_ack_sidecar_snapshot": [
+          9502850,
+          6446308,
+          4924728,
+          4225750
+        ],
+        "queue_ack_sidecar_proof_cleanup": [
+          3476210,
+          1795882,
+          318969,
+          301172
+        ],
+        "queue_ack_sidecar_delete": [
+          14549490,
+          11373159,
+          10182922,
+          10337125
+        ],
+        "inbound_index_commit": [
+          75576580,
+          62406542,
+          52212765,
+          53178868
+        ]
+      },
+      "maildir": {
+        "publications": 4096,
+        "removals": 4096
+      },
+      "resource_io": {
+        "application_process_write_bytes": 142675968,
+        "application_process_write_syscalls": 80982,
+        "application_write_bytes": 31281152,
+        "application_write_operations": 66,
+        "services_process_write_bytes": 84852736,
+        "services_process_write_syscalls": 60549
+      },
+      "cleanup": {
+        "request": "ABORT",
+        "cleanup": "passed",
+        "lazy_unmount": 0,
+        "qualified_cleanup": 0,
+        "receipt_path": "evidence/performance/smtp-rust-sidecar-delete-cte-profiler-v100.json.root-cleanup",
+        "receipt_sha256": "b633fbedb083ceaf1896d4663c632b7d17c6373a6d763b201926e265243f3a50",
+        "intent_sha256": "4a1706fc9faf19aa08a035c9f0c7e19c2a70f121f6dfa1203ca1c516612ce4a0"
+      }
+    },
+    "v101": {
+      "run_id": "c32cf369-fa68-4da6-bdb0-e944972e6434",
+      "console_path": "evidence/performance/smtp-rust-sidecar-delete-cte-repeat-profiler-v101-console.log",
+      "console_sha256": "36d354cf21ad023447beae0751b0007e28c2f64a358aee504ca113160ebc952c",
+      "queue_counters": {
+        "exceptions": 0,
+        "failed": 0,
+        "oom": 0,
+        "queued": 2048,
+        "rate_limited": 0,
+        "success": 2048,
+        "retry": 0,
+        "lost": 0
+      },
+      "timing": {
+        "total_ms": 18805,
+        "throughput_messages_per_second": 108.9,
+        "queueing_ms": 8725,
+        "delivery_ms": 10080
+      },
+      "stability": {
+        "maximum_relative_range": 0.3,
+        "relative_range": 0.476428,
+        "passed": false,
+        "segments_messages_per_second": [
+          85.01043,
+          114.525753,
+          145.717929,
+          147.00414
+        ],
+        "progress_samples_sha256": "8ef7d7e5229d66e099aab74fe953eaa181348cad8ea3a2da23f7f08a70641347"
+      },
+      "stage_average_ns_by_segment": {
+        "queue_acknowledge": [
+          80719923,
+          65574233,
+          53271053,
+          48178270
+        ],
+        "queue_ack_sidecar_cleanup": [
+          23866346,
+          17715935,
+          15081573,
+          13928747
+        ],
+        "queue_ack_sidecar_snapshot": [
+          7129642,
+          5897862,
+          4565784,
+          3903670
+        ],
+        "queue_ack_sidecar_proof_cleanup": [
+          2885943,
+          820307,
+          262605,
+          315625
+        ],
+        "queue_ack_sidecar_delete": [
+          13836638,
+          11010085,
+          10233682,
+          9705226
+        ],
+        "inbound_index_commit": [
+          71890428,
+          60685926,
+          51523109,
+          51035918
+        ]
+      },
+      "maildir": {
+        "publications": 4096,
+        "removals": 4096
+      },
+      "resource_io": {
+        "application_process_write_bytes": 142671872,
+        "application_process_write_syscalls": 80849,
+        "application_write_bytes": 34209792,
+        "application_write_operations": 94,
+        "services_process_write_bytes": 84860928,
+        "services_process_write_syscalls": 60544
+      },
+      "cleanup": {
+        "request": "ABORT",
+        "cleanup": "passed",
+        "lazy_unmount": 0,
+        "qualified_cleanup": 0,
+        "receipt_path": "evidence/performance/smtp-rust-sidecar-delete-cte-repeat-profiler-v101.json.root-cleanup",
+        "receipt_sha256": "9cceef792fbdc2bbdf7f786e69233b496f774dd27b20d15bb928ba5577274942",
+        "intent_sha256": "b61fec668ff9e8322610a197baa1890417ea531332b8646ca3ad61cf902893ee"
+      }
+    }
+  },
+  "comparison": {
+    "baseline": "evidence/performance/smtp-rust-sidecar-stages-profiler-v99-diagnostic.json",
+    "baseline_last_segment_messages_per_second": 140.00289,
+    "optimized_last_segment_mean_messages_per_second": 145.718302,
+    "last_segment_change_percent": 4.082352871429995,
+    "baseline_last_segment_stage_average_ns": {
+      "queue_acknowledge": 59427024,
+      "queue_ack_sidecar_cleanup": 25308010,
+      "queue_ack_sidecar_snapshot": 4161396,
+      "queue_ack_sidecar_proof_cleanup": 371757,
+      "queue_ack_sidecar_delete": 20508511,
+      "inbound_index_commit": 51882434
+    },
+    "optimized_last_segment_mean_stage_average_ns": {
+      "queue_acknowledge": 50392698.5,
+      "queue_ack_sidecar_cleanup": 14395153.0,
+      "queue_ack_sidecar_snapshot": 4064710.0,
+      "queue_ack_sidecar_proof_cleanup": 308398.5,
+      "queue_ack_sidecar_delete": 10021175.5,
+      "inbound_index_commit": 52107393.0
+    },
+    "stage_change_percent": {
+      "queue_acknowledge": -15.202385870778246,
+      "queue_ack_sidecar_cleanup": -43.12017025439771,
+      "queue_ack_sidecar_snapshot": -2.3234030118739035,
+      "queue_ack_sidecar_proof_cleanup": -17.042987758132334,
+      "queue_ack_sidecar_delete": -51.13650376665571,
+      "inbound_index_commit": 0.4335937670156387
+    }
+  },
+  "artifacts": {
+    "candidate_path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "candidate_sha256": "c3d0565d303b2ee14f0ad9f97a5cb6216cb0ffab8b462a4ebdbf08dc66c47812",
+    "candidate_build_id": "74ed3d149e3efa545d85114a68b5da4bdc20ce4f",
+    "candidate_size_bytes": 218820016,
+    "candidate_owner_mode": "root:root 0555",
+    "candidate_main_and_deps_hard_link": true
+  },
+  "verification": {
+    "postgres_transition_integration_test": "1 passed",
+    "outbound_coordinator_tests": "19 passed",
+    "coordinator_observer_tests": "2 passed",
+    "benchmark_launcher_tests": "39 passed",
+    "clippy_lib_deny_warnings": "passed",
+    "resource_audit": "candidate, service, per-run cgroup, loop image, mount, provisional output, and runner artifacts absent after both runs"
+  }
+}
