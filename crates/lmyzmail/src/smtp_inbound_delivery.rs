@@ -2714,6 +2714,44 @@ INSERT INTO mailbox (address) VALUES ('qa@example.test');
         assert_eq!((indexed, state, projection), (expected, expected, expected));
     }
 
+    async fn assert_failed_batch_was_atomic(pool: &Pool, existing_indexes: i64) {
+        let client = pool.get().await.unwrap();
+        let index_count: i64 = client
+            .query_one("SELECT COUNT(*) FROM email_index", &[])
+            .await
+            .unwrap()
+            .get(0);
+        let advanced_intents: i64 = client
+            .query_one(
+                "SELECT COUNT(*) FROM lmyzmail_inbound_delivery_intent
+                 WHERE state <> 'PREPARED'",
+                &[],
+            )
+            .await
+            .unwrap()
+            .get(0);
+        let count_states: i64 = client
+            .query_one(
+                "SELECT COUNT(*) FROM lmyzmail_inbound_mail_count_state",
+                &[],
+            )
+            .await
+            .unwrap()
+            .get(0);
+        let projections: i64 = client
+            .query_one(
+                "SELECT COUNT(*) FROM lmyzmail_inbound_mail_count_projection",
+                &[],
+            )
+            .await
+            .unwrap()
+            .get(0);
+        assert_eq!(
+            (index_count, advanced_intents, count_states, projections),
+            (existing_indexes, 0, 0, 0)
+        );
+    }
+
     async fn database_xact_rollback(pool: &Pool) -> i64 {
         let client = pool.get().await.unwrap();
         client
@@ -2754,6 +2792,115 @@ INSERT INTO mailbox (address) VALUES ('qa@example.test');
             .unwrap()
             .get(0);
         assert_eq!(indexed_intents, MAX_INDEX_BATCH_ROWS as i64);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn batch_validation_failures_are_atomic_and_error_specific() {
+        let (_postgres, pool) = test_database().await;
+        let mut first = database_prepared(6_000, "inbox");
+        first.index.subdirectory = None;
+        let second = database_prepared(6_001, "inbox");
+        insert_intent(&pool, &first).await.unwrap();
+        let references = [&first, &second];
+
+        let error = commit_index_batch(&pool, &references).await.unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::NotFound);
+        assert_failed_batch_was_atomic(&pool, 0).await;
+
+        insert_intent(&pool, &second).await.unwrap();
+        let client = pool.get().await.unwrap();
+        client
+            .execute(
+                "UPDATE lmyzmail_inbound_delivery_intent
+                 SET subject='identity drift' WHERE intent_id=$1",
+                &[&second.intent_id],
+            )
+            .await
+            .unwrap();
+        drop(client);
+        let error = commit_index_batch(&pool, &references).await.unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert_failed_batch_was_atomic(&pool, 0).await;
+
+        let client = pool.get().await.unwrap();
+        client
+            .execute(
+                "UPDATE lmyzmail_inbound_delivery_intent
+                 SET subject=$2 WHERE intent_id=$1",
+                &[&second.intent_id, &second.index.subject],
+            )
+            .await
+            .unwrap();
+        client.execute("DELETE FROM mailbox", &[]).await.unwrap();
+        drop(client);
+        let error = commit_index_batch(&pool, &references).await.unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::NotFound);
+        assert_failed_batch_was_atomic(&pool, 0).await;
+
+        let client = pool.get().await.unwrap();
+        client
+            .execute(
+                "INSERT INTO mailbox (address) VALUES ('qa@example.test')",
+                &[],
+            )
+            .await
+            .unwrap();
+        client
+            .execute(
+                "INSERT INTO email_index
+                   (has_attachments,subdirectory,indexed_at,received_at,size_bytes,folder,
+                    from_address,message_id,subject,to_addresses,file_name,mailbox_address)
+                 SELECT has_attachments,subdirectory,received_at,received_at,size_bytes,folder,
+                        from_address,message_id,'replay drift',to_addresses,file_name,
+                        mailbox_address
+                 FROM lmyzmail_inbound_delivery_intent WHERE intent_id=$1",
+                &[&first.intent_id],
+            )
+            .await
+            .unwrap();
+        drop(client);
+        let error = commit_index_batch(&pool, &references).await.unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert_failed_batch_was_atomic(&pool, 1).await;
+
+        let client = pool.get().await.unwrap();
+        client
+            .execute(
+                "UPDATE email_index SET subject=$1 WHERE file_name=$2",
+                &[&first.index.subject, &first.index.file_name],
+            )
+            .await
+            .unwrap();
+        client
+            .execute(
+                "INSERT INTO email_index
+                   (has_attachments,subdirectory,indexed_at,received_at,size_bytes,folder,
+                    from_address,message_id,subject,to_addresses,file_name,mailbox_address)
+                 SELECT has_attachments,subdirectory,indexed_at,received_at,size_bytes,folder,
+                        from_address,message_id,subject,to_addresses,file_name,mailbox_address
+                 FROM email_index WHERE file_name=$1 LIMIT 1",
+                &[&first.index.file_name],
+            )
+            .await
+            .unwrap();
+        drop(client);
+        let error = commit_index_batch(&pool, &references).await.unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert_failed_batch_was_atomic(&pool, 2).await;
+
+        let client = pool.get().await.unwrap();
+        client
+            .execute(
+                "DELETE FROM email_index WHERE id=(
+                   SELECT MAX(id) FROM email_index WHERE file_name=$1
+                 )",
+                &[&first.index.file_name],
+            )
+            .await
+            .unwrap();
+        drop(client);
+        commit_index_batch(&pool, &references).await.unwrap();
+        assert_exact_count(&pool, "inbox", 2).await;
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
