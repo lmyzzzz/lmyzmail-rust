@@ -81,6 +81,12 @@ pub(crate) enum CoordinatorStage {
     QueueAckSidecarDelete,
     InboundPrepareFile,
     InboundIntentInsert,
+    InboundIntentBatchAdmission,
+    InboundIntentBatchQueueWait,
+    InboundIntentBatchDispatchWait,
+    InboundIntentBatchCollect,
+    InboundIntentBatchWorker,
+    InboundIntentBatchResponseWait,
     InboundPublishFile,
     InboundIndexCommit,
     InboundIndexBatchAdmission,
@@ -119,7 +125,7 @@ pub(crate) enum CoordinatorStage {
 }
 
 impl CoordinatorStage {
-    const ALL: [Self; 100] = [
+    const ALL: [Self; 106] = [
         Self::QueueClaim,
         Self::DatabaseClaim,
         Self::RecipientRoster,
@@ -185,6 +191,12 @@ impl CoordinatorStage {
         Self::QueueAckSidecarDelete,
         Self::InboundPrepareFile,
         Self::InboundIntentInsert,
+        Self::InboundIntentBatchAdmission,
+        Self::InboundIntentBatchQueueWait,
+        Self::InboundIntentBatchDispatchWait,
+        Self::InboundIntentBatchCollect,
+        Self::InboundIntentBatchWorker,
+        Self::InboundIntentBatchResponseWait,
         Self::InboundPublishFile,
         Self::InboundIndexCommit,
         Self::InboundIndexBatchAdmission,
@@ -289,6 +301,12 @@ impl CoordinatorStage {
             Self::QueueAckSidecarDelete => "queue_ack_sidecar_delete",
             Self::InboundPrepareFile => "inbound_prepare_file",
             Self::InboundIntentInsert => "inbound_intent_insert",
+            Self::InboundIntentBatchAdmission => "inbound_intent_batch_admission",
+            Self::InboundIntentBatchQueueWait => "inbound_intent_batch_queue_wait",
+            Self::InboundIntentBatchDispatchWait => "inbound_intent_batch_dispatch_wait",
+            Self::InboundIntentBatchCollect => "inbound_intent_batch_collect",
+            Self::InboundIntentBatchWorker => "inbound_intent_batch_worker",
+            Self::InboundIntentBatchResponseWait => "inbound_intent_batch_response_wait",
             Self::InboundPublishFile => "inbound_publish_file",
             Self::InboundIndexCommit => "inbound_index_commit",
             Self::InboundIndexBatchAdmission => "inbound_index_batch_admission",
@@ -652,6 +670,30 @@ mod tests {
                 "result_checkpoint_recipient_update",
                 "result_checkpoint_attempt_update",
                 "result_checkpoint_commit",
+            ]
+        );
+    }
+
+    #[test]
+    fn inbound_intent_batch_stage_names_are_stable() {
+        let names = [
+            CoordinatorStage::InboundIntentBatchAdmission,
+            CoordinatorStage::InboundIntentBatchQueueWait,
+            CoordinatorStage::InboundIntentBatchDispatchWait,
+            CoordinatorStage::InboundIntentBatchCollect,
+            CoordinatorStage::InboundIntentBatchWorker,
+            CoordinatorStage::InboundIntentBatchResponseWait,
+        ]
+        .map(CoordinatorStage::name);
+        assert_eq!(
+            names,
+            [
+                "inbound_intent_batch_admission",
+                "inbound_intent_batch_queue_wait",
+                "inbound_intent_batch_dispatch_wait",
+                "inbound_intent_batch_collect",
+                "inbound_intent_batch_worker",
+                "inbound_intent_batch_response_wait",
             ]
         );
     }

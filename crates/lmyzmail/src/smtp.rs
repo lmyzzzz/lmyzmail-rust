@@ -294,6 +294,7 @@ pub struct SmtpService {
     maildir_max_files_per_directory: Option<usize>,
     inbound_shard_allocator: Arc<InboundShardAllocator>,
     active_inbound_intents: Arc<inbound_delivery::ActiveInboundIntents>,
+    inbound_intent_committer: Arc<inbound_delivery::IntentCommitter>,
     inbound_index_committer: Arc<inbound_delivery::IndexCommitter>,
     inbound_completion_committer: Arc<inbound_delivery::CompletionCommitter>,
     inbound_staging_gate: Arc<RwLock<()>>,
@@ -511,6 +512,7 @@ impl SmtpService {
             maildir_max_files_per_directory,
             inbound_shard_allocator: Arc::new(InboundShardAllocator::default()),
             active_inbound_intents: Arc::new(inbound_delivery::ActiveInboundIntents::default()),
+            inbound_intent_committer: inbound_delivery::IntentCommitter::start(pool.clone()),
             inbound_index_committer: inbound_delivery::IndexCommitter::start(pool.clone()),
             inbound_completion_committer: inbound_delivery::CompletionCommitter::start(
                 pool.clone(),
@@ -940,7 +942,7 @@ impl SmtpService {
         };
         {
             let _timer = StageTimer::start(CoordinatorStage::InboundIntentInsert);
-            inbound_delivery::insert_intent(&self.pool, &prepared).await?;
+            self.inbound_intent_committer.submit(&prepared).await?;
         }
         if let Some(reservation) = shard_reservation.as_mut() {
             reservation.mark_durable();
@@ -1388,19 +1390,25 @@ pub async fn serve_smtp(
         let _ = maintenance_task.await;
     }
     let inbound_committer_deadline = Instant::now() + INBOUND_COMMITTER_SHUTDOWN_DEADLINE;
-    if !service
-        .inbound_completion_committer
-        .shutdown(inbound_committer_deadline)
-        .await
-    {
-        eprintln!("lmyzmail SMTP inbound completion worker exceeded its shutdown deadline");
+    let (intent_drained, index_drained, completion_drained) = tokio::join!(
+        service
+            .inbound_intent_committer
+            .shutdown(inbound_committer_deadline),
+        service
+            .inbound_index_committer
+            .shutdown(inbound_committer_deadline),
+        service
+            .inbound_completion_committer
+            .shutdown(inbound_committer_deadline),
+    );
+    if !intent_drained {
+        eprintln!("lmyzmail SMTP inbound intent worker exceeded its shutdown deadline");
     }
-    if !service
-        .inbound_index_committer
-        .shutdown(inbound_committer_deadline)
-        .await
-    {
+    if !index_drained {
         eprintln!("lmyzmail SMTP inbound index worker exceeded its shutdown deadline");
+    }
+    if !completion_drained {
+        eprintln!("lmyzmail SMTP inbound completion worker exceeded its shutdown deadline");
     }
     if let Some(video) = service.skibidi_video.as_ref()
         && !video.shutdown().await

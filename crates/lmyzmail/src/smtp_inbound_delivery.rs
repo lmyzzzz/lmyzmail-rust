@@ -44,6 +44,10 @@ pub(crate) const STAGING_ENTRY_LIMIT: usize = 65_536;
 pub(crate) const STAGING_CLEANUP_BATCH_SIZE: usize = 64;
 pub(crate) const STAGING_ORPHAN_MIN_AGE: Duration = Duration::from_secs(300);
 pub(crate) const MAX_ACTIVE_INBOUND_INTENTS: usize = 256;
+const INTENT_BATCH_CHANNEL_CAPACITY: usize = MAX_ACTIVE_INBOUND_INTENTS;
+const MAX_INTENT_BATCH_ROWS: usize = 64;
+const INTENT_BATCH_COLLECTION_WINDOW: Duration = Duration::from_millis(2);
+const INTENT_BATCH_RESPONSE_TIMEOUT: Duration = Duration::from_secs(60);
 const INDEX_BATCH_CHANNEL_CAPACITY: usize = MAX_ACTIVE_INBOUND_INTENTS;
 const MAX_INDEX_BATCH_ROWS: usize = 64;
 const INDEX_BATCH_COLLECTION_WINDOW: Duration = Duration::from_millis(2);
@@ -227,6 +231,266 @@ pub(crate) struct PreparedInbound {
     state: IntentState,
 }
 
+struct IntentCommitRequest {
+    prepared: PreparedInbound,
+    response: oneshot::Sender<io::Result<()>>,
+    observed_enqueued_at: Option<std::time::Instant>,
+    observed_dequeued_at: Option<std::time::Instant>,
+}
+
+impl IntentCommitRequest {
+    fn new(prepared: PreparedInbound, response: oneshot::Sender<io::Result<()>>) -> Self {
+        Self {
+            prepared,
+            response,
+            observed_enqueued_at: observation_instant(),
+            observed_dequeued_at: None,
+        }
+    }
+
+    fn observe_dequeued(&mut self) {
+        let dequeued_at = observation_instant();
+        if let (Some(enqueued_at), Some(dequeued_at)) = (self.observed_enqueued_at, dequeued_at) {
+            record_stage_elapsed(
+                CoordinatorStage::InboundIntentBatchQueueWait,
+                dequeued_at.saturating_duration_since(enqueued_at),
+            );
+        }
+        self.observed_dequeued_at = dequeued_at;
+    }
+
+    fn observe_dispatched(&self, dispatched_at: Option<std::time::Instant>) {
+        if let (Some(dequeued_at), Some(dispatched_at)) = (self.observed_dequeued_at, dispatched_at)
+        {
+            record_stage_elapsed(
+                CoordinatorStage::InboundIntentBatchDispatchWait,
+                dispatched_at.saturating_duration_since(dequeued_at),
+            );
+        }
+    }
+
+    fn respond(self, result: io::Result<()>) {
+        let _ = self.response.send(result);
+    }
+}
+
+#[derive(Clone)]
+struct IntentCommitFailure {
+    kind: io::ErrorKind,
+    message: Arc<str>,
+}
+
+impl IntentCommitFailure {
+    fn from_error(error: io::Error) -> Self {
+        Self {
+            kind: error.kind(),
+            message: Arc::from(error.to_string()),
+        }
+    }
+
+    fn to_error(&self) -> io::Error {
+        io::Error::new(self.kind, self.message.to_string())
+    }
+
+    fn is_request_specific(&self) -> bool {
+        matches!(
+            self.kind,
+            io::ErrorKind::InvalidData
+                | io::ErrorKind::InvalidInput
+                | io::ErrorKind::NotFound
+                | io::ErrorKind::AlreadyExists
+        )
+    }
+}
+
+pub(crate) struct IntentCommitter {
+    sender: mpsc::Sender<IntentCommitRequest>,
+    shutdown: CancellationToken,
+    worker: AsyncMutex<Option<JoinHandle<()>>>,
+}
+
+impl IntentCommitter {
+    pub(crate) fn start(pool: Pool) -> Arc<Self> {
+        let (sender, receiver) = mpsc::channel(INTENT_BATCH_CHANNEL_CAPACITY);
+        let shutdown = CancellationToken::new();
+        let worker = tokio::spawn(run_intent_commit_worker(pool, receiver, shutdown.clone()));
+        Arc::new(Self {
+            sender,
+            shutdown,
+            worker: AsyncMutex::new(Some(worker)),
+        })
+    }
+
+    pub(crate) async fn submit(&self, prepared: &PreparedInbound) -> io::Result<()> {
+        let sender = self.sender.clone();
+        let permit = {
+            let _timer = StageTimer::start(CoordinatorStage::InboundIntentBatchAdmission);
+            timeout(DATABASE_TIMEOUT, sender.reserve_owned())
+                .await
+                .map_err(|_| timed_out("inbound intent batch admission"))?
+                .map_err(|_| {
+                    io::Error::new(io::ErrorKind::BrokenPipe, "inbound intent worker closed")
+                })?
+        };
+        let (response, receiver) = oneshot::channel();
+        permit.send(IntentCommitRequest::new(prepared.clone(), response));
+        let _timer = StageTimer::start(CoordinatorStage::InboundIntentBatchResponseWait);
+        timeout(INTENT_BATCH_RESPONSE_TIMEOUT, receiver)
+            .await
+            .map_err(|_| timed_out("inbound intent batch response"))?
+            .map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::ConnectionAborted,
+                    "inbound intent worker dropped its response",
+                )
+            })?
+    }
+
+    pub(crate) async fn shutdown(&self, deadline: Instant) -> bool {
+        self.shutdown.cancel();
+        let Some(mut worker) = self.worker.lock().await.take() else {
+            return true;
+        };
+        if timeout_at(deadline, &mut worker).await.is_ok() {
+            return true;
+        }
+        worker.abort();
+        let _ = worker.await;
+        false
+    }
+}
+
+impl Drop for IntentCommitter {
+    fn drop(&mut self) {
+        self.shutdown.cancel();
+    }
+}
+
+async fn run_intent_commit_worker(
+    pool: Pool,
+    mut receiver: mpsc::Receiver<IntentCommitRequest>,
+    shutdown: CancellationToken,
+) {
+    loop {
+        let first = tokio::select! {
+            biased;
+            _ = shutdown.cancelled() => {
+                receiver.close();
+                receiver.recv().await
+            }
+            request = receiver.recv() => request,
+        };
+        let Some(mut first) = first else {
+            break;
+        };
+        first.observe_dequeued();
+        let mut batch = Vec::with_capacity(MAX_INTENT_BATCH_ROWS);
+        batch.push(first);
+        let collection_timer = StageTimer::start(CoordinatorStage::InboundIntentBatchCollect);
+        let collection_deadline = Instant::now() + INTENT_BATCH_COLLECTION_WINDOW;
+        while batch.len() < MAX_INTENT_BATCH_ROWS {
+            let request = tokio::select! {
+                biased;
+                _ = shutdown.cancelled() => {
+                    receiver.close();
+                    receiver.try_recv().ok()
+                }
+                result = timeout_at(collection_deadline, receiver.recv()) => {
+                    result.ok().flatten()
+                }
+            };
+            let Some(mut request) = request else {
+                break;
+            };
+            request.observe_dequeued();
+            batch.push(request);
+        }
+        drop(collection_timer);
+        let dispatched_at = observation_instant();
+        for request in &batch {
+            request.observe_dispatched(dispatched_at);
+        }
+        let _worker_timer = StageTimer::start(CoordinatorStage::InboundIntentBatchWorker);
+        persist_intent_batch(&pool, batch).await;
+    }
+}
+
+async fn persist_intent_batch(pool: &Pool, batch: Vec<IntentCommitRequest>) {
+    let mut live = Vec::with_capacity(batch.len());
+    for request in batch {
+        if !request.response.is_closed() {
+            live.push(request);
+        }
+    }
+    if live.is_empty() {
+        return;
+    }
+
+    let mut representative_for = vec![None; live.len()];
+    let mut representatives: Vec<usize> = Vec::new();
+    let mut representative_by_id = BTreeMap::<String, usize>::new();
+    let mut conflicting = vec![false; live.len()];
+    for (index, request) in live.iter().enumerate() {
+        if let Some(&representative) = representative_by_id.get(&request.prepared.intent_id) {
+            representative_for[index] = Some(representative);
+            let representative_index = representatives[representative];
+            if !live[representative_index]
+                .prepared
+                .matches(&request.prepared)
+            {
+                conflicting[index] = true;
+            }
+        } else {
+            let representative = representatives.len();
+            representative_by_id.insert(request.prepared.intent_id.clone(), representative);
+            representatives.push(index);
+            representative_for[index] = Some(representative);
+        }
+    }
+    let prepared = representatives
+        .iter()
+        .map(|&index| &live[index].prepared)
+        .collect::<Vec<_>>();
+    let representative_results = match insert_intent_batch(pool, &prepared).await {
+        Ok(()) => vec![Ok(()); representatives.len()],
+        Err(error) => {
+            let failure = IntentCommitFailure::from_error(error);
+            if failure.is_request_specific() {
+                let mut results = Vec::with_capacity(representatives.len());
+                for &index in &representatives {
+                    results.push(
+                        insert_intent(pool, &live[index].prepared)
+                            .await
+                            .map_err(IntentCommitFailure::from_error),
+                    );
+                }
+                results
+            } else {
+                vec![Err(failure); representatives.len()]
+            }
+        }
+    };
+    let conflict = IntentCommitFailure::from_error(io::Error::new(
+        io::ErrorKind::InvalidData,
+        "inbound intent batch contains conflicting duplicate intent identities",
+    ));
+    for (index, request) in live.into_iter().enumerate() {
+        if conflicting[index] {
+            request.respond(Err(conflict.to_error()));
+            continue;
+        }
+        let Some(representative) = representative_for[index] else {
+            request.respond(Err(io::Error::other(
+                "inbound intent request lost its representative",
+            )));
+            continue;
+        };
+        request.respond(match &representative_results[representative] {
+            Ok(()) => Ok(()),
+            Err(error) => Err(error.to_error()),
+        });
+    }
+}
 struct IndexCommitRequest {
     prepared: PreparedInbound,
     response: oneshot::Sender<io::Result<()>>,
@@ -946,6 +1210,255 @@ pub(crate) async fn insert_intent(pool: &Pool, prepared: &PreparedInbound) -> io
             reconcile_intent_insert(pool, prepared, timed_out("inbound intent insert commit")).await
         }
     }
+}
+
+async fn insert_intent_batch(pool: &Pool, prepared: &[&PreparedInbound]) -> io::Result<()> {
+    if prepared.is_empty() || prepared.len() > MAX_INTENT_BATCH_ROWS {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "inbound intent batch size is invalid",
+        ));
+    }
+    let mut ordered = prepared.to_vec();
+    ordered.sort_by(|left, right| left.intent_id.cmp(&right.intent_id));
+    let mut unique: Vec<&PreparedInbound> = Vec::with_capacity(ordered.len());
+    for item in ordered {
+        if let Some(previous) = unique.last()
+            && previous.intent_id == item.intent_id
+        {
+            if !previous.matches(item) {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "inbound intent batch contains conflicting duplicate intent identities",
+                ));
+            }
+            continue;
+        }
+        unique.push(item);
+    }
+
+    let temporary_names = unique
+        .iter()
+        .map(|item| {
+            item.temporary_name.to_str().ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidInput, "non-UTF-8 staging name")
+            })
+        })
+        .collect::<io::Result<Vec<_>>>()?;
+    let intent_ids = unique
+        .iter()
+        .map(|item| item.intent_id.as_str())
+        .collect::<Vec<_>>();
+    let mailboxes = unique
+        .iter()
+        .map(|item| item.index.mailbox.as_str())
+        .collect::<Vec<_>>();
+    let folders = unique
+        .iter()
+        .map(|item| item.index.folder.as_str())
+        .collect::<Vec<_>>();
+    let subdirectories = unique
+        .iter()
+        .map(|item| item.index.subdirectory)
+        .collect::<Vec<_>>();
+    let file_names = unique
+        .iter()
+        .map(|item| item.index.file_name.as_str())
+        .collect::<Vec<_>>();
+    let devices = unique
+        .iter()
+        .map(|item| item.identity.device.to_be_bytes().to_vec())
+        .collect::<Vec<_>>();
+    let inodes = unique
+        .iter()
+        .map(|item| item.identity.inode.to_be_bytes().to_vec())
+        .collect::<Vec<_>>();
+    let size_bytes = unique
+        .iter()
+        .map(|item| item.index.size_bytes)
+        .collect::<Vec<_>>();
+    let sha256 = unique
+        .iter()
+        .map(|item| item.identity.sha256.to_vec())
+        .collect::<Vec<_>>();
+    let has_attachments = unique
+        .iter()
+        .map(|item| item.index.has_attachments)
+        .collect::<Vec<_>>();
+    let received_at = unique
+        .iter()
+        .map(|item| item.index.received_at)
+        .collect::<Vec<_>>();
+    let from_addresses = unique
+        .iter()
+        .map(|item| item.index.from_address.as_deref())
+        .collect::<Vec<_>>();
+    let message_ids = unique
+        .iter()
+        .map(|item| item.index.message_id.as_str())
+        .collect::<Vec<_>>();
+    let subjects = unique
+        .iter()
+        .map(|item| item.index.subject.as_deref())
+        .collect::<Vec<_>>();
+    let to_addresses = unique
+        .iter()
+        .map(|item| item.index.to_addresses.as_str())
+        .collect::<Vec<_>>();
+
+    let mut client = database_client(pool).await?;
+    let transaction = timeout(DATABASE_TIMEOUT, client.transaction())
+        .await
+        .map_err(|_| timed_out("inbound intent batch transaction"))?
+        .map_err(database_error)?;
+    let mut intent_locks = unique
+        .iter()
+        .map(|item| intent_lock_id(&item.intent_id))
+        .collect::<Vec<_>>();
+    intent_locks.sort_unstable();
+    intent_locks.dedup();
+    timeout(
+        DATABASE_TIMEOUT,
+        transaction.query(
+            "SELECT pg_advisory_xact_lock(value)
+             FROM (
+               SELECT value
+               FROM unnest($1::bigint[]) AS lock_id(value)
+               ORDER BY value
+             ) AS ordered_locks",
+            &[&intent_locks],
+        ),
+    )
+    .await
+    .map_err(|_| timed_out("inbound intent batch locks"))?
+    .map_err(database_error)?;
+
+    timeout(
+        DATABASE_TIMEOUT,
+        transaction.execute(
+            "INSERT INTO lmyzmail_inbound_delivery_intent
+             (intent_id,mailbox_address,folder,subdirectory,temporary_file_name,file_name,
+              device,inode,size_bytes,sha256,has_attachments,received_at,from_address,
+              message_id,subject,to_addresses,state,updated_at)
+             SELECT intent_id,mailbox_address,folder,subdirectory,temporary_file_name,file_name,
+                    device,inode,size_bytes,sha256,has_attachments,received_at,from_address,
+                    message_id,subject,to_addresses,'PREPARED',CURRENT_TIMESTAMP
+             FROM unnest(
+               $1::text[],$2::text[],$3::text[],$4::int4[],$5::text[],$6::text[],
+               $7::bytea[],$8::bytea[],$9::bigint[],$10::bytea[],$11::bool[],
+               $12::timestamptz[],$13::text[],$14::text[],$15::text[],$16::text[]
+             ) AS input(
+               intent_id,mailbox_address,folder,subdirectory,temporary_file_name,file_name,
+               device,inode,size_bytes,sha256,has_attachments,received_at,from_address,
+               message_id,subject,to_addresses
+             )
+             ON CONFLICT (intent_id) DO NOTHING",
+            &[
+                &intent_ids,
+                &mailboxes,
+                &folders,
+                &subdirectories,
+                &temporary_names,
+                &file_names,
+                &devices,
+                &inodes,
+                &size_bytes,
+                &sha256,
+                &has_attachments,
+                &received_at,
+                &from_addresses,
+                &message_ids,
+                &subjects,
+                &to_addresses,
+            ],
+        ),
+    )
+    .await
+    .map_err(|_| timed_out("inbound intent batch insert"))?
+    .map_err(database_error)?;
+
+    let rows = timeout(
+        DATABASE_TIMEOUT,
+        transaction.query(
+            "SELECT intent_id,mailbox_address,folder,subdirectory,temporary_file_name,file_name,
+                    device,inode,size_bytes,sha256,has_attachments,received_at,from_address,
+                    message_id,subject,to_addresses,state
+             FROM lmyzmail_inbound_delivery_intent
+             WHERE intent_id::text = ANY($1::text[])
+             ORDER BY intent_id
+             FOR UPDATE",
+            &[&intent_ids],
+        ),
+    )
+    .await
+    .map_err(|_| timed_out("inbound intent batch identity query"))?
+    .map_err(database_error)?;
+    let mut stored_by_id = BTreeMap::new();
+    for row in &rows {
+        let stored = row_to_prepared(row)?;
+        if stored_by_id
+            .insert(stored.intent_id.clone(), stored)
+            .is_some()
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "inbound intent batch returned a duplicate intent",
+            ));
+        }
+    }
+    if stored_by_id.len() != unique.len() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "inbound intent batch did not persist every intent",
+        ));
+    }
+    for expected in &unique {
+        match stored_by_id.get(&expected.intent_id) {
+            Some(stored) if stored.matches(expected) => {}
+            Some(_) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "inbound intent identity collision",
+                ));
+            }
+            None => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "inbound intent batch did not persist every intent",
+                ));
+            }
+        }
+    }
+
+    match timeout(DATABASE_TIMEOUT, transaction.commit()).await {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(error)) => reconcile_intent_batch_insert(pool, &unique, database_error(error)).await,
+        Err(_) => {
+            reconcile_intent_batch_insert(
+                pool,
+                &unique,
+                timed_out("inbound intent batch insert commit"),
+            )
+            .await
+        }
+    }
+}
+
+async fn reconcile_intent_batch_insert(
+    pool: &Pool,
+    prepared: &[&PreparedInbound],
+    original: io::Error,
+) -> io::Result<()> {
+    let failure = IntentCommitFailure::from_error(original);
+    let mut first_error = None;
+    for item in prepared {
+        if let Err(error) = reconcile_intent_insert(pool, item, failure.to_error()).await
+            && first_error.is_none()
+        {
+            first_error = Some(error);
+        }
+    }
+    first_error.map_or(Ok(()), Err)
 }
 
 async fn reconcile_intent_insert(
@@ -2995,6 +3508,7 @@ mod tests {
     use super::*;
     use std::{
         net::TcpListener,
+        os::unix::ffi::OsStringExt,
         process::{Child, Command, Stdio},
     };
 
@@ -3312,6 +3826,203 @@ INSERT INTO mailbox (address) VALUES ('qa@example.test');
             .await
             .unwrap()
             .get(0)
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn intent_batch_is_exact_replay_safe_and_atomic_on_collision() {
+        let (_postgres, pool) = test_database().await;
+        let prepared = (24_000..24_000 + 32)
+            .map(|sequence| database_prepared(sequence, "inbox"))
+            .collect::<Vec<_>>();
+        let mut references = prepared.iter().collect::<Vec<_>>();
+        references.push(&prepared[0]);
+
+        let rollbacks_before = database_xact_rollback(&pool).await;
+        insert_intent_batch(&pool, &references).await.unwrap();
+        assert_eq!(intent_count(&pool).await, prepared.len() as i64);
+        assert_eq!(database_xact_rollback(&pool).await, rollbacks_before);
+
+        insert_intent_batch(&pool, &references).await.unwrap();
+        assert_eq!(intent_count(&pool).await, prepared.len() as i64);
+        assert_eq!(database_xact_rollback(&pool).await, rollbacks_before);
+
+        let collision = database_prepared(25_000, "sent");
+        insert_intent(&pool, &collision).await.unwrap();
+        let client = pool.get().await.unwrap();
+        client
+            .execute(
+                "UPDATE lmyzmail_inbound_delivery_intent
+                 SET subject='stored collision' WHERE intent_id=$1",
+                &[&collision.intent_id],
+            )
+            .await
+            .unwrap();
+        drop(client);
+        let new_valid = database_prepared(25_001, "sent");
+        let error = insert_intent_batch(&pool, &[&collision, &new_valid])
+            .await
+            .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert_eq!(intent_count(&pool).await, prepared.len() as i64 + 1);
+        assert!(
+            load_intent(&pool, &new_valid.intent_id)
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn intent_committer_isolates_failure_and_drains_shutdown_queue() {
+        let (_postgres, pool) = test_database().await;
+        let stored_bad = database_prepared(26_000, "spam");
+        insert_intent(&pool, &stored_bad).await.unwrap();
+        let client = pool.get().await.unwrap();
+        client
+            .execute(
+                "UPDATE lmyzmail_inbound_delivery_intent
+                 SET subject='stored collision' WHERE intent_id=$1",
+                &[&stored_bad.intent_id],
+            )
+            .await
+            .unwrap();
+        drop(client);
+        let valid = database_prepared(26_001, "spam");
+        let committer = IntentCommitter::start(pool.clone());
+        let mut responses = Vec::new();
+        for prepared in [valid.clone(), stored_bad.clone()] {
+            let (response, receiver) = oneshot::channel();
+            committer
+                .sender
+                .send(IntentCommitRequest::new(prepared, response))
+                .await
+                .unwrap();
+            responses.push(receiver);
+        }
+        assert!(responses.remove(0).await.unwrap().is_ok());
+        assert_eq!(
+            responses.remove(0).await.unwrap().unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+        assert_eq!(intent_count(&pool).await, 2);
+
+        let queued = (27_000..27_000 + MAX_INTENT_BATCH_ROWS as u64)
+            .map(|sequence| database_prepared(sequence, "drafts"))
+            .collect::<Vec<_>>();
+        let mut queued_responses = Vec::new();
+        for prepared in queued {
+            let (response, receiver) = oneshot::channel();
+            committer
+                .sender
+                .send(IntentCommitRequest::new(prepared, response))
+                .await
+                .unwrap();
+            queued_responses.push(receiver);
+        }
+        assert!(
+            committer
+                .shutdown(Instant::now() + Duration::from_secs(10))
+                .await
+        );
+        for receiver in queued_responses {
+            receiver.await.unwrap().unwrap();
+        }
+        assert_eq!(intent_count(&pool).await, 2 + MAX_INTENT_BATCH_ROWS as i64);
+        assert_eq!(
+            committer.submit(&valid).await.unwrap_err().kind(),
+            io::ErrorKind::BrokenPipe
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn intent_batch_fans_out_identical_duplicates() {
+        let (_postgres, pool) = test_database().await;
+        let prepared = database_prepared(28_000, "inbox");
+        let mut batch = Vec::new();
+        let mut responses = Vec::new();
+        for _ in 0..MAX_INTENT_BATCH_ROWS {
+            let (response, receiver) = oneshot::channel();
+            batch.push(IntentCommitRequest::new(prepared.clone(), response));
+            responses.push(receiver);
+        }
+
+        persist_intent_batch(&pool, batch).await;
+        for receiver in responses {
+            receiver.await.unwrap().unwrap();
+        }
+        assert_eq!(intent_count(&pool).await, 1);
+        assert!(
+            load_intent(&pool, &prepared.intent_id)
+                .await
+                .unwrap()
+                .unwrap()
+                .matches(&prepared)
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn intent_batch_isolates_non_utf8_staging_name() {
+        let (_postgres, pool) = test_database().await;
+        let valid = database_prepared(28_100, "inbox");
+        let mut invalid = database_prepared(28_101, "inbox");
+        invalid.temporary_name = OsString::from_vec(vec![0xff]);
+        let mut batch = Vec::new();
+        let mut responses = Vec::new();
+        for prepared in [valid.clone(), invalid] {
+            let (response, receiver) = oneshot::channel();
+            batch.push(IntentCommitRequest::new(prepared, response));
+            responses.push(receiver);
+        }
+
+        persist_intent_batch(&pool, batch).await;
+        responses.remove(0).await.unwrap().unwrap();
+        assert_eq!(
+            responses.remove(0).await.unwrap().unwrap_err().kind(),
+            io::ErrorKind::InvalidInput
+        );
+        assert_eq!(intent_count(&pool).await, 1);
+        assert!(
+            load_intent(&pool, &valid.intent_id)
+                .await
+                .unwrap()
+                .is_some()
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn intent_batch_and_single_insert_complete_without_deadlock() {
+        let (_postgres, pool) = test_database().await;
+        let first = database_prepared(28_200, "sent");
+        let shared = database_prepared(28_201, "sent");
+        let barrier = Arc::new(tokio::sync::Barrier::new(2));
+
+        let batch_task = tokio::spawn({
+            let pool = pool.clone();
+            let barrier = barrier.clone();
+            let first = first.clone();
+            let shared = shared.clone();
+            async move {
+                barrier.wait().await;
+                insert_intent_batch(&pool, &[&first, &shared]).await
+            }
+        });
+        let single_task = tokio::spawn({
+            let pool = pool.clone();
+            let barrier = barrier.clone();
+            let shared = shared.clone();
+            async move {
+                barrier.wait().await;
+                insert_intent(&pool, &shared).await
+            }
+        });
+
+        timeout(Duration::from_secs(10), async {
+            batch_task.await.unwrap().unwrap();
+            single_task.await.unwrap().unwrap();
+        })
+        .await
+        .expect("inbound intent insert lock ordering must remain live");
+        assert_eq!(intent_count(&pool).await, 2);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
