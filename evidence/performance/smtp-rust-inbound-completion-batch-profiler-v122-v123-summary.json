@@ -69,7 +69,7 @@
       },
       "artifacts": {
         "console": "evidence/performance/smtp-rust-inbound-completion-batch-profiler-v122-console.log",
-        "console_sha256": "154f6e90a5df297c824bd896b759c07471416808c1bd74f906563a21413b9df4",
+        "console_sha256": "3e018d355040abb1dbb6d16d9091c0b7251c2701ecfcfab741c7f6710adcbaf0",
         "final_output": "not_published",
         "launcher_cleanup_receipt": "not_published"
       }
@@ -113,7 +113,7 @@
       },
       "artifacts": {
         "console": "evidence/performance/smtp-rust-inbound-completion-batch-profiler-v123-console.log",
-        "console_sha256": "3ec5cd7dcb66c69983a8d76afde0c1134ac02cabb6ace68a8b444f54aadd1a8b",
+        "console_sha256": "579dafce11ae18708e49309f253288c4bbe9726fb36637de435cb189b7f70a62",
         "final_output": "not_published",
         "launcher_cleanup_receipt": "not_published"
       }

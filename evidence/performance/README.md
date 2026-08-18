@@ -1887,8 +1887,8 @@ The retained quartiles put `smtp_commit`, `smtp_final_reply`,
 completion stages. The change therefore reduces database work but does not
 qualify as a throughput improvement; the next profiler pass must target the
 inbound index transaction/queue or SMTP/checkpoint pipeline. The raw console
-hashes are `154f6e90a5df297c824bd896b759c07471416808c1bd74f906563a21413b9df4`
-and `3ec5cd7dcb66c69983a8d76afde0c1134ac02cabb6ace68a8b444f54aadd1a8b`.
+hashes are `3e018d355040abb1dbb6d16d9091c0b7251c2701ecfcfab741c7f6710adcbaf0`
+and `579dafce11ae18708e49309f253288c4bbe9726fb36637de435cb189b7f70a62`.
 The structured diagnostic is
 `smtp-rust-inbound-completion-batch-profiler-v122-v123-summary.json`.
 Both launcher JSON outputs were intentionally absent because the stability
@@ -1896,3 +1896,32 @@ contract failed; a read-only post-run audit found no application or benchmark
 process, run-specific cgroup, loop device, extra ext4 mount, or run-specific
 root state. The persistent benchmark parent cgroups and attestation/lock roots
 are retained harness state, not run residue.
+
+The next profiler pass kept the same candidate and benchmark contract but
+replaced completion substages with the full inbound index queue and transaction
+decomposition. V124 and v125 again delivered 2,048/2,048 with zero failures,
+exceptions, retries, OOM, or loss, and each published and removed exactly 4,096
+Maildir entries. They measured 116.08 and 116.89 messages/second. Their 52.7085%
+and 49.9768% stability ranges still exceed the unchanged 30% gate, so the
+116.485 mean and its apparent 3.46% advantage over v120/v121 remain diagnostic.
+
+The two runs produced 356 and 352 index batches, averaging 5.75 and 5.82 rows.
+Across the retained segments, the worker averaged 36.703 ms. The materialized
+intent/index validation read averaged 7.656 ms, count-state locking and update
+5.220 ms, the batch mutation CTE 7.853 ms, and transaction commit 8.582 ms.
+Connection-pool acquisition remained around microseconds, while batch queue
+wait was also material. This consistently identifies validation read,
+mutation, commit, and queue wait as the next areas to isolate; it does not
+justify changing collection thresholds already rejected by v117/v118.
+
+The structured diagnostic is
+`smtp-rust-inbound-index-profiler-v124-v125-summary.json`. Its raw console
+hashes are `a90ea761b3172a2b75eb904b159ef135acc9e3554bc7fb5fffc8f318045502e5`
+and `f6356712a97b924ff95fdd6ba1ccb2d4c0edf8249402544938bbe6b9c956171d`.
+The candidate remains SHA-256
+`c50fb8bb8f3cfbd7183e8f8b7a02d4e718f243876dd6dcadc9a73b7887369156e`,
+Build ID `dc3206c8abe688a1243e19cf8cf7f2f6578cb9d7`, size 219,226,136
+bytes, root-owned mode 0755, with main/deps hard-link identity. Neither run
+published final JSON or a launcher receipt after the stability failure. A
+post-run read-only audit found no application or benchmark process,
+run-specific cgroup, loop device, extra ext4 mount, or run-specific root state.

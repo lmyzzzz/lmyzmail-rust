@@ -1,0 +1,150 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "profiler_diagnostic_summary",
+  "qualified": false,
+  "retained": true,
+  "qualification_failure": "within_arm_throughput_stability",
+  "source_git_head": "4d1d4623c2c1ad2d1d4b4292e353cab7ad18c368",
+  "repository_head_at_run": "bd62ba0f6a600a580441eaa0d2d67d10f6fe030f",
+  "hypothesis": "Decompose the already batched inbound index transaction to locate the PostgreSQL substage behind the 50-70 ms inbound index commit/response segment.",
+  "configuration": {
+    "profile": "rust-profiler",
+    "target": "rust-candidate",
+    "tier": "10KB",
+    "messages": 2048,
+    "rust_filesystem_fsync": "off",
+    "workload_cpu_limit": 1,
+    "io_limit_bytes_per_second": 500000000,
+    "original_stress_endpoint_invocations_per_run": 1,
+    "harness_batching": false,
+    "inbound_index_batch_capacity": 64,
+    "inbound_index_batch_collection_window_ms": 2,
+    "maximum_selected_diagnostic_stages": 16
+  },
+  "candidate": {
+    "path": "target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "sha256": "c50fb8bb8f3cfbd7183e8f8b7a02d4e718f243876dd6dcadc9a73b7887369156e",
+    "build_id": "dc3206c8abe688a1243e19cf8cf7f2f6578cb9d7",
+    "size_bytes": 219226136,
+    "owner_mode": "root:root 0755",
+    "main_and_deps_hard_link": true
+  },
+  "runs": [
+    {
+      "label": "v124",
+      "throughput_messages_per_second": 116.08,
+      "timing_ms": {"queueing": 8588, "delivery": 9054, "total": 17643},
+      "stability": {
+        "maximum_relative_range": 0.30,
+        "relative_range": 0.527085,
+        "passed": false,
+        "segments_messages_per_second": [91.853466, 118.620317, 152.880360, 163.405491]
+      },
+      "outcome": {
+        "queued": 2048,
+        "received": 2048,
+        "failed": 0,
+        "exceptions": 0,
+        "oom": 0,
+        "retry": 0,
+        "lost": 0,
+        "maildir_publications": 4096,
+        "maildir_removals": 4096
+      },
+      "inbound_index": {
+        "batch_count": 356,
+        "rows": 2048,
+        "average_rows_per_batch": 5.752809,
+        "segment_stage_average_ms": [
+          {"ordinal": 1, "worker": 45.171899, "intent_read": 8.470004, "count_state": 7.201765, "mutation": 9.805616, "transaction_commit": 10.037253},
+          {"ordinal": 2, "worker": 40.703936, "intent_read": 8.394898, "count_state": 5.605880, "mutation": 8.708198, "transaction_commit": 9.088048},
+          {"ordinal": 3, "worker": 32.534133, "intent_read": 6.242852, "count_state": 4.765010, "mutation": 7.511657, "transaction_commit": 7.894363},
+          {"ordinal": 4, "worker": 30.153917, "intent_read": 7.093507, "count_state": 3.866929, "mutation": 6.504300, "transaction_commit": 7.642420}
+        ]
+      },
+      "artifacts": {
+        "console": "evidence/performance/smtp-rust-inbound-index-profiler-v124-console.log",
+        "console_sha256": "a90ea761b3172a2b75eb904b159ef135acc9e3554bc7fb5fffc8f318045502e5",
+        "final_output": "not_published",
+        "launcher_cleanup_receipt": "not_published"
+      }
+    },
+    {
+      "label": "v125",
+      "throughput_messages_per_second": 116.89,
+      "timing_ms": {"queueing": 8459, "delivery": 9060, "total": 17520},
+      "stability": {
+        "maximum_relative_range": 0.30,
+        "relative_range": 0.499768,
+        "passed": false,
+        "segments_messages_per_second": [92.761439, 123.011393, 159.132921, 163.264738]
+      },
+      "outcome": {
+        "queued": 2048,
+        "received": 2048,
+        "failed": 0,
+        "exceptions": 0,
+        "oom": 0,
+        "retry": 0,
+        "lost": 0,
+        "maildir_publications": 4096,
+        "maildir_removals": 4096
+      },
+      "inbound_index": {
+        "batch_count": 352,
+        "rows": 2048,
+        "average_rows_per_batch": 5.818182,
+        "segment_stage_average_ms": [
+          {"ordinal": 1, "worker": 45.090598, "intent_read": 9.712766, "count_state": 6.530452, "mutation": 8.856512, "transaction_commit": 10.197271},
+          {"ordinal": 2, "worker": 38.899088, "intent_read": 7.786180, "count_state": 5.915038, "mutation": 7.869576, "transaction_commit": 8.352447},
+          {"ordinal": 3, "worker": 30.860258, "intent_read": 6.756391, "count_state": 4.047962, "mutation": 6.438158, "transaction_commit": 8.200085},
+          {"ordinal": 4, "worker": 30.213032, "intent_read": 6.794302, "count_state": 3.925626, "mutation": 7.128743, "transaction_commit": 7.245792}
+        ]
+      },
+      "artifacts": {
+        "console": "evidence/performance/smtp-rust-inbound-index-profiler-v125-console.log",
+        "console_sha256": "f6356712a97b924ff95fdd6ba1ccb2d4c0edf8249402544938bbe6b9c956171d",
+        "final_output": "not_published",
+        "launcher_cleanup_receipt": "not_published"
+      }
+    }
+  ],
+  "combined": {
+    "mean_throughput_messages_per_second": 116.485,
+    "control_v120_v121_mean_messages_per_second": 112.585,
+    "diagnostic_throughput_delta_vs_control_percent": 3.464049,
+    "mean_batch_count": 354.0,
+    "mean_rows_per_batch": 5.785495,
+    "mean_segment_stage_ms": {
+      "worker": 36.703357,
+      "intent_read": 7.656363,
+      "count_state": 5.219663,
+      "mutation": 7.852845,
+      "transaction_commit": 8.582210
+    },
+    "bottleneck_stage_order": [
+      "inbound_index_batch_queue_wait",
+      "inbound_index_batch_worker",
+      "inbound_index_intent_read",
+      "inbound_index_transaction_commit",
+      "inbound_index_mutation"
+    ],
+    "conclusion": "The two runs reproduce the same ordering: connection-pool admission is negligible, while batch queue wait and the PostgreSQL worker dominate. Within the worker, the materialized validation read, mutation CTE, and transaction commit are the largest measured SQL segments. The apparent 3.46% throughput advantage over v120/v121 is diagnostic only because the stage selection changed and both runs fail the unchanged stability gate. Optimize one SQL hypothesis at a time and re-run the same stage set before retaining any change."
+  },
+  "cleanup": {
+    "passed": true,
+    "post_run_read_only_audit": {
+      "application_or_benchmark_processes": 0,
+      "run_specific_cgroups": 0,
+      "loop_devices": 0,
+      "additional_ext4_mounts": 0,
+      "run_specific_root_state_entries": 0,
+      "persistent_harness_state": [
+        "/sys/fs/cgroup/lmyzmail-benchmark-root",
+        "/sys/fs/cgroup/lmyzmail-benchmark-housekeeping",
+        "/run/lmyzmail-benchmark-root",
+        "/run/lmyzmail-benchmark-attestations"
+      ]
+    }
+  }
+}
