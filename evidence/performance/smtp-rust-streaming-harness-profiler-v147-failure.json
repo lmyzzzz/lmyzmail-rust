@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "smtp_endpoint_profiler_diagnostic_failure",
+  "qualified": false,
+  "qualification_failure": "within_arm_throughput_stability",
+  "source_git_head": "5c00c503",
+  "configuration": {
+    "profile": "rust-profiler",
+    "target": "rust-candidate",
+    "tier": "10KB",
+    "messages": 16384,
+    "rust_filesystem_fsync": "off",
+    "postgresql_fsync": "on",
+    "postgresql_synchronous_commit": "on",
+    "workload_cpu_limit": 1,
+    "io_limit_bytes_per_second": 500000000,
+    "original_stress_endpoint_invocations": 1,
+    "harness_batching": false,
+    "candidate_artifact_sha256": "cb0ccea9ec2d6b313ebf69213e12e8ba2d647177337b2ae7e2515f7852e4a841"
+  },
+  "endpoint_observation": {
+    "queued": 16384,
+    "received": 16384,
+    "failed": 0,
+    "exceptions": 0,
+    "oom": 0,
+    "rate_limited": 0,
+    "retry_count": 0,
+    "throughput_messages_per_second": 115.46,
+    "total_time_ms": 141903,
+    "queueing_time_ms": 80115,
+    "delivery_time_ms": 61787,
+    "quartile_messages_per_second": [91.303065, 98.485152, 153.800371, 150.320228],
+    "quartile_relative_range": 0.502379
+  },
+  "resource_observation": {
+    "harness_rss_peak_bytes": 138719232,
+    "harness_rss_final_bytes": 138719232,
+    "harness_anonymous_peak_bytes": 498249728,
+    "total_cgroup_memory_peak_bytes": 1939841024,
+    "total_cgroup_memory_final_bytes": 1443737600,
+    "cgroup_memory_high_events": 0,
+    "cgroup_oom_events": 0,
+    "cgroup_oom_kill_events": 0,
+    "queue_peak": 9059,
+    "queue_final": 0,
+    "task_peak": 174,
+    "task_final": 146,
+    "fd_peak": 4250,
+    "fd_final": 3827
+  },
+  "cleanup": {
+    "passed": true,
+    "residual_benchmark_processes": 0,
+    "residual_run_cgroups": 0,
+    "residual_run_directories": 0
+  },
+  "interpretation": "The complete 16K diagnostic retained exact Redis, PostgreSQL, Maildir, endpoint, and cleanup checks while bounded canonical hashing and compact cleanup samples kept harness memory low. The unchanged within-arm stability gate still failed, so this artifact is not throughput qualification evidence."
+}
