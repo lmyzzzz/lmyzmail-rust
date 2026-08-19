@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "long_run_stability_profiler_failure",
+  "qualified": false,
+  "qualification_failure": "harness_post_validation_memory_pressure",
+  "source_git_head": "b165a53d",
+  "configuration": {
+    "profile": "rust-profiler",
+    "target": "rust-candidate",
+    "tier": "10KB",
+    "messages_per_arm": 100000,
+    "rust_filesystem_fsync": "off",
+    "postgresql_fsync": "on",
+    "postgresql_synchronous_commit": "on",
+    "workload_cpu_limit": 1,
+    "io_limit_bytes_per_second": 500000000,
+    "original_stress_endpoint_invocations": 1,
+    "harness_batching": false,
+    "candidate_artifact_sha256": "cb0ccea9ec2d6b313ebf69213e12e8ba2d647177337b2ae7e2515f7852e4a841"
+  },
+  "endpoint_observations": {
+    "completed_before_abort": "not published by the runner",
+    "runner_contract": "failed closed before final artifact publication",
+    "endpoint_error_count": "not claimable from the incomplete artifact"
+  },
+  "resource_observations": {
+    "harness_rss_peak_bytes_observed": 7832608768,
+    "cgroup_memory_current_peak_bytes_observed": 7827939328,
+    "cgroup_memory_high_events_observed": 14362,
+    "cgroup_memory_max_events_observed": 0,
+    "cgroup_oom_events_observed": 0,
+    "cgroup_oom_kill_events_observed": 0,
+    "interpretation": "The streaming Redis value reads prevented the v144 early multi-gigabyte jump, but the 100K post-validation phase still accumulated multi-gigabyte harness state and entered memory.high reclaim. This is a failed stability run, not candidate throughput evidence."
+  },
+  "termination": {
+    "method": "controlled_SIGINT_after_harness_memory_pressure",
+    "reason": "protect WSL host from approaching memory.max while preserving fail-closed cleanup",
+    "runner_exit_artifact": "missing_by_contract_after_abort",
+    "cleanup_verified": true,
+    "residual_benchmark_processes": 0
+  }
+}
