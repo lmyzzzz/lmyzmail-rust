@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "smtp_endpoint_profiler_diagnostic_failure",
+  "qualified": false,
+  "qualification_failure": "within_arm_throughput_stability",
+  "source_git_head": "02528c2d",
+  "configuration": {
+    "profile": "rust-profiler",
+    "target": "rust-candidate",
+    "tier": "10KB",
+    "messages": 16384,
+    "rust_filesystem_fsync": "off",
+    "postgresql_fsync": "on",
+    "postgresql_synchronous_commit": "on",
+    "workload_cpu_limit": 1,
+    "io_limit_bytes_per_second": 500000000,
+    "original_stress_endpoint_invocations": 1,
+    "harness_batching": false,
+    "outbound_batch_collection_window_ms": 5,
+    "candidate_artifact_sha256": "719ef61bdd88e3e4e0b17ad39cff1ff2bdd3a0c1afa88e674c2259187d9d75ab"
+  },
+  "endpoint_observation": {
+    "queued": 16384,
+    "received": 16384,
+    "failed": 0,
+    "exceptions": 0,
+    "oom": 0,
+    "rate_limited": 0,
+    "retry_count": 0,
+    "throughput_messages_per_second": 148.46,
+    "total_time_ms": 110363,
+    "queueing_time_ms": 63955,
+    "delivery_time_ms": 46407,
+    "quartile_messages_per_second": [
+      120.410647,
+      122.169303,
+      186.806366,
+      206.69259
+    ],
+    "quartile_relative_range": 0.558503
+  },
+  "stage_observation": {
+    "smtp_commit_average_ns_by_completed_quartile": [
+      162729667,
+      163092079,
+      130684756
+    ],
+    "queue_acknowledge_average_ns_by_completed_quartile": [
+      47578273,
+      48620809,
+      33446154
+    ],
+    "inbound_index_average_rows_per_batch": [
+      5.7044198895,
+      6.4597156398,
+      7.8022813688
+    ],
+    "outbound_batch": {
+      "batches": 982,
+      "rows": 16384,
+      "average_rows_per_batch": 16.684317718940935
+    }
+  },
+  "resource_observation": {
+    "harness_rss_peak_bytes": 135188480,
+    "total_cgroup_memory_peak_bytes": 2237894656,
+    "cgroup_oom_events": 0,
+    "cgroup_oom_kill_events": 0,
+    "queue_peak": 8854,
+    "queue_final": 0,
+    "task_peak": 174,
+    "task_final": 151,
+    "fd_peak": 4501,
+    "fd_final": 4012
+  },
+  "cleanup": {
+    "candidate_and_service_processes_observed_absent_after_run": true,
+    "qualification_receipt": "watchdog rejected stale runner PID after the expected nonzero stability-gate exit; no final artifact was published"
+  },
+  "interpretation": "Five milliseconds increased outbound batch formation slightly (982 batches versus 1016 in v148) but did not flatten cold-start throughput. The first two quartiles remained materially below the later two, so the bounded experiment is rejected and the production window remains 2 ms."
+}
