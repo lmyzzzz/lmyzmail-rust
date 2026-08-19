@@ -2487,3 +2487,14 @@ independently recomputed. The next bounded investigation must explain the
 long-run decline under coordinator, queue, database, Maildir, and cgroup
 observations before another formal attempt; it must not weaken the stability
 or message-integrity gates.
+
+Profiler failure diagnostics now preserve four bounded resource snapshots over
+the exact measurement window. Each snapshot records total and per-role cgroup
+current/anonymous/file memory, per-role process RSS, `memory.events`, Redis
+pending depth, filesystem use, CPU time, and block I/O. The application log
+parser also validates and retains quartile milestones for coordinator, stress
+enqueue, outbound batch, and Redis queue observers while keeping only a bounded
+tail. Malformed or non-monotonic observer records make log parsing fail closed.
+These fields diagnose stability loss; they do not participate in, weaken, or
+replace any throughput, persistence, cleanup, resource, or message-integrity
+qualification check.

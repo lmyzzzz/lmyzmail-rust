@@ -723,6 +723,7 @@ class JavaStressRuntimeConfigurationTests(unittest.TestCase):
             environment = runtime._application_environment()
         self.assertEqual(environment["LMYZMAIL_COORDINATOR_OBSERVER"], "1")
         self.assertEqual(environment["LMYZMAIL_STRESS_ENQUEUE_OBSERVER"], "1")
+        self.assertEqual(environment["LMYZMAIL_QUEUE_OBSERVER"], "1")
 
         runtime.coordinator_observer = False
         with mock.patch.object(
@@ -733,6 +734,7 @@ class JavaStressRuntimeConfigurationTests(unittest.TestCase):
             environment = runtime._application_environment()
         self.assertNotIn("LMYZMAIL_COORDINATOR_OBSERVER", environment)
         self.assertNotIn("LMYZMAIL_STRESS_ENQUEUE_OBSERVER", environment)
+        self.assertNotIn("LMYZMAIL_QUEUE_OBSERVER", environment)
 
     def test_readiness_waits_for_all_frozen_java_stress_services(self) -> None:
         runtime = runner.JavaStressRuntime(startup_timeout=1.0)
@@ -2532,6 +2534,151 @@ class LogEvidenceTests(unittest.TestCase):
         self.assertEqual(evidence["coordinator_observer_record_count"], 1)
         self.assertEqual(evidence["coordinator_observer_parse_failure_count"], 0)
         self.assertEqual(evidence["coordinator_observer_last"], record)
+
+    def test_long_log_retains_coordinator_quartile_milestones(self) -> None:
+        records = [
+            {
+                "schema": "lmyzmail.coordinator-stage-observation.v1",
+                "sequence": sequence,
+                "pid": 123,
+                "completed_tasks": sequence * 10,
+                "completed_total_ns": sequence * 1_000,
+                "completed_max_ns": 100,
+                "stages": {
+                    "database_claim": {
+                        "count": sequence * 10,
+                        "total_ns": sequence * 100,
+                        "max_ns": 20,
+                    }
+                },
+            }
+            for sequence in range(1, 101)
+        ]
+        payload = b"".join(
+            (
+                runner.COORDINATOR_OBSERVER_PREFIX
+                + json.dumps(record, sort_keys=True, separators=(",", ":"))
+                + "\n"
+            ).encode()
+            for record in records
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "application.log"
+            path.write_bytes(payload)
+            metadata = path.stat()
+            evidence = runner._log_evidence(
+                runner.LogCursor(path, 0, metadata.st_dev, metadata.st_ino),
+                expected_messages=1_000,
+            )
+        self.assertTrue(evidence["parse_complete"])
+        self.assertEqual(
+            [
+                record["sequence"]
+                for record in evidence["coordinator_observer_milestones"]
+            ],
+            [25, 50, 75, 100],
+        )
+        self.assertEqual(evidence["coordinator_observer_records"][0]["sequence"], 25)
+        self.assertTrue(
+            runner._coordinator_quartile_diagnostics(
+                evidence["coordinator_observer_records"], 1_000
+            )["complete"]
+        )
+
+    def test_extracts_auxiliary_observer_quartile_milestones(self) -> None:
+        lines = []
+        for sequence in range(1, 5):
+            lines.extend(
+                (
+                    runner.STRESS_ENQUEUE_OBSERVER_PREFIX
+                    + json.dumps(
+                        {
+                            "schema": "lmyzmail.stress-enqueue-observation.v1",
+                            "sequence": sequence,
+                            "pid": 123,
+                            "active": 0,
+                            "peak_active": 4,
+                            "stages": {
+                                "total": {
+                                    "count": sequence,
+                                    "total_ns": sequence * 100,
+                                    "max_ns": 100,
+                                }
+                            },
+                        },
+                        separators=(",", ":"),
+                    ),
+                    runner.OUTBOUND_BATCH_OBSERVER_PREFIX
+                    + json.dumps(
+                        {
+                            "schema": "lmyzmail.outbound-batch-observation.v1",
+                            "sequence": sequence,
+                            "pid": 123,
+                            "batches": sequence,
+                            "rows": sequence,
+                            "max_rows": 1,
+                            "total_ns": sequence * 100,
+                            "max_ns": 100,
+                            "uncertain_batches": 0,
+                        },
+                        separators=(",", ":"),
+                    ),
+                    runner.QUEUE_OBSERVER_PREFIX
+                    + json.dumps(
+                        {
+                            "schema": "lmyzmail.redis-queue-observation.v1",
+                            "sequence": sequence,
+                            "pid": 123,
+                            "calls": sequence,
+                            "operations": {
+                                "publish": {
+                                    "completed": sequence,
+                                    "failed": 0,
+                                    "cancelled": 0,
+                                    "total_ns": sequence * 100,
+                                    "max_ns": 100,
+                                }
+                            },
+                            "publish_failures": {},
+                        },
+                        separators=(",", ":"),
+                    ),
+                )
+            )
+        payload = ("\n".join(lines) + "\n").encode()
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "application.log"
+            path.write_bytes(payload)
+            metadata = path.stat()
+            evidence = runner._log_evidence(
+                runner.LogCursor(path, 0, metadata.st_dev, metadata.st_ino),
+                expected_messages=4,
+            )
+        self.assertTrue(evidence["parse_complete"])
+        for kind in ("stress_enqueue", "outbound_batch", "queue"):
+            self.assertEqual(evidence[f"{kind}_observer_record_count"], 4)
+            self.assertEqual(evidence[f"{kind}_observer_parse_failure_count"], 0)
+            self.assertEqual(
+                [
+                    record["sequence"]
+                    for record in evidence[f"{kind}_observer_milestones"]
+                ],
+                [1, 2, 3, 4],
+            )
+            self.assertEqual(evidence[f"{kind}_observer_last"]["sequence"], 4)
+
+    def test_malformed_auxiliary_observer_snapshot_fails_closed(self) -> None:
+        payload = (runner.OUTBOUND_BATCH_OBSERVER_PREFIX + "{}\n").encode()
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "application.log"
+            path.write_bytes(payload)
+            metadata = path.stat()
+            evidence = runner._log_evidence(
+                runner.LogCursor(path, 0, metadata.st_dev, metadata.st_ino)
+            )
+        self.assertFalse(evidence["parse_complete"])
+        self.assertEqual(evidence["outbound_batch_observer_record_count"], 0)
+        self.assertEqual(evidence["outbound_batch_observer_parse_failure_count"], 1)
 
     def test_malformed_coordinator_observer_snapshot_fails_closed(self) -> None:
         payload = (runner.COORDINATOR_OBSERVER_PREFIX + "{}\n").encode()
@@ -4457,7 +4604,7 @@ class RoundContractTests(unittest.TestCase):
             mock.patch.object(
                 runner,
                 "_log_evidence",
-                side_effect=lambda *_args: events.append("log") or {},
+                side_effect=lambda *_args, **_kwargs: events.append("log") or {},
             ),
             mock.patch.object(
                 runner,
@@ -6103,6 +6250,67 @@ class MaildirPersistenceObserverTests(unittest.TestCase):
 
 
 class ResourceMonitorTests(unittest.TestCase):
+    def test_measurement_quartiles_preserve_memory_queue_disk_and_io(self) -> None:
+        def sample(ordinal: int) -> dict[str, Any]:
+            role_memory = {
+                role: {
+                    "current_bytes": ordinal * 100,
+                    "anon_bytes": ordinal * 10,
+                    "file_bytes": ordinal * 80,
+                }
+                for role in ("application", "services", "harness", "total")
+            }
+            process_memory = {
+                role: {"rss_bytes": ordinal * 10, "hwm_bytes": ordinal * 20}
+                for role in ("application", "services", "harness", "total")
+            }
+            return {
+                "elapsed_millis": ordinal * 250,
+                "memory_current_bytes": ordinal * 100,
+                "memory_swap_current_bytes": 0,
+                "memory_events": {
+                    "low": 0,
+                    "high": ordinal,
+                    "max": 0,
+                    "oom": 0,
+                    "oom_kill": 0,
+                },
+                "cgroup_memory_by_role": role_memory,
+                "process_memory_by_role": process_memory,
+                "queue_pending": ordinal,
+                "filesystem_delta_bytes": ordinal * 1_000,
+                "filesystem_free_bytes": 10_000 - ordinal * 1_000,
+                "cpu_usage_usec": ordinal * 100,
+                "candidate_cpu_usage_usec": ordinal * 50,
+                "services_cpu_usage_usec": ordinal * 40,
+                "io_read_bytes": ordinal * 10,
+                "io_write_bytes": ordinal * 20,
+            }
+
+        diagnostic = runner._resource_measurement_quartiles(
+            [sample(ordinal) for ordinal in range(5)],
+            monitor_started_monotonic=10.0,
+            measurement_started_monotonic=10.0,
+            measurement_completed_monotonic=11.0,
+            memory_events_baseline={
+                "low": 0,
+                "high": 0,
+                "max": 0,
+                "oom": 0,
+                "oom_kill": 0,
+            },
+        )
+        self.assertTrue(diagnostic["complete"])
+        self.assertEqual(
+            diagnostic["thresholds_elapsed_millis"], [250, 500, 750, 1_000]
+        )
+        self.assertEqual(
+            [sample["memory_event_deltas"]["high"] for sample in diagnostic["samples"]],
+            [1, 2, 3, 4],
+        )
+        self.assertEqual(diagnostic["samples"][-1]["queue_pending"], 4)
+        self.assertEqual(diagnostic["samples"][-1]["filesystem_delta_bytes"], 4_000)
+
     def test_temperature_snapshot_reports_absence_and_over_limit_reading(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -6256,11 +6464,6 @@ class ResourceMonitorTests(unittest.TestCase):
             services=Path("/sys/fs/cgroup/test-run/services"),
             harness=Path("/sys/fs/cgroup/test-run/harness"),
         )
-        role_pids = {
-            "application": {101, 105},
-            "services": {202, 203},
-            "harness": {303, 404},
-        }
         with (
             mock.patch.object(Path, "read_text", return_value=""),
             mock.patch.object(

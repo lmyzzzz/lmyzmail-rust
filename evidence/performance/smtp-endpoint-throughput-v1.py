@@ -204,6 +204,9 @@ BENCHMARK_DMARC_RECORD = b"v=DMARC1; p=none; adkim=s; aspf=s"
 MISSING_DKIM_LOG_PREFIX = "No DKIM configuration for domain:"
 ASYNC_DROP_LOG_PREFIX = "Async drop: email rejected after verification:"
 COORDINATOR_OBSERVER_PREFIX = "LMYZMAIL_COORDINATOR_OBSERVER "
+STRESS_ENQUEUE_OBSERVER_PREFIX = "LMYZMAIL_STRESS_ENQUEUE_OBSERVER "
+OUTBOUND_BATCH_OBSERVER_PREFIX = "LMYZMAIL_OUTBOUND_BATCH_OBSERVER "
+QUEUE_OBSERVER_PREFIX = "LMYZMAIL_QUEUE_OBSERVER "
 JAVA_FROZEN_STRESS_CONFIGURATION = (
     ("botmail.queue.persist.save-body-to-db", "false"),
     ("botmail.queue.persist.flush-size", "1000"),
@@ -3873,6 +3876,91 @@ def _cgroup_memory(path: Path) -> dict[str, int]:
     }
 
 
+def _resource_measurement_quartiles(
+    samples: Sequence[dict[str, Any]],
+    *,
+    monitor_started_monotonic: float,
+    measurement_started_monotonic: float | None,
+    measurement_completed_monotonic: float | None,
+    memory_events_baseline: dict[str, int],
+) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "profile": "lmyzmail-resource-measurement-quartiles-v1",
+        "complete": False,
+        "samples": [],
+    }
+    if (
+        not samples
+        or measurement_started_monotonic is None
+        or measurement_completed_monotonic is None
+        or measurement_started_monotonic < monitor_started_monotonic
+        or measurement_completed_monotonic < measurement_started_monotonic
+    ):
+        result["reason"] = "measurement_window_unavailable"
+        return result
+    start_ms = round(
+        (measurement_started_monotonic - monitor_started_monotonic) * 1_000
+    )
+    completed_ms = round(
+        (measurement_completed_monotonic - monitor_started_monotonic) * 1_000
+    )
+    duration_ms = completed_ms - start_ms
+    thresholds = [
+        start_ms + math.ceil(duration_ms * fraction / 4) for fraction in range(1, 5)
+    ]
+    selected: list[dict[str, Any]] = []
+    start_index = 0
+    for threshold in thresholds:
+        sample = None
+        for index in range(start_index, len(samples)):
+            if int(samples[index]["elapsed_millis"]) >= threshold:
+                sample = samples[index]
+                start_index = index + 1
+                break
+        if sample is None:
+            result["reason"] = "missing_threshold_sample"
+            result["missing_threshold_millis"] = threshold
+            break
+        memory_events = sample["memory_events"]
+        selected.append(
+            {
+                "ordinal": len(selected) + 1,
+                "threshold_elapsed_millis": threshold,
+                "sample_elapsed_millis": int(sample["elapsed_millis"]),
+                "memory_current_bytes": int(sample["memory_current_bytes"]),
+                "memory_swap_current_bytes": int(sample["memory_swap_current_bytes"]),
+                "memory_event_deltas": {
+                    name: int(memory_events.get(name, 0))
+                    - int(memory_events_baseline.get(name, 0))
+                    for name in ("low", "high", "max", "oom", "oom_kill")
+                },
+                "cgroup_memory_by_role": sample["cgroup_memory_by_role"],
+                "process_memory_by_role": sample["process_memory_by_role"],
+                "queue_pending": int(sample["queue_pending"]),
+                "filesystem_delta_bytes": int(sample["filesystem_delta_bytes"]),
+                "filesystem_free_bytes": int(sample["filesystem_free_bytes"]),
+                "cpu_usage_usec": int(sample["cpu_usage_usec"]),
+                "candidate_cpu_usage_usec": int(sample["candidate_cpu_usage_usec"]),
+                "services_cpu_usage_usec": int(sample["services_cpu_usage_usec"]),
+                "io_read_bytes": int(sample["io_read_bytes"]),
+                "io_write_bytes": int(sample["io_write_bytes"]),
+            }
+        )
+    result.update(
+        {
+            "measurement_start_elapsed_millis": start_ms,
+            "measurement_completed_elapsed_millis": completed_ms,
+            "measurement_duration_millis": duration_ms,
+            "thresholds_elapsed_millis": thresholds,
+            "samples": selected,
+            "complete": len(selected) == 4,
+        }
+    )
+    if result["complete"]:
+        result.pop("reason", None)
+    return result
+
+
 def _temperature_snapshot(
     thermal_root: Path = Path("/sys/class/thermal"),
     hwmon_root: Path = Path("/sys/class/hwmon"),
@@ -4188,6 +4276,8 @@ class ResourceMonitor:
         self.stop_requested = threading.Event()
         self.ready = threading.Event()
         self.started_monotonic = time.monotonic()
+        self.measurement_started_monotonic: float | None = None
+        self.measurement_completed_monotonic: float | None = None
         self.samples: list[dict[str, Any]] = []
         self.error: BaseException | None = None
         self.redis = base.redis.Redis(
@@ -4500,6 +4590,18 @@ class ResourceMonitor:
             "memory_final_bytes": final["memory_current_bytes"],
             "memory_peak_bytes": max(
                 sample["memory_current_bytes"] for sample in samples
+            ),
+            "memory_events": {
+                name: int(final["memory_events"].get(name, 0))
+                - int(self.memory_events_baseline.get(name, 0))
+                for name in ("low", "high", "max", "oom", "oom_kill")
+            },
+            "measurement_quartiles": _resource_measurement_quartiles(
+                samples,
+                monitor_started_monotonic=self.started_monotonic,
+                measurement_started_monotonic=self.measurement_started_monotonic,
+                measurement_completed_monotonic=self.measurement_completed_monotonic,
+                memory_events_baseline=self.memory_events_baseline,
             ),
             "process_memory_by_role": process_memory_by_role,
             "cgroup_memory_by_role": cgroup_memory_by_role,
@@ -5703,14 +5805,127 @@ def _log_cursor(runtime: Any) -> LogCursor:
     )
 
 
+def _observer_thresholds(expected_messages: int | None) -> list[int]:
+    if expected_messages is None:
+        return []
+    if expected_messages <= 0:
+        raise ValueError("observer expected message count must be positive")
+    return [math.ceil(expected_messages * fraction / 4) for fraction in range(1, 5)]
+
+
+def _observer_records_with_milestones(
+    milestones: Sequence[dict[str, Any]], tail: Sequence[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    by_sequence = {int(record["sequence"]): record for record in (*milestones, *tail)}
+    return [by_sequence[sequence] for sequence in sorted(by_sequence)]
+
+
+def _nonnegative_integer_fields(value: Any, fields: Sequence[str]) -> bool:
+    return isinstance(value, dict) and all(
+        isinstance(value.get(field), int) and value[field] >= 0 for field in fields
+    )
+
+
+def _validate_auxiliary_observer_record(
+    kind: str, record: Any, previous_sequence: int
+) -> tuple[int, int]:
+    if not isinstance(record, dict):
+        raise ValueError("observer record is not an object")
+    sequence = record.get("sequence")
+    if not isinstance(sequence, int) or sequence <= previous_sequence:
+        raise ValueError("observer sequence is invalid")
+    if kind == "stress_enqueue":
+        if (
+            record.get("schema") != "lmyzmail.stress-enqueue-observation.v1"
+            or not _nonnegative_integer_fields(record, ("active", "peak_active"))
+            or record["active"] > record["peak_active"]
+            or not isinstance(record.get("stages"), dict)
+            or not record["stages"]
+            or any(
+                not _nonnegative_integer_fields(
+                    counters, ("count", "total_ns", "max_ns")
+                )
+                for counters in record["stages"].values()
+            )
+            or not _nonnegative_integer_fields(
+                record["stages"].get("total"), ("count", "total_ns", "max_ns")
+            )
+        ):
+            raise ValueError("invalid stress enqueue observer record")
+        progress = record["stages"]["total"]["count"]
+    elif kind == "outbound_batch":
+        fields = (
+            "batches",
+            "rows",
+            "max_rows",
+            "total_ns",
+            "max_ns",
+            "uncertain_batches",
+        )
+        if (
+            record.get("schema") != "lmyzmail.outbound-batch-observation.v1"
+            or not _nonnegative_integer_fields(record, fields)
+            or record["max_rows"] > 64
+            or record["uncertain_batches"] > record["batches"]
+            or (record["batches"] == 0) != (record["rows"] == 0)
+            or (
+                record["batches"] > 0
+                and not (
+                    record["batches"] <= record["rows"] <= record["batches"] * 64
+                    and 1 <= record["max_rows"] <= 64
+                    and record["rows"] >= record["max_rows"]
+                )
+            )
+        ):
+            raise ValueError("invalid outbound batch observer record")
+        progress = record["rows"]
+    elif kind == "queue":
+        operations = record.get("operations")
+        failures = record.get("publish_failures")
+        if (
+            record.get("schema") != "lmyzmail.redis-queue-observation.v1"
+            or not _nonnegative_integer_fields(record, ("calls",))
+            or not isinstance(operations, dict)
+            or not operations
+            or any(
+                not _nonnegative_integer_fields(
+                    counters,
+                    ("completed", "failed", "cancelled", "total_ns", "max_ns"),
+                )
+                for counters in operations.values()
+            )
+            or not isinstance(failures, dict)
+            or any(
+                not isinstance(value, int) or value < 0 for value in failures.values()
+            )
+            or sum(
+                counters[status]
+                for counters in operations.values()
+                for status in ("completed", "failed", "cancelled")
+            )
+            != record["calls"]
+            or not _nonnegative_integer_fields(
+                operations.get("publish"),
+                ("completed", "failed", "cancelled", "total_ns", "max_ns"),
+            )
+        ):
+            raise ValueError("invalid Redis queue observer record")
+        progress = operations["publish"]["completed"]
+    else:
+        raise ValueError("unknown auxiliary observer kind")
+    return sequence, int(progress)
+
+
 def _log_evidence(
     cursor: LogCursor,
     *,
+    expected_messages: int | None = None,
     read_chunk_bytes: int = 64 * 1024,
     maximum_line_bytes: int = 64 * 1024,
 ) -> dict[str, Any]:
     if read_chunk_bytes <= 0 or maximum_line_bytes <= 0:
         raise ValueError("application log parser bounds must be positive")
+    observer_thresholds = _observer_thresholds(expected_messages)
     path, offset = cursor.path, cursor.offset
     if not path.exists():
         return {
@@ -5734,7 +5949,23 @@ def _log_evidence(
             "coordinator_observer_record_count": 0,
             "coordinator_observer_parse_failure_count": 0,
             "coordinator_observer_records": [],
+            "coordinator_observer_milestones": [],
             "coordinator_observer_last": None,
+            "stress_enqueue_observer_record_count": 0,
+            "stress_enqueue_observer_parse_failure_count": 0,
+            "stress_enqueue_observer_records": [],
+            "stress_enqueue_observer_milestones": [],
+            "stress_enqueue_observer_last": None,
+            "outbound_batch_observer_record_count": 0,
+            "outbound_batch_observer_parse_failure_count": 0,
+            "outbound_batch_observer_records": [],
+            "outbound_batch_observer_milestones": [],
+            "outbound_batch_observer_last": None,
+            "queue_observer_record_count": 0,
+            "queue_observer_parse_failure_count": 0,
+            "queue_observer_records": [],
+            "queue_observer_milestones": [],
+            "queue_observer_last": None,
             "failure_line_count": 0,
             "missing_dkim_configuration_line_count": 0,
             "async_drop_line_count": 0,
@@ -5762,6 +5993,19 @@ def _log_evidence(
     coordinator_observer_parse_failure_count = 0
     coordinator_observer_last_sequence = 0
     coordinator_observer_records: deque[dict[str, Any]] = deque(maxlen=64)
+    coordinator_observer_milestones: list[dict[str, Any]] = []
+    coordinator_threshold_index = 0
+    auxiliary_specs = {
+        STRESS_ENQUEUE_OBSERVER_PREFIX: "stress_enqueue",
+        OUTBOUND_BATCH_OBSERVER_PREFIX: "outbound_batch",
+        QUEUE_OBSERVER_PREFIX: "queue",
+    }
+    auxiliary_record_count = {kind: 0 for kind in auxiliary_specs.values()}
+    auxiliary_parse_failure_count = {kind: 0 for kind in auxiliary_specs.values()}
+    auxiliary_last_sequence = {kind: 0 for kind in auxiliary_specs.values()}
+    auxiliary_records = {kind: deque(maxlen=64) for kind in auxiliary_specs.values()}
+    auxiliary_milestones = {kind: [] for kind in auxiliary_specs.values()}
+    auxiliary_threshold_index = {kind: 0 for kind in auxiliary_specs.values()}
     result_lines: deque[str] = deque(maxlen=64)
     failure_lines: deque[str] = deque(maxlen=64)
     failure_line_count = 0
@@ -5780,6 +6024,7 @@ def _log_evidence(
         nonlocal coordinator_observer_record_count
         nonlocal coordinator_observer_parse_failure_count
         nonlocal coordinator_observer_last_sequence
+        nonlocal coordinator_threshold_index
         line_count += 1
         line = raw_line.rstrip(b"\r").decode("utf-8", errors="replace")
         lowered = line.lower()
@@ -5812,6 +6057,34 @@ def _log_evidence(
                 coordinator_observer_record_count += 1
                 coordinator_observer_last_sequence = sequence
                 coordinator_observer_records.append(record)
+                while (
+                    coordinator_threshold_index < len(observer_thresholds)
+                    and completed_tasks
+                    >= observer_thresholds[coordinator_threshold_index]
+                ):
+                    coordinator_observer_milestones.append(record)
+                    coordinator_threshold_index += 1
+        for prefix, kind in auxiliary_specs.items():
+            if not line.startswith(prefix):
+                continue
+            try:
+                record = json.loads(line[len(prefix) :])
+                sequence, progress = _validate_auxiliary_observer_record(
+                    kind, record, auxiliary_last_sequence[kind]
+                )
+            except (KeyError, TypeError, ValueError):
+                auxiliary_parse_failure_count[kind] += 1
+            else:
+                auxiliary_record_count[kind] += 1
+                auxiliary_last_sequence[kind] = sequence
+                auxiliary_records[kind].append(record)
+                while (
+                    auxiliary_threshold_index[kind] < len(observer_thresholds)
+                    and progress >= observer_thresholds[auxiliary_threshold_index[kind]]
+                ):
+                    auxiliary_milestones[kind].append(record)
+                    auxiliary_threshold_index[kind] += 1
+            break
         relevant = (
             "[RESULT]" in line
             or "stress round" in lowered
@@ -5896,6 +6169,10 @@ def _log_evidence(
         and queue_counter_match_count <= len(queue_counter_records)
         and received_counter_match_count <= len(received_counter_records)
         and coordinator_observer_parse_failure_count == 0
+        and all(value == 0 for value in auxiliary_parse_failure_count.values())
+    )
+    coordinator_combined_records = _observer_records_with_milestones(
+        coordinator_observer_milestones, coordinator_observer_records
     )
     return {
         "present": True,
@@ -5918,10 +6195,30 @@ def _log_evidence(
         "coordinator_observer_parse_failure_count": (
             coordinator_observer_parse_failure_count
         ),
-        "coordinator_observer_records": list(coordinator_observer_records),
+        "coordinator_observer_records": coordinator_combined_records,
+        "coordinator_observer_milestones": coordinator_observer_milestones,
         "coordinator_observer_last": (
             coordinator_observer_records[-1] if coordinator_observer_records else None
         ),
+        **{
+            f"{kind}_observer_{suffix}": value
+            for kind in auxiliary_specs.values()
+            for suffix, value in (
+                ("record_count", auxiliary_record_count[kind]),
+                ("parse_failure_count", auxiliary_parse_failure_count[kind]),
+                (
+                    "records",
+                    _observer_records_with_milestones(
+                        auxiliary_milestones[kind], auxiliary_records[kind]
+                    ),
+                ),
+                ("milestones", auxiliary_milestones[kind]),
+                (
+                    "last",
+                    auxiliary_records[kind][-1] if auxiliary_records[kind] else None,
+                ),
+            )
+        },
         "failure_line_count": failure_line_count,
         "missing_dkim_configuration_line_count": (
             missing_dkim_configuration_line_count
@@ -6214,6 +6511,8 @@ def _run_round(
         # The proxy server and the first resource sample are ready. Start the
         # measurement immediately before arming capture and issuing the POST.
         started_monotonic = time.monotonic()
+        if monitor is not None:
+            monitor.measurement_started_monotonic = started_monotonic
         started_at = _utc_now()
         proxy.begin(
             expected=count,
@@ -6284,6 +6583,8 @@ def _run_round(
             None if monitor is None else monitor.raise_if_failed,
         )
         final_250_completed_monotonic = time.monotonic()
+        if monitor is not None:
+            monitor.measurement_completed_monotonic = final_250_completed_monotonic
         database_visibility = _wait_for_delivery_database_visibility(
             runtime,
             before=before,
@@ -6437,7 +6738,10 @@ def _run_round(
                 f"automatic endpoint cleanup also failed: {type(error).__name__}: {error}"
             )
     try:
-        log = _log_evidence(log_cursor)
+        log = _log_evidence(
+            log_cursor,
+            expected_messages=count if endpoint_invocation_started else None,
+        )
     except BaseException as error:
         if primary_error is None:
             primary_error = error
@@ -6603,6 +6907,45 @@ def _run_round(
                 log.get("coordinator_observer_records", ()),
                 count,
                 selected_stage_names=_coordinator_selected_diagnostic_stages(),
+            ),
+            "auxiliary_observers": {
+                kind: {
+                    "record_count": log.get(f"{kind}_observer_record_count", 0),
+                    "parse_failure_count": log.get(
+                        f"{kind}_observer_parse_failure_count", 0
+                    ),
+                    "milestones": log.get(f"{kind}_observer_milestones", []),
+                    "last": log.get(f"{kind}_observer_last"),
+                }
+                for kind in ("stress_enqueue", "outbound_batch", "queue")
+            },
+            "resource_memory": (
+                None
+                if resource is None
+                else {
+                    "memory_first_bytes": resource.get("memory_first_bytes"),
+                    "memory_final_bytes": resource.get("memory_final_bytes"),
+                    "memory_peak_bytes": resource.get("memory_peak_bytes"),
+                    "memory_events": resource.get("memory_events"),
+                    "process_memory_by_role": resource.get("process_memory_by_role"),
+                    "cgroup_memory_by_role": resource.get("cgroup_memory_by_role"),
+                    "measurement_quartiles": resource.get("measurement_quartiles"),
+                    "fd_first": resource.get("fd_first"),
+                    "fd_final": resource.get("fd_final"),
+                    "fd_peak": resource.get("fd_peak"),
+                    "task_first": resource.get("task_first"),
+                    "task_final": resource.get("task_final"),
+                    "task_peak": resource.get("task_peak"),
+                    "queue_first": resource.get("queue_first"),
+                    "queue_final": resource.get("queue_final"),
+                    "queue_peak": resource.get("queue_peak"),
+                    "filesystem_delta_peak_bytes": resource.get(
+                        "filesystem_delta_peak_bytes"
+                    ),
+                    "filesystem_delta_final_bytes": resource.get(
+                        "filesystem_delta_final_bytes"
+                    ),
+                }
             ),
             "resource_io": (
                 None
