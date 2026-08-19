@@ -2392,3 +2392,16 @@ the run. The full 165-test runner suite, 41 launcher tests, and focused 27
 memory/I/O tests pass. This change relaxes only a proven `/proc` lifecycle race;
 it does not relax memory.max, OOM, process membership, persistence, or message
 count gates.
+
+Post-fix root-isolated smoke `bd143850-6bec-4039-919b-4ad88d085e63` then
+verified `8/8` 1 KB fsync-off messages with the eight-attempt memory and I/O
+observer windows. Its JSON and checkpoint SHA-256 values are
+`4878169512010d035faead7ae3c9dd2f7a01f5ef3c5b0325e7266299c7b41933` and
+`1083a9ad00ee493f025a27e147ffb85f3f22447e27084a8fa6633ae593cc3de5`.
+The root cleanup receipt is committed as
+`smtp-endpoint-candidate-stability-fsync-off-proc-memory-smoke-v141.json.root-cleanup`
+with SHA-256
+`183e7b887293ecbc6fb95e5182eef757385e9558cf6a195fa50cfa6ad39482e5`.
+It records `request=DONE`, `cleanup=passed`, `qualified_cleanup=1`,
+`lazy_unmount=0`, and `recovered=0`; no formal throughput claim is made from
+this eight-message smoke.
