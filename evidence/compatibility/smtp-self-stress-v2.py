@@ -80,6 +80,12 @@ EMPTY_RECEIPT_VALUE_STREAM_SHA256 = (
     "7cfe27cd7a354def8edb89c5613efe9e01b344cdfada3306c8b9ac29ed595ced"
 )
 REDIS_SNAPSHOT_PIPELINE_KEY_LIMIT = 512
+REDIS_SNAPSHOT_VALUE_PAGE_LIMIT = 512
+REDIS_SNAPSHOT_STRING_CHUNK_BYTES = 64 * 1024
+# Unordered Redis collections require a canonical sort for the digest. Refuse
+# pathological cardinalities before the client materializes an unbounded value
+# set; a snapshot failure is safer than silently producing an incomplete one.
+REDIS_SNAPSHOT_UNORDERED_CARDINALITY_LIMIT = 131_072
 
 
 def _v2_mailbox_relative_path(address: str) -> Path:
@@ -855,6 +861,105 @@ def _scan_redis_keys(client: Any) -> tuple[bytes, ...]:
             return tuple(sorted(keys))
 
 
+def _redis_snapshot_value_summary(
+    client: Any, key: bytes, kind: str
+) -> tuple[int, str, int]:
+    digest = hashlib.sha256()
+    cardinality = 0
+    value_bytes = 0
+
+    def observe(value: bytes) -> None:
+        nonlocal cardinality, value_bytes
+        if not isinstance(value, bytes):
+            raise RuntimeError("Redis snapshot value was not binary")
+        digest.update(len(value).to_bytes(8, "big"))
+        digest.update(value)
+        cardinality += 1
+        value_bytes += len(value)
+
+    if kind == "none":
+        pass
+    elif kind == "string":
+        length = int(client.strlen(key))
+        if length < 0:
+            raise RuntimeError("Redis string length was negative")
+        digest.update(length.to_bytes(8, "big"))
+        cardinality = 1
+        value_bytes = length
+        for offset in range(0, length, REDIS_SNAPSHOT_STRING_CHUNK_BYTES):
+            expected_chunk_bytes = min(
+                REDIS_SNAPSHOT_STRING_CHUNK_BYTES, length - offset
+            )
+            value = client.getrange(
+                key, offset, offset + expected_chunk_bytes - 1
+            )
+            if not isinstance(value, bytes) or len(value) != expected_chunk_bytes:
+                raise RuntimeError("Redis string changed during bounded snapshot")
+            digest.update(value)
+    elif kind == "list":
+        expected = int(client.llen(key))
+        for offset in range(0, expected, REDIS_SNAPSHOT_VALUE_PAGE_LIMIT):
+            values = client.lrange(
+                key,
+                offset,
+                min(expected - 1, offset + REDIS_SNAPSHOT_VALUE_PAGE_LIMIT - 1),
+            )
+            for value in values:
+                observe(value)
+        if cardinality != expected:
+            raise RuntimeError("Redis list changed during bounded snapshot")
+    elif kind == "set":
+        expected = int(client.scard(key))
+        if expected > REDIS_SNAPSHOT_UNORDERED_CARDINALITY_LIMIT:
+            raise RuntimeError("Redis set exceeds bounded snapshot cardinality")
+        values = sorted(client.smembers(key))
+        for value in values:
+            observe(value)
+        if cardinality != expected:
+            raise RuntimeError("Redis set changed during bounded snapshot")
+    elif kind == "zset":
+        expected = int(client.zcard(key))
+        for offset in range(0, expected, REDIS_SNAPSHOT_VALUE_PAGE_LIMIT):
+            values = client.zrange(
+                key,
+                offset,
+                min(expected - 1, offset + REDIS_SNAPSHOT_VALUE_PAGE_LIMIT - 1),
+                withscores=True,
+            )
+            for member, score in values:
+                observe(member + b"\x00" + repr(float(score)).encode("ascii"))
+        if cardinality != expected:
+            raise RuntimeError("Redis sorted set changed during bounded snapshot")
+    elif kind == "hash":
+        expected = int(client.hlen(key))
+        if expected > REDIS_SNAPSHOT_UNORDERED_CARDINALITY_LIMIT:
+            raise RuntimeError("Redis hash exceeds bounded snapshot cardinality")
+        names = sorted(client.hkeys(key))
+        if len(names) != expected:
+            raise RuntimeError("Redis hash changed during bounded snapshot")
+        for offset in range(0, expected, REDIS_SNAPSHOT_VALUE_PAGE_LIMIT):
+            batch_names = names[offset : offset + REDIS_SNAPSHOT_VALUE_PAGE_LIMIT]
+            values = client.hmget(key, batch_names)
+            if len(values) != len(batch_names) or any(
+                value is None for value in values
+            ):
+                raise RuntimeError("Redis hash changed during bounded snapshot")
+            for name, value in zip(batch_names, values, strict=True):
+                observe(name + b"\x00" + value)
+    elif kind == "stream":
+        expected = int(client.xlen(key))
+        if expected > REDIS_SNAPSHOT_UNORDERED_CARDINALITY_LIMIT:
+            raise RuntimeError("Redis stream exceeds bounded snapshot cardinality")
+        values = client.xrange(key)
+        for item in values:
+            observe(repr(item).encode("utf-8"))
+        if cardinality != expected:
+            raise RuntimeError("Redis stream changed during bounded snapshot")
+    else:
+        raise RuntimeError(f"unsupported Redis type in stress snapshot: {kind}")
+    return cardinality, digest.hexdigest(), value_bytes
+
+
 def _redis_snapshot_records(client: Any, keys: tuple[bytes, ...]) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for offset in range(0, len(keys), REDIS_SNAPSHOT_PIPELINE_KEY_LIMIT):
@@ -868,8 +973,6 @@ def _redis_snapshot_records(client: Any, keys: tuple[bytes, ...]) -> list[dict[s
             raise RuntimeError("Redis snapshot metadata pipeline changed cardinality")
 
         kinds_and_ttls: list[tuple[str, int]] = []
-        values_pipeline = client.pipeline(transaction=False)
-        value_commands = 0
         for index, key in enumerate(batch):
             kind_raw = metadata_results[index * 2]
             kind = (
@@ -879,63 +982,18 @@ def _redis_snapshot_records(client: Any, keys: tuple[bytes, ...]) -> list[dict[s
             )
             pttl = int(metadata_results[index * 2 + 1])
             kinds_and_ttls.append((kind, pttl))
-            if kind == "string":
-                values_pipeline.get(key)
-            elif kind == "list":
-                values_pipeline.lrange(key, 0, -1)
-            elif kind == "set":
-                values_pipeline.smembers(key)
-            elif kind == "zset":
-                values_pipeline.zrange(key, 0, -1, withscores=True)
-            elif kind == "hash":
-                values_pipeline.hgetall(key)
-            elif kind == "stream":
-                values_pipeline.xrange(key)
-            elif kind == "none":
-                continue
-            else:
-                raise RuntimeError(f"unsupported Redis type in stress snapshot: {kind}")
-            value_commands += 1
-        value_results = values_pipeline.execute() if value_commands else []
-        if len(value_results) != value_commands:
-            raise RuntimeError("Redis snapshot value pipeline changed cardinality")
-
-        value_index = 0
         for key, (kind, pttl) in zip(batch, kinds_and_ttls, strict=True):
-            values: list[bytes]
-            if kind == "none":
-                values = []
-            else:
-                raw_value = value_results[value_index]
-                value_index += 1
-                if kind == "string":
-                    values = [] if raw_value is None else [raw_value]
-                elif kind == "list":
-                    values = list(raw_value)
-                elif kind == "set":
-                    values = sorted(raw_value)
-                elif kind == "zset":
-                    values = [
-                        member + b"\x00" + repr(float(score)).encode("ascii")
-                        for member, score in raw_value
-                    ]
-                elif kind == "hash":
-                    values = [
-                        name + b"\x00" + value
-                        for name, value in sorted(raw_value.items())
-                    ]
-                elif kind == "stream":
-                    values = [repr(item).encode("utf-8") for item in raw_value]
-                else:
-                    raise AssertionError("validated Redis type was not handled")
+            cardinality, value_stream_sha256, value_bytes = (
+                _redis_snapshot_value_summary(client, key, kind)
+            )
             records.append(
                 {
                     "key": key.decode("utf-8", errors="backslashreplace"),
                     "type": kind,
                     "pttl_ms": pttl,
-                    "cardinality": len(values),
-                    "value_stream_sha256": _hash_redis_values(values),
-                    "value_bytes": sum(len(value) for value in values),
+                    "cardinality": cardinality,
+                    "value_stream_sha256": value_stream_sha256,
+                    "value_bytes": value_bytes,
                 }
             )
     return records

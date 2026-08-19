@@ -5308,7 +5308,7 @@ class RoundFailureTests(unittest.TestCase):
 
 
 class CleanupStateTests(unittest.TestCase):
-    def test_redis_snapshot_pipelines_full_values_in_fixed_key_batches(self) -> None:
+    def test_redis_snapshot_streams_values_after_fixed_metadata_batches(self) -> None:
         class FakePipeline:
             def __init__(self, client: Any):
                 self.client = client
@@ -5333,10 +5333,18 @@ class CleanupStateTests(unittest.TestCase):
                 self.values = values
                 self.pipeline_command_counts: list[int] = []
                 self.pipeline_transaction_flags: list[bool] = []
+                self.direct_command_names: list[str] = []
 
             def pipeline(self, *, transaction: bool) -> FakePipeline:
                 self.pipeline_transaction_flags.append(transaction)
                 return FakePipeline(self)
+
+            def __getattr__(self, name: str) -> Any:
+                def execute(*args: Any, **kwargs: Any) -> Any:
+                    self.direct_command_names.append(name)
+                    return self.dispatch(name, args, kwargs)
+
+                return execute
 
             def dispatch(
                 self, name: str, args: tuple[Any, ...], kwargs: dict[str, Any]
@@ -5347,13 +5355,33 @@ class CleanupStateTests(unittest.TestCase):
                     return kind.encode("ascii")
                 if name == "pttl":
                     return pttl
-                if name == "get":
+                if name == "strlen":
+                    return len(value)
+                if name == "getrange":
+                    return value[int(args[1]) : int(args[2]) + 1]
+                if name == "llen":
+                    return len(value)
+                if name == "lrange":
+                    return value[int(args[1]) : int(args[2]) + 1]
+                if name == "smembers":
                     return value
-                if name in ("lrange", "smembers", "hgetall", "xrange"):
-                    return value
+                if name == "scard":
+                    return len(value)
+                if name == "zcard":
+                    return len(value)
                 if name == "zrange":
                     self.assert_withscores(kwargs)
+                    return value[int(args[1]) : int(args[2]) + 1]
+                if name == "hkeys":
+                    return list(value)
+                if name == "hlen":
+                    return len(value)
+                if name == "hmget":
+                    return [value[field] for field in args[1]]
+                if name == "xrange":
                     return value
+                if name == "xlen":
+                    return len(value)
                 raise AssertionError(f"unexpected Redis command: {name}")
 
             @staticmethod
@@ -5380,8 +5408,12 @@ class CleanupStateTests(unittest.TestCase):
         by_key = {record["key"]: record for record in records}
 
         self.assertEqual(len(records), 513)
-        self.assertEqual(client.pipeline_command_counts, [1024, 511, 2, 1])
+        self.assertEqual(client.pipeline_command_counts, [1024, 2])
         self.assertTrue(all(flag is False for flag in client.pipeline_transaction_flags))
+        self.assertEqual(client.direct_command_names.count("strlen"), 507)
+        self.assertEqual(client.direct_command_names.count("getrange"), 507)
+        self.assertNotIn("get", client.direct_command_names)
+        self.assertNotIn("hgetall", client.direct_command_names)
         self.assertEqual(by_key["string"]["value_bytes"], 3)
         self.assertEqual(by_key["list"]["cardinality"], 2)
         self.assertEqual(
@@ -5393,6 +5425,161 @@ class CleanupStateTests(unittest.TestCase):
         self.assertEqual(by_key["hash"]["cardinality"], 2)
         self.assertEqual(by_key["stream"]["cardinality"], 1)
         self.assertEqual(by_key["none"]["cardinality"], 0)
+        expected_values = {
+            "string": [b"abc"],
+            "list": [b"a", b"b"],
+            "set": [b"a", b"b"],
+            "zset": [b"member\x001.5"],
+            "hash": [b"a\x001", b"b\x002"],
+            "stream": [repr((b"1-0", {b"field": b"value"})).encode("utf-8")],
+            "none": [],
+        }
+        for key, expected in expected_values.items():
+            self.assertEqual(by_key[key]["cardinality"], len(expected))
+            self.assertEqual(
+                by_key[key]["value_stream_sha256"],
+                runner.v2._hash_redis_values(expected),
+            )
+            self.assertEqual(
+                by_key[key]["value_bytes"], sum(map(len, expected))
+            )
+
+    def test_redis_snapshot_does_not_retain_prior_large_string_values(self) -> None:
+        class TrackedValue(bytes):
+            live = 0
+            peak = 0
+
+            def __new__(cls, size: int) -> "TrackedValue":
+                value = bytes.__new__(cls, b"x" * size)
+                cls.live += 1
+                cls.peak = max(cls.peak, cls.live)
+                return value
+
+            def __del__(self) -> None:
+                type(self).live -= 1
+
+        class MetadataPipeline:
+            def __init__(self) -> None:
+                self.commands: list[str] = []
+
+            def type(self, _key: bytes) -> "MetadataPipeline":
+                self.commands.append("type")
+                return self
+
+            def pttl(self, _key: bytes) -> "MetadataPipeline":
+                self.commands.append("pttl")
+                return self
+
+            def execute(self) -> list[Any]:
+                return [
+                    value
+                    for command in self.commands
+                    for value in ((b"string",) if command == "type" else (-1,))
+                ]
+
+        class LargeStringClient:
+            def __init__(self) -> None:
+                self.page_lengths: list[int] = []
+
+            def pipeline(self, *, transaction: bool) -> MetadataPipeline:
+                self.assert_false(transaction)
+                return MetadataPipeline()
+
+            @staticmethod
+            def assert_false(value: bool) -> None:
+                if value:
+                    raise AssertionError("snapshot metadata pipeline became transactional")
+
+            @staticmethod
+            def strlen(_key: bytes) -> int:
+                return 256 * 1024
+
+            def getrange(self, _key: bytes, start: int, stop: int) -> TrackedValue:
+                size = stop - start + 1
+                self.page_lengths.append(size)
+                return TrackedValue(size)
+
+        keys = tuple(f"large-{index:04d}".encode("ascii") for index in range(64))
+        client = LargeStringClient()
+        records = runner.v2._redis_snapshot_records(client, keys)
+
+        self.assertEqual(len(records), len(keys))
+        self.assertLessEqual(TrackedValue.peak, 2)
+        self.assertEqual(TrackedValue.live, 0)
+        self.assertTrue(
+            all(record["value_bytes"] == 256 * 1024 for record in records)
+        )
+        self.assertEqual(
+            max(client.page_lengths), runner.v2.REDIS_SNAPSHOT_STRING_CHUNK_BYTES
+        )
+
+    def test_redis_snapshot_pages_large_ordered_values(self) -> None:
+        class PagedListClient:
+            def __init__(self, values: list[bytes]):
+                self.values = values
+                self.page_lengths: list[int] = []
+
+            def llen(self, _key: bytes) -> int:
+                return len(self.values)
+
+            def lrange(self, _key: bytes, start: int, stop: int) -> list[bytes]:
+                page = self.values[start : stop + 1]
+                self.page_lengths.append(len(page))
+                return page
+
+        values = [f"value-{index:04d}".encode("ascii") for index in range(1_025)]
+        client = PagedListClient(values)
+
+        cardinality, digest, value_bytes = runner.v2._redis_snapshot_value_summary(
+            client, b"large-list", "list"
+        )
+
+        self.assertEqual(cardinality, len(values))
+        self.assertEqual(digest, runner.v2._hash_redis_values(values))
+        self.assertEqual(value_bytes, sum(map(len, values)))
+        self.assertEqual(client.page_lengths, [512, 512, 1])
+
+    def test_redis_snapshot_fails_closed_for_pathological_unordered_values(
+        self,
+    ) -> None:
+        class OversizedSetClient:
+            @staticmethod
+            def scard(_key: bytes) -> int:
+                return runner.v2.REDIS_SNAPSHOT_UNORDERED_CARDINALITY_LIMIT + 1
+
+            def smembers(self, _key: bytes) -> list[bytes]:
+                raise AssertionError("snapshot must reject before materializing set")
+
+        with self.assertRaisesRegex(RuntimeError, "set exceeds bounded"):
+            runner.v2._redis_snapshot_value_summary(
+                OversizedSetClient(), b"large-set", "set"
+            )
+
+        class OversizedHashClient:
+            @staticmethod
+            def hlen(_key: bytes) -> int:
+                return runner.v2.REDIS_SNAPSHOT_UNORDERED_CARDINALITY_LIMIT + 1
+
+            def hkeys(self, _key: bytes) -> list[bytes]:
+                raise AssertionError("snapshot must reject before materializing hash")
+
+        with self.assertRaisesRegex(RuntimeError, "hash exceeds bounded"):
+            runner.v2._redis_snapshot_value_summary(
+                OversizedHashClient(), b"large-hash", "hash"
+            )
+
+        class OversizedStreamClient:
+            @staticmethod
+            def xlen(_key: bytes) -> int:
+                return runner.v2.REDIS_SNAPSHOT_UNORDERED_CARDINALITY_LIMIT + 1
+
+            def xrange(self, _key: bytes) -> list[Any]:
+                raise AssertionError("snapshot must reject before materializing stream")
+
+        with self.assertRaisesRegex(RuntimeError, "stream exceeds bounded"):
+            runner.v2._redis_snapshot_value_summary(
+                OversizedStreamClient(), b"large-stream", "stream"
+            )
 
     def test_outbound_staging_lease_is_validated_and_not_counted_as_workload(
         self,
