@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "long_run_stability_profiler_failure",
+  "qualified": false,
+  "qualification_failure": "harness_post_validation_memory_pressure",
+  "source_git_head": "1a507f45",
+  "run_id": "807895fe-0321-488d-b3d8-8651fa638444",
+  "configuration": {
+    "profile": "rust-profiler",
+    "target": "rust-candidate",
+    "tier": "10KB",
+    "messages": 100000,
+    "rust_filesystem_fsync": "off",
+    "postgresql_fsync": "on",
+    "postgresql_synchronous_commit": "on",
+    "workload_cpu_limit": 1,
+    "io_limit_bytes_per_second": 500000000,
+    "original_stress_endpoint_invocations": 1,
+    "harness_batching": false,
+    "candidate_artifact_sha256": "cb0ccea9ec2d6b313ebf69213e12e8ba2d647177337b2ae7e2515f7852e4a841"
+  },
+  "endpoint_observations": [
+    {
+      "restart_ordinal": 0,
+      "queued": 100000,
+      "received": 100000,
+      "failed": 0,
+      "exceptions": 0,
+      "oom": 0,
+      "rate_limited": 0,
+      "throughput_messages_per_second": 125.29,
+      "total_time_ms": 798132,
+      "queueing_time_ms": 735300,
+      "delivery_time_ms": 62832
+    },
+    {
+      "restart_ordinal": 1,
+      "queued": 100000,
+      "received": 100000,
+      "failed": 0,
+      "exceptions": 0,
+      "oom": 0,
+      "rate_limited": 0,
+      "throughput_messages_per_second": 118.07,
+      "total_time_ms": 846971,
+      "queueing_time_ms": 782062,
+      "delivery_time_ms": 64908
+    }
+  ],
+  "resource_observations": {
+    "restart_ordinal": 1,
+    "cgroup_memory_current_peak_bytes_observed": 8032018432,
+    "cgroup_memory_high_events_observed": 30200,
+    "cgroup_memory_max_events_observed": 0,
+    "cgroup_oom_events_observed": 0,
+    "cgroup_tasks_peak_observed": 215,
+    "harness_process": {
+      "rss_peak_bytes_observed": 8035557376,
+      "anonymous_rss_peak_bytes_observed": 8011374592,
+      "state": "D",
+      "wait_channel": "mem_cgroup_handle_over_high"
+    },
+    "interpretation": "The endpoint completed exactly, but the post-validation harness accumulated multi-gigabyte anonymous memory and stalled in cgroup reclaim. This is a failed stability run, not evidence of candidate message loss or a passing soak."
+  },
+  "termination": {
+    "method": "controlled_SIGINT_after_harness_memory_pressure",
+    "reason": "protect WSL host from approaching memory.max while preserving fail-closed cleanup",
+    "runner_exit_artifact": "missing_by_contract_after_abort",
+    "console": "evidence/performance/smtp-rust-long-run-stability-profiler-v144-console.log",
+    "console_sha256": "a255ab19d701cb3faf2e514aedba7dfafbe8552cf9d04490b68cee8ec458ea73"
+  },
+  "cleanup": {
+    "receipt": "run-807895fe-0321-488d-b3d8-8651fa638444.done",
+    "request": "ABORT",
+    "passed": true,
+    "lazy_unmount": 0,
+    "recovered": 0,
+    "qualified_cleanup": 0,
+    "run_cgroup_absent": true,
+    "run_processes_absent": true,
+    "run_mounts_absent": true,
+    "run_loop_devices_absent": true
+  }
+}

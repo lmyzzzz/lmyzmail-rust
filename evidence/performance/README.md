@@ -2514,3 +2514,17 @@ reproduce or explain v6's late decline; a higher-cardinality run is required
 before changing production queue or persistence behavior. Per-process
 PostgreSQL RSS sums are not used as a memory total because shared mappings are
 counted once per backend; cgroup current/anon/file remains authoritative.
+
+The higher-cardinality follow-up is recorded as the non-qualifying failure
+smtp-rust-long-run-stability-profiler-v144-failure.json. Its original
+10 KB endpoint invocation completed 100,000/100,000 with zero endpoint
+failures on both the initial runtime (125.29 msg/s) and the post-restart
+runtime (118.07 msg/s). The post-restart validation harness then grew to
+about 7.85 GiB anonymous RSS and stalled in
+mem_cgroup_handle_over_high; cgroup memory.high reached 30,200 while
+memory.max and OOM counters stayed at zero. The run was stopped with a
+controlled SIGINT to protect the host, and the root watchdog recorded
+ABORT with passed cleanup and no residual cgroup, process, mount, or loop
+device. Because the runner could not publish its provisional artifact after
+that abort, this record is diagnostic evidence only and cannot satisfy any
+stability or throughput qualification gate.
