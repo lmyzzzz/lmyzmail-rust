@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "smtp_endpoint_profiler_diagnostic_failure",
+  "qualified": false,
+  "qualification_failure": "candidate_outbound_spool_cleanup_and_queue_availability",
+  "source_git_head": "742be270",
+  "configuration": {
+    "profile": "rust-profiler",
+    "target": "rust-candidate",
+    "tier": "10KB",
+    "messages": 16384,
+    "rust_filesystem_fsync": "on",
+    "postgresql_fsync": "on",
+    "postgresql_synchronous_commit": "on",
+    "workload_cpu_limit": 1,
+    "io_limit_bytes_per_second": 500000000,
+    "original_stress_endpoint_invocations": 1,
+    "harness_batching": false,
+    "outbound_batch_collection_window_ms": 2,
+    "candidate_artifact_sha256": "719ef61bdd88e3e4e0b17ad39cff1ff2bdd3a0c1afa88e674c2259187d9d75ab"
+  },
+  "observed_before_controlled_abort": {
+    "completed_tasks": 7168,
+    "queue_observer_failed": 0,
+    "queue_observer_cancelled": 0,
+    "failure_messages": [
+      "lmyzmail outbound maintenance failed: outbound spool failed ownership validation or cleanup",
+      "lmyzmail outbound task could not be reconciled: outbound queue unavailable"
+    ],
+    "postgres_process_alive": true,
+    "redis_process_alive": true,
+    "candidate_progress_stalled": true
+  },
+  "cleanup": {
+    "controlled_abort": true,
+    "residual_candidate_services_processes": 0,
+    "residual_benchmark_cgroups": 0
+  },
+  "interpretation": "The default fsync-on path did not complete the bounded 16K durability probe. After 7168 completed tasks, outbound spool ownership/cleanup validation failed and subsequent reconciliation observed queue unavailable; the run was controlled-aborted and cleanup completed. This is a stability failure requiring investigation before fsync-on long soak qualification.",
+  "next_investigation": "Reproduce with a small isolated fsync-on run and inspect outbound spool ownership proof, sidecar durability/cleanup, and Redis connection lifecycle around the first maintenance failure; do not lower assertions."
+}
