@@ -993,7 +993,10 @@ async fn run_stress(
                     target,
                     requested,
                     started,
-                    deadline: started + DELIVERY_WAIT,
+                    // Delivery time starts after enqueue completes. A long but
+                    // successful queue must not consume the post-queue drain
+                    // budget before the first mailbox observation.
+                    deadline: delivery_deadline(queue_finished),
                 },
                 &cancellation,
             )
@@ -1559,6 +1562,10 @@ fn delivery_stability_after_poll(
     ))
 }
 
+fn delivery_deadline(queue_finished: Instant) -> Instant {
+    queue_finished + DELIVERY_WAIT
+}
+
 async fn run_blocking<T, F>(
     inner: &StressInner,
     cancellation: &CancellationToken,
@@ -2082,6 +2089,15 @@ mod tests {
         );
         assert!(delivery_stability_after_poll(0, 40, 42, 1, 1).is_err());
         assert!(delivery_stability_after_poll(0, 40, 39, 0, 1).is_err());
+    }
+
+    #[test]
+    fn delivery_wait_budget_starts_after_queue_completion() {
+        let queue_finished = Instant::now();
+        assert_eq!(
+            delivery_deadline(queue_finished),
+            queue_finished + DELIVERY_WAIT
+        );
     }
 
     #[test]

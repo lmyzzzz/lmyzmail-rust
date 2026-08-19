@@ -750,6 +750,19 @@
       "scope": "Only manual cleanup requests made while a stress run is active. Cleanup while idle, automatic finally cleanup, the first accepted start, round state, generated messages, queue effects, disabled behavior, permissions, reset, and status remain compatibility requirements."
     },
     {
+      "candidate_requirement": "Start the bounded 20-minute delivery-wait budget after all accepted enqueue jobs have completed. Continue reporting total elapsed time from the start of the round, poll the exact run marker and mailbox delta once per second, require two stable exact observations, and fail if the post-queue budget expires.",
+      "evidence": {
+        "candidate_test": "crates/lmyzmail/src/stress.rs::tests::delivery_wait_budget_starts_after_queue_completion",
+        "formal_failure": "evidence/performance/smtp-endpoint-candidate-stability-fsync-off-1kb-formal-v5-delivery-deadline-failure.txt",
+        "source": "src/main/java/net/lmyz/lmyzmail/web/StressTestController.java",
+        "source_sha256": "1f89c3d577cb9fcc13721a56c28e866e30c759f34b4a0617177d91f4885158a0"
+      },
+      "id": "stress-delivery-timeout-after-queue-completion",
+      "oracle_behavior": "The frozen Java endpoint computes its 20-minute delivery timeout from the start of the entire run. A queue phase longer than 20 minutes therefore makes the first post-queue inbox poll time out immediately, even when SMTP, Maildir, and PostgreSQL subsequently prove every requested message was delivered.",
+      "reason": "Charging enqueue time against a delivery-only timeout creates a deterministic false failure for large bounded runs and can trigger destructive cleanup while accepted delivery work is still completing. The formal 500,000-message run independently proved 500,000 successful SMTP replies and exact durable publications while the stale endpoint counter stopped at 490,186. This is an obvious lifecycle/deadline defect excluded from bug-for-bug replication.",
+      "scope": "Only the origin of the 20-minute delivery-wait deadline. Queue admission, queue timeout, one-second polling, total elapsed reporting, exact mailbox/run-marker checks, generated messages, SMTP/Redis/PostgreSQL/Maildir effects, automatic cleanup, and every normal small run remain compatibility requirements."
+    },
+    {
       "candidate_requirement": "Own at most one pending outbound send per Minecraft connection. For every overlapping C08 send-button interaction, enqueue no additional message and reply exactly `§cEmail send already in progress.`. Cancellation and disconnect must release the connection-owned operation within the normal bounded drain deadline.",
       "evidence": {
         "candidate_test": "blackbox/tools/test_minecraft_outbound_duplicate.py::test_rust_candidate_rejects_overlapping_minecraft_send",

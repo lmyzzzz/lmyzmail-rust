@@ -2405,3 +2405,55 @@ with SHA-256
 It records `request=DONE`, `cleanup=passed`, `qualified_cleanup=1`,
 `lazy_unmount=0`, and `recovered=0`; no formal throughput claim is made from
 this eight-message smoke.
+
+Formal attempt `cad8aea7-d371-44c2-9d9a-37273e6e128f` is retained only as
+negative harness evidence. A manual root-UID control-socket query was rejected
+by the proxy's UID boundary and correctly incremented `observer_failure_count`;
+the runner then failed closed with `Rust proxy progress monitor failed`. The
+last same-UID diagnostic summary observed `12,444/500,000` messages, zero
+duplicates, zero retry responses, and zero proxy connection failures, but no
+throughput or candidate-stability claim is permitted because the observation
+itself contaminated the run. Recovery cleanup passed with `lazy_unmount=0` and
+no residual cgroup. The failure record and copied recovery receipt are
+`smtp-endpoint-candidate-stability-fsync-off-1kb-formal-v4-observer-contamination.txt`
+and its `.root-cleanup` companion.
+
+The next uncontaminated formal attempt,
+`47a514ff-bf98-4de6-9e86-8a530ec3bb3f`, proved that the candidate did not lose
+mail: the proxy verified `500,000/500,000` messages and successful final
+replies with zero missing, duplicate, retry, or observer failures; sender and
+receiver Maildir observers each saw exactly 500,000 publications; PostgreSQL
+recorded 500,000 outbound audit rows, one million index inserts, one million
+index deletes, and zero transaction rollbacks. `memory.high` reclaimed 18,574
+times while `memory.max`, OOM, and OOM-kill remained zero. The run still failed
+qualification because the inherited Java stress-endpoint timer counted its
+20-minute delivery budget from run start. Enqueue took 5,207.612 seconds, so
+the first post-queue poll reported 490,186 and immediately timed out even
+though the independent wire and durable-state evidence reached 500,000.
+
+Rust now starts the bounded delivery wait at queue completion while preserving
+the total-run elapsed metric. The frozen Java source confirms its start-based
+timer, so this is a documented bug-fix divergence rather than a relaxed
+assertion. The failure and root cleanup receipt are retained as
+`smtp-endpoint-candidate-stability-fsync-off-1kb-formal-v5-delivery-deadline-failure.txt`
+and its `.root-cleanup` companion. Root cleanup passed with
+`request=ABORT`, `lazy_unmount=0`, and no residual cgroup, but no formal
+throughput claim is made until the fixed release completes a new run.
+
+The fixed locked release has SHA-256
+`65fd5ba6c716276c1bf71e29801eb1ece7a55b9f6781b3947d078a959e2cef71`,
+Build ID `73b52a68e4e0ccd8e32186daf92864cdf9e7b16a`, and size 51,317,656
+bytes. Root-isolated regression smoke
+`9e3f440b-7978-43e4-89c5-916b4b4bf04f` used that exact immutable ELF,
+one original endpoint invocation, no harness batching, and passively verified
+all `8/8` 1 KB fsync-off messages. The run passed message, persistence,
+resource, attestation, and cleanup checks with no failure log lines. Its JSON,
+runner checkpoint, and cleanup receipt SHA-256 values are respectively
+`81d418391bcb24ef13bf2e9b243306eeda0e0040a5ef949575bbb3316b3137ee`,
+`1d5161fcb004de6d7f54c15d0ffaeafa51799a5d8f304e1b58312a7dd88959de`,
+and `ff3483bb1a2c492345ce810ba4e43e63c0e0c9608dce61104b50172499f474f2`.
+The root journal records `request=DONE`, `cleanup=passed`,
+`qualified_cleanup=1`, `lazy_unmount=0`, and `recovered=0`; an independent
+audit found no residual process, run cgroup, mount, loop image, or mutable
+artifact. This eight-message smoke remains intentionally unqualified and
+makes no throughput claim; the formal 500,000-message rerun is still required.
