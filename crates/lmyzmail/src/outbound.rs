@@ -2490,18 +2490,27 @@ impl OutboundService {
             .await?;
         }
         let redis_references = tokio::select! {
-            _ = cancellation.cancelled() => return Err(OutboundError::Unavailable.into()),
+            _ = cancellation.cancelled() => {
+                crate::outbound_batch::commit_read_only(transaction).await;
+                return Err(OutboundError::Unavailable.into());
+            }
             result = timeout(
                 DATABASE_TIMEOUT,
                 self.queue.active_reference_upper_bound(self.max_pending_tasks as usize),
-            ) => result
-                .map_err(|_| OutboundError::Unavailable)?
-                .map_err(|_| OutboundError::Unavailable)?,
+            ) => match result {
+                Ok(Ok(references)) => references,
+                Ok(Err(_)) | Err(_) => {
+                    crate::outbound_batch::commit_read_only(transaction).await;
+                    return Err(OutboundError::Unavailable.into());
+                }
+            },
         };
         if redis_references >= self.max_pending_tasks as usize {
+            crate::outbound_batch::commit_read_only(transaction).await;
             return Err(OutboundError::QueueFull.into());
         }
         if redis_queue_capacity_guard_triggered(redis_references, self.max_pending_tasks as usize) {
+            crate::outbound_batch::commit_read_only(transaction).await;
             return Err(OutboundError::QueueFull.into());
         }
         let pending_rows = cancellable_db_call(
@@ -2515,6 +2524,7 @@ impl OutboundService {
         )
         .await?;
         if postgres_queue_capacity_exhausted(pending_rows.len(), self.max_pending_tasks as usize) {
+            crate::outbound_batch::commit_read_only(transaction).await;
             return Err(OutboundError::QueueFull.into());
         }
         let mut active_ids = pending_rows
@@ -2522,16 +2532,24 @@ impl OutboundService {
             .map(|row| row.get::<_, i64>(0).to_string())
             .collect::<BTreeSet<_>>();
         let redis_active_ids = tokio::select! {
-            _ = cancellation.cancelled() => return Err(OutboundError::Unavailable.into()),
+            _ = cancellation.cancelled() => {
+                crate::outbound_batch::commit_read_only(transaction).await;
+                return Err(OutboundError::Unavailable.into());
+            }
             result = timeout(
                 DATABASE_TIMEOUT,
                 self.queue.active_task_ids(self.max_pending_tasks as usize),
-            ) => result
-                .map_err(|_| OutboundError::Unavailable)?
-                .map_err(|_| OutboundError::Unavailable)?,
+            ) => match result {
+                Ok(Ok(ids)) => ids,
+                Ok(Err(_)) | Err(_) => {
+                    crate::outbound_batch::commit_read_only(transaction).await;
+                    return Err(OutboundError::Unavailable.into());
+                }
+            },
         };
         active_ids.extend(redis_active_ids);
         if active_ids.len() >= self.max_pending_tasks as usize {
+            crate::outbound_batch::commit_read_only(transaction).await;
             return Err(OutboundError::QueueFull.into());
         }
         if dsn_source.is_none() && !bypass_sender_quota {
@@ -2547,6 +2565,7 @@ impl OutboundService {
             .await?
             .get(0);
             if used >= self.max_emails_per_account {
+                crate::outbound_batch::commit_read_only(transaction).await;
                 return Err(OutboundError::RateLimited { remaining: 0 }.into());
             }
         }

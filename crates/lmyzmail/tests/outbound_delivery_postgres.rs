@@ -2126,6 +2126,85 @@ async fn missing_spool_removal_is_idempotent_without_counting_a_postgresql_rollb
 }
 
 #[tokio::test]
+async fn outbound_capacity_guard_is_queue_full_without_counting_a_postgresql_rollback() {
+    let postgres = PostgresProcess::start();
+    let redis_process = RedisProcess::start();
+    let storage = TempStorage::new();
+    let runtime = outbound_configuration_with_pending_limit(
+        postgres.port(),
+        redis_process.port(),
+        &storage.0,
+        Some(1),
+    );
+    let pool = database::create_pool(&runtime).unwrap();
+    let client = pool.get().await.unwrap();
+    let legacy_ddl = include_str!("../../../blackbox/fixtures/legacy/postgres-longtext-oracle.sql")
+        .replace("LONGTEXT", "TEXT");
+    client.batch_execute(&legacy_ddl).await.unwrap();
+    client.batch_execute(EMAIL_INDEX_DDL).await.unwrap();
+    drop(client);
+    PostgresDeliveryState::new(pool.clone())
+        .initialize_schema()
+        .await
+        .unwrap();
+    insert_pending(&pool, 9_001, 0, 5, Utc::now()).await;
+    let redis_pool = redis_config::create_pool(&runtime).unwrap();
+    let service = OutboundService::from_config(&runtime, pool.clone(), redis_pool).unwrap();
+
+    let control_before = database_xact_rollback(&pool).await;
+    let mut client = pool.get().await.unwrap();
+    client
+        .transaction()
+        .await
+        .unwrap()
+        .rollback()
+        .await
+        .unwrap();
+    drop(client);
+    let rollbacks_before = database_xact_rollback(&pool).await;
+    assert_eq!(
+        rollbacks_before,
+        control_before + 1,
+        "the PostgreSQL rollback counter control must be observable"
+    );
+
+    let result = service
+        .enqueue(
+            SendRequest {
+                from: Some("qa@example.test".into()),
+                password: None,
+                to: vec!["user@remote.test".into()],
+                cc: Vec::new(),
+                bcc: Vec::new(),
+                subject: Some("capacity guard rollback telemetry".into()),
+                text: Some("bounded queue pressure".into()),
+                html: None,
+                attachments: Vec::new(),
+                in_reply_to: None,
+                references: None,
+                asynchronous: Some(true),
+            },
+            None,
+        )
+        .await;
+    assert!(
+        matches!(result, Err(OutboundError::QueueFull)),
+        "unexpected capacity guard result: {result:?}"
+    );
+    assert!(
+        service
+            .shutdown((Instant::now() + Duration::from_secs(5)).into())
+            .await,
+        "outbound batch worker did not stop"
+    );
+    assert_eq!(
+        database_xact_rollback(&pool).await,
+        rollbacks_before,
+        "routine outbound capacity backpressure must commit its read-only transaction"
+    );
+}
+
+#[tokio::test]
 async fn recipient_ledger_is_monotonic_fenced_and_legacy_compatible() {
     let process = PostgresProcess::start();
     let pool = database::create_pool(&configuration(process.port())).unwrap();

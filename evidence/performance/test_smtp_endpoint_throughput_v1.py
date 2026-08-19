@@ -5987,6 +5987,24 @@ class ProcessIoEvidenceTests(unittest.TestCase):
         self.assertTrue(observed["observed"])
 
 
+class MaildirPersistenceObserverTests(unittest.TestCase):
+    def test_overflow_reconciliation_can_complete_at_the_deadline(self) -> None:
+        observer = object.__new__(runner.MaildirPersistenceObserver)
+        observer.expected_messages = 1
+        observer.receiver_root = Path("receiver")
+        observer.scope_roots = {"receiver": Path("receiver")}
+        observer.removed = 0
+        observer.error = None
+        observer.overflow_events = 1
+        observer.condition = threading.Condition()
+
+        def reconcile() -> None:
+            observer.removed = 1
+
+        observer._reconcile_removals_after_overflow = reconcile
+        observer.wait_for_removals(0.0)
+
+
 class ResourceMonitorTests(unittest.TestCase):
     def test_temperature_snapshot_reports_absence_and_over_limit_reading(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -6434,6 +6452,117 @@ class ResourceMonitorTests(unittest.TestCase):
                     for pid in (101, 202, 203, 303, 404)
                 },
                 process_io=_fake_process_io((101, 202, 203, 303, 404)),
+            )
+
+        self.assertEqual(vanished, [105])
+        self.assertEqual(stable["application"], {101})
+
+    @staticmethod
+    def _process_stat(pid: int, state: str, start_time: int = 123) -> str:
+        fields = [state, *("0" for _ in range(18)), str(start_time)]
+        return f"{pid} (test) {' '.join(fields)}\n"
+
+    def test_process_memory_status_captures_stable_live_process(self) -> None:
+        pid = 101
+        reads = iter(
+            (
+                self._process_stat(pid, "S"),
+                "Name:\ttest\nVmHWM:\t2 kB\nVmRSS:\t1 kB\n",
+                self._process_stat(pid, "S"),
+            )
+        )
+        with mock.patch.object(Path, "read_text", side_effect=lambda **_kwargs: next(reads)):
+            evidence = runner._process_memory_status((pid,))
+        self.assertEqual(evidence[pid], {"rss_bytes": 1024, "hwm_bytes": 2048})
+
+    def test_process_memory_status_filters_process_that_becomes_zombie(self) -> None:
+        pid = 105
+        reads = iter(
+            (
+                self._process_stat(pid, "S"),
+                "Name:\ttest\nState:\tZ (zombie)\n",
+                self._process_stat(pid, "Z"),
+            )
+        )
+        with mock.patch.object(Path, "read_text", side_effect=lambda **_kwargs: next(reads)):
+            self.assertEqual(runner._process_memory_status((pid,)), {})
+
+    def test_process_memory_status_rejects_live_process_without_rss(self) -> None:
+        pid = 106
+        reads = iter(
+            (
+                self._process_stat(pid, "S"),
+                "Name:\ttest\nState:\tS (sleeping)\n",
+                self._process_stat(pid, "S"),
+                self._process_stat(pid, "S"),
+                "Name:\ttest\nState:\tS (sleeping)\n",
+                self._process_stat(pid, "S"),
+                self._process_stat(pid, "S"),
+                "Name:\ttest\nState:\tS (sleeping)\n",
+                self._process_stat(pid, "S"),
+                self._process_stat(pid, "S"),
+            )
+        )
+        with (
+            mock.patch.object(Path, "read_text", side_effect=lambda **_kwargs: next(reads)),
+            mock.patch.object(runner.time, "sleep") as sleep,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "omitted VmRSS or VmHWM"):
+                runner._process_memory_status((pid,))
+        self.assertEqual(sleep.call_count, 2)
+
+    def test_process_memory_status_retries_transient_missing_rss(self) -> None:
+        pid = 108
+        reads = iter(
+            (
+                self._process_stat(pid, "S"),
+                "Name:\ttest\nState:\tS (sleeping)\n",
+                self._process_stat(pid, "S"),
+                self._process_stat(pid, "S"),
+                "Name:\ttest\nVmHWM:\t4 kB\nVmRSS:\t3 kB\n",
+                self._process_stat(pid, "S"),
+            )
+        )
+        with (
+            mock.patch.object(Path, "read_text", side_effect=lambda **_kwargs: next(reads)),
+            mock.patch.object(runner.time, "sleep") as sleep,
+        ):
+            evidence = runner._process_memory_status((pid,))
+        self.assertEqual(evidence[pid], {"rss_bytes": 3072, "hwm_bytes": 4096})
+        sleep.assert_called_once_with(0.001)
+
+    def test_process_memory_status_rejects_pid_identity_change(self) -> None:
+        pid = 107
+        reads = iter(
+            (
+                self._process_stat(pid, "S", 123),
+                "Name:\ttest\nVmHWM:\t2 kB\nVmRSS:\t1 kB\n",
+                self._process_stat(pid, "S", 124),
+            )
+        )
+        with mock.patch.object(Path, "read_text", side_effect=lambda **_kwargs: next(reads)):
+            with self.assertRaisesRegex(RuntimeError, "changed identity"):
+                runner._process_memory_status((pid,))
+
+    def test_process_evidence_filters_zombie_non_root_child(self) -> None:
+        role_pids = {
+            "application": {101, 105},
+            "services": {202, 203},
+            "harness": {303, 404},
+        }
+        with (
+            mock.patch.object(Path, "exists", return_value=True),
+            mock.patch.object(runner, "_process_state", return_value="Z"),
+        ):
+            stable, vanished = runner._stable_process_evidence(
+                role_pids,
+                required_identity_pids={101, 202, 203, 303, 404},
+                fd_counts={101: 1, 105: 0, 202: 1, 203: 1, 303: 1, 404: 1},
+                process_memory={
+                    pid: {"rss_bytes": 1, "hwm_bytes": 1}
+                    for pid in (101, 202, 203, 303, 404)
+                },
+                process_io=_fake_process_io((101, 105, 202, 203, 303, 404)),
             )
 
         self.assertEqual(vanished, [105])

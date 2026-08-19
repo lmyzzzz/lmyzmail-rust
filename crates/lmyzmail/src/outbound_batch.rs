@@ -263,6 +263,7 @@ async fn persist_batch(
 
     batch = retain_live_requests(batch);
     if batch.is_empty() {
+        commit_read_only(transaction).await;
         return;
     }
 
@@ -274,17 +275,20 @@ async fn persist_batch(
     {
         Ok(Ok(references)) => references,
         Ok(Err(_)) | Err(_) => {
+            commit_read_only(transaction).await;
             fail_not_committed(batch, Failure::Unavailable);
             return;
         }
     };
     if redis_references >= max_pending_tasks {
+        commit_read_only(transaction).await;
         for request in batch {
             request.respond(BatchOutcome::NotCommitted(OutboundError::QueueFull));
         }
         return;
     }
     if redis_queue_capacity_guard_triggered(redis_references, max_pending_tasks) {
+        commit_read_only(transaction).await;
         for request in batch {
             request.respond(BatchOutcome::NotCommitted(OutboundError::QueueFull));
         }
@@ -312,6 +316,7 @@ async fn persist_batch(
         }
     };
     if postgres_queue_capacity_exhausted(pending_rows.len(), max_pending_tasks) {
+        commit_read_only(transaction).await;
         for request in batch {
             request.respond(BatchOutcome::NotCommitted(OutboundError::QueueFull));
         }
@@ -325,6 +330,7 @@ async fn persist_batch(
         match timeout(DATABASE_TIMEOUT, queue.active_task_ids(max_pending_tasks)).await {
             Ok(Ok(ids)) => ids,
             Ok(Err(_)) | Err(_) => {
+                commit_read_only(transaction).await;
                 fail_not_committed(batch, Failure::Unavailable);
                 return;
             }
@@ -332,6 +338,7 @@ async fn persist_batch(
     active_ids.extend(redis_active_ids);
     batch = retain_live_requests(batch);
     if batch.is_empty() {
+        commit_read_only(transaction).await;
         return;
     }
     let available = max_pending_tasks.saturating_sub(active_ids.len());
@@ -342,6 +349,7 @@ async fn persist_batch(
         }
     }
     if batch.is_empty() {
+        commit_read_only(transaction).await;
         return;
     }
 
@@ -374,6 +382,13 @@ async fn persist_batch(
             fail_commit_uncertain(batch, Failure::Unavailable);
         }
     }
+}
+
+pub(crate) async fn commit_read_only(transaction: deadpool_postgres::Transaction<'_>) {
+    // Capacity and cancellation outcomes are expected control flow. End the
+    // read-only transaction explicitly so PostgreSQL rollback telemetry remains
+    // reserved for real database failures and deadline expiry.
+    let _ = timeout(DATABASE_TIMEOUT, transaction.commit()).await;
 }
 
 async fn insert_batch(

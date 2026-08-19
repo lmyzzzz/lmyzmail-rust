@@ -2291,3 +2291,48 @@ The journal records `request=DONE`, `cleanup=passed`, `qualified_cleanup=1`,
 and `lazy_unmount=0`, with no residual process, cgroup, mount, loop, image, or
 artifact. This smoke remains intentionally unqualified; the 500,000-message
 formal tier and queue-scheduler gate still require a complete rerun.
+
+The next 32,768-message diagnostic isolated the rollback telemetry seen during
+the first formal attempt. Run `7472e16c-8b59-4197-8df1-d83c270dd1a7` used the
+current 1 KB, fsync-off candidate without debugger pauses. The only natural
+outbound batch abort was the Redis capacity guard after at least 2,048 observed
+messages; no SQL error, database timeout, or insert failure was recorded. The
+run ended with a `database_xact_rollback` delta of 2,347 because this expected
+capacity path dropped an open read-only PostgreSQL transaction. Its root
+cleanup passed with `request=ABORT`, `lazy_unmount=0`, and no residual process,
+cgroup, mount, loop device, image, artifact, or socket.
+
+The retained fix explicitly commits read-only outbound admission transactions
+before expected cancellation, Redis-unavailable, Redis-capacity,
+PostgreSQL-capacity, and no-remaining-capacity returns. SQL errors, query
+timeouts, and insert failures still roll back. The fsync-on single-admission
+path applies the same rule to cancellation, Redis checks, capacity, and sender
+rate-limit exits. A real PostgreSQL/Redis regression first proves that an
+explicit control rollback increments the server counter, then proves that a
+capacity rejection adds zero rollbacks. The complete library suite passed
+753/753, including the four outbound batch unit tests, and all 13 outbound
+PostgreSQL integration tests passed. The benchmark runner's `/proc` memory
+capture also now retries a transient missing `VmRSS`/`VmHWM` field with
+PID-identity checks, filters disappeared or zombie children, and continues to
+reject a stable live process that omits required evidence. All 161 runner tests
+and 41 launcher tests passed; formatting and strict workspace all-target,
+all-feature Clippy passed as well.
+
+Root-isolated post-fix smoke `876da6bf-8128-48f7-9979-84227e28bec7` then used
+one original stress-endpoint invocation for eight 1 KB fsync-off messages. It
+passively verified `8/8`, observed eight sender and eight receiver Maildir
+atomic publications, and recorded zero failures, retries, observer failures,
+PostgreSQL rollbacks, or OOM events. The candidate release SHA-256 is
+`d901b72d74f7b9b5e32b431e75e7720a84d0ef351d4b85268cf8b45265a9bfd3`
+with Build ID `c2507b8dab3ddf3c91f9dd3323ea0f35158ae5ed`. The matching profiling ELF
+SHA-256 is
+`cb0ccea9ec2d6b313ebf69213e12e8ba2d647177337b2ae7e2515f7852e4a841`
+with Build ID `b89036a312990cc4f035744d650341a03b1715bb`. The JSON, checkpoint, and
+cleanup receipt SHA-256 values are respectively
+`6357860f7ecc60b1e12baeabde5b2be4f85606133513b8e0241e0a50107cd906`,
+`7ea42346561f7f741ccb5d24223bd8fa0f64a5f5ab2e62d9cb58ad6ac0e353f4`,
+and `8b139740d35c680000dc75722ef038de5b6d8c39667844ebe2ebbf24420691f2`.
+The journal records `request=DONE`, `cleanup=passed`, `qualified_cleanup=1`, and
+`lazy_unmount=0`; an independent post-run audit found no residual per-run
+resource. This remains an intentionally unqualified smoke because eight
+messages cannot satisfy the 500,000-message count or queue-scheduler gate.

@@ -1401,6 +1401,10 @@ def _process_start_time(pid: int) -> int:
 
 def _process_state(pid: int) -> str:
     line = Path(f"/proc/{pid}/stat").read_text(encoding="ascii")
+    return _parse_process_state(pid, line)
+
+
+def _parse_process_state(pid: int, line: str) -> str:
     fields = line[line.rfind(")") + 2 :].split()
     if not fields or len(fields[0]) != 1:
         raise RuntimeError(f"process {pid} has an invalid stat state")
@@ -3420,6 +3424,8 @@ class MaildirPersistenceObserver:
                     ) from self.error
                 if getattr(self, "overflow_events", 0):
                     self._reconcile_removals_after_overflow()
+                    if self.removed == expected_removals:
+                        break
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     counts = self._evidence(require_cleanup=False)[
@@ -3642,28 +3648,56 @@ def _fd_counts(pids: Sequence[int]) -> dict[int, int]:
     return output
 
 
-def _process_memory_status(pids: Sequence[int]) -> dict[int, dict[str, int]]:
+def _process_memory_status(
+    pids: Sequence[int], *, proc_root: Path = Path("/proc")
+) -> dict[int, dict[str, int]]:
     output: dict[int, dict[str, int]] = {}
     for pid in pids:
-        try:
-            lines = Path(f"/proc/{pid}/status").read_text(encoding="ascii").splitlines()
-        except (FileNotFoundError, PermissionError):
-            continue
-        values: dict[str, int] = {}
-        for line in lines:
-            name, separator, raw = line.partition(":")
-            if not separator or name not in {"VmRSS", "VmHWM"}:
+        process_root = proc_root / str(pid)
+        expected_start_time: int | None = None
+        for attempt in range(3):
+            try:
+                stat_before = (process_root / "stat").read_text(encoding="ascii")
+                lines = (process_root / "status").read_text(encoding="ascii").splitlines()
+                stat_after = (process_root / "stat").read_text(encoding="ascii")
+            except (FileNotFoundError, PermissionError, ProcessLookupError):
+                break
+            start_time = _parse_process_start_time(pid, stat_before)
+            if expected_start_time is None:
+                expected_start_time = start_time
+            elif start_time != expected_start_time:
+                raise RuntimeError(f"PID {pid} changed identity during memory capture")
+            if _parse_process_start_time(pid, stat_after) != expected_start_time:
+                raise RuntimeError(f"PID {pid} changed identity during memory capture")
+            if _parse_process_state(pid, stat_after) in {"X", "Z"}:
+                break
+            values: dict[str, int] = {}
+            for line in lines:
+                name, separator, raw = line.partition(":")
+                if not separator or name not in {"VmRSS", "VmHWM"}:
+                    continue
+                fields = raw.split()
+                if len(fields) != 2 or fields[1] != "kB" or not fields[0].isdigit():
+                    raise RuntimeError(f"PID {pid} exposed malformed {name} evidence")
+                values[name] = int(fields[0]) * 1024
+            if set(values) == {"VmRSS", "VmHWM"}:
+                output[pid] = {
+                    "rss_bytes": values["VmRSS"],
+                    "hwm_bytes": values["VmHWM"],
+                }
+                break
+            if attempt < 2:
+                time.sleep(0.001)
                 continue
-            fields = raw.split()
-            if len(fields) != 2 or fields[1] != "kB" or not fields[0].isdigit():
-                raise RuntimeError(f"PID {pid} exposed malformed {name} evidence")
-            values[name] = int(fields[0]) * 1024
-        if set(values) != {"VmRSS", "VmHWM"}:
+            try:
+                stat_final = (process_root / "stat").read_text(encoding="ascii")
+            except (FileNotFoundError, PermissionError, ProcessLookupError):
+                break
+            if _parse_process_start_time(pid, stat_final) != expected_start_time:
+                raise RuntimeError(f"PID {pid} changed identity during memory capture")
+            if _parse_process_state(pid, stat_final) in {"X", "Z"}:
+                break
             raise RuntimeError(f"PID {pid} omitted VmRSS or VmHWM evidence")
-        output[pid] = {
-            "rss_bytes": values["VmRSS"],
-            "hwm_bytes": values["VmHWM"],
-        }
     return output
 
 
@@ -3929,7 +3963,16 @@ def _stable_process_evidence(
             "required benchmark process omitted FD/RSS/I/O evidence: "
             f"{missing_channels}"
         )
-    still_present = sorted(pid for pid in vanished if Path(f"/proc/{pid}").exists())
+    still_present = []
+    for pid in sorted(vanished):
+        if not Path(f"/proc/{pid}").exists():
+            continue
+        try:
+            state = _process_state(pid)
+        except (FileNotFoundError, ProcessLookupError):
+            continue
+        if state not in {"X", "Z"}:
+            still_present.append(pid)
     if still_present:
         raise RuntimeError(
             "benchmark process omitted FD, RSS, or I/O evidence while still alive: "
