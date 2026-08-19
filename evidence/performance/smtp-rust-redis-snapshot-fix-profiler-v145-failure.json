@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "smtp_endpoint_profiler_diagnostic_failure",
+  "qualified": false,
+  "qualification_failure": "within_arm_throughput_stability",
+  "source_git_head": "b165a53d",
+  "configuration": {
+    "profile": "rust-profiler",
+    "target": "rust-candidate",
+    "tier": "10KB",
+    "messages_per_arm": 16384,
+    "rust_filesystem_fsync": "off",
+    "postgresql_fsync": "on",
+    "postgresql_synchronous_commit": "on",
+    "workload_cpu_limit": 1,
+    "io_limit_bytes_per_second": 500000000,
+    "original_stress_endpoint_invocations": 1,
+    "harness_batching": false,
+    "candidate_artifact_sha256": "cb0ccea9ec2d6b313ebf69213e12e8ba2d647177337b2ae7e2515f7852e4a841"
+  },
+  "endpoint_observations": [
+    {
+      "arm": 0,
+      "queued": 16384,
+      "received": 16384,
+      "failed": 0,
+      "exceptions": 0,
+      "oom": 0,
+      "rate_limited": 0,
+      "throughput_messages_per_second": 127.19,
+      "total_time_ms": 128814,
+      "queueing_time_ms": 74203,
+      "delivery_time_ms": 54610,
+      "quartile_messages_per_second": [99.166003, 108.006608, 170.723657, 167.81906],
+      "quartile_relative_range": 0.518861
+    }
+  ],
+  "resource_observations": {
+    "harness_rss_peak_bytes": 134602752,
+    "harness_rss_final_bytes": 134270976,
+    "harness_anonymous_peak_bytes": 493441024,
+    "total_cgroup_memory_peak_bytes": 1937895424,
+    "total_cgroup_memory_final_bytes": 1432879104,
+    "cgroup_oom_events": 0,
+    "cgroup_oom_kill_events": 0,
+    "queue_peak": 8907,
+    "queue_final": 0,
+    "task_peak": 171,
+    "task_final": 150,
+    "fd_peak": 4377,
+    "fd_final": 2082
+  },
+  "interpretation": "The candidate accepted and durably completed every message in the 16K diagnostic arm with zero endpoint failures, retries, OOM, or cleanup residue. The run is intentionally non-qualifying because the unchanged within-arm quartile stability gate failed; memory remained bounded after the Redis snapshot fix and did not reproduce the v144 multi-gigabyte harness failure.",
+  "test_evidence": {
+    "redis_snapshot_profiler": "evidence/performance/redis-full-value-snapshot-profiler-v1-rerun.json",
+    "python_regression": "220 passed"
+  }
+}
