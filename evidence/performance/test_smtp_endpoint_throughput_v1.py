@@ -5994,7 +5994,7 @@ class ProcessIoEvidenceTests(unittest.TestCase):
     def test_process_io_parser_rejects_persistent_live_permission_denial(self) -> None:
         pid = 103
         reads: list[str | BaseException] = []
-        for _attempt in range(3):
+        for _attempt in range(runner._PROC_TRANSIENT_CAPTURE_ATTEMPTS):
             reads.extend(
                 (
                     self._stat(pid, 779),
@@ -6016,7 +6016,9 @@ class ProcessIoEvidenceTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(RuntimeError, "denied process I/O"):
                 runner._process_io_status((pid,))
-        self.assertEqual(sleep.call_count, 2)
+        self.assertEqual(
+            sleep.call_count, runner._PROC_TRANSIENT_CAPTURE_ATTEMPTS - 1
+        )
 
     def test_process_io_parser_rejects_identity_change_after_denial(self) -> None:
         pid = 104
@@ -6585,18 +6587,16 @@ class ResourceMonitorTests(unittest.TestCase):
     def test_process_memory_status_rejects_live_process_without_rss(self) -> None:
         pid = 106
         reads = iter(
-            (
-                self._process_stat(pid, "S"),
-                "Name:\ttest\nState:\tS (sleeping)\n",
-                self._process_stat(pid, "S"),
-                self._process_stat(pid, "S"),
-                "Name:\ttest\nState:\tS (sleeping)\n",
-                self._process_stat(pid, "S"),
-                self._process_stat(pid, "S"),
-                "Name:\ttest\nState:\tS (sleeping)\n",
-                self._process_stat(pid, "S"),
-                self._process_stat(pid, "S"),
-            )
+            [
+                value
+                for _attempt in range(runner._PROC_TRANSIENT_CAPTURE_ATTEMPTS)
+                for value in (
+                    self._process_stat(pid, "S"),
+                    "Name:\ttest\nState:\tS (sleeping)\n",
+                    self._process_stat(pid, "S"),
+                )
+            ]
+            + [self._process_stat(pid, "S")]
         )
         with (
             mock.patch.object(Path, "read_text", side_effect=lambda **_kwargs: next(reads)),
@@ -6604,7 +6604,9 @@ class ResourceMonitorTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(RuntimeError, "omitted VmRSS or VmHWM"):
                 runner._process_memory_status((pid,))
-        self.assertEqual(sleep.call_count, 2)
+        self.assertEqual(
+            sleep.call_count, runner._PROC_TRANSIENT_CAPTURE_ATTEMPTS - 1
+        )
 
     def test_process_memory_status_retries_transient_missing_rss(self) -> None:
         pid = 108

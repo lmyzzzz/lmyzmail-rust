@@ -2370,3 +2370,25 @@ and `b192c7be8ca8cc538bdbd0159459ec1940f1a3fa5a10913ea4c35c6c2c768523`.
 The journal records `request=DONE`, `cleanup=passed`, `qualified_cleanup=1`, and
 `lazy_unmount=0`; an independent residual audit passed. This is a contract
 smoke only and makes no formal throughput claim.
+
+The next formal 1 KB fsync-off attempt, run
+`0af7ac44-1430-4d44-b264-e08881535cad`, was stopped after the proxy had
+verified `217,417` messages with zero duplicate, retry, observer, or proxy
+failures. The resource monitor then observed a services PID whose
+`/proc/<pid>/stat` identity remained stable while three consecutive
+`VmRSS`/`VmHWM` status captures were empty. It failed closed rather than
+fabricating memory evidence; the automatic endpoint cleanup and Maildir
+observer subsequently timed out while the workload was still under pressure.
+The root cleanup eventually passed with no resource residue, but no result or
+throughput claim was published. The run journal records `request=ABORT`,
+`cleanup=passed`, and `lazy_unmount=0`; intent and done journal SHA-256 values
+are `46473d0e2a371ecd6875b4be15a515b430cefafeb4d9672400dcde413c1327f6` and
+`387fdf8fd79f90473c7e02eb537e965213b7040a796ffeaa893ca4ee3f89e402`.
+
+The observer's bounded transient capture window is now eight 1 ms attempts for
+both memory and process-I/O evidence. PID identity and exit-state checks remain
+mandatory, and a stable live process that continues to omit fields still fails
+the run. The full 165-test runner suite, 41 launcher tests, and focused 27
+memory/I/O tests pass. This change relaxes only a proven `/proc` lifecycle race;
+it does not relax memory.max, OOM, process membership, persistence, or message
+count gates.

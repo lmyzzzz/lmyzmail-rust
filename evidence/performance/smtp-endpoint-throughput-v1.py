@@ -3655,7 +3655,7 @@ def _process_memory_status(
     for pid in pids:
         process_root = proc_root / str(pid)
         expected_start_time: int | None = None
-        for attempt in range(3):
+        for attempt in range(_PROC_TRANSIENT_CAPTURE_ATTEMPTS):
             try:
                 stat_before = (process_root / "stat").read_text(encoding="ascii")
                 lines = (process_root / "status").read_text(encoding="ascii").splitlines()
@@ -3686,7 +3686,7 @@ def _process_memory_status(
                     "hwm_bytes": values["VmHWM"],
                 }
                 break
-            if attempt < 2:
+            if attempt + 1 < _PROC_TRANSIENT_CAPTURE_ATTEMPTS:
                 time.sleep(0.001)
                 continue
             try:
@@ -3701,6 +3701,7 @@ def _process_memory_status(
     return output
 
 
+_PROC_TRANSIENT_CAPTURE_ATTEMPTS = 8
 _PROCESS_IO_FIELDS = ("wchar", "syscw", "read_bytes", "write_bytes")
 
 
@@ -3711,7 +3712,7 @@ def _process_io_status(
     for pid in pids:
         process_root = proc_root / str(pid)
         expected_start_time: int | None = None
-        for attempt in range(3):
+        for attempt in range(_PROC_TRANSIENT_CAPTURE_ATTEMPTS):
             try:
                 stat_before = (process_root / "stat").read_text(encoding="ascii")
             except (FileNotFoundError, ProcessLookupError):
@@ -3739,7 +3740,7 @@ def _process_io_status(
                     ) from error
                 if _parse_process_state(pid, stat_after) in {"X", "Z"}:
                     break
-                if attempt < 2:
+                if attempt + 1 < _PROC_TRANSIENT_CAPTURE_ATTEMPTS:
                     time.sleep(0.001)
                     continue
                 raise RuntimeError(
