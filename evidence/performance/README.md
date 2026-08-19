@@ -2359,3 +2359,14 @@ denials three times at 1 ms intervals, filters a process that exits or becomes
 a zombie, and still fails a stable live process that persistently denies or
 omits I/O counters. Four focused regressions, all 165 runner tests, and all 41
 launcher tests pass. No qualification threshold or message assertion changed.
+
+Post-fix root-isolated smoke `b2451ec5-e9ee-453c-b972-481df3befd17` verified
+all `8/8` messages and completed the revised process-I/O observer, artifact
+publication, watchdog, and cleanup paths. Its JSON, runner checkpoint, and
+cleanup receipt SHA-256 values are
+`58ba61577d4c7757b14a31408180c2e6abf988e4e160807292fa6cdd74c0d215`,
+`eefe6227e5f727944bb0833d3596fa9d7478a10dbf89543c43c836f398b50532`,
+and `b192c7be8ca8cc538bdbd0159459ec1940f1a3fa5a10913ea4c35c6c2c768523`.
+The journal records `request=DONE`, `cleanup=passed`, `qualified_cleanup=1`, and
+`lazy_unmount=0`; an independent residual audit passed. This is a contract
+smoke only and makes no formal throughput claim.
