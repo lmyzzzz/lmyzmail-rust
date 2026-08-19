@@ -2457,3 +2457,33 @@ The root journal records `request=DONE`, `cleanup=passed`,
 audit found no residual process, run cgroup, mount, loop image, or mutable
 artifact. This eight-message smoke remains intentionally unqualified and
 makes no throughput claim; the formal 500,000-message rerun is still required.
+
+The post-fix formal rerun, `3877898c-756f-443c-a07c-d18fc71251c4`, completed
+all `500,000/500,000` requested 1 KB messages in one original endpoint
+invocation with no harness batching or automatic retry. The endpoint, passive
+SMTP proxy, Maildir observers, and PostgreSQL cleanup agreed exactly: zero
+failed, exceptional, OOM, rate-limited, missing, duplicate, retry, or observer
+outcomes; 500,000 verified SMTP messages; and one million publications plus
+one million removals. The endpoint measured 5,144.716 seconds and reported a
+provisional `97.19 msg/s`, approximately 2.06 times the same-host Java 10 KB
+stable-window reference of `47.223536 msg/s`.
+
+That number is not a formal throughput claim. The four passive throughput
+quartiles were `128.121607`, `104.623782`, `91.753985`, and `77.615715`
+messages/second. Their `0.514375` relative range exceeds the unchanged `0.30`
+within-arm limit. The cgroup observed 18,255 `memory.high` reclaim events after
+the workload approached the 7 GiB high watermark, while `memory.max`, OOM, and
+OOM-kill remained zero. Application and service persistence I/O were observed.
+Deferred endpoint cleanup reached quiescence and root teardown passed with no
+lazy unmount, but the watchdog did not publish formal JSON, a checkpoint, or a
+qualified cleanup receipt. The create-only negative record and copied root
+journal are
+`smtp-endpoint-candidate-stability-fsync-off-1kb-formal-v6-failure.txt` and its
+`.root-cleanup` companion. Their SHA-256 values are
+`4f5ab5fbfe616bf6829005150b5ce799114128598b56fc55799612919c7abfa0` and
+`59a155efeec6884e1225dc3d6b96d0307cf964db988cdfa53252091d90308577`;
+the current launcher, runner, candidate, and proxy hashes in that record were
+independently recomputed. The next bounded investigation must explain the
+long-run decline under coordinator, queue, database, Maildir, and cgroup
+observations before another formal attempt; it must not weaken the stability
+or message-integrity gates.
