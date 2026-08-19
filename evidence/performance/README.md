@@ -2498,3 +2498,19 @@ tail. Malformed or non-monotonic observer records make log parsing fail closed.
 These fields diagnose stability loss; they do not participate in, weaken, or
 replace any throughput, persistence, cleanup, resource, or message-integrity
 qualification check.
+
+The first run with those diagnostics is
+`smtp-rust-long-run-stability-profiler-v143-summary.json`. Its one original
+10 KB endpoint invocation delivered all `16,384/16,384` messages with zero
+failure, retry, OOM, or cleanup mismatch and reported `139.63 msg/s`. It still
+failed the unchanged stability gate, but in the opposite direction from the
+500,000-message v6 run: the four passive segments rose from `103.92` and
+`118.16` to `192.88` and `194.55 msg/s` as producer pressure drained. Total
+cgroup memory peaked at 1.93 GiB with zero `memory.high` events. Anonymous
+memory was nearly flat after the first resource quartile, while file cache,
+filesystem growth, and the Redis pending queue rose and then fell together.
+The bounded run therefore validates the new evidence path but does not
+reproduce or explain v6's late decline; a higher-cardinality run is required
+before changing production queue or persistence behavior. Per-process
+PostgreSQL RSS sums are not used as a memory total because shared mappings are
+counted once per backend; cgroup current/anon/file remains authoritative.

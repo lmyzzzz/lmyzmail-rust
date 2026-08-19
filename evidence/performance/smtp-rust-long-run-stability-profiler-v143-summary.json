@@ -1,0 +1,164 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "long_run_stability_profiler_diagnostic",
+  "qualified": false,
+  "qualification_failure": "within_arm_throughput_stability",
+  "source_git_head": "ad44b361ffc72c79b850e7bcddd14470923cf566",
+  "run_id": "da2f84c2-e785-459f-9855-41c4d34c64b4",
+  "configuration": {
+    "profile": "rust-profiler",
+    "target": "rust-candidate",
+    "tier": "10KB",
+    "messages": 16384,
+    "rust_filesystem_fsync": "off",
+    "postgresql_fsync": "on",
+    "postgresql_synchronous_commit": "on",
+    "workload_cpu_limit": 1,
+    "io_limit_bytes_per_second": 500000000,
+    "original_stress_endpoint_invocations": 1,
+    "harness_batching": false
+  },
+  "outcome": {
+    "queued": 16384,
+    "received": 16384,
+    "failed": 0,
+    "exceptions": 0,
+    "oom": 0,
+    "rate_limited": 0,
+    "smtp_retry": 0,
+    "maildir_publications": 32768,
+    "maildir_removals": 32768,
+    "database_cleanup_mismatches": {},
+    "queueing_time_ms": 68898,
+    "delivery_time_ms": 48439,
+    "total_time_ms": 117338,
+    "endpoint_throughput_messages_per_second": 139.63
+  },
+  "stability": {
+    "maximum_relative_range": 0.3,
+    "relative_range": 0.582756,
+    "passed": false,
+    "segments_messages_per_second": [
+      103.920485,
+      118.15514,
+      192.882838,
+      194.550097
+    ],
+    "interpretation": "This bounded run accelerates after enqueue pressure drains; it does not reproduce the 500000-message run's late decline."
+  },
+  "resource_quartiles": {
+    "complete": true,
+    "measurement_duration_ms": 146591,
+    "cgroup_total_current_bytes": [
+      1491623936,
+      1869623296,
+      1914630144,
+      1423822848
+    ],
+    "cgroup_total_anon_bytes": [
+      902004736,
+      933953536,
+      932388864,
+      939823104
+    ],
+    "cgroup_total_file_bytes": [
+      469671936,
+      757567488,
+      802025472,
+      398381056
+    ],
+    "redis_pending": [5543, 8212, 1239, 0],
+    "filesystem_delta_bytes": [
+      356409344,
+      614244352,
+      647561216,
+      239796224
+    ],
+    "memory_event_high": [0, 0, 0, 0],
+    "memory_event_max": [0, 0, 0, 0],
+    "oom": [0, 0, 0, 0],
+    "cgroup_memory_peak_bytes": 1931907072,
+    "filesystem_delta_peak_bytes": 662228992,
+    "redis_pending_peak": 9046,
+    "cgroup_role_current_peak_bytes": {
+      "application": 725991424,
+      "services": 675147776,
+      "harness": 588820480
+    },
+    "accounting_note": "Cgroup current/anon/file is authoritative. Summing per-process PostgreSQL RSS double-counts shared mappings across backend processes and is not a physical-memory total."
+  },
+  "producer_and_queue_observers": {
+    "stress_enqueue": {
+      "records": 64,
+      "milestone_counts": [4096, 8192, 12288, 16384],
+      "peak_active": 32,
+      "parse_failures": 0
+    },
+    "outbound_batch": {
+      "records": 64,
+      "rows": 16384,
+      "batches": 1016,
+      "maximum_rows_per_batch": 32,
+      "uncertain_batches": 0,
+      "parse_failures": 0
+    },
+    "redis_queue": {
+      "records": 67,
+      "last_snapshot_publish_completed": 16148,
+      "publish_failures": 0,
+      "parse_failures": 0,
+      "note": "The bounded log contains three publish quartile milestones; the last periodic snapshot preceded the final 236 publishes."
+    }
+  },
+  "coordinator_quartiles": {
+    "complete": false,
+    "records": 63,
+    "missing_threshold": 16384,
+    "completed_thresholds": [4096, 8192, 12288],
+    "smtp_commit_average_ms": [175.299516, 172.903705, 119.688858],
+    "inbound_intent_insert_average_ms": [45.489982, 39.558482, 26.431976],
+    "inbound_index_commit_average_ms": [63.641901, 72.925936, 50.192423],
+    "inbound_intent_complete_average_ms": [37.834906, 32.524296, 20.386189],
+    "inbound_index_average_rows_per_batch": [
+      5.575880758807588,
+      6.4109375,
+      6.9425675675675675
+    ],
+    "note": "No completed-task snapshot reached the final threshold before log capture; this makes the diagnostic partial but is not a qualification check failure."
+  },
+  "interpretation": {
+    "proven": [
+      "The new memory and auxiliary observer diagnostics are populated and parse without failures.",
+      "At 16384 messages the candidate completes exactly with no loss, retry, cleanup mismatch, OOM, or memory.high event.",
+      "Anonymous cgroup memory is nearly flat after the first quartile while file cache follows the active queue and durable data footprint.",
+      "All measured inbound database stages are faster in the third completed coordinator quartile than the first."
+    ],
+    "not_proven": [
+      "This scale does not explain the 500000-message late throughput decline.",
+      "The v6 memory.high events cannot yet be attributed to one cgroup role or database relation.",
+      "No production optimization is justified from v143 alone."
+    ],
+    "next_hypothesis": "Run the same bounded observer profile at substantially higher cardinality and compare cgroup file cache, pending depth, filesystem growth, and coordinator stage deltas before changing queue or persistence behavior."
+  },
+  "artifacts": {
+    "console": "evidence/performance/smtp-rust-long-run-stability-profiler-v143-console.log",
+    "console_sha256": "c12a5be6d47c835c1e0896617e73b41b058fbf2403b95346fc21ad57329eb134",
+    "root_cleanup": "evidence/performance/smtp-rust-long-run-stability-profiler-v143.json.root-cleanup",
+    "root_intent_sha256": "13ec7b2b82e9a74506f100676a87a782ab89c4fbc94c2dd7bfd0e9ef01304273",
+    "root_done_sha256": "7167acf9f13e8469d0360aae408fdc111ab8671676ca7aa54834eab372be015d",
+    "runner_sha256": "f2fa93803d7cde24a49f2f7b5970633d2ed774e6658a9819eef01f19a04baddc",
+    "launcher_sha256": "262792f6046d66b6034d872dc251569564711038fdbab38396e54b4493cfb23a",
+    "candidate_sha256": "cb0ccea9ec2d6b313ebf69213e12e8ba2d647177337b2ae7e2515f7852e4a841",
+    "proxy_sha256": "56f7bc153680b4b7b6e3f50e4b547d3120043d98ce7b561e4b69b78af8b60833"
+  },
+  "cleanup": {
+    "passed": true,
+    "request": "ABORT",
+    "lazy_unmount": 0,
+    "recovered": 0,
+    "run_cgroup_absent": true,
+    "run_processes_absent": true,
+    "run_mounts_absent": true,
+    "run_loop_devices_absent": true
+  }
+}
