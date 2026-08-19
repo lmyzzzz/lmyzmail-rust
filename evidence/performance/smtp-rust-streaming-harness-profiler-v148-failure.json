@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "long_run_stability_profiler_failure",
+  "qualified": false,
+  "qualification_failure": "within_arm_throughput_stability",
+  "source_git_head": "19e0e90c",
+  "configuration": {
+    "profile": "rust-profiler",
+    "target": "rust-candidate",
+    "tier": "10KB",
+    "messages": 100000,
+    "rust_filesystem_fsync": "off",
+    "postgresql_fsync": "on",
+    "postgresql_synchronous_commit": "on",
+    "workload_cpu_limit": 1,
+    "io_limit_bytes_per_second": 500000000,
+    "original_stress_endpoint_invocations": 1,
+    "harness_batching": false,
+    "candidate_artifact_sha256": "cb0ccea9ec2d6b313ebf69213e12e8ba2d647177337b2ae7e2515f7852e4a841"
+  },
+  "endpoint_observation": {
+    "queued": 100000,
+    "received": 100000,
+    "failed": 0,
+    "exceptions": 0,
+    "oom": 0,
+    "rate_limited": 0,
+    "retry_count": 0,
+    "throughput_messages_per_second": 97.95,
+    "total_time_ms": 1020894,
+    "queueing_time_ms": 951949,
+    "delivery_time_ms": 68944,
+    "quartile_messages_per_second": [72.227442, 103.766878, 111.271662, 120.1856],
+    "quartile_relative_range": 0.446042
+  },
+  "resource_observation": {
+    "harness_rss_peak_bytes": 354766848,
+    "harness_rss_final_bytes": 354766848,
+    "harness_anonymous_peak_bytes": 713584640,
+    "total_cgroup_memory_peak_bytes": 6123765760,
+    "total_cgroup_memory_final_bytes": 2908733440,
+    "cgroup_memory_high_events": 0,
+    "cgroup_oom_events": 0,
+    "cgroup_oom_kill_events": 0,
+    "queue_peak": 9865,
+    "queue_final": 0,
+    "task_peak": 221,
+    "task_final": 154,
+    "fd_peak": 5625,
+    "fd_final": 3802
+  },
+  "stage_observation": {
+    "smtp_commit_average_ns_by_completed_quartile": [296790289, 220805155, 223659837],
+    "queue_acknowledge_average_ns_by_completed_quartile": [123729471, 73022089, 58613177],
+    "inbound_index_commit_average_ns_by_completed_quartile": [116328458, 106588238, 129219685],
+    "fourth_coordinator_threshold_missing_from_retained_log": true,
+    "interpretation": "The first completed quartile is materially slower in SMTP commit and queue acknowledgement, while later quartiles converge. This supports a cold-start or queue/database scheduling stability investigation rather than another harness-memory fix."
+  },
+  "cleanup": {
+    "passed": true,
+    "residual_benchmark_processes": 0,
+    "residual_run_cgroups": 0,
+    "residual_run_directories": 0
+  },
+  "interpretation": "Streaming Redis values, canonical hashing, and compact cleanup samples removed the v144/v146 post-validation memory failure at 100K. The run remains non-qualifying solely because its unchanged within-arm throughput stability gate failed before a second arm could start."
+}
