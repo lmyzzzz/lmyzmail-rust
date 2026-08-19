@@ -4870,9 +4870,9 @@ def _cleanup_state(runtime: Any, phase: str = "cleanup") -> dict[str, Any]:
         "redis": _redis_snapshot(runtime),
         "maildir": _maildir_snapshot(runtime),
     }
-    snapshot["state_sha256"] = hashlib.sha256(
-        json.dumps(snapshot, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    ).hexdigest()
+    snapshot["state_sha256"] = v2._streaming_json_sha256(
+        snapshot, trailing_newline=False
+    )
     return snapshot
 
 
@@ -4945,13 +4945,74 @@ def _cleanup_state_semantic(state: dict[str, Any]) -> dict[str, Any]:
 
 
 def _cleanup_semantic_sha256(state: dict[str, Any]) -> str:
-    return hashlib.sha256(
-        json.dumps(
-            _cleanup_state_semantic(state),
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
-    ).hexdigest()
+    digest = hashlib.sha256()
+    encoder = json.JSONEncoder(sort_keys=True, separators=(",", ":"))
+
+    def update(value: Any) -> None:
+        for chunk in encoder.iterencode(value):
+            digest.update(chunk.encode("utf-8"))
+
+    redis = state["redis"]
+    digest.update(b'{"database":')
+    update(state["database"])
+    digest.update(b',"maildir":')
+    update(state["maildir"])
+    digest.update(b',"redis":{"dbsize_after":')
+    update(redis["dbsize_after"])
+    digest.update(b',"dbsize_before":')
+    update(redis["dbsize_before"])
+    digest.update(b',"key_count":')
+    update(redis["key_count"])
+    digest.update(b',"keys":[')
+    for index, record in enumerate(redis["keys"]):
+        if index:
+            digest.update(b",")
+        update(
+            {
+                "key": record["key"],
+                "type": record["type"],
+                "cardinality": record["cardinality"],
+                "value_stream_sha256": record["value_stream_sha256"],
+                "value_bytes": record["value_bytes"],
+                "ttl_kind": (
+                    "persistent" if record["pttl_ms"] == -1 else "expiring"
+                ),
+            }
+        )
+    digest.update(b'],"scan_complete_and_stable":')
+    update(redis["scan_complete_and_stable"])
+    digest.update(b',"ttl_contract_passed":')
+    update(redis["ttl_contract_passed"])
+    digest.update(b"}}")
+    return digest.hexdigest()
+
+
+def _cleanup_sample_summary(
+    state: dict[str, Any], *, elapsed_millis: int, semantic_sha256: str
+) -> dict[str, Any]:
+    redis = state["redis"]
+    database = state["database"]
+    return {
+        "elapsed_millis": elapsed_millis,
+        "semantic_sha256": semantic_sha256,
+        "state_sha256": state["state_sha256"],
+        "redis": {
+            "key_count": redis["key_count"],
+            "dbsize_before": redis["dbsize_before"],
+            "dbsize_after": redis["dbsize_after"],
+            "snapshot_sha256": redis["snapshot_sha256"],
+            "scan_complete_and_stable": redis["scan_complete_and_stable"],
+            "ttl_contract_passed": redis["ttl_contract_passed"],
+        },
+        "database": {
+            "completed_audit_rows": database["completed_audit_rows"],
+            "transient_residual_rows": database["transient_residual_rows"],
+        },
+        "maildir_file_counts": {
+            name: int(tree["files"]) for name, tree in state["maildir"].items()
+        },
+        "full_state_retained": False,
+    }
 
 
 def _redis_state_is_clean(state: dict[str, Any]) -> bool:
@@ -5564,11 +5625,11 @@ def _wait_for_automatic_cleanup(
             continue
         semantic_sha256 = _cleanup_semantic_sha256(last)
         samples.append(
-            {
-                "elapsed_millis": round((time.monotonic() - started) * 1_000),
-                "semantic_sha256": semantic_sha256,
-                "state": last,
-            }
+            _cleanup_sample_summary(
+                last,
+                elapsed_millis=round((time.monotonic() - started) * 1_000),
+                semantic_sha256=semantic_sha256,
+            )
         )
         cleanup_delta = _automatic_cleanup_delta(before, last, expected_messages)
         mutation_evidence = cleanup_delta["email_index_mutation_evidence"]

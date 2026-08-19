@@ -1,0 +1,29 @@
+{
+  "actual_value_bytes": 536870912,
+  "elapsed_seconds": 5.427238,
+  "expected_value_bytes": 536870912,
+  "finished_at": "2026-08-19T11:52:31.485362+00:00",
+  "keys": 2048,
+  "keys_per_second": 377.355829,
+  "maximum_rss_growth_bytes": 201326592,
+  "observed_rss_growth_bytes": 1572864,
+  "peak_rss_bytes": 54206464,
+  "pipeline_key_limit": 512,
+  "qualification_reason": "focused harness diagnostic; not an SMTP throughput qualification",
+  "qualified": false,
+  "rss_after_snapshot_bytes": 54206464,
+  "rss_before_snapshot_bytes": 52633600,
+  "rss_growth_is_bounded_independently_of_cumulative_value_bytes": true,
+  "scan_complete_and_stable": true,
+  "schema": "lmyzmail.redis-full-value-snapshot-profiler.v1",
+  "snapshot_sha256": "76429d935d76f2a42e8e3990099b24ba7593505ec9468d00a0f5ceab5af7ee66",
+  "sources": {
+    ".blackbox/runtime/redis-root/usr/bin/redis-server": "1b2950213684d355e0e49fe6702c7bfb9d40b78f0da9ce289fc0e8f2a295e540",
+    "evidence/compatibility/smtp-self-stress-v2.py": "8c5ff5d2b2d0a3af69c40fd79d8cd96496ce1c7ef3882814ab23f322738e0def",
+    "evidence/performance/redis-full-value-snapshot-profiler-v1.py": "da0207a07c847d020f21eb3b5162c96b33f46ecf4fdd98233333245e29fee980"
+  },
+  "started_at": "2026-08-19T11:52:23.091937+00:00",
+  "status": "passed",
+  "temporary_workspace_removed": true,
+  "value_bytes_per_key": 262144
+}

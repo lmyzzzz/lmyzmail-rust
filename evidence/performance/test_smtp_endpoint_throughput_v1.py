@@ -5754,6 +5754,59 @@ class CleanupStateTests(unittest.TestCase):
         self.assertEqual(result["stable_polls"], runner.STATE_STABLE_POLLS)
         self.assertEqual(len(result["samples"]), runner.STATE_STABLE_POLLS)
         self.assertEqual(result["full_value_snapshots"], runner.STATE_STABLE_POLLS)
+        self.assertTrue(
+            all("state" not in sample for sample in result["samples"])
+        )
+        self.assertTrue(
+            all(
+                sample["full_state_retained"] is False
+                for sample in result["samples"]
+            )
+        )
+        self.assertIs(result["final"], states[-1])
+
+    def test_streaming_state_hashes_match_original_canonical_json(self) -> None:
+        state = _clean_state()
+        state["redis"]["keys"] = [
+            {
+                "key": "lmyzmail:mail:queue:test-\\u2603",
+                "type": "string",
+                "pttl_ms": 1234,
+                "cardinality": 1,
+                "value_stream_sha256": "a" * 64,
+                "value_bytes": 17,
+            },
+            {
+                "key": "botmail:mail:queue:pending",
+                "type": "list",
+                "pttl_ms": -1,
+                "cardinality": 0,
+                "value_stream_sha256": "b" * 64,
+                "value_bytes": 0,
+            },
+        ]
+        state["redis"]["key_count"] = 2
+        state["redis"]["dbsize_before"] = 2
+        state["redis"]["dbsize_after"] = 2
+        semantic = runner._cleanup_state_semantic(state)
+        expected_semantic = hashlib.sha256(
+            json.dumps(
+                semantic, sort_keys=True, separators=(",", ":")
+            ).encode("utf-8")
+        ).hexdigest()
+        self.assertEqual(
+            runner._cleanup_semantic_sha256(state), expected_semantic
+        )
+
+        expected_state = hashlib.sha256(
+            json.dumps(state, sort_keys=True, separators=(",", ":")).encode(
+                "utf-8"
+            )
+        ).hexdigest()
+        self.assertEqual(
+            runner.v2._streaming_json_sha256(state, trailing_newline=False),
+            expected_state,
+        )
 
     def test_automatic_cleanup_fails_immediately_on_monotonic_rollback_delta(
         self,

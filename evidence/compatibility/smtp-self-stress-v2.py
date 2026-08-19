@@ -121,8 +121,18 @@ def _json_bytes(value: Any) -> bytes:
     )
 
 
+def _streaming_json_sha256(value: Any, *, trailing_newline: bool) -> str:
+    digest = hashlib.sha256()
+    encoder = json.JSONEncoder(sort_keys=True, separators=(",", ":"))
+    for chunk in encoder.iterencode(value):
+        digest.update(chunk.encode("utf-8"))
+    if trailing_newline:
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
 def _checkpoint_digest(value: dict[str, Any]) -> str:
-    return hashlib.sha256(_json_bytes(value)).hexdigest()
+    return _streaming_json_sha256(value, trailing_newline=True)
 
 
 def _atomic_create_json(path: Path, value: dict[str, Any]) -> None:
@@ -1036,7 +1046,9 @@ def _redis_snapshot(runtime: StressCandidateRuntimeV2) -> dict[str, Any]:
             record["pttl_ms"] == -1 or record["pttl_ms"] >= 0 for record in records
         ),
         "keys": records,
-        "snapshot_sha256": hashlib.sha256(_json_bytes(records)).hexdigest(),
+        "snapshot_sha256": _streaming_json_sha256(
+            records, trailing_newline=True
+        ),
     }
 
 
@@ -1206,7 +1218,9 @@ def _state_snapshot(runtime: StressCandidateRuntimeV2, phase: str) -> dict[str, 
         "redis": _redis_snapshot(runtime),
         "maildir": _maildir_snapshot(runtime),
     }
-    snapshot["state_sha256"] = hashlib.sha256(_json_bytes(snapshot)).hexdigest()
+    snapshot["state_sha256"] = _streaming_json_sha256(
+        snapshot, trailing_newline=True
+    )
     return snapshot
 
 

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import gc
 import hashlib
 import importlib.util
 import json
 import os
+import resource
 import socket
 import subprocess
 import sys
@@ -29,6 +31,13 @@ def _utc_now() -> str:
 def _sha256_file(path: Path) -> str:
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def _current_rss_bytes() -> int:
+    fields = Path("/proc/self/statm").read_text(encoding="ascii").split()
+    if len(fields) < 2:
+        raise RuntimeError("could not read profiler RSS from /proc/self/statm")
+    return int(fields[1]) * os.sysconf("SC_PAGE_SIZE")
 
 
 def _load_v2() -> Any:
@@ -67,6 +76,7 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--keys", type=int, default=32_768)
     parser.add_argument("--value-bytes", type=int, default=128)
+    parser.add_argument("--maximum-rss-growth-mib", type=int, default=192)
     parser.add_argument(
         "--output",
         type=Path,
@@ -78,6 +88,8 @@ def _parse_args() -> argparse.Namespace:
         parser.error("--keys must be between 1 and 1000000")
     if not 1 <= arguments.value_bytes <= 1024 * 1024:
         parser.error("--value-bytes must be between 1 and 1048576")
+    if not 16 <= arguments.maximum_rss_growth_mib <= 4096:
+        parser.error("--maximum-rss-growth-mib must be between 16 and 4096")
     return arguments
 
 
@@ -129,11 +141,18 @@ def main() -> int:
                 for index in range(offset, min(arguments.keys, offset + 1024)):
                     pipeline.set(f"botmail:mail:queue:task:{index}", value)
                 pipeline.execute()
+            gc.collect()
+            rss_before_snapshot_bytes = _current_rss_bytes()
             snapshot_started = time.monotonic()
             snapshot = v2._redis_snapshot(
                 SimpleNamespace(ports=SimpleNamespace(redis=port))
             )
             elapsed_seconds = time.monotonic() - snapshot_started
+            gc.collect()
+            rss_after_snapshot_bytes = _current_rss_bytes()
+            peak_rss_bytes = int(
+                resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
+            )
         finally:
             try:
                 client.shutdown(nosave=True)
@@ -148,11 +167,16 @@ def main() -> int:
 
     expected_value_bytes = arguments.keys * arguments.value_bytes
     actual_value_bytes = sum(record["value_bytes"] for record in snapshot["keys"])
+    maximum_rss_growth_bytes = arguments.maximum_rss_growth_mib * 1024 * 1024
+    observed_rss_growth_bytes = max(
+        0, peak_rss_bytes - rss_before_snapshot_bytes
+    )
     passed = bool(
         snapshot["scan_complete_and_stable"] is True
         and snapshot["key_count"] == arguments.keys
         and actual_value_bytes == expected_value_bytes
         and all(record["cardinality"] == 1 for record in snapshot["keys"])
+        and observed_rss_growth_bytes <= maximum_rss_growth_bytes
     )
     evidence = {
         "schema": "lmyzmail.redis-full-value-snapshot-profiler.v1",
@@ -167,6 +191,14 @@ def main() -> int:
         "value_bytes_per_key": arguments.value_bytes,
         "expected_value_bytes": expected_value_bytes,
         "actual_value_bytes": actual_value_bytes,
+        "rss_before_snapshot_bytes": rss_before_snapshot_bytes,
+        "rss_after_snapshot_bytes": rss_after_snapshot_bytes,
+        "peak_rss_bytes": peak_rss_bytes,
+        "observed_rss_growth_bytes": observed_rss_growth_bytes,
+        "maximum_rss_growth_bytes": maximum_rss_growth_bytes,
+        "rss_growth_is_bounded_independently_of_cumulative_value_bytes": (
+            observed_rss_growth_bytes <= maximum_rss_growth_bytes
+        ),
         "elapsed_seconds": round(elapsed_seconds, 6),
         "keys_per_second": round(arguments.keys / elapsed_seconds, 6),
         "pipeline_key_limit": v2.REDIS_SNAPSHOT_PIPELINE_KEY_LIMIT,
