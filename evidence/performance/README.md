@@ -2336,3 +2336,26 @@ The journal records `request=DONE`, `cleanup=passed`, `qualified_cleanup=1`, and
 `lazy_unmount=0`; an independent post-run audit found no residual per-run
 resource. This remains an intentionally unqualified smoke because eight
 messages cannot satisfy the 500,000-message count or queue-scheduler gate.
+
+The first post-fix formal 1 KB fsync-off run used one unchanged stress-endpoint
+invocation for 500,000 messages. The SMTP proxy verified all `500,000/500,000`
+messages with zero missing, duplicate, retry, observer, or proxy failures. Its
+measured progress window was 5,631.828330514 seconds, or 88.781115 messages per
+second, with zero `memory.max`, OOM, or OOM-kill events; `memory.high` reclaim
+was exercised while the parent stayed at the configured 7 GiB watermark. The
+run nevertheless published no result because the resource observer hit one
+`PermissionError` reading `/proc/<pid>/io` for a short-lived PostgreSQL service
+child during finalization, then the watchdog correctly refused to signal a
+stale/out-of-cgroup runner PID. This is an evidence-publication failure, not a
+reported SMTP loss, and it must be rerun before any formal throughput claim.
+
+The root journal for run `63e98279-35ec-4d8f-a65e-791a8a34d882` is retained with
+`request=ABORT`, `cleanup=passed`, `lazy_unmount=0`, and `qualified_cleanup=0`;
+its intent and done journal SHA-256 values are
+`2303e1839b46708a4761e487bba1ac0eaed448871f8da9b9d58dc83d76c204b3` and
+`004881db2d75ee6aa9d8ee2f344bf297af490e7085d2b88144682b0c8fe38f05`. The
+runner now identity-checks `/proc/<pid>/io`, retries transient permission
+denials three times at 1 ms intervals, filters a process that exits or becomes
+a zombie, and still fails a stable live process that persistently denies or
+omits I/O counters. Four focused regressions, all 165 runner tests, and all 41
+launcher tests pass. No qualification threshold or message assertion changed.

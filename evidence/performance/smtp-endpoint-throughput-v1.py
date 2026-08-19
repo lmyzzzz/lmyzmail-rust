@@ -3710,33 +3710,66 @@ def _process_io_status(
     output: dict[int, dict[str, int]] = {}
     for pid in pids:
         process_root = proc_root / str(pid)
-        try:
-            stat_before = (process_root / "stat").read_text(encoding="ascii")
-            lines = (process_root / "io").read_text(encoding="ascii").splitlines()
-            stat_after = (process_root / "stat").read_text(encoding="ascii")
-        except PermissionError as error:
-            raise RuntimeError(
-                f"PID {pid} denied process I/O evidence capture"
-            ) from error
-        except (FileNotFoundError, ProcessLookupError):
-            continue
-        start_time = _parse_process_start_time(pid, stat_before)
-        if _parse_process_start_time(pid, stat_after) != start_time:
-            raise RuntimeError(f"PID {pid} changed identity during process I/O capture")
-        values: dict[str, int] = {}
-        for line in lines:
-            name, separator, raw = line.partition(":")
-            if not separator or name not in _PROCESS_IO_FIELDS:
-                continue
-            raw = raw.strip()
-            if name in values or not raw.isdigit():
-                raise RuntimeError(f"PID {pid} exposed malformed {name} I/O evidence")
-            values[name] = int(raw)
-        if set(values) != set(_PROCESS_IO_FIELDS):
-            missing = sorted(set(_PROCESS_IO_FIELDS) - set(values))
-            raise RuntimeError(f"PID {pid} omitted process I/O evidence: {missing}")
-        values["start_time_ticks"] = start_time
-        output[pid] = values
+        expected_start_time: int | None = None
+        for attempt in range(3):
+            try:
+                stat_before = (process_root / "stat").read_text(encoding="ascii")
+            except (FileNotFoundError, ProcessLookupError):
+                break
+            start_time = _parse_process_start_time(pid, stat_before)
+            if expected_start_time is None:
+                expected_start_time = start_time
+            elif start_time != expected_start_time:
+                raise RuntimeError(
+                    f"PID {pid} changed identity during process I/O capture"
+                )
+            if _parse_process_state(pid, stat_before) in {"X", "Z"}:
+                break
+            try:
+                lines = (process_root / "io").read_text(encoding="ascii").splitlines()
+                stat_after = (process_root / "stat").read_text(encoding="ascii")
+            except PermissionError as error:
+                try:
+                    stat_after = (process_root / "stat").read_text(encoding="ascii")
+                except (FileNotFoundError, ProcessLookupError):
+                    break
+                if _parse_process_start_time(pid, stat_after) != expected_start_time:
+                    raise RuntimeError(
+                        f"PID {pid} changed identity during process I/O capture"
+                    ) from error
+                if _parse_process_state(pid, stat_after) in {"X", "Z"}:
+                    break
+                if attempt < 2:
+                    time.sleep(0.001)
+                    continue
+                raise RuntimeError(
+                    f"PID {pid} denied process I/O evidence capture"
+                ) from error
+            except (FileNotFoundError, ProcessLookupError):
+                break
+            if _parse_process_start_time(pid, stat_after) != expected_start_time:
+                raise RuntimeError(
+                    f"PID {pid} changed identity during process I/O capture"
+                )
+            if _parse_process_state(pid, stat_after) in {"X", "Z"}:
+                break
+            values: dict[str, int] = {}
+            for line in lines:
+                name, separator, raw = line.partition(":")
+                if not separator or name not in _PROCESS_IO_FIELDS:
+                    continue
+                raw = raw.strip()
+                if name in values or not raw.isdigit():
+                    raise RuntimeError(
+                        f"PID {pid} exposed malformed {name} I/O evidence"
+                    )
+                values[name] = int(raw)
+            if set(values) != set(_PROCESS_IO_FIELDS):
+                missing = sorted(set(_PROCESS_IO_FIELDS) - set(values))
+                raise RuntimeError(f"PID {pid} omitted process I/O evidence: {missing}")
+            values["start_time_ticks"] = expected_start_time
+            output[pid] = values
+            break
     return output
 
 

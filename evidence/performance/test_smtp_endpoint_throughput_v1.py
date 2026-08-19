@@ -5943,6 +5943,101 @@ class ProcessIoEvidenceTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "omitted process I/O"):
                 runner._process_io_status([101], proc_root=Path(temporary))
 
+    def test_process_io_parser_retries_transient_permission_denial(self) -> None:
+        pid = 101
+        reads = iter(
+            (
+                self._stat(pid, 777),
+                PermissionError("transient process exit boundary"),
+                self._stat(pid, 777),
+                self._stat(pid, 777),
+                "wchar: 2\nsyscw: 3\nread_bytes: 4\nwrite_bytes: 5\n",
+                self._stat(pid, 777),
+            )
+        )
+
+        def read_text(**_kwargs: Any) -> str:
+            value = next(reads)
+            if isinstance(value, BaseException):
+                raise value
+            return value
+
+        with (
+            mock.patch.object(Path, "read_text", side_effect=read_text),
+            mock.patch.object(runner.time, "sleep") as sleep,
+        ):
+            observed = runner._process_io_status((pid,))
+
+        self.assertEqual(observed[pid]["start_time_ticks"], 777)
+        self.assertEqual(observed[pid]["write_bytes"], 5)
+        sleep.assert_called_once_with(0.001)
+
+    def test_process_io_parser_filters_process_that_becomes_zombie(self) -> None:
+        pid = 102
+        reads = iter(
+            (
+                self._stat(pid, 778),
+                PermissionError("process is exiting"),
+                self._stat(pid, 778).replace(" S ", " Z ", 1),
+            )
+        )
+
+        def read_text(**_kwargs: Any) -> str:
+            value = next(reads)
+            if isinstance(value, BaseException):
+                raise value
+            return value
+
+        with mock.patch.object(Path, "read_text", side_effect=read_text):
+            self.assertEqual(runner._process_io_status((pid,)), {})
+
+    def test_process_io_parser_rejects_persistent_live_permission_denial(self) -> None:
+        pid = 103
+        reads: list[str | BaseException] = []
+        for _attempt in range(3):
+            reads.extend(
+                (
+                    self._stat(pid, 779),
+                    PermissionError("stable denial"),
+                    self._stat(pid, 779),
+                )
+            )
+        values = iter(reads)
+
+        def read_text(**_kwargs: Any) -> str:
+            value = next(values)
+            if isinstance(value, BaseException):
+                raise value
+            return value
+
+        with (
+            mock.patch.object(Path, "read_text", side_effect=read_text),
+            mock.patch.object(runner.time, "sleep") as sleep,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "denied process I/O"):
+                runner._process_io_status((pid,))
+        self.assertEqual(sleep.call_count, 2)
+
+    def test_process_io_parser_rejects_identity_change_after_denial(self) -> None:
+        pid = 104
+        reads = iter(
+            (
+                self._stat(pid, 780),
+                PermissionError("identity transition"),
+                self._stat(pid, 781),
+            )
+        )
+
+        def read_text(**_kwargs: Any) -> str:
+            value = next(reads)
+            if isinstance(value, BaseException):
+                raise value
+            return value
+
+        with mock.patch.object(Path, "read_text", side_effect=read_text):
+            with self.assertRaisesRegex(RuntimeError, "changed identity"):
+                runner._process_io_status((pid,))
+
     def test_lifecycle_delta_counts_new_children_and_tolerates_pid_reuse(self) -> None:
         samples = [
             self._sample({2: ("services", 20, 100, 10, 0, 1_000)}),
