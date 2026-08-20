@@ -6,6 +6,7 @@ import io
 import os
 import sys
 import tempfile
+import types
 import unittest
 from unittest import mock
 from pathlib import Path
@@ -52,6 +53,38 @@ class ProgressAlignedProfilerTests(unittest.TestCase):
         self.assertEqual(parsed["some"]["avg10"], 1.25)
         self.assertEqual(parsed["some"]["total"], 123)
         self.assertEqual(parsed["full"]["total"], 7)
+
+    def test_network_namespace_join_is_identity_checked_and_recorded(self) -> None:
+        identity = profiler.ProcessIdentity(10, 20, 30, 40)
+        with (
+            mock.patch.object(profiler, "_alive", side_effect=[True, True]),
+            mock.patch.object(
+                profiler,
+                "_namespace_identity",
+                side_effect=[(1, 2), (3, 4), (3, 4)],
+            ),
+            mock.patch.object(profiler.os, "open", return_value=9) as opened,
+            mock.patch.object(profiler.os, "setns") as setns,
+            mock.patch.object(profiler.os, "close") as closed,
+        ):
+            result = profiler._join_candidate_network_namespace(identity)
+        self.assertEqual(
+            result,
+            {
+                "previous_device": 1,
+                "previous_inode": 2,
+                "target_device": 3,
+                "target_inode": 4,
+                "actual_device": 3,
+                "actual_inode": 4,
+                "joined": True,
+            },
+        )
+        opened.assert_called_once_with(
+            Path("/proc/10/ns/net"), os.O_RDONLY | os.O_CLOEXEC
+        )
+        setns.assert_called_once_with(9, os.CLONE_NEWNET)
+        closed.assert_called_once_with(9)
 
     def test_tree_reports_directory_pressure_without_following_symlinks(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -123,6 +156,41 @@ class ProgressAlignedProfilerTests(unittest.TestCase):
             12: {"command": "unrelated", "ppid": 1, "rss_kib": 1},
         }
         self.assertEqual(profiler._postgres_masters(table), [10])
+
+    def test_postgres_sql_snapshot_fails_closed_without_one_master(self) -> None:
+        with mock.patch.object(profiler, "_postgres_process_table", return_value={}):
+            with self.assertRaisesRegex(RuntimeError, "expected one master"):
+                profiler._postgres_sql_snapshot()
+
+    def test_postgres_sql_snapshot_fails_closed_on_connection_error(self) -> None:
+        table = {
+            10: {
+                "command": "/opt/postgres -D /run/example/postgres-data -p 5432",
+                "ppid": 1,
+                "rss_kib": 1,
+            }
+        }
+        driver = types.SimpleNamespace(
+            connect=mock.Mock(side_effect=OSError("connection refused"))
+        )
+        with (
+            mock.patch.object(
+                profiler, "_postgres_process_table", return_value=table
+            ),
+            mock.patch.dict(sys.modules, {"psycopg": driver}),
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError, "PostgreSQL SQL snapshot unavailable.*connection refused"
+            ):
+                profiler._postgres_sql_snapshot()
+        driver.connect.assert_called_once_with(
+            host="127.0.0.1",
+            port=5432,
+            user="lmyzmail_test",
+            dbname="lmyzmail",
+            connect_timeout=2,
+            options="-c default_transaction_read_only=on -c statement_timeout=1000",
+        )
 
 
 if __name__ == "__main__":

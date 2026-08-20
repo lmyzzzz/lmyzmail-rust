@@ -1,0 +1,116 @@
+{
+  "schema": "lmyzmail-progress-aligned-profiler-comparison-v1",
+  "status": "diagnostic-passed",
+  "formal_throughput_claim": false,
+  "candidate": {
+    "sha256": "04edcd09bad354b0af4d9e7167fd2557dfc2f1cbdd4ef924bf814d31ad52d925",
+    "filesystem_fsync": false,
+    "message_bytes": 10240,
+    "messages_per_run": 20000
+  },
+  "reports": {
+    "v160": {
+      "path": "smtp-rust-progress-aligned-fsync-off-v160/report.json",
+      "sha256": "111e76b438626f4ac84c920653bb3193d3a85d7794695f76036634a6a5174c46",
+      "postgres_sql_snapshots_available": false,
+      "early_messages_per_second": 88.780719,
+      "late_messages_per_second": 151.138138
+    },
+    "v161": {
+      "path": "smtp-rust-progress-aligned-fsync-off-v161/report.json",
+      "sha256": "d6ab398c53d66536313478b61fc69c7b8bfc82706ae8e4bf8dbfb858e0d8c6dd",
+      "profiler_sha256": "70fd8de2f33f55b659d89d1f4f6be8de9b9e0bd208641b1df3d1beae96d2a675",
+      "postgres_sql_snapshots_available": true,
+      "network_namespace_joined": true,
+      "early_messages_per_second": 88.571708,
+      "late_messages_per_second": 150.788223,
+      "runner_segment_messages_per_second": [
+        90.050064,
+        102.140179,
+        163.721095,
+        151.264289
+      ],
+      "runner_relative_range": 0.58145,
+      "runner_messages_verified": 20000,
+      "runner_failures": 0,
+      "runner_retries": 0,
+      "runner_lost_messages": 0,
+      "root_cleanup": {
+        "run_id": "3db17cb7-9ace-4f07-8256-dd59b33fcdce",
+        "request": "ABORT",
+        "cleanup": "passed",
+        "lazy_unmount": 0,
+        "recovered": 0
+      },
+      "postgres_window_deltas": {
+        "early": {
+          "messages": 4025,
+          "xact_commit": 145125,
+          "xact_rollback": 0,
+          "blks_read": 0,
+          "temp_files": 0,
+          "temp_bytes": 0,
+          "deadlocks": 0,
+          "wal_records": 519715,
+          "wal_fpi": 0,
+          "wal_bytes": 60228697,
+          "wal_buffers_full": 0,
+          "wal_write": 7831,
+          "wal_sync": 7631
+        },
+        "late": {
+          "messages": 3987,
+          "xact_commit": 141064,
+          "xact_rollback": 0,
+          "blks_read": 0,
+          "temp_files": 0,
+          "temp_bytes": 0,
+          "deadlocks": 0,
+          "wal_records": 333511,
+          "wal_fpi": 5,
+          "wal_bytes": 32183954,
+          "wal_buffers_full": 0,
+          "wal_write": 2381,
+          "wal_sync": 2303
+        }
+      },
+      "candidate_boundaries": {
+        "early": {
+          "rss_kib_before": 497036,
+          "rss_kib_after": 547264,
+          "fd_before": 478,
+          "fd_after": 486,
+          "tasks_before": 82,
+          "tasks_after": 91
+        },
+        "late": {
+          "rss_kib_before": 542964,
+          "rss_kib_after": 543156,
+          "fd_before": 316,
+          "fd_after": 312,
+          "tasks_before": 91,
+          "tasks_after": 91
+        }
+      },
+      "maildir_tree": {
+        "late_before_files": 45030,
+        "late_after_files": 41008,
+        "late_before_scan_ns": 212289465,
+        "late_after_scan_ns": 230684086,
+        "maximum_direct_entries": 10001
+      },
+      "pressure": {
+        "memory_some_avg10_max": 0.0,
+        "memory_full_avg10_max": 0.0,
+        "io_full_avg10_early_before": 4.96,
+        "io_full_avg10_early_after": 11.01,
+        "io_full_avg10_late_before": 17.63,
+        "io_full_avg10_late_after": 19.08
+      }
+    }
+  },
+  "cpu_callchain_conclusion": "Both repetitions were dominated by loopback TCP receive and wakeup/softirq paths, scheduler waits, and bounded allocator or crypto work; neither run exposed a Rust algorithm hotspot that grew in the late window.",
+  "database_conclusion": "The late window completed at higher throughput with no physical block reads, temporary files, deadlocks, rollbacks, or WAL buffer saturation. Its commit and WAL work per observed message were lower than the early window.",
+  "filesystem_conclusion": "The busiest Maildir directory remained capped at 10001 direct entries and full-tree scans remained bounded near 0.2 seconds; the late file count decreased while throughput increased.",
+  "decision": "Do not retain a speculative runtime optimization from this evidence. Preserve the unchanged stability gate and proceed to formal candidate stability runs; revisit code only if a failing run supplies a reproducible late-decline hotspot."
+}

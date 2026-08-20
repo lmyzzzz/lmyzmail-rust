@@ -256,6 +256,13 @@ printf 'candidate-stability-launcher-profile: PASS\n'
             "smtp-endpoint-candidate-stability-fsync-off-proc-io-smoke-v140.json"
         )
         payload = json.loads(fixture.read_text(encoding="utf-8"))
+        validate_output = namespace["validate_output"]
+        legacy = copy.deepcopy(payload)
+        legacy["launcher_run_id"] = RUN_ID
+        self.assertEqual(
+            validate_output(json.dumps(legacy))[2],
+            "rust-candidate-single-invocation-smtp-endpoint-stability-v1",
+        )
         payload["profile"] = "rust-candidate-continuation-smtp-endpoint-stability-v2"
         payload["launcher_run_id"] = RUN_ID
         payload["endpoint_invocations"] = 1
@@ -298,7 +305,6 @@ printf 'candidate-stability-launcher-profile: PASS\n'
         arm["same_process_continuation"] = None
         arm["total_endpoint_requested_messages"] = 8
         arm["total_observer_verified_messages"] = 8
-        validate_output = namespace["validate_output"]
         self.assertEqual(
             validate_output(json.dumps(payload))[2],
             "rust-candidate-continuation-smtp-endpoint-stability-v2",

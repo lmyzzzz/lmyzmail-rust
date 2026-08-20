@@ -96,6 +96,44 @@ def _alive(value: ProcessIdentity) -> bool:
         return False
 
 
+def _namespace_identity(path: Path) -> tuple[int, int]:
+    metadata = path.stat()
+    return metadata.st_dev, metadata.st_ino
+
+
+def _join_candidate_network_namespace(identity: ProcessIdentity) -> dict[str, Any]:
+    if not _alive(identity):
+        raise RuntimeError("candidate identity changed before network namespace join")
+    current_path = Path("/proc/self/ns/net")
+    target_path = Path(f"/proc/{identity.pid}/ns/net")
+    previous = _namespace_identity(current_path)
+    target = _namespace_identity(target_path)
+    joined = previous != target
+    if joined:
+        descriptor = os.open(target_path, os.O_RDONLY | os.O_CLOEXEC)
+        try:
+            os.setns(descriptor, os.CLONE_NEWNET)
+        finally:
+            os.close(descriptor)
+    actual = _namespace_identity(current_path)
+    if actual != target:
+        raise RuntimeError(
+            "profiler did not enter the candidate network namespace: "
+            f"expected {target}, found {actual}"
+        )
+    if not _alive(identity):
+        raise RuntimeError("candidate identity changed during network namespace join")
+    return {
+        "previous_device": previous[0],
+        "previous_inode": previous[1],
+        "target_device": target[0],
+        "target_inode": target[1],
+        "actual_device": actual[0],
+        "actual_inode": actual[1],
+        "joined": joined,
+    }
+
+
 def _candidate_matches(candidate: Path) -> list[ProcessIdentity]:
     metadata = candidate.stat()
     matches = []
@@ -314,12 +352,17 @@ def _postgres_sql_snapshot() -> dict[str, Any]:
     table = _postgres_process_table()
     masters = _postgres_masters(table)
     if len(masters) != 1:
-        return {"available": False, "reason": f"postgres_masters={masters}"}
+        raise RuntimeError(
+            "PostgreSQL SQL snapshot unavailable: "
+            f"expected one master process, found {masters}"
+        )
     command = table[masters[0]]["command"].split()
     try:
         port = int(command[command.index("-p") + 1])
-    except (ValueError, IndexError):
-        return {"available": False, "reason": "postgres_port_unavailable"}
+    except (ValueError, IndexError) as error:
+        raise RuntimeError(
+            "PostgreSQL SQL snapshot unavailable: master port was not explicit"
+        ) from error
     try:
         import psycopg
 
@@ -331,54 +374,65 @@ def _postgres_sql_snapshot() -> dict[str, Any]:
             connect_timeout=2,
             options="-c default_transaction_read_only=on -c statement_timeout=1000",
         )
-        connection.autocommit = True
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT backend_type,COALESCE(state,''),"
-                "COALESCE(wait_event_type,''),COALESCE(wait_event,''),count(*) "
-                "FROM pg_stat_activity GROUP BY 1,2,3,4 ORDER BY 1,2,3,4"
-            )
-            activity = [
-                {
-                    "backend_type": row[0],
-                    "state": row[1],
-                    "wait_event_type": row[2],
-                    "wait_event": row[3],
-                    "count": row[4],
-                }
-                for row in cursor.fetchall()
-            ]
-            snapshots: dict[str, Any] = {}
-            for name, query in (
-                (
-                    "database",
-                    "SELECT row_to_json(s)::text FROM (SELECT numbackends,xact_commit,"
-                    "xact_rollback,blks_read,blks_hit,temp_files,temp_bytes,deadlocks,"
-                    "blk_read_time,blk_write_time,session_time,active_time,idle_in_transaction_time,"
-                    "sessions,sessions_abandoned,sessions_fatal,sessions_killed,stats_reset "
-                    "FROM pg_stat_database WHERE datname=current_database()) s",
-                ),
-                ("wal", "SELECT row_to_json(s)::text FROM pg_stat_wal s"),
-                ("bgwriter", "SELECT row_to_json(s)::text FROM pg_stat_bgwriter s"),
-            ):
-                cursor.execute(query)
-                row = cursor.fetchone()
-                snapshots[name] = json.loads(row[0]) if row and row[0] else None
-        connection.close()
-        return {
-            "available": True,
-            "master_pid": masters[0],
-            "port": port,
-            "activity": activity,
-            **snapshots,
-        }
-    except BaseException as error:
-        return {
-            "available": False,
-            "master_pid": masters[0],
-            "port": port,
-            "reason": f"{type(error).__name__}: {error}",
-        }
+        try:
+            connection.autocommit = True
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT backend_type,COALESCE(state,''),"
+                    "COALESCE(wait_event_type,''),COALESCE(wait_event,''),count(*) "
+                    "FROM pg_stat_activity GROUP BY 1,2,3,4 ORDER BY 1,2,3,4"
+                )
+                activity = [
+                    {
+                        "backend_type": row[0],
+                        "state": row[1],
+                        "wait_event_type": row[2],
+                        "wait_event": row[3],
+                        "count": row[4],
+                    }
+                    for row in cursor.fetchall()
+                ]
+                snapshots: dict[str, Any] = {}
+                for name, query in (
+                    (
+                        "database",
+                        "SELECT row_to_json(s)::text FROM (SELECT numbackends,xact_commit,"
+                        "xact_rollback,blks_read,blks_hit,temp_files,temp_bytes,deadlocks,"
+                        "blk_read_time,blk_write_time,session_time,active_time,"
+                        "idle_in_transaction_time,sessions,sessions_abandoned,"
+                        "sessions_fatal,sessions_killed,stats_reset "
+                        "FROM pg_stat_database WHERE datname=current_database()) s",
+                    ),
+                    ("wal", "SELECT row_to_json(s)::text FROM pg_stat_wal s"),
+                    ("bgwriter", "SELECT row_to_json(s)::text FROM pg_stat_bgwriter s"),
+                ):
+                    cursor.execute(query)
+                    row = cursor.fetchone()
+                    if not row or not row[0]:
+                        raise RuntimeError(
+                            f"PostgreSQL {name} statistics were unavailable"
+                        )
+                    value = json.loads(row[0])
+                    if not isinstance(value, dict):
+                        raise RuntimeError(
+                            f"PostgreSQL {name} statistics were malformed"
+                        )
+                    snapshots[name] = value
+            return {
+                "available": True,
+                "master_pid": masters[0],
+                "port": port,
+                "activity": activity,
+                **snapshots,
+            }
+        finally:
+            connection.close()
+    except Exception as error:
+        raise RuntimeError(
+            "PostgreSQL SQL snapshot unavailable "
+            f"for master PID {masters[0]} on port {port}: "
+            f"{type(error).__name__}: {error}"
+        ) from error
 
 
 def _cgroup(identity: ProcessIdentity) -> Path | None:
@@ -713,16 +767,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parse_args(sys.argv[1:] if argv is None else argv)
     if os.geteuid() != 0:
         raise SystemExit("progress-aligned profiler must run as root")
+    profiler_source = Path(__file__).resolve(strict=True)
     candidate = args.candidate.resolve(strict=True)
     perf = _perf(args.perf)
     output = args.output_dir.resolve(strict=False)
     output.mkdir(mode=0o755, parents=False, exist_ok=False)
     deadline = time.monotonic() + args.wait_seconds
     identity = _wait_candidate(candidate, deadline)
+    network_namespace = _join_candidate_network_namespace(identity)
     control, progress = _wait_proxy(args.runtime_root.resolve(strict=False), deadline)
     workspace = Path(f"/proc/{identity.pid}/cwd").resolve(strict=True)
     if not (workspace / "maildir").is_dir():
         raise RuntimeError("candidate working directory omitted benchmark Maildir")
+    postgres_sql_preflight = _postgres_sql_snapshot()
     metadata = candidate.stat()
     report: dict[str, Any] = {
         "schema": "lmyzmail-progress-aligned-profiler-v1",
@@ -737,10 +794,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             "pid": identity.pid,
             "start_time_ticks": identity.start_time_ticks,
         },
+        "profiler": {
+            "path": str(profiler_source),
+            "sha256": _sha256(profiler_source),
+            "python_executable": str(Path(sys.executable).resolve(strict=True)),
+            "python_version": sys.version,
+        },
+        "network_namespace": network_namespace,
         "perf": {"path": str(perf), "sha256": _sha256(perf)},
         "proxy_control": str(control),
         "expected_messages": progress["expected"],
         "workspace": str(workspace),
+        "postgres_sql_preflight": postgres_sql_preflight,
         "windows": [],
     }
     running = output / "report.running.json"

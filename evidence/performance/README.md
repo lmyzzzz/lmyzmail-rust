@@ -2495,6 +2495,45 @@ long-run decline under coordinator, queue, database, Maildir, and cgroup
 observations before another formal attempt; it must not weaken the stability
 or message-integrity gates.
 
+The bounded progress-aligned v160/v161 campaign then repeated one unchanged
+20,000-message, 10 KB, fsync-off candidate workload while profiling the
+5%-25% and 75%-95% progress windows. The candidate ELF SHA-256 was
+`04edcd09bad354b0af4d9e7167fd2557dfc2f1cbdd4ef924bf814d31ad52d925`.
+The v160 early and late windows delivered `88.780719` and `151.138138`
+messages/second; v161 independently delivered `88.571708` and `150.788223`.
+The runner's four v161 segments were `90.050064`, `102.140179`, `163.721095`,
+and `151.264289` messages/second. It therefore failed the unchanged 30%
+within-arm gate in the same front-slow/back-fast direction, while still
+verifying all 20,000 messages with zero failures, retries, or loss. This is
+diagnostic evidence, not a formal throughput result.
+
+v161 made PostgreSQL SQL evidence fail closed and joined the identity-checked
+candidate network namespace before connecting to the isolated database. All
+preflight, early-before/after, and late-before/after activity, database, WAL,
+and bgwriter snapshots were available. The early window recorded 145,125
+commits, zero rollbacks, zero physical block reads, and 60,228,697 WAL bytes
+for 4,025 observed messages. The late window recorded 141,064 commits, zero
+rollbacks, zero physical reads, and 32,183,954 WAL bytes for 3,987 messages;
+both windows had zero temporary files, deadlocks, and WAL-buffer-full events.
+The complete CPU callchains again centered on loopback TCP receive/wakeup and
+softirq paths plus scheduler waits. No Rust algorithm hotspot grew late.
+
+The busiest Maildir directory remained capped at 10,001 entries. v161's late
+full-tree scans took 212,289,465 and 230,684,086 ns while the file count fell
+from 45,030 to 41,008; candidate RSS was effectively flat at 542,964 to
+543,156 KiB, FDs fell from 316 to 312, tasks stayed at 91, and memory PSI
+remained zero. I/O pressure increased while throughput also increased, so it
+does not establish a late degradation cause. Root cleanup for run
+`3db17cb7-9ace-4f07-8256-dd59b33fcdce` passed with no lazy unmount or residual
+run process, mount, or cgroup. The raw reports have SHA-256
+`111e76b438626f4ac84c920653bb3193d3a85d7794695f76036634a6a5174c46`
+and `d6ab398c53d66536313478b61fc69c7b8bfc82706ae8e4bf8dbfb858e0d8c6dd`;
+the machine-readable comparison is
+`smtp-rust-progress-aligned-fsync-off-v160-v161-summary.json`. This evidence
+does not justify another speculative runtime optimization. Continue with the
+unchanged formal stability campaign and return to code only if a reproducible
+late-decline profile supplies a concrete hotspot.
+
 Profiler failure diagnostics now preserve four bounded resource snapshots over
 the exact measurement window. Each snapshot records total and per-role cgroup
 current/anonymous/file memory, per-role process RSS, `memory.events`, Redis

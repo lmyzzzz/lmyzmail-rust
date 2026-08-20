@@ -1,0 +1,1741 @@
+{
+  "candidate": {
+    "bytes": 219684240,
+    "device": 2096,
+    "inode": 823932,
+    "path": "/home/lmyzzz/lmyzmail-rust/target/profiling/x86_64-unknown-linux-gnu/release-with-debug/lmyzmail",
+    "pid": 9084,
+    "sha256": "04edcd09bad354b0af4d9e7167fd2557dfc2f1cbdd4ef924bf814d31ad52d925",
+    "start_time_ticks": 5111407
+  },
+  "candidate_identity_still_alive": true,
+  "completed_unix_seconds": 1787196090.3601243,
+  "expected_messages": 20000,
+  "network_namespace": {
+    "actual_device": 4,
+    "actual_inode": 4026532241,
+    "joined": true,
+    "previous_device": 4,
+    "previous_inode": 4026531840,
+    "target_device": 4,
+    "target_inode": 4026532241
+  },
+  "perf": {
+    "path": "/usr/lib/linux-tools/6.8.0-137-generic/perf",
+    "sha256": "fbb3a4b838f9b04c2bd6129e794b0365a640f49216f5959572fc2ceec11376ba"
+  },
+  "postgres_sql_preflight": {
+    "activity": [
+      {
+        "backend_type": "autovacuum launcher",
+        "count": 1,
+        "state": "",
+        "wait_event": "AutoVacuumMain",
+        "wait_event_type": "Activity"
+      },
+      {
+        "backend_type": "background writer",
+        "count": 1,
+        "state": "",
+        "wait_event": "BgWriterMain",
+        "wait_event_type": "Activity"
+      },
+      {
+        "backend_type": "checkpointer",
+        "count": 1,
+        "state": "",
+        "wait_event": "CheckpointerMain",
+        "wait_event_type": "Activity"
+      },
+      {
+        "backend_type": "client backend",
+        "count": 1,
+        "state": "active",
+        "wait_event": "",
+        "wait_event_type": ""
+      },
+      {
+        "backend_type": "client backend",
+        "count": 1,
+        "state": "active",
+        "wait_event": "WALSync",
+        "wait_event_type": "IO"
+      },
+      {
+        "backend_type": "client backend",
+        "count": 1,
+        "state": "idle",
+        "wait_event": "ClientRead",
+        "wait_event_type": "Client"
+      },
+      {
+        "backend_type": "logical replication launcher",
+        "count": 1,
+        "state": "",
+        "wait_event": "LogicalLauncherMain",
+        "wait_event_type": "Activity"
+      },
+      {
+        "backend_type": "walwriter",
+        "count": 1,
+        "state": "",
+        "wait_event": "WalWriterMain",
+        "wait_event_type": "Activity"
+      }
+    ],
+    "available": true,
+    "bgwriter": {
+      "buffers_alloc": 1897,
+      "buffers_backend": 0,
+      "buffers_backend_fsync": 0,
+      "buffers_checkpoint": 0,
+      "buffers_clean": 0,
+      "checkpoint_sync_time": 0,
+      "checkpoint_write_time": 0,
+      "checkpoints_req": 0,
+      "checkpoints_timed": 0,
+      "maxwritten_clean": 0,
+      "stats_reset": "2026-08-20T03:18:44.622243+00:00"
+    },
+    "database": {
+      "active_time": 381.026,
+      "blk_read_time": 0,
+      "blk_write_time": 0,
+      "blks_hit": 22879,
+      "blks_read": 29,
+      "deadlocks": 0,
+      "idle_in_transaction_time": 8.632,
+      "numbackends": 3,
+      "session_time": 1843.893,
+      "sessions": 6,
+      "sessions_abandoned": 0,
+      "sessions_fatal": 0,
+      "sessions_killed": 0,
+      "stats_reset": null,
+      "temp_bytes": 0,
+      "temp_files": 0,
+      "xact_commit": 49,
+      "xact_rollback": 0
+    },
+    "master_pid": 9063,
+    "port": 35771,
+    "wal": {
+      "stats_reset": "2026-08-20T03:18:44.622243+00:00",
+      "wal_buffers_full": 22,
+      "wal_bytes": 10070411,
+      "wal_fpi": 1492,
+      "wal_records": 29692,
+      "wal_sync": 10,
+      "wal_sync_time": 0,
+      "wal_write": 770,
+      "wal_write_time": 0
+    }
+  },
+  "profiler": {
+    "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/profile-next-benchmark-phases-v1.py",
+    "python_executable": "/usr/bin/python3.12",
+    "python_version": "3.12.3 (main, Mar  3 2026, 12:15:18) [GCC 13.3.0]",
+    "sha256": "70fd8de2f33f55b659d89d1f4f6be8de9b9e0bd208641b1df3d1beae96d2a675"
+  },
+  "proxy_control": "/run/lmyzmail-benchmark-root/mounts/3db17cb7-9ace-4f07-8256-dd59b33fcdce/p.sock",
+  "schema": "lmyzmail-progress-aligned-profiler-v1",
+  "started_unix_seconds": 1787195927.4234378,
+  "status": "passed",
+  "windows": [
+    {
+      "boundary_after": {
+        "candidate": {
+          "fd_count": 486,
+          "io": {
+            "cancelled_write_bytes": 362315776,
+            "rchar": 1880460478,
+            "read_bytes": 0,
+            "syscr": 361007,
+            "syscw": 223769,
+            "wchar": 626603711,
+            "write_bytes": 750993408
+          },
+          "status": {
+            "CoreDumping": 0,
+            "Cpus_allowed": 800000,
+            "Cpus_allowed_list": 23,
+            "FDSize": 1024,
+            "Gid": 1000,
+            "Groups": 4,
+            "HugetlbPages": 0,
+            "Kthread": 0,
+            "Mems_allowed_list": 0,
+            "NSpgid": 9084,
+            "NSpid": 9084,
+            "NSsid": 9084,
+            "NStgid": 9084,
+            "Ngid": 0,
+            "NoNewPrivs": 0,
+            "PPid": 9007,
+            "Pid": 9084,
+            "RssAnon": 499264,
+            "RssFile": 48000,
+            "RssShmem": 0,
+            "Seccomp": 2,
+            "Seccomp_filters": 1,
+            "ShdPnd": 0,
+            "SigBlk": 0,
+            "SigCgt": 100004442,
+            "SigIgn": 1000,
+            "SigPnd": 0,
+            "THP_enabled": 1,
+            "Tgid": 9084,
+            "Threads": 91,
+            "TracerPid": 0,
+            "Uid": 1000,
+            "Umask": 22,
+            "VmData": 712576,
+            "VmExe": 18960,
+            "VmHWM": 547264,
+            "VmLck": 0,
+            "VmLib": 11992,
+            "VmPTE": 1836,
+            "VmPeak": 6725104,
+            "VmPin": 0,
+            "VmRSS": 547264,
+            "VmSize": 6662092,
+            "VmStk": 132,
+            "VmSwap": 0,
+            "nonvoluntary_ctxt_switches": 1,
+            "voluntary_ctxt_switches": 24
+          },
+          "threads": {
+            "schedstat_run_ns": 52955887497,
+            "schedstat_slices": 558249,
+            "schedstat_wait_ns": 135350237808,
+            "tasks": 91,
+            "wchan": {
+              "0": 2,
+              "futex_wait_queue": 89
+            }
+          }
+        },
+        "cgroup": {
+          "cpu.pressure": {
+            "full": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 337003
+            },
+            "some": {
+              "avg10": 62.88,
+              "avg300": 11.16,
+              "avg60": 38.65,
+              "total": 36806795
+            }
+          },
+          "cpu.stat": "usage_usec 52078234\nuser_usec 30008628\nsystem_usec 22069606\nnr_periods 566\nnr_throttled 2\nthrottled_usec 2846\nnr_bursts 0\nburst_usec 0",
+          "io.pressure": {
+            "full": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 5751
+            },
+            "some": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 37615
+            }
+          },
+          "io.stat": "8:48 rbytes=0 wbytes=284106752 rios=0 wios=584 dbytes=0 dios=0\n7:0 rbytes=0 wbytes=284106752 rios=0 wios=28316 dbytes=0 dios=0",
+          "memory.current": 564858880,
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+          "memory.peak": 565944320,
+          "memory.pressure": {
+            "full": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 0
+            },
+            "some": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 0
+            }
+          },
+          "path": "/sys/fs/cgroup/lmyzmail-benchmark-root/run-3db17cb7-9ace-4f07-8256-dd59b33fcdce/workload",
+          "pids.current": 91
+        },
+        "filesystem": {
+          "maildir": {
+            "device": 1792,
+            "direct_entries": 4,
+            "enumeration_ns": 57605,
+            "exists": true,
+            "inode": 787870
+          },
+          "outbound_spool": {
+            "device": 1792,
+            "direct_entries": 6961,
+            "enumeration_ns": 3503135,
+            "exists": true,
+            "inode": 787875
+          },
+          "statvfs": {
+            "block_size": 4096,
+            "blocks_free": 4996077,
+            "inodes": 1310720,
+            "inodes_free": 1278207
+          },
+          "stress_temp": {
+            "direct_entries": 0,
+            "enumeration_ns": 40317,
+            "exists": false
+          }
+        },
+        "monotonic_ns": 51171849249717,
+        "postgres": {
+          "io": {
+            "cancelled_write_bytes": 32768,
+            "rchar": 22726351,
+            "read_bytes": 0,
+            "syscr": 7318,
+            "syscw": 15522,
+            "wchar": 288122970,
+            "write_bytes": 287506432
+          },
+          "masters": [
+            9063
+          ],
+          "processes": 72,
+          "roles": {
+            "autovacuum": 1,
+            "background": 1,
+            "checkpointer": 1,
+            "lmyzmail_test": 66,
+            "logical": 1,
+            "master": 1,
+            "walwriter": 1
+          },
+          "rss_kib": 4710248,
+          "wchan": {
+            "0": 7,
+            "do_epoll_wait": 52,
+            "folio_wait_bit_common": 1,
+            "futex_wait_queue": 12
+          }
+        },
+        "pressure": {
+          "cpu": {
+            "full": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 0
+            },
+            "some": {
+              "avg10": 17.96,
+              "avg300": 5.74,
+              "avg60": 11.24,
+              "total": 199536825
+            }
+          },
+          "io": {
+            "full": {
+              "avg10": 11.01,
+              "avg300": 4.04,
+              "avg60": 6.17,
+              "total": 2864961172
+            },
+            "some": {
+              "avg10": 12.39,
+              "avg300": 4.68,
+              "avg60": 7.04,
+              "total": 2894083521
+            }
+          },
+          "memory": {
+            "full": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 0
+            },
+            "some": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 0
+            }
+          }
+        },
+        "progress": {
+          "duration_ns": 56110708757,
+          "expected": 20000,
+          "observer_failures": 0,
+          "verified": 5059
+        }
+      },
+      "boundary_before": {
+        "candidate": {
+          "fd_count": 478,
+          "io": {
+            "cancelled_write_bytes": 79917056,
+            "rchar": 419243072,
+            "read_bytes": 0,
+            "syscr": 79195,
+            "syscw": 46285,
+            "wchar": 129874492,
+            "write_bytes": 157597696
+          },
+          "status": {
+            "CoreDumping": 0,
+            "Cpus_allowed": 800000,
+            "Cpus_allowed_list": 23,
+            "FDSize": 1024,
+            "Gid": 1000,
+            "Groups": 4,
+            "HugetlbPages": 0,
+            "Kthread": 0,
+            "Mems_allowed_list": 0,
+            "NSpgid": 9084,
+            "NSpid": 9084,
+            "NSsid": 9084,
+            "NStgid": 9084,
+            "Ngid": 0,
+            "NoNewPrivs": 0,
+            "PPid": 9007,
+            "Pid": 9084,
+            "RssAnon": 449036,
+            "RssFile": 48000,
+            "RssShmem": 0,
+            "Seccomp": 2,
+            "Seccomp_filters": 1,
+            "ShdPnd": 0,
+            "SigBlk": 0,
+            "SigCgt": 100004442,
+            "SigIgn": 1000,
+            "SigPnd": 0,
+            "THP_enabled": 1,
+            "Tgid": 9084,
+            "Threads": 82,
+            "TracerPid": 0,
+            "Uid": 1000,
+            "Umask": 22,
+            "VmData": 635180,
+            "VmExe": 18960,
+            "VmHWM": 497256,
+            "VmLck": 0,
+            "VmLib": 11992,
+            "VmPTE": 1692,
+            "VmPeak": 6052020,
+            "VmPin": 0,
+            "VmRSS": 497036,
+            "VmSize": 6051328,
+            "VmStk": 132,
+            "VmSwap": 0,
+            "nonvoluntary_ctxt_switches": 1,
+            "voluntary_ctxt_switches": 24
+          },
+          "threads": {
+            "schedstat_run_ns": 10814697652,
+            "schedstat_slices": 112846,
+            "schedstat_wait_ns": 26350991019,
+            "tasks": 82,
+            "wchan": {
+              "0": 1,
+              "futex_wait_queue": 81
+            }
+          }
+        },
+        "cgroup": {
+          "cpu.pressure": {
+            "full": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 66477
+            },
+            "some": {
+              "avg10": 45.76,
+              "avg300": 2.53,
+              "avg60": 11.43,
+              "total": 7358453
+            }
+          },
+          "cpu.stat": "usage_usec 9931341\nuser_usec 5879927\nsystem_usec 4051413\nnr_periods 111\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0",
+          "io.pressure": {
+            "full": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 0
+            },
+            "some": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 2343
+            }
+          },
+          "io.stat": "8:48 rbytes=0 wbytes=34381824 rios=0 wios=78 dbytes=0 dios=0\n7:0 rbytes=0 wbytes=34381824 rios=0 wios=3336 dbytes=0 dios=0",
+          "memory.current": 178651136,
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+          "memory.peak": 179781632,
+          "memory.pressure": {
+            "full": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 0
+            },
+            "some": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 0
+            }
+          },
+          "path": "/sys/fs/cgroup/lmyzmail-benchmark-root/run-3db17cb7-9ace-4f07-8256-dd59b33fcdce/workload",
+          "pids.current": 82
+        },
+        "filesystem": {
+          "maildir": {
+            "device": 1792,
+            "direct_entries": 4,
+            "enumeration_ns": 48296,
+            "exists": true,
+            "inode": 787870
+          },
+          "outbound_spool": {
+            "device": 1792,
+            "direct_entries": 1546,
+            "enumeration_ns": 613552,
+            "exists": true,
+            "inode": 787875
+          },
+          "statvfs": {
+            "block_size": 4096,
+            "blocks_free": 5082477,
+            "inodes": 1310720,
+            "inodes_free": 1302568
+          },
+          "stress_temp": {
+            "direct_entries": 0,
+            "enumeration_ns": 20651,
+            "exists": false
+          }
+        },
+        "monotonic_ns": 51126360819745,
+        "postgres": {
+          "io": {
+            "cancelled_write_bytes": 32768,
+            "rchar": 22102313,
+            "read_bytes": 0,
+            "syscr": 5304,
+            "syscw": 3802,
+            "wchar": 67176538,
+            "write_bytes": 67182592
+          },
+          "masters": [
+            9063
+          ],
+          "processes": 71,
+          "roles": {
+            "autovacuum": 1,
+            "background": 1,
+            "checkpointer": 1,
+            "lmyzmail_test": 65,
+            "logical": 1,
+            "master": 1,
+            "walwriter": 1
+          },
+          "rss_kib": 2586912,
+          "wchan": {
+            "0": 3,
+            "do_epoll_wait": 67,
+            "futex_wait_queue": 1
+          }
+        },
+        "pressure": {
+          "cpu": {
+            "full": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 0
+            },
+            "some": {
+              "avg10": 11.86,
+              "avg300": 3.59,
+              "avg60": 3.17,
+              "total": 190987302
+            }
+          },
+          "io": {
+            "full": {
+              "avg10": 4.96,
+              "avg300": 3.02,
+              "avg60": 1.57,
+              "total": 2860259069
+            },
+            "some": {
+              "avg10": 6.05,
+              "avg300": 3.54,
+              "avg60": 1.87,
+              "total": 2888711048
+            }
+          },
+          "memory": {
+            "full": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 0
+            },
+            "some": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 0
+            }
+          }
+        },
+        "progress": {
+          "duration_ns": 10640273655,
+          "expected": 20000,
+          "observer_failures": 0,
+          "verified": 1000
+        }
+      },
+      "duration_seconds": 45.443405,
+      "folded_sha256": "027a841337f582c4759f9f5160b1b6cbbf6118b98b0c7a8b2f13e6af1c5ecdbd",
+      "fractions": [
+        0.05,
+        0.25
+      ],
+      "name": "early",
+      "perf_command": [
+        "/usr/lib/linux-tools/6.8.0-137-generic/perf",
+        "record",
+        "-e",
+        "cpu-clock",
+        "-F",
+        "99",
+        "--call-graph",
+        "fp",
+        "--inherit",
+        "-p",
+        "9084",
+        "-o",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-rust-progress-aligned-fsync-off-v161/early/perf.data"
+      ],
+      "perf_data_bytes": 666232,
+      "perf_data_sha256": "124dbbd5bde420b7771f71f3f057b3dd93ff03f44c5bfc37d9016fce84355033",
+      "perf_frequency": 99,
+      "perf_stderr_tail": "[ perf record: Woken up 3 times to write data ]\n[ perf record: Captured and wrote 0.600 MB /home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-rust-progress-aligned-fsync-off-v161/early/perf.data (3994 samples) ]\n",
+      "postgres_sql_after": {
+        "activity": [
+          {
+            "backend_type": "autovacuum launcher",
+            "count": 1,
+            "state": "",
+            "wait_event": "AutoVacuumMain",
+            "wait_event_type": "Activity"
+          },
+          {
+            "backend_type": "background writer",
+            "count": 1,
+            "state": "",
+            "wait_event": "BgWriterMain",
+            "wait_event_type": "Activity"
+          },
+          {
+            "backend_type": "checkpointer",
+            "count": 1,
+            "state": "",
+            "wait_event": "CheckpointerMain",
+            "wait_event_type": "Activity"
+          },
+          {
+            "backend_type": "client backend",
+            "count": 1,
+            "state": "active",
+            "wait_event": "",
+            "wait_event_type": ""
+          },
+          {
+            "backend_type": "client backend",
+            "count": 2,
+            "state": "active",
+            "wait_event": "ClientRead",
+            "wait_event_type": "Client"
+          },
+          {
+            "backend_type": "client backend",
+            "count": 1,
+            "state": "active",
+            "wait_event": "WALSync",
+            "wait_event_type": "IO"
+          },
+          {
+            "backend_type": "client backend",
+            "count": 2,
+            "state": "active",
+            "wait_event": "WALWrite",
+            "wait_event_type": "LWLock"
+          },
+          {
+            "backend_type": "client backend",
+            "count": 3,
+            "state": "idle",
+            "wait_event": "",
+            "wait_event_type": ""
+          },
+          {
+            "backend_type": "client backend",
+            "count": 43,
+            "state": "idle",
+            "wait_event": "ClientRead",
+            "wait_event_type": "Client"
+          },
+          {
+            "backend_type": "client backend",
+            "count": 15,
+            "state": "idle in transaction",
+            "wait_event": "ClientRead",
+            "wait_event_type": "Client"
+          },
+          {
+            "backend_type": "logical replication launcher",
+            "count": 1,
+            "state": "",
+            "wait_event": "LogicalLauncherMain",
+            "wait_event_type": "Activity"
+          },
+          {
+            "backend_type": "walwriter",
+            "count": 1,
+            "state": "",
+            "wait_event": "WalWriterMain",
+            "wait_event_type": "Activity"
+          }
+        ],
+        "available": true,
+        "bgwriter": {
+          "buffers_alloc": 6727,
+          "buffers_backend": 0,
+          "buffers_backend_fsync": 0,
+          "buffers_checkpoint": 0,
+          "buffers_clean": 0,
+          "checkpoint_sync_time": 0,
+          "checkpoint_write_time": 0,
+          "checkpoints_req": 0,
+          "checkpoints_timed": 0,
+          "maxwritten_clean": 0,
+          "stats_reset": "2026-08-20T03:18:44.622243+00:00"
+        },
+        "database": {
+          "active_time": 320956.468,
+          "blk_read_time": 0,
+          "blk_write_time": 0,
+          "blks_hit": 4957259,
+          "blks_read": 33,
+          "deadlocks": 0,
+          "idle_in_transaction_time": 647299.718,
+          "numbackends": 67,
+          "session_time": 3578526.995,
+          "sessions": 72,
+          "sessions_abandoned": 0,
+          "sessions_fatal": 0,
+          "sessions_killed": 0,
+          "stats_reset": null,
+          "temp_bytes": 0,
+          "temp_files": 0,
+          "xact_commit": 178649,
+          "xact_rollback": 0
+        },
+        "master_pid": 9063,
+        "port": 35771,
+        "wal": {
+          "stats_reset": "2026-08-20T03:18:44.622243+00:00",
+          "wal_buffers_full": 22,
+          "wal_bytes": 85123506,
+          "wal_fpi": 1492,
+          "wal_records": 676973,
+          "wal_sync": 9612,
+          "wal_sync_time": 0,
+          "wal_write": 10601,
+          "wal_write_time": 0
+        }
+      },
+      "postgres_sql_before": {
+        "activity": [
+          {
+            "backend_type": "autovacuum launcher",
+            "count": 1,
+            "state": "",
+            "wait_event": "AutoVacuumMain",
+            "wait_event_type": "Activity"
+          },
+          {
+            "backend_type": "background writer",
+            "count": 1,
+            "state": "",
+            "wait_event": "BgWriterMain",
+            "wait_event_type": "Activity"
+          },
+          {
+            "backend_type": "checkpointer",
+            "count": 1,
+            "state": "",
+            "wait_event": "CheckpointerMain",
+            "wait_event_type": "Activity"
+          },
+          {
+            "backend_type": "client backend",
+            "count": 1,
+            "state": "active",
+            "wait_event": "",
+            "wait_event_type": ""
+          },
+          {
+            "backend_type": "client backend",
+            "count": 1,
+            "state": "active",
+            "wait_event": "ClientRead",
+            "wait_event_type": "Client"
+          },
+          {
+            "backend_type": "client backend",
+            "count": 1,
+            "state": "active",
+            "wait_event": "WALSync",
+            "wait_event_type": "IO"
+          },
+          {
+            "backend_type": "client backend",
+            "count": 39,
+            "state": "idle",
+            "wait_event": "ClientRead",
+            "wait_event_type": "Client"
+          },
+          {
+            "backend_type": "client backend",
+            "count": 24,
+            "state": "idle in transaction",
+            "wait_event": "ClientRead",
+            "wait_event_type": "Client"
+          },
+          {
+            "backend_type": "logical replication launcher",
+            "count": 1,
+            "state": "",
+            "wait_event": "LogicalLauncherMain",
+            "wait_event_type": "Activity"
+          },
+          {
+            "backend_type": "walwriter",
+            "count": 1,
+            "state": "",
+            "wait_event": "WALWrite",
+            "wait_event_type": "LWLock"
+          }
+        ],
+        "available": true,
+        "bgwriter": {
+          "buffers_alloc": 3048,
+          "buffers_backend": 0,
+          "buffers_backend_fsync": 0,
+          "buffers_checkpoint": 0,
+          "buffers_clean": 0,
+          "checkpoint_sync_time": 0,
+          "checkpoint_write_time": 0,
+          "checkpoints_req": 0,
+          "checkpoints_timed": 0,
+          "maxwritten_clean": 0,
+          "stats_reset": "2026-08-20T03:18:44.622243+00:00"
+        },
+        "database": {
+          "active_time": 53204.611,
+          "blk_read_time": 0,
+          "blk_write_time": 0,
+          "blks_hit": 966090,
+          "blks_read": 33,
+          "deadlocks": 0,
+          "idle_in_transaction_time": 126445.84,
+          "numbackends": 66,
+          "session_time": 606723.935,
+          "sessions": 70,
+          "sessions_abandoned": 0,
+          "sessions_fatal": 0,
+          "sessions_killed": 0,
+          "stats_reset": null,
+          "temp_bytes": 0,
+          "temp_files": 0,
+          "xact_commit": 33524,
+          "xact_rollback": 0
+        },
+        "master_pid": 9063,
+        "port": 35771,
+        "wal": {
+          "stats_reset": "2026-08-20T03:18:44.622243+00:00",
+          "wal_buffers_full": 22,
+          "wal_bytes": 24894809,
+          "wal_fpi": 1492,
+          "wal_records": 157258,
+          "wal_sync": 1981,
+          "wal_sync_time": 0,
+          "wal_write": 2770,
+          "wal_write_time": 0
+        }
+      },
+      "progress_after": {
+        "duration_ns": 55802292315,
+        "expected": 20000,
+        "observer_failures": 0,
+        "verified": 5025
+      },
+      "progress_before": {
+        "duration_ns": 10640273655,
+        "expected": 20000,
+        "observer_failures": 0,
+        "verified": 1000
+      },
+      "sample_count": 168,
+      "sample_interval_seconds": 0.25,
+      "samples_sha256": "b3e2dcc54d76ea68bb0d7b39db71d556a8d0609733731245a1e87656b6f1b396",
+      "stack_samples": 3993,
+      "stacks_sha256": "05d5b39c1dee72f96ac8fa7d9569aa98f5a224dc4a76307c6ccbc7e6b6568016",
+      "thresholds": [
+        1000,
+        5000
+      ],
+      "tree_after": {
+        "allocated_bytes": 324440064,
+        "directories": 18,
+        "duration_ns": 142777493,
+        "files": 31076,
+        "logical_bytes": 273869516,
+        "maximum_direct_entries": 10001,
+        "maximum_direct_entries_path": "v2/c-7374726573732D73656E646572406C6D797A2E6E6574/z-00000016/sent/1",
+        "symlinks": 0,
+        "vanished_entries": 10
+      },
+      "tree_before": {
+        "allocated_bytes": 69406720,
+        "directories": 16,
+        "duration_ns": 49772581,
+        "files": 6705,
+        "logical_bytes": 58258602,
+        "maximum_direct_entries": 2547,
+        "maximum_direct_entries_path": "v2/c-7374726573732D73656E646572406C6D797A2E6E6574/z-00000016/sent/1",
+        "symlinks": 0,
+        "vanished_entries": 0
+      },
+      "unique_stacks": 2475
+    },
+    {
+      "boundary_after": {
+        "candidate": {
+          "fd_count": 312,
+          "io": {
+            "cancelled_write_bytes": 591679488,
+            "rchar": 4461732422,
+            "read_bytes": 0,
+            "syscr": 885143,
+            "syscw": 534623,
+            "wchar": 1405927107,
+            "write_bytes": 1382625280
+          },
+          "status": {
+            "CoreDumping": 0,
+            "Cpus_allowed": 800000,
+            "Cpus_allowed_list": 23,
+            "FDSize": 1024,
+            "Gid": 1000,
+            "Groups": 4,
+            "HugetlbPages": 0,
+            "Kthread": 0,
+            "Mems_allowed_list": 0,
+            "NSpgid": 9084,
+            "NSpid": 9084,
+            "NSsid": 9084,
+            "NStgid": 9084,
+            "Ngid": 0,
+            "NoNewPrivs": 0,
+            "PPid": 9007,
+            "Pid": 9084,
+            "RssAnon": 495156,
+            "RssFile": 48000,
+            "RssShmem": 0,
+            "Seccomp": 2,
+            "Seccomp_filters": 1,
+            "ShdPnd": 0,
+            "SigBlk": 0,
+            "SigCgt": 100004442,
+            "SigIgn": 1000,
+            "SigPnd": 0,
+            "THP_enabled": 1,
+            "Tgid": 9084,
+            "Threads": 91,
+            "TracerPid": 0,
+            "Uid": 1000,
+            "Umask": 22,
+            "VmData": 740300,
+            "VmExe": 18960,
+            "VmHWM": 557656,
+            "VmLck": 0,
+            "VmLib": 11992,
+            "VmPTE": 1852,
+            "VmPeak": 6725104,
+            "VmPin": 0,
+            "VmRSS": 543156,
+            "VmSize": 6659040,
+            "VmStk": 132,
+            "VmSwap": 0,
+            "nonvoluntary_ctxt_switches": 1,
+            "voluntary_ctxt_switches": 24
+          },
+          "threads": {
+            "schedstat_run_ns": 141725764622,
+            "schedstat_slices": 2061088,
+            "schedstat_wait_ns": 251852546117,
+            "tasks": 91,
+            "wchan": {
+              "0": 1,
+              "futex_wait_queue": 90
+            }
+          }
+        },
+        "cgroup": {
+          "cpu.pressure": {
+            "full": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 881447
+            },
+            "some": {
+              "avg10": 24.16,
+              "avg300": 19.03,
+              "avg60": 32.96,
+              "total": 77423927
+            }
+          },
+          "cpu.stat": "usage_usec 140848027\nuser_usec 76963987\nsystem_usec 63884039\nnr_periods 1624\nnr_throttled 3\nthrottled_usec 3722\nnr_bursts 0\nburst_usec 0",
+          "io.pressure": {
+            "full": {
+              "avg10": 0.01,
+              "avg300": 0.0,
+              "avg60": 0.02,
+              "total": 90424
+            },
+            "some": {
+              "avg10": 0.04,
+              "avg300": 0.01,
+              "avg60": 0.08,
+              "total": 295109
+            }
+          },
+          "io.stat": "8:48 rbytes=0 wbytes=799428608 rios=0 wios=2167 dbytes=0 dios=0\n7:0 rbytes=0 wbytes=799428608 rios=0 wios=80779 dbytes=0 dios=0",
+          "memory.current": 800133120,
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+          "memory.peak": 849936384,
+          "memory.pressure": {
+            "full": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 0
+            },
+            "some": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 0
+            }
+          },
+          "path": "/sys/fs/cgroup/lmyzmail-benchmark-root/run-3db17cb7-9ace-4f07-8256-dd59b33fcdce/workload",
+          "pids.current": 91
+        },
+        "filesystem": {
+          "maildir": {
+            "device": 1792,
+            "direct_entries": 4,
+            "enumeration_ns": 65930,
+            "exists": true,
+            "inode": 787870
+          },
+          "outbound_spool": {
+            "device": 1792,
+            "direct_entries": 926,
+            "enumeration_ns": 802685,
+            "exists": true,
+            "inode": 787875
+          },
+          "statvfs": {
+            "block_size": 4096,
+            "blocks_free": 4911493,
+            "inodes": 1310720,
+            "inodes_free": 1268238
+          },
+          "stress_temp": {
+            "direct_entries": 0,
+            "enumeration_ns": 45864,
+            "exists": false
+          }
+        },
+        "monotonic_ns": 51277646340124,
+        "postgres": {
+          "io": {
+            "cancelled_write_bytes": 450560,
+            "rchar": 24411203,
+            "read_bytes": 0,
+            "syscr": 10467,
+            "syscw": 32269,
+            "wchar": 688777146,
+            "write_bytes": 686669824
+          },
+          "masters": [
+            9063
+          ],
+          "processes": 72,
+          "roles": {
+            "autovacuum": 1,
+            "background": 1,
+            "checkpointer": 1,
+            "lmyzmail_test": 66,
+            "logical": 1,
+            "master": 1,
+            "walwriter": 1
+          },
+          "rss_kib": 7261504,
+          "wchan": {
+            "0": 8,
+            "do_epoll_wait": 53,
+            "futex_wait_queue": 10,
+            "submit_bio_wait": 1
+          }
+        },
+        "pressure": {
+          "cpu": {
+            "full": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 0
+            },
+            "some": {
+              "avg10": 9.39,
+              "avg300": 7.65,
+              "avg60": 11.07,
+              "total": 213006291
+            }
+          },
+          "io": {
+            "full": {
+              "avg10": 19.08,
+              "avg300": 7.75,
+              "avg60": 15.31,
+              "total": 2882684568
+            },
+            "some": {
+              "avg10": 21.97,
+              "avg300": 8.95,
+              "avg60": 17.65,
+              "total": 2914426079
+            }
+          },
+          "memory": {
+            "full": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 0
+            },
+            "some": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 0
+            }
+          }
+        },
+        "progress": {
+          "duration_ns": 161948112096,
+          "expected": 20000,
+          "observer_failures": 0,
+          "verified": 19082
+        }
+      },
+      "boundary_before": {
+        "candidate": {
+          "fd_count": 316,
+          "io": {
+            "cancelled_write_bytes": 591679488,
+            "rchar": 3944888697,
+            "read_bytes": 0,
+            "syscr": 775537,
+            "syscw": 473408,
+            "wchar": 1267976825,
+            "write_bytes": 1332576256
+          },
+          "status": {
+            "CoreDumping": 0,
+            "Cpus_allowed": 800000,
+            "Cpus_allowed_list": 23,
+            "FDSize": 1024,
+            "Gid": 1000,
+            "Groups": 4,
+            "HugetlbPages": 0,
+            "Kthread": 0,
+            "Mems_allowed_list": 0,
+            "NSpgid": 9084,
+            "NSpid": 9084,
+            "NSsid": 9084,
+            "NStgid": 9084,
+            "Ngid": 0,
+            "NoNewPrivs": 0,
+            "PPid": 9007,
+            "Pid": 9084,
+            "RssAnon": 494964,
+            "RssFile": 48000,
+            "RssShmem": 0,
+            "Seccomp": 2,
+            "Seccomp_filters": 1,
+            "ShdPnd": 0,
+            "SigBlk": 0,
+            "SigCgt": 100004442,
+            "SigIgn": 1000,
+            "SigPnd": 0,
+            "THP_enabled": 1,
+            "Tgid": 9084,
+            "Threads": 91,
+            "TracerPid": 0,
+            "Uid": 1000,
+            "Umask": 22,
+            "VmData": 740072,
+            "VmExe": 18960,
+            "VmHWM": 557656,
+            "VmLck": 0,
+            "VmLib": 11992,
+            "VmPTE": 1852,
+            "VmPeak": 6725104,
+            "VmPin": 0,
+            "VmRSS": 542964,
+            "VmSize": 6659040,
+            "VmStk": 132,
+            "VmSwap": 0,
+            "nonvoluntary_ctxt_switches": 1,
+            "voluntary_ctxt_switches": 24
+          },
+          "threads": {
+            "schedstat_run_ns": 121163168033,
+            "schedstat_slices": 1630592,
+            "schedstat_wait_ns": 241969364773,
+            "tasks": 91,
+            "wchan": {
+              "0": 1,
+              "futex_wait_queue": 90
+            }
+          }
+        },
+        "cgroup": {
+          "cpu.pressure": {
+            "full": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 744160
+            },
+            "some": {
+              "avg10": 24.18,
+              "avg300": 18.54,
+              "avg60": 37.69,
+              "total": 70822799
+            }
+          },
+          "cpu.stat": "usage_usec 120287898\nuser_usec 67623506\nsystem_usec 52664391\nnr_periods 1357\nnr_throttled 3\nthrottled_usec 3722\nnr_bursts 0\nburst_usec 0",
+          "io.pressure": {
+            "full": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 59891
+            },
+            "some": {
+              "avg10": 0.06,
+              "avg300": 0.01,
+              "avg60": 0.05,
+              "total": 214048
+            }
+          },
+          "io.stat": "8:48 rbytes=0 wbytes=700461056 rios=0 wios=1772 dbytes=0 dios=0\n7:0 rbytes=0 wbytes=700461056 rios=0 wios=70684 dbytes=0 dios=0",
+          "memory.current": 816791552,
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+          "memory.peak": 849936384,
+          "memory.pressure": {
+            "full": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 0
+            },
+            "some": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 0
+            }
+          },
+          "path": "/sys/fs/cgroup/lmyzmail-benchmark-root/run-3db17cb7-9ace-4f07-8256-dd59b33fcdce/workload",
+          "pids.current": 91
+        },
+        "filesystem": {
+          "maildir": {
+            "device": 1792,
+            "direct_entries": 4,
+            "enumeration_ns": 71379,
+            "exists": true,
+            "inode": 787870
+          },
+          "outbound_spool": {
+            "device": 1792,
+            "direct_entries": 5002,
+            "enumeration_ns": 3459110,
+            "exists": true,
+            "inode": 787875
+          },
+          "statvfs": {
+            "block_size": 4096,
+            "blocks_free": 4917016,
+            "inodes": 1310720,
+            "inodes_free": 1264162
+          },
+          "stress_temp": {
+            "direct_entries": 0,
+            "enumeration_ns": 53519,
+            "exists": false
+          }
+        },
+        "monotonic_ns": 51250976609868,
+        "postgres": {
+          "io": {
+            "cancelled_write_bytes": 225280,
+            "rchar": 24105874,
+            "read_bytes": 0,
+            "syscr": 9949,
+            "syscw": 29037,
+            "wchar": 597682186,
+            "write_bytes": 595918848
+          },
+          "masters": [
+            9063
+          ],
+          "processes": 72,
+          "roles": {
+            "autovacuum": 1,
+            "background": 1,
+            "checkpointer": 1,
+            "lmyzmail_test": 66,
+            "logical": 1,
+            "master": 1,
+            "walwriter": 1
+          },
+          "rss_kib": 6917056,
+          "wchan": {
+            "0": 5,
+            "do_epoll_wait": 42,
+            "folio_wait_bit_common": 1,
+            "futex_wait_queue": 24
+          }
+        },
+        "pressure": {
+          "cpu": {
+            "full": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 0
+            },
+            "some": {
+              "avg10": 9.45,
+              "avg300": 7.48,
+              "avg60": 11.98,
+              "total": 210373617
+            }
+          },
+          "io": {
+            "full": {
+              "avg10": 17.63,
+              "avg300": 6.69,
+              "avg60": 13.25,
+              "total": 2877434168
+            },
+            "some": {
+              "avg10": 20.35,
+              "avg300": 7.72,
+              "avg60": 15.25,
+              "total": 2908369976
+            }
+          },
+          "memory": {
+            "full": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 0
+            },
+            "some": {
+              "avg10": 0.0,
+              "avg300": 0.0,
+              "avg60": 0.0,
+              "total": 0
+            }
+          }
+        },
+        "progress": {
+          "duration_ns": 135278810004,
+          "expected": 20000,
+          "observer_failures": 0,
+          "verified": 15023
+        }
+      },
+      "duration_seconds": 26.441057,
+      "folded_sha256": "0c54de5d64d2ad62fbf24e41976ac6bedded6ea3f6b7391e4323e839c25125dd",
+      "fractions": [
+        0.75,
+        0.95
+      ],
+      "name": "late",
+      "perf_command": [
+        "/usr/lib/linux-tools/6.8.0-137-generic/perf",
+        "record",
+        "-e",
+        "cpu-clock",
+        "-F",
+        "99",
+        "--call-graph",
+        "fp",
+        "--inherit",
+        "-p",
+        "9084",
+        "-o",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-rust-progress-aligned-fsync-off-v161/late/perf.data"
+      ],
+      "perf_data_bytes": 455252,
+      "perf_data_sha256": "d4c88da1c76199d999bfb20de94b36d7195f412c4e643b0eeb400f078805973f",
+      "perf_frequency": 99,
+      "perf_stderr_tail": "[ perf record: Woken up 2 times to write data ]\n[ perf record: Captured and wrote 0.397 MB /home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-rust-progress-aligned-fsync-off-v161/late/perf.data (1877 samples) ]\n",
+      "postgres_sql_after": {
+        "activity": [
+          {
+            "backend_type": "autovacuum launcher",
+            "count": 1,
+            "state": "",
+            "wait_event": "AutoVacuumMain",
+            "wait_event_type": "Activity"
+          },
+          {
+            "backend_type": "background writer",
+            "count": 1,
+            "state": "",
+            "wait_event": "BgWriterMain",
+            "wait_event_type": "Activity"
+          },
+          {
+            "backend_type": "checkpointer",
+            "count": 1,
+            "state": "",
+            "wait_event": "CheckpointerMain",
+            "wait_event_type": "Activity"
+          },
+          {
+            "backend_type": "client backend",
+            "count": 1,
+            "state": "active",
+            "wait_event": "",
+            "wait_event_type": ""
+          },
+          {
+            "backend_type": "client backend",
+            "count": 1,
+            "state": "active",
+            "wait_event": "WALSync",
+            "wait_event_type": "IO"
+          },
+          {
+            "backend_type": "client backend",
+            "count": 53,
+            "state": "idle",
+            "wait_event": "ClientRead",
+            "wait_event_type": "Client"
+          },
+          {
+            "backend_type": "client backend",
+            "count": 6,
+            "state": "idle in transaction",
+            "wait_event": "",
+            "wait_event_type": ""
+          },
+          {
+            "backend_type": "client backend",
+            "count": 6,
+            "state": "idle in transaction",
+            "wait_event": "ClientRead",
+            "wait_event_type": "Client"
+          },
+          {
+            "backend_type": "logical replication launcher",
+            "count": 1,
+            "state": "",
+            "wait_event": "LogicalLauncherMain",
+            "wait_event_type": "Activity"
+          },
+          {
+            "backend_type": "walwriter",
+            "count": 1,
+            "state": "",
+            "wait_event": "WALWrite",
+            "wait_event_type": "LWLock"
+          }
+        ],
+        "available": true,
+        "bgwriter": {
+          "buffers_alloc": 11360,
+          "buffers_backend": 8192,
+          "buffers_backend_fsync": 0,
+          "buffers_checkpoint": 0,
+          "buffers_clean": 0,
+          "checkpoint_sync_time": 0,
+          "checkpoint_write_time": 0,
+          "checkpoints_req": 0,
+          "checkpoints_timed": 0,
+          "maxwritten_clean": 0,
+          "stats_reset": "2026-08-20T03:18:44.622243+00:00"
+        },
+        "database": {
+          "active_time": 1944525.125,
+          "blk_read_time": 0,
+          "blk_write_time": 0,
+          "blks_hit": 18301510,
+          "blks_read": 33,
+          "deadlocks": 0,
+          "idle_in_transaction_time": 1433027.146,
+          "numbackends": 67,
+          "session_time": 10551884.791,
+          "sessions": 74,
+          "sessions_abandoned": 0,
+          "sessions_fatal": 0,
+          "sessions_killed": 0,
+          "stats_reset": null,
+          "temp_bytes": 0,
+          "temp_files": 0,
+          "xact_commit": 666589,
+          "xact_rollback": 0
+        },
+        "master_pid": 9063,
+        "port": 35771,
+        "wal": {
+          "stats_reset": "2026-08-20T03:18:44.622243+00:00",
+          "wal_buffers_full": 22,
+          "wal_bytes": 218908044,
+          "wal_fpi": 1527,
+          "wal_records": 1970321,
+          "wal_sync": 20627,
+          "wal_sync_time": 0,
+          "wal_write": 22036,
+          "wal_write_time": 0
+        }
+      },
+      "postgres_sql_before": {
+        "activity": [
+          {
+            "backend_type": "autovacuum launcher",
+            "count": 1,
+            "state": "",
+            "wait_event": "AutoVacuumMain",
+            "wait_event_type": "Activity"
+          },
+          {
+            "backend_type": "background writer",
+            "count": 1,
+            "state": "",
+            "wait_event": "BgWriterMain",
+            "wait_event_type": "Activity"
+          },
+          {
+            "backend_type": "checkpointer",
+            "count": 1,
+            "state": "",
+            "wait_event": "CheckpointerMain",
+            "wait_event_type": "Activity"
+          },
+          {
+            "backend_type": "client backend",
+            "count": 2,
+            "state": "active",
+            "wait_event": "",
+            "wait_event_type": ""
+          },
+          {
+            "backend_type": "client backend",
+            "count": 5,
+            "state": "active",
+            "wait_event": "ClientRead",
+            "wait_event_type": "Client"
+          },
+          {
+            "backend_type": "client backend",
+            "count": 1,
+            "state": "active",
+            "wait_event": "WALSync",
+            "wait_event_type": "IO"
+          },
+          {
+            "backend_type": "client backend",
+            "count": 23,
+            "state": "active",
+            "wait_event": "WALWrite",
+            "wait_event_type": "LWLock"
+          },
+          {
+            "backend_type": "client backend",
+            "count": 1,
+            "state": "idle",
+            "wait_event": "",
+            "wait_event_type": ""
+          },
+          {
+            "backend_type": "client backend",
+            "count": 31,
+            "state": "idle",
+            "wait_event": "ClientRead",
+            "wait_event_type": "Client"
+          },
+          {
+            "backend_type": "client backend",
+            "count": 3,
+            "state": "idle in transaction",
+            "wait_event": "ClientRead",
+            "wait_event_type": "Client"
+          },
+          {
+            "backend_type": "client backend",
+            "count": 1,
+            "state": "idle in transaction",
+            "wait_event": "WALWrite",
+            "wait_event_type": "LWLock"
+          },
+          {
+            "backend_type": "logical replication launcher",
+            "count": 1,
+            "state": "",
+            "wait_event": "LogicalLauncherMain",
+            "wait_event_type": "Activity"
+          },
+          {
+            "backend_type": "walwriter",
+            "count": 1,
+            "state": "",
+            "wait_event": "WALWrite",
+            "wait_event_type": "LWLock"
+          }
+        ],
+        "available": true,
+        "bgwriter": {
+          "buffers_alloc": 10718,
+          "buffers_backend": 8192,
+          "buffers_backend_fsync": 0,
+          "buffers_checkpoint": 0,
+          "buffers_clean": 0,
+          "checkpoint_sync_time": 0,
+          "checkpoint_write_time": 0,
+          "checkpoints_req": 0,
+          "checkpoints_timed": 0,
+          "maxwritten_clean": 0,
+          "stats_reset": "2026-08-20T03:18:44.622243+00:00"
+        },
+        "database": {
+          "active_time": 1383301.208,
+          "blk_read_time": 0,
+          "blk_write_time": 0,
+          "blks_hit": 14732742,
+          "blks_read": 33,
+          "deadlocks": 0,
+          "idle_in_transaction_time": 1277929.637,
+          "numbackends": 67,
+          "session_time": 8789303.122,
+          "sessions": 73,
+          "sessions_abandoned": 0,
+          "sessions_fatal": 0,
+          "sessions_killed": 0,
+          "stats_reset": null,
+          "temp_bytes": 0,
+          "temp_files": 0,
+          "xact_commit": 525525,
+          "xact_rollback": 0
+        },
+        "master_pid": 9063,
+        "port": 35771,
+        "wal": {
+          "stats_reset": "2026-08-20T03:18:44.622243+00:00",
+          "wal_buffers_full": 22,
+          "wal_bytes": 186724090,
+          "wal_fpi": 1522,
+          "wal_records": 1636810,
+          "wal_sync": 18324,
+          "wal_sync_time": 0,
+          "wal_write": 19655,
+          "wal_write_time": 0
+        }
+      },
+      "progress_after": {
+        "duration_ns": 161309358852,
+        "expected": 20000,
+        "observer_failures": 0,
+        "verified": 19010
+      },
+      "progress_before": {
+        "duration_ns": 135278810004,
+        "expected": 20000,
+        "observer_failures": 0,
+        "verified": 15023
+      },
+      "sample_count": 96,
+      "sample_interval_seconds": 0.25,
+      "samples_sha256": "b781ee9d152e0fb3e566b395c1f8f28d410b5a53172d07c29dc5d83eeeafe660",
+      "stack_samples": 1877,
+      "stacks_sha256": "dc4a59b59664a3033a5bb17c895315aebf9217f27e2b960ebc39a682973ad6cb",
+      "thresholds": [
+        15000,
+        19000
+      ],
+      "tree_after": {
+        "allocated_bytes": 496291840,
+        "directories": 19,
+        "duration_ns": 230684086,
+        "files": 41008,
+        "logical_bytes": 459461365,
+        "maximum_direct_entries": 10001,
+        "maximum_direct_entries_path": "v2/c-7374726573732D73656E646572406C6D797A2E6E6574/z-00000016/sent/1",
+        "symlinks": 0,
+        "vanished_entries": 0
+      },
+      "tree_before": {
+        "allocated_bytes": 512372736,
+        "directories": 19,
+        "duration_ns": 212289465,
+        "files": 45030,
+        "logical_bytes": 457626115,
+        "maximum_direct_entries": 10001,
+        "maximum_direct_entries_path": "v2/c-7374726573732D73656E646572406C6D797A2E6E6574/z-00000016/sent/1",
+        "symlinks": 0,
+        "vanished_entries": 1
+      },
+      "unique_stacks": 1265
+    }
+  ],
+  "workspace": "/run/lmyzmail-benchmark-root/mounts/3db17cb7-9ace-4f07-8256-dd59b33fcdce/lmyzmail-blackbox-531j4xwg"
+}
