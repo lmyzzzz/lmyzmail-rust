@@ -3,6 +3,7 @@ use std::{
     fmt,
     future::Future,
     path::{Component, Path},
+    sync::Arc,
     time::Duration,
 };
 
@@ -12,7 +13,10 @@ use getrandom::fill as fill_random;
 use idna::domain_to_ascii_strict;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
-use tokio::time::{Instant, timeout_at};
+use tokio::{
+    sync::{Mutex, MutexGuard},
+    time::{Instant, timeout_at},
+};
 use tokio_postgres::{CancelToken, NoTls};
 
 use crate::coordinator_observer::{CoordinatorStage, StageTimer};
@@ -30,6 +34,7 @@ const MAX_DOMAIN_ARCHIVE_BYTES: usize = 2 * 1024 * 1024;
 const MAX_RECIPIENTS: usize = 1_000;
 const MAX_RECIPIENT_ADDRESS_BYTES: usize = 320;
 const MAX_RECIPIENT_DETAIL_BYTES: usize = 2_000;
+const LEGACY_MUTATION_LOCK_SHARDS: usize = 1_024;
 const DELIVERY_LEDGER_MIGRATION_LOCK: i64 = 0x4c4d_595a_4c44_4752;
 const LEGACY_REDIS_TAKEOVER_LOCK: i64 = 0x4c4d_595a_5254_4b56;
 const OUTBOUND_ID_ALLOCATION_LOCK: i64 = 0x4c4d_595a_4f49_4441;
@@ -64,6 +69,11 @@ enum LegacyRecipientJson {
 pub struct PostgresDeliveryState {
     pool: Pool,
     operation_timeout: Duration,
+    legacy_mutation_locks: Arc<[Mutex<()>; LEGACY_MUTATION_LOCK_SHARDS]>,
+}
+
+fn new_legacy_mutation_locks() -> Arc<[Mutex<()>; LEGACY_MUTATION_LOCK_SHARDS]> {
+    Arc::new(std::array::from_fn(|_| Mutex::new(())))
 }
 
 #[derive(Clone, Debug)]
@@ -616,6 +626,7 @@ impl PostgresDeliveryState {
         Self {
             pool,
             operation_timeout: DATABASE_TIMEOUT,
+            legacy_mutation_locks: new_legacy_mutation_locks(),
         }
     }
 
@@ -631,7 +642,13 @@ impl PostgresDeliveryState {
         Ok(Self {
             pool,
             operation_timeout,
+            legacy_mutation_locks: new_legacy_mutation_locks(),
         })
+    }
+
+    async fn legacy_mutation_guard(&self, task_id: i64) -> MutexGuard<'_, ()> {
+        let shard = (task_id as u64 as usize) % LEGACY_MUTATION_LOCK_SHARDS;
+        self.legacy_mutation_locks[shard].lock().await
     }
 
     pub async fn initialize_schema(&self) -> Result<(), DeliveryStateError> {
@@ -1255,6 +1272,7 @@ impl PostgresDeliveryState {
         validate_outbound_spool_identity(task_id, spool_path)?;
         let now = postgres_timestamp(now)?;
         let deadline = Instant::now() + self.operation_timeout;
+        let _legacy_mutation_guard = self.legacy_mutation_guard(task_id).await;
         let client = self.client(deadline).await?;
         let cancel_token = client.cancel_token();
         let statement_timeout = postgres_statement_timeout(deadline);
@@ -1367,6 +1385,7 @@ impl PostgresDeliveryState {
     ) -> Result<bool, DeliveryStateError> {
         validate_outbound_spool_identity(task_id, spool_path)?;
         let deadline = Instant::now() + self.operation_timeout;
+        let _legacy_mutation_guard = self.legacy_mutation_guard(task_id).await;
         let client = self.client(deadline).await?;
         let cancel_token = client.cancel_token();
         let statement_timeout = postgres_statement_timeout(deadline);
@@ -1446,6 +1465,7 @@ impl PostgresDeliveryState {
         })?;
         let content_sha256 = task.content_authority.content_sha256.as_slice();
         let now = postgres_timestamp(now)?;
+        let _legacy_mutation_guard = self.legacy_mutation_guard(task.task_id).await;
         let deadline = Instant::now() + self.operation_timeout;
         let mut client = self.client(deadline).await?;
         let cancel_token = client.cancel_token();
@@ -1596,6 +1616,7 @@ impl PostgresDeliveryState {
         let created_at = postgres_timestamp(archive.created_at)?;
         let updated_at = postgres_timestamp(archive.updated_at)?;
         let status = archive.status.database_value();
+        let _legacy_mutation_guard = self.legacy_mutation_guard(archive.task_id).await;
         let deadline = Instant::now() + self.operation_timeout;
         let mut client = self.client(deadline).await?;
         let cancel_token = client.cancel_token();
@@ -1710,6 +1731,7 @@ impl PostgresDeliveryState {
         let sent_at = update.sent_at.map(postgres_timestamp).transpose()?;
         let updated_at = postgres_timestamp(update.updated_at)?;
         let status = update.status.database_value();
+        let _legacy_mutation_guard = self.legacy_mutation_guard(update.task_id).await;
         let deadline = Instant::now() + self.operation_timeout;
         let mut client = self.client(deadline).await?;
         let cancel_token = client.cancel_token();
@@ -1796,6 +1818,7 @@ impl PostgresDeliveryState {
         let now = postgres_timestamp(now)?;
         let roster_sha256 = roster_fingerprint(recipients);
         let recipient_count = recipients.len() as i32;
+        let _legacy_mutation_guard = self.legacy_mutation_guard(claim.task_id).await;
         let deadline = Instant::now() + self.operation_timeout;
         let mut client = self.client(deadline).await?;
         let cancel_token = client.cancel_token();
@@ -2097,6 +2120,7 @@ impl PostgresDeliveryState {
         validate_ledger_claim(claim)?;
         validate_prepared_outcomes(outcomes)?;
         let now = postgres_timestamp(now)?;
+        let _legacy_mutation_guard = self.legacy_mutation_guard(claim.task_id).await;
         let deadline = Instant::now() + self.operation_timeout;
         let mut client = self.client(deadline).await?;
         let cancel_token = client.cancel_token();
@@ -2229,6 +2253,7 @@ impl PostgresDeliveryState {
         let detail = bounded_bytes(detail, MAX_RECIPIENT_DETAIL_BYTES);
         let state = status.ledger_state().database_value();
         let smtp_code = i32::from(smtp_code);
+        let _legacy_mutation_guard = self.legacy_mutation_guard(claim.task_id).await;
         let deadline = Instant::now() + self.operation_timeout;
         let mut client = {
             let _timer = StageTimer::start(CoordinatorStage::ResultCheckpointPool);
@@ -2320,6 +2345,7 @@ impl PostgresDeliveryState {
         }
         let now = postgres_timestamp(now)?;
         let detail = bounded_bytes(detail, MAX_RECIPIENT_DETAIL_BYTES);
+        let _legacy_mutation_guard = self.legacy_mutation_guard(claim.task_id).await;
         let deadline = Instant::now() + self.operation_timeout;
         let mut client = self.client(deadline).await?;
         let cancel_token = client.cancel_token();
@@ -2381,6 +2407,7 @@ impl PostgresDeliveryState {
                 "retry deadline must be in the future",
             ));
         }
+        let _legacy_mutation_guard = self.legacy_mutation_guard(claim.task_id).await;
         let deadline = Instant::now() + self.operation_timeout;
         let mut client = self.client(deadline).await?;
         let cancel_token = client.cancel_token();
@@ -2557,6 +2584,7 @@ impl PostgresDeliveryState {
         let task_id = attempt.task_id;
         let owner_token = attempt.owner_token.clone();
         let now = postgres_timestamp(now)?;
+        let _legacy_mutation_guard = self.legacy_mutation_guard(task_id).await;
         let deadline = Instant::now() + self.operation_timeout;
         let mut client = self.client(deadline).await?;
         let cancel_token = client.cancel_token();
@@ -2667,6 +2695,7 @@ impl PostgresDeliveryState {
     ) -> Result<bool, DeliveryStateError> {
         validate_claim(claim)?;
         let now = postgres_timestamp(now)?;
+        let _legacy_mutation_guard = self.legacy_mutation_guard(claim.task_id).await;
         let deadline = Instant::now() + self.operation_timeout;
         let mut client = self.client(deadline).await?;
         let cancel_token = client.cancel_token();
@@ -2696,6 +2725,7 @@ impl PostgresDeliveryState {
     ) -> Result<bool, DeliveryStateError> {
         validate_claim(claim)?;
         let now = postgres_timestamp(now)?;
+        let _legacy_mutation_guard = self.legacy_mutation_guard(claim.task_id).await;
         let deadline = Instant::now() + self.operation_timeout;
         let mut client = self.client(deadline).await?;
         let cancel_token = client.cancel_token();
@@ -2829,6 +2859,7 @@ impl PostgresDeliveryState {
             ));
         }
         let last_error = bounded_error(last_error);
+        let _legacy_mutation_guard = self.legacy_mutation_guard(claim.task_id).await;
         let deadline = Instant::now() + self.operation_timeout;
         let mut client = self.client(deadline).await?;
         let cancel_token = client.cancel_token();
@@ -2883,6 +2914,7 @@ impl PostgresDeliveryState {
         let sent_domains_json = serialize_optional(sent_domains)?;
         let failed_domains_json = serialize_optional(failed_domains)?;
         let last_error = last_error.map(bounded_error);
+        let _legacy_mutation_guard = self.legacy_mutation_guard(claim.task_id).await;
         let deadline = Instant::now() + self.operation_timeout;
         let mut client = self.client(deadline).await?;
         let cancel_token = client.cancel_token();
@@ -2935,6 +2967,7 @@ impl PostgresDeliveryState {
                 "heartbeat cutoff must precede recovery time",
             ));
         }
+        let _legacy_mutation_guard = self.legacy_mutation_guard(task_id).await;
         let deadline = Instant::now() + self.operation_timeout;
         let mut client = self.client(deadline).await?;
         let cancel_token = client.cancel_token();
@@ -4621,6 +4654,113 @@ mod tests {
             let state = PostgresDeliveryState::new(pool.clone());
             state.initialize_schema().await.unwrap();
             (process, pool, state)
+        }
+
+        #[tokio::test]
+        async fn local_ledger_mutation_cannot_starve_its_postgresql_heartbeat() {
+            let (_process, pool, state) = setup().await;
+            let now = timestamp(1_786_400_000);
+            let task_id = 7_301_i64;
+            let client = pool.get().await.unwrap();
+            client
+                .execute(
+                    "INSERT INTO outbound_mail_queue
+                     (id,sender_address,recipients_json,status,retry_count,max_retries,
+                      next_retry_at,created_at,updated_at)
+                     VALUES ($1,'qa@example.test','[\"user@remote.test\"]',
+                             'PENDING',0,3,$2,$2,$2)",
+                    &[&task_id, &now],
+                )
+                .await
+                .unwrap();
+            drop(client);
+
+            let database_claim = state
+                .claim(task_id, "worker-a:heartbeat-coordination", now)
+                .await
+                .unwrap()
+                .unwrap();
+            let ledger_claim = state
+                .begin_attempt(&database_claim, &["user@remote.test".to_owned()], now)
+                .await
+                .unwrap();
+
+            let observer = pool.get().await.unwrap();
+            observer
+                .batch_execute(
+                    "CREATE FUNCTION lmyzmail_test_hold_recipient_update()
+                     RETURNS trigger LANGUAGE plpgsql AS $$
+                     BEGIN
+                         PERFORM pg_sleep(0.5);
+                         RETURN NEW;
+                     END;
+                     $$;
+                     CREATE TRIGGER lmyzmail_test_hold_recipient_update
+                     BEFORE UPDATE ON lmyzmail_outbound_delivery_recipient
+                     FOR EACH ROW EXECUTE FUNCTION lmyzmail_test_hold_recipient_update();",
+                )
+                .await
+                .unwrap();
+
+            let mutation_state = state.clone();
+            let mutation_claim = ledger_claim.clone();
+            let mutation = tokio::spawn(async move {
+                mutation_state
+                    .checkpoint_prepared(
+                        &mutation_claim,
+                        &[PreparedRecipientCheckpoint {
+                            ordinal: 0,
+                            recipient: "user@remote.test".to_owned(),
+                            status: PreparedRecipientStatus::Accepted,
+                            smtp_code: 250,
+                            detail: "250 accepted".to_owned(),
+                        }],
+                        now + chrono::Duration::seconds(1),
+                    )
+                    .await
+            });
+
+            let sleep_deadline = Instant::now() + Duration::from_secs(2);
+            loop {
+                let sleeping: bool = observer
+                    .query_one(
+                        "SELECT EXISTS(
+                             SELECT 1 FROM pg_stat_activity
+                             WHERE pid<>pg_backend_pid()
+                               AND state='active'
+                               AND wait_event='PgSleep'
+                               AND query LIKE '%UPDATE lmyzmail_outbound_delivery_recipient%'
+                         )",
+                        &[],
+                    )
+                    .await
+                    .unwrap()
+                    .get(0);
+                if sleeping {
+                    break;
+                }
+                assert!(
+                    Instant::now() < sleep_deadline,
+                    "ledger mutation never held the legacy row during its slow checkpoint"
+                );
+                tokio::time::sleep(Duration::from_millis(2)).await;
+            }
+
+            let mut heartbeat_state = state.clone();
+            heartbeat_state.operation_timeout = Duration::from_millis(100);
+            let heartbeat_started = Instant::now();
+            assert!(
+                heartbeat_state
+                    .heartbeat(&database_claim, now + chrono::Duration::seconds(2),)
+                    .await
+                    .unwrap(),
+                "a same-process ledger row lock must not be reported as a lost heartbeat"
+            );
+            assert!(
+                heartbeat_started.elapsed() > Duration::from_millis(250),
+                "the heartbeat did not wait behind the observed local mutation"
+            );
+            assert!(mutation.await.unwrap().unwrap());
         }
 
         async fn insert_terminal(pool: &Pool, task_id: i64, sender: &str, now: DateTime<Utc>) {

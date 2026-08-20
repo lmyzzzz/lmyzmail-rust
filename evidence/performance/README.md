@@ -2574,3 +2574,35 @@ ABORT with passed cleanup and no residual cgroup, process, mount, or loop
 device. Because the runner could not publish its provisional artifact after
 that abort, this record is diagnostic evidence only and cannot satisfy any
 stability or throughput qualification gate.
+
+Formal candidate-stability attempts v7 and v8 did not reach a product workload.
+Run `6c6296f8-fed5-4a8a-b353-0057477b7a5f` was invalidated when a root-UID
+diagnostic was correctly rejected by the same-UID proxy observer boundary. Run
+`3f825c56-ff0a-4d9c-82cb-6128e94c10e9` was rejected before workload start
+because its one-million-message headroom calibration had 10 KB direct/proxied
+spreads of `0.2483/0.2511`, above the unchanged `0.20` gate. Neither attempt is
+a product stability failure and neither supports a throughput claim. Their
+create-only negative records and root cleanup receipts are the formal-v7
+observer-contamination and formal-v8 headroom-rejection text artifacts.
+
+Formal v9, run `4b6f4414-812d-4521-8a1a-05af75a037b9`, is product stability
+failure 1. At approximately 49,613 of 250,000 messages it had zero duplicates,
+retries, and proxy connection failures, but two SMTP sessions half-closed with
+incomplete DATA bodies. Candidate and PostgreSQL logs show about 16 heartbeat
+UPDATE statements timing out while waiting on `outbound_mail_queue` tuple locks
+held by same-task delivery-ledger mutations. Memory high/max/OOM counters and
+CPU throttle counters remained zero, cgroup memory was approximately 3.19 GiB,
+and the proxy stayed healthy. Recovery cleanup passed with no lazy unmount or
+residual run resource. The formal-v9 heartbeat-lock-failure text artifact and
+root receipt are negative evidence only; they authorize a targeted concurrency
+fix but no throughput or stability claim.
+
+Formal v10, launcher run `51bb86d2-aeb7-475b-9768-9b8737bafd76`, is product
+stability failure 2. The single unbatched 250,000-message 1 KB invocation
+recorded five PostgreSQL heartbeat failures and ten `legacy projection outcome
+is inconsistent` failures. Automatic cleanup then rejected the unchanged
+rollback-free gate because `database_xact_rollback` increased by 44. The
+runner aborted the formal arm and published no qualified JSON artifact. Root
+cleanup passed with no lazy unmount or recovered orphan. The create-only
+negative record is
+`smtp-endpoint-candidate-stability-fsync-off-1kb-formal-v10-rollback-failure.txt`.

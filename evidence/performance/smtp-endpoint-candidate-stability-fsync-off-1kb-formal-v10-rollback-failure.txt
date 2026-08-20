@@ -1,0 +1,10 @@
+NEGATIVE EVIDENCE ONLY - PRODUCT STABILITY FAILURE 2 OF AT MOST 10
+
+Launcher run ID: 51bb86d2-aeb7-475b-9768-9b8737bafd76
+Profile: candidate-stability, Rust, 1 KB, filesystem fsync off
+Candidate SHA-256: c11064475b0c8acd5652ef6eb58bdcff59b84e0e555f02d1b78741a2374b8aa8
+Headroom attestation SHA-256: 6f999c0583eb06732cfbe2b18668175091248baabcc50b11464f3233a563a71a
+
+The single original stress endpoint invocation requested 250,000 1 KB messages with no harness batching under the formal 20 GiB, 500 MB/s, one-workload-CPU limits. Candidate logs recorded five PostgreSQL delivery-heartbeat failures and ten legacy projection reconciliation failures.
+
+Automatic cleanup failed the unchanged rollback-free gate: database_xact_rollback increased by 44. The runner aborted the formal arm and published no qualification JSON. Root cleanup passed with lazy_unmount=0 and no recovered orphan. This record is negative evidence only.
