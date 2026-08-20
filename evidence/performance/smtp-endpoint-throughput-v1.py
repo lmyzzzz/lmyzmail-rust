@@ -107,6 +107,9 @@ MINIMUM_CLEAR_IMPROVEMENT = 1.20
 MINIMUM_PROXY_HEADROOM_RATIO = 2.0
 MAXIMUM_ABBA_ARM_RELATIVE_RANGE = 0.20
 MAXIMUM_WITHIN_ARM_RELATIVE_RANGE = 0.30
+CANDIDATE_STABILITY_INITIAL_MESSAGES = 250_000
+CANDIDATE_STABILITY_CONTINUATION_MESSAGES = 100_000
+MINIMUM_CONTINUATION_TO_INITIAL_RATE_RATIO = 0.90
 MAXIMUM_COORDINATOR_DIAGNOSTIC_STAGES = 8
 MAXIMUM_COORDINATOR_SELECTED_DIAGNOSTIC_STAGES = 16
 COORDINATOR_DIAGNOSTIC_STAGES_ENV = "LMYZMAIL_COORDINATOR_DIAGNOSTIC_STAGES"
@@ -189,9 +192,7 @@ MAXIMUM_RECORDED_TEMPERATURE_MILLICELSIUS = 95_000
 EXTERNAL_PREREQUISITE_PROFILE = "lmyzmail-smtp-throughput-external-prerequisites-v1"
 BENCHMARK_PROFILE = "mixed-single-invocation-smtp-endpoint-throughput-v2"
 JAVA_SMALL_BASELINE_PROFILE = "java-small-single-invocation-smtp-endpoint-baseline-v1"
-CANDIDATE_STABILITY_PROFILE = (
-    "rust-candidate-single-invocation-smtp-endpoint-stability-v1"
-)
+CANDIDATE_STABILITY_PROFILE = "rust-candidate-continuation-smtp-endpoint-stability-v2"
 JAVA_FROZEN_CONFIG_RELATIVE = Path(
     "evidence/freeze/java-oracle/application.properties.redacted"
 )
@@ -1390,6 +1391,17 @@ def _runtime_roots(runtime: Any) -> tuple[int, ...]:
     return tuple(_runtime_root_roles(runtime).values())
 
 
+def _runtime_application_identity(runtime: Any) -> dict[str, int]:
+    pid = _runtime_root_roles(runtime)["application"]
+    executable = Path(f"/proc/{pid}/exe").stat()
+    return {
+        "pid": pid,
+        "start_time_ticks": _process_start_time(pid),
+        "executable_device": executable.st_dev,
+        "executable_inode": executable.st_ino,
+    }
+
+
 def _unified_cgroup(pid: int) -> str:
     for line in Path(f"/proc/{pid}/cgroup").read_text(encoding="ascii").splitlines():
         if line.startswith("0::"):
@@ -2204,6 +2216,55 @@ def _within_arm_throughput_stability(
         "progress_samples_sha256": hashlib.sha256(canonical_bytes).hexdigest(),
         "progress_samples": canonical,
         "passed": passed,
+    }
+
+
+def _observed_prefix_throughput(
+    measurement: dict[str, Any], target_messages: int
+) -> dict[str, Any]:
+    if target_messages <= 0:
+        raise ValueError("prefix throughput target must be positive")
+    smtp = measurement.get("smtp")
+    stability = (
+        smtp.get("within_arm_throughput_stability")
+        if isinstance(smtp, dict)
+        else None
+    )
+    samples = stability.get("progress_samples") if isinstance(stability, dict) else None
+    expected = int(smtp.get("expected", -1)) if isinstance(smtp, dict) else -1
+    if not isinstance(samples, list) or expected < target_messages:
+        raise RuntimeError("measurement omitted the requested prefix progress evidence")
+    previous_verified = -1
+    previous_duration_ns = -1
+    boundary: dict[str, int] | None = None
+    for raw in samples:
+        if not isinstance(raw, dict):
+            raise RuntimeError("prefix progress sample is not an object")
+        verified = int(raw.get("verified", -1))
+        duration_ns = int(raw.get("duration_ns", -1))
+        if verified < previous_verified or duration_ns < previous_duration_ns:
+            raise RuntimeError("prefix progress evidence was not monotonic")
+        if verified > expected:
+            raise RuntimeError("prefix progress evidence exceeded the measurement")
+        previous_verified = verified
+        previous_duration_ns = duration_ns
+        if verified >= target_messages:
+            boundary = {"verified": verified, "duration_ns": duration_ns}
+            break
+    if boundary is None or boundary["duration_ns"] <= 0:
+        raise RuntimeError("prefix progress evidence never reached its target")
+    rate = boundary["verified"] * 1_000_000_000 / boundary["duration_ns"]
+    if not math.isfinite(rate) or rate <= 0:
+        raise RuntimeError("prefix progress throughput was not positive and finite")
+    return {
+        "target_messages": target_messages,
+        "observed_boundary_messages": boundary["verified"],
+        "boundary_overshoot_messages": boundary["verified"] - target_messages,
+        "duration_ns": boundary["duration_ns"],
+        "messages_per_second": round(rate, 6),
+        "boundary_method": (
+            "first_monotonic_proxy_progress_sample_at_or_above_target"
+        ),
     }
 
 
@@ -7596,7 +7657,19 @@ def _run_target_tier(
     quota_mount_root: Path | None,
     checkpoint_event: Callable[[dict[str, Any]], None],
     rust_filesystem_fsync: str | None = "on",
+    same_process_continuation_messages: int = 0,
 ) -> dict[str, Any]:
+    if same_process_continuation_messages < 0:
+        raise ValueError("same-process continuation count must not be negative")
+    if same_process_continuation_messages not in (
+        0,
+        CANDIDATE_STABILITY_CONTINUATION_MESSAGES,
+    ):
+        raise ValueError("same-process continuation count changed")
+    if same_process_continuation_messages and (
+        target != "rust-candidate" or plan.label not in {"1KB", "10KB"}
+    ):
+        raise ValueError("same-process continuation is limited to Rust small tiers")
     artifact_before = _verify_target_artifact(target, started_attestation, "before")
     checkpoint_event(
         {
@@ -7625,6 +7698,13 @@ def _run_target_tier(
     artifact_after: dict[str, Any] | None = None
     quota_placement: dict[str, Any] | None = None
     dkim_fixture: dict[str, Any] | None = None
+    runtime_identity_before: dict[str, int] | None = None
+    runtime_identity_after_initial: dict[str, int] | None = None
+    continuation_record: dict[str, Any] | None = None
+    continuation_clean_state: dict[str, Any] | None = None
+    continuation_gate: dict[str, Any] | None = None
+    measurement_proxy_identity: dict[str, str] | None = None
+    continuation_proxy_identity: dict[str, str] | None = None
     runtime_started = False
     try:
         runtime.start()
@@ -7673,6 +7753,8 @@ def _run_target_tier(
             raise RuntimeError(
                 f"isolated runtime did not start cleanly: {initial_state}"
             )
+        if target == "rust-candidate":
+            runtime_identity_before = _runtime_application_identity(runtime)
         proxy_run_id = (
             f"{target}-{plan.label.lower()}-arm-{arm_ordinal}-{uuid.uuid4().hex}"
         )
@@ -7706,6 +7788,15 @@ def _run_target_tier(
                 rust_filesystem_fsync if target == "rust-candidate" else None
             ),
         )
+        measurement_proxy_identity = {
+            "run_id": proxy_run_id,
+            "binary_sha256": proxy.binary_sha256,
+            "source_tree_sha256": started_attestation[
+                "benchmark_proxy_source_tree_sha256"
+            ],
+        }
+        if target == "rust-candidate":
+            runtime_identity_after_initial = _runtime_application_identity(runtime)
         throughput = float(record["smtp"]["throughput_messages_per_second"])
         checkpoint_event(
             {
@@ -7745,6 +7836,116 @@ def _run_target_tier(
                 ],
             }
         )
+        if same_process_continuation_messages:
+            proxy.close()
+            proxy = None
+            continuation_clean_state = _cleanup_state(
+                runtime, "before_same_process_continuation"
+            )
+            if not _state_is_clean(continuation_clean_state):
+                raise RuntimeError(
+                    "runtime was not clean before same-process continuation: "
+                    f"{continuation_clean_state}"
+                )
+            runtime_identity_before_continuation = _runtime_application_identity(runtime)
+            continuation_proxy_run_id = (
+                f"{target}-{plan.label.lower()}-continuation-{uuid.uuid4().hex}"
+            )
+            proxy = RustSmtpProxy(
+                runtime,
+                binary=BENCHMARK_PROXY_BINARY,
+                expected_sha256=str(
+                    started_attestation["benchmark_proxy_release_sha256"]
+                ),
+                run_id=continuation_proxy_run_id,
+                control_root=quota_mount_root,
+            )
+            continuation_record = _run_attested_round(
+                runtime,
+                proxy,
+                layout,
+                target=target,
+                tier=plan.label,
+                phase="same-process-continuation",
+                ordinal=arm_ordinal,
+                mode="PRODUCTION",
+                count=same_process_continuation_messages,
+                message_bytes=plan.message_bytes,
+                disk_budget_bytes=disk_budget_bytes,
+                measured=True,
+                started_attestation=started_attestation,
+                checkpoint_event=checkpoint_event,
+                persistence_gate_required=False,
+                rust_filesystem_fsync=rust_filesystem_fsync,
+            )
+            continuation_proxy_identity = {
+                "run_id": continuation_proxy_run_id,
+                "binary_sha256": proxy.binary_sha256,
+                "source_tree_sha256": started_attestation[
+                    "benchmark_proxy_source_tree_sha256"
+                ],
+            }
+            runtime_identity_after_continuation = _runtime_application_identity(runtime)
+            initial_prefix = _observed_prefix_throughput(
+                record, CANDIDATE_STABILITY_CONTINUATION_MESSAGES
+            )
+            continuation_rate = _finite_number(
+                continuation_record.get("smtp", {}).get(
+                    "throughput_messages_per_second"
+                ),
+                f"{plan.label} same-process continuation throughput",
+                positive=True,
+            )
+            initial_rate = _finite_number(
+                initial_prefix["messages_per_second"],
+                f"{plan.label} initial prefix throughput",
+                positive=True,
+            )
+            rate_ratio = continuation_rate / initial_rate
+            identities = [
+                runtime_identity_before,
+                runtime_identity_after_initial,
+                runtime_identity_before_continuation,
+                runtime_identity_after_continuation,
+            ]
+            identity_stable = all(
+                identity == identities[0] for identity in identities[1:]
+            )
+            continuation_gate = {
+                "required": True,
+                "messages": same_process_continuation_messages,
+                "fresh_proxy": True,
+                "candidate_runtime_restarted": not identity_stable,
+                "candidate_runtime_identity_stable": identity_stable,
+                "runtime_identities": {
+                    "before_initial": runtime_identity_before,
+                    "after_initial": runtime_identity_after_initial,
+                    "before_continuation": runtime_identity_before_continuation,
+                    "after_continuation": runtime_identity_after_continuation,
+                },
+                "initial_prefix": initial_prefix,
+                "continuation_messages_per_second": round(continuation_rate, 6),
+                "continuation_to_initial_prefix_ratio": round(rate_ratio, 6),
+                "minimum_ratio": MINIMUM_CONTINUATION_TO_INITIAL_RATE_RATIO,
+                "passed": bool(
+                    identity_stable
+                    and rate_ratio >= MINIMUM_CONTINUATION_TO_INITIAL_RATE_RATIO
+                ),
+            }
+            checkpoint_event(
+                {
+                    "event": "same_process_continuation_complete",
+                    "target": target,
+                    "tier": plan.label,
+                    "arm_ordinal": arm_ordinal,
+                    "messages": same_process_continuation_messages,
+                    "throughput_messages_per_second": round(continuation_rate, 6),
+                    "continuation_to_initial_prefix_ratio": round(rate_ratio, 6),
+                    "minimum_ratio": MINIMUM_CONTINUATION_TO_INITIAL_RATE_RATIO,
+                    "candidate_runtime_identity_stable": identity_stable,
+                    "passed": continuation_gate["passed"],
+                }
+            )
         output = {
             "target": target,
             "rust_filesystem_fsync": (
@@ -7762,21 +7963,44 @@ def _run_target_tier(
             "initial_state": initial_state,
             "warmups": [],
             "measurement": record,
-            "endpoint_start_invocations": 1,
-            "endpoint_invocations": 1,
+            "same_process_continuation": (
+                {
+                    "measurement": continuation_record,
+                    "clean_state_before": continuation_clean_state,
+                    "gate": continuation_gate,
+                    "proxy_identity": continuation_proxy_identity,
+                }
+                if same_process_continuation_messages
+                else None
+            ),
+            "endpoint_start_invocations": (
+                2 if same_process_continuation_messages else 1
+            ),
+            "endpoint_invocations": 2 if same_process_continuation_messages else 1,
             "harness_batches": 0,
             "endpoint_requested_messages": plan.total_messages,
             "observer_verified_messages": int(record["smtp"]["verified"]),
+            "total_endpoint_requested_messages": (
+                plan.total_messages + same_process_continuation_messages
+            ),
+            "total_observer_verified_messages": (
+                int(record["smtp"]["verified"])
+                + (
+                    int(continuation_record["smtp"]["verified"])
+                    if continuation_record is not None
+                    else 0
+                )
+            ),
             "requested_equals_observer_verified": (
                 plan.total_messages == int(record["smtp"]["verified"])
+                and (
+                    continuation_record is None
+                    or same_process_continuation_messages
+                    == int(continuation_record["smtp"]["verified"])
+                )
             ),
             "throughput_messages_per_second": throughput,
-            "proxy_identity": {
-                "binary_sha256": proxy.binary_sha256,
-                "source_tree_sha256": started_attestation[
-                    "benchmark_proxy_source_tree_sha256"
-                ],
-            },
+            "proxy_identity": measurement_proxy_identity,
         }
     except BaseException as error:
         primary_error = error
@@ -7880,6 +8104,24 @@ def _aggregate_arm_rows(
                     "endpoint_invocations": sum(
                         int(value["endpoint_invocations"]) for value in values
                     ),
+                    "total_endpoint_requested_messages": sum(
+                        int(
+                            value.get(
+                                "total_endpoint_requested_messages",
+                                value["endpoint_requested_messages"],
+                            )
+                        )
+                        for value in values
+                    ),
+                    "total_observer_verified_messages": sum(
+                        int(
+                            value.get(
+                                "total_observer_verified_messages",
+                                value["observer_verified_messages"],
+                            )
+                        )
+                        for value in values
+                    ),
                     "harness_batches": sum(
                         int(value["harness_batches"]) for value in values
                     ),
@@ -7928,8 +8170,12 @@ def _plans(
         large_count = (disk_budget_bytes // (large_size * 4) // 50) * 50
         large_count = max(50, min(1_000, large_count))
         values = [
-            BenchmarkPlan("1KB", 1 * 1024, 500_000),
-            BenchmarkPlan("10KB", 10 * 1024, 500_000),
+            BenchmarkPlan(
+                "1KB", 1 * 1024, CANDIDATE_STABILITY_INITIAL_MESSAGES
+            ),
+            BenchmarkPlan(
+                "10KB", 10 * 1024, CANDIDATE_STABILITY_INITIAL_MESSAGES
+            ),
             BenchmarkPlan("10MB", large_size, large_count),
         ]
     if tier == "all":
@@ -8016,6 +8262,19 @@ def _candidate_stability_execution_matrix(
     ):
         raise ValueError("candidate stability plan contract changed")
     return tuple(("rust-candidate", plan, 0) for plan in plans)
+
+
+def _candidate_stability_continuation_messages(
+    plan: BenchmarkPlan, *, smoke: bool
+) -> int:
+    if smoke or plan.label == "10MB":
+        return 0
+    if (
+        plan.label not in {"1KB", "10KB"}
+        or plan.total_messages != CANDIDATE_STABILITY_INITIAL_MESSAGES
+    ):
+        raise ValueError("candidate stability continuation plan contract changed")
+    return CANDIDATE_STABILITY_CONTINUATION_MESSAGES
 
 
 def _throughput_stability(values: Sequence[float]) -> dict[str, Any]:
@@ -8461,9 +8720,47 @@ def _candidate_stability_comparison(
     plan_order_passed = observed_labels == expected_labels
     comparisons: list[dict[str, Any]] = []
     for plan, row in zip(expected_plans, rows, strict=False):
+        continuation_messages = _candidate_stability_continuation_messages(
+            plan, smoke=smoke
+        )
+        expected_invocations = 2 if continuation_messages else 1
         arms = row.get("arms") if isinstance(row, dict) else None
         arm = arms[0] if isinstance(arms, list) and len(arms) == 1 else None
         measurement = arm.get("measurement") if isinstance(arm, dict) else None
+        continuation = (
+            arm.get("same_process_continuation") if isinstance(arm, dict) else None
+        )
+        continuation_measurement = (
+            continuation.get("measurement")
+            if isinstance(continuation, dict)
+            else None
+        )
+        continuation_gate = (
+            continuation.get("gate") if isinstance(continuation, dict) else None
+        )
+        continuation_passed = bool(
+            (continuation_messages == 0 and continuation is None)
+            or (
+                continuation_messages > 0
+                and isinstance(continuation_measurement, dict)
+                and _round_contract_passed(continuation_measurement)
+                and isinstance(continuation_gate, dict)
+                and continuation_gate.get("required") is True
+                and continuation_gate.get("messages") == continuation_messages
+                and continuation_gate.get("fresh_proxy") is True
+                and continuation_gate.get("candidate_runtime_restarted") is False
+                and continuation_gate.get("candidate_runtime_identity_stable") is True
+                and continuation_gate.get("minimum_ratio")
+                == MINIMUM_CONTINUATION_TO_INITIAL_RATE_RATIO
+                and _finite_number(
+                    continuation_gate.get("continuation_to_initial_prefix_ratio"),
+                    f"{plan.label} continuation ratio",
+                    positive=True,
+                )
+                >= MINIMUM_CONTINUATION_TO_INITIAL_RATE_RATIO
+                and continuation_gate.get("passed") is True
+            )
+        )
         outcome = (
             measurement.get("endpoint_outcome")
             if isinstance(measurement, dict)
@@ -8483,8 +8780,8 @@ def _candidate_stability_comparison(
                 "total_messages": plan.total_messages,
             }
             and row.get("arm_count") == 1
-            and row.get("endpoint_start_invocations") == 1
-            and row.get("endpoint_invocations") == 1
+            and row.get("endpoint_start_invocations") == expected_invocations
+            and row.get("endpoint_invocations") == expected_invocations
             and row.get("harness_batches") == 0
             and row.get("requested_equals_observer_verified") is True
             and isinstance(arm, dict)
@@ -8492,8 +8789,8 @@ def _candidate_stability_comparison(
             and arm.get("endpoint_requested_messages") == plan.total_messages
             and arm.get("observer_verified_messages") == plan.total_messages
             and arm.get("requested_equals_observer_verified") is True
-            and arm.get("endpoint_start_invocations") == 1
-            and arm.get("endpoint_invocations") == 1
+            and arm.get("endpoint_start_invocations") == expected_invocations
+            and arm.get("endpoint_invocations") == expected_invocations
             and arm.get("harness_batches") == 0
             and isinstance(measurement, dict)
             and _round_contract_passed(measurement)
@@ -8501,6 +8798,7 @@ def _candidate_stability_comparison(
             and outcome.get("failure_count") == 0
             and outcome.get("retry_count") == 0
             and (smoke or outcome.get("queue_scheduler_observed") is True)
+            and continuation_passed
         )
         comparisons.append(
             {
@@ -8513,7 +8811,18 @@ def _candidate_stability_comparison(
                     else None
                 ),
                 "throughput_messages_per_second": round(throughput, 6),
-                "single_endpoint_invocation": True,
+                "endpoint_invocations": expected_invocations,
+                "single_endpoint_invocation": expected_invocations == 1,
+                "same_process_continuation_required": continuation_messages > 0,
+                "same_process_continuation_messages": continuation_messages,
+                "same_process_continuation_ratio": (
+                    continuation_gate.get(
+                        "continuation_to_initial_prefix_ratio"
+                    )
+                    if isinstance(continuation_gate, dict)
+                    else None
+                ),
+                "same_process_continuation_passed": continuation_passed,
                 "queue_scheduler_observed": (
                     outcome.get("queue_scheduler_observed")
                     if isinstance(outcome, dict)
@@ -8529,7 +8838,8 @@ def _candidate_stability_comparison(
     measurement_evidence_passed = row_count_passed and all(
         len(row.get("measurements", ())) == 1
         and _round_contract_passed(row["measurements"][0])
-        for row in rows
+        and comparison["same_process_continuation_passed"] is True
+        for row, comparison in zip(rows, comparisons, strict=False)
     )
     within_arm_stability_passed = row_count_passed and all(
         row["measurements"][0]
@@ -8537,13 +8847,36 @@ def _candidate_stability_comparison(
         .get("within_arm_throughput_stability", {})
         .get("passed")
         is True
-        for row in rows
+        and (
+            comparison["same_process_continuation_required"] is False
+            or row["arms"][0]
+            .get("same_process_continuation", {})
+            .get("measurement", {})
+            .get("smtp", {})
+            .get("within_arm_throughput_stability", {})
+            .get("passed")
+            is True
+        )
+        for row, comparison in zip(rows, comparisons, strict=False)
         if len(row.get("measurements", ())) == 1
     )
     zero_retry_gate_passed = row_count_passed and all(
         row["measurements"][0].get("endpoint_outcome", {}).get("retry_count") == 0
-        for row in rows
+        and (
+            comparison["same_process_continuation_required"] is False
+            or row["arms"][0]
+            .get("same_process_continuation", {})
+            .get("measurement", {})
+            .get("endpoint_outcome", {})
+            .get("retry_count")
+            == 0
+        )
+        for row, comparison in zip(rows, comparisons, strict=False)
         if len(row.get("measurements", ())) == 1
+    )
+    same_process_continuation_passed = row_count_passed and all(
+        comparison["same_process_continuation_passed"] is True
+        for comparison in comparisons
     )
     proxy_headroom_gates: list[dict[str, Any]] = []
     proxy_headroom_passed = smoke
@@ -8590,6 +8923,7 @@ def _candidate_stability_comparison(
         and plan_order_passed
         and operational_evidence_passed
         and zero_retry_gate_passed
+        and same_process_continuation_passed
         and proxy_headroom_passed
     )
     return {
@@ -8606,6 +8940,7 @@ def _candidate_stability_comparison(
         "measurement_evidence_passed": measurement_evidence_passed,
         "within_arm_stability_passed": within_arm_stability_passed,
         "zero_retry_gate_passed": zero_retry_gate_passed,
+        "same_process_continuation_passed": same_process_continuation_passed,
         "proxy_headroom_passed": proxy_headroom_passed,
         "proxy_headroom_gates": proxy_headroom_gates,
         "java_comparison_intentionally_external": True,
@@ -10235,6 +10570,13 @@ def _run_benchmark(args: argparse.Namespace, layout: CgroupLayout) -> dict[str, 
                 quota_mount_root=quota_mount_root,
                 rust_filesystem_fsync=rust_filesystem_fsync,
                 checkpoint_event=checkpoint.append,
+                same_process_continuation_messages=(
+                    _candidate_stability_continuation_messages(
+                        plan, smoke=args.smoke
+                    )
+                    if candidate_stability
+                    else 0
+                ),
             )
             arms.append(arm)
             checkpoint.append(
@@ -10406,10 +10748,16 @@ def _run_benchmark(args: argparse.Namespace, layout: CgroupLayout) -> dict[str, 
         "started_at": started_at,
         "completed_at": _utc_now(),
         "duration_seconds": round(time.monotonic() - started_monotonic, 6),
-        "endpoint_invocations": 1,
-        "endpoint_invocation_scope": "per_arm",
+        "endpoint_invocations": (
+            sum(int(arm["endpoint_invocations"]) for arm in arms)
+            if candidate_stability
+            else 1
+        ),
+        "endpoint_invocation_scope": "run" if candidate_stability else "per_arm",
         "harness_batches": 0,
-        "total_endpoint_invocations": len(arms),
+        "total_endpoint_invocations": sum(
+            int(arm["endpoint_invocations"]) for arm in arms
+        ),
         "real_gate_calibration_endpoint_invocations": (
             (len(plans) if candidate_stability else len(REAL_GATE_CALIBRATION_SHAPES))
             * len(REAL_GATE_CALIBRATION_SEQUENCE)
@@ -10421,6 +10769,20 @@ def _run_benchmark(args: argparse.Namespace, layout: CgroupLayout) -> dict[str, 
         ],
         "observer_verified_messages": [
             arm["observer_verified_messages"] for arm in arms
+        ],
+        "total_endpoint_requested_messages": [
+            arm.get(
+                "total_endpoint_requested_messages",
+                arm["endpoint_requested_messages"],
+            )
+            for arm in arms
+        ],
+        "total_observer_verified_messages": [
+            arm.get(
+                "total_observer_verified_messages",
+                arm["observer_verified_messages"],
+            )
+            for arm in arms
         ],
         "endpoint_requested_messages_match_observer_verified": all(
             arm["requested_equals_observer_verified"] is True for arm in arms
@@ -10466,7 +10828,47 @@ def _run_benchmark(args: argparse.Namespace, layout: CgroupLayout) -> dict[str, 
                     }
                 )
             ),
-            "one_large_start_invocation_per_arm": True,
+            "one_large_start_invocation_per_arm": not (
+                candidate_stability
+                and not args.smoke
+                and any(plan.label in {"1KB", "10KB"} for plan in plans)
+            ),
+            "candidate_stability_initial_small_tier_messages": (
+                CANDIDATE_STABILITY_INITIAL_MESSAGES
+                if candidate_stability
+                and not args.smoke
+                and any(plan.label in {"1KB", "10KB"} for plan in plans)
+                else None
+            ),
+            "candidate_stability_same_process_continuation_messages": (
+                CANDIDATE_STABILITY_CONTINUATION_MESSAGES
+                if candidate_stability
+                and not args.smoke
+                and any(plan.label in {"1KB", "10KB"} for plan in plans)
+                else None
+            ),
+            "candidate_stability_minimum_continuation_to_initial_ratio": (
+                MINIMUM_CONTINUATION_TO_INITIAL_RATE_RATIO
+                if candidate_stability
+                and not args.smoke
+                and any(plan.label in {"1KB", "10KB"} for plan in plans)
+                else None
+            ),
+            "candidate_stability_continuation_tiers": (
+                [
+                    plan.label
+                    for plan in plans
+                    if not args.smoke and plan.label in {"1KB", "10KB"}
+                ]
+                if candidate_stability
+                else []
+            ),
+            "fresh_proxy_per_endpoint_invocation": candidate_stability,
+            "same_candidate_process_for_initial_and_continuation": (
+                candidate_stability
+                and not args.smoke
+                and any(plan.label in {"1KB", "10KB"} for plan in plans)
+            ),
             "stress_start_maximum_attempts_per_arm": 1,
             "stress_start_automatic_retries": 0,
             "uncertain_start_outcome": "fail_closed_and_restart_as_a_new_benchmark_run",
@@ -10569,7 +10971,24 @@ def _run_benchmark(args: argparse.Namespace, layout: CgroupLayout) -> dict[str, 
             "candidate_stability": candidate_stability,
             "candidate_only": candidate_stability,
             "one_arm_per_tier": single_arm_profile,
-            "one_endpoint_invocation_per_tier": single_arm_profile,
+            "one_endpoint_invocation_per_tier": (
+                single_arm_profile
+                and not (
+                    candidate_stability
+                    and not args.smoke
+                    and any(plan.label in {"1KB", "10KB"} for plan in plans)
+                )
+            ),
+            "candidate_small_tiers_use_250k_plus_same_process_100k": (
+                candidate_stability
+                and not args.smoke
+                and any(plan.label in {"1KB", "10KB"} for plan in plans)
+            ),
+            "same_process_continuation_gate_passed": (
+                comparison.get("same_process_continuation_passed")
+                if candidate_stability
+                else None
+            ),
             "one_kib_then_ten_kib": java_small_baseline and len(plans) == 2,
             "two_hundred_thousand_messages_per_tier": java_small_baseline,
             "ten_megabyte_excluded": java_small_baseline,

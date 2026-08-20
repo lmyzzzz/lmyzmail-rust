@@ -1064,7 +1064,7 @@ def validate_output(payload):
     profile = value.get("profile")
     java_small = profile == "java-small-single-invocation-smtp-endpoint-baseline-v1"
     candidate_stability = (
-        profile == "rust-candidate-single-invocation-smtp-endpoint-stability-v1"
+        profile == "rust-candidate-continuation-smtp-endpoint-stability-v2"
     )
     legacy_abba = profile == "abba-single-invocation-smtp-endpoint-throughput-v1"
     mixed_v2 = profile == "mixed-single-invocation-smtp-endpoint-throughput-v2"
@@ -1072,7 +1072,7 @@ def validate_output(payload):
         "abba-single-invocation-smtp-endpoint-throughput-v1",
         "mixed-single-invocation-smtp-endpoint-throughput-v2",
         "java-small-single-invocation-smtp-endpoint-baseline-v1",
-        "rust-candidate-single-invocation-smtp-endpoint-stability-v1",
+        "rust-candidate-continuation-smtp-endpoint-stability-v2",
     }:
         raise SystemExit("provisional evidence profile changed")
     if value.get("launcher_run_id") != launcher_run_id:
@@ -1108,9 +1108,19 @@ def validate_output(payload):
     if not isinstance(qualified, bool):
         raise SystemExit("provisional qualification is not boolean")
     if not (
-        value.get("endpoint_invocations") == 1
-        and value.get("endpoint_invocation_scope") == "per_arm"
-        and value.get("harness_batches") == 0
+        (
+            candidate_stability
+            and value.get("endpoint_invocations")
+            == value.get("total_endpoint_invocations")
+            and value.get("endpoint_invocation_scope") == "run"
+        )
+        or (
+            not candidate_stability
+            and value.get("endpoint_invocations") == 1
+            and value.get("endpoint_invocation_scope") == "per_arm"
+        )
+    ) or not (
+        value.get("harness_batches") == 0
         and value.get("endpoint_requested_messages_match_observer_verified") is True
     ):
         raise SystemExit("provisional top-level no-batching contract changed")
@@ -1358,8 +1368,8 @@ def validate_output(payload):
         plans = value.get("plans")
         expected_by_label = (
             {
-                "1KB": {"label": "1KB", "message_bytes": 1024, "total_messages": 500_000},
-                "10KB": {"label": "10KB", "message_bytes": 10 * 1024, "total_messages": 500_000},
+                "1KB": {"label": "1KB", "message_bytes": 1024, "total_messages": 250_000},
+                "10KB": {"label": "10KB", "message_bytes": 10 * 1024, "total_messages": 250_000},
                 "10MB": {"label": "10MB", "message_bytes": 10 * 1024 * 1024, "total_messages": 500},
             }
             if formal
@@ -1385,11 +1395,30 @@ def validate_output(payload):
             for label in labels
         ]
         expected_counts = [expected_by_label[label]["total_messages"] for label in labels]
+        expected_continuations = [
+            100_000 if formal and label in {"1KB", "10KB"} else 0
+            for label in labels
+        ]
+        expected_total_counts = [
+            count + continuation
+            for count, continuation in zip(
+                expected_counts, expected_continuations, strict=True
+            )
+        ]
+        expected_invocations = [
+            2 if continuation else 1 for continuation in expected_continuations
+        ]
         if not (
             value.get("execution_order") == expected_order
-            and value.get("total_endpoint_invocations") == len(labels)
+            and value.get("total_endpoint_invocations") == sum(expected_invocations)
+            and value.get("endpoint_invocations") == sum(expected_invocations)
+            and value.get("endpoint_invocation_scope") == "run"
             and value.get("endpoint_requested_messages") == expected_counts
             and value.get("observer_verified_messages") == expected_counts
+            and value.get("total_endpoint_requested_messages")
+            == expected_total_counts
+            and value.get("total_observer_verified_messages")
+            == expected_total_counts
         ):
             raise SystemExit("candidate stability top-level contract changed")
         comparison = value.get("comparison")
@@ -1404,6 +1433,7 @@ def validate_output(payload):
             "measurement_evidence_passed",
             "within_arm_stability_passed",
             "zero_retry_gate_passed",
+            "same_process_continuation_passed",
             "proxy_headroom_passed",
             "java_comparison_intentionally_external",
         )
@@ -1414,8 +1444,11 @@ def validate_output(payload):
         summaries = comparison.get("comparisons")
         if not isinstance(summaries, list) or len(summaries) != len(labels):
             raise SystemExit("candidate stability tier summaries changed")
-        for label, row in zip(labels, summaries, strict=True):
+        for label, continuation_count, row in zip(
+            labels, expected_continuations, summaries, strict=True
+        ):
             expected_count = expected_by_label[label]["total_messages"]
+            invocation_count = 2 if continuation_count else 1
             scheduler_observed = row.get("queue_scheduler_observed")
             if not (
                 isinstance(row, dict)
@@ -1423,7 +1456,14 @@ def validate_output(payload):
                 and row.get("target") == "rust-candidate"
                 and row.get("requested_messages") == expected_count
                 and row.get("observer_verified_messages") == expected_count
-                and row.get("single_endpoint_invocation") is True
+                and row.get("endpoint_invocations") == invocation_count
+                and row.get("single_endpoint_invocation")
+                is (invocation_count == 1)
+                and row.get("same_process_continuation_required")
+                is (continuation_count > 0)
+                and row.get("same_process_continuation_messages")
+                == continuation_count
+                and row.get("same_process_continuation_passed") is True
                 and isinstance(scheduler_observed, bool)
                 and (not formal or scheduler_observed is True)
                 and row.get("passed") is True
@@ -1437,7 +1477,11 @@ def validate_output(payload):
             and acceptance.get("candidate_stability") is True
             and acceptance.get("candidate_only") is True
             and acceptance.get("one_arm_per_tier") is True
-            and acceptance.get("one_endpoint_invocation_per_tier") is True
+            and acceptance.get("one_endpoint_invocation_per_tier")
+            is (not formal or not any(expected_continuations))
+            and acceptance.get("candidate_small_tiers_use_250k_plus_same_process_100k")
+            is (formal and any(expected_continuations))
+            and acceptance.get("same_process_continuation_gate_passed") is True
             and acceptance.get("two_equally_weighted_arms_per_target_tier") is False
             and acceptance.get("both_paired_ratios_must_pass") is False
             and acceptance.get("conservative_min_rust_over_max_java_must_pass") is False
@@ -1451,7 +1495,29 @@ def validate_output(payload):
         if not isinstance(methodology, dict) or not (
             methodology.get("per_tier_arms") == ["rust-candidate"]
             and methodology.get("candidate_only_stability_tiers") == labels
-            and methodology.get("one_large_start_invocation_per_arm") is True
+            and methodology.get("one_large_start_invocation_per_arm")
+            is (not formal or not any(expected_continuations))
+            and methodology.get("candidate_stability_initial_small_tier_messages")
+            == (250_000 if formal and any(expected_continuations) else None)
+            and methodology.get(
+                "candidate_stability_same_process_continuation_messages"
+            )
+            == (100_000 if formal and any(expected_continuations) else None)
+            and methodology.get(
+                "candidate_stability_minimum_continuation_to_initial_ratio"
+            )
+            == (0.90 if formal and any(expected_continuations) else None)
+            and methodology.get("candidate_stability_continuation_tiers")
+            == [
+                label
+                for label, continuation in zip(
+                    labels, expected_continuations, strict=True
+                )
+                if continuation
+            ]
+            and methodology.get("fresh_proxy_per_endpoint_invocation") is True
+            and methodology.get("same_candidate_process_for_initial_and_continuation")
+            is (formal and any(expected_continuations))
             and methodology.get("harness_batching") is False
             and methodology.get("automatic_endpoint_cleanup_only") is True
             and methodology.get("warmup_endpoint_invocations") == 0
@@ -1467,15 +1533,18 @@ def validate_output(payload):
         rows = value.get("rows")
         if not isinstance(rows, list) or len(rows) != len(labels):
             raise SystemExit("candidate stability rows are missing")
-        for plan, row in zip(plans, rows, strict=True):
+        for plan, continuation_count, row in zip(
+            plans, expected_continuations, rows, strict=True
+        ):
+            invocation_count = 2 if continuation_count else 1
             arms = row.get("arms") if isinstance(row, dict) else None
             measurements = row.get("measurements") if isinstance(row, dict) else None
             if not (
                 row.get("target") == "rust-candidate"
                 and row.get("tier") == plan
                 and row.get("arm_count") == 1
-                and row.get("endpoint_start_invocations") == 1
-                and row.get("endpoint_invocations") == 1
+                and row.get("endpoint_start_invocations") == invocation_count
+                and row.get("endpoint_invocations") == invocation_count
                 and row.get("harness_batches") == 0
                 and row.get("requested_equals_observer_verified") is True
                 and isinstance(arms, list)
@@ -1486,17 +1555,30 @@ def validate_output(payload):
                 raise SystemExit("candidate stability row shape changed")
             arm = arms[0]
             measurement = arm.get("measurement")
+            continuation = arm.get("same_process_continuation")
+            continuation_measurement = (
+                continuation.get("measurement")
+                if isinstance(continuation, dict)
+                else None
+            )
+            continuation_gate = (
+                continuation.get("gate") if isinstance(continuation, dict) else None
+            )
             outcome = measurement.get("endpoint_outcome") if isinstance(measurement, dict) else None
             resource = measurement.get("resource") if isinstance(measurement, dict) else None
             count = plan["total_messages"]
             if not (
                 arm.get("target") == "rust-candidate"
                 and arm.get("arm_ordinal") == 0
-                and arm.get("endpoint_start_invocations") == 1
-                and arm.get("endpoint_invocations") == 1
+                and arm.get("endpoint_start_invocations") == invocation_count
+                and arm.get("endpoint_invocations") == invocation_count
                 and arm.get("harness_batches") == 0
                 and arm.get("endpoint_requested_messages") == count
                 and arm.get("observer_verified_messages") == count
+                and arm.get("total_endpoint_requested_messages")
+                == count + continuation_count
+                and arm.get("total_observer_verified_messages")
+                == count + continuation_count
                 and arm.get("requested_equals_observer_verified") is True
                 and valid_dkim_fixture(arm.get("dkim_fixture"))
                 and isinstance(outcome, dict)
@@ -1516,6 +1598,64 @@ def validate_output(payload):
                 and resource.get("temperature", {}).get("within_limit") is True
             ):
                 raise SystemExit("candidate stability single-call evidence changed")
+            if continuation_count:
+                continuation_outcome = (
+                    continuation_measurement.get("endpoint_outcome")
+                    if isinstance(continuation_measurement, dict)
+                    else None
+                )
+                continuation_resource = (
+                    continuation_measurement.get("resource")
+                    if isinstance(continuation_measurement, dict)
+                    else None
+                )
+                if not (
+                    isinstance(continuation, dict)
+                    and isinstance(continuation_measurement, dict)
+                    and isinstance(continuation_gate, dict)
+                    and continuation_gate.get("required") is True
+                    and continuation_gate.get("messages") == 100_000
+                    and continuation_gate.get("fresh_proxy") is True
+                    and continuation_gate.get("candidate_runtime_restarted") is False
+                    and continuation_gate.get("candidate_runtime_identity_stable") is True
+                    and continuation_gate.get("minimum_ratio") == 0.90
+                    and continuation_gate.get(
+                        "continuation_to_initial_prefix_ratio", 0
+                    ) >= 0.90
+                    and continuation_gate.get("passed") is True
+                    and continuation_measurement.get(
+                        "endpoint_start_invocation_count"
+                    ) == 1
+                    and continuation_measurement.get(
+                        "endpoint_start_automatic_retries"
+                    ) == 0
+                    and continuation_measurement.get("smtp", {}).get("verified")
+                    == 100_000
+                    and continuation_measurement.get("smtp", {}).get(
+                        "within_arm_throughput_stability", {}
+                    ).get("passed") is True
+                    and isinstance(continuation_outcome, dict)
+                    and continuation_outcome.get("failure_count") == 0
+                    and continuation_outcome.get("retry_count") == 0
+                    and continuation_outcome.get("queue_scheduler_observed") is True
+                    and isinstance(continuation_resource, dict)
+                    and continuation_resource.get("candidate_cpu_usage_seconds", 0) > 0
+                    and continuation_resource.get("services_cpu_usage_seconds", 0) > 0
+                    and valid_application_persistence_io(
+                        arm, continuation_resource
+                    )
+                    and continuation_resource.get(
+                        "services_persistence_io_observed"
+                    ) is True
+                    and continuation_resource.get("temperature", {}).get(
+                        "within_limit"
+                    ) is True
+                ):
+                    raise SystemExit(
+                        "candidate stability continuation evidence changed"
+                    )
+            elif continuation is not None:
+                raise SystemExit("candidate stability smoke/10MB gained a continuation")
         attestation = value.get("attestation")
         external = value.get("external_prerequisites")
         calibration = value.get("real_gate_calibration")

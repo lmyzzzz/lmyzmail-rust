@@ -73,11 +73,17 @@ sudo evidence/performance/run-smtp-endpoint-throughput-v1.sh \
 
 Once the independent Java baseline has been recorded, use the candidate-only
 stability profile for the long Rust pressure campaign. This profile preserves
-the original endpoint behavior but runs exactly one arm and one
-`/api/stress/start` invocation per selected tier. It never substitutes a
-synthetic producer, splits a tier into harness batches, or treats the absence
-of a Java arm as a failure. Formal 1KB and 10KB tiers each request 500,000
-messages; the 10MB tier remains bounded by the attested 20 GiB disk budget.
+the original endpoint behavior and runs one candidate process per selected
+tier. It never substitutes a synthetic producer, splits a request into harness
+batches, or treats the absence of a Java arm as a failure. Formal 1KB and 10KB
+tiers first request 250,000 messages. After that request, persistence audit,
+endpoint cleanup, and all round gates pass, the harness closes the first proxy,
+creates a fresh one, and requests another 100,000 messages without restarting
+the candidate. The second rate must be at least 90% of the rate observed at the
+first proxy sample reaching 100,000 messages in the initial request. PID,
+`/proc` start time, and executable identity are checked at four boundaries.
+The 10MB tier does not run the continuation and remains bounded by the attested
+20 GiB disk budget.
 
 ```bash
 sudo evidence/performance/run-smtp-endpoint-throughput-v1.sh \
@@ -89,7 +95,7 @@ sudo evidence/performance/run-smtp-endpoint-throughput-v1.sh \
 ```
 
 Each tier can qualify independently so a late large-message failure cannot
-erase a completed 500,000-message small-message result. Formal qualification
+erase a completed small-message result. Formal qualification
 still requires the hard disk quota, single-CPU workload placement, 500 MB/s
 dual-device I/O cap, proxy capacity and transparency attestation, exact passive
 SMTP observation, queue-scheduler activity, zero failures/retries, persistence
@@ -107,7 +113,8 @@ create-only JSON SHA-256 values are respectively
 `3b5185141bd87a88b305061e1e1425c1580183256c323a963735f6bb7a4f5c76`
 and `34ae266cfb288ccfd673347fad382664bac85d55f70baa59881ddacb4b1bfbe6`.
 Both remain `qualified=false` because smoke counts deliberately do not satisfy
-the formal 500,000-message and external-attestation gates.
+the formal 250,000 plus same-process 100,000-message and external-attestation
+gates.
 
 The preceding current-candidate ABBA 1KB smoke, run
 `9a89d6f7-a7ea-43d2-9d1f-f7500bae7edb`, also passed both Java and Rust arms.
@@ -479,7 +486,7 @@ are retained as negative profiler evidence, not a throughput claim.
 The qualified full profile uses one `/api/stress/start` invocation per arm,
 with no harness batching, warmup calls, or repetition loop. The 1KB and 10KB
 tiers run Java, Rust, Rust, Java in ABBA order using fresh isolated state per
-arm and request 500,000 messages per arm. The 10MB tier runs two Rust-only arms
+arm and request 250,000 messages per arm. The 10MB tier runs two Rust-only arms
 and is reduced only by the fixed 20 GiB disk budget, up to 1,000 messages per
 arm. It is a candidate durability/stability tier, not a Java comparison.
 

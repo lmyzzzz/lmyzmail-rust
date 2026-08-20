@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import copy
 import hashlib
 import json
 import os
@@ -55,7 +56,7 @@ class LauncherIsolationContractTests(unittest.TestCase):
             source,
         )
         self.assertIn(
-            '"rust-candidate-single-invocation-smtp-endpoint-stability-v1",',
+            '"rust-candidate-continuation-smtp-endpoint-stability-v2",',
             source,
         )
         for contract in (
@@ -214,6 +215,98 @@ printf 'candidate-stability-launcher-profile: PASS\n'
 """
         )
         self.assertIn("candidate-stability-launcher-profile: PASS", result.stdout)
+
+    def test_candidate_smoke_artifact_validator_accepts_v2_and_rejects_gate_tamper(
+        self,
+    ) -> None:
+        source = self.embedded_python("inspect_runner_artifacts")
+        tree = ast.parse(source)
+        selected = [
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef)
+            and node.name
+            in {
+                "canonical_uuid4",
+                "valid_sha256",
+                "valid_dkim_fixture",
+                "valid_application_persistence_io",
+                "validate_output",
+            }
+        ]
+        namespace = {
+            "expected_rust_fsync_value": "off",
+            "formal": False,
+            "hashlib": hashlib,
+            "json": json,
+            "launcher_run_id": RUN_ID,
+            "logical_relative": "evidence/performance/candidate-smoke-v2.json",
+            "math": __import__("math"),
+            "uuid": uuid,
+        }
+        exec(
+            compile(
+                ast.fix_missing_locations(ast.Module(body=selected, type_ignores=[])),
+                "<candidate-artifact-validator>",
+                "exec",
+            ),
+            namespace,
+        )
+        fixture = Path(__file__).with_name(
+            "smtp-endpoint-candidate-stability-fsync-off-proc-io-smoke-v140.json"
+        )
+        payload = json.loads(fixture.read_text(encoding="utf-8"))
+        payload["profile"] = "rust-candidate-continuation-smtp-endpoint-stability-v2"
+        payload["launcher_run_id"] = RUN_ID
+        payload["endpoint_invocations"] = 1
+        payload["endpoint_invocation_scope"] = "run"
+        payload["total_endpoint_invocations"] = 1
+        payload["total_endpoint_requested_messages"] = [8]
+        payload["total_observer_verified_messages"] = [8]
+        payload["comparison"]["same_process_continuation_passed"] = True
+        summary = payload["comparison"]["comparisons"][0]
+        summary.update(
+            {
+                "endpoint_invocations": 1,
+                "single_endpoint_invocation": True,
+                "same_process_continuation_required": False,
+                "same_process_continuation_messages": 0,
+                "same_process_continuation_ratio": None,
+                "same_process_continuation_passed": True,
+            }
+        )
+        payload["acceptance"].update(
+            {
+                "candidate_small_tiers_use_250k_plus_same_process_100k": False,
+                "same_process_continuation_gate_passed": True,
+            }
+        )
+        payload["methodology"].update(
+            {
+                "candidate_stability_initial_small_tier_messages": None,
+                "candidate_stability_same_process_continuation_messages": None,
+                "candidate_stability_minimum_continuation_to_initial_ratio": None,
+                "candidate_stability_continuation_tiers": [],
+                "fresh_proxy_per_endpoint_invocation": True,
+                "same_candidate_process_for_initial_and_continuation": False,
+            }
+        )
+        row = payload["rows"][0]
+        row["total_endpoint_requested_messages"] = 8
+        row["total_observer_verified_messages"] = 8
+        arm = row["arms"][0]
+        arm["same_process_continuation"] = None
+        arm["total_endpoint_requested_messages"] = 8
+        arm["total_observer_verified_messages"] = 8
+        validate_output = namespace["validate_output"]
+        self.assertEqual(
+            validate_output(json.dumps(payload))[2],
+            "rust-candidate-continuation-smtp-endpoint-stability-v2",
+        )
+        tampered = copy.deepcopy(payload)
+        tampered["comparison"]["same_process_continuation_passed"] = False
+        with self.assertRaisesRegex(SystemExit, "comparison gates"):
+            validate_output(json.dumps(tampered))
 
     def test_promotion_validator_uses_process_io_only_for_rust_fsync_off(
         self,

@@ -874,8 +874,8 @@ class ProxySelectionTests(unittest.TestCase):
                 "\ndef _aggregate_arm_rows("
             )
         ]
-        self.assertEqual(target_tier.count("RustSmtpProxy("), 1)
-        self.assertEqual(target_tier.count("_run_attested_round("), 1)
+        self.assertEqual(target_tier.count("RustSmtpProxy("), 2)
+        self.assertEqual(target_tier.count("_run_attested_round("), 2)
         self.assertNotIn("AggregateSmtpProxy", target_tier)
         self.assertNotIn('mode="WARMUP"', target_tier)
         self.assertNotIn("range(", target_tier)
@@ -1445,6 +1445,10 @@ class PlanAndComparisonTests(unittest.TestCase):
                 self.assertGreaterEqual(plans[-1].total_messages, 50)
                 self.assertLessEqual(plans[-1].total_messages, 1_000)
                 self.assertEqual(plans[-1].total_messages % 50, 0)
+                self.assertEqual(
+                    [plan.total_messages for plan in plans[:2]],
+                    [250_000, 250_000],
+                )
 
         self.assertEqual(runner._expected_stress_concurrency(1), 1_500)
         self.assertEqual(runner._expected_stress_concurrency(10), 1_000)
@@ -1602,8 +1606,8 @@ class PlanAndComparisonTests(unittest.TestCase):
             runner._java_small_baseline_comparison(rows, plans)["all_passed"]
         )
 
-    def test_candidate_stability_is_one_rust_arm_with_operational_gates(self) -> None:
-        plan = runner.BenchmarkPlan("10KB", 10 * 1024, 500_000)
+    def test_candidate_stability_uses_one_rust_arm_with_same_process_gate(self) -> None:
+        plan = runner.BenchmarkPlan("10KB", 10 * 1024, 250_000)
         matrix = runner._candidate_stability_execution_matrix([plan])
         self.assertEqual(
             [(target, value.label, ordinal) for target, value, ordinal in matrix],
@@ -1620,8 +1624,21 @@ class PlanAndComparisonTests(unittest.TestCase):
             },
             "arm_ordinal": 0,
             "measurement": measurement,
-            "endpoint_start_invocations": 1,
-            "endpoint_invocations": 1,
+            "same_process_continuation": {
+                "measurement": _round_record(measured=True),
+                "gate": {
+                    "required": True,
+                    "messages": 100_000,
+                    "fresh_proxy": True,
+                    "candidate_runtime_restarted": False,
+                    "candidate_runtime_identity_stable": True,
+                    "minimum_ratio": 0.90,
+                    "continuation_to_initial_prefix_ratio": 0.95,
+                    "passed": True,
+                },
+            },
+            "endpoint_start_invocations": 2,
+            "endpoint_invocations": 2,
             "harness_batches": 0,
             "endpoint_requested_messages": plan.total_messages,
             "observer_verified_messages": plan.total_messages,
@@ -1641,15 +1658,62 @@ class PlanAndComparisonTests(unittest.TestCase):
         self.assertTrue(comparison["candidate_only_passed"])
         self.assertTrue(comparison["single_arm_per_tier_passed"])
         self.assertTrue(comparison["proxy_headroom_passed"])
+        self.assertTrue(comparison["same_process_continuation_passed"])
+        self.assertEqual(comparison["comparisons"][0]["endpoint_invocations"], 2)
+        self.assertFalse(
+            comparison["comparisons"][0]["single_endpoint_invocation"]
+        )
 
-        rows[0]["arms"][0]["measurement"]["endpoint_outcome"]["retry_count"] = 1
+        rows[0]["arms"][0]["same_process_continuation"]["gate"][
+            "continuation_to_initial_prefix_ratio"
+        ] = 0.89
         failed = runner._candidate_stability_comparison(
             rows,
             [plan],
-            smoke=True,
+            smoke=False,
+            proxy_headroom={
+                "tiers": {"10KB": {"sustained_messages_per_second": 300.0}}
+            },
         )
-        self.assertFalse(failed["zero_retry_gate_passed"])
+        self.assertFalse(failed["same_process_continuation_passed"])
         self.assertFalse(failed["all_passed"])
+
+    def test_candidate_continuation_plan_and_prefix_rate_are_fail_closed(self) -> None:
+        plan = runner.BenchmarkPlan("1KB", 1024, 250_000)
+        self.assertEqual(
+            runner._candidate_stability_continuation_messages(plan, smoke=False),
+            100_000,
+        )
+        self.assertEqual(
+            runner._candidate_stability_continuation_messages(plan, smoke=True),
+            0,
+        )
+        self.assertEqual(
+            runner._candidate_stability_continuation_messages(
+                runner.BenchmarkPlan("10MB", 10 * 1024 * 1024, 500),
+                smoke=False,
+            ),
+            0,
+        )
+        measurement = {
+            "smtp": {
+                "expected": 250_000,
+                "within_arm_throughput_stability": {
+                    "progress_samples": [
+                        {"verified": 0, "duration_ns": 0},
+                        {"verified": 99_000, "duration_ns": 900_000_000},
+                        {"verified": 100_250, "duration_ns": 1_000_000_000},
+                        {"verified": 250_000, "duration_ns": 2_500_000_000},
+                    ]
+                },
+            }
+        }
+        prefix = runner._observed_prefix_throughput(measurement, 100_000)
+        self.assertEqual(prefix["observed_boundary_messages"], 100_250)
+        self.assertEqual(prefix["boundary_overshoot_messages"], 250)
+        self.assertEqual(prefix["messages_per_second"], 100_250.0)
+        with self.assertRaisesRegex(RuntimeError, "requested prefix"):
+            runner._observed_prefix_throughput(measurement, 250_001)
 
     def test_arm_aggregation_preserves_four_raw_values_and_equal_weights(self) -> None:
         plan = runner.BenchmarkPlan("10KB", 10 * 1024, 500_000)
