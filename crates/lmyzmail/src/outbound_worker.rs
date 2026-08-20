@@ -241,9 +241,12 @@ impl OutboundWorker {
         redis_pool: RedisPool,
     ) -> Result<Self, OutboundWorkerError> {
         let worker_config = OutboundWorkerConfig::from_config(config)?;
-        let coordinator =
-            OutboundCoordinator::from_config(config, postgres_pool.clone(), redis_pool.clone())?;
         let delivery_state = PostgresDeliveryState::new(postgres_pool.clone());
+        let coordinator = OutboundCoordinator::from_config_with_state(
+            config,
+            redis_pool.clone(),
+            delivery_state.clone(),
+        )?;
         let migrator = LegacyQueueMigrator::new(
             LegacyOutboundQueue::new(redis_pool.clone()),
             delivery_state.clone(),

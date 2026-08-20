@@ -340,13 +340,25 @@ impl OutboundCoordinator {
         postgres_pool: PostgresPool,
         redis_pool: RedisPool,
     ) -> Result<Self, CoordinatorError> {
+        Self::from_config_with_state(
+            config,
+            redis_pool,
+            PostgresDeliveryState::new(postgres_pool),
+        )
+    }
+
+    pub fn from_config_with_state(
+        config: &RuntimeConfig,
+        redis_pool: RedisPool,
+        state: PostgresDeliveryState,
+    ) -> Result<Self, CoordinatorError> {
         let coordinator_config = CoordinatorConfig::from_config(config)?;
         let routes = OutboundRouteResolver::from_config(config, redis_pool.clone())
             .map_err(|_| CoordinatorError::Configuration("outbound route configuration failed"))?;
         Self::with_components(
             coordinator_config,
             LegacyOutboundQueue::new(redis_pool),
-            PostgresDeliveryState::new(postgres_pool),
+            state,
             Arc::new(routes),
             Arc::new(OutboundSmtpClient::from_config(config).map_err(|_| {
                 CoordinatorError::Configuration("outbound SMTP configuration failed")
