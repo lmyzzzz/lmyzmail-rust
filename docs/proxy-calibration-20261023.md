@@ -71,7 +71,8 @@ remain local. This is synthetic calibration evidence, not a service profile.
 - The final proxy has 82 passing unit/integration tests, including malformed
   input, first-duplicate/folded-header semantics, exact forwarding, DATA/BDAT,
   persistence gating, backpressure and shutdown. The throughput/launcher
-  Python suites have 216 passing checks. Their logs are under `evidence/build`.
+  Python suites have 217 passing checks after the Maildir correction below.
+  Their logs are under `evidence/build`.
 
 Moving independent work outside the shared lock improved the measured raw
 ratio into approximately `0.80..0.84`; it did not pass `0.90`. Single-worker and
@@ -84,3 +85,21 @@ The byte hashes, duplicate detection, counts, persistence checks, maximum
 spread and minimum ratios have not been weakened. These measurements do not
 replace 250,000 plus same-process 100,000 SMTP publication/recovery tests, either
 fsync mode, the budgeted 10 MiB tier or the independent half-hour soak.
+
+## Maildir observer correction
+
+The first integrated smoke, run `71b9de3d-5f95-4ac2-9a22-4746f14eb7b0`,
+failed closed with zero observed publications against the exact expected 16.
+The endpoint reported 8 sent/received messages and completed its cleanup, but
+those endpoint counters did not override the external failure. Root cleanup
+passed; the retained receipt remains unqualified.
+
+The benchmark runtime still selected the early-candidate `lmyzmail-v2` path
+layout. The current release writes these fixed ordinary stress addresses in
+their oracle-compatible raw directories. An independent real-inotify fixture
+reproduced the failure (`0 != 2`) before the correction. The runtime now selects
+the existing raw-layout observer for exactly `stress-receiver@lmyz.net/inbox`
+and `stress-sender@lmyz.net/sent`. The expected counts, atomic publication,
+cleanup requirements and unrelated-tree exclusions are unchanged. The fixture
+and all 217 Python harness checks pass; actual service integration is verified
+separately and the original failed run is retained.

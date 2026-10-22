@@ -1,0 +1,197 @@
+...............................................................................................................................................usage: smtp-endpoint-throughput-v1.py [-h] --output OUTPUT --launcher-run-id
+                                      LAUNCHER_RUN_ID --output-fd OUTPUT_FD
+                                      --checkpoint-fd CHECKPOINT_FD
+                                      [--profile {abba,java-small,candidate-stability}]
+                                      [--target {both,java,rust}]
+                                      [--rust-filesystem-fsync {on,off}]
+                                      [--tier {all,1kb,10kb,10mb}]
+                                      [--disk-budget-gib DISK_BUDGET_GIB]
+                                      [--external-prerequisites EXTERNAL_PREREQUISITES]
+                                      [--external-prerequisites-sha256 EXTERNAL_PREREQUISITES_SHA256]
+                                      [--smoke]
+smtp-endpoint-throughput-v1.py: error: formal candidate stability runs require --rust-filesystem-fsync on or off
+usage: smtp-endpoint-throughput-v1.py [-h] --output OUTPUT --launcher-run-id
+                                      LAUNCHER_RUN_ID --output-fd OUTPUT_FD
+                                      --checkpoint-fd CHECKPOINT_FD
+                                      [--profile {abba,java-small,candidate-stability}]
+                                      [--target {both,java,rust}]
+                                      [--rust-filesystem-fsync {on,off}]
+                                      [--tier {all,1kb,10kb,10mb}]
+                                      [--disk-budget-gib DISK_BUDGET_GIB]
+                                      [--external-prerequisites EXTERNAL_PREREQUISITES]
+                                      [--external-prerequisites-sha256 EXTERNAL_PREREQUISITES_SHA256]
+                                      [--smoke]
+smtp-endpoint-throughput-v1.py: error: --profile candidate-stability requires --target rust
+usage: smtp-endpoint-throughput-v1.py [-h] --output OUTPUT --launcher-run-id
+                                      LAUNCHER_RUN_ID --output-fd OUTPUT_FD
+                                      --checkpoint-fd CHECKPOINT_FD
+                                      [--profile {abba,java-small,candidate-stability}]
+                                      [--target {both,java,rust}]
+                                      [--rust-filesystem-fsync {on,off}]
+                                      [--tier {all,1kb,10kb,10mb}]
+                                      [--disk-budget-gib DISK_BUDGET_GIB]
+                                      [--external-prerequisites EXTERNAL_PREREQUISITES]
+                                      [--external-prerequisites-sha256 EXTERNAL_PREREQUISITES_SHA256]
+                                      [--smoke]
+smtp-endpoint-throughput-v1.py: error: --profile candidate-stability requires --target rust
+..usage: smtp-endpoint-throughput-v1.py [-h] --output OUTPUT --launcher-run-id
+                                      LAUNCHER_RUN_ID --output-fd OUTPUT_FD
+                                      --checkpoint-fd CHECKPOINT_FD
+                                      [--profile {abba,java-small,candidate-stability}]
+                                      [--target {both,java,rust}]
+                                      [--rust-filesystem-fsync {on,off}]
+                                      [--tier {all,1kb,10kb,10mb}]
+                                      [--disk-budget-gib DISK_BUDGET_GIB]
+                                      [--external-prerequisites EXTERNAL_PREREQUISITES]
+                                      [--external-prerequisites-sha256 EXTERNAL_PREREQUISITES_SHA256]
+                                      [--smoke]
+smtp-endpoint-throughput-v1.py: error: Java 10MB execution is prohibited; use --target rust
+..usage: smtp-endpoint-throughput-v1.py [-h] --output OUTPUT --launcher-run-id
+                                      LAUNCHER_RUN_ID --output-fd OUTPUT_FD
+                                      --checkpoint-fd CHECKPOINT_FD
+                                      [--profile {abba,java-small,candidate-stability}]
+                                      [--target {both,java,rust}]
+                                      [--rust-filesystem-fsync {on,off}]
+                                      [--tier {all,1kb,10kb,10mb}]
+                                      [--disk-budget-gib DISK_BUDGET_GIB]
+                                      [--external-prerequisites EXTERNAL_PREREQUISITES]
+                                      [--external-prerequisites-sha256 EXTERNAL_PREREQUISITES_SHA256]
+                                      [--smoke]
+smtp-endpoint-throughput-v1.py: error: --profile java-small requires --target java
+usage: smtp-endpoint-throughput-v1.py [-h] --output OUTPUT --launcher-run-id
+                                      LAUNCHER_RUN_ID --output-fd OUTPUT_FD
+                                      --checkpoint-fd CHECKPOINT_FD
+                                      [--profile {abba,java-small,candidate-stability}]
+                                      [--target {both,java,rust}]
+                                      [--rust-filesystem-fsync {on,off}]
+                                      [--tier {all,1kb,10kb,10mb}]
+                                      [--disk-budget-gib DISK_BUDGET_GIB]
+                                      [--external-prerequisites EXTERNAL_PREREQUISITES]
+                                      [--external-prerequisites-sha256 EXTERNAL_PREREQUISITES_SHA256]
+                                      [--smoke]
+smtp-endpoint-throughput-v1.py: error: --profile java-small requires --target java
+usage: smtp-endpoint-throughput-v1.py [-h] --output OUTPUT --launcher-run-id
+                                      LAUNCHER_RUN_ID --output-fd OUTPUT_FD
+                                      --checkpoint-fd CHECKPOINT_FD
+                                      [--profile {abba,java-small,candidate-stability}]
+                                      [--target {both,java,rust}]
+                                      [--rust-filesystem-fsync {on,off}]
+                                      [--tier {all,1kb,10kb,10mb}]
+                                      [--disk-budget-gib DISK_BUDGET_GIB]
+                                      [--external-prerequisites EXTERNAL_PREREQUISITES]
+                                      [--external-prerequisites-sha256 EXTERNAL_PREREQUISITES_SHA256]
+                                      [--smoke]
+smtp-endpoint-throughput-v1.py: error: --profile java-small requires --target java
+usage: smtp-endpoint-throughput-v1.py [-h] --output OUTPUT --launcher-run-id
+                                      LAUNCHER_RUN_ID --output-fd OUTPUT_FD
+                                      --checkpoint-fd CHECKPOINT_FD
+                                      [--profile {abba,java-small,candidate-stability}]
+                                      [--target {both,java,rust}]
+                                      [--rust-filesystem-fsync {on,off}]
+                                      [--tier {all,1kb,10kb,10mb}]
+                                      [--disk-budget-gib DISK_BUDGET_GIB]
+                                      [--external-prerequisites EXTERNAL_PREREQUISITES]
+                                      [--external-prerequisites-sha256 EXTERNAL_PREREQUISITES_SHA256]
+                                      [--smoke]
+smtp-endpoint-throughput-v1.py: error: --profile java-small supports all, 1kb, or 10kb; 10mb is excluded
+usage: smtp-endpoint-throughput-v1.py [-h] --output OUTPUT --launcher-run-id
+                                      LAUNCHER_RUN_ID --output-fd OUTPUT_FD
+                                      --checkpoint-fd CHECKPOINT_FD
+                                      [--profile {abba,java-small,candidate-stability}]
+                                      [--target {both,java,rust}]
+                                      [--rust-filesystem-fsync {on,off}]
+                                      [--tier {all,1kb,10kb,10mb}]
+                                      [--disk-budget-gib DISK_BUDGET_GIB]
+                                      [--external-prerequisites EXTERNAL_PREREQUISITES]
+                                      [--external-prerequisites-sha256 EXTERNAL_PREREQUISITES_SHA256]
+                                      [--smoke]
+smtp-endpoint-throughput-v1.py: error: --profile java-small does not permit reduced smoke counts
+usage: smtp-endpoint-throughput-v1.py [-h] --output OUTPUT --launcher-run-id
+                                      LAUNCHER_RUN_ID --output-fd OUTPUT_FD
+                                      --checkpoint-fd CHECKPOINT_FD
+                                      [--profile {abba,java-small,candidate-stability}]
+                                      [--target {both,java,rust}]
+                                      [--rust-filesystem-fsync {on,off}]
+                                      [--tier {all,1kb,10kb,10mb}]
+                                      [--disk-budget-gib DISK_BUDGET_GIB]
+                                      [--external-prerequisites EXTERNAL_PREREQUISITES]
+                                      [--external-prerequisites-sha256 EXTERNAL_PREREQUISITES_SHA256]
+                                      [--smoke]
+smtp-endpoint-throughput-v1.py: error: --profile java-small requires --disk-budget-gib 20
+usage: smtp-endpoint-throughput-v1.py [-h] --output OUTPUT --launcher-run-id
+                                      LAUNCHER_RUN_ID --output-fd OUTPUT_FD
+                                      --checkpoint-fd CHECKPOINT_FD
+                                      [--profile {abba,java-small,candidate-stability}]
+                                      [--target {both,java,rust}]
+                                      [--rust-filesystem-fsync {on,off}]
+                                      [--tier {all,1kb,10kb,10mb}]
+                                      [--disk-budget-gib DISK_BUDGET_GIB]
+                                      [--external-prerequisites EXTERNAL_PREREQUISITES]
+                                      [--external-prerequisites-sha256 EXTERNAL_PREREQUISITES_SHA256]
+                                      [--smoke]
+smtp-endpoint-throughput-v1.py: error: --profile java-small does not accept a Rust fsync mode
+.usage: smtp-endpoint-throughput-v1.py [-h] --output OUTPUT --launcher-run-id
+                                      LAUNCHER_RUN_ID --output-fd OUTPUT_FD
+                                      --checkpoint-fd CHECKPOINT_FD
+                                      [--profile {abba,java-small,candidate-stability}]
+                                      [--target {both,java,rust}]
+                                      [--rust-filesystem-fsync {on,off}]
+                                      [--tier {all,1kb,10kb,10mb}]
+                                      [--disk-budget-gib DISK_BUDGET_GIB]
+                                      [--external-prerequisites EXTERNAL_PREREQUISITES]
+                                      [--external-prerequisites-sha256 EXTERNAL_PREREQUISITES_SHA256]
+                                      [--smoke]
+smtp-endpoint-throughput-v1.py: error: --profiler-messages must be between 64 and 500000
+usage: smtp-endpoint-throughput-v1.py [-h] --output OUTPUT --launcher-run-id
+                                      LAUNCHER_RUN_ID --output-fd OUTPUT_FD
+                                      --checkpoint-fd CHECKPOINT_FD
+                                      [--profile {abba,java-small,candidate-stability}]
+                                      [--target {both,java,rust}]
+                                      [--rust-filesystem-fsync {on,off}]
+                                      [--tier {all,1kb,10kb,10mb}]
+                                      [--disk-budget-gib DISK_BUDGET_GIB]
+                                      [--external-prerequisites EXTERNAL_PREREQUISITES]
+                                      [--external-prerequisites-sha256 EXTERNAL_PREREQUISITES_SHA256]
+                                      [--smoke]
+smtp-endpoint-throughput-v1.py: error: --profiler-messages must be between 64 and 500000
+usage: smtp-endpoint-throughput-v1.py [-h] --output OUTPUT --launcher-run-id
+                                      LAUNCHER_RUN_ID --output-fd OUTPUT_FD
+                                      --checkpoint-fd CHECKPOINT_FD
+                                      [--profile {abba,java-small,candidate-stability}]
+                                      [--target {both,java,rust}]
+                                      [--rust-filesystem-fsync {on,off}]
+                                      [--tier {all,1kb,10kb,10mb}]
+                                      [--disk-budget-gib DISK_BUDGET_GIB]
+                                      [--external-prerequisites EXTERNAL_PREREQUISITES]
+                                      [--external-prerequisites-sha256 EXTERNAL_PREREQUISITES_SHA256]
+                                      [--smoke]
+smtp-endpoint-throughput-v1.py: error: --profiler-messages requires --profiler-candidate
+..usage: smtp-endpoint-throughput-v1.py [-h] --output OUTPUT --launcher-run-id
+                                      LAUNCHER_RUN_ID --output-fd OUTPUT_FD
+                                      --checkpoint-fd CHECKPOINT_FD
+                                      [--profile {abba,java-small,candidate-stability}]
+                                      [--target {both,java,rust}]
+                                      [--rust-filesystem-fsync {on,off}]
+                                      [--tier {all,1kb,10kb,10mb}]
+                                      [--disk-budget-gib DISK_BUDGET_GIB]
+                                      [--external-prerequisites EXTERNAL_PREREQUISITES]
+                                      [--external-prerequisites-sha256 EXTERNAL_PREREQUISITES_SHA256]
+                                      [--smoke]
+smtp-endpoint-throughput-v1.py: error: formal Rust runs require --rust-filesystem-fsync on or off
+usage: smtp-endpoint-throughput-v1.py [-h] --output OUTPUT --launcher-run-id
+                                      LAUNCHER_RUN_ID --output-fd OUTPUT_FD
+                                      --checkpoint-fd CHECKPOINT_FD
+                                      [--profile {abba,java-small,candidate-stability}]
+                                      [--target {both,java,rust}]
+                                      [--rust-filesystem-fsync {on,off}]
+                                      [--tier {all,1kb,10kb,10mb}]
+                                      [--disk-budget-gib DISK_BUDGET_GIB]
+                                      [--external-prerequisites EXTERNAL_PREREQUISITES]
+                                      [--external-prerequisites-sha256 EXTERNAL_PREREQUISITES_SHA256]
+                                      [--smoke]
+smtp-endpoint-throughput-v1.py: error: --target java does not accept a Rust fsync mode
+...................................................................
+----------------------------------------------------------------------
+Ran 217 tests in 8.619s
+
+OK

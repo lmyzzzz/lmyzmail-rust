@@ -857,7 +857,9 @@ class RustStressRuntime(
     DurablePostgresRuntimeMixin,
     v2.StressCandidateRuntimeV2,
 ):
-    benchmark_maildir_address_layout = "lmyzmail-v2"
+    # These two fixed, ordinary benchmark addresses use the oracle-compatible
+    # raw directories in the current candidate. Watch only those exact paths.
+    benchmark_maildir_address_layout = "java-raw"
     benchmark_warmup_rounds: int = 0
     coordinator_observer: bool = False
     filesystem_fsync_mode: str = "on"

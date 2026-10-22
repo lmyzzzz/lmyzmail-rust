@@ -3701,6 +3701,41 @@ class RoundContractTests(unittest.TestCase):
                 finally:
                     observer.stop()
 
+    def test_current_candidate_observes_oracle_compatible_stress_maildir_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            maildir = workspace / "maildir"
+            inbox = maildir / "stress-receiver@lmyz.net" / "inbox" / "1"
+            sent = maildir / "stress-sender@lmyz.net" / "sent" / "1"
+            inbox.mkdir(parents=True)
+            sent.mkdir(parents=True)
+            runtime = SimpleNamespace(
+                workspace=workspace,
+                benchmark_maildir_address_layout=(
+                    runner.RustStressRuntime.benchmark_maildir_address_layout
+                ),
+            )
+            observer = runner.MaildirPersistenceObserver(runtime, expected_messages=1)
+            try:
+                for index, folder in enumerate((inbox, sent)):
+                    staging = maildir / f".lmyzmail-stage-{index}.tmp"
+                    staging.write_bytes(b"Subject: exact publication\r\n\r\nbody\r\n")
+                    staging.rename(folder / "message.eml")
+                observer.wait_for_publications(2.0)
+                evidence = observer.snapshot()
+                self.assertEqual(evidence["publication_events"], 2)
+                self.assertEqual(evidence["atomic_rename_publications"], 2)
+                self.assertEqual(evidence["receiver_inbox_publications"], 1)
+                self.assertEqual(evidence["sender_sent_publications"], 1)
+                for folder in (inbox, sent):
+                    (folder / "message.eml").unlink()
+                observer.wait_for_removals(2.0)
+            finally:
+                evidence = observer.stop()
+            self.assertTrue(evidence["passed"])
+            self.assertEqual(evidence["removal_events"], 2)
+            self.assertEqual(evidence["observer_write_syscalls"], 0)
+
     def test_maildir_observer_tracks_real_v2_atomic_publish_and_cleanup(
         self,
     ) -> None:

@@ -1,0 +1,33 @@
+Traceback (most recent call last):
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 11221, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 11202, in main
+    result = _run_benchmark(args, layout)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 10655, in _run_benchmark
+    raise primary_error
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 10561, in _run_benchmark
+    arm = _run_target_tier(
+          ^^^^^^^^^^^^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 8042, in _run_target_tier
+    raise primary_error
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 7768, in _run_target_tier
+    record = _run_attested_round(
+             ^^^^^^^^^^^^^^^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 7301, in _run_attested_round
+    raise primary_error
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 7261, in _run_attested_round
+    result = _run_round(
+             ^^^^^^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 6954, in _run_round
+    raise primary_error
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 6823, in _run_round
+    maildir_observer.wait_for_publications(
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 3471, in wait_for_publications
+    raise TimeoutError(
+TimeoutError: Maildir publications did not match SMTP acceptance: 0 != 16; counts={'stress-receiver@lmyz.net/inbox': 0, 'stress-sender@lmyz.net/sent': 0}
+Maildir cleanup observation also failed: TimeoutError: Maildir removals did not match endpoint cleanup: 0 != 16; counts={'stress-receiver@lmyz.net/inbox': 0, 'stress-sender@lmyz.net/sent': 0}
+benchmark arm target=rust-candidate tier=10KB phase=measurement ordinal=0
+benchmark watchdog refused to signal a stale or out-of-cgroup runner PID
+benchmark watchdog qualification failed:  artifact_receipt_valid=0  runner_success_valid=0

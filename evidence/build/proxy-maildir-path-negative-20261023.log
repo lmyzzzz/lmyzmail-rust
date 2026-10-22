@@ -1,0 +1,15 @@
+E
+======================================================================
+ERROR: test_current_candidate_observes_oracle_compatible_stress_maildir_paths (test_smtp_endpoint_throughput_v1.RoundContractTests.test_current_candidate_observes_oracle_compatible_stress_maildir_paths)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/test_smtp_endpoint_throughput_v1.py", line 3724, in test_current_candidate_observes_oracle_compatible_stress_maildir_paths
+    observer.wait_for_publications(2.0)
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 3471, in wait_for_publications
+    raise TimeoutError(
+TimeoutError: Maildir publications did not match SMTP acceptance: 0 != 2; counts={'stress-receiver@lmyz.net/inbox': 0, 'stress-sender@lmyz.net/sent': 0}
+
+----------------------------------------------------------------------
+Ran 1 test in 2.013s
+
+FAILED (errors=1)
