@@ -16,6 +16,12 @@
 - `RELEASE.json`、`SHA256SUMS`：版本、来源、模型和原始发布文件校验值。
 - 后续验证补充文件单独记录验证源码提交和校验值，不改变上述发布文件。
 
+最新完整源码及历史是 `lmyzmail-22dae7d0-validation-<commit>-source.tar.gz`
+和对应的 `-history.bundle`，包含后续回滚工具、完整回放和 soak 证据。
+`VALIDATION.json` 给出精确提交；检查 `VALIDATION-SHA256SUMS` 后可解压源码，
+或用 `git clone <validation-history.bundle> lmyzmail-source` 恢复完整历史。
+生产运行时代码与原始 `22dae7d0` 发布提交完全一致。
+
 ## 安装
 
 在 Linux x86_64 上先检查 `SHA256SUMS`。Windows 只能保存这些交付文件，
@@ -73,3 +79,5 @@ cargo build --frozen --release -p lmyzmail
 `4fc4f7a0eb5d7e1210ddd7fee63a756775f5b7155db210080cfd8cc759403428`。
 本机可运行 Scalar 与 AVX2+FMA；没有 AVX-512 硬件，
 其原生执行/性能验收仍待补齐。正式 SMTP 长压力与同进程恢复要求也仍需合格证据。
+当前完整 Java/candidate 矩阵、961 项 Rust 测试、真实 XDP 检查、
+Scalar/AVX2 渲染以及独立 16 worker 半小时多模块 soak 已通过。

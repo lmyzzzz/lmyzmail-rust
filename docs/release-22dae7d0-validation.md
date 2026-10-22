@@ -89,8 +89,16 @@ The candidate's own workspace grew by 5,787,648 bytes (PostgreSQL data),
 peak RSS was 413,272 KiB, FD count stayed at 27, and peak tasks were 61.
 Steady RSS grew by 768 KiB and FD/tasks by zero. All other resource gates,
 immutable-input checks, ELF checks and managed-process cleanup passed.
-The complete failure evidence is retained; an isolated run under the same
-policy is required rather than raising its disk ceiling.
+The complete failure evidence is retained. The independently run v2 passed
+the same unchanged policy: 1,800.152 seconds, 16 workers, 269,344 successful
+operations and zero failures. Peak RSS was 412,112 KiB, steady RSS growth
+192 KiB, peak sampled tasks 62, and steady FD/task growth zero. Filesystem
+and workspace growth were both 5,787,648 bytes. The periodic sampler recorded
+FD 27; separate spot checks saw transient FD counts up to 33 that returned to
+27. Every resource gate, unchanged input/ELF check and cleanup audit passed,
+with no residual managed PID and the temporary workspace removed. This
+qualifies the half-hour multi-module gate for this exact retained ELF, not
+the separate high-volume mail-publication tiers.
 
 Six fresh Scalar/AVX2 renderer benchmark rounds retained identical output
 hashes across backend, size and dither cases. The benchmark records source,

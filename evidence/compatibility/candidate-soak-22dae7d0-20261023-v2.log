@@ -1,0 +1,63 @@
+{
+  "failures": 0,
+  "output": "/home/lmyzzz/lmyzmail-rust/evidence/compatibility/candidate-soak-22dae7d0-20261023-v2.json",
+  "qualified_half_hour": true,
+  "release_sha256": "78a4c31145010e479ec64a9e0a2f3ac767b2860e32180100cad699a155c37790",
+  "resource_policy_checks": {
+    "disk_peak": {
+      "enforced": true,
+      "limit": 1073741824,
+      "observed": 5787648,
+      "passed": true
+    },
+    "fd_absolute": {
+      "enforced": true,
+      "limit": 512,
+      "observed": 27,
+      "passed": true
+    },
+    "rss_absolute": {
+      "enforced": true,
+      "limit": 2097152,
+      "observed": 412112,
+      "passed": true
+    },
+    "steady_fd_growth": {
+      "enforced": true,
+      "limit": 4,
+      "observed": 0,
+      "passed": true
+    },
+    "steady_rss_growth": {
+      "enforced": true,
+      "limit": 65536,
+      "observed": 192,
+      "passed": true
+    },
+    "steady_task_growth": {
+      "enforced": true,
+      "limit": 4,
+      "observed": 0,
+      "passed": true
+    },
+    "steady_workspace_growth": {
+      "enforced": true,
+      "limit": 67108864,
+      "observed": 5787648,
+      "passed": true
+    },
+    "task_absolute": {
+      "enforced": true,
+      "limit": 512,
+      "observed": 62,
+      "passed": true
+    },
+    "workspace_peak": {
+      "enforced": true,
+      "limit": 536870912,
+      "observed": 5787648,
+      "passed": true
+    }
+  },
+  "status": "passed"
+}

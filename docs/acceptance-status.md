@@ -43,7 +43,13 @@ all in-flight crash boundaries or allowing unsafe colliding Java aliases.
   errors across 254,064 operations and stable RSS/FD/tasks do not override its
   filesystem-wide disk peak of 2,767,642,624 bytes against the 1 GiB gate.
   Its own workspace grew by 5,787,648 bytes while oracle/package work ran
-  concurrently. The same unchanged policy must pass in an isolated rerun.
+  concurrently. The isolated v2 then passed that same unchanged policy in
+  1,800.152 seconds with 16 workers, 269,344 operations and zero failures.
+  Peak RSS was 412,112 KiB, steady RSS growth 192 KiB, peak sampled tasks 62,
+  steady FD/task growth zero and filesystem/workspace growth 5,787,648 bytes.
+  All immutable-input, ELF and cleanup checks passed with no residual managed
+  process and the workspace removed. This closes the current half-hour gate;
+  it does not substitute for high-volume SMTP publication/recovery evidence.
 - The 2026-10-22 shutdown recovery repair passed all 959 Rust tests, strict
   Clippy, all four unchanged stress SIGTERM/SIGKILL regressions, compact-model
   Scalar/Auto SMTP/DB checks, and ordinary-address bidirectional Java/Rust
