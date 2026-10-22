@@ -119,6 +119,7 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "stress-bounded-run-admission",
         "stress-cleanup-run-serialization",
         "stress-resource-and-input-bounds",
+        "stress-delivery-timeout-after-queue-completion",
     }
     starttls = next(
         entry
@@ -192,6 +193,14 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
     assert by_id["stress-cleanup-run-serialization"]["evidence"]["oracle_golden"].endswith(
         "/observations/http/stress/oracle-cleanup-during-run.json"
     )
+    delivery_wait = by_id["stress-delivery-timeout-after-queue-completion"]
+    assert delivery_wait["evidence"]["source_sha256"] == (
+        "1f89c3d577cb9fcc13721a56c28e866e30c759f34b4a0617177d91f4885158a0"
+    )
+    assert delivery_wait["evidence"]["formal_failure"].endswith(
+        "formal-v5-delivery-deadline-failure.txt"
+    )
+    assert delivery_wait["scope"].startswith("Only the origin of the 20-minute delivery-wait deadline.")
 
     htcpcp_close = by_id["htcpcp-connection-close-lifecycle"]
     assert htcpcp_close["evidence"]["oracle_golden"].startswith(
