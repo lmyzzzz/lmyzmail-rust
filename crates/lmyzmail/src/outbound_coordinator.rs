@@ -3397,7 +3397,7 @@ fn task_can_adopt_rust_spool_authority(task: &TaskDetail, spool_dir: &Path) -> b
 }
 
 #[cfg(target_os = "linux")]
-fn rust_spool_publication_authority(
+pub(crate) fn rust_spool_publication_authority(
     task_id: i64,
     spool_dir: &Path,
     max_message_bytes: u64,
@@ -3500,7 +3500,7 @@ fn rust_spool_publication_authority(
 }
 
 #[cfg(not(target_os = "linux"))]
-fn rust_spool_publication_authority(
+pub(crate) fn rust_spool_publication_authority(
     _task_id: i64,
     _spool_dir: &Path,
     _max_message_bytes: u64,

@@ -9,6 +9,11 @@ per-profile test invocation. Packaging does not close the remaining gates.
 
 ## Passed in the current milestone
 
+- The 2026-10-22 shutdown recovery repair passed all 959 Rust tests, strict
+  Clippy, all four unchanged stress SIGTERM/SIGKILL regressions, compact-model
+  Scalar/Auto SMTP/DB checks, and ordinary-address bidirectional Java/Rust
+  takeover. See [the evidence record](shutdown-recovery-20261022.md). The final
+  full candidate replay and refreshed reproducible package remain separate gates.
 - Commit `f3b10966` passed the fresh formal multi-module soak recorded in [`candidate-soak-f3b10966-20261022.json`](../evidence/compatibility/candidate-soak-f3b10966-20261022.json).
 - The run lasted `1800.046` seconds with `16` workers and completed `252608` HTTP, SMTP, HTCPCP, and Minecraft operations.
 - It recorded `0` failures, a peak RSS of `413072 KiB`, a constant FD count of `27`, a peak task count of `61`, and a queue range of `0..0`. After initialization, RSS grew by `768 KiB`, FD/tasks by zero, and the workspace by `5787648` bytes (PostgreSQL data). These observations pass the existing resource gates for this workload; they do not substitute for the separate mail-publication stress test.
@@ -39,9 +44,11 @@ The 30-second smoke companion is retained as [`candidate-soak-v6-smoke-0eb2-v1.j
   counts: queue layout, reports, cron scheduler and enqueue-time SIGTERM checks
   passed unchanged. The 4xx retry and DSN tests also passed after separating DSN
   publication backoff from ordinary queue maintenance. Delivery-time SIGTERM
-  cleanup remains open: a PENDING task is preserved safely, but its Sent copy
-  prevents the required complete stress-mailbox cleanup. Diagnostic state and
-  every failing log are retained. This is not a clean full replay.
+  cleanup failed in that earlier replay: a PENDING task was preserved safely,
+  but its Sent copy prevented complete stress-mailbox cleanup. The new
+  shutdown-only recovery proof passed the original regression, including exact
+  cleanup and queue recoverability. Diagnostic state and every earlier failing
+  log are retained. The historical replay is still not a clean full replay.
   A new package and fresh full replay are still required. See
   [Maildir takeover status](maildir-takeover.md) for the remaining ambiguous-name
   layout and rollback gap. Package availability is not production acceptance.

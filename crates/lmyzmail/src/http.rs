@@ -351,18 +351,27 @@ pub async fn serve_http(
         tasks.abort_all();
         while tasks.join_next().await.is_some() {}
     }
+    match timeout_at(shutdown_deadline, &mut reconciliation_task).await {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => {
+            return Err(io::Error::other(format!(
+                "lmyzmail outbound reconciliation failed during shutdown: {error}"
+            )));
+        }
+        Err(_) => {
+            reconciliation_task.abort();
+            let _ = reconciliation_task.await;
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "lmyzmail outbound reconciliation did not stop before stress cleanup",
+            ));
+        }
+    }
     if !stress.shutdown(shutdown_deadline).await {
         eprintln!(
             "lmyzmail final shutdown could not reclaim stress blocking workers; aborting instead of detaching live file owners"
         );
         std::process::abort();
-    }
-    if timeout_at(shutdown_deadline, &mut reconciliation_task)
-        .await
-        .is_err()
-    {
-        reconciliation_task.abort();
-        let _ = reconciliation_task.await;
     }
     match terminal_accept_error {
         Some(error) => Err(error),

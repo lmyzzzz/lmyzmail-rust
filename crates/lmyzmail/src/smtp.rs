@@ -1382,10 +1382,15 @@ pub async fn serve_smtp(
     tasks.abort_all();
     while tasks.join_next().await.is_some() {}
     maintenance_cancellation.cancel();
-    if timeout(INBOUND_MAINTENANCE_SHUTDOWN_DEADLINE, &mut maintenance_task)
-        .await
-        .is_err()
-    {
+    let maintenance_result =
+        timeout(INBOUND_MAINTENANCE_SHUTDOWN_DEADLINE, &mut maintenance_task).await;
+    let maintenance_drained = matches!(&maintenance_result, Ok(Ok(())));
+    if let Ok(Err(error)) = &maintenance_result {
+        eprintln!("lmyzmail SMTP inbound maintenance failed during shutdown: {error}");
+    } else if let Err(error) = &maintenance_result {
+        eprintln!("lmyzmail SMTP inbound maintenance exceeded its shutdown deadline: {error}");
+    }
+    if maintenance_result.is_err() {
         maintenance_task.abort();
         let _ = maintenance_task.await;
     }
@@ -1415,6 +1420,30 @@ pub async fn serve_smtp(
     {
         eprintln!("lmyzmail SMTP video worker exceeded its shutdown deadline");
     }
+    if !maintenance_drained || !intent_drained || !index_drained || !completion_drained {
+        return Err(io::Error::new(
+            io::ErrorKind::TimedOut,
+            "lmyzmail SMTP storage workers did not drain before shutdown",
+        ));
+    }
+    let blocking_permits =
+        u32::try_from(MAX_CONNECTIONS.min(4)).expect("SMTP blocking permit count fits u32");
+    let blocking_quiescence = timeout_at(
+        inbound_committer_deadline,
+        service
+            .blocking_permits
+            .clone()
+            .acquire_many_owned(blocking_permits),
+    )
+    .await
+    .map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::TimedOut,
+            "lmyzmail SMTP blocking file workers did not stop before shutdown",
+        )
+    })?
+    .map_err(|_| io::Error::other("lmyzmail SMTP blocking pool closed"))?;
+    drop(blocking_quiescence);
     drop(service);
     if timeout(CRINGE_SHUTDOWN_DEADLINE, &mut cringe_task)
         .await

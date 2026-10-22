@@ -57,11 +57,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         database_pool.clone(),
         config.reporting.clone(),
     )?);
-    let outbound_service = Arc::new(OutboundService::from_config(
-        &config,
-        database_pool.clone(),
-        redis_pool.clone(),
-    )?);
+    let smtp_stopped = CancellationToken::new();
+    let outbound_stopped = CancellationToken::new();
+    let outbound_service = Arc::new(
+        OutboundService::from_config(&config, database_pool.clone(), redis_pool.clone())?
+            .with_storage_shutdown_barrier([smtp_stopped.clone(), outbound_stopped.clone()]),
+    );
     let inferx_service = Arc::new(InferxService::from_config(&config.skibidi_inferx));
     let inferx_info = inferx_service.runtime_info();
     if let Some(error) = &inferx_info.initialization_error {
@@ -194,18 +195,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let smtp_cringe = cringe_service.clone();
     let smtp_cancellation = cancellation.clone();
     services.spawn(async move {
-        (
-            "SMTP",
-            smtp::serve_smtp(
-                smtp_config,
-                smtp_pool,
-                smtp_redis_pool,
-                smtp_inferx,
-                smtp_cringe,
-                smtp_cancellation,
-            )
-            .await,
+        let result = smtp::serve_smtp(
+            smtp_config,
+            smtp_pool,
+            smtp_redis_pool,
+            smtp_inferx,
+            smtp_cringe,
+            smtp_cancellation,
         )
+        .await;
+        if result.is_ok() {
+            smtp_stopped.cancel();
+        }
+        ("SMTP", result)
     });
     if config.htcpcp.enabled {
         let htcpcp_config = Arc::clone(&config);
@@ -237,13 +239,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let outbound_cancellation = cancellation.clone();
     services.spawn(async move {
-        (
-            "outbound",
-            outbound_worker
-                .run(outbound_cancellation)
-                .await
-                .map_err(io::Error::other),
-        )
+        let result = outbound_worker
+            .run(outbound_cancellation)
+            .await
+            .map_err(io::Error::other);
+        if result.is_ok() {
+            outbound_stopped.cancel();
+        }
+        ("outbound", result)
     });
 
     let mut failure = None;

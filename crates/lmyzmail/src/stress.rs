@@ -1245,7 +1245,31 @@ async fn finish_cleanup_attempt(
     cancellation: &CancellationToken,
 ) -> Result<(), StressError> {
     let tasks = tasks.ok_or(StressError::Backend)?;
-    wait_for_task_quiescence(&inner.outbound, tasks, deadline, cancellation).await?;
+    let shutdown_recovery = inner.cancellation.is_cancelled();
+    if shutdown_recovery {
+        inner
+            .outbound
+            .wait_for_storage_writers_stopped(deadline, cancellation)
+            .await
+            .map_err(|_| StressError::Backend)?;
+        let recoverable = timeout_at(
+            deadline,
+            inner.outbound.stress_tasks_recoverable_after_shutdown(
+                sender,
+                tasks,
+                deadline,
+                cancellation,
+            ),
+        )
+        .await
+        .map_err(|_| StressError::Backend)?
+        .map_err(|_| StressError::Backend)?;
+        if !recoverable {
+            return Err(StressError::Backend);
+        }
+    } else {
+        wait_for_task_quiescence(&inner.outbound, tasks, deadline, cancellation).await?;
+    }
     let service = StressService {
         inner: Arc::clone(inner),
     };
@@ -1267,9 +1291,28 @@ async fn finish_cleanup_attempt(
     .await
     .map_err(|_| StressError::Backend)??;
 
+    if shutdown_recovery {
+        let recoverable = timeout_at(
+            deadline,
+            inner.outbound.stress_tasks_recoverable_after_shutdown(
+                sender,
+                tasks,
+                deadline,
+                cancellation,
+            ),
+        )
+        .await
+        .map_err(|_| StressError::Backend)?
+        .map_err(|_| StressError::Backend)?;
+        if !recoverable {
+            return Err(StressError::Backend);
+        }
+    }
     let mut stable_clean_polls = 0;
     while stable_clean_polls < DELIVERY_STABLE_POLLS {
-        wait_for_task_quiescence(&inner.outbound, tasks, deadline, cancellation).await?;
+        if !shutdown_recovery {
+            wait_for_task_quiescence(&inner.outbound, tasks, deadline, cancellation).await?;
+        }
         let (sender_count, receiver_count) = timeout_at(deadline, async {
             let sender_count = inner
                 .mailbox

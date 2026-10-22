@@ -11,6 +11,7 @@ use std::{
     time::Duration,
 };
 
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use deadpool_postgres::Pool;
 use deadpool_redis::Pool as RedisPool;
@@ -36,8 +37,10 @@ use crate::{
         BatchOutcome, BatchPersistence, BatchRow, postgres_queue_capacity_exhausted,
         redis_queue_capacity_guard_triggered,
     },
+    outbound_coordinator::rust_spool_publication_authority,
     outbound_delivery::{
-        OutboundSpoolKind, OutboundSpoolRecord, OutboundSpoolState, parse_recipient_roster_json,
+        OutboundContentAuthority, OutboundContentRoot, OutboundSpoolKind, OutboundSpoolRecord,
+        OutboundSpoolState, PostgresDeliveryState, parse_recipient_roster_json,
     },
     outbound_message::{
         MaterializedMessage, MessageAttachment, MessageBuildError, MessageInput,
@@ -139,6 +142,9 @@ pub struct OutboundService {
     max_attachment_size_bytes: u64,
     max_total_attachments_size_bytes: u64,
     batch_persistence: Option<Arc<BatchPersistence>>,
+    spool_dir: PathBuf,
+    max_message_bytes: u64,
+    storage_shutdown_barriers: Vec<CancellationToken>,
 }
 
 #[derive(Debug, Default)]
@@ -748,6 +754,91 @@ fn validate_stress_active_pair(
     Ok(())
 }
 
+fn identity_matches_stress_task(identity: &StressTaskIdentity, task: &TaskDetail) -> bool {
+    let actual = task.sent_file_name.as_deref();
+    match &identity.lifecycle {
+        StressTaskLifecycle::Persisted { sent_file_name } => sent_file_name
+            .as_deref()
+            .is_some_and(|value| Some(value) == actual),
+        StressTaskLifecycle::Materialized { sent_file_name, .. } => {
+            Some(sent_file_name.as_ref()) == actual
+        }
+        StressTaskLifecycle::Unknown { sent_file_name, .. } => sent_file_name
+            .as_deref()
+            .is_none_or(|expected| Some(expected) == actual),
+        StressTaskLifecycle::Reserved
+        | StressTaskLifecycle::Materializing
+        | StressTaskLifecycle::KnownAborted => false,
+    }
+}
+
+async fn stress_recovery_source_matches(
+    task: TaskDetail,
+    authority: &OutboundContentAuthority,
+    spool_dir: &std::path::Path,
+    max_message_bytes: u64,
+    blocking_permits: Arc<Semaphore>,
+    cancellation: &CancellationToken,
+) -> Result<bool, OutboundError> {
+    if authority.task_id != task.id
+        || authority.content_size == 0
+        || authority.content_size > max_message_bytes
+        || authority.source_root != OutboundContentRoot::Spool
+        || authority.relative_path != format!("message-{}.eml", task.id)
+    {
+        return Ok(false);
+    }
+    match (task.message_file_path, task.signed_content_base64) {
+        (Some(path), None) if !path.is_empty() => {
+            let expected = std::path::absolute(spool_dir)
+                .map_err(|_| OutboundError::Unavailable)?
+                .join(format!("message-{}.eml", task.id));
+            let actual = std::path::absolute(&path).map_err(|_| OutboundError::Unavailable)?;
+            if actual != expected {
+                return Ok(false);
+            }
+            let spool_dir = spool_dir.to_path_buf();
+            let task_id = task.id;
+            let maximum = max_message_bytes;
+            let verified = run_bounded_message_task(
+                blocking_permits,
+                cancellation,
+                STORAGE_TIMEOUT,
+                move |_| {
+                    rust_spool_publication_authority(task_id, &spool_dir, maximum)
+                        .map_err(MessageBuildError::Io)
+                },
+            )
+            .await?;
+            Ok(verified.as_ref() == Some(authority))
+        }
+        (None, Some(encoded)) if !encoded.is_empty() => {
+            let maximum_encoded = max_message_bytes
+                .checked_add(2)
+                .and_then(|value| value.checked_div(3))
+                .and_then(|value| value.checked_mul(4))
+                .ok_or(OutboundError::Unavailable)?;
+            if encoded.len() as u64 > maximum_encoded {
+                return Ok(false);
+            }
+            let authority = authority.clone();
+            run_bounded_message_task(blocking_permits, cancellation, STORAGE_TIMEOUT, move |_| {
+                let bytes = BASE64_STANDARD.decode(&encoded).map_err(|_| {
+                    MessageBuildError::Io(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "invalid stress recovery inline content",
+                    ))
+                })?;
+                Ok(bytes.len() as u64 == authority.content_size
+                    && BASE64_STANDARD.encode(&bytes) == encoded
+                    && <[u8; 32]>::from(Sha256::digest(&bytes)) == authority.content_sha256)
+            })
+            .await
+        }
+        _ => Ok(false),
+    }
+}
+
 fn insert_stress_identity(
     identities: &mut BTreeMap<i64, StressTaskIdentity>,
     identity: StressTaskIdentity,
@@ -973,6 +1064,10 @@ impl OutboundService {
         )?;
         let message_builder =
             OutboundMessageBuilder::from_config(config).map_err(map_message_build_error)?;
+        let spool_dir = config
+            .preferred_value("lmyzmail.outbound.spool-dir", "botmail.outbound.temp-dir")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| config.maildir.join(".lmyzmail-outbound"));
         let queue = LegacyOutboundQueue::new(redis_pool);
         let batch_persistence = if config.storage.fsync_enabled {
             None
@@ -1005,7 +1100,48 @@ impl OutboundService {
             max_attachment_size_bytes: config.limits.max_attachment_size_bytes,
             max_total_attachments_size_bytes: config.limits.max_total_attachments_size_bytes,
             batch_persistence,
+            spool_dir,
+            max_message_bytes: config.limits.max_email_size_bytes,
+            storage_shutdown_barriers: Vec::new(),
         })
+    }
+
+    pub fn with_storage_shutdown_barrier(
+        mut self,
+        barriers: impl IntoIterator<Item = CancellationToken>,
+    ) -> Self {
+        self.storage_shutdown_barriers = barriers.into_iter().collect();
+        self
+    }
+
+    pub(crate) fn storage_writers_stopped(&self) -> bool {
+        !self.storage_shutdown_barriers.is_empty()
+            && self
+                .storage_shutdown_barriers
+                .iter()
+                .all(CancellationToken::is_cancelled)
+    }
+
+    pub(crate) async fn wait_for_storage_writers_stopped(
+        &self,
+        deadline: Instant,
+        cancellation: &CancellationToken,
+    ) -> Result<(), OutboundError> {
+        if self.storage_shutdown_barriers.is_empty() {
+            return Err(OutboundError::Unavailable);
+        }
+        timeout_at(deadline, async {
+            for barrier in &self.storage_shutdown_barriers {
+                tokio::select! {
+                    biased;
+                    _ = cancellation.cancelled() => return Err(OutboundError::Unavailable),
+                    _ = barrier.cancelled() => {}
+                }
+            }
+            Ok(())
+        })
+        .await
+        .map_err(|_| OutboundError::Unavailable)?
     }
 
     pub async fn shutdown(&self, deadline: Instant) -> bool {
@@ -1431,6 +1567,103 @@ impl OutboundService {
             .buffer_unordered(STRESS_QUIESCENCE_REDIS_CONCURRENCY);
         while let Some(proof) = proofs.next().await {
             if !proof.map_err(|_| OutboundError::Unavailable)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    pub(crate) async fn stress_tasks_recoverable_after_shutdown(
+        &self,
+        sender: &str,
+        identities: &[StressTaskIdentity],
+        deadline: Instant,
+        cancellation: &CancellationToken,
+    ) -> Result<bool, OutboundError> {
+        if !self.storage_writers_stopped() {
+            return Ok(false);
+        }
+        self.wait_for_storage_writers_stopped(deadline, cancellation)
+            .await?;
+        let active = self.stress_active_tasks(sender, cancellation).await?;
+        let mut active_by_id = BTreeMap::new();
+        for task in active {
+            if active_by_id.insert(task.queue_id, task).is_some() {
+                return Err(OutboundError::Unavailable);
+            }
+        }
+        let identity_ids = identities
+            .iter()
+            .map(|identity| identity.queue_id)
+            .collect::<BTreeSet<_>>();
+        if identity_ids.len() != identities.len()
+            || active_by_id
+                .keys()
+                .any(|task_id| !identity_ids.contains(task_id))
+        {
+            return Ok(false);
+        }
+
+        let state = PostgresDeliveryState::new(self.pool.clone());
+        let mut active_reads = stream::iter(active_by_id.values().cloned())
+            .map(|identity| {
+                let state = state.clone();
+                async move {
+                    let task_id = identity.queue_id;
+                    let detail = tokio::select! {
+                        biased;
+                        _ = cancellation.cancelled() => return Err(OutboundError::Unavailable),
+                        result = self.queue.read_persisted_task_strict(task_id) => result
+                            .map_err(|_| OutboundError::Unavailable)?,
+                    }
+                    .ok_or(OutboundError::Unavailable)?;
+                    if detail.id != task_id
+                        || detail.sender_address != sender
+                        || !matches!(detail.status.as_str(), "PENDING" | "PROCESSING")
+                        || detail
+                            .sent_file_name
+                            .as_deref()
+                            .is_none_or(|value| !valid_stress_sent_file_name(value))
+                        || !identity_matches_stress_task(&identity, &detail)
+                    {
+                        return Ok::<_, OutboundError>(false);
+                    }
+                    let Some(authority) = state
+                        .content_authority(task_id)
+                        .await
+                        .map_err(|_| OutboundError::Unavailable)?
+                    else {
+                        return Ok(false);
+                    };
+                    if !stress_recovery_source_matches(
+                        detail,
+                        &authority,
+                        &self.spool_dir,
+                        self.max_message_bytes,
+                        Arc::clone(&self.blocking_permits),
+                        cancellation,
+                    )
+                    .await?
+                    {
+                        return Ok(false);
+                    }
+                    Ok(true)
+                }
+            })
+            .buffer_unordered(STRESS_QUIESCENCE_REDIS_CONCURRENCY);
+        while let Some(proven) = active_reads.next().await {
+            if !proven? {
+                return Ok(false);
+            }
+        }
+
+        let terminal = identities
+            .iter()
+            .filter(|identity| !active_by_id.contains_key(&identity.queue_id))
+            .cloned()
+            .collect::<Vec<_>>();
+        for batch in terminal.chunks(STRESS_QUIESCENCE_BATCH_LIMIT) {
+            if !self.stress_tasks_quiesced(batch, cancellation).await? {
                 return Ok(false);
             }
         }
@@ -5101,6 +5334,89 @@ mod tests {
             validate_stress_active_pair(41, "stress@example.test", "other.eml", Some(&task))
                 .is_err()
         );
+    }
+
+    #[test]
+    fn stress_shutdown_recovery_rejects_unpublished_or_changed_identity() {
+        let task = stress_redis_task(41, "stress@example.test", "stress.eml");
+        for lifecycle in [
+            StressTaskLifecycle::Reserved,
+            StressTaskLifecycle::Materializing,
+            StressTaskLifecycle::KnownAborted,
+            StressTaskLifecycle::Persisted {
+                sent_file_name: None,
+            },
+            StressTaskLifecycle::Persisted {
+                sent_file_name: Some("other.eml".into()),
+            },
+        ] {
+            assert!(!identity_matches_stress_task(
+                &StressTaskIdentity {
+                    queue_id: 41,
+                    lifecycle
+                },
+                &task,
+            ));
+        }
+        assert!(identity_matches_stress_task(
+            &StressTaskIdentity {
+                queue_id: 41,
+                lifecycle: StressTaskLifecycle::Persisted {
+                    sent_file_name: Some("stress.eml".into()),
+                },
+            },
+            &task,
+        ));
+    }
+
+    #[tokio::test]
+    async fn stress_shutdown_recovery_requires_exact_inline_content_authority() {
+        let task = stress_redis_task(41, "stress@example.test", "stress.eml");
+        let authority = OutboundContentAuthority {
+            task_id: 41,
+            source_root: OutboundContentRoot::Spool,
+            relative_path: "message-41.eml".into(),
+            content_size: 1,
+            content_sha256: Sha256::digest(b"a").into(),
+        };
+        let permits = Arc::new(Semaphore::new(1));
+        let cancellation = CancellationToken::new();
+        let verify = |task, authority: OutboundContentAuthority, maximum| {
+            let permits = Arc::clone(&permits);
+            let cancellation = cancellation.clone();
+            async move {
+                stress_recovery_source_matches(
+                    task,
+                    &authority,
+                    std::path::Path::new("/unused-spool"),
+                    maximum,
+                    permits,
+                    &cancellation,
+                )
+                .await
+            }
+        };
+        assert!(verify(task.clone(), authority.clone(), 1).await.unwrap());
+        let mut changed = authority.clone();
+        changed.content_sha256[0] ^= 1;
+        assert!(!verify(task.clone(), changed, 1).await.unwrap());
+        let mut changed = authority.clone();
+        changed.task_id += 1;
+        assert!(!verify(task.clone(), changed, 1).await.unwrap());
+        let mut changed = authority.clone();
+        changed.relative_path = "../message-41.eml".into();
+        assert!(!verify(task.clone(), changed, 1).await.unwrap());
+        assert!(!verify(task.clone(), authority.clone(), 0).await.unwrap());
+        let mut ambiguous = task.clone();
+        ambiguous.message_file_path = Some("/unused-spool/message-41.eml".into());
+        assert!(!verify(ambiguous, authority.clone(), 1).await.unwrap());
+        let mut oversized = task.clone();
+        oversized.signed_content_base64 = Some(BASE64_STANDARD.encode(b"abcd"));
+        assert!(!verify(oversized, authority.clone(), 1).await.unwrap());
+        let mut invalid = task;
+        invalid.signed_content_base64 = Some("!!!!".into());
+        assert!(verify(invalid, authority, 1).await.is_err());
+        assert_eq!(permits.available_permits(), 1);
     }
 
     #[test]

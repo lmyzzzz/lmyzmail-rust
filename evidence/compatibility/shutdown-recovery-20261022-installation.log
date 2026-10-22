@@ -1,0 +1,3 @@
+source hash mismatch: /home/lmyzzz/lmyzmail-rust/target/x86_64-unknown-linux-gnu/release/lmyzmail
+expected=ebc91b78f14a00b3059240f28410926918ff6e7683ee0fcbbf37d383fe741d82
+actual=210510cec73f5da0416799ce834a66d7b2844ac3d00070ffef9e8cb36cd8bb7d
