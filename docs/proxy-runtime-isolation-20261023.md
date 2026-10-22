@@ -165,3 +165,40 @@ artifacts remained mode 0400 after complete service/quota cleanup. The complete
 `f1ef410d4fcfe70064263878f263992bc29bf06a9d9439b5b4c85086cafd2e11`.
 The copied root cleanup receipt and original console retain the rejection.
 There is no formal measurement pass from this run.
+
+## Contaminated v5 and retained gate diagnostics
+
+Run `17025ec3-70c6-41d2-96ad-715bb77ffe34` passed synthetic preflight and
+completed the first actual-product gate-off calibration round: 100 messages
+of 10 MiB, 100 verified, with a retained checkpoint rate of 3.062819 msg/s.
+The second, gate-on round's endpoint log recorded all 100 queued/received,
+zero failed/lost/exception/OOM/rate-limited messages and completed cleanup.
+Neither observation qualifies the separate formal 500-message workload.
+
+During diagnosis the agent incorrectly connected to the proxy control socket
+as root rather than the runner's UID 1000. The proxy correctly rejected the
+connection and recorded an observer failure. A later same-UID summary observed
+100/100 messages, zero duplicates, two observer failures (the different-UID
+connection and 10 connections exceeding the 30-second shutdown grace).
+This diagnostic action contaminated the run; it must not be counted as either
+a successful tier or an uncontaminated product stability failure.
+
+The runner failed closed with `final-250 persistence gate failed causal
+qualification` in the gate-on round. The old exception did not retain the gate
+snapshot and timing details, so the causal failure cannot be attributed solely
+to the rejected diagnostic connection. Root cleanup passed without lazy unmount
+or recovery; `qualified_cleanup=0`. The original protected checkpoint remains
+mode 0400. Its readable copy is
+`release-22dae7d0-formal-off-10mb-v5.runner-proof.jsonl`, SHA-256
+`46044fecd1ae3366f88be0c7ef7bd4c9e49cb738b749ab5fd6e3559473b0d43e`.
+The console and cleanup receipt are retained beside it.
+
+The tooling now includes the bounded gate/snapshot/timing/proxy evidence in a
+causal-failure exception. Every completed calibration round is checkpointed
+with its original record, and an evaluated calibration report is checkpointed
+before rejecting its unchanged spread/ratio gates. This preserves negative
+evidence when later rounds or aggregate calibration fail. A regression proves
+that an eight-round calibration with excess spread stays rejected and retains
+all eight records plus the failed evaluation. The gate-hold regression also
+checks the rejected timing evidence. All 220 Python throughput/launcher checks
+and Bash syntax validation passed. No product source or threshold changed.

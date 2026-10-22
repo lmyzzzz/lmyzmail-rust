@@ -1,0 +1,66 @@
+........................................................................ [ 32%]
+.....................F.................................................. [ 65%]
+........................................................................ [ 98%]
+....                                                                     [100%]
+=================================== FAILURES ===================================
+_ RoundContractTests.test_gate_hold_over_250ms_fails_even_when_exact_counts_match _
+
+self = <test_smtp_endpoint_throughput_v1.RoundContractTests testMethod=test_gate_hold_over_250ms_fails_even_when_exact_counts_match>
+
+    def test_gate_hold_over_250ms_fails_even_when_exact_counts_match(self) -> None:
+        proxy = mock.Mock()
+        _configure_proxy_gate(
+            proxy,
+            count=50,
+            gate_hold_ns=runner.MAXIMUM_PERSISTENCE_GATE_HOLD_NS + 1,
+        )
+        proxy.finish.return_value.update({"expected": 50, "verified": 50})
+        cleanup = {
+            "final": _clean_state(),
+            "stable_polls": 3,
+            "semantic_sha256": "a" * 64,
+            "database_delta": {"passed": True},
+        }
+        with (
+            mock.patch.object(
+                runner, "MaildirPersistenceObserver", _FakeMaildirObserver
+            ),
+            mock.patch.object(
+                runner,
+                "PostgresPersistenceGateSnapshot",
+                _fake_postgres_gate_snapshot(50),
+            ),
+            mock.patch.object(runner, "_cleanup_state", return_value=_clean_state()),
+            mock.patch.object(
+                runner,
+                "_wait_for_delivery_database_visibility",
+                return_value={"passed": True},
+            ),
+            mock.patch.object(runner, "_log_cursor", return_value=(Path("log"), 0)),
+            mock.patch.object(
+                runner, "_start_round", return_value={"body": {"round": 1}}
+            ),
+            mock.patch.object(
+                runner, "_wait_for_automatic_cleanup", return_value=cleanup
+            ),
+            mock.patch.object(runner, "_log_evidence", return_value={}),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "causal qualification") as caught:
+                runner._run_round(
+                    object(),
+                    proxy,
+                    object(),
+                    mode="PRODUCTION",
+                    count=50,
+                    message_bytes=1024,
+                    disk_budget_bytes=1024**3,
+                    measured=False,
+                )
+        diagnostic = json.loads(str(caught.exception).split(": ", 1)[1])
+>       self.assertEqual(diagnostic["verified"], 50)
+E       AssertionError: None != 50
+
+evidence/performance/test_smtp_endpoint_throughput_v1.py:4678: AssertionError
+=========================== short test summary info ============================
+FAILED evidence/performance/test_smtp_endpoint_throughput_v1.py::RoundContractTests::test_gate_hold_over_250ms_fails_even_when_exact_counts_match
+1 failed, 219 passed in 9.08s

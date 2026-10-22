@@ -77,6 +77,15 @@ The 30-second smoke companion is retained as [`candidate-soak-v6-smoke-0eb2-v1.j
 
 ## Still required
 
+- The v5 actual-product calibration reached two 100-message 10 MiB endpoint
+  rounds, but an agent diagnostic used root for a UID-1000 control socket and
+  contaminated observer evidence. The gate-on round failed causal qualification;
+  root cleanup passed and the protected checkpoint is retained. It is neither a
+  qualified SMTP tier nor an uncontaminated product stability failure. Gate
+  exceptions and calibration checkpoints now retain the details needed to
+  diagnose the next run; all 220 tooling checks pass. See
+  [the v5 evidence record](proxy-runtime-isolation-20261023.md).
+
 - The role-isolated calibration now passed the actual root/cgroup producer and
   independent verifier for every tier, without changing the 0.90 ratio or 0.20
   spread gates. The next 10 MiB fsync-off workload observed 500/500 messages and

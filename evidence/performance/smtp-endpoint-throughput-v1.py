@@ -6780,7 +6780,20 @@ def _run_round(
                 )
             )
         if not gate_passed:
-            raise RuntimeError("final-250 persistence gate failed causal qualification")
+            diagnostic = {
+                "persistence_gate": gate_evidence,
+                "final_250_boundary": final_boundary,
+                "duration_ns": duration_ns,
+                "verified": capture.get("verified"),
+                "expected": capture.get("expected"),
+                "observer_failure_count": capture.get("observer_failure_count"),
+                "observer_failures": capture.get("observer_failures"),
+                "proxy": capture.get("proxy"),
+            }
+            raise RuntimeError(
+                "final-250 persistence gate failed causal qualification: "
+                + json.dumps(diagnostic, sort_keys=True, separators=(",", ":"))
+            )
         if capture["round"] != start_response["body"]["round"]:
             raise RuntimeError("captured SMTP round differed from the HTTP response")
     except BaseException as error:
@@ -7574,6 +7587,7 @@ def _run_real_gate_calibration_tier(
                     "throughput_messages_per_second": record["smtp"][
                         "throughput_messages_per_second"
                     ],
+                    "record": record,
                 }
             )
         binding = {
@@ -7599,6 +7613,14 @@ def _run_real_gate_calibration_tier(
             "artifact_before": artifact_before,
         }
         report = _real_gate_calibration_report(label, rounds, binding=binding)
+        checkpoint_event(
+            {
+                "event": "real_gate_calibration_evaluated",
+                "tier": label,
+                "rust_filesystem_fsync": rust_filesystem_fsync,
+                "report": report,
+            }
+        )
         if report["qualification"] is not True:
             raise RuntimeError(f"real gate calibration did not qualify: {label}")
     except BaseException as error:

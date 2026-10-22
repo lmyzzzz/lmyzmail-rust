@@ -182,6 +182,8 @@ def _configure_proxy_gate(
         forwarding_completed = forwarding_started + 1
         return {
             "round": round_number,
+            "expected": count,
+            "verified": count,
             "duration_ns": duration_ns,
             "within_arm_throughput_stability": {"passed": True},
             "final_250_boundary": {"completed_at_monotonic_ns": forwarding_completed},
@@ -4662,7 +4664,7 @@ class RoundContractTests(unittest.TestCase):
             ),
             mock.patch.object(runner, "_log_evidence", return_value={}),
         ):
-            with self.assertRaisesRegex(RuntimeError, "causal qualification"):
+            with self.assertRaisesRegex(RuntimeError, "causal qualification") as caught:
                 runner._run_round(
                     object(),
                     proxy,
@@ -4673,6 +4675,15 @@ class RoundContractTests(unittest.TestCase):
                     disk_budget_bytes=1024**3,
                     measured=False,
                 )
+        diagnostic = json.loads(str(caught.exception).split(": ", 1)[1])
+        self.assertEqual(diagnostic["verified"], 50)
+        self.assertEqual(
+            diagnostic["persistence_gate"]["gate_hold_ns"],
+            runner.MAXIMUM_PERSISTENCE_GATE_HOLD_NS + 1,
+        )
+        self.assertFalse(
+            diagnostic["persistence_gate"]["hard_overhead_gate_passed"]
+        )
 
     def test_cleanup_log_and_observer_shutdown_are_after_post_final_audit(self) -> None:
         events: list[str] = []
@@ -5218,6 +5229,62 @@ class RealGateCalibrationTests(unittest.TestCase):
         )
         self.assertLess(calibration, measurement)
         self.assertIn('and real_gate_calibration["passed"]', source)
+
+    def test_rejected_calibration_retains_all_rounds_and_evaluation(self) -> None:
+        rounds = [
+            self.round_record(mode, 800.0 if index == 7 else 1_000.0)
+            for index, mode in enumerate(runner.REAL_GATE_CALIBRATION_SEQUENCE)
+        ]
+        events: list[dict[str, Any]] = []
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runtime = SimpleNamespace(
+                workspace=root, start=mock.Mock(), stop=mock.Mock()
+            )
+            layout = SimpleNamespace(device="1:2", cpu=23, snapshot=lambda: {})
+            proxy = mock.Mock()
+            with (
+                mock.patch.object(runner, "_runtime_for", return_value=runtime),
+                mock.patch.object(runner.os, "major", return_value=1, create=True),
+                mock.patch.object(runner.os, "minor", return_value=2, create=True),
+                mock.patch.object(runner, "_cleanup_state", return_value={}),
+                mock.patch.object(runner, "_state_is_clean", return_value=True),
+                mock.patch.object(runner, "_move_runtime_to_workload", return_value={}),
+                mock.patch.object(runner, "RustSmtpProxy", return_value=proxy),
+                mock.patch.object(runner, "_run_attested_round", side_effect=rounds),
+                mock.patch.object(runner, "_assert_workload_empty"),
+                mock.patch.object(runner, "_verify_target_artifact", return_value={}),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "did not qualify"):
+                    runner._run_real_gate_calibration_tier(
+                        "10KB", layout, dns_port=53,
+                        dkim_private_key_bytes=b"fixture",
+                        disk_budget_bytes=1024**3,
+                        started_attestation={
+                            "benchmark_proxy_release_sha256": "b" * 64,
+                            "runner_sha256": "a" * 64,
+                            "candidate_release_sha256": "c" * 64,
+                            "benchmark_proxy_source_tree_sha256": "d" * 64,
+                            "host_boot_id": "fixture-boot",
+                        },
+                        quota_mount_root=root,
+                        checkpoint_event=events.append,
+                    )
+        completed = [
+            event["record"] for event in events
+            if event["event"] == "real_gate_calibration_round_complete"
+        ]
+        self.assertEqual(completed, rounds)
+        reports = [
+            event["report"] for event in events
+            if event["event"] == "real_gate_calibration_evaluated"
+        ]
+        self.assertEqual(len(reports), 1)
+        self.assertFalse(reports[0]["qualification"])
+        self.assertGreater(reports[0]["on_round_spread"], 0.01)
+        self.assertEqual(len(reports[0]["rounds"]), 8)
+        runtime.stop.assert_called_once_with()
+        self.assertEqual(proxy.close.call_count, 8)
 
     def test_post_calibration_artifact_failure_does_not_mask_round_failure(
         self,
