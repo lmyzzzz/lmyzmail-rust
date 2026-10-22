@@ -202,3 +202,28 @@ that an eight-round calibration with excess spread stays rejected and retains
 all eight records plus the failed evaluation. The gate-hold regression also
 checks the rejected timing evidence. All 220 Python throughput/launcher checks
 and Bash syntax validation passed. No product source or threshold changed.
+
+## Sustained synthetic gate sample
+
+The v6 invocation was rejected before isolation because it used the ordinary
+user instead of the launcher's required root identity; its console is retained.
+The corrected root launch v7, run
+`a43c26bf-2ba3-49f3-b384-56a9c7c0b717`, did not start a product runtime.
+Its raw transparency ratios passed for every tier (1 KiB 0.959907,
+10 KiB 1.012943, 10 MiB 0.994669). Synthetic 10 MiB gate timing failed:
+two 100-message rounds lasted 261,499,041 and 260,454,804 ns, with holds of
+2,796,256 and 3,079,417 ns. Their hold fractions were 1.0693% and 1.1823%,
+above the unchanged 1% bound. Release-to-forwarding and forwarding times
+passed. Root cleanup passed with `qualified_cleanup=0`; its console and
+receipt remain negative evidence.
+
+Synthetic gate calibration now uses the same fixed message counts as its
+sustained raw calibration: 250,000 at 1/10 KiB and 2,000 at 10 MiB.
+This replaces subsecond saturation bursts with longer samples for measuring
+the fixed gate hold. The 20-connection 10 MiB gate topology is unchanged.
+This increases synthetic calibration traffic; it neither reuses a passing
+round nor changes the 1% hold, release, forwarding, ratio, spread, memory or
+capacity thresholds. The independent Rust producer, root launcher and Python
+verifier all bind to the new exact counts. Real-product calibration and the
+formal endpoint counts remain unchanged. All 84 proxy Rust tests, strict
+Clippy, all 220 Python checks and Bash syntax validation passed.

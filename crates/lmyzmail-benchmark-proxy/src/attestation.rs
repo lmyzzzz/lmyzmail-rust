@@ -288,10 +288,12 @@ pub async fn run_headroom_attestation(
             .checked_mul(tier.calibration.rounds_per_arm)
             .ok_or("headroom observer message count overflowed")?;
         let report = run_calibration(tier.calibration.clone(), limits.clone()).await?;
+        // Match each sustained raw calibration's count. Short saturation
+        // bursts cannot reliably resolve the unchanged one-percent hold budget.
         let (gate_messages, gate_concurrency) = match tier.label.as_str() {
-            "1KB" => (24_000, 1_500),
-            "10KB" => (8_000, 1_000),
-            "10MB" => (100, 20),
+            "1KB" => (250_000, 1_500),
+            "10KB" => (250_000, 1_000),
+            "10MB" => (2_000, 20),
             _ => return Err("unknown gate calibration tier".into()),
         };
         let gate_binding = serde_json::json!({

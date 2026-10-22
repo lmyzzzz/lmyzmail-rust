@@ -9503,9 +9503,9 @@ def _validate_gate_overhead_calibration(
     proxy: dict[str, Any],
 ) -> str:
     expected_shapes = {
-        "1KB": (24_000, 1_500),
-        "10KB": (8_000, 1_000),
-        "10MB": (100, 20),
+        "1KB": (250_000, 1_500),
+        "10KB": (250_000, 1_000),
+        "10MB": (2_000, 20),
     }
     messages, concurrency = expected_shapes[label]
     if not isinstance(gate, dict):

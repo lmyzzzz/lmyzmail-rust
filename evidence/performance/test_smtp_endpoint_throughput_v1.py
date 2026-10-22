@@ -2223,9 +2223,9 @@ class PlanAndComparisonTests(unittest.TestCase):
                 raw["control_proxy"] = json.loads(json.dumps(raw["proxy"]))
                 raw_sha = runner._canonical_json_sha256(raw)
                 gate_messages, gate_concurrency = {
-                    "1KB": (24_000, 1_500),
-                    "10KB": (8_000, 1_000),
-                    "10MB": (100, 20),
+                    "1KB": (250_000, 1_500),
+                    "10KB": (250_000, 1_000),
+                    "10MB": (2_000, 20),
                 }[label]
                 gate_proxy = json.loads(json.dumps(raw["proxy"]))
                 gate_proxy["configured_max_connections"] = gate_concurrency

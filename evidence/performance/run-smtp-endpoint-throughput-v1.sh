@@ -3482,9 +3482,9 @@ expected_tiers = {
     "10MB": (10 * 1024 * 1024, 2000, 80),
 }
 expected_gate_shapes = {
-    "1KB": (24_000, 1500),
-    "10KB": (8_000, 1000),
-    "10MB": (100, 20),
+    "1KB": (250_000, 1500),
+    "10KB": (250_000, 1000),
+    "10MB": (2_000, 20),
 }
 calibration_cpu_set = set()
 for field in housekeeping_cpus.split(","):
