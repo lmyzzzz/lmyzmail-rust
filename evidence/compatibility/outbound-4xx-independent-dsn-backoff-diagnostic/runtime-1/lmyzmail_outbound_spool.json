@@ -1,0 +1,11 @@
+[
+  {
+    "task_id": 1027,
+    "spool_path": "/tmp/lmyzmail-blackbox-k7ifume6/maildir/.lmyzmail-outbound/message-1027.eml",
+    "spool_kind": "RUST",
+    "cleanup_state": "REMOVED",
+    "created_at": "2026-10-22T14:24:14.069121+00:00",
+    "updated_at": "2026-10-22T14:24:16.062435+00:00",
+    "cleanup_after_publish": true
+  }
+]

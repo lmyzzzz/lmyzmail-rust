@@ -1,0 +1,142 @@
+[
+  {
+    "task_id": 2,
+    "recipient_ordinal": 0,
+    "recipient_address": "recipient-rcpt-400-1@outbound.fixture.test",
+    "state": "PERMANENT",
+    "attempt_generation": 1,
+    "smtp_code": 400,
+    "detail": "RCPT TO failed: 400 fixture scripted rcpt retry",
+    "updated_at": "2026-10-22T14:24:14.065371+00:00"
+  },
+  {
+    "task_id": 12,
+    "recipient_ordinal": 0,
+    "recipient_address": "recipient-data-452-11@outbound.fixture.test",
+    "state": "PERMANENT",
+    "attempt_generation": 2,
+    "smtp_code": 452,
+    "detail": "Message not accepted: 452 fixture scripted data retry",
+    "updated_at": "2026-10-22T14:25:27.490273+00:00"
+  },
+  {
+    "task_id": 3,
+    "recipient_ordinal": 0,
+    "recipient_address": "recipient-rcpt-421-2@outbound.fixture.test",
+    "state": "PERMANENT",
+    "attempt_generation": 2,
+    "smtp_code": 421,
+    "detail": "RCPT TO failed: 421 fixture scripted rcpt retry",
+    "updated_at": "2026-10-22T14:24:23.064125+00:00"
+  },
+  {
+    "task_id": 4,
+    "recipient_ordinal": 0,
+    "recipient_address": "recipient-rcpt-450-3@outbound.fixture.test",
+    "state": "PERMANENT",
+    "attempt_generation": 2,
+    "smtp_code": 450,
+    "detail": "RCPT TO failed: 450 fixture scripted rcpt retry",
+    "updated_at": "2026-10-22T14:24:34.307698+00:00"
+  },
+  {
+    "task_id": 5,
+    "recipient_ordinal": 0,
+    "recipient_address": "recipient-rcpt-451-4@outbound.fixture.test",
+    "state": "PERMANENT",
+    "attempt_generation": 2,
+    "smtp_code": 451,
+    "detail": "RCPT TO failed: 451 fixture scripted rcpt retry",
+    "updated_at": "2026-10-22T14:24:40.301627+00:00"
+  },
+  {
+    "task_id": 13,
+    "recipient_ordinal": 0,
+    "recipient_address": "recipient-data-499-12@outbound.fixture.test",
+    "state": "PERMANENT",
+    "attempt_generation": 1,
+    "smtp_code": 499,
+    "detail": "Message not accepted: 499 fixture scripted data retry",
+    "updated_at": "2026-10-22T14:25:30.48922+00:00"
+  },
+  {
+    "task_id": 6,
+    "recipient_ordinal": 0,
+    "recipient_address": "recipient-rcpt-452-5@outbound.fixture.test",
+    "state": "PERMANENT",
+    "attempt_generation": 2,
+    "smtp_code": 452,
+    "detail": "RCPT TO failed: 452 fixture scripted rcpt retry",
+    "updated_at": "2026-10-22T14:24:49.301871+00:00"
+  },
+  {
+    "task_id": 7,
+    "recipient_ordinal": 0,
+    "recipient_address": "recipient-rcpt-499-6@outbound.fixture.test",
+    "state": "PERMANENT",
+    "attempt_generation": 1,
+    "smtp_code": 499,
+    "detail": "RCPT TO failed: 499 fixture scripted rcpt retry",
+    "updated_at": "2026-10-22T14:24:52.335496+00:00"
+  },
+  {
+    "task_id": 8,
+    "recipient_ordinal": 0,
+    "recipient_address": "recipient-data-400-7@outbound.fixture.test",
+    "state": "PERMANENT",
+    "attempt_generation": 1,
+    "smtp_code": 400,
+    "detail": "Message not accepted: 400 fixture scripted data retry",
+    "updated_at": "2026-10-22T14:24:55.301181+00:00"
+  },
+  {
+    "task_id": 9,
+    "recipient_ordinal": 0,
+    "recipient_address": "recipient-data-421-8@outbound.fixture.test",
+    "state": "PERMANENT",
+    "attempt_generation": 2,
+    "smtp_code": 421,
+    "detail": "Message not accepted: 421 fixture scripted data retry",
+    "updated_at": "2026-10-22T14:25:06.491573+00:00"
+  },
+  {
+    "task_id": 10,
+    "recipient_ordinal": 0,
+    "recipient_address": "recipient-data-450-9@outbound.fixture.test",
+    "state": "PERMANENT",
+    "attempt_generation": 2,
+    "smtp_code": 450,
+    "detail": "Message not accepted: 450 fixture scripted data retry",
+    "updated_at": "2026-10-22T14:25:12.49144+00:00"
+  },
+  {
+    "task_id": 11,
+    "recipient_ordinal": 0,
+    "recipient_address": "recipient-data-451-10@outbound.fixture.test",
+    "state": "PERMANENT",
+    "attempt_generation": 2,
+    "smtp_code": 451,
+    "detail": "Message not accepted: 451 fixture scripted data retry",
+    "updated_at": "2026-10-22T14:25:21.491321+00:00"
+  },
+  {
+    "task_id": 1027,
+    "recipient_ordinal": 0,
+    "recipient_address": "qa@example.test",
+    "state": "RETRYABLE",
+    "attempt_generation": 3,
+    "smtp_code": 451,
+    "detail": "MX address resolution failed",
+    "updated_at": "2026-10-22T14:25:53.829422+00:00"
+  },
+  {
+    "task_id": 14,
+    "recipient_ordinal": 0,
+    "recipient_address": "recipient-backoff-451@outbound.fixture.test",
+    "state": "PERMANENT",
+    "attempt_generation": 6,
+    "smtp_code": 451,
+    "detail": "Message not accepted: 451 fixture scripted data retry",
+    "updated_at": "2026-10-22T14:25:59.794219+00:00"
+  }
+]

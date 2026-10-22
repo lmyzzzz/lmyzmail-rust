@@ -1,0 +1,8 @@
+[
+  {
+    "mailbox_address": "qa@example.test",
+    "folder": "sent",
+    "exact_count": 1,
+    "updated_at": "2026-10-22T14:24:12.037746+00:00"
+  }
+]

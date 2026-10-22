@@ -1,0 +1,387 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="9" skipped="0" tests="126" time="887.282" timestamp="2026-10-22T22:18:24.972859+08:00" hostname="MSI"><testcase classname="tests.test_candidate_auth_golden" name="test_rust_candidate_auth_http_matches_frozen_java_golden" time="4.136" /><testcase classname="tests.test_candidate_auth_golden" name="test_rust_candidate_persists_only_session_token_hash_and_logout_deletes_it" time="1.965" /><testcase classname="tests.test_candidate_auth_golden" name="test_rust_candidate_bounds_concurrent_sessions_per_mailbox" time="2.052" /><testcase classname="tests.test_candidate_auth_golden" name="test_rust_candidate_enforces_registration_limit_under_concurrency" time="1.897" /><testcase classname="tests.test_candidate_cringe_api_golden" name="test_rust_candidate_cringe_api_matches_frozen_java_golden" time="1.840" /><testcase classname="tests.test_candidate_cringe_api_golden" name="test_rust_candidate_cringe_decay_matches_frozen_java_golden" time="1.679" /><testcase classname="tests.test_candidate_cringe_api_golden" name="test_rust_candidate_rejects_invalid_cringe_paging" time="1.668" /><testcase classname="tests.test_candidate_cringe_api_golden" name="test_rust_candidate_caps_cringe_score_exports_at_ten_thousand_rows" time="1.673" /><testcase classname="tests.test_candidate_cringe_api_golden" name="test_rust_candidate_cancels_stalled_cringe_query_and_recovers_pool" time="14.135" /><testcase classname="tests.test_candidate_http_golden" name="test_rust_candidate_foundation_http_matches_frozen_java_golden" time="1.635" /><testcase classname="tests.test_candidate_mail_read_golden" name="test_rust_candidate_mail_read_matches_frozen_java_golden" time="1.614" /><testcase classname="tests.test_candidate_mail_read_golden" name="test_rust_candidate_mail_attachment_matches_frozen_java_golden" time="1.633" /><testcase classname="tests.test_candidate_mail_read_golden" name="test_rust_candidate_mail_state_matches_frozen_java_golden" time="1.662" /><testcase classname="tests.test_candidate_mail_read_golden" name="test_rust_candidate_mail_mutations_match_frozen_java_golden" time="1.521" /><testcase classname="tests.test_candidate_mail_read_golden" name="test_rust_candidate_delete_email_matches_frozen_java_golden" time="1.714" /><testcase classname="tests.test_candidate_mail_read_golden" name="test_rust_candidate_rejects_unindexed_maildir_file" time="1.667" /><testcase classname="tests.test_candidate_mailbox_api_golden" name="test_rust_candidate_mailbox_api_matches_frozen_java_golden" time="1.519" /><testcase classname="tests.test_candidate_mailbox_api_golden" name="test_rust_candidate_serializes_duplicate_mailbox_creation" time="1.531" /><testcase classname="tests.test_candidate_mailbox_api_golden" name="test_rust_candidate_mailbox_api_enforces_registration_limit" time="1.570" /><testcase classname="tests.test_candidate_mailbox_api_golden" name="test_rust_candidate_mailbox_creation_survives_restart" time="2.560" /><testcase classname="tests.test_candidate_mailbox_api_golden" name="test_rust_candidate_management_creation_and_receive_alias_precedence" time="4.758" /><testcase classname="tests.test_candidate_mailbox_api_golden" name="test_rust_candidate_auth_cancellation_keeps_single_connection_pool_healthy" time="1.524" /><testcase classname="tests.test_candidate_outbound_http_golden" name="test_rust_candidate_outbound_http_matches_frozen_java_golden" time="1.578" /><testcase classname="tests.test_candidate_outbound_http_golden" name="test_rust_candidate_outbound_status_redis_outage_is_bounded" time="1.531" /><testcase classname="tests.test_candidate_outbound_http_golden" name="test_rust_candidate_acknowledges_only_after_postgres_admission" time="1.513" /><testcase classname="tests.test_candidate_outbound_http_golden" name="test_rust_candidate_enforces_outbound_queue_bound_atomically" time="1.563" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_userdata_matches_frozen_java_golden" time="1.614" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_userdata_rejects_malformed_writes_without_side_effects" time="1.590" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_serializes_duplicate_contact_admission" time="1.631" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_userdata_survives_restart" time="2.380" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_userdata_database_wait_is_deadline_bounded" time="4.967" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_userdata_contact_list_has_a_hard_bound" time="1.589" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_userdata_contact_list_has_a_byte_bound" time="1.544" /><testcase classname="tests.test_candidate_web_multipart_golden" name="test_rust_candidate_web_multipart_matches_frozen_java_golden" time="1.536" /><testcase classname="tests.test_candidate_web_multipart_golden" name="test_rust_candidate_web_multipart_redacts_errors_and_cleans_uploads" time="1.632" /><testcase classname="tests.test_candidate_web_multipart_golden" name="test_rust_candidate_web_multipart_backend_failures_clean_uploads" time="3.321" /><testcase classname="tests.test_candidate_web_multipart_golden" name="test_rust_candidate_web_multipart_disconnect_and_timeout_clean_uploads" time="3.716" /><testcase classname="tests.test_oracle_honeypot" name="test_rust_candidate_honeypot_matches_frozen_java_golden" time="2.019" /><testcase classname="tests.test_oracle_honeypot" name="test_rust_candidate_honeypot_classifies_fragmented_input_incrementally" time="1.586" /><testcase classname="tests.test_oracle_honeypot" name="test_rust_candidate_honeypot_replays_after_database_outage_and_restart" time="7.010" /><testcase classname="tests.test_oracle_htcpcp" name="test_rust_candidate_htcpcp_matches_frozen_java_golden" time="75.802" /><testcase classname="tests.test_oracle_htcpcp" name="test_rust_candidate_htcpcp_state_is_process_local" time="2.314" /><testcase classname="tests.test_oracle_mta_sts_discovery" name="test_rust_candidate_mta_sts_discovery" time="80.684"><failure message="AssertionError: assert {'class': 1, ...', 'type': 28} == {'class': 1, ...t', 'type': 1}&#10;  &#10;  Omitting 2 identical items, use -vv to show&#10;  Differing items:&#10;  {'type': 28} != {'type': 1}&#10;  Use -v to get more diff">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(380)
+    def test_rust_candidate_mta_sts_discovery() -&gt; None:
+        repository = _repository()
+        observed = _run_probe(repository, target="candidate")
+&gt;       _assert_contract(observed, target="candidate")
+
+blackbox/tests/test_oracle_mta_sts_discovery.py:311: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/tests/test_oracle_mta_sts_discovery.py:254: in _assert_contract
+    _assert_candidate_dns(label, case["dns"])
+blackbox/tests/test_oracle_mta_sts_discovery.py:139: in _assert_candidate_dns
+    _assert_dns_query(query, name=name, query_type=query_type)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+query = {'class': 1, 'name': 'outbound.fixture.test', 'type': 28}
+
+    def _assert_dns_query(query: dict[str, Any], *, name: str, query_type: int) -&gt; None:
+&gt;       assert query == {"class": 1, "name": name, "type": query_type}
+E       AssertionError: assert {'class': 1, ...', 'type': 28} == {'class': 1, ...t', 'type': 1}
+E         
+E         Omitting 2 identical items, use -vv to show
+E         Differing items:
+E         {'type': 28} != {'type': 1}
+E         Use -v to get more diff
+
+blackbox/tests/test_oracle_mta_sts_discovery.py:98: AssertionError</failure></testcase><testcase classname="tests.test_oracle_outbound_4xx" name="test_rust_candidate_outbound_4xx_matches_frozen_java_golden" time="103.702" /><testcase classname="tests.test_oracle_outbound_5xx" name="test_rust_candidate_outbound_5xx_matches_frozen_java_golden" time="31.555" /><testcase classname="tests.test_oracle_outbound_dsn" name="test_rust_candidate_emits_durable_rfc3464_dsn" time="7.540" /><testcase classname="tests.test_oracle_outbound_queue" name="test_rust_candidate_outbound_queue_matches_frozen_java_golden" time="7.677" /><testcase classname="tests.test_oracle_outbound_tls" name="test_rust_candidate_outbound_starttls_and_mta_sts" time="30.974" /><testcase classname="tests.test_oracle_outbound_tls_negotiation" name="test_rust_candidate_outbound_tls_negotiation" time="26.771" /><testcase classname="tests.test_oracle_outbound_tls_validity" name="test_rust_candidate_outbound_tls_certificate_validity" time="14.776" /><testcase classname="tests.test_oracle_report_scheduler" name="test_rust_report_scheduler_crosses_real_cron_boundary" time="32.060" /><testcase classname="tests.test_oracle_report_scheduler" name="test_rust_report_scheduler_does_not_catch_up_after_restart" time="7.367" /><testcase classname="tests.test_oracle_reports" name="test_rust_candidate_reports_match_frozen_java_golden" time="1.578" /><testcase classname="tests.test_oracle_reports" name="test_rust_report_scheduler_enabled_runtime_starts_and_stops" time="1.604" /><testcase classname="tests.test_oracle_smtp_auth" name="test_rust_candidate_smtp_auth_matches_frozen_java_golden" time="8.961" /><testcase classname="tests.test_oracle_smtp_auth" name="test_rust_candidate_smtp_auth_starttls_matches_frozen_java_golden" time="9.178" /><testcase classname="tests.test_oracle_smtp_commands" name="test_rust_candidate_smtp_commands_match_frozen_java_golden" time="1.573" /><testcase classname="tests.test_oracle_smtp_content_filter_default" name="test_rust_candidate_smtp_content_filter_default_matches_golden" time="2.051"><failure message="AssertionError: assert (b'X-Spam-Sta...IOUS_URL=1.5') == (b'X-Spam-Sta...IOUS_URL=1.5')&#10;  &#10;  At index 1 diff: b'X-Spam-Score: 11.5' != b'X-Spam-Score: 9.5'&#10;  Use -v to get more diff">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(240)
+    def test_rust_candidate_smtp_content_filter_default_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _PROFILE,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tests/test_oracle_smtp_content_filter_default.py:266: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:111: in verify_candidate
+    observation = scenario.capture(target)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+blackbox/tests/test_oracle_smtp_content_filter_default.py:151: in capture
+    _assert_spam_headers(delivery, expected_score, expected_rules)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+delivery = {'mode': 'data', 'storage': {'maildir': {'new_regular_files': 1, 'orphan_files': 0, 'path': 'qa@example.test/spam/1/&lt;g...ATUSCODES\r\n', ...], 'greeting': ['220 &lt;hostname&gt; ESMTP lmyzmail SMTP Server 2.8.0 - &lt;skibidi-expression&gt;\r\n'], ...}}
+expected_score = '9.5'
+expected_rules = (('SPAM_KEYWORDS', '8.0'), ('SUSPICIOUS_URL', '1.5'))
+
+    def _assert_spam_headers(
+        delivery: dict[str, Any],
+        expected_score: str,
+        expected_rules: tuple[tuple[str, str], ...],
+    ) -&gt; None:
+        encoded = delivery["storage"]["maildir"]["raw"]["base64"]
+        raw = base64.b64decode(encoded, validate=True)
+        header, separator, _ = raw.partition(b"\r\n\r\n")
+        assert separator == b"\r\n\r\n"
+        spam_headers = tuple(line for line in header.split(b"\r\n") if line.startswith(b"X-Spam-"))
+        rules = ", ".join(f"{name}={score}" for name, score in expected_rules)
+&gt;       assert spam_headers == (
+            b"X-Spam-Status: Yes",
+            f"X-Spam-Score: {expected_score}".encode("ascii"),
+            f"X-Spam-Rules: {rules}".encode("ascii"),
+        )
+E       AssertionError: assert (b'X-Spam-Sta...IOUS_URL=1.5') == (b'X-Spam-Sta...IOUS_URL=1.5')
+E         
+E         At index 1 diff: b'X-Spam-Score: 11.5' != b'X-Spam-Score: 9.5'
+E         Use -v to get more diff
+
+blackbox/tests/test_oracle_smtp_content_filter_default.py:123: AssertionError</failure></testcase><testcase classname="tests.test_oracle_smtp_data" name="test_rust_candidate_smtp_data_matches_frozen_java_golden" time="7.081" /><testcase classname="tests.test_oracle_smtp_data" name="test_rust_candidate_exact_count_survives_parallel_inserts_and_deletes" time="3.045" /><testcase classname="tests.test_oracle_smtp_dkim" name="test_rust_candidate_smtp_dkim_matches_frozen_java_golden" time="10.354" /><testcase classname="tests.test_oracle_smtp_dkim" name="test_rust_candidate_rejects_invalid_dkim_identities" time="5.326" /><testcase classname="tests.test_oracle_smtp_dmarc" name="test_rust_candidate_smtp_dmarc_matches_frozen_java_golden" time="18.330" /><testcase classname="tests.test_oracle_smtp_mime" name="test_rust_candidate_smtp_mime_matches_frozen_java_golden" time="4.083" /><testcase classname="tests.test_oracle_smtp_self_spoof" name="test_rust_candidate_smtp_self_spoof_matches_frozen_java_golden[inferx]" time="1.490" /><testcase classname="tests.test_oracle_smtp_self_spoof" name="test_rust_candidate_smtp_self_spoof_matches_frozen_java_golden[fallback]" time="1.769" /><testcase classname="tests.test_oracle_smtp_self_spoof" name="test_rust_candidate_smtp_self_spoof_matches_frozen_java_golden[generic]" time="1.732" /><testcase classname="tests.test_oracle_smtp_sender_domain" name="test_rust_candidate_smtp_sender_domain_matches_frozen_java_golden" time="1.705" /><testcase classname="tests.test_oracle_smtp_skibidi" name="test_rust_candidate_smtp_skibidi_matches_frozen_java_golden" time="1.568" /><testcase classname="tests.test_oracle_smtp_spamhaus" name="test_rust_candidate_smtp_spamhaus_matches_frozen_java_golden[reject]" time="2.951" /><testcase classname="tests.test_oracle_smtp_spamhaus" name="test_rust_candidate_smtp_spamhaus_matches_frozen_java_golden[reject-disabled]" time="1.450" /><testcase classname="tests.test_oracle_smtp_spamhaus" name="test_rust_candidate_smtp_spamhaus_matches_frozen_java_golden[disabled]" time="1.457" /><testcase classname="tests.test_oracle_smtp_spf" name="test_rust_candidate_smtp_spf_matches_frozen_java_golden" time="6.214" /><testcase classname="tests.test_oracle_smtp_spf_dkim" name="test_rust_candidate_smtp_spf_dkim_matches_frozen_java_golden" time="21.328" /><testcase classname="tests.test_oracle_smtp_starttls" name="test_rust_candidate_starttls_matches_frozen_java_golden" time="2.133" /><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_stress_matches_frozen_java_golden[False]" time="1.512" /><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_stress_matches_frozen_java_golden[True]" time="1.683" /><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_stress_streaming_matches_frozen_java_golden" time="1.715" /><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_bounds_overlapping_stress_runs" time="1.574" /><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_serializes_cleanup_with_active_run" time="1.531" /><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_sigterm_during_stress_generation_cleans_owned_state" time="1.608" /><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_sigterm_during_stress_enqueue_preserves_recovery" time="1.641" /><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_sigterm_during_stress_delivery_keeps_queue_consistent" time="13.169"><failure message="AssertionError: stress Maildir leftovers=['stress-sender@example.test', 'stress-sender@example.test/sent', 'stress-sender@example.test/sent/1', 'stress-sender@example.test/sent/1/.lmyzmail-quarantine', 'stress-sender@example.test/sent/1/20261022142959.476-lmyzmail-2.eml']; log=lmyzmail SkibidiInferX ready: backend=AVX2+FMA, timeout_ms=500, configured_max_tokens=80, effective_max_tokens=120&#10;  lmyzmail SMTP Skibidi generator: backend=AVX2, version=1.8.0-skibidi-ultra, capabilities=0x7, hardware_avx2=true, hardware_avx512=false, avx512_enabled=false, simd_rng=true&#10;  ========== [STRESS TEST] ROUND 1 (WARMUP) STARTING ==========&#10;  [STRESS TEST] Config: Round=1, Mode=WARMUP, Sender=stress-sender@example.test, Receiver=stress-receiver@example.test, Count=1, EmailSize=32KB, MaxConcurrency=1000, InMemory=false&#10;  [STRESS TEST] Queueing 1 emails (32KB each) with max concurrency 1000 (streaming mode)...&#10;  [STRESS TEST] Queue completed in 80 ms: success=1, failed=0, exceptions=0, oom=0, rateLimited=0&#10;  [STRESS TEST] Waiting for delivery...&#10;  [STRESS TEST] Cleaning up data...&#10;  lmyzmail stress round 1 cleanup failed; residual data may remain&#10;  ========== [STRESS TEST] ROUND 1 (WARMUP) FAILED ==========&#10;  &#10;assert ['stress-send...yzmail-2.eml'] == []&#10;  &#10;  Left contains 5 more items, first extra item: 'stress-sender@example.test'&#10;  Use -v to get more diff">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(240)
+    def test_rust_candidate_sigterm_during_stress_delivery_keeps_queue_consistent() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository, True, 32) as candidate:
+            _start_stress(candidate)
+            pending = cast(
+                list[int],
+                _wait_for(
+                    lambda: _pending_stress_ids(candidate),
+                    "published stress delivery task",
+                ),
+            )
+            assert pending
+    
+            _stop_application(candidate)
+    
+&gt;           _assert_stress_storage_clean(candidate)
+
+blackbox/tests/test_oracle_stress.py:552: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+candidate = _StressCandidateRuntime(paths=HarnessPaths(repository=PosixPath('/home/lmyzzz/lmyzmail-rust'), runtime=PosixPath('/hom.../release/lmyzmail', '--config', '{config}'), stress_enabled=True, email_size_kb=32, production_count=2, warmup_count=1)
+
+    def _assert_stress_storage_clean(candidate: CandidateRuntime) -&gt; None:
+        assert candidate.workspace is not None
+        assert _stress_temp_files(candidate) == []
+        maildir = candidate.workspace / "maildir"
+        leftovers = [
+            path.relative_to(maildir).as_posix()
+            for address in (_STRESS_SENDER, _STRESS_RECEIVER)
+            if (root := maildir / address).exists()
+            for path in (root, *root.rglob("*"))
+        ]
+        application_log = (
+            candidate._application.log_tail() if candidate._application is not None else "&lt;none&gt;"
+        )
+&gt;       assert leftovers == [], f"stress Maildir leftovers={leftovers!r}; log={application_log}"
+E       AssertionError: stress Maildir leftovers=['stress-sender@example.test', 'stress-sender@example.test/sent', 'stress-sender@example.test/sent/1', 'stress-sender@example.test/sent/1/.lmyzmail-quarantine', 'stress-sender@example.test/sent/1/20261022142959.476-lmyzmail-2.eml']; log=lmyzmail SkibidiInferX ready: backend=AVX2+FMA, timeout_ms=500, configured_max_tokens=80, effective_max_tokens=120
+E         lmyzmail SMTP Skibidi generator: backend=AVX2, version=1.8.0-skibidi-ultra, capabilities=0x7, hardware_avx2=true, hardware_avx512=false, avx512_enabled=false, simd_rng=true
+E         ========== [STRESS TEST] ROUND 1 (WARMUP) STARTING ==========
+E         [STRESS TEST] Config: Round=1, Mode=WARMUP, Sender=stress-sender@example.test, Receiver=stress-receiver@example.test, Count=1, EmailSize=32KB, MaxConcurrency=1000, InMemory=false
+E         [STRESS TEST] Queueing 1 emails (32KB each) with max concurrency 1000 (streaming mode)...
+E         [STRESS TEST] Queue completed in 80 ms: success=1, failed=0, exceptions=0, oom=0, rateLimited=0
+E         [STRESS TEST] Waiting for delivery...
+E         [STRESS TEST] Cleaning up data...
+E         lmyzmail stress round 1 cleanup failed; residual data may remain
+E         ========== [STRESS TEST] ROUND 1 (WARMUP) FAILED ==========
+E         
+E       assert ['stress-send...yzmail-2.eml'] == []
+E         
+E         Left contains 5 more items, first extra item: 'stress-sender@example.test'
+E         Use -v to get more diff
+
+blackbox/tests/test_oracle_stress.py:239: AssertionError</failure></testcase><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_restart_recovers_sigkill_stress_state" time="1.824" /><testcase classname="tests.test_oracle_tlsrpt_https" name="test_rust_candidate_tlsrpt_https" time="4.749" /><testcase classname="tests.test_oracle_web_static" name="test_rust_candidate_web_static_matches_frozen_java_golden" time="1.584" /><testcase classname="tests.test_oracle_web_ui" name="test_rust_candidate_web_ui_matches_frozen_java_golden" time="3.921" /><testcase classname="tests.test_smtp_greeting_distribution" name="test_rust_smtp_greeting_uses_frozen_c_probability_contract" time="21.728" /><testcase classname="tools.test_candidate_smtp_skibidi_security" name="test_candidate_smtp_skibidi_rejects_non_finite_inputs_and_bounds_admission" time="1.460" /><testcase classname="tools.test_candidate_xdp" name="test_rust_candidate_xdp_disabled_matches_frozen_java" time="1.460" /><testcase classname="tools.test_fail2ban" name="test_rust_candidate_fail2ban_matches_golden" time="7.066" /><testcase classname="tools.test_java_multi_domain" name="test_rust_candidate_multi_domain_matches_java_golden" time="1.979" /><testcase classname="tools.test_mail_api_poll" name="test_rust_candidate_mail_api_poll_matches_golden" time="1.621" /><testcase classname="tools.test_minecraft_authenticated_commands" name="test_rust_candidate_minecraft_authenticated_commands_matches_golden" time="4.471" /><testcase classname="tools.test_minecraft_draft_commands" name="test_rust_candidate_minecraft_draft_commands_matches_golden" time="4.410" /><testcase classname="tools.test_minecraft_draft_editing" name="test_rust_candidate_minecraft_draft_editing_matches_golden" time="7.418" /><testcase classname="tools.test_minecraft_email_prompt" name="test_rust_candidate_minecraft_email_prompt_matches_golden" time="4.456" /><testcase classname="tools.test_minecraft_folder_gui" name="test_rust_candidate_minecraft_folder_gui_matches_golden" time="4.421" /><testcase classname="tools.test_minecraft_login" name="test_rust_candidate_minecraft_offline_login_matches_golden" time="4.451" /><testcase classname="tools.test_minecraft_login_admission" name="test_rust_candidate_minecraft_login_admission_matches_golden" time="1.663" /><testcase classname="tools.test_minecraft_logout_confirmation" name="test_rust_candidate_minecraft_logout_confirmation_matches_golden" time="4.547" /><testcase classname="tools.test_minecraft_mail_view" name="test_rust_candidate_minecraft_mail_view_matches_golden" time="4.646" /><testcase classname="tools.test_minecraft_main_menu" name="test_rust_candidate_minecraft_main_menu_matches_golden" time="4.328" /><testcase classname="tools.test_minecraft_main_menu_actions" name="test_rust_candidate_minecraft_main_menu_actions_matches_golden" time="4.323" /><testcase classname="tools.test_minecraft_main_menu_lifecycle" name="test_rust_candidate_minecraft_main_menu_lifecycle_matches_golden" time="4.315" /><testcase classname="tools.test_minecraft_online" name="test_rust_candidate_minecraft_online_boundaries" time="1.528" /><testcase classname="tools.test_minecraft_outbound_delivery" name="test_rust_candidate_minecraft_outbound_matches_golden" time="18.847" /><testcase classname="tools.test_minecraft_outbound_duplicate" name="test_rust_candidate_rejects_overlapping_minecraft_send" time="7.936" /><testcase classname="tools.test_minecraft_password_auth" name="test_rust_candidate_minecraft_password_auth_matches_golden" time="7.141" /><testcase classname="tools.test_minecraft_position_rebound" name="test_rust_candidate_minecraft_position_rebound_matches_golden" time="6.272" /><testcase classname="tools.test_minecraft_post_static" name="test_rust_candidate_minecraft_post_static_matches_golden" time="4.550" /><testcase classname="tools.test_minecraft_render_settings" name="test_rust_candidate_minecraft_render_settings_matches_golden" time="4.560" /><testcase classname="tools.test_minecraft_render_size_commands" name="test_rust_candidate_minecraft_render_size_commands_matches_golden" time="4.304" /><testcase classname="tools.test_minecraft_scheduled_play" name="test_rust_candidate_minecraft_scheduled_play_matches_golden" time="6.228" /><testcase classname="tools.test_minecraft_static_play" name="test_rust_candidate_minecraft_static_play_matches_golden" time="4.257" /><testcase classname="tools.test_minecraft_status" name="test_rust_candidate_minecraft_status_matches_golden" time="1.462" /><testcase classname="tools.test_minecraft_status" name="test_rust_candidate_minecraft_configured_status_matches_golden" time="1.500" /><testcase classname="tools.test_minecraft_time_update" name="test_rust_candidate_minecraft_time_update_matches_golden" time="19.346" /><testcase classname="tools.test_minecraft_video" name="test_rust_candidate_minecraft_video_matches_golden" time="19.949" /><testcase classname="tools.test_minecraft_world" name="test_rust_candidate_minecraft_world_matches_golden" time="4.585" /><testcase classname="tools.test_smtp_content_filter_attachments" name="test_rust_candidate_smtp_content_filter_attachments_match_golden" time="2.023"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for observations/smtp/content-filter/attachment-safe-pdf.json: expected sha256=4806eeba4d69dfc2618069762b3c3926b6c09a42d61f82d90e8f198297fd0d6f, actual sha256=ece05e7a7a415bf3b3e0da458289cc0208087024dbba1a5bf9610f7c3e0f6bf0">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(360)
+    def test_rust_candidate_smtp_content_filter_attachments_match_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _PROFILE,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_smtp_content_filter_attachments.py:520: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:115: in verify_candidate
+    ).assert_observation(f"observations/{scenario.name}.json", observation)
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-smtp-content-filter-attachments-v1...aildir:received-at', 'postgres:identity-timestamps-and-hostname-derived-size', 'smtp:data-dot-unstuff')), record=False)
+relative_path = 'observations/smtp/content-filter/attachment-safe-pdf.json'
+observation = {'mode': 'data', 'storage': {'maildir': {'new_regular_files': 1, 'orphan_files': 0, 'path': 'qa@example.test/spam/1/&lt;g...ATUSCODES\r\n', ...], 'greeting': ['220 &lt;hostname&gt; ESMTP lmyzmail SMTP Server 2.8.0 - &lt;skibidi-expression&gt;\r\n'], ...}}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+&gt;           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for observations/smtp/content-filter/attachment-safe-pdf.json: expected sha256=4806eeba4d69dfc2618069762b3c3926b6c09a42d61f82d90e8f198297fd0d6f, actual sha256=ece05e7a7a415bf3b3e0da458289cc0208087024dbba1a5bf9610f7c3e0f6bf0
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch</failure></testcase><testcase classname="tools.test_smtp_content_filter_body" name="test_rust_candidate_smtp_content_filter_body_matches_golden" time="2.052"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for observations/smtp/content-filter/body-keyword-low-density.json: expected sha256=8b15114db6bf1b742931d5351d44f465bae5c08d43b27227bcce4d8cc83cb0a3, actual sha256=4e570fa4eb1931773d4becdbc5c842b511aa1727d5a791d956dfb806daf93749">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(360)
+    def test_rust_candidate_smtp_content_filter_body_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _PROFILE,
+&gt;           ).verify_candidate(BASE_SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_smtp_content_filter_body.py:348: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:115: in verify_candidate
+    ).assert_observation(f"observations/{scenario.name}.json", observation)
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-smtp-content-filter-body-v8'), att...aildir:received-at', 'postgres:identity-timestamps-and-hostname-derived-size', 'smtp:data-dot-unstuff')), record=False)
+relative_path = 'observations/smtp/content-filter/body-keyword-low-density.json'
+observation = {'mode': 'data', 'storage': {'maildir': {'new_regular_files': 1, 'orphan_files': 0, 'path': 'qa@example.test/spam/1/&lt;g...ATUSCODES\r\n', ...], 'greeting': ['220 &lt;hostname&gt; ESMTP lmyzmail SMTP Server 2.8.0 - &lt;skibidi-expression&gt;\r\n'], ...}}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+&gt;           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for observations/smtp/content-filter/body-keyword-low-density.json: expected sha256=8b15114db6bf1b742931d5351d44f465bae5c08d43b27227bcce4d8cc83cb0a3, actual sha256=4e570fa4eb1931773d4becdbc5c842b511aa1727d5a791d956dfb806daf93749
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch</failure></testcase><testcase classname="tools.test_smtp_content_filter_body" name="test_rust_candidate_smtp_content_filter_body_edge_matches_golden" time="2.023"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for observations/smtp/content-filter/body-headerless-malformed.json: expected sha256=0ddc2c2b2f5eadfe9f78ff5ea78ed0fc604dda8f0315139162c504dcc4a258ae, actual sha256=42b34c5c43b0639b112cdff36fcc4dc52b236500b6141b0da74a4e607c90c7df">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(360)
+    def test_rust_candidate_smtp_content_filter_body_edge_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _EDGE_GOLDEN,
+                _EDGE_PROFILE,
+&gt;           ).verify_candidate(EDGE_SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_smtp_content_filter_body.py:381: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:115: in verify_candidate
+    ).assert_observation(f"observations/{scenario.name}.json", observation)
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-smtp-content-filter-body-edge-v8')...aildir:received-at', 'postgres:identity-timestamps-and-hostname-derived-size', 'smtp:data-dot-unstuff')), record=False)
+relative_path = 'observations/smtp/content-filter/body-headerless-malformed.json'
+observation = {'mode': 'data', 'storage': {'maildir': {'new_regular_files': 1, 'orphan_files': 0, 'path': 'qa@example.test/spam/1/&lt;g...ATUSCODES\r\n', ...], 'greeting': ['220 &lt;hostname&gt; ESMTP lmyzmail SMTP Server 2.8.0 - &lt;skibidi-expression&gt;\r\n'], ...}}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+&gt;           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for observations/smtp/content-filter/body-headerless-malformed.json: expected sha256=0ddc2c2b2f5eadfe9f78ff5ea78ed0fc604dda8f0315139162c504dcc4a258ae, actual sha256=42b34c5c43b0639b112cdff36fcc4dc52b236500b6141b0da74a4e607c90c7df
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch</failure></testcase><testcase classname="tools.test_smtp_content_filter_default" name="test_rust_candidate_smtp_content_filter_default_matches_golden" time="2.093"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for observations/smtp/content-filter/default-body-composition.json: expected sha256=c3a648b3a6eb0167fcff341cfe89bfd92959a093df3f9f1c3ad6dc663954b5f4, actual sha256=be98aa022347548b7d31d8e867b16124906194eb4608e47569d671b4abc9e36d">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(240)
+    def test_rust_candidate_smtp_content_filter_default_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _PROFILE,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_smtp_content_filter_default.py:234: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:115: in verify_candidate
+    ).assert_observation(f"observations/{scenario.name}.json", observation)
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-smtp-content-filter-default-v21'),...aildir:received-at', 'postgres:identity-timestamps-and-hostname-derived-size', 'smtp:data-dot-unstuff')), record=False)
+relative_path = 'observations/smtp/content-filter/default-body-composition.json'
+observation = {'mode': 'data', 'storage': {'maildir': {'new_regular_files': 1, 'orphan_files': 0, 'path': 'qa@example.test/spam/1/&lt;g...ATUSCODES\r\n', ...], 'greeting': ['220 &lt;hostname&gt; ESMTP lmyzmail SMTP Server 2.8.0 - &lt;skibidi-expression&gt;\r\n'], ...}}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+&gt;           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for observations/smtp/content-filter/default-body-composition.json: expected sha256=c3a648b3a6eb0167fcff341cfe89bfd92959a093df3f9f1c3ad6dc663954b5f4, actual sha256=be98aa022347548b7d31d8e867b16124906194eb4608e47569d671b4abc9e36d
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch</failure></testcase><testcase classname="tools.test_smtp_content_filter_default_v4" name="test_rust_candidate_smtp_content_filter_default_v4" time="2.056"><failure message="AssertionError: assert (b'X-Spam-Sta...IOUS_URL=1.5') == (b'X-Spam-Sta...IOUS_URL=1.5')&#10;  &#10;  At index 1 diff: b'X-Spam-Score: 11.5' != b'X-Spam-Score: 9.5'&#10;  Use -v to get more diff">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(240)
+    def test_rust_candidate_smtp_content_filter_default_v4() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        with base._candidate(repository) as candidate:
+&gt;           _runner(repository).verify_candidate(base.SCENARIOS, candidate)
+
+blackbox/tools/test_smtp_content_filter_default_v4.py:47: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:111: in verify_candidate
+    observation = scenario.capture(target)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+blackbox/tests/test_oracle_smtp_content_filter_default.py:151: in capture
+    _assert_spam_headers(delivery, expected_score, expected_rules)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+delivery = {'mode': 'data', 'storage': {'maildir': {'new_regular_files': 1, 'orphan_files': 0, 'path': 'qa@example.test/spam/1/&lt;g...ATUSCODES\r\n', ...], 'greeting': ['220 &lt;hostname&gt; ESMTP lmyzmail SMTP Server 2.8.0 - &lt;skibidi-expression&gt;\r\n'], ...}}
+expected_score = '9.5'
+expected_rules = (('SPAM_KEYWORDS', '8.0'), ('SUSPICIOUS_URL', '1.5'))
+
+    def _assert_spam_headers(
+        delivery: dict[str, Any],
+        expected_score: str,
+        expected_rules: tuple[tuple[str, str], ...],
+    ) -&gt; None:
+        encoded = delivery["storage"]["maildir"]["raw"]["base64"]
+        raw = base64.b64decode(encoded, validate=True)
+        header, separator, _ = raw.partition(b"\r\n\r\n")
+        assert separator == b"\r\n\r\n"
+        spam_headers = tuple(line for line in header.split(b"\r\n") if line.startswith(b"X-Spam-"))
+        rules = ", ".join(f"{name}={score}" for name, score in expected_rules)
+&gt;       assert spam_headers == (
+            b"X-Spam-Status: Yes",
+            f"X-Spam-Score: {expected_score}".encode("ascii"),
+            f"X-Spam-Rules: {rules}".encode("ascii"),
+        )
+E       AssertionError: assert (b'X-Spam-Sta...IOUS_URL=1.5') == (b'X-Spam-Sta...IOUS_URL=1.5')
+E         
+E         At index 1 diff: b'X-Spam-Score: 11.5' != b'X-Spam-Score: 9.5'
+E         Use -v to get more diff
+
+blackbox/tests/test_oracle_smtp_content_filter_default.py:123: AssertionError</failure></testcase><testcase classname="tools.test_smtp_content_filter_headers" name="test_rust_candidate_smtp_content_filter_headers_match_golden" time="2.021"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for observations/smtp/content-filter/header-clean.json: expected sha256=162085999b453ea414c362e1c182ae3137e1dc8aa22517f1e2e6b34de00e1c13, actual sha256=ce39d824913ddab2adb7ac6839bb32ef99a21d71dd7d25bb6c5da7becd39a1a7">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(360)
+    def test_rust_candidate_smtp_content_filter_headers_match_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _PROFILE,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_smtp_content_filter_headers.py:298: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:115: in verify_candidate
+    ).assert_observation(f"observations/{scenario.name}.json", observation)
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-smtp-content-filter-headers-v14'),...aildir:received-at', 'postgres:identity-timestamps-and-hostname-derived-size', 'smtp:data-dot-unstuff')), record=False)
+relative_path = 'observations/smtp/content-filter/header-clean.json'
+observation = {'mode': 'data', 'storage': {'maildir': {'new_regular_files': 1, 'orphan_files': 0, 'path': 'qa@example.test/spam/1/&lt;g...ATUSCODES\r\n', ...], 'greeting': ['220 &lt;hostname&gt; ESMTP lmyzmail SMTP Server 2.8.0 - &lt;skibidi-expression&gt;\r\n'], ...}}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+&gt;           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for observations/smtp/content-filter/header-clean.json: expected sha256=162085999b453ea414c362e1c182ae3137e1dc8aa22517f1e2e6b34de00e1c13, actual sha256=ce39d824913ddab2adb7ac6839bb32ef99a21d71dd7d25bb6c5da7becd39a1a7
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch</failure></testcase></testsuite></testsuites>

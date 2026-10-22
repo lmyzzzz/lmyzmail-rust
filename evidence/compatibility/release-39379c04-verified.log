@@ -1,0 +1,5 @@
+{"external_candidate_binary": "/home/lmyzzz/lmyzmail-rust/.blackbox/release-artifacts-39379c04/lmyzmail", "sha256_before": "9cdbddfd461daf163dbf36ae9348fd490de0e5f44be541871e16091bbd60c7c2"}
+...                                                                      [100%]
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/release-39379c04-verified.xml -
+3 passed in 27.00s
+{"sha256_after": "9cdbddfd461daf163dbf36ae9348fd490de0e5f44be541871e16091bbd60c7c2", "unchanged": true}

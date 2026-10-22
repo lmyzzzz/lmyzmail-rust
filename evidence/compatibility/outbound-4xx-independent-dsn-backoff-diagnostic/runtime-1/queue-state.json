@@ -1,0 +1,128 @@
+[
+  [
+    2,
+    "FAILED",
+    0,
+    "All domains failed: {outbound.fixture.test=RCPT TO failed: 400 fixture scripted rcpt retry}",
+    "2026-10-22 14:24:11.156163+00:00",
+    null,
+    null
+  ],
+  [
+    3,
+    "FAILED",
+    5,
+    "All domains failed: {outbound.fixture.test=RCPT TO failed: 421 fixture scripted rcpt retry}",
+    "2026-10-22 14:24:17.100775+00:00",
+    null,
+    null
+  ],
+  [
+    4,
+    "FAILED",
+    5,
+    "All domains failed: {outbound.fixture.test=RCPT TO failed: 450 fixture scripted rcpt retry}",
+    "2026-10-22 14:24:26.104368+00:00",
+    null,
+    null
+  ],
+  [
+    5,
+    "FAILED",
+    5,
+    "All domains failed: {outbound.fixture.test=RCPT TO failed: 451 fixture scripted rcpt retry}",
+    "2026-10-22 14:24:37.347082+00:00",
+    null,
+    null
+  ],
+  [
+    6,
+    "FAILED",
+    5,
+    "All domains failed: {outbound.fixture.test=RCPT TO failed: 452 fixture scripted rcpt retry}",
+    "2026-10-22 14:24:43.336301+00:00",
+    null,
+    null
+  ],
+  [
+    7,
+    "FAILED",
+    0,
+    "All domains failed: {outbound.fixture.test=RCPT TO failed: 499 fixture scripted rcpt retry}",
+    "2026-10-22 14:24:49.408375+00:00",
+    null,
+    null
+  ],
+  [
+    8,
+    "FAILED",
+    0,
+    "All domains failed: {outbound.fixture.test=Message not accepted: 400 fixture scripted data retry}",
+    "2026-10-22 14:24:52.443911+00:00",
+    null,
+    null
+  ],
+  [
+    9,
+    "FAILED",
+    5,
+    "All domains failed: {outbound.fixture.test=Message not accepted: 421 fixture scripted data retry}",
+    "2026-10-22 14:24:58.326756+00:00",
+    null,
+    null
+  ],
+  [
+    10,
+    "FAILED",
+    5,
+    "All domains failed: {outbound.fixture.test=Message not accepted: 450 fixture scripted data retry}",
+    "2026-10-22 14:25:09.527962+00:00",
+    null,
+    null
+  ],
+  [
+    11,
+    "FAILED",
+    5,
+    "All domains failed: {outbound.fixture.test=Message not accepted: 451 fixture scripted data retry}",
+    "2026-10-22 14:25:15.519566+00:00",
+    null,
+    null
+  ],
+  [
+    12,
+    "FAILED",
+    5,
+    "All domains failed: {outbound.fixture.test=Message not accepted: 452 fixture scripted data retry}",
+    "2026-10-22 14:25:24.518519+00:00",
+    null,
+    null
+  ],
+  [
+    13,
+    "FAILED",
+    0,
+    "All domains failed: {outbound.fixture.test=Message not accepted: 499 fixture scripted data retry}",
+    "2026-10-22 14:25:27.597624+00:00",
+    null,
+    null
+  ],
+  [
+    14,
+    "FAILED",
+    5,
+    "All domains failed: {outbound.fixture.test=Message not accepted: 451 fixture scripted data retry}",
+    "2026-10-22 14:25:53.815706+00:00",
+    null,
+    null
+  ],
+  [
+    1027,
+    "PENDING",
+    3,
+    "All domains failed: {example.test=MX address resolution failed}",
+    "2026-10-22 14:27:53.831561+00:00",
+    null,
+    null
+  ]
+]

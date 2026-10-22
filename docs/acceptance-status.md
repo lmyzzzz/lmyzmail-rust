@@ -2,6 +2,11 @@
 
 This record is intentionally a status report, not a completion claim. The overall rewrite goal remains incomplete until every required protocol, rendering, model, security, stress, differential, release, and rollback gate has evidence.
 
+Release candidate `39379c04` and complete source/history are available in the
+Windows delivery directory. See [its validation supplement](release-39379c04-validation.md)
+for exact reproduced-ELF checks, the latest full replay, and a corrected
+per-profile test invocation. Packaging does not close the remaining gates.
+
 ## Passed in the current milestone
 
 - Commit `f3b10966` passed the fresh formal multi-module soak recorded in [`candidate-soak-f3b10966-20261022.json`](../evidence/compatibility/candidate-soak-f3b10966-20261022.json).

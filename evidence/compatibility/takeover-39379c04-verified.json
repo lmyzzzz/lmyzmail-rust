@@ -1,0 +1,26 @@
+{
+  "binary_sha256": "9cdbddfd461daf163dbf36ae9348fd490de0e5f44be541871e16091bbd60c7c2",
+  "managed_process_cleanup": "passed",
+  "messages": [
+    {
+      "bytes": 659,
+      "file_name": "20261022142553.357-1-1.eml",
+      "folder": "spam",
+      "sha256": "547632e4c553d24a37fd8a88efc389e066a426683a8d519ec91ff4803deb478e"
+    },
+    {
+      "bytes": 771,
+      "file_name": "20261022142553.392-lmyzmail-2103.eml",
+      "folder": "sent",
+      "sha256": "10361bcf10cc6087758473bf80d26ace3e2bdd1fd67cdb3911effd6c113caede"
+    }
+  ],
+  "phases": [
+    "initial-java-legacy-reads",
+    "rust-reads-legacy-and-publishes-inbound-and-attachment-sent",
+    "java-reads-rust-publications",
+    "rust-reopens-after-java"
+  ],
+  "scope": "ordinary ASCII mailbox; ambiguous names and pending outbound takeover remain separate gates",
+  "status": "passed"
+}

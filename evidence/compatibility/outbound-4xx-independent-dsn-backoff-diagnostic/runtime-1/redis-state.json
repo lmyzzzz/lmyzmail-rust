@@ -1,0 +1,127 @@
+{
+  "botmail:mail:queue:domains:10": {
+    "type": "hash",
+    "ttl": 604753,
+    "value": {
+      "outbound.fixture.test": "{\"domain\":\"outbound.fixture.test\",\"status\":\"FAILED\",\"error\":\"Message not accepted: 450 fixture scripted data retry\",\"recipients\":[\"recipient-data-450-9@outbound.fixture.test\"],\"updatedAt\":\"2026-10-22T14:25:12.492838842Z\",\"permanentFailure\":false}"
+    }
+  },
+  "botmail:mail:queue:domains:1027": {
+    "type": "hash",
+    "ttl": 604794,
+    "value": {
+      "example.test": "{\"domain\":\"example.test\",\"status\":\"PENDING\",\"error\":null,\"recipients\":[\"qa@example.test\"],\"updatedAt\":\"2026-10-22T14:25:53.832919038Z\",\"permanentFailure\":false}"
+    }
+  },
+  "botmail:mail:queue:domains:11": {
+    "type": "hash",
+    "ttl": 604762,
+    "value": {
+      "outbound.fixture.test": "{\"domain\":\"outbound.fixture.test\",\"status\":\"FAILED\",\"error\":\"Message not accepted: 451 fixture scripted data retry\",\"recipients\":[\"recipient-data-451-10@outbound.fixture.test\"],\"updatedAt\":\"2026-10-22T14:25:21.492903247Z\",\"permanentFailure\":false}"
+    }
+  },
+  "botmail:mail:queue:domains:12": {
+    "type": "hash",
+    "ttl": 604768,
+    "value": {
+      "outbound.fixture.test": "{\"domain\":\"outbound.fixture.test\",\"status\":\"FAILED\",\"error\":\"Message not accepted: 452 fixture scripted data retry\",\"recipients\":[\"recipient-data-452-11@outbound.fixture.test\"],\"updatedAt\":\"2026-10-22T14:25:27.491724287Z\",\"permanentFailure\":false}"
+    }
+  },
+  "botmail:mail:queue:domains:13": {
+    "type": "hash",
+    "ttl": 604771,
+    "value": {
+      "outbound.fixture.test": "{\"domain\":\"outbound.fixture.test\",\"status\":\"FAILED\",\"error\":\"Message not accepted: 499 fixture scripted data retry\",\"recipients\":[\"recipient-data-499-12@outbound.fixture.test\"],\"updatedAt\":\"2026-10-22T14:25:30.492191038Z\",\"permanentFailure\":false}"
+    }
+  },
+  "botmail:mail:queue:domains:14": {
+    "type": "hash",
+    "ttl": 604800,
+    "value": {
+      "outbound.fixture.test": "{\"domain\":\"outbound.fixture.test\",\"status\":\"FAILED\",\"error\":\"Message not accepted: 451 fixture scripted data retry\",\"recipients\":[\"recipient-backoff-451@outbound.fixture.test\"],\"updatedAt\":\"2026-10-22T14:25:59.795855964Z\",\"permanentFailure\":false}"
+    }
+  },
+  "botmail:mail:queue:domains:2": {
+    "type": "hash",
+    "ttl": 604694,
+    "value": {
+      "outbound.fixture.test": "{\"domain\":\"outbound.fixture.test\",\"status\":\"FAILED\",\"error\":\"RCPT TO failed: 400 fixture scripted rcpt retry\",\"recipients\":[\"recipient-rcpt-400-1@outbound.fixture.test\"],\"updatedAt\":\"2026-10-22T14:24:14.070493315Z\",\"permanentFailure\":false}"
+    }
+  },
+  "botmail:mail:queue:domains:3": {
+    "type": "hash",
+    "ttl": 604703,
+    "value": {
+      "outbound.fixture.test": "{\"domain\":\"outbound.fixture.test\",\"status\":\"FAILED\",\"error\":\"RCPT TO failed: 421 fixture scripted rcpt retry\",\"recipients\":[\"recipient-rcpt-421-2@outbound.fixture.test\"],\"updatedAt\":\"2026-10-22T14:24:23.065938354Z\",\"permanentFailure\":false}"
+    }
+  },
+  "botmail:mail:queue:domains:4": {
+    "type": "hash",
+    "ttl": 604714,
+    "value": {
+      "outbound.fixture.test": "{\"domain\":\"outbound.fixture.test\",\"status\":\"FAILED\",\"error\":\"RCPT TO failed: 450 fixture scripted rcpt retry\",\"recipients\":[\"recipient-rcpt-450-3@outbound.fixture.test\"],\"updatedAt\":\"2026-10-22T14:24:34.309607362Z\",\"permanentFailure\":false}"
+    }
+  },
+  "botmail:mail:queue:domains:5": {
+    "type": "hash",
+    "ttl": 604720,
+    "value": {
+      "outbound.fixture.test": "{\"domain\":\"outbound.fixture.test\",\"status\":\"FAILED\",\"error\":\"RCPT TO failed: 451 fixture scripted rcpt retry\",\"recipients\":[\"recipient-rcpt-451-4@outbound.fixture.test\"],\"updatedAt\":\"2026-10-22T14:24:40.303451480Z\",\"permanentFailure\":false}"
+    }
+  },
+  "botmail:mail:queue:domains:6": {
+    "type": "hash",
+    "ttl": 604729,
+    "value": {
+      "outbound.fixture.test": "{\"domain\":\"outbound.fixture.test\",\"status\":\"FAILED\",\"error\":\"RCPT TO failed: 452 fixture scripted rcpt retry\",\"recipients\":[\"recipient-rcpt-452-5@outbound.fixture.test\"],\"updatedAt\":\"2026-10-22T14:24:49.303929742Z\",\"permanentFailure\":false}"
+    }
+  },
+  "botmail:mail:queue:domains:7": {
+    "type": "hash",
+    "ttl": 604732,
+    "value": {
+      "outbound.fixture.test": "{\"domain\":\"outbound.fixture.test\",\"status\":\"FAILED\",\"error\":\"RCPT TO failed: 499 fixture scripted rcpt retry\",\"recipients\":[\"recipient-rcpt-499-6@outbound.fixture.test\"],\"updatedAt\":\"2026-10-22T14:24:52.339080395Z\",\"permanentFailure\":false}"
+    }
+  },
+  "botmail:mail:queue:domains:8": {
+    "type": "hash",
+    "ttl": 604735,
+    "value": {
+      "outbound.fixture.test": "{\"domain\":\"outbound.fixture.test\",\"status\":\"FAILED\",\"error\":\"Message not accepted: 400 fixture scripted data retry\",\"recipients\":[\"recipient-data-400-7@outbound.fixture.test\"],\"updatedAt\":\"2026-10-22T14:24:55.304404263Z\",\"permanentFailure\":false}"
+    }
+  },
+  "botmail:mail:queue:domains:9": {
+    "type": "hash",
+    "ttl": 604747,
+    "value": {
+      "outbound.fixture.test": "{\"domain\":\"outbound.fixture.test\",\"status\":\"FAILED\",\"error\":\"Message not accepted: 421 fixture scripted data retry\",\"recipients\":[\"recipient-data-421-8@outbound.fixture.test\"],\"updatedAt\":\"2026-10-22T14:25:06.493118678Z\",\"permanentFailure\":false}"
+    }
+  },
+  "botmail:mail:queue:retry": {
+    "type": "zset",
+    "ttl": -1,
+    "value": [
+      [
+        "1027",
+        1792679273.831
+      ]
+    ]
+  },
+  "botmail:mail:queue:sentfile_index": {
+    "type": "hash",
+    "ttl": -1,
+    "value": {
+      "20261022142414.069-lmyzmail-1027.eml": "1027"
+    }
+  },
+  "botmail:mail:queue:seq": {
+    "type": "string",
+    "ttl": -1,
+    "value": "2050"
+  },
+  "botmail:mail:queue:task:1027": {
+    "type": "string",
+    "ttl": 604794,
+    "value": "{\"id\":1027,\"senderAddress\":\"mailer-daemon@example.test\",\"recipientsJson\":\"{\\\"to\\\":[\\\"qa@example.test\\\"],\\\"cc\\\":[],\\\"bcc\\\":[]}\",\"subject\":\"Delivery Status Notification (Failure)\",\"messageId\":\"<dsn-2-eed6994fdd44eb69de49857a3158962b@example.test>\",\"maxRetries\":5,\"retryCount\":3,\"sentFileName\":\"20261022142414.069-lmyzmail-1027.eml\",\"sentSubdirectory\":1,\"messageFilePath\":null,\"signedContentBase64\":\"RnJvbTogTWFpbCBEZWxpdmVyeSBTdWJzeXN0ZW0gPG1haWxlci1kYWVtb25AZXhhbXBsZS50ZXN0Pg0KVG86IHFhQGV4YW1wbGUudGVzdA0KU3ViamVjdDogRGVsaXZlcnkgU3RhdHVzIE5vdGlmaWNhdGlvbiAoRmFpbHVyZSkNCkRhdGU6IFRodSwgMjIgT2N0IDIwMjYgMTQ6MjQ6MTQgKzAwMDANCk1lc3NhZ2UtSUQ6IDxkc24tMi1lZWQ2OTk0ZmRkNDRlYjY5ZGU0OTg1N2EzMTU4OTYyYkBleGFtcGxlLnRlc3Q+DQpBdXRvLVN1Ym1pdHRlZDogYXV0by1yZXBsaWVkDQpNSU1FLVZlcnNpb246IDEuMA0KQ29udGVudC1UeXBlOiBtdWx0aXBhcnQvcmVwb3J0OyByZXBvcnQtdHlwZT1kZWxpdmVyeS1zdGF0dXM7IGJvdW5kYXJ5PSI9X2xteXptYWlsX2Rzbl9lOGFmOGIxY2QxMzRjNTgxZTQ1YzFjNTQ1NDViNmZkOSINCg0KLS09X2xteXptYWlsX2Rzbl9lOGFmOGIxY2QxMzRjNTgxZTQ1YzFjNTQ1NDViNmZkOQ0KQ29udGVudC1UeXBlOiB0ZXh0L3BsYWluOyBjaGFyc2V0PVVURi04DQpDb250ZW50LVRyYW5zZmVyLUVuY29kaW5nOiBxdW90ZWQtcHJpbnRhYmxlDQoNClRoaXMgaXMgYW4gYXV0b21hdGljYWxseSBnZW5lcmF0ZWQgRGVsaXZlcnkgU3RhdHVzIE5vdGlmaWNhdGlvbi4NCg0KRGVsaXZlcnkgdG8gdGhlIGZvbGxvd2luZyByZWNpcGllbnQocykgZmFpbGVkOg0KICByZWNpcGllbnQtcmNwdC00MDAtMUBvdXRib3VuZC5maXh0dXJlLnRlc3QNCg0KLS09X2xteXptYWlsX2Rzbl9lOGFmOGIxY2QxMzRjNTgxZTQ1YzFjNTQ1NDViNmZkOQ0KQ29udGVudC1UeXBlOiBtZXNzYWdlL2RlbGl2ZXJ5LXN0YXR1cw0KDQpSZXBvcnRpbmctTVRBOiBkbnM7IGV4YW1wbGUudGVzdA0KQXJyaXZhbC1EYXRlOiBUaHUsIDIyIE9jdCAyMDI2IDE0OjI0OjExICswMDAwDQoNCkZpbmFsLVJlY2lwaWVudDogcmZjODIyOyByZWNpcGllbnQtcmNwdC00MDAtMUBvdXRib3VuZC5maXh0dXJlLnRlc3QNCkFjdGlvbjogZmFpbGVkDQpTdGF0dXM6IDUuMC4wDQpEaWFnbm9zdGljLUNvZGU6IHNtdHA7IDU1MCBSQ1BUIFRPIGZhaWxlZDogNDAwIGZpeHR1cmUgc2NyaXB0ZWQgcmNwdCByZXRyeQ0KDQotLT1fbG15em1haWxfZHNuX2U4YWY4YjFjZDEzNGM1ODFlNDVjMWM1NDU0NWI2ZmQ5DQpDb250ZW50LVR5cGU6IHRleHQvcmZjODIyLWhlYWRlcnMNCg0KTWVzc2FnZS1JRDogPDVhNTZiZDg5LTZjOTAtNGY1Zi1iOGYwLWE4Y2Q2ODQ5ZjgyMUBleGFtcGxlLnRlc3Q+DQpTdWJqZWN0OiBibGFja2JveCA0eHggUkNQVCA0MDAgMQ0KRnJvbTogcWFAZXhhbXBsZS50ZXN0DQoNCi0tPV9sbXl6bWFpbF9kc25fZThhZjhiMWNkMTM0YzU4MWU0NWMxYzU0NTQ1YjZmZDktLQ0K\",\"createdAt\":\"2026-10-22T14:24:14.069121Z\",\"nextRetryAt\":\"2026-10-22T14:27:53.831561Z\",\"lastError\":\"All domains failed: {example.test=MX address resolution failed}\",\"status\":\"PENDING\"}"
+  }
+}

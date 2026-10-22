@@ -1,0 +1,432 @@
+{"external_candidate_binary": "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/lmyzmail", "sha256_before": "04a0787548fe44739a0e67a0900d644e0b3189ddc51444ebd556773518c6391d"}
+..........................................F..............F.............. [ 57%]
+..........F.....................................FFFFFF                   [100%]
+Campaign audit: {"differences_requiring_review": [], "harness_definition_sha256": "73e751452ad6eecc90dc68019e56806ad11cbb19b22ad7dcbc55928dda2a446f", "historical_observations_equal": 346, "old_golden_files_unchanged": 6897, "pytest_exitstatus": 1}
+
+=================================== FAILURES ===================================
+____________________ test_rust_candidate_mta_sts_discovery _____________________
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(380)
+    def test_rust_candidate_mta_sts_discovery() -> None:
+        repository = _repository()
+        observed = _run_probe(repository, target="candidate")
+>       _assert_contract(observed, target="candidate")
+
+blackbox/tests/test_oracle_mta_sts_discovery.py:311: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/tests/test_oracle_mta_sts_discovery.py:254: in _assert_contract
+    _assert_candidate_dns(label, case["dns"])
+blackbox/tests/test_oracle_mta_sts_discovery.py:139: in _assert_candidate_dns
+    _assert_dns_query(query, name=name, query_type=query_type)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+query = {'class': 1, 'name': 'outbound.fixture.test', 'type': 28}
+
+    def _assert_dns_query(query: dict[str, Any], *, name: str, query_type: int) -> None:
+>       assert query == {"class": 1, "name": name, "type": query_type}
+E       AssertionError: assert {'class': 1, ...', 'type': 28} == {'class': 1, ...t', 'type': 1}
+E         
+E         Omitting 2 identical items, use -vv to show
+E         Differing items:
+E         {'type': 28} != {'type': 1}
+E         Use -v to get more diff
+
+blackbox/tests/test_oracle_mta_sts_discovery.py:98: AssertionError
+________ test_rust_candidate_smtp_content_filter_default_matches_golden ________
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(240)
+    def test_rust_candidate_smtp_content_filter_default_matches_golden() -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _PROFILE,
+>           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tests/test_oracle_smtp_content_filter_default.py:266: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:111: in verify_candidate
+    observation = scenario.capture(target)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+blackbox/tests/test_oracle_smtp_content_filter_default.py:151: in capture
+    _assert_spam_headers(delivery, expected_score, expected_rules)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+delivery = {'mode': 'data', 'storage': {'maildir': {'new_regular_files': 1, 'orphan_files': 0, 'path': 'qa@example.test/spam/1/<g...ATUSCODES\r\n', ...], 'greeting': ['220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n'], ...}}
+expected_score = '9.5'
+expected_rules = (('SPAM_KEYWORDS', '8.0'), ('SUSPICIOUS_URL', '1.5'))
+
+    def _assert_spam_headers(
+        delivery: dict[str, Any],
+        expected_score: str,
+        expected_rules: tuple[tuple[str, str], ...],
+    ) -> None:
+        encoded = delivery["storage"]["maildir"]["raw"]["base64"]
+        raw = base64.b64decode(encoded, validate=True)
+        header, separator, _ = raw.partition(b"\r\n\r\n")
+        assert separator == b"\r\n\r\n"
+        spam_headers = tuple(line for line in header.split(b"\r\n") if line.startswith(b"X-Spam-"))
+        rules = ", ".join(f"{name}={score}" for name, score in expected_rules)
+>       assert spam_headers == (
+            b"X-Spam-Status: Yes",
+            f"X-Spam-Score: {expected_score}".encode("ascii"),
+            f"X-Spam-Rules: {rules}".encode("ascii"),
+        )
+E       AssertionError: assert (b'X-Spam-Sta...IOUS_URL=1.5') == (b'X-Spam-Sta...IOUS_URL=1.5')
+E         
+E         At index 1 diff: b'X-Spam-Score: 11.5' != b'X-Spam-Score: 9.5'
+E         Use -v to get more diff
+
+blackbox/tests/test_oracle_smtp_content_filter_default.py:123: AssertionError
+__ test_rust_candidate_sigterm_during_stress_delivery_keeps_queue_consistent ___
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(240)
+    def test_rust_candidate_sigterm_during_stress_delivery_keeps_queue_consistent() -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository, True, 32) as candidate:
+            _start_stress(candidate)
+            pending = cast(
+                list[int],
+                _wait_for(
+                    lambda: _pending_stress_ids(candidate),
+                    "published stress delivery task",
+                ),
+            )
+            assert pending
+    
+            _stop_application(candidate)
+    
+>           _assert_stress_storage_clean(candidate)
+
+blackbox/tests/test_oracle_stress.py:552: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+candidate = _StressCandidateRuntime(paths=HarnessPaths(repository=PosixPath('/home/lmyzzz/lmyzmail-rust'), runtime=PosixPath('/hom.../release/lmyzmail', '--config', '{config}'), stress_enabled=True, email_size_kb=32, production_count=2, warmup_count=1)
+
+    def _assert_stress_storage_clean(candidate: CandidateRuntime) -> None:
+        assert candidate.workspace is not None
+        assert _stress_temp_files(candidate) == []
+        maildir = candidate.workspace / "maildir"
+        leftovers = [
+            path.relative_to(maildir).as_posix()
+            for address in (_STRESS_SENDER, _STRESS_RECEIVER)
+            if (root := maildir / address).exists()
+            for path in (root, *root.rglob("*"))
+        ]
+        application_log = (
+            candidate._application.log_tail() if candidate._application is not None else "<none>"
+        )
+>       assert leftovers == [], f"stress Maildir leftovers={leftovers!r}; log={application_log}"
+E       AssertionError: stress Maildir leftovers=['stress-sender@example.test', 'stress-sender@example.test/sent', 'stress-sender@example.test/sent/1', 'stress-sender@example.test/sent/1/.lmyzmail-quarantine', 'stress-sender@example.test/sent/1/20261022142959.476-lmyzmail-2.eml']; log=lmyzmail SkibidiInferX ready: backend=AVX2+FMA, timeout_ms=500, configured_max_tokens=80, effective_max_tokens=120
+E         lmyzmail SMTP Skibidi generator: backend=AVX2, version=1.8.0-skibidi-ultra, capabilities=0x7, hardware_avx2=true, hardware_avx512=false, avx512_enabled=false, simd_rng=true
+E         ========== [STRESS TEST] ROUND 1 (WARMUP) STARTING ==========
+E         [STRESS TEST] Config: Round=1, Mode=WARMUP, Sender=stress-sender@example.test, Receiver=stress-receiver@example.test, Count=1, EmailSize=32KB, MaxConcurrency=1000, InMemory=false
+E         [STRESS TEST] Queueing 1 emails (32KB each) with max concurrency 1000 (streaming mode)...
+E         [STRESS TEST] Queue completed in 80 ms: success=1, failed=0, exceptions=0, oom=0, rateLimited=0
+E         [STRESS TEST] Waiting for delivery...
+E         [STRESS TEST] Cleaning up data...
+E         lmyzmail stress round 1 cleanup failed; residual data may remain
+E         ========== [STRESS TEST] ROUND 1 (WARMUP) FAILED ==========
+E         
+E       assert ['stress-send...yzmail-2.eml'] == []
+E         
+E         Left contains 5 more items, first extra item: 'stress-sender@example.test'
+E         Use -v to get more diff
+
+blackbox/tests/test_oracle_stress.py:239: AssertionError
+_______ test_rust_candidate_smtp_content_filter_attachments_match_golden _______
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(360)
+    def test_rust_candidate_smtp_content_filter_attachments_match_golden() -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _PROFILE,
+>           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_smtp_content_filter_attachments.py:520: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:115: in verify_candidate
+    ).assert_observation(f"observations/{scenario.name}.json", observation)
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-smtp-content-filter-attachments-v1...aildir:received-at', 'postgres:identity-timestamps-and-hostname-derived-size', 'smtp:data-dot-unstuff')), record=False)
+relative_path = 'observations/smtp/content-filter/attachment-safe-pdf.json'
+observation = {'mode': 'data', 'storage': {'maildir': {'new_regular_files': 1, 'orphan_files': 0, 'path': 'qa@example.test/spam/1/<g...ATUSCODES\r\n', ...], 'greeting': ['220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n'], ...}}
+
+    def assert_observation(self, relative_path: str, observation: Any) -> None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+>           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for observations/smtp/content-filter/attachment-safe-pdf.json: expected sha256=4806eeba4d69dfc2618069762b3c3926b6c09a42d61f82d90e8f198297fd0d6f, actual sha256=ece05e7a7a415bf3b3e0da458289cc0208087024dbba1a5bf9610f7c3e0f6bf0
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch
+_________ test_rust_candidate_smtp_content_filter_body_matches_golden __________
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(360)
+    def test_rust_candidate_smtp_content_filter_body_matches_golden() -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _PROFILE,
+>           ).verify_candidate(BASE_SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_smtp_content_filter_body.py:348: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:115: in verify_candidate
+    ).assert_observation(f"observations/{scenario.name}.json", observation)
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-smtp-content-filter-body-v8'), att...aildir:received-at', 'postgres:identity-timestamps-and-hostname-derived-size', 'smtp:data-dot-unstuff')), record=False)
+relative_path = 'observations/smtp/content-filter/body-keyword-low-density.json'
+observation = {'mode': 'data', 'storage': {'maildir': {'new_regular_files': 1, 'orphan_files': 0, 'path': 'qa@example.test/spam/1/<g...ATUSCODES\r\n', ...], 'greeting': ['220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n'], ...}}
+
+    def assert_observation(self, relative_path: str, observation: Any) -> None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+>           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for observations/smtp/content-filter/body-keyword-low-density.json: expected sha256=8b15114db6bf1b742931d5351d44f465bae5c08d43b27227bcce4d8cc83cb0a3, actual sha256=4e570fa4eb1931773d4becdbc5c842b511aa1727d5a791d956dfb806daf93749
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch
+_______ test_rust_candidate_smtp_content_filter_body_edge_matches_golden _______
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(360)
+    def test_rust_candidate_smtp_content_filter_body_edge_matches_golden() -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _EDGE_GOLDEN,
+                _EDGE_PROFILE,
+>           ).verify_candidate(EDGE_SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_smtp_content_filter_body.py:381: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:115: in verify_candidate
+    ).assert_observation(f"observations/{scenario.name}.json", observation)
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-smtp-content-filter-body-edge-v8')...aildir:received-at', 'postgres:identity-timestamps-and-hostname-derived-size', 'smtp:data-dot-unstuff')), record=False)
+relative_path = 'observations/smtp/content-filter/body-headerless-malformed.json'
+observation = {'mode': 'data', 'storage': {'maildir': {'new_regular_files': 1, 'orphan_files': 0, 'path': 'qa@example.test/spam/1/<g...ATUSCODES\r\n', ...], 'greeting': ['220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n'], ...}}
+
+    def assert_observation(self, relative_path: str, observation: Any) -> None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+>           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for observations/smtp/content-filter/body-headerless-malformed.json: expected sha256=0ddc2c2b2f5eadfe9f78ff5ea78ed0fc604dda8f0315139162c504dcc4a258ae, actual sha256=42b34c5c43b0639b112cdff36fcc4dc52b236500b6141b0da74a4e607c90c7df
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch
+________ test_rust_candidate_smtp_content_filter_default_matches_golden ________
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(240)
+    def test_rust_candidate_smtp_content_filter_default_matches_golden() -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _PROFILE,
+>           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_smtp_content_filter_default.py:234: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:115: in verify_candidate
+    ).assert_observation(f"observations/{scenario.name}.json", observation)
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-smtp-content-filter-default-v21'),...aildir:received-at', 'postgres:identity-timestamps-and-hostname-derived-size', 'smtp:data-dot-unstuff')), record=False)
+relative_path = 'observations/smtp/content-filter/default-body-composition.json'
+observation = {'mode': 'data', 'storage': {'maildir': {'new_regular_files': 1, 'orphan_files': 0, 'path': 'qa@example.test/spam/1/<g...ATUSCODES\r\n', ...], 'greeting': ['220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n'], ...}}
+
+    def assert_observation(self, relative_path: str, observation: Any) -> None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+>           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for observations/smtp/content-filter/default-body-composition.json: expected sha256=c3a648b3a6eb0167fcff341cfe89bfd92959a093df3f9f1c3ad6dc663954b5f4, actual sha256=be98aa022347548b7d31d8e867b16124906194eb4608e47569d671b4abc9e36d
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch
+______________ test_rust_candidate_smtp_content_filter_default_v4 ______________
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(240)
+    def test_rust_candidate_smtp_content_filter_default_v4() -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with base._candidate(repository) as candidate:
+>           _runner(repository).verify_candidate(base.SCENARIOS, candidate)
+
+blackbox/tools/test_smtp_content_filter_default_v4.py:47: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:111: in verify_candidate
+    observation = scenario.capture(target)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+blackbox/tests/test_oracle_smtp_content_filter_default.py:151: in capture
+    _assert_spam_headers(delivery, expected_score, expected_rules)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+delivery = {'mode': 'data', 'storage': {'maildir': {'new_regular_files': 1, 'orphan_files': 0, 'path': 'qa@example.test/spam/1/<g...ATUSCODES\r\n', ...], 'greeting': ['220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n'], ...}}
+expected_score = '9.5'
+expected_rules = (('SPAM_KEYWORDS', '8.0'), ('SUSPICIOUS_URL', '1.5'))
+
+    def _assert_spam_headers(
+        delivery: dict[str, Any],
+        expected_score: str,
+        expected_rules: tuple[tuple[str, str], ...],
+    ) -> None:
+        encoded = delivery["storage"]["maildir"]["raw"]["base64"]
+        raw = base64.b64decode(encoded, validate=True)
+        header, separator, _ = raw.partition(b"\r\n\r\n")
+        assert separator == b"\r\n\r\n"
+        spam_headers = tuple(line for line in header.split(b"\r\n") if line.startswith(b"X-Spam-"))
+        rules = ", ".join(f"{name}={score}" for name, score in expected_rules)
+>       assert spam_headers == (
+            b"X-Spam-Status: Yes",
+            f"X-Spam-Score: {expected_score}".encode("ascii"),
+            f"X-Spam-Rules: {rules}".encode("ascii"),
+        )
+E       AssertionError: assert (b'X-Spam-Sta...IOUS_URL=1.5') == (b'X-Spam-Sta...IOUS_URL=1.5')
+E         
+E         At index 1 diff: b'X-Spam-Score: 11.5' != b'X-Spam-Score: 9.5'
+E         Use -v to get more diff
+
+blackbox/tests/test_oracle_smtp_content_filter_default.py:123: AssertionError
+_________ test_rust_candidate_smtp_content_filter_headers_match_golden _________
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(360)
+    def test_rust_candidate_smtp_content_filter_headers_match_golden() -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _PROFILE,
+>           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_smtp_content_filter_headers.py:298: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:115: in verify_candidate
+    ).assert_observation(f"observations/{scenario.name}.json", observation)
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-smtp-content-filter-headers-v14'),...aildir:received-at', 'postgres:identity-timestamps-and-hostname-derived-size', 'smtp:data-dot-unstuff')), record=False)
+relative_path = 'observations/smtp/content-filter/header-clean.json'
+observation = {'mode': 'data', 'storage': {'maildir': {'new_regular_files': 1, 'orphan_files': 0, 'path': 'qa@example.test/spam/1/<g...ATUSCODES\r\n', ...], 'greeting': ['220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n'], ...}}
+
+    def assert_observation(self, relative_path: str, observation: Any) -> None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+>           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for observations/smtp/content-filter/header-clean.json: expected sha256=162085999b453ea414c362e1c182ae3137e1dc8aa22517f1e2e6b34de00e1c13, actual sha256=ce39d824913ddab2adb7ac6839bb32ef99a21d71dd7d25bb6c5da7becd39a1a7
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/release-39379c04-candidate-replay.xml -
+=========================== short test summary info ============================
+FAILED blackbox/tests/test_oracle_mta_sts_discovery.py::test_rust_candidate_mta_sts_discovery
+FAILED blackbox/tests/test_oracle_smtp_content_filter_default.py::test_rust_candidate_smtp_content_filter_default_matches_golden
+FAILED blackbox/tests/test_oracle_stress.py::test_rust_candidate_sigterm_during_stress_delivery_keeps_queue_consistent
+FAILED blackbox/tools/test_smtp_content_filter_attachments.py::test_rust_candidate_smtp_content_filter_attachments_match_golden
+FAILED blackbox/tools/test_smtp_content_filter_body.py::test_rust_candidate_smtp_content_filter_body_matches_golden
+FAILED blackbox/tools/test_smtp_content_filter_body.py::test_rust_candidate_smtp_content_filter_body_edge_matches_golden
+FAILED blackbox/tools/test_smtp_content_filter_default.py::test_rust_candidate_smtp_content_filter_default_matches_golden
+FAILED blackbox/tools/test_smtp_content_filter_default_v4.py::test_rust_candidate_smtp_content_filter_default_v4
+FAILED blackbox/tools/test_smtp_content_filter_headers.py::test_rust_candidate_smtp_content_filter_headers_match_golden
+9 failed, 117 passed, 291 deselected in 887.70s (0:14:47)
+{"sha256_after": "04a0787548fe44739a0e67a0900d644e0b3189ddc51444ebd556773518c6391d", "unchanged": true}

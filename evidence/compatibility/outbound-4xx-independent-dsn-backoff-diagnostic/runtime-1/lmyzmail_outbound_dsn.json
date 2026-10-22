@@ -1,0 +1,15 @@
+[
+  {
+    "original_task_id": 2,
+    "dsn_task_id": 1027,
+    "state": "ADMITTED",
+    "payload_json": "{\"original_task_id\":2,\"sender_address\":\"qa@example.test\",\"subject\":\"blackbox 4xx RCPT 400 1\",\"message_id\":\"<5a56bd89-6c90-4f5f-b8f0-a8cd6849f821@example.test>\",\"created_at\":\"2026-10-22T14:24:11.156163+00:00\",\"terminal_at\":\"2026-10-22T14:24:14.069121+00:00\",\"recipients\":[{\"recipient\":\"recipient-rcpt-400-1@outbound.fixture.test\",\"state\":\"PERMANENT\",\"smtp_code\":400,\"detail\":\"RCPT TO failed: 400 fixture scripted rcpt retry\"}]}",
+    "expected_sha256": "\\x51dc4979a1fa1bb123fbf9635e83f0390d97af7960ae60ad8e37f86957dcc1a1",
+    "prepared_bytes": null,
+    "suppress_reason": null,
+    "lease_token": null,
+    "lease_until": null,
+    "created_at": "2026-10-22T14:24:15.98532+00:00",
+    "updated_at": "2026-10-22T14:24:14.069121+00:00"
+  }
+]

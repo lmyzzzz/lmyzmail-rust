@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="80.591" timestamp="2026-10-22T22:38:00.498795+08:00" hostname="MSI"><testcase classname="tests.test_oracle_mta_sts_discovery" name="test_rust_candidate_mta_sts_discovery" time="80.577" /></testsuite></testsuites>
