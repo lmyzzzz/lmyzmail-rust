@@ -30,7 +30,10 @@ use sha2::{Digest, Sha256 as Sha256Digest};
 use crate::{
     config::RuntimeConfig,
     durability::{fsync, sync_all},
-    mailbox::{sanitize_address_for_path, secure_mailbox_folder, v1_sanitize_address_for_path},
+    mailbox::{
+        sanitize_address_for_path, secure_mailbox_folder, v1_sanitize_address_for_path,
+        v2_sanitize_address_for_path,
+    },
     outbound_coordinator::validate_and_maybe_remove_spool,
     outbound_delivery::OutboundSpoolRecord,
 };
@@ -1894,10 +1897,30 @@ impl OutboundMessageBuilder {
                 "invalid_outbound_storage_reference",
             ));
         }
-        let sent_root = secure_child_directory(&self.maildir, sender, "sent")?;
-        let sent_dir = secure_numeric_directory(&sent_root, sent_subdirectory)?;
-        let sent_path = sent_dir.join(sent_file_name);
-        let sent = PublishedFileOwnership::bind_existing(&sent_path)?;
+        let mut found = None;
+        for address in [
+            sanitize_address_for_path(sender),
+            v2_sanitize_address_for_path(sender),
+            PathBuf::from(v1_sanitize_address_for_path(sender)),
+        ] {
+            let path = self
+                .maildir
+                .join(address)
+                .join("sent")
+                .join(sent_subdirectory.to_string())
+                .join(sent_file_name);
+            match PublishedFileOwnership::bind_existing(&path) {
+                Ok(file) => {
+                    found = Some((path, file));
+                    break;
+                }
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error.into()),
+            }
+        }
+        let (sent_path, sent) = found.ok_or_else(|| {
+            io::Error::new(io::ErrorKind::NotFound, "recovery Sent file is absent")
+        })?;
         let (message_bytes, content_sha256) = sent.content_proof_bounded(self.max_email_size)?;
         if message_bytes == 0 || message_bytes > self.max_email_size {
             return Err(MessageBuildError::InvalidInput("email_too_large"));
@@ -2074,13 +2097,18 @@ impl OutboundMessageBuilder {
                 .join("sent")
                 .join(sent_subdirectory.to_string()),
         ];
-        let v1 = self
-            .maildir
-            .join(v1_sanitize_address_for_path(sender))
-            .join("sent")
-            .join(sent_subdirectory.to_string());
-        if !sent_parents.contains(&v1) {
-            sent_parents.push(v1);
+        for address in [
+            v2_sanitize_address_for_path(sender),
+            PathBuf::from(v1_sanitize_address_for_path(sender)),
+        ] {
+            let parent = self
+                .maildir
+                .join(address)
+                .join("sent")
+                .join(sent_subdirectory.to_string());
+            if !sent_parents.contains(&parent) {
+                sent_parents.push(parent);
+            }
         }
         for parent in sent_parents {
             let intent = read_task_publication_intent_at(&parent, task_id, PublicationKind::Sent)?;
@@ -2133,23 +2161,35 @@ impl OutboundMessageBuilder {
                 "committed Sent mailbox path is invalid",
             ));
         }
-        let sent_directory = self
-            .maildir
-            .join(address_component)
-            .join("sent")
-            .join(sent_subdirectory.to_string());
-        let directory = match open_bound_directory(&sent_directory) {
-            Ok(directory) => directory,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => open_bound_directory(
-                &self
-                    .maildir
-                    .join(v1_sanitize_address_for_path(sender))
-                    .join("sent")
-                    .join(sent_subdirectory.to_string()),
-            )?,
-            Err(error) => return Err(error),
-        };
-        let (descriptor, before) = open_owned_file(&directory, OsStr::new(sent_file_name))?;
+        // Search by the actual file, not just an existing directory: a takeover
+        // can contain messages in both the Java and early Rust layouts.
+        let mut opened = None;
+        for address in [
+            address_component,
+            v2_sanitize_address_for_path(sender),
+            PathBuf::from(v1_sanitize_address_for_path(sender)),
+        ] {
+            let sent_directory = self
+                .maildir
+                .join(address)
+                .join("sent")
+                .join(sent_subdirectory.to_string());
+            let result = open_bound_directory(&sent_directory).and_then(|directory| {
+                let (descriptor, before) = open_owned_file(&directory, OsStr::new(sent_file_name))?;
+                Ok((directory, descriptor, before))
+            });
+            match result {
+                Ok(value) => {
+                    opened = Some(value);
+                    break;
+                }
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error),
+            }
+        }
+        let (directory, descriptor, before) = opened.ok_or_else(|| {
+            io::Error::new(io::ErrorKind::NotFound, "committed Sent file is absent")
+        })?;
         if before.st_size <= 0 || before.st_size as u64 != intent.size {
             return Err(io::Error::new(
                 io::ErrorKind::PermissionDenied,
@@ -5980,6 +6020,32 @@ mod tests {
             Some(expected_base64.as_str())
         );
         assert!(!recovered_small.spool_created);
+
+        // A pre-upgrade queue row still points at the same logical filename.
+        // An existing new-layout directory must not hide its old encoded file.
+        let old_parent = builder
+            .maildir
+            .join(v2_sanitize_address_for_path(&small.sender))
+            .join("sent")
+            .join(small_message.sent_subdirectory.to_string());
+        fs::create_dir_all(&old_parent).unwrap();
+        let old_path = old_parent.join(&small_message.sent_file_name);
+        fs::rename(&small_message.sent_path, &old_path).unwrap();
+        let old_recovered = builder
+            .recover(
+                small.task_id,
+                &small.sender,
+                &small_message.sent_file_name,
+                small_message.sent_subdirectory,
+                MessageStorageMode::Inline,
+                &cancelled,
+            )
+            .unwrap();
+        assert_eq!(old_recovered.sent_path, old_path);
+        assert_eq!(
+            old_recovered.signed_content_base64.as_deref(),
+            Some(expected_base64.as_str())
+        );
 
         let mut large = message();
         large.task_id = 43;

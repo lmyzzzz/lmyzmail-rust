@@ -132,6 +132,12 @@ adopted IDs, and never deletes the Sent Maildir copy during spool cleanup.
 Do not run Java and lmyzmail outbound workers concurrently against the same
 queue.
 
+The Java Maildir layout is currently preserved for ordinary unambiguous ASCII
+addresses. Earlier Rust encoded paths remain readable and recoverable, but
+ambiguous or reserved mailbox names still need a complete rollback procedure;
+see [Maildir takeover status](docs/maildir-takeover.md) before switching an
+existing deployment back to Java.
+
 ## Current Runtime Milestone
 
 The Rust candidate now provides the bounded Tokio lifecycle and configuration

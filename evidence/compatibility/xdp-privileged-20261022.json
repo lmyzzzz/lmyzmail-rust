@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "runtime_source_commit": "292cf3b329ca3b0ec9773b3bfe15eee62b6694ce",
+  "checker_lock_sha256": "64702e7bf0e11becdeee08d09f89ec505b62d9e3614a0562d92af9048f3e2ee5",
+  "checker_binary_sha256": "ee7239c96afb8d10b90b06aa0016bddafe1c41f7ce56b5f4d7391c58ca6e9824",
+  "command": "tools/lmyzmail-xdp-check/run-isolated.sh",
+  "uid": 0,
+  "private_mount_and_network_namespaces": true,
+  "exit_code": 0,
+  "log": "evidence/compatibility/xdp-privileged-20261022.log",
+  "log_sha256": "ce51be82ab5fa46efc1492d0b3160d36386eec741f8bef73d95e3cc1b5754a5c",
+  "result": {
+    "legacyPinsAdopted": true,
+    "legacyPinsRetained": true,
+    "legacyPartialStateRejected": true,
+    "legacyIncompatibleStateRejected": true,
+    "newPinsPrioritized": true,
+    "incompatiblePinRejected": true,
+    "lockSymlinkRejected": true,
+    "attachGuardVerified": true,
+    "detachFailureRetried": true,
+    "initializationCancellationCleaned": true,
+    "recordDisabledNoDatabaseConnection": true,
+    "recordDisabledNoAutomaticBan": true,
+    "runtimeMaps": ["blocked_ips", "blocked_ips_v6", "config_map", "per_ip_stats_v4", "per_ip_stats_v6", "stats", "whitelist_v4", "whitelist_v6"],
+    "packetsPassed": 8,
+    "packetsDropped": 3,
+    "ipv4": "pass-ban-drop-restart-drop-unban-pass",
+    "ipv6": "pass-ban-drop-restart-drop-unban-pass"
+  }
+}

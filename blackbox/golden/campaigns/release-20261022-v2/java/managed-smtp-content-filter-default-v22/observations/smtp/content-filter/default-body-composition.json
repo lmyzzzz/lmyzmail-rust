@@ -1,0 +1,109 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "73e751452ad6eecc90dc68019e56806ad11cbb19b22ad7dcbc55928dda2a446f",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "smtp:greeting-skibidi-grammar",
+      "smtp:server-hostname",
+      "smtp:session-id",
+      "maildir:generated-filename",
+      "maildir:server-hostname",
+      "maildir:received-id",
+      "maildir:received-at",
+      "postgres:identity-timestamps-and-hostname-derived-size",
+      "smtp:data-dot-unstuff"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-smtp-content-filter-default-v4"
+  },
+  "observation": {
+    "mode": "data",
+    "storage": {
+      "maildir": {
+        "new_regular_files": 1,
+        "orphan_files": 0,
+        "path": "qa@example.test/spam/1/<generated>.eml",
+        "preexisting_files_unchanged": true,
+        "raw": {
+          "base64": "UmVjZWl2ZWQ6IGZyb20gYmxhY2tib3guZXhhbXBsZSAobG9jYWxob3N0IFsxMjcuMC4wLjFdKQ0KCWJ5IDxob3N0bmFtZT4gd2l0aCBFU01UUCBpZCA8cmVjZWl2ZWQtaWQ+DQoJZm9yIDxxYUBleGFtcGxlLnRlc3Q+Ow0KCTxyZWNlaXZlZC1hdD4NCkF1dGhlbnRpY2F0aW9uLVJlc3VsdHM6IDxob3N0bmFtZT47DQoJc3BmPW5vbmUgKE5vIE1BSUwgRlJPTSBhZGRyZXNzKSBzbXRwLmNsaWVudC1pcD0xMjcuMC4wLjEgc210cC5tYWlsZnJvbT07DQoJZGtpbT1ub25lIChObyBES0lNIHNpZ25hdHVyZSBwcmVzZW50KTsNCglkbWFyYz1ub25lIE5vIERNQVJDIHJlY29yZCBmb3VuZA0KWC1TcGFtLVN0YXR1czogWWVzDQpYLVNwYW0tU2NvcmU6IDkuNQ0KWC1TcGFtLVJ1bGVzOiBTUEFNX0tFWVdPUkRTPTguMCwgU1VTUElDSU9VU19VUkw9MS41DQpGcm9tOiBzZW5kZXJAZXh0ZXJuYWwudGVzdA0KRGF0ZTogVHVlLCA1IEF1ZyAyMDI1IDEyOjAwOjAwIEdNVA0KU3ViamVjdDogYmItZGVmYXVsdC1ib2R5LTAwMQ0KTWVzc2FnZS1JRDogPGJiLWRlZmF1bHQtYm9keS0wMDFAZXhhbXBsZS50ZXN0Pg0KTUlNRS1WZXJzaW9uOiAxLjANCkNvbnRlbnQtVHlwZTogdGV4dC9wbGFpbjsgY2hhcnNldD11cy1hc2NpaQ0KDQp2aWFncmENCmh0dHBzOi8vYml0Lmx5L29mZmVyDQo=",
+          "length": 659,
+          "sha256": "c87aafbe39c4b62b7b9e2c94e86a280a1207bd35c6f99d1b71130148e7a18f4e"
+        },
+        "residual_temp_files": 0,
+        "symlinks": 0
+      },
+      "postgres": {
+        "file_name": "<generated>.eml",
+        "folder": "spam",
+        "from_address": "sender@external.test",
+        "has_attachments": false,
+        "id": "<identity>",
+        "indexed_at": "<timestamp>",
+        "mailbox_address": "qa@example.test",
+        "matching_rows": 1,
+        "message_id": "<bb-default-body-001@example.test>",
+        "received_at": "<timestamp>",
+        "size_bytes": "<maildir-byte-length>",
+        "subdirectory": 1,
+        "subject": "bb-default-body-001",
+        "to_addresses": "[]"
+      },
+      "redis": {
+        "after": 1,
+        "before": null,
+        "delta": 1,
+        "key": "mail:count:qa@example.test:spam",
+        "pttl": -1,
+        "type": "string"
+      },
+      "size_contract": "postgres-size_bytes-equals-maildir-byte-length"
+    },
+    "wire": {
+      "accepted": [
+        "250 2.0.0 Message accepted for delivery, id=<session-id>\r\n"
+      ],
+      "data_ready": [
+        "354 Start mail input; end with <CRLF>.<CRLF>\r\n"
+      ],
+      "ehlo": [
+        "250-<hostname> Hello blackbox.example\r\n",
+        "250-PIPELINING\r\n",
+        "250-SIZE 15728640\r\n",
+        "250-8BITMIME\r\n",
+        "250-CHUNKING\r\n",
+        "250-ENHANCEDSTATUSCODES\r\n",
+        "250-SMTPUTF8\r\n",
+        "250 SKIBIDITOILET\r\n"
+      ],
+      "greeting": [
+        "220 <hostname> ESMTP lmyzmail SMTP Server 2.8.0 - <skibidi-expression>\r\n"
+      ],
+      "mail_from": [
+        "250 2.1.0 Sender OK\r\n"
+      ],
+      "quit": [
+        "221 2.0.0 <hostname> closing connection\r\n"
+      ],
+      "rcpt_to": [
+        "250 2.1.5 Recipient OK\r\n"
+      ]
+    }
+  },
+  "schema_version": 2
+}

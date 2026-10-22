@@ -1115,8 +1115,11 @@ impl MailboxService {
         folder: &str,
         file_name: &str,
     ) -> Result<(), MailboxError> {
+        // Takeover includes deleting existing messages. The legacy lookup
+        // proves unique mailbox ownership before exposing the indexed file;
+        // rejecting every legacy path made readable mail impossible to delete.
         let path = self
-            .authorized_path(mailbox, folder, file_name, false)
+            .authorized_path(mailbox, folder, file_name, true)
             .await?;
         let parent = path.parent().ok_or(MailboxError::NotFound)?.to_owned();
         let tombstone = deletion_tombstone(&parent)?;
@@ -1181,7 +1184,7 @@ impl MailboxService {
         let subdirectory: Option<i32> = row.get(0);
         let base = self
             .base_dir
-            .join(sanitize_address_for_path(&mailbox))
+            .join(v2_sanitize_address_for_path(&mailbox))
             .join(folder);
         let path = match subdirectory.filter(|value| *value > 0) {
             Some(value) => base.join(value.to_string()).join(file_name),
@@ -1202,7 +1205,7 @@ impl MailboxService {
 
         // v1 was used by early Rust candidates and is injective, but a single
         // percent-encoded component can exceed Linux NAME_MAX. Keep it as a
-        // read-only bridge while every new write uses the bounded v2 tree.
+        // read-only bridge for data created by earlier Rust candidates.
         let v1_base = self
             .base_dir
             .join(v1_sanitize_address_for_path(&mailbox))
@@ -1223,7 +1226,8 @@ impl MailboxService {
 
         // Frozen Java installations mapped several distinct mailbox names to
         // the same directory.  Read that alias only when the database proves
-        // that no other registered mailbox shares it; all writes use the v1 path.
+        // that no other registered mailbox shares it. This proof also applies
+        // to new messages in the rollback-compatible directory layout.
         let legacy_component = legacy_sanitize_address_for_path(&mailbox);
         let proof_deadline = Instant::now() + DATABASE_TIMEOUT;
         let transaction = timeout_at(
@@ -1504,6 +1508,25 @@ fn deletion_tombstone(parent: &Path) -> Result<PathBuf, MailboxError> {
 
 pub(crate) fn sanitize_address_for_path(address: &str) -> PathBuf {
     let normalized = address.trim().to_lowercase();
+    // Preserve the Java layout only where its lossy sanitizer cannot map a
+    // different valid mailbox onto this name. In particular, '_' can originate
+    // from a slash, a forbidden character or '..', so it is not safe here.
+    // Reserve v1-* for early Rust data and v2/ for the encoded namespace.
+    if normalized.contains('@')
+        && normalized.len() <= 255
+        && !normalized.starts_with("v1-")
+        && !normalized.contains("..")
+        && normalized
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'@' | b'.' | b'-' | b'+'))
+    {
+        return PathBuf::from(normalized);
+    }
+    v2_sanitize_address_for_path(&normalized)
+}
+
+pub(crate) fn v2_sanitize_address_for_path(address: &str) -> PathBuf {
+    let normalized = address.trim().to_lowercase();
     let mut output = PathBuf::from("v2");
     for chunk in normalized.as_bytes().chunks(MAILBOX_PATH_CHUNK_BYTES) {
         let mut component = String::with_capacity(2 + chunk.len() * 2);
@@ -1745,6 +1768,10 @@ fn decode_address_path(path: &Path) -> Option<String> {
             _ => None,
         })
         .collect::<Option<Vec<_>>>()?;
+    if components.len() == 1 {
+        let address = components[0];
+        return (sanitize_address_for_path(address) == path).then(|| address.to_owned());
+    }
     if components.first().copied() != Some("v2") || components.len() < 2 {
         return None;
     }
@@ -1766,7 +1793,7 @@ fn decode_address_path(path: &Path) -> Option<String> {
         return None;
     }
     let decoded = String::from_utf8(bytes).ok()?;
-    (sanitize_address_for_path(&decoded) == path).then_some(decoded)
+    (v2_sanitize_address_for_path(&decoded) == path).then_some(decoded)
 }
 
 #[cfg(test)]
@@ -2223,6 +2250,31 @@ mod tests {
     }
 
     #[test]
+    fn ordinary_mailboxes_preserve_java_paths_without_lossy_aliases() {
+        assert_eq!(
+            sanitize_address_for_path(" QA+tag@EXAMPLE.TEST "),
+            PathBuf::from("qa+tag@example.test")
+        );
+        for address in [
+            "foo_bar@example.test",
+            "foo/bar@example.test",
+            "foo..bar@example.test",
+            "v1-qa@example.test",
+            "v2",
+            "../qa@example.test",
+        ] {
+            assert_eq!(
+                sanitize_address_for_path(address),
+                v2_sanitize_address_for_path(address)
+            );
+        }
+        assert_ne!(
+            sanitize_address_for_path("qa@example.test"),
+            sanitize_address_for_path("v1-qa@example.test")
+        );
+    }
+
+    #[test]
     fn secure_mailbox_folder_creates_all_address_classes_beneath_root() {
         let mut nonce = [0_u8; 16];
         fill_random(&mut nonce).unwrap();
@@ -2270,11 +2322,13 @@ mod tests {
         let outside = std::env::temp_dir().join(format!("lmyzmail-mailbox-outside-{suffix}"));
         std::fs::create_dir(&root).unwrap();
         std::fs::create_dir(&outside).unwrap();
-        symlink(&outside, root.join("v2")).unwrap();
-
+        symlink(&outside, root.join("qa@example.test")).unwrap();
         assert!(secure_mailbox_folder(&root, "qa@example.test", "inbox").is_err());
+        symlink(&outside, root.join("v2")).unwrap();
+        assert!(secure_mailbox_folder(&root, "foo/bar@example.test", "inbox").is_err());
         assert_eq!(std::fs::read_dir(&outside).unwrap().count(), 0);
 
+        std::fs::remove_file(root.join("qa@example.test")).unwrap();
         std::fs::remove_file(root.join("v2")).unwrap();
         std::fs::remove_dir_all(root).unwrap();
         std::fs::remove_dir_all(outside).unwrap();

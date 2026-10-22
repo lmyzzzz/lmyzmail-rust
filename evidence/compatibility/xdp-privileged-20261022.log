@@ -1,0 +1,54 @@
+lmyzmail XDP initialization failed: XDP native operation failed (-2): Interface 'lmyz-xdp0-missing' not found
+lmyzmail XDP initialization failed: XDP I/O failed: Too many levels of symbolic links (os error 40)
+lmyzmail XDP initialization failed: XDP native operation failed (-22): XDP pinned map ABI validation failed for existing maps
+lmyzmail XDP initialization failed: XDP operation cancelled
+lmyzmail XDP initialization failed: XDP native operation failed (-22): failed to adopt legacy XDP map pins
+lmyzmail XDP initialization failed: XDP native operation failed (-2): failed to adopt legacy XDP map pins
+lmyzmail XDP initialization failed: XDP native operation failed (-7): refusing to replace foreign XDP program on 'lmyz-xdp0': XdpAttachment { program_id: 1147, interface_index: 3, flags: 2 }: XDP native operation failed (-2): attached XDP program/map identity validation failed
+lmyzmail XDP global PPS critical: 2 pps (threshold: 0, consecutive: 1)
+lmyzmail XDP global SYN flood: 0 syn/s (threshold: 0, consecutive: 1)
+lmyzmail XDP global PPS critical: 0 pps (threshold: 0, consecutive: 2)
+lmyzmail XDP global SYN flood: 0 syn/s (threshold: 0, consecutive: 2)
+lmyzmail XDP global PPS critical: 0 pps (threshold: 0, consecutive: 3)
+lmyzmail XDP global SYN flood: 0 syn/s (threshold: 0, consecutive: 3)
+lmyzmail XDP global PPS critical: 0 pps (threshold: 0, consecutive: 4)
+lmyzmail XDP global SYN flood: 0 syn/s (threshold: 0, consecutive: 4)
+{
+  "status": "passed",
+  "interface": "lmyz-xdp0",
+  "pinPath": "/sys/fs/bpf/lmyzmail",
+  "firstProgramId": 1153,
+  "secondProgramId": 1159,
+  "refusedExistingProgramId": 1147,
+  "recoveredProgramId": 1153,
+  "legacyRecoveredProgramId": 1138,
+  "legacyPinsAdopted": true,
+  "legacyPinsRetained": true,
+  "legacyPartialStateRejected": true,
+  "legacyIncompatibleStateRejected": true,
+  "newPinsPrioritized": true,
+  "incompatiblePinRejected": true,
+  "lockSymlinkRejected": true,
+  "attachGuardVerified": true,
+  "detachFailureRetried": true,
+  "initializationCancellationCleaned": true,
+  "recordToCringeDisabled": true,
+  "recordDisabledNoDatabaseConnection": true,
+  "recordDisabledNoAutomaticBan": true,
+  "recordDisabledCompletedPolls": 4,
+  "recordDisabledObservedEvents": 4,
+  "runtimeMaps": [
+    "blocked_ips",
+    "blocked_ips_v6",
+    "config_map",
+    "per_ip_stats_v4",
+    "per_ip_stats_v6",
+    "stats",
+    "whitelist_v4",
+    "whitelist_v6"
+  ],
+  "packetsPassed": 8,
+  "packetsDropped": 3,
+  "ipv4": "pass-ban-drop-restart-drop-unban-pass",
+  "ipv6": "pass-ban-drop-restart-drop-unban-pass"
+}

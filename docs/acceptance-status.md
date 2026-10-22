@@ -19,10 +19,30 @@ The 30-second smoke companion is retained as [`candidate-soak-v6-smoke-0eb2-v1.j
 
 ## Still required
 
+- The earlier release-candidate `292cf3b3` is available with full source/history and
+  reproducible binary hash `958a7d7b448491e726e7c25461188bcc5e0b3300c32b8a0050206eb76afad570`.
+  The 2026-10-22 current-harness HTTP run passed 35 checks and exposed two real
+  Maildir regressions: legacy deletion returns `not_found`, and multipart Sent
+  publication uses an encoded path absent from the frozen layout. Both now have
+  product fixes: 957 Rust tests, strict Clippy, and 17 external mail/attachment/
+  multipart checks passed. All 6897 historical golden files remained unchanged;
+  343 fresh Java observations/artifacts match their historical counterparts.
+  The full Java recording run had 103 passes and four failures; all four passed
+  in an isolated rerun without assertion changes. This is not a clean full replay.
+  A new package and fresh full replay are still required. See
+  [Maildir takeover status](maildir-takeover.md) for the remaining ambiguous-name
+  layout and rollback gap. Package availability is not production acceptance.
+- The packaged compact 2026-10-22 InferX model has independent frozen-Java
+  Scalar/AVX2 output goldens, 24 Rust inference tests, and two real SMTP/DB tests
+  (Scalar and Auto) with model mmap and no JVM/kernel runtime dependency.
+- Privileged XDP attach, IPv4/IPv6 ban/drop, restart persistence, unban/pass and
+  isolated cleanup passed in `xdp-privileged-20261022.json`.
 - Run the revised single-invocation `candidate-stability` SMTP profile formally: 250,000 messages at 1 KiB and 10 KiB, then 100,000 more in the same process with at least 90% of the first 100,000-message rate, plus a disk-budgeted 10 MiB run. Record fsync-off throughput for the independent Java comparison and fsync-on durability, restart recovery, no-loss, leak, and cleanup evidence. Formal v9 and v10 are recorded product stability failures; the shared delivery-state fix in `af56b587` still needs a qualifying rerun. The user permits moving to other incomplete gates after ten unsuccessful stability rounds; that does not turn a failed round into passing evidence.
 - Re-run current-HEAD reproducible release and installation/rollback verification.
 - Complete the full Java/Rust differential matrix, including all HTTP/UI/auth/API/attachment/error/security cases, SMTP client/server paths, storage/restart behavior, HTCPCP, Minecraft, honeypots, rendering, InferX, and XDP privileged gates.
 - Verify actual AVX2+FMA and AVX-512 runtime-dispatch execution evidence for the implemented mail rendering and Minecraft palette/resize/color conversion paths; Scalar-only evidence is insufficient. The current 275HX WSL host exposes AVX2/FMA but no AVX-512F, so compilation and safe fallback alone cannot prove AVX-512 execution or native performance.
+  The user confirmed that no AVX-512 test host is available and requested that
+  all locally verifiable work continue. This leaves the native AVX-512 gate open.
 
 ## Performance interpretation
 

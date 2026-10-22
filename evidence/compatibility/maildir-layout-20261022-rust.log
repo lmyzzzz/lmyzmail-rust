@@ -1,0 +1,60 @@
+
+running 763 tests
+....................................................................................... 87/763
+..............................................................[swscaler @ 0x791810554e70] No accelerated colorspace conversion found from yuv420p to rgb24.
+[swscaler @ 0x7917b85562a0] No accelerated colorspace conversion found from yuv420p to rgb24.
+......................... 174/763
+....................................................................................... 261/763
+....................................................................................... 348/763
+....................................................................................... 435/763
+....................................................................................... 522/763
+.............................................................................[swscaler @ 0x7917b4758800] No accelerated colorspace conversion found from yuv420p to rgb24.
+.......... 609/763
+....................................................................................... 696/763
+...................................................................
+test result: ok. 763 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.32s
+
+
+running 2 tests
+..
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 3 tests
+...
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.57s
+
+
+running 5 tests
+.....
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.60s
+
+
+running 17 tests
+.................
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.50s
+
+
+running 13 tests
+admitted_dsn_republishes_after_postgres_commit_before_redis_publish --- FAILED
+............
+failures:
+
+---- admitted_dsn_republishes_after_postgres_commit_before_redis_publish stdout ----
+
+thread 'admitted_dsn_republishes_after_postgres_commit_before_redis_publish' (867717) panicked at crates/lmyzmail/tests/outbound_delivery_postgres.rs:1170:5:
+a committed DSN must wait rather than fail while Redis is at its active cap
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    admitted_dsn_republishes_after_postgres_commit_before_redis_publish
+
+test result: FAILED. 12 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.75s
+
+error: test failed, to rerun pass `-p lmyzmail --test outbound_delivery_postgres`

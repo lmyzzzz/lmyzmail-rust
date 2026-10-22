@@ -1,0 +1,120 @@
+..............F..................F...                                    [100%]
+Campaign audit: {"differences_requiring_review": [], "harness_definition_sha256": "73e751452ad6eecc90dc68019e56806ad11cbb19b22ad7dcbc55928dda2a446f", "historical_observations_equal": 132, "old_golden_files_unchanged": 6897, "pytest_exitstatus": 1}
+
+=================================== FAILURES ===================================
+_________ test_rust_candidate_delete_email_matches_frozen_java_golden __________
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_delete_email_matches_frozen_java_golden() -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java/managed-mail-delete-v28",
+                "managed-mail-delete",
+>           ).verify_candidate(MAIL_DELETE_SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tests/test_candidate_mail_read_golden.py:653: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:115: in verify_candidate
+    ).assert_observation(f"observations/{scenario.name}.json", observation)
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-mail-delete-v28'), attestation=Gol...da2a446f', profile='managed-mail-delete', normalizers=('json-object-order:jdk-map-of:delete-response',)), record=False)
+relative_path = 'observations/http/mail/delete-email.json'
+observation = {'after_detail': {'body_json': {'attachments': [], 'cc': [], 'date': 'Mon, 01 Jan 2024 00:00:00 +0000', 'fileName': 'l...h', '561'], ['Content-Type', 'text/plain; charset=UTF-8']], 'status_code': 200, 'status_line': 'HTTP/1.1 200 OK'}, ...}
+
+    def assert_observation(self, relative_path: str, observation: Any) -> None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+>           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for observations/http/mail/delete-email.json: expected sha256=fb363340795b435b8227484342acf94d122783b41564a681dbb43e5f480a3bad, actual sha256=e6863f9ee0051bdadf7fcd93adeae5976dd260700c80fea747ba4a69d09295bb
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch
+_________ test_rust_candidate_web_multipart_matches_frozen_java_golden _________
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_web_multipart_matches_frozen_java_golden() -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java/managed-web-multipart-v23",
+                "managed-web-multipart",
+>           ).verify_candidate(WEB_MULTIPART_SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tests/test_candidate_web_multipart_golden.py:686: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:111: in verify_candidate
+    observation = scenario.capture(target)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+blackbox/tests/test_candidate_web_multipart_golden.py:491: in _capture_web_multipart
+    "state": _queue_snapshot(target, valid_response),
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+target = MultipartCandidateRuntime(paths=HarnessPaths(repository=PosixPath('/home/lmyzzz/lmyzmail-rust'), runtime=PosixPath('/h...mmand_template=('/home/lmyzzz/lmyzmail-rust/target/x86_64-unknown-linux-gnu/release/lmyzmail', '--config', '{config}'))
+response = RawHttpResponse(status_line=b'HTTP/1.1 202 Accepted', status_code=202, headers=((b'content-type', b'application/json; ...-4941-4885-b02e-1822b1480f22@example.test>","status":"PENDING","sentFileName":"20261022125732.254-lmyzmail-2103.eml"}')
+
+    def _queue_snapshot(target: RuntimeTarget, response: RawHttpResponse) -> dict[str, Any]:
+        assert target.workspace is not None
+        assert target.ports is not None
+        payload = json.loads(response.body)
+        queue_id = int(payload["queueId"])
+        message_id = str(payload["messageId"])
+        sent_file_name = str(payload["sentFileName"])
+        client = redis.Redis(host="127.0.0.1", port=target.ports.redis, decode_responses=False)
+        task_key = f"botmail:mail:queue:task:{queue_id}"
+        domains_key = f"botmail:mail:queue:domains:{queue_id}"
+        try:
+            task_raw = client.get(task_key)
+            assert isinstance(task_raw, bytes)
+            task = json.loads(task_raw)
+            signed = base64.b64decode(task["signedContentBase64"], validate=True)
+            domain_values = client.hgetall(domains_key)
+            pending = [int(value) for value in client.lrange("botmail:mail:queue:pending", 0, -1)]
+            sent_index = client.hget("botmail:mail:queue:sentfile_index", sent_file_name)
+            mail_counts = {
+                cast(bytes, key).decode(): int(cast(bytes, client.get(key)))
+                for key in client.scan_iter(match="mail:count:*:sent")
+            }
+            task_ttl = int(client.ttl(task_key))
+            domains_ttl = int(client.ttl(domains_key))
+        finally:
+            client.close()
+    
+        sent_matches = sorted(
+            path
+            for path in (target.workspace / "maildir" / QA_ADDRESS / "sent").rglob(sent_file_name)
+            if path.is_file()
+        )
+>       assert len(sent_matches) == 1
+E       assert 0 == 1
+E        +  where 0 = len([])
+
+blackbox/tests/test_candidate_web_multipart_golden.py:402: AssertionError
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/release-20261022-candidate-http.xml -
+=========================== short test summary info ============================
+FAILED blackbox/tests/test_candidate_mail_read_golden.py::test_rust_candidate_delete_email_matches_frozen_java_golden
+FAILED blackbox/tests/test_candidate_web_multipart_golden.py::test_rust_candidate_web_multipart_matches_frozen_java_golden
+2 failed, 35 passed, 15 deselected in 88.24s (0:01:28)

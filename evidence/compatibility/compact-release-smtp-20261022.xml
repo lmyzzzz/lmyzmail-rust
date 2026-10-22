@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="5.645" timestamp="2026-10-22T20:45:49.390459+08:00" hostname="MSI"><testcase classname="tools.test_compact_release" name="test_compact_release_generates_smtp_rejection_and_persists_exact_activity[scalar]" time="3.543" /><testcase classname="tools.test_compact_release" name="test_compact_release_generates_smtp_rejection_and_persists_exact_activity[auto]" time="1.871"><failure message="ConnectionRefusedError: [Errno 111] Connection refused">backend = 'auto'
+
+    @pytest.mark.parametrize("backend", ("scalar", "auto"))
+    def test_compact_release_generates_smtp_rejection_and_persists_exact_activity(backend):
+        binary = Path(os.environ["LMYZMAIL_COMPACT_RELEASE_BINARY"]).resolve(strict=True)
+        assets = ROOT / "models/skibidi-inferx-compact-20261022"
+        manifest = json.loads((assets / "SOURCE.json").read_text())
+        for artifact in manifest["artifacts"]:
+            with (assets / artifact["path"]).open("rb") as stream:
+                assert hashlib.file_digest(stream, "sha256").hexdigest() == artifact["sha256"]
+        runtime = CompactRuntime(command_template=(str(binary), "--config", "{config}"), profile="inferx")
+        runtime.backend = backend
+        with runtime:
+            assert runtime._application is not None
+            maps = Path(f"/proc/{runtime._application.pid}/maps").read_text()
+            assert str(assets / "skibidi_ai.safetensors") in maps
+            assert "libjvm" not in maps and "libskibidi_inferx_native" not in maps
+            for scenario in SMTP_SELF_SPOOF_INFERX_SCENARIOS:
+&gt;               scenario.capture(runtime)
+
+tools/test_compact_release.py:49: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/smtp_self_spoof_contract.py:244: in capture_inferx
+    return _capture(target, "inferx")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+blackbox/src/lmyzmail_blackbox/smtp_self_spoof_contract.py:210: in _capture
+    client, hostname = open_smtp_client(target, source=_SOURCE)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+blackbox/src/lmyzmail_blackbox/smtp_contract.py:102: in open_smtp_client
+    client = RawSmtpClient.connect(host, port, timeout=10.0, source=source)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+blackbox/src/lmyzmail_blackbox/protocols.py:191: in connect
+    stream = connect_bounded(
+blackbox/src/lmyzmail_blackbox/protocols.py:117: in connect_bounded
+    sock = socket.create_connection(
+/usr/lib/python3.12/socket.py:852: in create_connection
+    raise exceptions[0]
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+address = ('127.0.0.1', 48199), timeout = 10.0
+source_address = ('127.0.0.2', 0)
+
+    def create_connection(address, timeout=_GLOBAL_DEFAULT_TIMEOUT,
+                          source_address=None, *, all_errors=False):
+        """Connect to *address* and return the socket object.
+    
+        Convenience function.  Connect to *address* (a 2-tuple ``(host,
+        port)``) and return the socket object.  Passing the optional
+        *timeout* parameter will set the timeout on the socket instance
+        before attempting to connect.  If no *timeout* is supplied, the
+        global default timeout setting returned by :func:`getdefaulttimeout`
+        is used.  If *source_address* is set it must be a tuple of (host, port)
+        for the socket to bind as a source address before making the connection.
+        A host of '' or port 0 tells the OS to use the default. When a connection
+        cannot be created, raises the last error if *all_errors* is False,
+        and an ExceptionGroup of all errors if *all_errors* is True.
+        """
+    
+        host, port = address
+        exceptions = []
+        for res in getaddrinfo(host, port, 0, SOCK_STREAM):
+            af, socktype, proto, canonname, sa = res
+            sock = None
+            try:
+                sock = socket(af, socktype, proto)
+                if timeout is not _GLOBAL_DEFAULT_TIMEOUT:
+                    sock.settimeout(timeout)
+                if source_address:
+                    sock.bind(source_address)
+&gt;               sock.connect(sa)
+E               ConnectionRefusedError: [Errno 111] Connection refused
+
+/usr/lib/python3.12/socket.py:837: ConnectionRefusedError</failure></testcase></testsuite></testsuites>

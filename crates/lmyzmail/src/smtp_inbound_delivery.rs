@@ -26,6 +26,7 @@ use crate::{
     durability::{fsync, sync_all},
     mailbox::{
         normalize_mailbox, secure_directory_child, secure_directory_root, secure_mailbox_folder,
+        v2_sanitize_address_for_path,
     },
 };
 
@@ -1740,6 +1741,35 @@ impl PreparedInbound {
     }
 
     pub(crate) fn bind_paths(&mut self, maildir: &Path) -> io::Result<()> {
+        // A pre-upgrade intent may already have published in the encoded
+        // layout. Bind that exact owned inode instead of publishing twice or
+        // mistaking its absent staging file for data loss.
+        let old_folder = maildir
+            .join(v2_sanitize_address_for_path(&self.index.mailbox))
+            .join(&self.index.folder);
+        let old_parent = match self.index.subdirectory {
+            Some(value) => old_folder.join(value.to_string()),
+            None => old_folder,
+        };
+        match super::open_maildir_directory(&old_parent) {
+            Ok(directory) => match inspect_file(&directory, OsStr::new(&self.index.file_name)) {
+                Ok(identity) if identity == self.identity => {
+                    self.final_parent = old_parent;
+                    self.staging_parent = secure_directory_child(maildir, STAGING_DIRECTORY)?;
+                    return Ok(());
+                }
+                Ok(_) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::AlreadyExists,
+                        "legacy Rust Maildir destination belongs to a different file",
+                    ));
+                }
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error),
+            },
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
         let folder_root = secure_mailbox_folder(maildir, &self.index.mailbox, &self.index.folder)?;
         self.final_parent = match self.index.subdirectory {
             Some(value) => secure_directory_child(&folder_root, &value.to_string())?,
@@ -4626,6 +4656,34 @@ INSERT INTO mailbox (address) VALUES ('qa@example.test');
                 .join(&prepared.temporary_name)
                 .exists()
         );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn recovery_binds_pre_upgrade_v2_publication_without_republishing() {
+        let root = test_directory("v2-publish-recovery");
+        initialize_staging(&root).unwrap();
+        let parent = root
+            .join(v2_sanitize_address_for_path("qa@example.test"))
+            .join("inbox/1");
+        std::fs::create_dir_all(&parent).unwrap();
+        let data = b"From: sender@example.test\r\n\r\npublished before upgrade\r\n";
+        let mut prepared = prepare_file(
+            &root,
+            parent.clone(),
+            "0123456789abcdef0123456789abcdef".into(),
+            data,
+            test_index("recovery.eml", data.len()),
+        )
+        .unwrap();
+        publish_file(&prepared).unwrap();
+        prepared.final_parent = PathBuf::new();
+        prepared.staging_parent = PathBuf::new();
+        prepared.bind_paths(&root).unwrap();
+        assert_eq!(prepared.final_parent, parent);
+        publish_file(&prepared).unwrap();
+        verify_published_file(&prepared).unwrap();
+        assert!(!root.join("qa@example.test").exists());
         std::fs::remove_dir_all(root).unwrap();
     }
 

@@ -1,0 +1,85 @@
+...............................F........................................ [ 40%]
+........................................................................ [ 81%]
+................................                                         [100%]
+=================================== FAILURES ===================================
+________ test_storage_manifests_are_strict_json_and_bind_frozen_sources ________
+
+    def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
+        repository = _repository()
+        contract = json.loads(
+            (repository / "blackbox/manifests/legacy-storage-contract.json").read_text(encoding="utf-8")
+        )
+        differences = json.loads(
+            (repository / "blackbox/manifests/behavior-differences.json").read_text(encoding="utf-8")
+        )
+    
+        assert contract["schema_version"] == 1
+        assert contract["postgres"]["table_count"] == 13
+        assert contract["maildir"]["source"]["commit"] == ("5dac2ab2922c30c726c4a83d7626c95ad4e231c8")
+>       assert {entry["id"] for entry in differences["differences"]} == {
+            "maildir-atomic-publication",
+            "starttls-buffered-plaintext-command",
+            "smtp-data-terminator-command-loss",
+            "smtp-bdat-coalesced-prerequisite-state-stall",
+            "smtp-command-control-byte-reflection",
+            "smtp-generated-reply-control-sanitization",
+            "smtp-cringe-queue-overflow-bound",
+            "smtp-fragmented-overlong-double-error",
+            "smtp-dkim-auid-domain-validation",
+            "outbound-starttls-hostname-verification",
+            "outbound-starttls-static-rsa-cbc-rejection",
+            "outbound-permanent-failure-dsn",
+            "outbound-smtp-commit-ambiguity-no-retry",
+            "outbound-retry-postgres-checkpoint",
+            "outbound-null-mx-rejection",
+            "outbound-route-dns-answer-budgets",
+            "reporting-dns-input-and-answer-budgets",
+            "reporting-aggregate-render-budgets",
+            "outbound-http-redis-outage-deadline",
+            "http-multipart-error-detail-redaction",
+            "http-multipart-request-owned-upload-cleanup",
+            "userdata-malformed-write-rejection",
+            "userdata-contact-admission-race",
+            "userdata-contact-list-bound",
+            "auth-postgres-cancellation-and-pool-health",
+            "cringe-pagination-input-validation",
+            "cringe-score-query-row-cap",
+            "cringe-postgres-cancellation-and-pool-health",
+            "htcpcp-connection-close-lifecycle",
+            "htcpcp-absolute-request-deadline",
+            "htcpcp-ambiguous-http-framing",
+            "honeypot-incremental-protocol-framing",
+            "honeypot-bounded-admission-and-client-state",
+            "honeypot-durable-cringe-write",
+            "minecraft-absolute-connection-deadline",
+            "minecraft-bounded-connection-admission",
+            "minecraft-duplicate-session-removal-fencing",
+            "minecraft-online-verify-token-hardening",
+            "minecraft-sessionserver-bounded-lifecycle",
+            "minecraft-sessionserver-query-encoding",
+            "minecraft-sessionserver-response-validation",
+            "minecraft-strict-compression-envelope",
+            "minecraft-logout-flush-before-close",
+            "minecraft-map-video-permit-lifetime",
+            "minecraft-outbound-overlapping-send-admission",
+            "xdp-management-failure-reporting",
+            "xdp-pps-consecutive-counter-saturation",
+            "xdp-pps-database-deadline-and-commit-reconciliation",
+            "xdp-pps-legacy-null-counter-repair",
+            "xdp-pps-monotonic-last-seen",
+            "xdp-pps-monitor-bounded-state",
+            "stress-bounded-run-admission",
+            "stress-cleanup-run-serialization",
+            "stress-resource-and-input-bounds",
+        }
+E       AssertionError: assert {'auth-postgr...e-write', ...} == {'auth-postgr...e-write', ...}
+E         
+E         Extra items in the left set:
+E         'stress-delivery-timeout-after-queue-completion'
+E         Use -v to get more diff
+
+blackbox/tests/test_legacy_storage.py:67: AssertionError
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/release-20261022-harness-units.xml -
+=========================== short test summary info ============================
+FAILED blackbox/tests/test_legacy_storage.py::test_storage_manifests_are_strict_json_and_bind_frozen_sources
+1 failed, 175 passed, 161 deselected in 10.68s

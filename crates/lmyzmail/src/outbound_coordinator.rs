@@ -35,6 +35,7 @@ use crate::{
     durability::fsync,
     mailbox::{
         legacy_sanitize_address_for_path, sanitize_address_for_path, v1_sanitize_address_for_path,
+        v2_sanitize_address_for_path,
     },
     outbound_delivery::{
         CommitResultStatus, DatabaseClaim, DeliveryAttemptId, DeliveryAttemptPhase,
@@ -4057,7 +4058,7 @@ fn linux_open_sent_file(
             "invalid Sent Maildir identity for outbound spool",
         ));
     }
-    let new_path = sanitize_address_for_path(&record.sender_address);
+    let new_path = v2_sanitize_address_for_path(&record.sender_address);
     let v1_component = v1_sanitize_address_for_path(&record.sender_address);
     let legacy_component = legacy_sanitize_address_for_path(&record.sender_address);
     if !safe_relative_path(&new_path)
@@ -4075,6 +4076,20 @@ fn linux_open_sent_file(
             .join(record.sent_subdirectory.to_string())
             .join(&record.sent_file_name)
     };
+    let canonical = sanitize_address_for_path(&record.sender_address);
+    if canonical != new_path {
+        match openat2(
+            maildir_fd,
+            relative(&canonical),
+            file_flags,
+            Mode::empty(),
+            resolve,
+        ) {
+            Ok(file) => return Ok((file, false)),
+            Err(rustix::io::Errno::NOENT) => {}
+            Err(error) => return Err(io::Error::from(error)),
+        }
+    }
     let new_sent_path = relative(&new_path);
     match openat2(
         maildir_fd,
@@ -4295,7 +4310,7 @@ fn secure_sent_file(
     record: &OutboundSpoolRecord,
     maildir_base: &Path,
 ) -> io::Result<(PathBuf, bool)> {
-    let new_path = sanitize_address_for_path(&record.sender_address);
+    let new_path = v2_sanitize_address_for_path(&record.sender_address);
     let v1_component = v1_sanitize_address_for_path(&record.sender_address);
     let legacy_component = legacy_sanitize_address_for_path(&record.sender_address);
     if record.sent_subdirectory <= 0

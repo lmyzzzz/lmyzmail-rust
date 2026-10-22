@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="37" time="87.767" timestamp="2026-10-22T20:56:09.265878+08:00" hostname="MSI"><testcase classname="tests.test_candidate_auth_golden" name="test_rust_candidate_auth_http_matches_frozen_java_golden" time="2.271" /><testcase classname="tests.test_candidate_auth_golden" name="test_rust_candidate_persists_only_session_token_hash_and_logout_deletes_it" time="1.626" /><testcase classname="tests.test_candidate_auth_golden" name="test_rust_candidate_bounds_concurrent_sessions_per_mailbox" time="1.630" /><testcase classname="tests.test_candidate_auth_golden" name="test_rust_candidate_enforces_registration_limit_under_concurrency" time="1.593" /><testcase classname="tests.test_candidate_cringe_api_golden" name="test_rust_candidate_cringe_api_matches_frozen_java_golden" time="1.591" /><testcase classname="tests.test_candidate_cringe_api_golden" name="test_rust_candidate_cringe_decay_matches_frozen_java_golden" time="1.576" /><testcase classname="tests.test_candidate_cringe_api_golden" name="test_rust_candidate_rejects_invalid_cringe_paging" time="1.596" /><testcase classname="tests.test_candidate_cringe_api_golden" name="test_rust_candidate_caps_cringe_score_exports_at_ten_thousand_rows" time="1.608" /><testcase classname="tests.test_candidate_cringe_api_golden" name="test_rust_candidate_cancels_stalled_cringe_query_and_recovers_pool" time="13.966" /><testcase classname="tests.test_candidate_http_golden" name="test_rust_candidate_foundation_http_matches_frozen_java_golden" time="1.727" /><testcase classname="tests.test_candidate_mail_read_golden" name="test_rust_candidate_mail_read_matches_frozen_java_golden" time="1.610" /><testcase classname="tests.test_candidate_mail_read_golden" name="test_rust_candidate_mail_attachment_matches_frozen_java_golden" time="1.559" /><testcase classname="tests.test_candidate_mail_read_golden" name="test_rust_candidate_mail_state_matches_frozen_java_golden" time="1.647" /><testcase classname="tests.test_candidate_mail_read_golden" name="test_rust_candidate_mail_mutations_match_frozen_java_golden" time="1.773" /><testcase classname="tests.test_candidate_mail_read_golden" name="test_rust_candidate_delete_email_matches_frozen_java_golden" time="1.794"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for observations/http/mail/delete-email.json: expected sha256=fb363340795b435b8227484342acf94d122783b41564a681dbb43e5f480a3bad, actual sha256=e6863f9ee0051bdadf7fcd93adeae5976dd260700c80fea747ba4a69d09295bb">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_delete_email_matches_frozen_java_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java/managed-mail-delete-v28",
+                "managed-mail-delete",
+&gt;           ).verify_candidate(MAIL_DELETE_SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tests/test_candidate_mail_read_golden.py:653: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:115: in verify_candidate
+    ).assert_observation(f"observations/{scenario.name}.json", observation)
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-mail-delete-v28'), attestation=Gol...da2a446f', profile='managed-mail-delete', normalizers=('json-object-order:jdk-map-of:delete-response',)), record=False)
+relative_path = 'observations/http/mail/delete-email.json'
+observation = {'after_detail': {'body_json': {'attachments': [], 'cc': [], 'date': 'Mon, 01 Jan 2024 00:00:00 +0000', 'fileName': 'l...h', '561'], ['Content-Type', 'text/plain; charset=UTF-8']], 'status_code': 200, 'status_line': 'HTTP/1.1 200 OK'}, ...}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+&gt;           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for observations/http/mail/delete-email.json: expected sha256=fb363340795b435b8227484342acf94d122783b41564a681dbb43e5f480a3bad, actual sha256=e6863f9ee0051bdadf7fcd93adeae5976dd260700c80fea747ba4a69d09295bb
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch</failure></testcase><testcase classname="tests.test_candidate_mail_read_golden" name="test_rust_candidate_rejects_unindexed_maildir_file" time="1.796" /><testcase classname="tests.test_candidate_mailbox_api_golden" name="test_rust_candidate_mailbox_api_matches_frozen_java_golden" time="1.760" /><testcase classname="tests.test_candidate_mailbox_api_golden" name="test_rust_candidate_serializes_duplicate_mailbox_creation" time="1.639" /><testcase classname="tests.test_candidate_mailbox_api_golden" name="test_rust_candidate_mailbox_api_enforces_registration_limit" time="1.557" /><testcase classname="tests.test_candidate_mailbox_api_golden" name="test_rust_candidate_mailbox_creation_survives_restart" time="2.424" /><testcase classname="tests.test_candidate_mailbox_api_golden" name="test_rust_candidate_management_creation_and_receive_alias_precedence" time="5.385" /><testcase classname="tests.test_candidate_mailbox_api_golden" name="test_rust_candidate_auth_cancellation_keeps_single_connection_pool_healthy" time="1.690" /><testcase classname="tests.test_candidate_outbound_http_golden" name="test_rust_candidate_outbound_http_matches_frozen_java_golden" time="1.737" /><testcase classname="tests.test_candidate_outbound_http_golden" name="test_rust_candidate_outbound_status_redis_outage_is_bounded" time="1.684" /><testcase classname="tests.test_candidate_outbound_http_golden" name="test_rust_candidate_acknowledges_only_after_postgres_admission" time="1.708" /><testcase classname="tests.test_candidate_outbound_http_golden" name="test_rust_candidate_enforces_outbound_queue_bound_atomically" time="1.872" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_userdata_matches_frozen_java_golden" time="1.756" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_userdata_rejects_malformed_writes_without_side_effects" time="1.736" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_serializes_duplicate_contact_admission" time="1.733" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_userdata_survives_restart" time="2.674" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_userdata_database_wait_is_deadline_bounded" time="4.942" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_userdata_contact_list_has_a_hard_bound" time="1.577" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_userdata_contact_list_has_a_byte_bound" time="1.666" /><testcase classname="tests.test_candidate_web_multipart_golden" name="test_rust_candidate_web_multipart_matches_frozen_java_golden" time="1.727"><failure message="assert 0 == 1&#10; +  where 0 = len([])">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_web_multipart_matches_frozen_java_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java/managed-web-multipart-v23",
+                "managed-web-multipart",
+&gt;           ).verify_candidate(WEB_MULTIPART_SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tests/test_candidate_web_multipart_golden.py:686: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:111: in verify_candidate
+    observation = scenario.capture(target)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+blackbox/tests/test_candidate_web_multipart_golden.py:491: in _capture_web_multipart
+    "state": _queue_snapshot(target, valid_response),
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+target = MultipartCandidateRuntime(paths=HarnessPaths(repository=PosixPath('/home/lmyzzz/lmyzmail-rust'), runtime=PosixPath('/h...mmand_template=('/home/lmyzzz/lmyzmail-rust/target/x86_64-unknown-linux-gnu/release/lmyzmail', '--config', '{config}'))
+response = RawHttpResponse(status_line=b'HTTP/1.1 202 Accepted', status_code=202, headers=((b'content-type', b'application/json; ...-4941-4885-b02e-1822b1480f22@example.test&gt;","status":"PENDING","sentFileName":"20261022125732.254-lmyzmail-2103.eml"}')
+
+    def _queue_snapshot(target: RuntimeTarget, response: RawHttpResponse) -&gt; dict[str, Any]:
+        assert target.workspace is not None
+        assert target.ports is not None
+        payload = json.loads(response.body)
+        queue_id = int(payload["queueId"])
+        message_id = str(payload["messageId"])
+        sent_file_name = str(payload["sentFileName"])
+        client = redis.Redis(host="127.0.0.1", port=target.ports.redis, decode_responses=False)
+        task_key = f"botmail:mail:queue:task:{queue_id}"
+        domains_key = f"botmail:mail:queue:domains:{queue_id}"
+        try:
+            task_raw = client.get(task_key)
+            assert isinstance(task_raw, bytes)
+            task = json.loads(task_raw)
+            signed = base64.b64decode(task["signedContentBase64"], validate=True)
+            domain_values = client.hgetall(domains_key)
+            pending = [int(value) for value in client.lrange("botmail:mail:queue:pending", 0, -1)]
+            sent_index = client.hget("botmail:mail:queue:sentfile_index", sent_file_name)
+            mail_counts = {
+                cast(bytes, key).decode(): int(cast(bytes, client.get(key)))
+                for key in client.scan_iter(match="mail:count:*:sent")
+            }
+            task_ttl = int(client.ttl(task_key))
+            domains_ttl = int(client.ttl(domains_key))
+        finally:
+            client.close()
+    
+        sent_matches = sorted(
+            path
+            for path in (target.workspace / "maildir" / QA_ADDRESS / "sent").rglob(sent_file_name)
+            if path.is_file()
+        )
+&gt;       assert len(sent_matches) == 1
+E       assert 0 == 1
+E        +  where 0 = len([])
+
+blackbox/tests/test_candidate_web_multipart_golden.py:402: AssertionError</failure></testcase><testcase classname="tests.test_candidate_web_multipart_golden" name="test_rust_candidate_web_multipart_redacts_errors_and_cleans_uploads" time="1.713" /><testcase classname="tests.test_candidate_web_multipart_golden" name="test_rust_candidate_web_multipart_backend_failures_clean_uploads" time="3.463" /><testcase classname="tests.test_candidate_web_multipart_golden" name="test_rust_candidate_web_multipart_disconnect_and_timeout_clean_uploads" time="3.686" /></testsuite></testsuites>

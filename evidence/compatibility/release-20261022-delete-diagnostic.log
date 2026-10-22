@@ -1,0 +1,18 @@
+F
+Campaign audit: {"differences_requiring_review": [], "harness_definition_sha256": "73e751452ad6eecc90dc68019e56806ad11cbb19b22ad7dcbc55928dda2a446f", "historical_observations_equal": 140, "old_golden_files_unchanged": 6897, "pytest_exitstatus": 1}
+
+=================================== FAILURES ===================================
+_________ test_rust_candidate_delete_email_matches_frozen_java_golden __________
+blackbox/tests/test_candidate_mail_read_golden.py:653: in test_rust_candidate_delete_email_matches_frozen_java_golden
+    ).verify_candidate(MAIL_DELETE_SCENARIOS, candidate)
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+blackbox/src/lmyzmail_blackbox/differential.py:115: in verify_candidate
+    ).assert_observation(f"observations/{scenario.name}.json", observation)
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+blackbox/src/lmyzmail_blackbox/golden.py:181: in assert_observation
+    raise GoldenMismatch(
+E   lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for observations/http/mail/delete-email.json: expected sha256=fb363340795b435b8227484342acf94d122783b41564a681dbb43e5f480a3bad, actual sha256=e6863f9ee0051bdadf7fcd93adeae5976dd260700c80fea747ba4a69d09295bb
+=========================== short test summary info ============================
+FAILED blackbox/tests/test_candidate_mail_read_golden.py::test_rust_candidate_delete_email_matches_frozen_java_golden
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed in 2.42s

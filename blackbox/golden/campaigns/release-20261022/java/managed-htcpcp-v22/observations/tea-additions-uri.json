@@ -1,0 +1,413 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "6c65704c6b71ab53913c224df9973d9f8189cac76caf02b7f3ec53a388c2e802",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-htcpcp"
+  },
+  "observation": {
+    "accepted": {
+      "body": {
+        "base64": "QnJld2luZyB0ZWEgKGdyZWVuKQ==",
+        "length": 19,
+        "sha256": "8e46060dd1c4e1d8acb8886659d6845cccc240eb4a2199540710c95fdde01ff3"
+      },
+      "headers": [
+        [
+          "content-type",
+          "text/plain; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "19"
+        ],
+        [
+          "Safe",
+          "if-user-awake"
+        ],
+        [
+          "connection",
+          "close"
+        ]
+      ],
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "accepted_stop": {
+      "body": {
+        "base64": "QnJld2luZyBzdG9wcGVk",
+        "length": 15,
+        "sha256": "ec6eeb1c5f0c68359e5a991831cb20dc8caf0e959858bdf50af40849813ff1a0"
+      },
+      "headers": [
+        [
+          "content-type",
+          "text/plain; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "15"
+        ],
+        [
+          "Safe",
+          "yes"
+        ],
+        [
+          "connection",
+          "close"
+        ]
+      ],
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "coffee_only": {
+      "body": {
+        "base64": "VGhpcyBwb3QgY2Fubm90IGJyZXcgdGVh",
+        "length": 24,
+        "sha256": "9c485b325497d22ad9b6c75f131b03f8b3ce58a23c65bf9dea48ede7dcb2f1ac"
+      },
+      "headers": [
+        [
+          "content-type",
+          "text/plain; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "24"
+        ],
+        [
+          "connection",
+          "close"
+        ]
+      ],
+      "status_code": 503,
+      "status_line": "HTTP/1.1 503 Service Unavailable"
+    },
+    "coffee_uri": {
+      "body": {
+        "base64": "QnJld2luZyBjb2ZmZWU=",
+        "length": 14,
+        "sha256": "41c9ff96f25593f961e0661ada9e6d834d1dbc058282ceb9c8aaeb5f66f06810"
+      },
+      "headers": [
+        [
+          "content-type",
+          "text/plain; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "14"
+        ],
+        [
+          "Safe",
+          "if-user-awake"
+        ],
+        [
+          "connection",
+          "close"
+        ]
+      ],
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "coffee_uri_stop": {
+      "body": {
+        "base64": "QnJld2luZyBzdG9wcGVk",
+        "length": 15,
+        "sha256": "ec6eeb1c5f0c68359e5a991831cb20dc8caf0e959858bdf50af40849813ff1a0"
+      },
+      "headers": [
+        [
+          "content-type",
+          "text/plain; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "15"
+        ],
+        [
+          "Safe",
+          "yes"
+        ],
+        [
+          "connection",
+          "close"
+        ]
+      ],
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "forbidden": {
+      "body": {
+        "base64": "VGhlIGNvbWJpbmF0aW9uIG9mIGdyZWVuIHdpdGggQ3JlYW0gaXMgY29udHJhcnkgdG8gdGhlIHNlbnNpYmlsaXRpZXMgb2YgYSBjb25zZW5zdXMgb2YgZHJpbmtlcnMu",
+        "length": 96,
+        "sha256": "562abb4926a3d3ce361e2e7e512ce9eb044bae2fde56089516a2d68eaccfc4c7"
+      },
+      "headers": [
+        [
+          "content-type",
+          "text/plain; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "96"
+        ],
+        [
+          "connection",
+          "close"
+        ]
+      ],
+      "status_code": 403,
+      "status_line": "HTTP/1.1 403 Forbidden"
+    },
+    "kava_uri": {
+      "body": {
+        "base64": "QnJld2luZyBjb2ZmZWU=",
+        "length": 14,
+        "sha256": "41c9ff96f25593f961e0661ada9e6d834d1dbc058282ceb9c8aaeb5f66f06810"
+      },
+      "headers": [
+        [
+          "content-type",
+          "text/plain; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "14"
+        ],
+        [
+          "Safe",
+          "if-user-awake"
+        ],
+        [
+          "connection",
+          "close"
+        ]
+      ],
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "kava_uri_stop": {
+      "body": {
+        "base64": "QnJld2luZyBzdG9wcGVk",
+        "length": 15,
+        "sha256": "ec6eeb1c5f0c68359e5a991831cb20dc8caf0e959858bdf50af40849813ff1a0"
+      },
+      "headers": [
+        [
+          "content-type",
+          "text/plain; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "15"
+        ],
+        [
+          "Safe",
+          "yes"
+        ],
+        [
+          "connection",
+          "close"
+        ]
+      ],
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "post_start": {
+      "body": {
+        "base64": "QnJld2luZyBjb2ZmZWU=",
+        "length": 14,
+        "sha256": "41c9ff96f25593f961e0661ada9e6d834d1dbc058282ceb9c8aaeb5f66f06810"
+      },
+      "headers": [
+        [
+          "content-type",
+          "text/plain; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "14"
+        ],
+        [
+          "Safe",
+          "if-user-awake"
+        ],
+        [
+          "connection",
+          "close"
+        ]
+      ],
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "post_stop": {
+      "body": {
+        "base64": "QnJld2luZyBzdG9wcGVk",
+        "length": 15,
+        "sha256": "ec6eeb1c5f0c68359e5a991831cb20dc8caf0e959858bdf50af40849813ff1a0"
+      },
+      "headers": [
+        [
+          "content-type",
+          "text/plain; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "15"
+        ],
+        [
+          "Safe",
+          "yes"
+        ],
+        [
+          "connection",
+          "close"
+        ]
+      ],
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "tea_global": {
+      "body": {
+        "base64": "TXVsdGlwbGUgdGVhIHZhcmlldGllcyBhdmFpbGFibGUuIFNlZSBBbHRlcm5hdGVzIGhlYWRlci4=",
+        "length": 56,
+        "sha256": "76c26dbf4bfce954a900ba39cc7f3764cc22ca9f7199456a6e4bc489710a5c1c"
+      },
+      "headers": [
+        [
+          "content-type",
+          "text/plain; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "56"
+        ],
+        [
+          "Alternates",
+          "{\"/\" {type message/coffeepot}}, {\"/pot-0/darjeeling\" {type message/teapot}}, {\"/pot-0/earl-grey\" {type message/teapot}}, {\"/pot-0/english-breakfast\" {type message/teapot}}, {\"/pot-0/green\" {type message/teapot}}, {\"/pot-0/peppermint\" {type message/teapot}}, {\"/pot-0/oolong\" {type message/teapot}}, {\"/pot-1/darjeeling\" {type message/teapot}}, {\"/pot-1/earl-grey\" {type message/teapot}}, {\"/pot-1/peppermint\" {type message/teapot}}, {\"/pot-1/chamomile\" {type message/teapot}}, {\"/pot-1/jasmine\" {type message/teapot}}, {\"/pot-2/earl-grey\" {type message/teapot}}, {\"/pot-2/english-breakfast\" {type message/teapot}}, {\"/pot-2/darjeeling\" {type message/teapot}}, {\"/pot-2/chamomile\" {type message/teapot}}, {\"/pot-5/peppermint\" {type message/teapot}}, {\"/pot-5/chamomile\" {type message/teapot}}, {\"/pot-7/darjeeling\" {type message/teapot}}, {\"/pot-7/earl-grey\" {type message/teapot}}, {\"/pot-7/peppermint\" {type message/teapot}}, {\"/pot-7/green\" {type message/teapot}}, {\"/pot-7/oolong\" {type message/teapot}}, {\"/pot-7/chamomile\" {type message/teapot}}, {\"/pot-7/jasmine\" {type message/teapot}}, {\"/pot-7/english-breakfast\" {type message/teapot}}"
+        ],
+        [
+          "connection",
+          "close"
+        ]
+      ],
+      "status_code": 300,
+      "status_line": "HTTP/1.1 300 Multiple Choices"
+    },
+    "tea_local": {
+      "body": {
+        "base64": "TXVsdGlwbGUgdGVhIHZhcmlldGllcyBhdmFpbGFibGUuIFNlZSBBbHRlcm5hdGVzIGhlYWRlci4=",
+        "length": 56,
+        "sha256": "76c26dbf4bfce954a900ba39cc7f3764cc22ca9f7199456a6e4bc489710a5c1c"
+      },
+      "headers": [
+        [
+          "content-type",
+          "text/plain; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "56"
+        ],
+        [
+          "Alternates",
+          "{\"/pot-1/darjeeling\" {type message/teapot}}, {\"/pot-1/earl-grey\" {type message/teapot}}, {\"/pot-1/peppermint\" {type message/teapot}}, {\"/pot-1/chamomile\" {type message/teapot}}, {\"/pot-1/jasmine\" {type message/teapot}}"
+        ],
+        [
+          "connection",
+          "close"
+        ]
+      ],
+      "status_code": 300,
+      "status_line": "HTTP/1.1 300 Multiple Choices"
+    },
+    "teapot": {
+      "body": {
+        "base64": "SSdtIGEgdGVhcG90LgoKVGhpcyBpcyBhIHRlYXBvdCwgbm90IGEgY29mZmVlIHBvdC4KSSdtIHNob3J0IGFuZCBzdG91dC4KSGVyZSBpcyBteSBoYW5kbGUsIGhlcmUgaXMgbXkgc3BvdXQuCldoZW4gSSBnZXQgYWxsIHN0ZWFtZWQgdXAsIGhlYXIgbWUgc2hvdXQ6CiJUaXAgbWUgb3ZlciBhbmQgcG91ciBtZSBvdXQhIgoKUG90OiBwb3QtMQo=",
+        "length": 194,
+        "sha256": "c2d6aca7618b596d37cffc702d9d61128289017bd2c3c2a9aa7b0b2866436491"
+      },
+      "headers": [
+        [
+          "content-type",
+          "text/plain; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "194"
+        ],
+        [
+          "connection",
+          "close"
+        ]
+      ],
+      "status_code": 418,
+      "status_line": "HTTP/1.1 418 I'm a Teapot"
+    },
+    "unknown_tea": {
+      "body": {
+        "base64": "VGVhIHZhcmlldHkgIm5vdC1hLXRlYSIgbm90IGF2YWlsYWJsZSBpbiBwb3QgcG90LTA=",
+        "length": 50,
+        "sha256": "b62f5650ba7c7c8e2de7ba54b26062111a722442ff6da6a9157d4963228e0c0e"
+      },
+      "headers": [
+        [
+          "content-type",
+          "text/plain; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "50"
+        ],
+        [
+          "connection",
+          "close"
+        ]
+      ],
+      "status_code": 404,
+      "status_line": "HTTP/1.1 404 Not Found"
+    },
+    "unsupported": {
+      "body": {
+        "base64": "Tm90IEFjY2VwdGFibGU6IGFkZGl0aW9uICJDcmVhbSIgaXMgbm90IGF2YWlsYWJsZS4KQXZhaWxhYmxlIGFkZGl0aW9uczog",
+        "length": 72,
+        "sha256": "a4712fbb7fe82c3f69639cc47368d7375dcc2f5816d2e7164685a1d4a29e4b9b"
+      },
+      "headers": [
+        [
+          "content-type",
+          "text/plain; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "72"
+        ],
+        [
+          "connection",
+          "close"
+        ]
+      ],
+      "status_code": 406,
+      "status_line": "HTTP/1.1 406 Not Acceptable"
+    }
+  },
+  "schema_version": 2
+}

@@ -70,6 +70,7 @@ def main() -> None:
     for relative in (
         "README.md", "SECURITY.md", "docs/acceptance-status.md", "docs/release.md",
         "docs/skibidi-inferx-contract.md", "docs/compatibility.md", "docs/architecture.md",
+        "docs/maildir-takeover.md",
         "tools/install-lmyzmail.sh", "tools/uninstall-lmyzmail.sh",
         "config/lmyzmail.properties.example", "deploy/lmyzmail.service",
         "models/skibidi-inferx-compact-20261022/SOURCE.json",

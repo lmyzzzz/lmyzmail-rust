@@ -1,0 +1,72 @@
+{
+  "artifact": {
+    "build_id": "9fd19364a3ebbac9082365b9eceb12e6fc4fb055",
+    "bytes": 51328408,
+    "path": "target/x86_64-unknown-linux-gnu/release/lmyzmail",
+    "sha256": "958a7d7b448491e726e7c25461188bcc5e0b3300c32b8a0050206eb76afad570"
+  },
+  "cargo_lock_sha256": "cc9836ff20f39b93de17735066559aac2b376ff166c9fd74c96f01d71e774b94",
+  "clean_builds": [
+    {
+      "build_id": "9fd19364a3ebbac9082365b9eceb12e6fc4fb055",
+      "bytes": 51328408,
+      "command": "cargo build --frozen --release -p lmyzmail",
+      "elapsed_seconds": 268,
+      "label": "build-1",
+      "sha256": "958a7d7b448491e726e7c25461188bcc5e0b3300c32b8a0050206eb76afad570"
+    },
+    {
+      "build_id": "9fd19364a3ebbac9082365b9eceb12e6fc4fb055",
+      "bytes": 51328408,
+      "command": "cargo build --frozen --release -p lmyzmail",
+      "elapsed_seconds": 250,
+      "label": "build-2",
+      "sha256": "958a7d7b448491e726e7c25461188bcc5e0b3300c32b8a0050206eb76afad570"
+    }
+  ],
+  "commit": "292cf3b329ca3b0ec9773b3bfe15eee62b6694ce",
+  "environment": {
+    "cargo_network": "frozen",
+    "independent_target_directories": true,
+    "locale": "C",
+    "timezone": "UTC"
+  },
+  "schema_version": 2,
+  "source_date_epoch": 1792672795,
+  "target": "x86_64-unknown-linux-gnu",
+  "toolchain": {
+    "cargo": "cargo 1.94.0 (85eff7c80 2026-01-15)",
+    "cc": "cc (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0",
+    "clang": "Ubuntu clang version 18.1.3 (1ubuntu1)",
+    "rustc": "rustc 1.94.0 (4a4ef493e 2026-03-02)\nbinary: rustc\ncommit-hash: 4a4ef493e3a1488c6e321570238084b38948f6db\ncommit-date: 2026-03-02\nhost: x86_64-unknown-linux-gnu\nrelease: 1.94.0\nLLVM version: 21.1.8"
+  },
+  "verification": {
+    "build_id_identical": true,
+    "byte_identical": true,
+    "forbidden_dynamic_dependencies": [
+      "libjava",
+      "libjvm",
+      "libjli"
+    ],
+    "forbidden_dynamic_symbol_prefixes": [
+      "JNI_",
+      "Java_",
+      "JVM_"
+    ],
+    "needed_dynamic_libraries": [
+      "ld-linux-x86-64.so.2",
+      "libbpf.so.1",
+      "libc.so.6",
+      "libcairo.so.2",
+      "libcap.so.2",
+      "libcrypto.so.3",
+      "libfreetype.so.6",
+      "libgcc_s.so.1",
+      "libm.so.6",
+      "libssl.so.3",
+      "libstdc++.so.6",
+      "libz.so.1"
+    ],
+    "unresolved_dynamic_dependencies": []
+  }
+}

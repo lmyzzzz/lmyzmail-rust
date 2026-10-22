@@ -1,0 +1,295 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "6c65704c6b71ab53913c224df9973d9f8189cac76caf02b7f3ec53a388c2e802",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "outbound:generated-identifiers-and-time",
+      "mime:generated-boundaries-and-dkim",
+      "json-object-order:jdk-map-of:web-multipart-errors"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-web-multipart"
+  },
+  "observation": {
+    "cases": {
+      "aggregate_too_large": {
+        "body": {
+          "base64": "",
+          "length": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "headers": [
+          [
+            "content-length",
+            "0"
+          ],
+          [
+            "connection",
+            "close"
+          ]
+        ],
+        "status_code": 413,
+        "status_line": "HTTP/1.1 413 Request Entity Too Large"
+      },
+      "aggregate_too_large_missing_token": {
+        "body": {
+          "base64": "",
+          "length": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "headers": [
+          [
+            "content-length",
+            "0"
+          ],
+          [
+            "connection",
+            "close"
+          ]
+        ],
+        "status_code": 413,
+        "status_line": "HTTP/1.1 413 Request Entity Too Large"
+      },
+      "attachment_too_large": {
+        "body_json": {
+          "error": "Attachment 'large.bin' exceeds size limit",
+          "queued": false,
+          "status": "REJECTED"
+        },
+        "headers": [
+          [
+            "content-type",
+            "application/json; charset=UTF-8"
+          ],
+          [
+            "content-length",
+            "88"
+          ]
+        ],
+        "normalized_body_wire": {
+          "base64": "eyJlcnJvciI6IkF0dGFjaG1lbnQgJ2xhcmdlLmJpbicgZXhjZWVkcyBzaXplIGxpbWl0IiwicXVldWVkIjpmYWxzZSwic3RhdHVzIjoiUkVKRUNURUQifQ==",
+          "length": 88,
+          "sha256": "4e2c24bddaec41393b17c006ebfa741630360fe4b7a4ca9bcb1d8b61eaca6f8b"
+        },
+        "status_code": 400,
+        "status_line": "HTTP/1.1 400 Bad Request"
+      },
+      "attachments_total_too_large": {
+        "body_json": {
+          "error": "Total attachments size exceeds limit",
+          "queued": false,
+          "status": "REJECTED"
+        },
+        "headers": [
+          [
+            "content-type",
+            "application/json; charset=UTF-8"
+          ],
+          [
+            "content-length",
+            "83"
+          ]
+        ],
+        "normalized_body_wire": {
+          "base64": "eyJlcnJvciI6IlRvdGFsIGF0dGFjaG1lbnRzIHNpemUgZXhjZWVkcyBsaW1pdCIsInF1ZXVlZCI6ZmFsc2UsInN0YXR1cyI6IlJFSkVDVEVEIn0=",
+          "length": 83,
+          "sha256": "623412294fbab597a8560fd783f7373be89bf765b4b96eb8f3d9a405cc984947"
+        },
+        "status_code": 400,
+        "status_line": "HTTP/1.1 400 Bad Request"
+      },
+      "blank_token": {
+        "body": {
+          "base64": "",
+          "length": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "headers": [
+          [
+            "content-length",
+            "0"
+          ],
+          [
+            "connection",
+            "close"
+          ]
+        ],
+        "status_code": 401,
+        "status_line": "HTTP/1.1 401 Unauthorized"
+      },
+      "invalid_json": {
+        "body_json": {
+          "error": "internal_error"
+        },
+        "headers": [
+          [
+            "content-type",
+            "application/json; charset=UTF-8"
+          ],
+          [
+            "content-length",
+            "26"
+          ]
+        ],
+        "normalized_body_wire": {
+          "base64": "eyJlcnJvciI6ImludGVybmFsX2Vycm9yIn0=",
+          "length": 26,
+          "sha256": "b1fd618132befbb9c0fa6847793b9a066f5b17444df3d01fe2e43699f8c1eb08"
+        },
+        "status_code": 500,
+        "status_line": "HTTP/1.1 500 Internal Server Error"
+      },
+      "invalid_token": {
+        "body": {
+          "base64": "",
+          "length": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "headers": [
+          [
+            "content-length",
+            "0"
+          ],
+          [
+            "connection",
+            "close"
+          ]
+        ],
+        "status_code": 401,
+        "status_line": "HTTP/1.1 401 Unauthorized"
+      },
+      "missing_token": {
+        "body": {
+          "base64": "",
+          "length": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "headers": [
+          [
+            "content-length",
+            "0"
+          ],
+          [
+            "connection",
+            "close"
+          ]
+        ],
+        "status_code": 401,
+        "status_line": "HTTP/1.1 401 Unauthorized"
+      }
+    },
+    "state": {
+      "domains": {
+        "multipart.invalid": {
+          "domain": "multipart.invalid",
+          "error": null,
+          "permanentFailure": false,
+          "recipients": [
+            "recipient@multipart.invalid"
+          ],
+          "status": "PENDING",
+          "updatedAt": "<timestamp>"
+        }
+      },
+      "domains_ttl_seven_days": true,
+      "mail_counts": {},
+      "message": {
+        "content_type": "multipart/mixed",
+        "normalized_bytes": 686,
+        "normalized_sha256": "e0a13749acf7a769778d3090511ecde4a8df8fea98a56ebc771e41004fee54dc",
+        "parts": [
+          {
+            "bytes": 13,
+            "content_id": null,
+            "content_type": "text/plain",
+            "disposition": null,
+            "filename": null,
+            "sha256": "f69f90ba4058671805b9f858c29440e046e98487b7c695739849014bc969bc56",
+            "transfer_encoding": "quoted-printable"
+          },
+          {
+            "bytes": 13,
+            "content_id": null,
+            "content_type": "text/plain",
+            "disposition": "attachment",
+            "filename": "alpha.txt",
+            "sha256": "6a4d0508eeac771b4f7ab19ca9283d26e2c33fa748ef3ed0dac2d42d6fbf561f",
+            "transfer_encoding": "base64"
+          },
+          {
+            "bytes": 16,
+            "content_id": null,
+            "content_type": "application/octet-stream",
+            "disposition": "attachment",
+            "filename": "bytes.bin",
+            "sha256": "be45cb2605bf36bebde684841a28f0fd43c69850a3dce5fedba69928ee3a8991",
+            "transfer_encoding": "base64"
+          }
+        ]
+      },
+      "pending_contains_task": true,
+      "sent_index_matches": true,
+      "task": {
+        "createdAt": "<timestamp>",
+        "id": "<queue-id>",
+        "lastError": null,
+        "maxRetries": 5,
+        "messageFilePath": null,
+        "messageId": "<message-id>",
+        "nextRetryAt": null,
+        "recipientsJson": "{\"to\":[\"recipient@multipart.invalid\"],\"cc\":[],\"bcc\":[]}",
+        "retryCount": 0,
+        "senderAddress": "qa@example.test",
+        "sentFileName": "<sent-file>",
+        "sentSubdirectory": 1,
+        "signedContentBase64": "<signed-message>",
+        "status": "PENDING",
+        "subject": "Multipart contract"
+      },
+      "task_ttl_seven_days": true
+    },
+    "valid": {
+      "body_json": {
+        "messageId": "<message-id>",
+        "queueId": "<queue-id>",
+        "queued": true,
+        "sentFileName": "<sent-file>",
+        "status": "PENDING"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "113"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJxdWV1ZWQiOnRydWUsInF1ZXVlSWQiOiI8cXVldWUtaWQ+IiwibWVzc2FnZUlkIjoiPG1lc3NhZ2UtaWQ+Iiwic3RhdHVzIjoiUEVORElORyIsInNlbnRGaWxlTmFtZSI6IjxzZW50LWZpbGU+In0=",
+        "length": 113,
+        "sha256": "f2bb68f00e7978c5185f4700d698e2857727c1b2be82760427dec1c4b3d31e30"
+      },
+      "status_code": 202,
+      "status_line": "HTTP/1.1 202 Accepted"
+    }
+  },
+  "schema_version": 2
+}

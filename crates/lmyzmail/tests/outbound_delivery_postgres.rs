@@ -901,7 +901,7 @@ async fn enqueue_reconciles_a_lost_commit_response_after_commit_ordering() {
     let sent_path = storage
         .0
         .join("maildir")
-        .join(v2_mailbox_path("qa@example.test"))
+        .join("qa@example.test")
         .join("sent")
         .join(sent_subdirectory.to_string())
         .join(&queued.sent_file_name);

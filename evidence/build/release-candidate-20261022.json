@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "status": "release-candidate-not-production-qualified",
+  "source_commit": "292cf3b329ca3b0ec9773b3bfe15eee62b6694ce",
+  "artifact_sha256": "958a7d7b448491e726e7c25461188bcc5e0b3300c32b8a0050206eb76afad570",
+  "reproducibility": {
+    "evidence": "evidence/build/release-reproducibility-292cf3b3.json",
+    "evidence_sha256": "a5048c4746f9e470c4559706975be00ce19c6a527c3d6549a97c2a85a21e0059",
+    "independent_clean_builds": 2,
+    "byte_identical": true,
+    "java_jvm_runtime_dependency": false
+  },
+  "verification": {
+    "workspace_all_targets_all_features": {
+      "passed": 955,
+      "failed": 0,
+      "ignored": 0,
+      "log": "evidence/compatibility/release-20261022-rust-all-features.log",
+      "log_sha256": "0d6e6c3033c848e90cfeabee4ebe96cc1b908c518fb63a6a82709e06cec266f2"
+    },
+    "clippy_all_targets_all_features_deny_warnings": {
+      "exit_code": 0,
+      "log": "evidence/compatibility/release-20261022-clippy.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "inferx_both_model_generations": {"passed": 24, "failed": 0, "ignored": 0},
+    "compact_model_real_smtp_and_postgres": {
+      "passed": 2,
+      "modes": ["scalar", "auto"],
+      "verified_model_mmap": true,
+      "fallback_rejected": true,
+      "exact_database_activity_verified": true,
+      "log_sha256": "f6f5a9ce2f8a5cb6ccc7c6a4fd8dc0bc0d09ac73a307b897e2bf18222d85aeac"
+    },
+    "staged_install_upgrade_uninstall": {
+      "exit_code": 0,
+      "log": "evidence/build/installation-compact-20261022.log",
+      "log_sha256": "2ce8098e08f9a20f0490a60942a9f381b238134e4d55a3815aeaf634570c85d9",
+      "same_binary_sha256_as_final_package": true
+    },
+    "runtime_archive_extraction_and_installation": {
+      "sha256sum_c": "all four files OK",
+      "version": "lmyzmail 0.1.0",
+      "default_fsync": true,
+      "config_check_exit_code": 0
+    },
+    "harness_unit_tests": {"passed": 176, "failed": 0},
+    "campaign_storage_regressions": {"passed": 3, "failed": 0}
+  },
+  "packages": {
+    "directory": ".blackbox/releases/lmyzmail-20261022-292cf3b3-v2",
+    "lmyzmail-0.1.0-rc.292cf3b3-linux-x86_64.tar.gz": "0c56cf07eaf79189de2196e8ed951f40882f1656b11bda084ae427ed6c7915ce",
+    "lmyzmail-0.1.0-rc.292cf3b3-source.tar.gz": "a0663565222d1d86be972f9901f35db88418dd5220443b03e44de0c2c01ae3a2",
+    "lmyzmail-0.1.0-rc.292cf3b3-history.bundle": "75add511749173b34cd2eb83e84462358bb48de54f9e0279c67ab95bb3ab1887",
+    "bundle_complete_history_verified": true,
+    "bundle_branch_head_matches_source_commit": true
+  },
+  "pending": [
+    "fix legacy Maildir delete returning not_found and new Sent layout parity before production takeover",
+    "complete current-harness Java record, independent replay and candidate matrix",
+    "post-fix formal SMTP 250000 plus same-process 100000 stability for both durability modes and small tiers",
+    "disk-budgeted Rust-only 10 MiB stress",
+    "current-release half-hour multi-module soak",
+    "native AVX-512 execution and performance evidence on a capable host",
+    "final complete-workspace sync to Windows after all goal gates pass"
+  ]
+}

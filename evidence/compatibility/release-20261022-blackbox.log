@@ -1,0 +1,816 @@
+FF...FFF...FFFFFFFFFF
+=================================== FAILURES ===================================
+______________________ test_frozen_java_auth_http_golden _______________________
+
+record_java_golden = False
+
+    @pytest.mark.integration
+    @pytest.mark.oracle
+    @pytest.mark.timeout(120)
+    def test_frozen_java_auth_http_golden(record_java_golden: bool) -> None:
+        paths = JavaOracleRuntime().paths
+        runner = DifferentialRunner(
+            paths.repository,
+            paths.repository / "blackbox/golden/java/managed-candidate-auth-v36",
+            "managed-candidate-auth",
+            record_java=record_java_golden,
+        )
+        with JavaOracleRuntime(paths=paths) as oracle:
+            if record_java_golden:
+                runner.record_from_java(AUTH_HTTP_SCENARIOS, oracle)
+            else:
+>               runner.verify_java(AUTH_HTTP_SCENARIOS, oracle)
+
+blackbox/tests/test_candidate_auth_golden.py:144: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:125: in verify_java
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-candidate-auth-v36'), attestation=...b777b8eb9908a0e10f217cbd5ae01c08', profile='managed-candidate-auth', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-candidate-auth', 'scenarios': [{'contract': {'headers': [], 'json': {'address': 'qa@example.test'...'10 invalid POST /web/login after one prior suite failure']}, 'name': 'http/web/auth-rate-limits', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -> None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+>           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for suite.json: expected sha256=4d0a09d4c9badbc2e2b2f96ba43fe545a2333e3a544f7ebb1e9be0e540a310e1, actual sha256=479dcd39596451b93b422ce7f911f6652b8d23c26ff6e79184cab855fa3fe53a
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch
+___________ test_rust_candidate_auth_http_matches_frozen_java_golden ___________
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(120)
+    def test_rust_candidate_auth_http_matches_frozen_java_golden() -> None:
+        repository = Path(__file__).resolve().parents[2]
+        candidate = _candidate(repository)
+        with candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java/managed-candidate-auth-v36",
+                "managed-candidate-auth",
+>           ).verify_candidate(AUTH_HTTP_SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tests/test_candidate_auth_golden.py:158: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-candidate-auth-v36'), attestation=...b777b8eb9908a0e10f217cbd5ae01c08', profile='managed-candidate-auth', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-candidate-auth', 'scenarios': [{'contract': {'headers': [], 'json': {'address': 'qa@example.test'...'10 invalid POST /web/login after one prior suite failure']}, 'name': 'http/web/auth-rate-limits', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -> None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+>           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for suite.json: expected sha256=4d0a09d4c9badbc2e2b2f96ba43fe545a2333e3a544f7ebb1e9be0e540a310e1, actual sha256=479dcd39596451b93b422ce7f911f6652b8d23c26ff6e79184cab855fa3fe53a
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch
+_____________________ test_frozen_java_cringe_api_goldens ______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-111/test_frozen_java_cringe_api_go0')
+record_java_golden = False
+
+    @pytest.mark.integration
+    @pytest.mark.oracle
+    @pytest.mark.timeout(180)
+    def test_frozen_java_cringe_api_goldens(
+        tmp_path: Path,
+        record_java_golden: bool,
+    ) -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with PersistentJavaOracleRuntime(tmp_path / "java-cringe-api") as oracle:
+            target = _OracleTarget(oracle)
+            for root, profile, scenarios in (
+                (_GOLDEN, _PROFILE, CRINGE_SCENARIOS),
+                (_BOUNDARY_GOLDEN, _BOUNDARY_PROFILE, CRINGE_BOUNDARY_SCENARIOS),
+                (_DECAY_GOLDEN, _DECAY_PROFILE, CRINGE_DECAY_SCENARIOS),
+            ):
+                runner = DifferentialRunner(
+                    repository,
+                    repository / root,
+                    profile,
+                    record_java=record_java_golden,
+                )
+                if record_java_golden:
+                    runner.record_from_java(scenarios, target)
+                else:
+>                   runner.verify_java(scenarios, target)
+
+blackbox/tests/test_candidate_cringe_api_golden.py:657: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:125: in verify_java
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-cringe-api-v16'), attestation=Gold...08cdb777b8eb9908a0e10f217cbd5ae01c08', profile='managed-cringe-api', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-cringe-api', 'scenarios': [{'contract': {'normalization': 'HTTP Date, proven Java Map.of member o.../data-plane', 'normalizers': ['json-object-order:jdk-map-of:cringe-api-key-errors', 'json-object-order:spring-page']}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -> None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+>           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for suite.json: expected sha256=7901b5cc09fe1761fe9c7ddaa71291e7fb1c1023966147c802e9427a01139b75, actual sha256=3f336d257635db7d46a7511f35ae9d71883bbc2c1564616b2eb24899fe8334dd
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch
+__________ test_rust_candidate_cringe_api_matches_frozen_java_golden ___________
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_cringe_api_matches_frozen_java_golden() -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / _GOLDEN,
+                _PROFILE,
+>           ).verify_candidate(CRINGE_SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tests/test_candidate_cringe_api_golden.py:670: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-cringe-api-v16'), attestation=Gold...08cdb777b8eb9908a0e10f217cbd5ae01c08', profile='managed-cringe-api', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-cringe-api', 'scenarios': [{'contract': {'normalization': 'HTTP Date, proven Java Map.of member o.../data-plane', 'normalizers': ['json-object-order:jdk-map-of:cringe-api-key-errors', 'json-object-order:spring-page']}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -> None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+>           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for suite.json: expected sha256=7901b5cc09fe1761fe9c7ddaa71291e7fb1c1023966147c802e9427a01139b75, actual sha256=3f336d257635db7d46a7511f35ae9d71883bbc2c1564616b2eb24899fe8334dd
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch
+_________ test_rust_candidate_cringe_decay_matches_frozen_java_golden __________
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_cringe_decay_matches_frozen_java_golden() -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / _DECAY_GOLDEN,
+                _DECAY_PROFILE,
+>           ).verify_candidate(CRINGE_DECAY_SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tests/test_candidate_cringe_api_golden.py:683: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-cringe-decay-v12'), attestation=Go...cdb777b8eb9908a0e10f217cbd5ae01c08', profile='managed-cringe-decay', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-cringe-decay', 'scenarios': [{'contract': {'normalization': 'HTTP Date, proven Java Map.of member...inge/decay', 'normalizers': ['json-object-order:jdk-map-of:cringe-decay', 'database-time:bounded-decay-transaction']}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -> None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+>           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for suite.json: expected sha256=2cb114554dfbeb69b31281f619cbe9a114f540940eada5d6601411dfd163afe3, actual sha256=9fcaac7bdd254098c11ccd5302feccd2ab230a9de702f1a1951fd598a3ce305e
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch
+___________________ test_frozen_java_foundation_http_golden ____________________
+
+record_java_golden = False
+
+    @pytest.mark.integration
+    @pytest.mark.oracle
+    @pytest.mark.timeout(120)
+    def test_frozen_java_foundation_http_golden(record_java_golden: bool) -> None:
+        paths = JavaOracleRuntime().paths
+        runner = DifferentialRunner(
+            paths.repository,
+            paths.repository / "blackbox/golden/java/managed-candidate-public-config-v61",
+            "managed-candidate-public-config",
+            record_java=record_java_golden,
+        )
+        with JavaOracleRuntime(paths=paths) as oracle:
+            if record_java_golden:
+                runner.record_from_java(FOUNDATION_HTTP_SCENARIOS, oracle)
+            else:
+>               runner.verify_java(FOUNDATION_HTTP_SCENARIOS, oracle)
+
+blackbox/tests/test_candidate_http_golden.py:33: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:125: in verify_java
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-candidate-public-config-v61'), att...908a0e10f217cbd5ae01c08', profile='managed-candidate-public-config', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-candidate-public-config', 'scenarios': [{'contract': {'headers': [], 'json': None, 'method': 'GET...e': 'http/api/unknown-before-routing', 'normalizers': ['header:date:http-date', 'json-object-order:jdk-map-of']}, ...]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -> None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+>           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for suite.json: expected sha256=d276939c04d42474c959b846a1df9d6aed15a4c6a44dcfc591a59a7e3ae3deb5, actual sha256=af297218a57ca6976edda9118d05a5d19cf06a9c09ecfb778155cd77328df913
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch
+________ test_rust_candidate_foundation_http_matches_frozen_java_golden ________
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(120)
+    def test_rust_candidate_foundation_http_matches_frozen_java_golden() -> None:
+        repository = Path(__file__).resolve().parents[2]
+        command = os.environ.get("LMYZMAIL_CANDIDATE_COMMAND_JSON")
+        if command is not None:
+            candidate = CandidateRuntime.from_environment()
+        else:
+            candidate = CandidateRuntime(
+                command_template=(
+                    str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                    "--config",
+                    "{config}",
+                )
+            )
+        with candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java/managed-candidate-public-config-v61",
+                "managed-candidate-public-config",
+>           ).verify_candidate(FOUNDATION_HTTP_SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tests/test_candidate_http_golden.py:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-candidate-public-config-v61'), att...908a0e10f217cbd5ae01c08', profile='managed-candidate-public-config', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-candidate-public-config', 'scenarios': [{'contract': {'headers': [], 'json': None, 'method': 'GET...e': 'http/api/unknown-before-routing', 'normalizers': ['header:date:http-date', 'json-object-order:jdk-map-of']}, ...]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -> None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+>           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for suite.json: expected sha256=d276939c04d42474c959b846a1df9d6aed15a4c6a44dcfc591a59a7e3ae3deb5, actual sha256=af297218a57ca6976edda9118d05a5d19cf06a9c09ecfb778155cd77328df913
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch
+______________________ test_frozen_java_mail_read_golden _______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-111/test_frozen_java_mail_read_gol0')
+record_java_golden = False
+
+    @pytest.mark.integration
+    @pytest.mark.oracle
+    @pytest.mark.timeout(180)
+    def test_frozen_java_mail_read_golden(
+        tmp_path: Path,
+        record_java_golden: bool,
+    ) -> None:
+        repository = Path(__file__).resolve().parents[2]
+        golden = repository / "blackbox/golden/java/managed-mail-read-v31"
+        runner = DifferentialRunner(
+            repository,
+            golden,
+            "managed-mail-read",
+            record_java=record_java_golden,
+        )
+        with PersistentJavaOracleRuntime(tmp_path / "java-mail-read") as oracle:
+            target = _OracleTarget(oracle)
+            if record_java_golden:
+                runner.record_from_java(MAIL_READ_SCENARIOS, target)
+            else:
+>               runner.verify_java(MAIL_READ_SCENARIOS, target)
+
+blackbox/tests/test_candidate_mail_read_golden.py:496: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:125: in verify_java
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-mail-read-v31'), attestation=Golde...e08cdb777b8eb9908a0e10f217cbd5ae01c08', profile='managed-mail-read', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-mail-read', 'scenarios': [{'contract': {'headers': [['X-Session-Token', '<legacy-session-token>']...attested legacy PostgreSQL seed and Maildir fixture', ...}, 'name': 'http/mail/headers-root', 'normalizers': []}, ...]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -> None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+>           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for suite.json: expected sha256=215e449e4c41a8854008e1090a1f8624a1c53dec6d1b3840b7fd9470a034f3b4, actual sha256=e8e9a1b5810ae4b35f0e1a738658a45afb6144e82cb12fcd118fb9e25a219644
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch
+___________ test_rust_candidate_mail_read_matches_frozen_java_golden ___________
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_mail_read_matches_frozen_java_golden() -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java/managed-mail-read-v31",
+                "managed-mail-read",
+>           ).verify_candidate(MAIL_READ_SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tests/test_candidate_mail_read_golden.py:509: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-mail-read-v31'), attestation=Golde...e08cdb777b8eb9908a0e10f217cbd5ae01c08', profile='managed-mail-read', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-mail-read', 'scenarios': [{'contract': {'headers': [['X-Session-Token', '<legacy-session-token>']...attested legacy PostgreSQL seed and Maildir fixture', ...}, 'name': 'http/mail/headers-root', 'normalizers': []}, ...]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -> None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+>           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for suite.json: expected sha256=215e449e4c41a8854008e1090a1f8624a1c53dec6d1b3840b7fd9470a034f3b4, actual sha256=e8e9a1b5810ae4b35f0e1a738658a45afb6144e82cb12fcd118fb9e25a219644
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch
+___________________ test_frozen_java_mail_attachment_golden ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-111/test_frozen_java_mail_attachme0')
+record_java_golden = False
+
+    @pytest.mark.integration
+    @pytest.mark.oracle
+    @pytest.mark.timeout(180)
+    def test_frozen_java_mail_attachment_golden(
+        tmp_path: Path,
+        record_java_golden: bool,
+    ) -> None:
+        repository = Path(__file__).resolve().parents[2]
+        golden = repository / "blackbox/golden/java/managed-mail-attachment-v26"
+        runner = DifferentialRunner(
+            repository,
+            golden,
+            "managed-mail-attachment",
+            record_java=record_java_golden,
+        )
+        with PersistentJavaOracleRuntime(tmp_path / "java-mail-attachment") as oracle:
+            target = _OracleTarget(oracle)
+            if record_java_golden:
+                runner.record_from_java(MAIL_ATTACHMENT_SCENARIOS, target)
+            else:
+>               runner.verify_java(MAIL_ATTACHMENT_SCENARIOS, target)
+
+blackbox/tests/test_candidate_mail_read_golden.py:532: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:125: in verify_java
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-mail-attachment-v26'), attestation...777b8eb9908a0e10f217cbd5ae01c08', profile='managed-mail-attachment', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-mail-attachment', 'scenarios': [{'contract': {'body': 'exact bytes and attachment security header...], 'method': 'GET', 'protocol': 'http', ...}, 'name': 'http/mail/attachment-query-token-rejected', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -> None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+>           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for suite.json: expected sha256=89750d3be53994f54b27f5c753100d7d5d7a4fd571b45f8addaaeb31a8233ba0, actual sha256=d36a1b5f696d9176d62f886fba64317bf431ddd4601ac40bd9901e03c4579a9b
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch
+________ test_rust_candidate_mail_attachment_matches_frozen_java_golden ________
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_mail_attachment_matches_frozen_java_golden() -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java/managed-mail-attachment-v26",
+                "managed-mail-attachment",
+>           ).verify_candidate(MAIL_ATTACHMENT_SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tests/test_candidate_mail_read_golden.py:545: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-mail-attachment-v26'), attestation...777b8eb9908a0e10f217cbd5ae01c08', profile='managed-mail-attachment', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-mail-attachment', 'scenarios': [{'contract': {'body': 'exact bytes and attachment security header...], 'method': 'GET', 'protocol': 'http', ...}, 'name': 'http/mail/attachment-query-token-rejected', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -> None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+>           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for suite.json: expected sha256=89750d3be53994f54b27f5c753100d7d5d7a4fd571b45f8addaaeb31a8233ba0, actual sha256=d36a1b5f696d9176d62f886fba64317bf431ddd4601ac40bd9901e03c4579a9b
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch
+______________________ test_frozen_java_mail_state_golden ______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-111/test_frozen_java_mail_state_go0')
+record_java_golden = False
+
+    @pytest.mark.integration
+    @pytest.mark.oracle
+    @pytest.mark.timeout(180)
+    def test_frozen_java_mail_state_golden(
+        tmp_path: Path,
+        record_java_golden: bool,
+    ) -> None:
+        repository = Path(__file__).resolve().parents[2]
+        golden = repository / "blackbox/golden/java/managed-mail-state-v29"
+        runner = DifferentialRunner(
+            repository,
+            golden,
+            "managed-mail-state",
+            record_java=record_java_golden,
+        )
+        with PersistentJavaOracleRuntime(tmp_path / "java-mail-state") as oracle:
+            target = _OracleTarget(oracle)
+            if record_java_golden:
+                runner.record_from_java(MAIL_STATE_SCENARIOS, target)
+            else:
+>               runner.verify_java(MAIL_STATE_SCENARIOS, target)
+
+blackbox/tests/test_candidate_mail_read_golden.py:568: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:125: in verify_java
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-mail-state-v29'), attestation=Gold...08cdb777b8eb9908a0e10f217cbd5ae01c08', profile='managed-mail-state', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-mail-state', 'scenarios': [{'contract': {'headers': [['X-Session-Token', '<legacy-session-token>'...: 'attested legacy PostgreSQL seed and Maildir fixture', ...}, 'name': 'http/mail/stars-after-on', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -> None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+>           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for suite.json: expected sha256=4b23a57e2e2ecf71644692f045e6a271f0c9134a8067a9b63a0716a7d6e9450c, actual sha256=d607c3c9bc1e39d94b8f2a38239f125f00cecacc42e28863b2bf843a289795aa
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch
+__________ test_rust_candidate_mail_state_matches_frozen_java_golden ___________
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_mail_state_matches_frozen_java_golden() -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java/managed-mail-state-v29",
+                "managed-mail-state",
+>           ).verify_candidate(MAIL_STATE_SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tests/test_candidate_mail_read_golden.py:581: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-mail-state-v29'), attestation=Gold...08cdb777b8eb9908a0e10f217cbd5ae01c08', profile='managed-mail-state', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-mail-state', 'scenarios': [{'contract': {'headers': [['X-Session-Token', '<legacy-session-token>'...: 'attested legacy PostgreSQL seed and Maildir fixture', ...}, 'name': 'http/mail/stars-after-on', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -> None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+>           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for suite.json: expected sha256=4b23a57e2e2ecf71644692f045e6a271f0c9134a8067a9b63a0716a7d6e9450c, actual sha256=d607c3c9bc1e39d94b8f2a38239f125f00cecacc42e28863b2bf843a289795aa
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch
+____________________ test_frozen_java_mail_mutations_golden ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-111/test_frozen_java_mail_mutation0')
+record_java_golden = False
+
+    @pytest.mark.integration
+    @pytest.mark.oracle
+    @pytest.mark.timeout(180)
+    def test_frozen_java_mail_mutations_golden(
+        tmp_path: Path,
+        record_java_golden: bool,
+    ) -> None:
+        repository = Path(__file__).resolve().parents[2]
+        golden = repository / "blackbox/golden/java/managed-mail-mutations-v28"
+        runner = DifferentialRunner(
+            repository,
+            golden,
+            "managed-mail-mutations",
+            record_java=record_java_golden,
+        )
+        with PersistentJavaOracleRuntime(tmp_path / "java-mail-mutations") as oracle:
+            target = _OracleTarget(oracle)
+            if record_java_golden:
+                runner.record_from_java(MAIL_MUTATION_SCENARIOS, target)
+            else:
+>               runner.verify_java(MAIL_MUTATION_SCENARIOS, target)
+
+blackbox/tests/test_candidate_mail_read_golden.py:604: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:125: in verify_java
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-mail-mutations-v28'), attestation=...b777b8eb9908a0e10f217cbd5ae01c08', profile='managed-mail-mutations', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-mail-mutations', 'scenarios': [{'contract': {'headers': [['X-Session-Token', '<legacy-session-tok...nd Maildir fixture'}, 'name': 'http/mail/labels-crud', 'normalizers': ['json-object-order:jdk-map-of:create-update']}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -> None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+>           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for suite.json: expected sha256=449b5425dd9fdcda5cec43f39172f22d60d474aa7180e74e830681d20e776bdc, actual sha256=fe1457f5a0c7db41f0a9ec057f22813c6fec4e5557baa4d881748d0bc0a97086
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch
+_________ test_rust_candidate_mail_mutations_match_frozen_java_golden __________
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_mail_mutations_match_frozen_java_golden() -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java/managed-mail-mutations-v28",
+                "managed-mail-mutations",
+>           ).verify_candidate(MAIL_MUTATION_SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tests/test_candidate_mail_read_golden.py:617: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-mail-mutations-v28'), attestation=...b777b8eb9908a0e10f217cbd5ae01c08', profile='managed-mail-mutations', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-mail-mutations', 'scenarios': [{'contract': {'headers': [['X-Session-Token', '<legacy-session-tok...nd Maildir fixture'}, 'name': 'http/mail/labels-crud', 'normalizers': ['json-object-order:jdk-map-of:create-update']}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -> None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+>           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for suite.json: expected sha256=449b5425dd9fdcda5cec43f39172f22d60d474aa7180e74e830681d20e776bdc, actual sha256=fe1457f5a0c7db41f0a9ec057f22813c6fec4e5557baa4d881748d0bc0a97086
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/release-20261022-blackbox.xml -
+=========================== short test summary info ============================
+FAILED blackbox/tests/test_candidate_auth_golden.py::test_frozen_java_auth_http_golden
+FAILED blackbox/tests/test_candidate_auth_golden.py::test_rust_candidate_auth_http_matches_frozen_java_golden
+FAILED blackbox/tests/test_candidate_cringe_api_golden.py::test_frozen_java_cringe_api_goldens
+FAILED blackbox/tests/test_candidate_cringe_api_golden.py::test_rust_candidate_cringe_api_matches_frozen_java_golden
+FAILED blackbox/tests/test_candidate_cringe_api_golden.py::test_rust_candidate_cringe_decay_matches_frozen_java_golden
+FAILED blackbox/tests/test_candidate_http_golden.py::test_frozen_java_foundation_http_golden
+FAILED blackbox/tests/test_candidate_http_golden.py::test_rust_candidate_foundation_http_matches_frozen_java_golden
+FAILED blackbox/tests/test_candidate_mail_read_golden.py::test_frozen_java_mail_read_golden
+FAILED blackbox/tests/test_candidate_mail_read_golden.py::test_rust_candidate_mail_read_matches_frozen_java_golden
+FAILED blackbox/tests/test_candidate_mail_read_golden.py::test_frozen_java_mail_attachment_golden
+FAILED blackbox/tests/test_candidate_mail_read_golden.py::test_rust_candidate_mail_attachment_matches_frozen_java_golden
+FAILED blackbox/tests/test_candidate_mail_read_golden.py::test_frozen_java_mail_state_golden
+FAILED blackbox/tests/test_candidate_mail_read_golden.py::test_rust_candidate_mail_state_matches_frozen_java_golden
+FAILED blackbox/tests/test_candidate_mail_read_golden.py::test_frozen_java_mail_mutations_golden
+FAILED blackbox/tests/test_candidate_mail_read_golden.py::test_rust_candidate_mail_mutations_match_frozen_java_golden
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! KeyboardInterrupt !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/processes.py:84: KeyboardInterrupt
+(to show a full traceback on KeyboardInterrupt use --full-trace)
+15 failed, 6 passed in 118.35s (0:01:58)
