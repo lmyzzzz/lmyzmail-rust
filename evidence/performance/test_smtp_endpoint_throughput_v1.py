@@ -5224,7 +5224,7 @@ class RealGateCalibrationTests(unittest.TestCase):
     ) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            workspace = root / "workspace"
+            workspace = root / ("w" * 96)
             workspace.mkdir()
             layout = SimpleNamespace(device="1:2", cpu=23)
             runtime = SimpleNamespace(
@@ -5233,6 +5233,16 @@ class RealGateCalibrationTests(unittest.TestCase):
                 stop=mock.Mock(),
             )
             proxy = mock.Mock()
+
+            def start_proxy(runtime, **options):
+                # Exercise the real AF_UNIX bound with a long quota workspace.
+                self.assertEqual(options.get("control_root"), root.resolve())
+                self.assertEqual(
+                    runner._proxy_control_path(runtime.workspace, options["control_root"]),
+                    root / "p.sock",
+                )
+                return proxy
+
             verify = mock.Mock(
                 side_effect=[
                     {"sha256": "a" * 64},
@@ -5248,7 +5258,7 @@ class RealGateCalibrationTests(unittest.TestCase):
                 ),
                 mock.patch.object(runner, "_state_is_clean", return_value=True),
                 mock.patch.object(runner, "_move_runtime_to_workload", return_value={}),
-                mock.patch.object(runner, "RustSmtpProxy", return_value=proxy),
+                mock.patch.object(runner, "RustSmtpProxy", side_effect=start_proxy),
                 mock.patch.object(
                     runner,
                     "_run_attested_round",

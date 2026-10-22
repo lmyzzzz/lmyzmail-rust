@@ -7539,6 +7539,7 @@ def _run_real_gate_calibration_tier(
                 run_id=(
                     f"real-gate-{label.lower()}-{sequence_index}-{runtime_instance_id}"
                 ),
+                control_root=mount_root,
             )
             try:
                 record = _run_attested_round(

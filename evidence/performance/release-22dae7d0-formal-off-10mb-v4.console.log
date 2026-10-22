@@ -1,0 +1,25 @@
+Traceback (most recent call last):
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 11247, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 11228, in main
+    result = _run_benchmark(args, layout)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 10681, in _run_benchmark
+    raise primary_error
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 10554, in _run_benchmark
+    gate_tiers[label] = _run_real_gate_calibration_tier(
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 7643, in _run_real_gate_calibration_tier
+    raise primary_error
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 7533, in _run_real_gate_calibration_tier
+    proxy = RustSmtpProxy(
+            ^^^^^^^^^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 2540, in __init__
+    self.control = _proxy_control_path(runtime.workspace, control_root)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 400, in _proxy_control_path
+    raise RuntimeError("Rust SMTP proxy control path exceeds AF_UNIX limit")
+RuntimeError: Rust SMTP proxy control path exceeds AF_UNIX limit
+benchmark watchdog refused to signal a stale or out-of-cgroup runner PID
+benchmark watchdog qualification failed:  artifact_receipt_valid=0  runner_success_valid=0

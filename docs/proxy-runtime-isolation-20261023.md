@@ -140,3 +140,28 @@ proves byte preservation and hardlink rejection. This retains negative evidence
 without retaining the disposable service data or quota image. Future readable
 copies must not change the protected originals. All 219 Python checks and Bash
 syntax validation passed; no qualification threshold was loosened.
+
+## Real-gate control-path failure
+
+Fresh run `5f08ed3d-8f86-4f79-8768-d155a4498ae4` passed the full synthetic
+preflight again. Its authoritative started checkpoint records
+`qualification_prerequisites_passed=true`, confirming that the visible-mount
+repair works in the actual launcher. It entered real-product gate calibration,
+then rejected the default control socket below the long runtime workspace with
+`Rust SMTP proxy control path exceeds AF_UNIX limit`, before any SMTP round.
+The 100-byte bound was enforced correctly.
+
+Real-gate calibration now passes its already verified quota mount root to the
+proxy, using the same short `p.sock` placement as measurement arms. Each prior
+proxy is closed before the next one binds that path. The existing failure-order
+regression now uses a 96-character workspace component and exercises the real
+path helper, proving a long workspace cannot accidentally restore the default
+socket location. No AF_UNIX bound or create-only check changed.
+
+The new retention path succeeded on the failed real run: both protected root
+artifacts remained mode 0400 after complete service/quota cleanup. The complete
+255,727-byte checkpoint was copied to
+`release-22dae7d0-formal-off-10mb-v4.runner-proof.jsonl`, with matching SHA-256
+`f1ef410d4fcfe70064263878f263992bc29bf06a9d9439b5b4c85086cafd2e11`.
+The copied root cleanup receipt and original console retain the rejection.
+There is no formal measurement pass from this run.
