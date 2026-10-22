@@ -298,7 +298,9 @@ fn resolve_model_path(configured: &Path, expected_name: &str) -> Result<PathBuf,
     }
     if let Ok(mut directory) = std::env::current_dir() {
         for _ in 0..8 {
-            let candidate = directory.join("models/skibidi-inferx").join(expected_name);
+            let candidate = directory
+                .join("models/skibidi-inferx-compact-20261022")
+                .join(expected_name);
             if candidate.is_file() {
                 return Ok(candidate);
             }
@@ -341,7 +343,9 @@ mod tests {
     fn test_config() -> SkibidiInferxConfig {
         SkibidiInferxConfig {
             enabled: true,
-            model_path: repository_path("models/skibidi-inferx/skibidi_ai.safetensors"),
+            model_path: repository_path(
+                "models/skibidi-inferx-compact-20261022/skibidi_ai.safetensors",
+            ),
             tokenizer_path: repository_path("models/skibidi-inferx/tokenizer.json"),
             temperature: 0.85,
             top_k: 50,
@@ -356,7 +360,9 @@ mod tests {
 
     #[tokio::test]
     async fn dedicated_service_matches_the_frozen_generation_and_tag() {
-        let service = InferxService::from_config(&test_config());
+        let mut config = test_config();
+        config.model_path = repository_path("models/skibidi-inferx/skibidi_ai.safetensors");
+        let service = InferxService::from_config(&config);
         assert!(service.runtime_info().available);
         assert_eq!(service.runtime_info().backend, Some("Scalar"));
         let result = service
@@ -369,6 +375,30 @@ mod tests {
         assert_eq!(
             result.message,
             "5.7.1 SPF exposed this mid NPC who tried to forge our goated domain identity catching them in 4k with a sigma fanum tax main character ratio L rejection cope harder ong."
+        );
+        assert_eq!(result.lm_tag(), LM_GENERATED_TAG);
+        assert!(service.shutdown().await);
+    }
+
+    #[tokio::test]
+    async fn dedicated_service_uses_the_compact_model_without_fallback() {
+        let contract: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../blackbox/golden/native/skibidi-inferx-compact-20261022/contract.json"
+        ))
+        .unwrap();
+        let vector = &contract["generation"][0];
+        let service = InferxService::from_config(&test_config());
+        assert!(service.runtime_info().available);
+        let result = service
+            .generate_insult(
+                vector["input"].as_str().unwrap().to_owned(),
+                &CancellationToken::new(),
+            )
+            .await;
+        assert!(result.lm_generated);
+        assert_eq!(
+            result.message,
+            format!("5.7.1 {}", vector["text"].as_str().unwrap())
         );
         assert_eq!(result.lm_tag(), LM_GENERATED_TAG);
         assert!(service.shutdown().await);

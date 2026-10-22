@@ -459,15 +459,15 @@ mod tests {
         .unwrap()
     }
 
-    fn assert_backend_matches_golden(preference: SimdPreference) {
+    fn assert_backend_matches_contract(preference: SimdPreference, model: &str, contract: Value) {
         let mut engine = InferenceEngine::load(
-            &repository_path("models/skibidi-inferx/skibidi_ai.safetensors"),
+            &repository_path(model),
             &repository_path("models/skibidi-inferx/tokenizer.json"),
             preference,
         )
         .unwrap();
         let cancellation = CancellationToken::new();
-        for vector in golden()["generation"].as_array().unwrap() {
+        for vector in contract["generation"].as_array().unwrap() {
             let result = engine
                 .generate(
                     vector["input"].as_str().unwrap(),
@@ -494,13 +494,42 @@ mod tests {
 
     #[test]
     fn scalar_generation_matches_the_complete_frozen_java_golden() {
-        assert_backend_matches_golden(SimdPreference::Scalar);
+        assert_backend_matches_contract(
+            SimdPreference::Scalar,
+            "models/skibidi-inferx/skibidi_ai.safetensors",
+            golden(),
+        );
     }
 
     #[test]
     fn avx2_generation_matches_the_complete_frozen_java_golden_when_available() {
         if Backend::select(SimdPreference::Avx2).is_ok() {
-            assert_backend_matches_golden(SimdPreference::Avx2);
+            assert_backend_matches_contract(
+                SimdPreference::Avx2,
+                "models/skibidi-inferx/skibidi_ai.safetensors",
+                golden(),
+            );
+        }
+    }
+
+    #[test]
+    fn compact_model_generation_matches_independent_java_golden() {
+        let contract: Value = serde_json::from_str(include_str!(
+            "../../../../blackbox/golden/native/skibidi-inferx-compact-20261022/contract.json"
+        ))
+        .unwrap();
+        for preference in [
+            SimdPreference::Scalar,
+            SimdPreference::Avx2,
+            SimdPreference::Avx512,
+        ] {
+            if Backend::select(preference).is_ok() {
+                assert_backend_matches_contract(
+                    preference,
+                    "models/skibidi-inferx-compact-20261022/skibidi_ai.safetensors",
+                    contract.clone(),
+                );
+            }
         }
     }
 

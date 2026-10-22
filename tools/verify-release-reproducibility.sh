@@ -9,6 +9,8 @@ Builds lmyzmail twice from a clean commit in independent temporary Cargo target
 directories, then verifies byte identity, ELF Build ID identity, and the absence
 of unresolved or Java/JVM runtime dependencies. JSON is written to stdout unless
 OUTPUT.json is provided.
+
+Set LMYZMAIL_REPRO_BINARY to a new absolute path to retain the verified ELF.
 EOF
 }
 
@@ -26,7 +28,7 @@ readonly OUTPUT_PATH="${1:-}"
 readonly REPOSITORY="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 
 for command in \
-    awk cargo cc clang-18 cmp date git grep ldd mktemp python3 readelf realpath \
+    awk cargo cc clang-18 cmp date git grep install ldd mktemp python3 readelf realpath \
     rm rustc sed sha256sum sort stat
 do
     if ! command -v "$command" >/dev/null 2>&1; then
@@ -147,6 +149,14 @@ export RUSTC_VERSION="$(rustc --version --verbose)"
 export CARGO_VERSION="$(cargo --version)"
 export CLANG_VERSION="$(clang-18 --version | sed -n '1p')"
 export CC_VERSION="$(cc --version | sed -n '1p')"
+
+if [[ -n ${LMYZMAIL_REPRO_BINARY:-} ]]; then
+    [[ "$LMYZMAIL_REPRO_BINARY" == /* && ! -e "$LMYZMAIL_REPRO_BINARY" && ! -L "$LMYZMAIL_REPRO_BINARY" ]] || {
+        printf '%s\n' 'LMYZMAIL_REPRO_BINARY must be a new absolute output path' >&2
+        exit 1
+    }
+    install -m 0755 -- "$ARTIFACT_ONE" "$LMYZMAIL_REPRO_BINARY"
+fi
 
 python3 - "$OUTPUT_PATH" <<'PY'
 import json

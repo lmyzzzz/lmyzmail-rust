@@ -5,8 +5,10 @@ single-process modular monolith: one production binary, one lifecycle, bounded
 internal execution pools, and no Java runtime dependency.
 
 The current repository milestone contains the immutable source baselines and
-the implementation-independent black-box compatibility harness. Product code
-is admitted only after the harness can recreate isolated PostgreSQL, Redis,
+the implementation-independent black-box compatibility harness, alongside the
+Rust protocol, storage, rendering, inference, and management implementations.
+Production acceptance remains tracked in `docs/acceptance-status.md`.
+The harness recreates isolated PostgreSQL, Redis,
 Maildir, certificate, and port state and can produce a repeatable Java golden.
 The report API harness records a separate `managed-reports` golden from raw
 HTTP sockets and an attested legacy PostgreSQL fixture, then replays it against
@@ -22,8 +24,10 @@ with kernel-map or program-ownership evidence.
 - `lmyzmail.*` configuration keys take precedence over legacy `botmail.*`
   aliases when both are present.
 - Branding and configuration aliases are the only intentional default
-  differences. Other observable behavior is measured against the frozen Java
-  oracle.
+  differences, except for the user-authorized 2026-10-22 compact InferX model
+  update. Its separate Java-recorded golden is documented in
+  `docs/skibidi-inferx-contract.md`; legacy weights and goldens are retained.
+  Other observable behavior is measured against the frozen Java oracle.
 - Protocol parsers, queues, caches, and blocking or CPU work all have explicit
   limits, deadlines, cancellation, and backpressure.
 

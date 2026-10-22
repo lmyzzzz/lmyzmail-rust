@@ -21,6 +21,9 @@ EOF
 
 readonly REPOSITORY="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 BINARY="$REPOSITORY/target/x86_64-unknown-linux-gnu/release/lmyzmail"
+if [[ -f "$REPOSITORY/bin/lmyzmail" ]]; then
+    BINARY="$REPOSITORY/bin/lmyzmail"
+fi
 DESTDIR=""
 ENABLE=0
 declare -a LEGACY_RW_PATHS=() LEGACY_RO_PATHS=()
@@ -155,12 +158,12 @@ LOCK_PATH_ID="$(stat -Lc '%d:%i' "$LOCK_PATH" 2>/dev/null || true)"
     exit 75
 }
 
-readonly MODEL="$REPOSITORY/models/skibidi-inferx/skibidi_ai.safetensors"
-readonly TOKENIZER="$REPOSITORY/models/skibidi-inferx/tokenizer.json"
+readonly MODEL="$REPOSITORY/models/skibidi-inferx-compact-20261022/skibidi_ai.safetensors"
+readonly TOKENIZER="$REPOSITORY/models/skibidi-inferx-compact-20261022/tokenizer.json"
 readonly VIDEO="$REPOSITORY/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4"
 readonly CONFIG_EXAMPLE="$REPOSITORY/config/lmyzmail.properties.example"
 readonly SERVICE_UNIT="$REPOSITORY/deploy/lmyzmail.service"
-readonly RELEASE_EVIDENCE="$REPOSITORY/evidence/build/release-reproducibility-v1.json"
+readonly RELEASE_EVIDENCE="${LMYZMAIL_RELEASE_EVIDENCE:-$REPOSITORY/evidence/build/release-reproducibility-v1.json}"
 
 require_sha256() {
     local path="$1"
@@ -229,7 +232,7 @@ then
     exit 1
 fi
 
-require_sha256 "$MODEL" 343966cefa61b375b5e7ac8f82efffd1187dcc33e6f6122c7860ea05f1e1932c
+require_sha256 "$MODEL" 4fc4f7a0eb5d7e1210ddd7fee63a756775f5b7155db210080cfd8cc759403428
 require_sha256 "$TOKENIZER" 6624adb41b9274bf0cc73c62ebd26eb2bcf281d533f30607ba415105917d81f3
 require_sha256 "$VIDEO" 0e76229bb77ebcf471aec692fa34709cfbbe3dc192127a852a518e34bdd0ecc7
 

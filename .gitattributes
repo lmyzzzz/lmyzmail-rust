@@ -15,5 +15,6 @@ vendor/litehtml/** -whitespace
 *.png binary
 *.safetensors binary
 models/skibidi-inferx/tokenizer.json binary
+models/skibidi-inferx-compact-20261022/tokenizer.json binary
 crates/lmyzmail/assets/brainrot_quiz.json binary -eol
 crates/lmyzmail/assets/web-static/BOOT-INF/classes/static/** binary -eol

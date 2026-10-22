@@ -19,10 +19,10 @@ The 30-second smoke companion is retained as [`candidate-soak-v6-smoke-0eb2-v1.j
 
 ## Still required
 
-- Run the single-invocation `candidate-stability` SMTP profile formally: 500,000 messages at 1 KiB and 10 KiB, plus a disk-budgeted 10 MiB run. Record fsync-off throughput for the independent Java comparison and fsync-on durability, restart recovery, no-loss, leak, and cleanup evidence.
+- Run the revised single-invocation `candidate-stability` SMTP profile formally: 250,000 messages at 1 KiB and 10 KiB, then 100,000 more in the same process with at least 90% of the first 100,000-message rate, plus a disk-budgeted 10 MiB run. Record fsync-off throughput for the independent Java comparison and fsync-on durability, restart recovery, no-loss, leak, and cleanup evidence. Formal v9 and v10 are recorded product stability failures; the shared delivery-state fix in `af56b587` still needs a qualifying rerun. The user permits moving to other incomplete gates after ten unsuccessful stability rounds; that does not turn a failed round into passing evidence.
 - Re-run current-HEAD reproducible release and installation/rollback verification.
 - Complete the full Java/Rust differential matrix, including all HTTP/UI/auth/API/attachment/error/security cases, SMTP client/server paths, storage/restart behavior, HTCPCP, Minecraft, honeypots, rendering, InferX, and XDP privileged gates.
-- Add and verify actual AVX2+FMA and AVX-512 runtime-dispatch execution evidence for mail rendering and Minecraft palette/resize/color conversion paths; Scalar-only evidence is insufficient.
+- Verify actual AVX2+FMA and AVX-512 runtime-dispatch execution evidence for the implemented mail rendering and Minecraft palette/resize/color conversion paths; Scalar-only evidence is insufficient. The current 275HX WSL host exposes AVX2/FMA but no AVX-512F, so compilation and safe fallback alone cannot prove AVX-512 execution or native performance.
 
 ## Performance interpretation
 

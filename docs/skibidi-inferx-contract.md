@@ -7,6 +7,28 @@ probe, model, tokenizer, and generated text in
 `blackbox/golden/native/skibidi-inferx-java-v1/contract.json` remain the
 behavior oracle.
 
+## Packaged model update, 2026-10-22
+
+The user explicitly authorized the compact model from thread
+`01a16323-de1d-7a11-976d-8e2ff3322839`. The packaged SafeTensors is now
+48,779,520 bytes with SHA-256
+`4fc4f7a0eb5d7e1210ddd7fee63a756775f5b7155db210080cfd8cc759403428`.
+Only FFN width changes, from 1536 to 512; vocabulary, tokenizer, 384-dimensional
+embeddings, eight layers, six heads and 128-token context stay the same.
+The Rust engine reads dimensions from validated model metadata; no alternate
+inference runtime or C kernel is introduced.
+
+The original weights are retained under `models/skibidi-inferx`
+and all original goldens and differential profiles are unchanged. The installer
+ships `models/skibidi-inferx-compact-20261022` at the same installed model path;
+development classpath resolution also selects this version. A separate
+compact-model golden was produced by running
+the hash-pinned frozen Java classes and probe in four independent processes
+(two Scalar, two AVX2+FMA); all complete texts, token counts, seeds, and BPE
+vectors agreed. `tools/record-compact-inferx-golden.py` refuses to overwrite it.
+Rust tests verify both generations of weights. Existing configured model paths
+continue to work, and an upgrade preserves administrator configuration.
+
 ## Model and memory
 
 - The SafeTensors file is opened read-only and memory-mapped. Its file size is

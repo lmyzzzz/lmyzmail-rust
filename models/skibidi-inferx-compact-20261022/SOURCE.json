@@ -1,0 +1,24 @@
+{
+  "schema_version": 2,
+  "source": "user-authorized compact model from smtp-insult-ai, 2026-10-22",
+  "source_thread": "01a16323-de1d-7a11-976d-8e2ff3322839",
+  "source_checkpoint": "experiments/compact-20261022/ff512-recover/step-6000.safetensors",
+  "architecture": {"vocab_size": 6969, "d_model": 384, "n_layers": 8, "n_heads": 6, "d_ff": 512, "max_seq_len": 128},
+  "parameters": 12192512,
+  "compatibility_fixture": "models/skibidi-inferx/skibidi_ai.safetensors",
+  "compatibility_fixture_sha256": "343966cefa61b375b5e7ac8f82efffd1187dcc33e6f6122c7860ea05f1e1932c",
+  "golden": "blackbox/golden/native/skibidi-inferx-compact-20261022/contract.json",
+  "oracle_commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+  "artifacts": [
+    {
+      "path": "skibidi_ai.safetensors",
+      "bytes": 48779520,
+      "sha256": "4fc4f7a0eb5d7e1210ddd7fee63a756775f5b7155db210080cfd8cc759403428"
+    },
+    {
+      "path": "tokenizer.json",
+      "bytes": 468452,
+      "sha256": "6624adb41b9274bf0cc73c62ebd26eb2bcf281d533f30607ba415105917d81f3"
+    }
+  ]
+}

@@ -69,9 +69,46 @@ mod tests {
     }
 
     #[test]
+    fn compact_model_is_hash_pinned_and_preserves_tokenizer_dimensions() {
+        use sha2::{Digest, Sha256};
+        let contract: Value = serde_json::from_str(include_str!(
+            "../../../../blackbox/golden/native/skibidi-inferx-compact-20261022/contract.json"
+        ))
+        .unwrap();
+        for (relative, key) in [
+            (
+                "models/skibidi-inferx-compact-20261022/skibidi_ai.safetensors",
+                "safetensors_sha256",
+            ),
+            ("models/skibidi-inferx/tokenizer.json", "tokenizer_sha256"),
+        ] {
+            let bytes = std::fs::read(repository_path(relative)).unwrap();
+            assert_eq!(
+                Sha256::digest(bytes)
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect::<String>(),
+                contract["model"][key]
+            );
+        }
+        let model = ModelWeights::load(&repository_path(
+            "models/skibidi-inferx-compact-20261022/skibidi_ai.safetensors",
+        ))
+        .unwrap();
+        let dimensions = model.dimensions();
+        assert_eq!(dimensions.d_ff, 512);
+        assert_eq!(dimensions.d_model, 384);
+        assert_eq!(dimensions.n_layers, 8);
+        assert_eq!(dimensions.n_heads, 6);
+        assert_eq!(dimensions.max_seq_len, 128);
+        assert_eq!(dimensions.vocab_size, 6969);
+        assert_eq!(contract["tokenizer"], golden()["tokenizer"]);
+    }
+
+    #[test]
     fn exposed_sampling_defaults_are_valid_for_the_pinned_model() {
         let model = ModelWeights::load(&repository_path(
-            "models/skibidi-inferx/skibidi_ai.safetensors",
+            "models/skibidi-inferx-compact-20261022/skibidi_ai.safetensors",
         ))
         .unwrap();
         let params = SamplingParams {

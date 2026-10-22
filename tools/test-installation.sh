@@ -105,7 +105,7 @@ fi
 [[ ! -e "$STAGE/lock-symlink-target" ]]
 
 [[ $(sha256sum "$STAGE/usr/bin/lmyzmail" | awk '{print $1}') == "$EXPECTED_BINARY_SHA256" ]]
-[[ $(sha256sum "$STAGE/usr/share/lmyzmail/models/skibidi-inferx/skibidi_ai.safetensors" | awk '{print $1}') == 343966cefa61b375b5e7ac8f82efffd1187dcc33e6f6122c7860ea05f1e1932c ]]
+[[ $(sha256sum "$STAGE/usr/share/lmyzmail/models/skibidi-inferx/skibidi_ai.safetensors" | awk '{print $1}') == 4fc4f7a0eb5d7e1210ddd7fee63a756775f5b7155db210080cfd8cc759403428 ]]
 [[ $(sha256sum "$STAGE/usr/share/lmyzmail/models/skibidi-inferx/tokenizer.json" | awk '{print $1}') == 6624adb41b9274bf0cc73c62ebd26eb2bcf281d533f30607ba415105917d81f3 ]]
 [[ $(sha256sum "$STAGE/usr/share/lmyzmail/assets/skibidi_toilet_episode_1.mp4" | awk '{print $1}') == 0e76229bb77ebcf471aec692fa34709cfbbe3dc192127a852a518e34bdd0ecc7 ]]
 assert_mode 755 "$STAGE/usr/bin/lmyzmail"
