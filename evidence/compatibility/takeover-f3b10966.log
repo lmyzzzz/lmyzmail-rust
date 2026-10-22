@@ -1,0 +1,62 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________ test_ordinary_maildir_survives_bidirectional_takeover _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-122/test_ordinary_maildir_survives0')
+
+    def test_ordinary_maildir_survives_bidirectional_takeover(tmp_path):
+        binary = Path(os.environ["LMYZMAIL_TAKEOVER_BINARY"]).resolve(strict=True)
+        assert binary.is_file()
+        runtime = TakeoverRuntime(tmp_path / "durable-takeover", shutdown_timeout=20)
+        message = (b"From: sender@sender.invalid\r\nTo: qa@example.test\r\n"
+                   b"Subject: Rust takeover inbound\r\nMessage-ID: <takeover-inbound@example.test>\r\n"
+                   b"MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n"
+                   b"Retained across Java Rust Java Rust.\r\n")
+        proof = {"scope": "ordinary ASCII mailbox; ambiguous names and pending outbound takeover remain separate gates",
+                 "binary_sha256": hashlib.file_digest(binary.open("rb"), "sha256").hexdigest(),
+                 "phases": []}
+        expected_raw = {}
+        try:
+            runtime.start()
+            _assert_http_takeover(ROOT, runtime)
+            proof["phases"].append("initial-java-legacy-reads")
+            runtime.rust_phase = True
+>           runtime.restart_application()
+
+tools/test_release_takeover.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/persistent_runtime.py:644: in restart_application
+    self._start_application()
+tools/test_release_takeover.py:37: in _start_application
+    JavaOracleRuntime._start_application(self)
+blackbox/src/lmyzmail_blackbox/runtime.py:612: in _start_application
+    self._application.wait_for_tcp("127.0.0.1", ports.http, timeout=remaining)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ManagedProcess(name='java-oracle-persistent-0002', argv=['/home/lmyzzz/lmyzmail-rust/target/x86_64-unknown-linux-gnu/r...OME': '/tmp/pytest-of-lmyzzz/pytest-122/test_ordinary_maildir_survives0/durable-takeover/xdg-data'}, inherit_env=False)
+host = '127.0.0.1', port = 45479
+
+    def wait_for_tcp(self, host: str, port: int, *, timeout: float) -> None:
+        if self._process is None:
+            raise RuntimeError(f"{self.name} has not started")
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError("TCP readiness timeout must be finite and positive")
+        deadline = time.monotonic() + timeout
+        last_error: OSError | None = None
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            exit_code = self._process.poll()
+            if exit_code is not None:
+>               raise ProcessStartError(
+                    f"{self.name} exited with {exit_code}; tail:\n{self.log_tail()}"
+                )
+E               lmyzmail_blackbox.errors.ProcessStartError: java-oracle-persistent-0002 exited with 1; tail:
+E               Error: Configuration("outbound worker limits are invalid")
+
+blackbox/src/lmyzmail_blackbox/processes.py:74: ProcessStartError
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/takeover-f3b10966.xml -
+=========================== short test summary info ============================
+FAILED blackbox::test_ordinary_maildir_survives_bidirectional_takeover - lmyz...
+1 failed in 14.59s

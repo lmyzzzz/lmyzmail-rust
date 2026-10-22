@@ -1,0 +1,33 @@
+{
+  "botmail:mail:queue:domains:2": {
+    "type": "hash",
+    "ttl": 604786,
+    "value": {
+      "example.test": "{\"domain\":\"example.test\",\"status\":\"PENDING\",\"error\":null,\"recipients\":[\"stress-receiver@example.test\"],\"updatedAt\":\"2026-10-22T14:07:18.262794Z\",\"permanentFailure\":false}"
+    }
+  },
+  "botmail:mail:queue:pending": {
+    "type": "list",
+    "ttl": -1,
+    "value": [
+      "2"
+    ]
+  },
+  "botmail:mail:queue:sentfile_index": {
+    "type": "hash",
+    "ttl": -1,
+    "value": {
+      "20261022140718.262-lmyzmail-2.eml": "2"
+    }
+  },
+  "botmail:mail:queue:seq": {
+    "type": "string",
+    "ttl": -1,
+    "value": "1025"
+  },
+  "botmail:mail:queue:task:2": {
+    "type": "string",
+    "ttl": 604786,
+    "value": "{\"id\":2,\"senderAddress\":\"stress-sender@example.test\",\"recipientsJson\":\"{\\\"to\\\":[\\\"stress-receiver@example.test\\\"],\\\"cc\\\":[],\\\"bcc\\\":[]}\",\"subject\":\"Stress Test R1 #0 - 1792678038159\",\"messageId\":\"<1637f702-b3be-4b84-b66c-d31e03ecbe8a@example.test>\",\"maxRetries\":5,\"retryCount\":0,\"sentFileName\":\"20261022140718.262-lmyzmail-2.eml\",\"sentSubdirectory\":1,\"messageFilePath\":\"/tmp/lmyzmail-blackbox-jkmq5l3u/maildir/.lmyzmail-outbound/message-2.eml\",\"signedContentBase64\":null,\"createdAt\":\"2026-10-22T14:07:18.262794Z\",\"nextRetryAt\":null,\"lastError\":null,\"status\":\"PENDING\"}"
+  }
+}

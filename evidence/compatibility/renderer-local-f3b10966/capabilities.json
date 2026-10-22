@@ -1,0 +1,25 @@
+{
+  "schema": "lmyzmail.renderer-simd-benchmark.v1",
+  "status": "unsupported",
+  "requested_backend": "avx512f",
+  "resolved_backend": "avx2+fma",
+  "fallback_used": true,
+  "host_capabilities": {
+    "avx2": true,
+    "fma": true,
+    "avx512f": false
+  },
+  "unsupported_reason": "requested backend avx512f resolved to avx2+fma; fallback timing is forbidden",
+  "input": "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+  "frame_index": 0,
+  "frame": null,
+  "parameters": {
+    "contrast": 1.2,
+    "dither": 1,
+    "warmup": 5,
+    "iterations": 30,
+    "timing_unit": "nanoseconds",
+    "p95_method": "nearest-rank"
+  },
+  "sizes": []
+}

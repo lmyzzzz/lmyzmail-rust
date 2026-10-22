@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="155.071" timestamp="2026-10-22T21:45:52.147527+08:00" hostname="MSI"><testcase classname="tests.test_oracle_outbound_4xx" name="test_rust_candidate_outbound_4xx_matches_frozen_java_golden" time="154.845"><failure message="AssertionError: outbound 4xx probe failed with 1:&#10;stdout=&#10;stderr=Traceback (most recent call last):&#10;  File &quot;&lt;frozen runpy&gt;&quot;, line 198, in _run_module_as_main&#10;  File &quot;&lt;frozen runpy&gt;&quot;, line 88, in _run_code&#10;  File &quot;/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py&quot;, line 2917, in &lt;module&gt;&#10;    raise SystemExit(main())&#10;                     ^^^^^^&#10;  File &quot;/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py&quot;, line 2895, in main&#10;    observed = run_4xx_probe()&#10;               ^^^^^^^^^^^^^^^&#10;  File &quot;/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py&quot;, line 2610, in run_4xx_probe&#10;    _capture_4xx_case(&#10;  File &quot;/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py&quot;, line 2454, in _capture_4xx_case&#10;    _wait_until(&#10;  File &quot;/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py&quot;, line 463, in _wait_until&#10;    raise AssertionError(f&quot;timed out waiting for {description}&quot;)&#10;AssertionError: timed out waiting for 4xx DATA 452 exhausted SMTP reply">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(900)
+    def test_rust_candidate_outbound_4xx_matches_frozen_java_golden() -&gt; None:
+        repository = _repository()
+&gt;       observed = _run_probe(repository, target="candidate")
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tests/test_oracle_outbound_4xx.py:200: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+repository = PosixPath('/home/lmyzzz/lmyzmail-rust')
+
+    def _run_probe(repository: Path, *, target: str) -&gt; dict[str, object]:
+        result = subprocess.run(  # noqa: S603,S607
+            [
+                "/bin/bash",
+                str(repository / "blackbox/bin/run-outbound-probe.sh"),
+            ],
+            cwd=repository,
+            capture_output=True,
+            text=True,
+            env={
+                **os.environ,
+                "LMYZMAIL_BLACKBOX_PYTHON": sys.executable,
+                "LMYZMAIL_OUTBOUND_ORACLE_MODE": "4XX",
+                "LMYZMAIL_OUTBOUND_TARGET": target,
+            },
+            timeout=850,
+            check=False,
+        )
+        if result.returncode != 0:
+&gt;           raise AssertionError(
+                "outbound 4xx probe failed with "
+                f"{result.returncode}:\nstdout={result.stdout}\nstderr={result.stderr}"
+            )
+E           AssertionError: outbound 4xx probe failed with 1:
+E           stdout=
+E           stderr=Traceback (most recent call last):
+E             File "&lt;frozen runpy&gt;", line 198, in _run_module_as_main
+E             File "&lt;frozen runpy&gt;", line 88, in _run_code
+E             File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 2917, in &lt;module&gt;
+E               raise SystemExit(main())
+E                                ^^^^^^
+E             File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 2895, in main
+E               observed = run_4xx_probe()
+E                          ^^^^^^^^^^^^^^^
+E             File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 2610, in run_4xx_probe
+E               _capture_4xx_case(
+E             File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 2454, in _capture_4xx_case
+E               _wait_until(
+E             File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 463, in _wait_until
+E               raise AssertionError(f"timed out waiting for {description}")
+E           AssertionError: timed out waiting for 4xx DATA 452 exhausted SMTP reply
+
+blackbox/tests/test_oracle_outbound_4xx.py:39: AssertionError</failure></testcase></testsuite></testsuites>

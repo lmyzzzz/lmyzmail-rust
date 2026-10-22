@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="7" time="162.774" timestamp="2026-10-22T22:02:29.110329+08:00" hostname="MSI"><testcase classname="tests.test_oracle_outbound_4xx" name="test_rust_candidate_outbound_4xx_matches_frozen_java_golden" time="88.767"><failure message="AssertionError: outbound 4xx probe failed with 1:&#10;stdout=&#10;stderr=Traceback (most recent call last):&#10;  File &quot;&lt;frozen runpy&gt;&quot;, line 198, in _run_module_as_main&#10;  File &quot;&lt;frozen runpy&gt;&quot;, line 88, in _run_code&#10;  File &quot;/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py&quot;, line 2917, in &lt;module&gt;&#10;    raise SystemExit(main())&#10;                     ^^^^^^&#10;  File &quot;/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py&quot;, line 2895, in main&#10;    observed = run_4xx_probe()&#10;               ^^^^^^^^^^^^^^^&#10;  File &quot;/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py&quot;, line 2610, in run_4xx_probe&#10;    _capture_4xx_case(&#10;  File &quot;/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py&quot;, line 2454, in _capture_4xx_case&#10;    _wait_until(&#10;  File &quot;/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py&quot;, line 463, in _wait_until&#10;    raise AssertionError(f&quot;timed out waiting for {description}&quot;)&#10;AssertionError: timed out waiting for 4xx DATA 450 exhausted SMTP reply">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(900)
+    def test_rust_candidate_outbound_4xx_matches_frozen_java_golden() -&gt; None:
+        repository = _repository()
+&gt;       observed = _run_probe(repository, target="candidate")
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tests/test_oracle_outbound_4xx.py:200: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+repository = PosixPath('/home/lmyzzz/lmyzmail-rust')
+
+    def _run_probe(repository: Path, *, target: str) -&gt; dict[str, object]:
+        result = subprocess.run(  # noqa: S603,S607
+            [
+                "/bin/bash",
+                str(repository / "blackbox/bin/run-outbound-probe.sh"),
+            ],
+            cwd=repository,
+            capture_output=True,
+            text=True,
+            env={
+                **os.environ,
+                "LMYZMAIL_BLACKBOX_PYTHON": sys.executable,
+                "LMYZMAIL_OUTBOUND_ORACLE_MODE": "4XX",
+                "LMYZMAIL_OUTBOUND_TARGET": target,
+            },
+            timeout=850,
+            check=False,
+        )
+        if result.returncode != 0:
+&gt;           raise AssertionError(
+                "outbound 4xx probe failed with "
+                f"{result.returncode}:\nstdout={result.stdout}\nstderr={result.stderr}"
+            )
+E           AssertionError: outbound 4xx probe failed with 1:
+E           stdout=
+E           stderr=Traceback (most recent call last):
+E             File "&lt;frozen runpy&gt;", line 198, in _run_module_as_main
+E             File "&lt;frozen runpy&gt;", line 88, in _run_code
+E             File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 2917, in &lt;module&gt;
+E               raise SystemExit(main())
+E                                ^^^^^^
+E             File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 2895, in main
+E               observed = run_4xx_probe()
+E                          ^^^^^^^^^^^^^^^
+E             File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 2610, in run_4xx_probe
+E               _capture_4xx_case(
+E             File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 2454, in _capture_4xx_case
+E               _wait_until(
+E             File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 463, in _wait_until
+E               raise AssertionError(f"timed out waiting for {description}")
+E           AssertionError: timed out waiting for 4xx DATA 450 exhausted SMTP reply
+
+blackbox/tests/test_oracle_outbound_4xx.py:39: AssertionError</failure></testcase><testcase classname="tests.test_oracle_outbound_queue" name="test_rust_candidate_outbound_queue_matches_frozen_java_golden" time="7.822" /><testcase classname="tests.test_oracle_report_scheduler" name="test_rust_report_scheduler_crosses_real_cron_boundary" time="31.841" /><testcase classname="tests.test_oracle_reports" name="test_rust_candidate_reports_match_frozen_java_golden" time="1.840" /><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_sigterm_during_stress_enqueue_preserves_recovery" time="1.855" /><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_sigterm_during_stress_delivery_keeps_queue_consistent" time="13.166"><failure message="AssertionError: stress Maildir leftovers=['stress-sender@example.test', 'stress-sender@example.test/sent', 'stress-sender@example.test/sent/1', 'stress-sender@example.test/sent/1/.lmyzmail-quarantine', 'stress-sender@example.test/sent/1/20261022140450.862-lmyzmail-2.eml']; log=lmyzmail SkibidiInferX ready: backend=AVX2+FMA, timeout_ms=500, configured_max_tokens=80, effective_max_tokens=120&#10;  lmyzmail SMTP Skibidi generator: backend=AVX2, version=1.8.0-skibidi-ultra, capabilities=0x7, hardware_avx2=true, hardware_avx512=false, avx512_enabled=false, simd_rng=true&#10;  ========== [STRESS TEST] ROUND 1 (WARMUP) STARTING ==========&#10;  [STRESS TEST] Config: Round=1, Mode=WARMUP, Sender=stress-sender@example.test, Receiver=stress-receiver@example.test, Count=1, EmailSize=32KB, MaxConcurrency=1000, InMemory=false&#10;  [STRESS TEST] Queueing 1 emails (32KB each) with max concurrency 1000 (streaming mode)...&#10;  [STRESS TEST] Queue completed in 87 ms: success=1, failed=0, exceptions=0, oom=0, rateLimited=0&#10;  [STRESS TEST] Waiting for delivery...&#10;  [STRESS TEST] Cleaning up data...&#10;  lmyzmail stress round 1 cleanup failed; residual data may remain&#10;  ========== [STRESS TEST] ROUND 1 (WARMUP) FAILED ==========&#10;  &#10;assert ['stress-send...yzmail-2.eml'] == []&#10;  &#10;  Left contains 5 more items, first extra item: 'stress-sender@example.test'&#10;  Use -v to get more diff">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(240)
+    def test_rust_candidate_sigterm_during_stress_delivery_keeps_queue_consistent() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository, True, 32) as candidate:
+            _start_stress(candidate)
+            pending = cast(
+                list[int],
+                _wait_for(
+                    lambda: _pending_stress_ids(candidate),
+                    "published stress delivery task",
+                ),
+            )
+            assert pending
+    
+            _stop_application(candidate)
+    
+&gt;           _assert_stress_storage_clean(candidate)
+
+blackbox/tests/test_oracle_stress.py:552: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+candidate = _StressCandidateRuntime(paths=HarnessPaths(repository=PosixPath('/home/lmyzzz/lmyzmail-rust'), runtime=PosixPath('/hom.../release/lmyzmail', '--config', '{config}'), stress_enabled=True, email_size_kb=32, production_count=2, warmup_count=1)
+
+    def _assert_stress_storage_clean(candidate: CandidateRuntime) -&gt; None:
+        assert candidate.workspace is not None
+        assert _stress_temp_files(candidate) == []
+        maildir = candidate.workspace / "maildir"
+        leftovers = [
+            path.relative_to(maildir).as_posix()
+            for address in (_STRESS_SENDER, _STRESS_RECEIVER)
+            if (root := maildir / address).exists()
+            for path in (root, *root.rglob("*"))
+        ]
+        application_log = (
+            candidate._application.log_tail() if candidate._application is not None else "&lt;none&gt;"
+        )
+&gt;       assert leftovers == [], f"stress Maildir leftovers={leftovers!r}; log={application_log}"
+E       AssertionError: stress Maildir leftovers=['stress-sender@example.test', 'stress-sender@example.test/sent', 'stress-sender@example.test/sent/1', 'stress-sender@example.test/sent/1/.lmyzmail-quarantine', 'stress-sender@example.test/sent/1/20261022140450.862-lmyzmail-2.eml']; log=lmyzmail SkibidiInferX ready: backend=AVX2+FMA, timeout_ms=500, configured_max_tokens=80, effective_max_tokens=120
+E         lmyzmail SMTP Skibidi generator: backend=AVX2, version=1.8.0-skibidi-ultra, capabilities=0x7, hardware_avx2=true, hardware_avx512=false, avx512_enabled=false, simd_rng=true
+E         ========== [STRESS TEST] ROUND 1 (WARMUP) STARTING ==========
+E         [STRESS TEST] Config: Round=1, Mode=WARMUP, Sender=stress-sender@example.test, Receiver=stress-receiver@example.test, Count=1, EmailSize=32KB, MaxConcurrency=1000, InMemory=false
+E         [STRESS TEST] Queueing 1 emails (32KB each) with max concurrency 1000 (streaming mode)...
+E         [STRESS TEST] Queue completed in 87 ms: success=1, failed=0, exceptions=0, oom=0, rateLimited=0
+E         [STRESS TEST] Waiting for delivery...
+E         [STRESS TEST] Cleaning up data...
+E         lmyzmail stress round 1 cleanup failed; residual data may remain
+E         ========== [STRESS TEST] ROUND 1 (WARMUP) FAILED ==========
+E         
+E       assert ['stress-send...yzmail-2.eml'] == []
+E         
+E         Left contains 5 more items, first extra item: 'stress-sender@example.test'
+E         Use -v to get more diff
+
+blackbox/tests/test_oracle_stress.py:239: AssertionError</failure></testcase><testcase classname="" name="test_ordinary_maildir_survives_bidirectional_takeover" time="17.193"><failure message="AssertionError: RawHttpResponse(status_line=b'HTTP/1.1 202 Accepted', status_code=202, headers=((b'content-type', b'application/json; ...-a665-4429-9a00-ccacba338063@example.test&gt;&quot;,&quot;status&quot;:&quot;PENDING&quot;,&quot;sentFileName&quot;:&quot;20261022140521.234-lmyzmail-2103.eml&quot;}')&#10;assert 202 == 200&#10; +  where 202 = RawHttpResponse(status_line=b'HTTP/1.1 202 Accepted', status_code=202, headers=((b'content-type', b'application/json; ...-a665-4429-9a00-ccacba338063@example.test&gt;&quot;,&quot;status&quot;:&quot;PENDING&quot;,&quot;sentFileName&quot;:&quot;20261022140521.234-lmyzmail-2103.eml&quot;}').status_code">tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-126/test_ordinary_maildir_survives0')
+
+    def test_ordinary_maildir_survives_bidirectional_takeover(tmp_path):
+        binary = Path(os.environ["LMYZMAIL_TAKEOVER_BINARY"]).resolve(strict=True)
+        assert binary.is_file()
+        runtime = TakeoverRuntime(tmp_path / "durable-takeover", shutdown_timeout=20)
+        message = (b"From: sender@sender.invalid\r\nTo: qa@example.test\r\n"
+                   b"Subject: Rust takeover inbound\r\nMessage-ID: &lt;takeover-inbound@example.test&gt;\r\n"
+                   b"MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n"
+                   b"Retained across Java Rust Java Rust.\r\n")
+        with binary.open("rb") as stream:
+            binary_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+        proof = {"scope": "ordinary ASCII mailbox; ambiguous names and pending outbound takeover remain separate gates",
+                 "binary_sha256": binary_sha256,
+                 "phases": []}
+        expected_raw = {}
+        try:
+            runtime.start()
+            _assert_http_takeover(ROOT, runtime)
+            proof["phases"].append("initial-java-legacy-reads")
+            runtime.rust_phase = True
+            runtime.restart_application()
+            _assert_http_takeover(ROOT, runtime)
+            assert runtime.ports is not None and runtime.workspace is not None
+            transcript = smtp_data_transaction(
+                "127.0.0.1", runtime.ports.smtp, sender="",
+                recipient="qa@example.test", message=message,
+            )
+            assert transcript.data_ready[0].startswith(b"354")
+            assert transcript.accepted[0].startswith(b"250"), transcript
+            response = _request(runtime, _multipart((
+                _data({"to": ["recipient@multipart.invalid"], "subject": "Rust takeover sent",
+                       "text": "retained sent body", "async": True}),
+                _Part("attachments", b"retained attachment\x00", filename="takeover.bin"),
+            )))
+&gt;           assert response.status_code == 200, response
+E           AssertionError: RawHttpResponse(status_line=b'HTTP/1.1 202 Accepted', status_code=202, headers=((b'content-type', b'application/json; ...-a665-4429-9a00-ccacba338063@example.test&gt;","status":"PENDING","sentFileName":"20261022140521.234-lmyzmail-2103.eml"}')
+E           assert 202 == 200
+E            +  where 202 = RawHttpResponse(status_line=b'HTTP/1.1 202 Accepted', status_code=202, headers=((b'content-type', b'application/json; ...-a665-4429-9a00-ccacba338063@example.test&gt;","status":"PENDING","sentFileName":"20261022140521.234-lmyzmail-2103.eml"}').status_code
+
+tools/test_release_takeover.py:75: AssertionError</failure></testcase></testsuite></testsuites>

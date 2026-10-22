@@ -1,0 +1,67 @@
+F
+Campaign audit: {"differences_requiring_review": [], "harness_definition_sha256": "73e751452ad6eecc90dc68019e56806ad11cbb19b22ad7dcbc55928dda2a446f", "historical_observations_equal": 346, "old_golden_files_unchanged": 6897, "pytest_exitstatus": 1}
+
+=================================== FAILURES ===================================
+_________ test_rust_candidate_outbound_4xx_matches_frozen_java_golden __________
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(900)
+    def test_rust_candidate_outbound_4xx_matches_frozen_java_golden() -> None:
+        repository = _repository()
+>       observed = _run_probe(repository, target="candidate")
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tests/test_oracle_outbound_4xx.py:200: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+repository = PosixPath('/home/lmyzzz/lmyzmail-rust')
+
+    def _run_probe(repository: Path, *, target: str) -> dict[str, object]:
+        result = subprocess.run(  # noqa: S603,S607
+            [
+                "/bin/bash",
+                str(repository / "blackbox/bin/run-outbound-probe.sh"),
+            ],
+            cwd=repository,
+            capture_output=True,
+            text=True,
+            env={
+                **os.environ,
+                "LMYZMAIL_BLACKBOX_PYTHON": sys.executable,
+                "LMYZMAIL_OUTBOUND_ORACLE_MODE": "4XX",
+                "LMYZMAIL_OUTBOUND_TARGET": target,
+            },
+            timeout=850,
+            check=False,
+        )
+        if result.returncode != 0:
+>           raise AssertionError(
+                "outbound 4xx probe failed with "
+                f"{result.returncode}:\nstdout={result.stdout}\nstderr={result.stderr}"
+            )
+E           AssertionError: outbound 4xx probe failed with 1:
+E           stdout=
+E           stderr=Traceback (most recent call last):
+E             File "<frozen runpy>", line 198, in _run_module_as_main
+E             File "<frozen runpy>", line 88, in _run_code
+E             File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 2917, in <module>
+E               raise SystemExit(main())
+E                                ^^^^^^
+E             File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 2895, in main
+E               observed = run_4xx_probe()
+E                          ^^^^^^^^^^^^^^^
+E             File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 2610, in run_4xx_probe
+E               _capture_4xx_case(
+E             File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 2454, in _capture_4xx_case
+E               _wait_until(
+E             File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 463, in _wait_until
+E               raise AssertionError(f"timed out waiting for {description}")
+E           AssertionError: timed out waiting for 4xx DATA 452 exhausted SMTP reply
+
+blackbox/tests/test_oracle_outbound_4xx.py:39: AssertionError
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/release-f3b10966-failure-diagnosis.xml -
+=========================== short test summary info ============================
+FAILED blackbox/tests/test_oracle_outbound_4xx.py::test_rust_candidate_outbound_4xx_matches_frozen_java_golden
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed in 155.76s (0:02:35)

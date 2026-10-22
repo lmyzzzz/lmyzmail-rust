@@ -312,6 +312,8 @@ impl OutboundWorker {
         let mut delivery_circuit = DeliveryCircuit::default();
         let mut maintenance_backoff = OperationBackoff::default();
         let mut maintenance_retry_at: Option<Instant> = None;
+        let mut dsn_backoff = OperationBackoff::default();
+        let mut dsn_retry_at: Option<Instant> = None;
 
         loop {
             if cancellation.is_cancelled() {
@@ -404,19 +406,26 @@ impl OutboundWorker {
                     {
                         Ok(QueueMaintenanceOutcome { next_expired_cursor, .. }) => {
                             expired_cursor = next_expired_cursor;
+                            // A failed DSN publication must not delay moving
+                            // unrelated due SMTP retries back to the queue.
+                            maintenance_backoff.reset();
+                            maintenance_retry_at = None;
+                            if !retry_ready(dsn_retry_at, Instant::now()) {
+                                continue;
+                            }
                             match self.dsn_dispatcher
                                 .dispatch_batch(DSN_DISPATCH_BATCH_SIZE, &cancellation)
                                 .await
                             {
                                 Ok(_) => {
-                                    maintenance_backoff.reset();
-                                    maintenance_retry_at = None;
+                                    dsn_backoff.reset();
+                                    dsn_retry_at = None;
                                 }
                                 Err(DsnDispatchError::Cancelled) if cancellation.is_cancelled() => break,
                                 Err(error) => {
                                     eprintln!("lmyzmail outbound DSN maintenance failed: {error}");
-                                    maintenance_retry_at =
-                                        Some(Instant::now() + maintenance_backoff.next_delay());
+                                    dsn_retry_at =
+                                        Some(Instant::now() + dsn_backoff.next_delay());
                                 }
                             }
                         }

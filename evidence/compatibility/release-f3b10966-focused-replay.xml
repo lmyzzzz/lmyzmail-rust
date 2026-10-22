@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="3" time="30.106" timestamp="2026-10-22T21:52:13.147447+08:00" hostname="MSI"><testcase classname="tests.test_oracle_outbound_queue" name="test_rust_candidate_outbound_queue_matches_frozen_java_golden" time="7.815"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for managed-outbound-queue-v43.json: expected sha256=a627b744004e4d4d4180cca1097e69b1ebe2fb295e907201008b0e781310a02b, actual sha256=3def4ac487e3f5c96291130c43ade03d3dd9687d28c36c4d34f6d80a62db55fe">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_outbound_queue_matches_frozen_java_golden() -&gt; None:
+        repository = _repository()
+        observed = _run_probe(repository, target="candidate")
+&gt;       _assert_golden(repository, observed, record_java=False)
+
+blackbox/tests/test_oracle_outbound_queue.py:80: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/tests/test_oracle_outbound_queue.py:62: in _assert_golden
+    store.assert_observation(path.name, observed)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java'), attestation=GoldenAttestation(oracle_co...e', normalizers=('outbound:generated-sent-filename', 'outbound:redis-seven-day-ttl-observation-window')), record=False)
+relative_path = 'managed-outbound-queue-v43.json'
+observation = {'body_lengths': {'at_threshold': 8192, 'below_threshold': 8191, 'large': 12288, 'small': 19}, 'post': {'db': [{'id': ... True, ...}, 'small': {'error': None, 'message_id_present': True, 'queue_id_present': True, 'queued': True, ...}}, ...}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+&gt;           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for managed-outbound-queue-v43.json: expected sha256=a627b744004e4d4d4180cca1097e69b1ebe2fb295e907201008b0e781310a02b, actual sha256=3def4ac487e3f5c96291130c43ade03d3dd9687d28c36c4d34f6d80a62db55fe
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch</failure></testcase><testcase classname="tests.test_oracle_outbound_tls_validity" name="test_rust_candidate_outbound_tls_certificate_validity" time="15.232" /><testcase classname="tests.test_oracle_reports" name="test_rust_candidate_reports_match_frozen_java_golden" time="6.800"><failure message="AssertionError: timed out waiting for two report queue and Maildir publications">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(240)
+    def test_rust_candidate_reports_match_frozen_java_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        with report_dns_server() as dns:
+            with _candidate(repository, dns) as candidate:
+                DifferentialRunner(
+                    repository,
+                    repository / "blackbox/golden/java/managed-reports-v53",
+                    "managed-reports",
+&gt;               ).verify_candidate(REPORT_SCENARIOS, candidate)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tests/test_oracle_reports.py:190: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:111: in verify_candidate
+    observation = scenario.capture(target)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+blackbox/src/lmyzmail_blackbox/report_contract.py:929: in capture_seeded_report_delivery
+    pending_order, tasks, maildir_messages, added_files = _capture_report_publications(
+blackbox/src/lmyzmail_blackbox/report_contract.py:851: in _capture_report_publications
+    new_ids, added_files = _wait_for_report_side_effects(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+target = _ReportsCandidateRuntime(paths=HarnessPaths(repository=PosixPath('/home/lmyzzz/lmyzmail-rust'), runtime=PosixPath('/ho...il.reporting.enabled=true', '--lmyzmail.queue.poll-interval-ms=60000', '--lmyzmail.maildir.max-files-per-directory=1'))
+client = &lt;redis.client.Redis(&lt;redis.connection.ConnectionPool(&lt;redis.connection.Connection(host=127.0.0.1,port=46849,db=0)&gt;)&gt;)&gt;
+before_pending = [], before_files = {}
+
+    def _wait_for_report_side_effects(
+        target: RuntimeTarget,
+        client: redis.Redis,
+        before_pending: list[int],
+        before_files: dict[str, Path],
+    ) -&gt; tuple[list[int], dict[str, Path]]:
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() &lt; deadline:
+            pending = _redis_pending(client)
+            files = _sent_files(target)
+            if len(pending) == len(before_pending) + 2 and len(files) == len(before_files) + 2:
+                if pending[: len(before_pending)] != before_pending:
+                    raise AssertionError("report queue mutated the pre-existing pending prefix")
+                return pending[len(before_pending) :], {
+                    key: path for key, path in files.items() if key not in before_files
+                }
+            time.sleep(0.05)
+&gt;       raise AssertionError("timed out waiting for two report queue and Maildir publications")
+E       AssertionError: timed out waiting for two report queue and Maildir publications
+
+blackbox/src/lmyzmail_blackbox/report_contract.py:772: AssertionError</failure></testcase></testsuite></testsuites>

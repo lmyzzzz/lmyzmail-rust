@@ -1,0 +1,231 @@
+..                                                                       [100%]
+Campaign audit: {"differences_requiring_review": [], "harness_definition_sha256": "73e751452ad6eecc90dc68019e56806ad11cbb19b22ad7dcbc55928dda2a446f", "historical_observations_equal": 346, "old_golden_files_unchanged": 6897, "pytest_exitstatus": 0}
+
+=============================== warnings summary ===============================
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_login.py:518: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_login.py:519: PytestUnknownMarkWarning: Unknown pytest.mark.oracle - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.oracle
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_login.py:539: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_login.py:540: PytestUnknownMarkWarning: Unknown pytest.mark.candidate - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.candidate
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_static_play.py:124: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_static_play.py:125: PytestUnknownMarkWarning: Unknown pytest.mark.oracle - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.oracle
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_static_play.py:145: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_static_play.py:146: PytestUnknownMarkWarning: Unknown pytest.mark.candidate - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.candidate
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_post_static.py:107: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_post_static.py:108: PytestUnknownMarkWarning: Unknown pytest.mark.oracle - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.oracle
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_post_static.py:128: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_post_static.py:129: PytestUnknownMarkWarning: Unknown pytest.mark.candidate - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.candidate
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_email_prompt.py:105: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_email_prompt.py:106: PytestUnknownMarkWarning: Unknown pytest.mark.oracle - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.oracle
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_email_prompt.py:126: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_email_prompt.py:127: PytestUnknownMarkWarning: Unknown pytest.mark.candidate - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.candidate
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_password_auth.py:121: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_password_auth.py:122: PytestUnknownMarkWarning: Unknown pytest.mark.oracle - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.oracle
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_password_auth.py:142: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_password_auth.py:143: PytestUnknownMarkWarning: Unknown pytest.mark.candidate - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.candidate
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_authenticated_commands.py:106: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_authenticated_commands.py:107: PytestUnknownMarkWarning: Unknown pytest.mark.oracle - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.oracle
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_authenticated_commands.py:127: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_authenticated_commands.py:128: PytestUnknownMarkWarning: Unknown pytest.mark.candidate - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.candidate
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_main_menu.py:97: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_main_menu.py:98: PytestUnknownMarkWarning: Unknown pytest.mark.oracle - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.oracle
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_main_menu.py:118: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_main_menu.py:119: PytestUnknownMarkWarning: Unknown pytest.mark.candidate - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.candidate
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_main_menu_lifecycle.py:158: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_main_menu_lifecycle.py:159: PytestUnknownMarkWarning: Unknown pytest.mark.oracle - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.oracle
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_main_menu_lifecycle.py:179: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_main_menu_lifecycle.py:180: PytestUnknownMarkWarning: Unknown pytest.mark.candidate - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.candidate
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_main_menu_actions.py:149: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_main_menu_actions.py:150: PytestUnknownMarkWarning: Unknown pytest.mark.oracle - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.oracle
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_main_menu_actions.py:170: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_main_menu_actions.py:171: PytestUnknownMarkWarning: Unknown pytest.mark.candidate - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.candidate
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_folder_gui.py:269: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_folder_gui.py:270: PytestUnknownMarkWarning: Unknown pytest.mark.oracle - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.oracle
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_folder_gui.py:290: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_folder_gui.py:291: PytestUnknownMarkWarning: Unknown pytest.mark.candidate - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.candidate
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_render_settings.py:265: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_render_settings.py:266: PytestUnknownMarkWarning: Unknown pytest.mark.oracle - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.oracle
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_render_settings.py:286: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_render_settings.py:287: PytestUnknownMarkWarning: Unknown pytest.mark.candidate - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.candidate
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_render_size_commands.py:160: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_render_size_commands.py:161: PytestUnknownMarkWarning: Unknown pytest.mark.oracle - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.oracle
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_render_size_commands.py:181: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_render_size_commands.py:182: PytestUnknownMarkWarning: Unknown pytest.mark.candidate - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.candidate
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_mail_view.py:1344: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_mail_view.py:1345: PytestUnknownMarkWarning: Unknown pytest.mark.oracle - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.oracle
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_mail_view.py:1366: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_mail_view.py:1367: PytestUnknownMarkWarning: Unknown pytest.mark.candidate - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.candidate
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_video.py:674: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_video.py:675: PytestUnknownMarkWarning: Unknown pytest.mark.oracle - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.oracle
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_video.py:695: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tools/test_renderer_local_release.py::test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]
+  /home/lmyzzz/lmyzmail-rust/blackbox/tools/test_minecraft_video.py:696: PytestUnknownMarkWarning: Unknown pytest.mark.candidate - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.candidate
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/renderer-local-f3b10966/results.xml -
+2 passed, 56 warnings in 60.70s (0:01:00)

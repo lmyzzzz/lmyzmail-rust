@@ -1490,10 +1490,16 @@ impl OutboundService {
             .buffer_unordered(STRESS_QUIESCENCE_REDIS_CONCURRENCY);
         while let Some(read) = redis_reads.next().await {
             let (task_id, task) = read?;
-            if redis_tasks.insert(task_id, task).is_some() {
+            // A Java queue may retain terminal retry references without a
+            // Sent filename. They belong to their original sender, not to
+            // stress recovery. Keep strict payload validation, but only prove
+            // PostgreSQL/publication identity for the mailbox being cleaned.
+            if task.sender_address == sender && redis_tasks.insert(task_id, task).is_some() {
                 return Err(OutboundError::Unavailable);
             }
         }
+        drop(redis_reads);
+        let active_ids = redis_tasks.keys().copied().collect::<Vec<_>>();
 
         let mut pg_active = BTreeMap::new();
         for batch in active_ids.chunks(STRESS_QUIESCENCE_BATCH_LIMIT) {

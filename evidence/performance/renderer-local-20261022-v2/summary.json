@@ -1,0 +1,4477 @@
+{
+  "aggregate": [
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 480912,
+      "cross_round_p95_ns": 506040,
+      "dither": 0,
+      "edge": 64,
+      "round_medians_ns": [
+        464253,
+        473088,
+        506071,
+        491774,
+        488737,
+        466578
+      ],
+      "round_p95_ns": [
+        478532,
+        492665,
+        522176,
+        522770,
+        519416,
+        486674
+      ],
+      "stage": "block_palette_rgb"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 475612,
+      "cross_round_p95_ns": 511536,
+      "dither": 0,
+      "edge": 64,
+      "round_medians_ns": [
+        465635,
+        471370,
+        508848,
+        479855,
+        506016,
+        465697
+      ],
+      "round_p95_ns": [
+        484156,
+        489294,
+        533779,
+        625776,
+        544748,
+        488601
+      ],
+      "stage": "block_states"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 3706,
+      "cross_round_p95_ns": 3758,
+      "dither": 0,
+      "edge": 64,
+      "round_medians_ns": [
+        3607,
+        3733,
+        4011,
+        3852,
+        3679,
+        3623
+      ],
+      "round_p95_ns": [
+        3644,
+        3802,
+        4160,
+        4000,
+        3715,
+        3664
+      ],
+      "stage": "contrast"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 209084,
+      "cross_round_p95_ns": 220186,
+      "dither": 0,
+      "edge": 64,
+      "round_medians_ns": [
+        205543,
+        187632,
+        212625,
+        237628,
+        215043,
+        189397
+      ],
+      "round_p95_ns": [
+        215049,
+        200318,
+        228385,
+        259647,
+        225323,
+        198739
+      ],
+      "stage": "map_palette"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 612457,
+      "cross_round_p95_ns": 636436,
+      "dither": 0,
+      "edge": 64,
+      "round_medians_ns": [
+        595908,
+        620610,
+        683772,
+        642913,
+        593589,
+        604305
+      ],
+      "round_p95_ns": [
+        626894,
+        638932,
+        723233,
+        694782,
+        633940,
+        624708
+      ],
+      "stage": "resize"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 1889798,
+      "cross_round_p95_ns": 1971301,
+      "dither": 0,
+      "edge": 128,
+      "round_medians_ns": [
+        1871536,
+        1905565,
+        2032736,
+        2268876,
+        1596530,
+        1874032
+      ],
+      "round_p95_ns": [
+        1893149,
+        2035472,
+        2074288,
+        2344641,
+        1631673,
+        1907130
+      ],
+      "stage": "block_palette_rgb"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 13787,
+      "cross_round_p95_ns": 14076,
+      "dither": 0,
+      "edge": 128,
+      "round_medians_ns": [
+        13201,
+        14036,
+        15209,
+        13455,
+        18181,
+        13539
+      ],
+      "round_p95_ns": [
+        13673,
+        14410,
+        15735,
+        13742,
+        18396,
+        13707
+      ],
+      "stage": "contrast"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 855902,
+      "cross_round_p95_ns": 902923,
+      "dither": 0,
+      "edge": 128,
+      "round_medians_ns": [
+        845266,
+        786994,
+        866539,
+        914758,
+        1019683,
+        766613
+      ],
+      "round_p95_ns": [
+        875078,
+        828687,
+        930769,
+        991325,
+        1038179,
+        807470
+      ],
+      "stage": "map_palette"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 1143560,
+      "cross_round_p95_ns": 1179304,
+      "dither": 0,
+      "edge": 128,
+      "round_medians_ns": [
+        1128703,
+        1175107,
+        1293912,
+        1141194,
+        1033833,
+        1145927
+      ],
+      "round_p95_ns": [
+        1164197,
+        1222474,
+        1367812,
+        1185543,
+        1133350,
+        1173065
+      ],
+      "stage": "resize"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 7214898,
+      "cross_round_p95_ns": 7751446,
+      "dither": 0,
+      "edge": 256,
+      "round_medians_ns": [
+        7453186,
+        7304372,
+        8161493,
+        6492711,
+        6568119,
+        7125425
+      ],
+      "round_p95_ns": [
+        7476050,
+        7932140,
+        8399345,
+        6614445,
+        7823763,
+        7679130
+      ],
+      "stage": "block_palette_rgb"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 60048,
+      "cross_round_p95_ns": 63542,
+      "dither": 0,
+      "edge": 256,
+      "round_medians_ns": [
+        50909,
+        51345,
+        72633,
+        53245,
+        70917,
+        66851
+      ],
+      "round_p95_ns": [
+        52862,
+        53629,
+        85373,
+        55789,
+        71296,
+        78220
+      ],
+      "stage": "contrast"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 3668588,
+      "cross_round_p95_ns": 3736833,
+      "dither": 0,
+      "edge": 256,
+      "round_medians_ns": [
+        3176666,
+        3786648,
+        3550528,
+        4237329,
+        4158369,
+        3156141
+      ],
+      "round_p95_ns": [
+        3419432,
+        3840895,
+        3632772,
+        4337801,
+        4436600,
+        3240206
+      ],
+      "stage": "map_palette"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 2199813,
+      "cross_round_p95_ns": 2258369,
+      "dither": 0,
+      "edge": 256,
+      "round_medians_ns": [
+        2194647,
+        2254013,
+        2040401,
+        2264478,
+        1947479,
+        2204980
+      ],
+      "round_p95_ns": [
+        2229585,
+        2275145,
+        2519233,
+        2315264,
+        2028733,
+        2241594
+      ],
+      "stage": "resize"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 29651831,
+      "cross_round_p95_ns": 31479368,
+      "dither": 0,
+      "edge": 512,
+      "round_medians_ns": [
+        30327911,
+        26250236,
+        31797002,
+        27703723,
+        29299143,
+        30004519
+      ],
+      "round_p95_ns": [
+        30442940,
+        31063207,
+        32870368,
+        31895529,
+        35558080,
+        30379593
+      ],
+      "stage": "block_palette_rgb"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 211824,
+      "cross_round_p95_ns": 226695,
+      "dither": 0,
+      "edge": 512,
+      "round_medians_ns": [
+        208325,
+        208935,
+        214713,
+        219485,
+        240844,
+        207691
+      ],
+      "round_p95_ns": [
+        221818,
+        219425,
+        231591,
+        231572,
+        256288,
+        218824
+      ],
+      "stage": "contrast"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 12744654,
+      "cross_round_p95_ns": 15162143,
+      "dither": 0,
+      "edge": 512,
+      "round_medians_ns": [
+        12947887,
+        12541421,
+        12381772,
+        15154751,
+        14154922,
+        11786031
+      ],
+      "round_p95_ns": [
+        13100235,
+        13774875,
+        17968903,
+        16549411,
+        17555972,
+        12461889
+      ],
+      "stage": "map_palette"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 4263657,
+      "cross_round_p95_ns": 4406026,
+      "dither": 0,
+      "edge": 512,
+      "round_medians_ns": [
+        4289710,
+        4023928,
+        4237605,
+        4432719,
+        4112989,
+        4390805
+      ],
+      "round_p95_ns": [
+        4373177,
+        4075236,
+        4602624,
+        4575298,
+        4230622,
+        4438876
+      ],
+      "stage": "resize"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 477833,
+      "cross_round_p95_ns": 500243,
+      "dither": 1,
+      "edge": 64,
+      "round_medians_ns": [
+        475479,
+        480188,
+        466484,
+        481823,
+        499728,
+        383700
+      ],
+      "round_p95_ns": [
+        498333,
+        643322,
+        485109,
+        502154,
+        520855,
+        396656
+      ],
+      "stage": "block_palette_rgb"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 485764,
+      "cross_round_p95_ns": 513656,
+      "dither": 1,
+      "edge": 64,
+      "round_medians_ns": [
+        474629,
+        496900,
+        373018,
+        514109,
+        512983,
+        471997
+      ],
+      "round_p95_ns": [
+        485137,
+        715051,
+        408349,
+        595862,
+        536614,
+        490698
+      ],
+      "stage": "block_states"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 3838,
+      "cross_round_p95_ns": 4118,
+      "dither": 1,
+      "edge": 64,
+      "round_medians_ns": [
+        3581,
+        4648,
+        3517,
+        3236,
+        4095,
+        4491
+      ],
+      "round_p95_ns": [
+        3722,
+        4696,
+        3562,
+        3298,
+        4786,
+        4514
+      ],
+      "stage": "contrast"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 372018,
+      "cross_round_p95_ns": 397901,
+      "dither": 1,
+      "edge": 64,
+      "round_medians_ns": [
+        352650,
+        482478,
+        343149,
+        365352,
+        379664,
+        378685
+      ],
+      "round_p95_ns": [
+        363798,
+        564298,
+        403599,
+        390183,
+        392203,
+        422230
+      ],
+      "stage": "map_palette"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 637817,
+      "cross_round_p95_ns": 665351,
+      "dither": 1,
+      "edge": 64,
+      "round_medians_ns": [
+        630323,
+        765338,
+        593598,
+        674820,
+        645311,
+        622980
+      ],
+      "round_p95_ns": [
+        654136,
+        842157,
+        619513,
+        718437,
+        676567,
+        646259
+      ],
+      "stage": "resize"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 1936558,
+      "cross_round_p95_ns": 2032835,
+      "dither": 1,
+      "edge": 128,
+      "round_medians_ns": [
+        1916789,
+        1956328,
+        1558475,
+        2036298,
+        2086653,
+        1572042
+      ],
+      "round_p95_ns": [
+        1934291,
+        2419673,
+        1666301,
+        2131380,
+        2170425,
+        1904752
+      ],
+      "stage": "block_palette_rgb"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 16278,
+      "cross_round_p95_ns": 16593,
+      "dither": 1,
+      "edge": 128,
+      "round_medians_ns": [
+        14158,
+        16350,
+        18680,
+        15931,
+        16207,
+        17383
+      ],
+      "round_p95_ns": [
+        14209,
+        16602,
+        33133,
+        16244,
+        16585,
+        17584
+      ],
+      "stage": "contrast"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 1512344,
+      "cross_round_p95_ns": 1630527,
+      "dither": 1,
+      "edge": 128,
+      "round_medians_ns": [
+        1426926,
+        1897122,
+        1545068,
+        1581039,
+        1479621,
+        1430800
+      ],
+      "round_p95_ns": [
+        1443508,
+        2217258,
+        1601123,
+        1659931,
+        1755580,
+        1465567
+      ],
+      "stage": "map_palette"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 1218315,
+      "cross_round_p95_ns": 1263735,
+      "dither": 1,
+      "edge": 128,
+      "round_medians_ns": [
+        1184395,
+        1445249,
+        1051429,
+        1365589,
+        1252236,
+        1176638
+      ],
+      "round_p95_ns": [
+        1222997,
+        1541740,
+        1208314,
+        1407800,
+        1304473,
+        1211045
+      ],
+      "stage": "resize"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 7595488,
+      "cross_round_p95_ns": 8225202,
+      "dither": 1,
+      "edge": 256,
+      "round_medians_ns": [
+        7385999,
+        7720066,
+        7740090,
+        7986724,
+        6541295,
+        7470911
+      ],
+      "round_p95_ns": [
+        7619907,
+        9797915,
+        9565548,
+        8252548,
+        8197856,
+        7533889
+      ],
+      "stage": "block_palette_rgb"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 51028,
+      "cross_round_p95_ns": 58297,
+      "dither": 1,
+      "edge": 256,
+      "round_medians_ns": [
+        49942,
+        68913,
+        51136,
+        49848,
+        54384,
+        50920
+      ],
+      "round_p95_ns": [
+        52219,
+        69485,
+        59207,
+        62209,
+        57387,
+        54126
+      ],
+      "stage": "contrast"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 6014994,
+      "cross_round_p95_ns": 6598970,
+      "dither": 1,
+      "edge": 256,
+      "round_medians_ns": [
+        5802755,
+        8040193,
+        5964751,
+        6184916,
+        6065237,
+        5449438
+      ],
+      "round_p95_ns": [
+        5893295,
+        9904671,
+        6774966,
+        6422974,
+        6807012,
+        6335155
+      ],
+      "stage": "map_palette"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 2326943,
+      "cross_round_p95_ns": 2457644,
+      "dither": 1,
+      "edge": 256,
+      "round_medians_ns": [
+        2258125,
+        2650463,
+        2251294,
+        2471067,
+        2395762,
+        2161916
+      ],
+      "round_p95_ns": [
+        2469599,
+        2872329,
+        2384176,
+        2504134,
+        2445690,
+        2192490
+      ],
+      "stage": "resize"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 30759744,
+      "cross_round_p95_ns": 33805167,
+      "dither": 1,
+      "edge": 512,
+      "round_medians_ns": [
+        29975277,
+        34376582,
+        28652739,
+        31257521,
+        32888388,
+        30261967
+      ],
+      "round_p95_ns": [
+        31407823,
+        65440509,
+        33509919,
+        34380024,
+        34100416,
+        30989814
+      ],
+      "stage": "block_palette_rgb"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 213448,
+      "cross_round_p95_ns": 226374,
+      "dither": 1,
+      "edge": 512,
+      "round_medians_ns": [
+        205237,
+        291966,
+        203017,
+        214845,
+        223207,
+        212052
+      ],
+      "round_p95_ns": [
+        218592,
+        484242,
+        214890,
+        230123,
+        236764,
+        222625
+      ],
+      "stage": "contrast"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 23763776,
+      "cross_round_p95_ns": 25608778,
+      "dither": 1,
+      "edge": 512,
+      "round_medians_ns": [
+        22146983,
+        29169202,
+        23938088,
+        25256225,
+        23589465,
+        22829498
+      ],
+      "round_p95_ns": [
+        22628596,
+        32173850,
+        25887673,
+        26291985,
+        25329884,
+        24621949
+      ],
+      "stage": "map_palette"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 4382239,
+      "cross_round_p95_ns": 4542821,
+      "dither": 1,
+      "edge": 512,
+      "round_medians_ns": [
+        4184502,
+        5989333,
+        4464831,
+        4283707,
+        4636019,
+        4299647
+      ],
+      "round_p95_ns": [
+        4219363,
+        9165236,
+        4686205,
+        4328880,
+        4734116,
+        4399438
+      ],
+      "stage": "resize"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 473479,
+      "cross_round_p95_ns": 492725,
+      "dither": 2,
+      "edge": 64,
+      "round_medians_ns": [
+        531917,
+        469405,
+        494889,
+        410912,
+        477554,
+        468518
+      ],
+      "round_p95_ns": [
+        563625,
+        481945,
+        526289,
+        428259,
+        503506,
+        477713
+      ],
+      "stage": "block_palette_rgb"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 473340,
+      "cross_round_p95_ns": 489089,
+      "dither": 2,
+      "edge": 64,
+      "round_medians_ns": [
+        528328,
+        469088,
+        493204,
+        401394,
+        477593,
+        466430
+      ],
+      "round_p95_ns": [
+        564234,
+        482498,
+        503885,
+        423314,
+        490317,
+        487862
+      ],
+      "stage": "block_states"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 3822,
+      "cross_round_p95_ns": 3930,
+      "dither": 2,
+      "edge": 64,
+      "round_medians_ns": [
+        4098,
+        3494,
+        3839,
+        4490,
+        3806,
+        3590
+      ],
+      "round_p95_ns": [
+        5468,
+        3530,
+        4023,
+        4525,
+        3837,
+        3629
+      ],
+      "stage": "contrast"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 312583,
+      "cross_round_p95_ns": 323326,
+      "dither": 2,
+      "edge": 64,
+      "round_medians_ns": [
+        357574,
+        296712,
+        315355,
+        360400,
+        309811,
+        294250
+      ],
+      "round_p95_ns": [
+        407337,
+        303681,
+        327549,
+        386310,
+        319104,
+        302637
+      ],
+      "stage": "map_palette"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 618324,
+      "cross_round_p95_ns": 655547,
+      "dither": 2,
+      "edge": 64,
+      "round_medians_ns": [
+        688054,
+        583861,
+        607015,
+        679702,
+        629633,
+        597626
+      ],
+      "round_p95_ns": [
+        763699,
+        607752,
+        651749,
+        720421,
+        659346,
+        621321
+      ],
+      "stage": "resize"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 1889247,
+      "cross_round_p95_ns": 1932029,
+      "dither": 2,
+      "edge": 128,
+      "round_medians_ns": [
+        1583146,
+        1902598,
+        1938040,
+        1630642,
+        1915991,
+        1875896
+      ],
+      "round_p95_ns": [
+        1634563,
+        1987702,
+        1990848,
+        1690204,
+        1954138,
+        1909921
+      ],
+      "stage": "block_palette_rgb"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 13811,
+      "cross_round_p95_ns": 15575,
+      "dither": 2,
+      "edge": 128,
+      "round_medians_ns": [
+        19146,
+        12704,
+        12913,
+        19114,
+        14148,
+        13475
+      ],
+      "round_p95_ns": [
+        19347,
+        13233,
+        16700,
+        19484,
+        14451,
+        13886
+      ],
+      "stage": "contrast"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 1223260,
+      "cross_round_p95_ns": 1363084,
+      "dither": 2,
+      "edge": 128,
+      "round_medians_ns": [
+        1437915,
+        1207497,
+        1230074,
+        1247593,
+        1216447,
+        1164713
+      ],
+      "round_p95_ns": [
+        1479198,
+        1290001,
+        1381838,
+        1461002,
+        1257623,
+        1344330
+      ],
+      "stage": "map_palette"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 1152663,
+      "cross_round_p95_ns": 1215222,
+      "dither": 2,
+      "edge": 128,
+      "round_medians_ns": [
+        1238889,
+        1074741,
+        1198055,
+        1070030,
+        1180442,
+        1124885
+      ],
+      "round_p95_ns": [
+        1328961,
+        1192576,
+        1240264,
+        1113424,
+        1237868,
+        1168636
+      ],
+      "stage": "resize"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 6861553,
+      "cross_round_p95_ns": 8089892,
+      "dither": 2,
+      "edge": 256,
+      "round_medians_ns": [
+        5885933,
+        7549229,
+        6555774,
+        7167332,
+        7624511,
+        6143143
+      ],
+      "round_p95_ns": [
+        8114332,
+        8774388,
+        8065453,
+        9601730,
+        7798016,
+        7444939
+      ],
+      "stage": "block_palette_rgb"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 54492,
+      "cross_round_p95_ns": 64317,
+      "dither": 2,
+      "edge": 256,
+      "round_medians_ns": [
+        72651,
+        49856,
+        52675,
+        56310,
+        52198,
+        68758
+      ],
+      "round_p95_ns": [
+        80886,
+        52684,
+        57635,
+        69553,
+        59572,
+        69062
+      ],
+      "stage": "contrast"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 5067299,
+      "cross_round_p95_ns": 5627433,
+      "dither": 2,
+      "edge": 256,
+      "round_medians_ns": [
+        4710436,
+        5424162,
+        5655115,
+        5756967,
+        4516476,
+        4639401
+      ],
+      "round_p95_ns": [
+        5062185,
+        6043500,
+        6632380,
+        6374912,
+        5211366,
+        4819763
+      ],
+      "stage": "map_palette"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 2183220,
+      "cross_round_p95_ns": 2250037,
+      "dither": 2,
+      "edge": 256,
+      "round_medians_ns": [
+        1999937,
+        2129604,
+        2236836,
+        2473576,
+        2286048,
+        1924686
+      ],
+      "round_p95_ns": [
+        2048980,
+        2206930,
+        2293145,
+        2518536,
+        2317876,
+        1955673
+      ],
+      "stage": "resize"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 29883288,
+      "cross_round_p95_ns": 31859954,
+      "dither": 2,
+      "edge": 512,
+      "round_medians_ns": [
+        29541116,
+        30723113,
+        28718695,
+        31913099,
+        29922179,
+        29844398
+      ],
+      "round_p95_ns": [
+        31858661,
+        31861248,
+        32657791,
+        34539961,
+        30594874,
+        30575625
+      ],
+      "stage": "block_palette_rgb"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 227254,
+      "cross_round_p95_ns": 248365,
+      "dither": 2,
+      "edge": 512,
+      "round_medians_ns": [
+        219181,
+        222602,
+        277574,
+        218754,
+        231906,
+        263289
+      ],
+      "round_p95_ns": [
+        228391,
+        246978,
+        290442,
+        231530,
+        249753,
+        280660
+      ],
+      "stage": "contrast"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 19233789,
+      "cross_round_p95_ns": 22140048,
+      "dither": 2,
+      "edge": 512,
+      "round_medians_ns": [
+        20531823,
+        18466144,
+        20035056,
+        20001434,
+        18175396,
+        18101954
+      ],
+      "round_p95_ns": [
+        21610181,
+        25693394,
+        22712503,
+        22669916,
+        21428004,
+        19012197
+      ],
+      "stage": "map_palette"
+    },
+    {
+      "backend": "avx2+fma",
+      "cross_round_median_ns": 4416336,
+      "cross_round_p95_ns": 4550490,
+      "dither": 2,
+      "edge": 512,
+      "round_medians_ns": [
+        4029611,
+        4685483,
+        4627904,
+        4407320,
+        4425352,
+        4162834
+      ],
+      "round_p95_ns": [
+        4266623,
+        4818662,
+        4734468,
+        4626265,
+        4474715,
+        4224380
+      ],
+      "stage": "resize"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 707646,
+      "cross_round_p95_ns": 740292,
+      "dither": 0,
+      "edge": 64,
+      "round_medians_ns": [
+        712100,
+        758067,
+        881886,
+        692737,
+        651192,
+        703193
+      ],
+      "round_p95_ns": [
+        739672,
+        794170,
+        971938,
+        740913,
+        675425,
+        715413
+      ],
+      "stage": "block_palette_rgb"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 740285,
+      "cross_round_p95_ns": 778289,
+      "dither": 0,
+      "edge": 64,
+      "round_medians_ns": [
+        712455,
+        756698,
+        880113,
+        760077,
+        723873,
+        715138
+      ],
+      "round_p95_ns": [
+        728558,
+        781621,
+        1033134,
+        774958,
+        794641,
+        738355
+      ],
+      "stage": "block_states"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 24111,
+      "cross_round_p95_ns": 28556,
+      "dither": 0,
+      "edge": 64,
+      "round_medians_ns": [
+        21223,
+        21842,
+        26308,
+        29004,
+        27423,
+        21914
+      ],
+      "round_p95_ns": [
+        28036,
+        21940,
+        32811,
+        29077,
+        29880,
+        24447
+      ],
+      "stage": "contrast"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 503647,
+      "cross_round_p95_ns": 543134,
+      "dither": 0,
+      "edge": 64,
+      "round_medians_ns": [
+        481859,
+        511591,
+        571892,
+        495703,
+        552959,
+        478454
+      ],
+      "round_p95_ns": [
+        499364,
+        544600,
+        609861,
+        541669,
+        583871,
+        499770
+      ],
+      "stage": "map_palette"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 778966,
+      "cross_round_p95_ns": 840466,
+      "dither": 0,
+      "edge": 64,
+      "round_medians_ns": [
+        773915,
+        784017,
+        923233,
+        736367,
+        684127,
+        788010
+      ],
+      "round_p95_ns": [
+        842035,
+        838898,
+        1026285,
+        888150,
+        724045,
+        818641
+      ],
+      "stage": "resize"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 2848751,
+      "cross_round_p95_ns": 3092078,
+      "dither": 0,
+      "edge": 128,
+      "round_medians_ns": [
+        2849812,
+        2749333,
+        3476328,
+        2927077,
+        2584129,
+        2847690
+      ],
+      "round_p95_ns": [
+        2865638,
+        4648523,
+        4624722,
+        3134996,
+        3049160,
+        2897970
+      ],
+      "stage": "block_palette_rgb"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 84334,
+      "cross_round_p95_ns": 97039,
+      "dither": 0,
+      "edge": 128,
+      "round_medians_ns": [
+        84242,
+        84042,
+        107008,
+        80356,
+        107673,
+        84427
+      ],
+      "round_p95_ns": [
+        95056,
+        97903,
+        120744,
+        88353,
+        119542,
+        96175
+      ],
+      "stage": "contrast"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 2043046,
+      "cross_round_p95_ns": 2135422,
+      "dither": 0,
+      "edge": 128,
+      "round_medians_ns": [
+        1901170,
+        2081076,
+        2450448,
+        1898116,
+        2075472,
+        2010621
+      ],
+      "round_p95_ns": [
+        1933277,
+        2316234,
+        2563029,
+        2151553,
+        2119291,
+        2047460
+      ],
+      "stage": "map_palette"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 1174131,
+      "cross_round_p95_ns": 1241260,
+      "dither": 0,
+      "edge": 128,
+      "round_medians_ns": [
+        1161160,
+        1187103,
+        1370799,
+        1228000,
+        913138,
+        1150834
+      ],
+      "round_p95_ns": [
+        1213986,
+        1268534,
+        1485494,
+        1283225,
+        938934,
+        1181823
+      ],
+      "stage": "resize"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 11520365,
+      "cross_round_p95_ns": 12374556,
+      "dither": 0,
+      "edge": 256,
+      "round_medians_ns": [
+        11640120,
+        11742869,
+        12693467,
+        10863309,
+        11033270,
+        11400610
+      ],
+      "round_p95_ns": [
+        11861987,
+        12589360,
+        13064493,
+        12531023,
+        12218090,
+        11487699
+      ],
+      "stage": "block_palette_rgb"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 357751,
+      "cross_round_p95_ns": 371498,
+      "dither": 0,
+      "edge": 256,
+      "round_medians_ns": [
+        346487,
+        331083,
+        377405,
+        337304,
+        369015,
+        402744
+      ],
+      "round_p95_ns": [
+        362065,
+        348579,
+        485536,
+        350144,
+        380931,
+        423365
+      ],
+      "stage": "contrast"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 7996877,
+      "cross_round_p95_ns": 8195105,
+      "dither": 0,
+      "edge": 256,
+      "round_medians_ns": [
+        7556393,
+        7809117,
+        8184638,
+        8322731,
+        8371359,
+        7787637
+      ],
+      "round_p95_ns": [
+        7695252,
+        7928619,
+        8392313,
+        8840530,
+        8957276,
+        7997898
+      ],
+      "stage": "map_palette"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 2064606,
+      "cross_round_p95_ns": 2191725,
+      "dither": 0,
+      "edge": 256,
+      "round_medians_ns": [
+        2132074,
+        2067043,
+        2062170,
+        2022003,
+        2197648,
+        1717125
+      ],
+      "round_p95_ns": [
+        2167359,
+        2216092,
+        2219890,
+        2050898,
+        2246316,
+        1757656
+      ],
+      "stage": "resize"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 44212630,
+      "cross_round_p95_ns": 48335702,
+      "dither": 0,
+      "edge": 512,
+      "round_medians_ns": [
+        44819839,
+        43605422,
+        46445513,
+        43031815,
+        46623624,
+        39404751
+      ],
+      "round_p95_ns": [
+        45465378,
+        48266823,
+        48404582,
+        49735243,
+        51026248,
+        46037533
+      ],
+      "stage": "block_palette_rgb"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 1502699,
+      "cross_round_p95_ns": 1576385,
+      "dither": 0,
+      "edge": 512,
+      "round_medians_ns": [
+        1348036,
+        1479022,
+        1430057,
+        1526377,
+        1812863,
+        1626866
+      ],
+      "round_p95_ns": [
+        1393858,
+        1572898,
+        1508560,
+        1579872,
+        2024406,
+        1650479
+      ],
+      "stage": "contrast"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 32096554,
+      "cross_round_p95_ns": 37090158,
+      "dither": 0,
+      "edge": 512,
+      "round_medians_ns": [
+        29765913,
+        34919571,
+        32737605,
+        31455503,
+        33516617,
+        30384918
+      ],
+      "round_p95_ns": [
+        30155090,
+        40834399,
+        36818106,
+        37362210,
+        37884574,
+        33472703
+      ],
+      "stage": "map_palette"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 5276196,
+      "cross_round_p95_ns": 5664776,
+      "dither": 0,
+      "edge": 512,
+      "round_medians_ns": [
+        5182571,
+        5161130,
+        5369822,
+        5493438,
+        5652582,
+        4482707
+      ],
+      "round_p95_ns": [
+        5242277,
+        6003997,
+        5505417,
+        5824136,
+        6376987,
+        4569448
+      ],
+      "stage": "resize"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 735772,
+      "cross_round_p95_ns": 774464,
+      "dither": 1,
+      "edge": 64,
+      "round_medians_ns": [
+        688278,
+        831869,
+        692698,
+        781184,
+        746723,
+        724821
+      ],
+      "round_p95_ns": [
+        708846,
+        890812,
+        757185,
+        797916,
+        791743,
+        743138
+      ],
+      "stage": "block_palette_rgb"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 713253,
+      "cross_round_p95_ns": 733735,
+      "dither": 1,
+      "edge": 64,
+      "round_medians_ns": [
+        696307,
+        676455,
+        708981,
+        785300,
+        748619,
+        717525
+      ],
+      "round_p95_ns": [
+        710925,
+        729539,
+        729460,
+        805918,
+        793443,
+        737932
+      ],
+      "stage": "block_states"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 23539,
+      "cross_round_p95_ns": 25021,
+      "dither": 1,
+      "edge": 64,
+      "round_medians_ns": [
+        21118,
+        25545,
+        26997,
+        23754,
+        23324,
+        22237
+      ],
+      "round_p95_ns": [
+        21630,
+        26226,
+        27369,
+        23817,
+        26852,
+        22888
+      ],
+      "stage": "contrast"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 550115,
+      "cross_round_p95_ns": 567737,
+      "dither": 1,
+      "edge": 64,
+      "round_medians_ns": [
+        514178,
+        644402,
+        533175,
+        580915,
+        558521,
+        541710
+      ],
+      "round_p95_ns": [
+        529366,
+        739438,
+        558527,
+        595844,
+        576947,
+        557533
+      ],
+      "stage": "map_palette"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 831599,
+      "cross_round_p95_ns": 867920,
+      "dither": 1,
+      "edge": 64,
+      "round_medians_ns": [
+        742354,
+        883649,
+        787070,
+        871499,
+        848662,
+        814536
+      ],
+      "round_p95_ns": [
+        773257,
+        1001150,
+        838363,
+        901056,
+        893440,
+        842401
+      ],
+      "stage": "resize"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 2912148,
+      "cross_round_p95_ns": 3075852,
+      "dither": 1,
+      "edge": 128,
+      "round_medians_ns": [
+        2837794,
+        2972128,
+        2809883,
+        3093019,
+        2951965,
+        2872332
+      ],
+      "round_p95_ns": [
+        2873917,
+        3686992,
+        4212176,
+        3147467,
+        3004237,
+        2930745
+      ],
+      "stage": "block_palette_rgb"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 86843,
+      "cross_round_p95_ns": 94446,
+      "dither": 1,
+      "edge": 128,
+      "round_medians_ns": [
+        80150,
+        110924,
+        81378,
+        92741,
+        87718,
+        85969
+      ],
+      "round_p95_ns": [
+        87191,
+        121266,
+        89580,
+        109227,
+        95147,
+        93746
+      ],
+      "stage": "contrast"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 2190630,
+      "cross_round_p95_ns": 2227612,
+      "dither": 1,
+      "edge": 128,
+      "round_medians_ns": [
+        2136046,
+        2400024,
+        2083212,
+        2348291,
+        2245214,
+        1962543
+      ],
+      "round_p95_ns": [
+        2172910,
+        2679382,
+        2123041,
+        2387607,
+        2282315,
+        1989142
+      ],
+      "stage": "map_palette"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 1147975,
+      "cross_round_p95_ns": 1199928,
+      "dither": 1,
+      "edge": 128,
+      "round_medians_ns": [
+        1110043,
+        989190,
+        1149642,
+        1250711,
+        1196981,
+        1146308
+      ],
+      "round_p95_ns": [
+        1128494,
+        1079358,
+        1197046,
+        1283725,
+        1235178,
+        1202811
+      ],
+      "stage": "resize"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 11335035,
+      "cross_round_p95_ns": 11846494,
+      "dither": 1,
+      "edge": 256,
+      "round_medians_ns": [
+        11385739,
+        12182955,
+        10729353,
+        11332147,
+        11337923,
+        9701398
+      ],
+      "round_p95_ns": [
+        11608042,
+        13772267,
+        11237432,
+        12688411,
+        12084947,
+        9798068
+      ],
+      "stage": "block_palette_rgb"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 360926,
+      "cross_round_p95_ns": 383754,
+      "dither": 1,
+      "edge": 256,
+      "round_medians_ns": [
+        350416,
+        459378,
+        342704,
+        381432,
+        371436,
+        325605
+      ],
+      "round_p95_ns": [
+        373974,
+        823004,
+        360126,
+        395906,
+        393535,
+        349536
+      ],
+      "stage": "contrast"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 8694756,
+      "cross_round_p95_ns": 9087443,
+      "dither": 1,
+      "edge": 256,
+      "round_medians_ns": [
+        8553905,
+        9245730,
+        8835608,
+        8115850,
+        9196840,
+        8351841
+      ],
+      "round_p95_ns": [
+        8645400,
+        9701301,
+        9337587,
+        8917810,
+        9257076,
+        8462970
+      ],
+      "stage": "map_palette"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 2098528,
+      "cross_round_p95_ns": 2180497,
+      "dither": 1,
+      "edge": 256,
+      "round_medians_ns": [
+        2085460,
+        2073225,
+        2111596,
+        2278420,
+        2217444,
+        2006118
+      ],
+      "round_p95_ns": [
+        2111124,
+        2221873,
+        2139121,
+        2356065,
+        2268200,
+        2032527
+      ],
+      "stage": "resize"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 45260515,
+      "cross_round_p95_ns": 49566544,
+      "dither": 1,
+      "edge": 512,
+      "round_medians_ns": [
+        44425819,
+        47935289,
+        44411812,
+        46095211,
+        47713026,
+        43383703
+      ],
+      "round_p95_ns": [
+        46854304,
+        57264061,
+        49793800,
+        49339289,
+        50488940,
+        47095493
+      ],
+      "stage": "block_palette_rgb"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 1701227,
+      "cross_round_p95_ns": 1753021,
+      "dither": 1,
+      "edge": 512,
+      "round_medians_ns": [
+        1415008,
+        1854580,
+        1740818,
+        1743245,
+        1563314,
+        1661637
+      ],
+      "round_p95_ns": [
+        1462240,
+        2195630,
+        1817547,
+        1794061,
+        1641263,
+        1711982
+      ],
+      "stage": "contrast"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 33159292,
+      "cross_round_p95_ns": 35915652,
+      "dither": 1,
+      "edge": 512,
+      "round_medians_ns": [
+        34811015,
+        33843227,
+        30613596,
+        34604128,
+        31698611,
+        32475358
+      ],
+      "round_p95_ns": [
+        35224573,
+        37596421,
+        34894070,
+        37664554,
+        36606732,
+        33696515
+      ],
+      "stage": "map_palette"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 5239107,
+      "cross_round_p95_ns": 5328316,
+      "dither": 1,
+      "edge": 512,
+      "round_medians_ns": [
+        5199997,
+        5487796,
+        5278218,
+        4678431,
+        5491257,
+        4478527
+      ],
+      "round_p95_ns": [
+        5255213,
+        5874957,
+        5401419,
+        4819043,
+        5548931,
+        4658169
+      ],
+      "stage": "resize"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 702091,
+      "cross_round_p95_ns": 718724,
+      "dither": 2,
+      "edge": 64,
+      "round_medians_ns": [
+        713769,
+        844262,
+        706626,
+        697557,
+        643020,
+        696447
+      ],
+      "round_p95_ns": [
+        729228,
+        936992,
+        728494,
+        705523,
+        661543,
+        708954
+      ],
+      "stage": "block_palette_rgb"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 683514,
+      "cross_round_p95_ns": 725597,
+      "dither": 2,
+      "edge": 64,
+      "round_medians_ns": [
+        721883,
+        677317,
+        755266,
+        689711,
+        612111,
+        587919
+      ],
+      "round_p95_ns": [
+        735665,
+        757724,
+        784114,
+        715529,
+        626307,
+        620549
+      ],
+      "stage": "block_states"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 22912,
+      "cross_round_p95_ns": 23540,
+      "dither": 2,
+      "edge": 64,
+      "round_medians_ns": [
+        21697,
+        24016,
+        21808,
+        25032,
+        25370,
+        21635
+      ],
+      "round_p95_ns": [
+        22128,
+        24242,
+        22839,
+        32211,
+        25977,
+        21761
+      ],
+      "stage": "contrast"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 489914,
+      "cross_round_p95_ns": 505823,
+      "dither": 2,
+      "edge": 64,
+      "round_medians_ns": [
+        497928,
+        584397,
+        446399,
+        481901,
+        513328,
+        481439
+      ],
+      "round_p95_ns": [
+        513643,
+        653121,
+        463815,
+        498003,
+        533255,
+        492673
+      ],
+      "stage": "map_palette"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 787140,
+      "cross_round_p95_ns": 813727,
+      "dither": 2,
+      "edge": 64,
+      "round_medians_ns": [
+        793008,
+        814065,
+        781273,
+        888198,
+        641966,
+        778621
+      ],
+      "round_p95_ns": [
+        815593,
+        946742,
+        811862,
+        916157,
+        685252,
+        808137
+      ],
+      "stage": "resize"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 2778781,
+      "cross_round_p95_ns": 2899630,
+      "dither": 2,
+      "edge": 128,
+      "round_medians_ns": [
+        2875060,
+        2990833,
+        2724323,
+        2833239,
+        2592541,
+        2458388
+      ],
+      "round_p95_ns": [
+        2925737,
+        3417992,
+        3066208,
+        2873524,
+        2619531,
+        2513798
+      ],
+      "stage": "block_palette_rgb"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 101701,
+      "cross_round_p95_ns": 113574,
+      "dither": 2,
+      "edge": 128,
+      "round_medians_ns": [
+        84013,
+        118476,
+        110356,
+        84480,
+        103749,
+        99653
+      ],
+      "round_p95_ns": [
+        93715,
+        136685,
+        127607,
+        92948,
+        113988,
+        113161
+      ],
+      "stage": "contrast"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 2115348,
+      "cross_round_p95_ns": 2182343,
+      "dither": 2,
+      "edge": 128,
+      "round_medians_ns": [
+        2006625,
+        2126667,
+        2119626,
+        2129797,
+        2111070,
+        1976013
+      ],
+      "round_p95_ns": [
+        2042063,
+        2295045,
+        2172924,
+        2191762,
+        2205623,
+        1993587
+      ],
+      "stage": "map_palette"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 963914,
+      "cross_round_p95_ns": 1031919,
+      "dither": 2,
+      "edge": 128,
+      "round_medians_ns": [
+        1180646,
+        1012391,
+        915438,
+        1125391,
+        871454,
+        841659
+      ],
+      "round_p95_ns": [
+        1198147,
+        1093514,
+        970324,
+        1176333,
+        913736,
+        865547
+      ],
+      "stage": "resize"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 11791495,
+      "cross_round_p95_ns": 12375625,
+      "dither": 2,
+      "edge": 256,
+      "round_medians_ns": [
+        10946114,
+        11859302,
+        10309293,
+        12435590,
+        12141505,
+        11723689
+      ],
+      "round_p95_ns": [
+        11759438,
+        12490111,
+        12221807,
+        12581004,
+        12261139,
+        12693129
+      ],
+      "stage": "block_palette_rgb"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 375730,
+      "cross_round_p95_ns": 403132,
+      "dither": 2,
+      "edge": 256,
+      "round_medians_ns": [
+        358086,
+        344385,
+        378358,
+        384682,
+        373103,
+        408647
+      ],
+      "round_p95_ns": [
+        371596,
+        354546,
+        409005,
+        418145,
+        397259,
+        445177
+      ],
+      "stage": "contrast"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 8134142,
+      "cross_round_p95_ns": 8616141,
+      "dither": 2,
+      "edge": 256,
+      "round_medians_ns": [
+        7303048,
+        8527809,
+        8239679,
+        8451509,
+        8028605,
+        7815602
+      ],
+      "round_p95_ns": [
+        7354541,
+        8706203,
+        8574557,
+        8657726,
+        8131743,
+        8768245
+      ],
+      "stage": "map_palette"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 2196808,
+      "cross_round_p95_ns": 2291104,
+      "dither": 2,
+      "edge": 256,
+      "round_medians_ns": [
+        2195736,
+        2197881,
+        2276871,
+        2255169,
+        1825040,
+        1724043
+      ],
+      "round_p95_ns": [
+        2244725,
+        2337484,
+        2369015,
+        2341759,
+        2171650,
+        1791699
+      ],
+      "stage": "resize"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 45132451,
+      "cross_round_p95_ns": 49080478,
+      "dither": 2,
+      "edge": 512,
+      "round_medians_ns": [
+        43759364,
+        47271374,
+        45563922,
+        44700981,
+        43649212,
+        47996642
+      ],
+      "round_p95_ns": [
+        47954151,
+        53669240,
+        48121389,
+        52156774,
+        45778238,
+        50039567
+      ],
+      "stage": "block_palette_rgb"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 1429689,
+      "cross_round_p95_ns": 1481647,
+      "dither": 2,
+      "edge": 512,
+      "round_medians_ns": [
+        1318732,
+        1431659,
+        1341323,
+        1500440,
+        1427720,
+        1603234
+      ],
+      "round_p95_ns": [
+        1338255,
+        1496744,
+        1394384,
+        1559478,
+        1466550,
+        1647805
+      ],
+      "stage": "contrast"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 32212104,
+      "cross_round_p95_ns": 34281842,
+      "dither": 2,
+      "edge": 512,
+      "round_medians_ns": [
+        31473648,
+        35637899,
+        33735063,
+        32950560,
+        29914824,
+        31047453
+      ],
+      "round_p95_ns": [
+        33144271,
+        36963835,
+        35419414,
+        36848583,
+        31799582,
+        32024541
+      ],
+      "stage": "map_palette"
+    },
+    {
+      "backend": "scalar",
+      "cross_round_median_ns": 5128240,
+      "cross_round_p95_ns": 5291965,
+      "dither": 2,
+      "edge": 512,
+      "round_medians_ns": [
+        5066272,
+        5468512,
+        4987429,
+        5223329,
+        5190208,
+        4457860
+      ],
+      "round_p95_ns": [
+        5116480,
+        5706591,
+        5620373,
+        5312608,
+        5271322,
+        5169653
+      ],
+      "stage": "resize"
+    }
+  ],
+  "asset_sha256": "0e76229bb77ebcf471aec692fa34709cfbbe3dc192127a852a518e34bdd0ecc7",
+  "binary_sha256": "0e3619cfbb16fc8912c7563760785203ecc4a1a2148397b851af2b499175868a",
+  "comparisons": [
+    {
+      "dither": 0,
+      "edge": 64,
+      "median_speedup": 1.471466713244835,
+      "p95_speedup": 1.4629120227649988,
+      "stage": "block_palette_rgb"
+    },
+    {
+      "dither": 0,
+      "edge": 64,
+      "median_speedup": 1.5564893232298596,
+      "p95_speedup": 1.5214745394263551,
+      "stage": "block_states"
+    },
+    {
+      "dither": 0,
+      "edge": 64,
+      "median_speedup": 6.505936319481921,
+      "p95_speedup": 7.598722724853646,
+      "stage": "contrast"
+    },
+    {
+      "dither": 0,
+      "edge": 64,
+      "median_speedup": 2.408826117732586,
+      "p95_speedup": 2.466705421779768,
+      "stage": "map_palette"
+    },
+    {
+      "dither": 0,
+      "edge": 64,
+      "median_speedup": 1.2718705149912566,
+      "p95_speedup": 1.3205821166621625,
+      "stage": "resize"
+    },
+    {
+      "dither": 0,
+      "edge": 128,
+      "median_speedup": 1.5074367736657568,
+      "p95_speedup": 1.5685468632136847,
+      "stage": "block_palette_rgb"
+    },
+    {
+      "dither": 0,
+      "edge": 128,
+      "median_speedup": 6.116921737869007,
+      "p95_speedup": 6.893932935493038,
+      "stage": "contrast"
+    },
+    {
+      "dither": 0,
+      "edge": 128,
+      "median_speedup": 2.387009260405981,
+      "p95_speedup": 2.365010083916347,
+      "stage": "map_palette"
+    },
+    {
+      "dither": 0,
+      "edge": 128,
+      "median_speedup": 1.0267331840917835,
+      "p95_speedup": 1.0525360721238968,
+      "stage": "resize"
+    },
+    {
+      "dither": 0,
+      "edge": 256,
+      "median_speedup": 1.5967467592750444,
+      "p95_speedup": 1.5964190423309406,
+      "stage": "block_palette_rgb"
+    },
+    {
+      "dither": 0,
+      "edge": 256,
+      "median_speedup": 5.957750466293632,
+      "p95_speedup": 5.846495231500425,
+      "stage": "contrast"
+    },
+    {
+      "dither": 0,
+      "edge": 256,
+      "median_speedup": 2.1798242266506898,
+      "p95_speedup": 2.193061611262799,
+      "stage": "map_palette"
+    },
+    {
+      "dither": 0,
+      "edge": 256,
+      "median_speedup": 0.9385370483763847,
+      "p95_speedup": 0.9704902077561284,
+      "stage": "resize"
+    },
+    {
+      "dither": 0,
+      "edge": 512,
+      "median_speedup": 1.4910590175696063,
+      "p95_speedup": 1.5354724402345052,
+      "stage": "block_palette_rgb"
+    },
+    {
+      "dither": 0,
+      "edge": 512,
+      "median_speedup": 7.094092265276833,
+      "p95_speedup": 6.953770484571781,
+      "stage": "contrast"
+    },
+    {
+      "dither": 0,
+      "edge": 512,
+      "median_speedup": 2.518432748350799,
+      "p95_speedup": 2.44623454613243,
+      "stage": "map_palette"
+    },
+    {
+      "dither": 0,
+      "edge": 512,
+      "median_speedup": 1.2374813452395443,
+      "p95_speedup": 1.2856882823660143,
+      "stage": "resize"
+    },
+    {
+      "dither": 1,
+      "edge": 64,
+      "median_speedup": 1.5398099335960471,
+      "p95_speedup": 1.548175586664881,
+      "stage": "block_palette_rgb"
+    },
+    {
+      "dither": 1,
+      "edge": 64,
+      "median_speedup": 1.46831177279502,
+      "p95_speedup": 1.4284560094693726,
+      "stage": "block_states"
+    },
+    {
+      "dither": 1,
+      "edge": 64,
+      "median_speedup": 6.13314226159458,
+      "p95_speedup": 6.076007770762506,
+      "stage": "contrast"
+    },
+    {
+      "dither": 1,
+      "edge": 64,
+      "median_speedup": 1.4787322118822208,
+      "p95_speedup": 1.426829789319454,
+      "stage": "map_palette"
+    },
+    {
+      "dither": 1,
+      "edge": 64,
+      "median_speedup": 1.3038206883792687,
+      "p95_speedup": 1.3044543406412554,
+      "stage": "resize"
+    },
+    {
+      "dither": 1,
+      "edge": 128,
+      "median_speedup": 1.5037752548593948,
+      "p95_speedup": 1.5130849281914174,
+      "stage": "block_palette_rgb"
+    },
+    {
+      "dither": 1,
+      "edge": 128,
+      "median_speedup": 5.334992013760904,
+      "p95_speedup": 5.6919182787922615,
+      "stage": "contrast"
+    },
+    {
+      "dither": 1,
+      "edge": 128,
+      "median_speedup": 1.4484998122120365,
+      "p95_speedup": 1.3661914215465307,
+      "stage": "map_palette"
+    },
+    {
+      "dither": 1,
+      "edge": 128,
+      "median_speedup": 0.9422645210803445,
+      "p95_speedup": 0.9495091929874538,
+      "stage": "resize"
+    },
+    {
+      "dither": 1,
+      "edge": 256,
+      "median_speedup": 1.492337951162585,
+      "p95_speedup": 1.440267849956755,
+      "stage": "block_palette_rgb"
+    },
+    {
+      "dither": 1,
+      "edge": 256,
+      "median_speedup": 7.0730971231480755,
+      "p95_speedup": 6.582740106695027,
+      "stage": "contrast"
+    },
+    {
+      "dither": 1,
+      "edge": 256,
+      "median_speedup": 1.4455136613602606,
+      "p95_speedup": 1.3771002141243254,
+      "stage": "map_palette"
+    },
+    {
+      "dither": 1,
+      "edge": 256,
+      "median_speedup": 0.9018390222708507,
+      "p95_speedup": 0.8872306159883205,
+      "stage": "resize"
+    },
+    {
+      "dither": 1,
+      "edge": 512,
+      "median_speedup": 1.4714204058395284,
+      "p95_speedup": 1.4662416547150914,
+      "stage": "block_palette_rgb"
+    },
+    {
+      "dither": 1,
+      "edge": 512,
+      "median_speedup": 7.9702175705558265,
+      "p95_speedup": 7.743914937227774,
+      "stage": "contrast"
+    },
+    {
+      "dither": 1,
+      "edge": 512,
+      "median_speedup": 1.395371341658834,
+      "p95_speedup": 1.402474260974108,
+      "stage": "map_palette"
+    },
+    {
+      "dither": 1,
+      "edge": 512,
+      "median_speedup": 1.1955320100067568,
+      "p95_speedup": 1.1729090800628068,
+      "stage": "resize"
+    },
+    {
+      "dither": 2,
+      "edge": 64,
+      "median_speedup": 1.4828345079718426,
+      "p95_speedup": 1.4586716728398195,
+      "stage": "block_palette_rgb"
+    },
+    {
+      "dither": 2,
+      "edge": 64,
+      "median_speedup": 1.4440233236151603,
+      "p95_speedup": 1.4835684302856944,
+      "stage": "block_states"
+    },
+    {
+      "dither": 2,
+      "edge": 64,
+      "median_speedup": 5.99476713762428,
+      "p95_speedup": 5.989821882951654,
+      "stage": "contrast"
+    },
+    {
+      "dither": 2,
+      "edge": 64,
+      "median_speedup": 1.5673085228563293,
+      "p95_speedup": 1.5644365129930782,
+      "stage": "map_palette"
+    },
+    {
+      "dither": 2,
+      "edge": 64,
+      "median_speedup": 1.273021910842859,
+      "p95_speedup": 1.2412946745237183,
+      "stage": "resize"
+    },
+    {
+      "dither": 2,
+      "edge": 128,
+      "median_speedup": 1.4708404988865935,
+      "p95_speedup": 1.5008211574463943,
+      "stage": "block_palette_rgb"
+    },
+    {
+      "dither": 2,
+      "edge": 128,
+      "median_speedup": 7.36376801100572,
+      "p95_speedup": 7.29207062600321,
+      "stage": "contrast"
+    },
+    {
+      "dither": 2,
+      "edge": 128,
+      "median_speedup": 1.7292709644719848,
+      "p95_speedup": 1.601033391925956,
+      "stage": "map_palette"
+    },
+    {
+      "dither": 2,
+      "edge": 128,
+      "median_speedup": 0.8362496236974727,
+      "p95_speedup": 0.8491608940588633,
+      "stage": "resize"
+    },
+    {
+      "dither": 2,
+      "edge": 256,
+      "median_speedup": 1.7184877825763352,
+      "p95_speedup": 1.5297639325716585,
+      "stage": "block_palette_rgb"
+    },
+    {
+      "dither": 2,
+      "edge": 256,
+      "median_speedup": 6.8951405710930045,
+      "p95_speedup": 6.267891848189437,
+      "stage": "contrast"
+    },
+    {
+      "dither": 2,
+      "edge": 256,
+      "median_speedup": 1.6052224271747138,
+      "p95_speedup": 1.531096149878639,
+      "stage": "map_palette"
+    },
+    {
+      "dither": 2,
+      "edge": 256,
+      "median_speedup": 1.0062238345196544,
+      "p95_speedup": 1.0182516998609357,
+      "stage": "resize"
+    },
+    {
+      "dither": 2,
+      "edge": 512,
+      "median_speedup": 1.510290668148699,
+      "p95_speedup": 1.540506869532831,
+      "stage": "block_palette_rgb"
+    },
+    {
+      "dither": 2,
+      "edge": 512,
+      "median_speedup": 6.291149990759239,
+      "p95_speedup": 5.965603043907152,
+      "stage": "contrast"
+    },
+    {
+      "dither": 2,
+      "edge": 512,
+      "median_speedup": 1.674766422778164,
+      "p95_speedup": 1.5484086574699387,
+      "stage": "map_palette"
+    },
+    {
+      "dither": 2,
+      "edge": 512,
+      "median_speedup": 1.161197879871459,
+      "p95_speedup": 1.162943990647161,
+      "stage": "resize"
+    }
+  ],
+  "correctness": "all measured output hashes identical across rounds/backends",
+  "cpu": 23,
+  "full_simd_acceptance": false,
+  "generated_utc": "2026-10-22T14:15:56.405884+00:00",
+  "git_head": "f3b10966eea7bd31ab9089b1000c6fce4ebd9923",
+  "host_capabilities": {
+    "avx2": true,
+    "avx512f": false,
+    "fma": true
+  },
+  "host_sharing": "Other acceptance processes may be active; local comparative evidence only",
+  "records": [
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "scalar",
+        "--dither",
+        "0",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-0-0-scalar.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-0-0-scalar.json",
+      "round_index": 0,
+      "sha256": "147601b54f6dfdecca1882d60827f5a5cc2c81a8e4cf94698a942ac99780fb75"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "avx2+fma",
+        "--dither",
+        "0",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-0-0-avx2+fma.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-0-0-avx2+fma.json",
+      "round_index": 0,
+      "sha256": "78e8fb4d47f900d97cc4ef0ae126929333219a302e8e9a606a253007f4740db7"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "scalar",
+        "--dither",
+        "1",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-0-1-scalar.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-0-1-scalar.json",
+      "round_index": 0,
+      "sha256": "f6666779aae82f6cb48051672d9d0eb40c178d92fccb204fbee3aa34ff386b54"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "avx2+fma",
+        "--dither",
+        "1",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-0-1-avx2+fma.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-0-1-avx2+fma.json",
+      "round_index": 0,
+      "sha256": "0b07099ed7f000396ed30e7da5702495265953a49ced94fc8f9314e3966dc411"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "scalar",
+        "--dither",
+        "2",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-0-2-scalar.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-0-2-scalar.json",
+      "round_index": 0,
+      "sha256": "a31d3460973792197bee07ab839ac2a8a320dde8d3d3ba22fc7ac32fbac66f4a"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "avx2+fma",
+        "--dither",
+        "2",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-0-2-avx2+fma.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-0-2-avx2+fma.json",
+      "round_index": 0,
+      "sha256": "46fcd2a3649e84a3d0044c315d2a0c87a036e5b80c5a3ca2833275aa4d055b56"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "avx2+fma",
+        "--dither",
+        "0",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-1-0-avx2+fma.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-1-0-avx2+fma.json",
+      "round_index": 1,
+      "sha256": "5c704c4949ac83d45e42b7cea01d0223a688889abca8f2561c4797909cfb3547"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "scalar",
+        "--dither",
+        "0",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-1-0-scalar.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-1-0-scalar.json",
+      "round_index": 1,
+      "sha256": "789521cfb77f1863567fa5bfe0117c9ee2a80a443274beb59c675ce3aa014b6a"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "avx2+fma",
+        "--dither",
+        "1",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-1-1-avx2+fma.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-1-1-avx2+fma.json",
+      "round_index": 1,
+      "sha256": "2c9a3a5dd5ba2ccd3e9396758f3a6b418ffa8e3e9dba760fb1abe810c3659cba"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "scalar",
+        "--dither",
+        "1",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-1-1-scalar.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-1-1-scalar.json",
+      "round_index": 1,
+      "sha256": "1e192e82a9b6c9a568f4f751645af463b590e3f9aedb73268a94fff581e081d4"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "avx2+fma",
+        "--dither",
+        "2",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-1-2-avx2+fma.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-1-2-avx2+fma.json",
+      "round_index": 1,
+      "sha256": "0c716a9614161eb11c33cd11dcd32b21c27deaaff04b6c04cb0db0f926c0a352"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "scalar",
+        "--dither",
+        "2",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-1-2-scalar.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-1-2-scalar.json",
+      "round_index": 1,
+      "sha256": "5f4b658bfe152ef43087c5aae1c0634544401e183b8d63b8caebe85238ae630b"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "scalar",
+        "--dither",
+        "0",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-2-0-scalar.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-2-0-scalar.json",
+      "round_index": 2,
+      "sha256": "70e6241b021933b55d1146dc67135a45d899ad2e47db1835060d83001d0ee085"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "avx2+fma",
+        "--dither",
+        "0",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-2-0-avx2+fma.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-2-0-avx2+fma.json",
+      "round_index": 2,
+      "sha256": "ccfe7d5d14f833260663cc685e236fce993543afda4e9ab35a8c313a764cd79a"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "scalar",
+        "--dither",
+        "1",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-2-1-scalar.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-2-1-scalar.json",
+      "round_index": 2,
+      "sha256": "ec5d75ec9e2214fddb07dce204a500a3b3b8a77526f3af0de2eeb5d36ec36b34"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "avx2+fma",
+        "--dither",
+        "1",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-2-1-avx2+fma.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-2-1-avx2+fma.json",
+      "round_index": 2,
+      "sha256": "71715e50364e36d023c1f2e737a332840027e132ec2cd9cd9e68ca21cc23cb11"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "scalar",
+        "--dither",
+        "2",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-2-2-scalar.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-2-2-scalar.json",
+      "round_index": 2,
+      "sha256": "9f1ba8e290266b3f431ca97c050fab919f7fcabcdbca5aa86adcfcdfaa6bf55d"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "avx2+fma",
+        "--dither",
+        "2",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-2-2-avx2+fma.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-2-2-avx2+fma.json",
+      "round_index": 2,
+      "sha256": "ada7000290ed23f7fb55b894cfda20413e39a11f0f2f552e144769b0176142a9"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "avx2+fma",
+        "--dither",
+        "0",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-3-0-avx2+fma.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-3-0-avx2+fma.json",
+      "round_index": 3,
+      "sha256": "d82b9c40fb247136b6a3fbee2bd26e11b1008ed3ba1827755794f3158b9c85b6"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "scalar",
+        "--dither",
+        "0",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-3-0-scalar.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-3-0-scalar.json",
+      "round_index": 3,
+      "sha256": "8db034ab23c9412693f8a2dd20d3cbd1150fdbb9500361071877fe2b2f411e09"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "avx2+fma",
+        "--dither",
+        "1",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-3-1-avx2+fma.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-3-1-avx2+fma.json",
+      "round_index": 3,
+      "sha256": "05bbb7334251baecf0434efc3657db40726fd1e9b52d20645b4d910f98728c64"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "scalar",
+        "--dither",
+        "1",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-3-1-scalar.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-3-1-scalar.json",
+      "round_index": 3,
+      "sha256": "d91b88e619e0fb8bd29ae0f7e7162613705aeb939a2948dfb6d398b0eda322da"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "avx2+fma",
+        "--dither",
+        "2",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-3-2-avx2+fma.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-3-2-avx2+fma.json",
+      "round_index": 3,
+      "sha256": "daf0630209f9f020aa98791132631b799b2ec4d7e1d6bf978b6e6501660301a0"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "scalar",
+        "--dither",
+        "2",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-3-2-scalar.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-3-2-scalar.json",
+      "round_index": 3,
+      "sha256": "fb326418dcd4a9cab66927ecc638e0b3134e9888da17d51f6abc413481f84dc7"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "scalar",
+        "--dither",
+        "0",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-4-0-scalar.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-4-0-scalar.json",
+      "round_index": 4,
+      "sha256": "1068382a26fba21d5c48284829e476797add00342cec95067041bc9bfdaaf8ca"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "avx2+fma",
+        "--dither",
+        "0",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-4-0-avx2+fma.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-4-0-avx2+fma.json",
+      "round_index": 4,
+      "sha256": "fc50c1795c5ee35458617f1e37fc34ab89aa662daed9c1060ab950e112bc591e"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "scalar",
+        "--dither",
+        "1",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-4-1-scalar.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-4-1-scalar.json",
+      "round_index": 4,
+      "sha256": "500fa9aa919d404f92cffd723f52d2e5faa86cdf3b6e2e77762cedb90e4b017e"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "avx2+fma",
+        "--dither",
+        "1",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-4-1-avx2+fma.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-4-1-avx2+fma.json",
+      "round_index": 4,
+      "sha256": "6dddd5f78aa28171af5fc5b4e625aaee163a757a4fc4f6458bd551c8f664048f"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "scalar",
+        "--dither",
+        "2",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-4-2-scalar.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-4-2-scalar.json",
+      "round_index": 4,
+      "sha256": "fcfa8559f56f78a613cb7743ffa59ad9eb372ef064ee433bff5d3b286110e6fa"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "avx2+fma",
+        "--dither",
+        "2",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-4-2-avx2+fma.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-4-2-avx2+fma.json",
+      "round_index": 4,
+      "sha256": "a59156695a96cf577448ce105ae732b555f1c8e6781e9dd65023b19e14d94370"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "avx2+fma",
+        "--dither",
+        "0",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-5-0-avx2+fma.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-5-0-avx2+fma.json",
+      "round_index": 5,
+      "sha256": "21a64dc4babffd1fec5bbe2748fc41219a3302673d18729547a76e639dd3fa83"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "scalar",
+        "--dither",
+        "0",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-5-0-scalar.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-5-0-scalar.json",
+      "round_index": 5,
+      "sha256": "403845934a76c071f1980d6a55e1bfdb976f6fecc5cd652bb7037f6c8f6b1af4"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "avx2+fma",
+        "--dither",
+        "1",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-5-1-avx2+fma.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-5-1-avx2+fma.json",
+      "round_index": 5,
+      "sha256": "76e338cae53fc1856f0853d29169a4a8108e33b75fe2b18ab9d308f649d8e61c"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "scalar",
+        "--dither",
+        "1",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-5-1-scalar.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-5-1-scalar.json",
+      "round_index": 5,
+      "sha256": "579f7accb7bb3131cf58fe14e45c64901a396e6bf266ffe530a1d453bbca3199"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "avx2+fma",
+        "--dither",
+        "2",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-5-2-avx2+fma.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-5-2-avx2+fma.json",
+      "round_index": 5,
+      "sha256": "6d99e4593815bbfe2d451b5fa7cf25f2c7fa1d27af0cee1359abb05b904e2dc1"
+    },
+    {
+      "command": [
+        "taskset",
+        "-c",
+        "23",
+        "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/renderer-simd-bench",
+        "--input",
+        "/home/lmyzzz/lmyzmail-rust/crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4",
+        "--backend",
+        "scalar",
+        "--dither",
+        "2",
+        "--warmup",
+        "5",
+        "--iterations",
+        "30",
+        "--output",
+        "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-5-2-scalar.json"
+      ],
+      "path": "/home/lmyzzz/lmyzmail-rust/evidence/performance/renderer-local-20261022-v2/round-5-2-scalar.json",
+      "round_index": 5,
+      "sha256": "0779c9fbb01c0741e983e608e84aeb809b795a97f738bda0eca0531e476e6de8"
+    }
+  ],
+  "rounds": 6,
+  "schema": "lmyzmail.renderer-local-performance.v1",
+  "source_files": {
+    ".cargo/config.toml": "4e1030df5472a78952e2f50ee305258f2b49349bec478cd21ee75dd9545a7589",
+    "Cargo.lock": "cc9836ff20f39b93de17735066559aac2b376ff166c9fd74c96f01d71e774b94",
+    "Cargo.toml": "b80404786dfc78da89f9e75bd4bcf8c778b35c659c0ec5496df902e385b5cef1",
+    "blackbox/golden/java/managed-minecraft-mail-view-v13/observations/minecraft/mail-view.json": "a12df29880fe120c0ac4b5dff7cc936dc149e3650c37216fe5980afa84b47d9c",
+    "blackbox/golden/java/managed-minecraft-mail-view-v13/suite.json": "369f4a8c209df89810ebddd5bfbafa620b3ed7bc9d0e9a45c47d711b7565e72b",
+    "blackbox/golden/java/managed-minecraft-video-v12/observations/minecraft/video.json": "969137861bf5be3c55dffef3ba98164c8752e323cb618a431fb526c313171d0b",
+    "blackbox/golden/java/managed-minecraft-video-v12/suite.json": "505d61cacd9aaeb0af0afc8ddf6ce19571fe8a1bdbd38086e216b87e10cfc23b",
+    "blackbox/tools/test_minecraft_mail_view.py": "0ed44c688beb2ebe3cd148c67db34ed2918d4e6e967140f48f460ee480231f24",
+    "blackbox/tools/test_minecraft_video.py": "b1d0c86d743924b9c2b5b6711b48e5f33c321cd4c8c2afffa08305527278af8f",
+    "crates/lmyzmail-benchmark-proxy/Cargo.toml": "d0e7e16362d773a5b17ea1672278e0c37e2918bc8a2c19c5cdfe544c3edc7dd9",
+    "crates/lmyzmail-benchmark-proxy/README.md": "664a57f5ac4de6a6ae63195e21e3d72ef5cb5cd99fc1afa430f2962171f95db6",
+    "crates/lmyzmail-benchmark-proxy/src/attestation.rs": "ec0bb2b1bba15baba8a6177db60a6fbff7459ae5190afca367a9ab1259ce455e",
+    "crates/lmyzmail-benchmark-proxy/src/calibration.rs": "f7a917b2a5ec7e731c54ad911a52b4c601615e035b61fe83868f1738f4f2edcb",
+    "crates/lmyzmail-benchmark-proxy/src/control.rs": "3160ad09b3f160f6bfad5a4ddb141e87185f41783e1435fa4a5477848d571e6d",
+    "crates/lmyzmail-benchmark-proxy/src/lib.rs": "25ca00a75ddd193ccc6c6a1e70b3ccb077ddadc5b0d4d43d85b4a22fe9bcee07",
+    "crates/lmyzmail-benchmark-proxy/src/main.rs": "4dc465f317abedc7da25bf3863b7a53c17e251f0152bee4f4914b5efdd09b397",
+    "crates/lmyzmail-benchmark-proxy/src/observer.rs": "77f6abdc1bf46b5061d9f8fe332efbe9efb8f03415b916f27bacbe23d06dfc63",
+    "crates/lmyzmail-benchmark-proxy/src/proxy.rs": "c9b1bd881a998b930af2a2edd752ee62b375c4074b321edf68e68a705175651b",
+    "crates/lmyzmail-benchmark-proxy/tests/control_integration.rs": "457b31e7c563627600dbb83ea149367cc4f103df1a30a8498b12d693bac91b01",
+    "crates/lmyzmail-benchmark-proxy/tests/proxy_integration.rs": "0212b6c46da7d5d8c801fc4ec009685dfd85c813c4ed3b2b04313a1a9b61ad11",
+    "crates/lmyzmail/Cargo.toml": "d7e9fb9ffc919ab023e9ef16a4e599c790cc49e489d5131bcc1dfe8e0e98bda5",
+    "crates/lmyzmail/assets/SOURCE.json": "e8d463bcdd4d16d1dddedebcc5c6d5a11cdf281963e447f2e99e20ccbc4c5237",
+    "crates/lmyzmail/assets/brainrot_quiz.SOURCE.json": "3d183510ed45b49cc2686a7da20ed113db46aec03f2b5fe3d6fba3580a8974e5",
+    "crates/lmyzmail/assets/brainrot_quiz.json": "7bcbeacd0d36a58931efa49234143946cb981b4c978c74432313fcad843ba8d1",
+    "crates/lmyzmail/assets/skibidi_toilet_episode_1.mp4": "0e76229bb77ebcf471aec692fa34709cfbbe3dc192127a852a518e34bdd0ecc7",
+    "crates/lmyzmail/assets/web-static/BOOT-INF/classes/static/cringe.html": "07af2d09deb255d1c3087b63800813f91291a917216ddcf4543ba46ae39411c7",
+    "crates/lmyzmail/assets/web-static/BOOT-INF/classes/static/favicon.ico": "0fd834a5512a8768180da63c804fd0f6fbbeec75ad7c08944e6e32c258fd93a5",
+    "crates/lmyzmail/assets/web-static/BOOT-INF/classes/static/images/embed-badge-emailtest-internet.nl.svg": "b27d228d5d3b108824517783ab12fb31c98121539dec866d8b647aa8314dead2",
+    "crates/lmyzmail/assets/web-static/BOOT-INF/classes/static/index.html": "2de2ead2a3e3166e2868e808a33cf6b7d737057226608634932f6e35e4a9cc59",
+    "crates/lmyzmail/assets/web-static/SOURCE.json": "2901b549d8a05854a5fdd427ef0e6f39a9060c1906d04b48652d6439d45e3c1b",
+    "crates/lmyzmail/build.rs": "7bd8836bf15674e2ae3f838fd691353bfd625755f0e63cfe5c9b2e3c3946a710",
+    "crates/lmyzmail/migrations/001_outbound_delivery_ledger.sql": "c100c745393f4e7b747a326ec87ab2099389868a3b921ca6d7429b7a435ad879",
+    "crates/lmyzmail/migrations/002_outbound_spool_ownership.sql": "e4008946d0eea388bc64c2cf17eeded0491fd6f4568221d77e7cca535a0edf48",
+    "crates/lmyzmail/migrations/003_outbound_dsn.sql": "54c6f1d1baf0b2aa25914d462eab4c98cb2e9d6ec7c2273c0260f9e19dc93859",
+    "crates/lmyzmail/migrations/004_outbound_spool_cleanup.sql": "6e741764958ce4d3fa4bef25daea57ef9bbb9acbba18ad4be333651309479a84",
+    "crates/lmyzmail/migrations/005_outbound_content_authority.sql": "9d8d59368ee480ab1a3e4ee9a8e2c7fddd916502b9f9791e85047e7f47387990",
+    "crates/lmyzmail/migrations/006_inbound_delivery_intent.sql": "a598619b309ca370871cf680c717af0b806378feddbacec9bf8d0934022e2cce",
+    "crates/lmyzmail/native/ffmpeg_video.c": "5c89b17b2553512063bcc53e21a5f0bead9761d42ec140d91ca1375cdcfabd07",
+    "crates/lmyzmail/native/ffmpeg_video.h": "b076141b97c6c4e8c84cc73a58f23bac104dfa01ab5fda0daeb4279ab9d41d68",
+    "crates/lmyzmail/native/mail_html.cpp": "b0f7afc571f9b872647d083602e5923cbbf08025bfa02da18df478c63f67adf5",
+    "crates/lmyzmail/native/mail_html.h": "cb25353382cd17c37de371c08a25750a16da822fd60312602899c0ede7e8334e",
+    "crates/lmyzmail/native/xdp_attach_guard.c": "dc69bb808f77e2554707038317b346a8f89d2440f0da8b310e65c317f340bea9",
+    "crates/lmyzmail/resources/java-oracle/application-keywords.SOURCE.json": "b8f5e0447a101290048da92cfa88ddd7cfb45ca89e57b00cda980db4291cbbe7",
+    "crates/lmyzmail/resources/java-oracle/application-keywords.properties": "cee5be2e215eaab7f1808850506164aa2aad4c7ba0dccbf0a9b0900657de8363",
+    "crates/lmyzmail/resources/worlds/mailroom/SOURCE.json": "1dd1203c89070f4a1c03e60f702c8d4761c30c3a24b9da7054d94d01f70db9fd",
+    "crates/lmyzmail/resources/worlds/mailroom/region/r.-1.-1.mca": "f8e90e413de0b7b41b174e81262c2a3c80cd31f9d820565669e859a4d223f85e",
+    "crates/lmyzmail/resources/worlds/mailroom/region/r.-1.0.mca": "aaeff6b62849df5da679d7121e3b0d59e9623dfb92e1ce995cc9c5148df14630",
+    "crates/lmyzmail/resources/worlds/mailroom/region/r.0.-1.mca": "c3e8dbccfaa3777bab4a65246745ac8e317be8f4a86d9bcd4e655f056846e810",
+    "crates/lmyzmail/resources/worlds/mailroom/region/r.0.0.mca": "0c04d2071ed4de675b94de087a46f331d354f98d383767a3ea644b1ac3ddf04e",
+    "crates/lmyzmail/src/auth.rs": "ca2e918d8ce3cabe7b8de1b83762b96c08e9d84edec8c3b5d2da02b30682eef1",
+    "crates/lmyzmail/src/bin/renderer-simd-bench.rs": "54dfc570a3bd4e7207f52f160e322cb08ed7449aa72ba283012f30c837a9e65f",
+    "crates/lmyzmail/src/bounded_blocking.rs": "dd968219f46ecd4ba2bff1775a17f1a74a9ed28c184689f5497310329d8f5372",
+    "crates/lmyzmail/src/config.rs": "92b0e6a310e4e69f7a3a5072e25aa4e4bbd97e6fc5ab9f95a43889f3564b48de",
+    "crates/lmyzmail/src/coordinator_observer.rs": "7a43b75fada1e9b727ead02af24a36b70aa2b67f3a2fe93b6dc014a6292997db",
+    "crates/lmyzmail/src/cringe.rs": "b2d5e6965a0f96c958f219ad506a4d56e239b856f8a7301ad2bce3bc8698c991",
+    "crates/lmyzmail/src/cringe_decay.rs": "deeba913a82f884a909ef5d0bf6fc269b01929901ffd96463bf90bd487dcf3f9",
+    "crates/lmyzmail/src/database.rs": "a358075f659057e4eff4494fba3c773553170669a1ce514ca23b878930bd211e",
+    "crates/lmyzmail/src/dispatch_observer.rs": "7ff0f92e911b2bc664580b0a32bcadf52d834bb106aa9e7c557b5ab95f894f1c",
+    "crates/lmyzmail/src/durability.rs": "1adf6a0fd52b1df33b8dabeb6a1cb8ef3160ba1b5752f656c64ea1d5d0e1a893",
+    "crates/lmyzmail/src/fail2ban.rs": "8f167a8239144380eaad4c7ba0f324f48c515b1336f854736ec7b0b7953fbc1f",
+    "crates/lmyzmail/src/ffmpeg_video.rs": "0dad829aa2f09af1e28518047e22fe662810951b2c988ba8772905b31f6bd55c",
+    "crates/lmyzmail/src/honeypot.rs": "b6a0fc7a6129e8d699727b1c0d283c597c6fa219dd1a7062fb6c369ca6f10cd7",
+    "crates/lmyzmail/src/honeypot_assets.json": "e81373c557c39cdb84d9cda7764363a06317f26c6f81351fb351b6fbff29b115",
+    "crates/lmyzmail/src/htcpcp.rs": "a1525e4a6beb85ca9edfa5777c7ae08ac79e8a49288cab9153f2d7d41ec19462",
+    "crates/lmyzmail/src/http.rs": "a3f74e846f0e31eb0347d351fd6177d82fddfb9c50d6e4cbb881c0887b0556f6",
+    "crates/lmyzmail/src/lib.rs": "b3718676bb3332b368ccf60b2b67e1728be6baa6bed83acaa3e2a6c837028bbe",
+    "crates/lmyzmail/src/lifecycle.rs": "2f9e8d45df41d5504c58f653aec5e8e7190df5a2c5baa0ce2b9b2ae453736258",
+    "crates/lmyzmail/src/mail_render.rs": "153a4a010cbc4b2350a7611c74198753c269492ddde76bd2c4ac8afe478d2ea9",
+    "crates/lmyzmail/src/mailbox.rs": "11b9916d86aa6d84d6846c813698eff860c40d58baa69a86ea5f4f7b78857d49",
+    "crates/lmyzmail/src/main.rs": "ce6d1b9f55bb5e9bd71926e4df0be22f19661951edfb5dcada91ac92b1007075",
+    "crates/lmyzmail/src/minecraft.rs": "d5985901ab149ee0217f29a0c26d271a84f4d6e43b64d0412e288573f80afb93",
+    "crates/lmyzmail/src/minecraft_block_palette.rs": "2973b5a2ea7be9dc4d98f3f9f8c65ca7345090eb875fa684645236a04908c837",
+    "crates/lmyzmail/src/minecraft_world.rs": "56e26849da51cb0a97772bc20f3496d902fe02deacb5d8a1167c348c1640dedc",
+    "crates/lmyzmail/src/outbound.rs": "d522734f07fe5436828a8c1045710e5bf2bf8194cbdc56b3c161a3559df4f407",
+    "crates/lmyzmail/src/outbound_batch.rs": "74989e0e3e64a2993086362d2668390a4ab7eae851d07a24eb9b8418391838cf",
+    "crates/lmyzmail/src/outbound_coordinator.rs": "d357f1e86f519fb6072bf7040253bee017993aeda31dc48905474603cad271ac",
+    "crates/lmyzmail/src/outbound_delivery.rs": "c676a71fee4faa33ac3d99cc86f6f5d7aa8477d71a3590e3654fa06101dfdae6",
+    "crates/lmyzmail/src/outbound_dsn.rs": "b620bbe84f2c5f8240226da9481d7fc6a94502d50e56eb523ce3bd89ba05a651",
+    "crates/lmyzmail/src/outbound_legacy.rs": "35dff4b3d197c1a44a2715a34e51dca8bd6f02f4123b73030ec7c2c6a0f13598",
+    "crates/lmyzmail/src/outbound_message.rs": "f22a2f7c2c75a03f35284cc231457c0e35fcd58bd1d8da2d2eadd36106fb89b9",
+    "crates/lmyzmail/src/outbound_queue.rs": "abdb286a75b58f47167587748bc327e8f57fc43217ae0742be5dd58a8ebf1c27",
+    "crates/lmyzmail/src/outbound_route.rs": "14747007a95a8670e614156f0bc25d7c126da6053849ea8f6e661bbd8ee73597",
+    "crates/lmyzmail/src/outbound_route_tests.rs": "7b2ec0ea75a6e2f0cbd7389349ef9db51b96816e5634645f2646cf1fc4718a86",
+    "crates/lmyzmail/src/outbound_smtp.rs": "589e52c75f2dea973742e2766e6cc76b260e351207bbb892efc0ca93b286252a",
+    "crates/lmyzmail/src/outbound_takeover.rs": "d0ffe20c292a312f1a2645ffd893a204fa77219d54b14fe65f650478dc6905bd",
+    "crates/lmyzmail/src/outbound_worker.rs": "c1f7eb140960ac9e76344ab46e22efc59f81fbda569a0c7f321ac287616fffaa",
+    "crates/lmyzmail/src/queue_observer.rs": "dc57c4e32f526587c8f812afcc0d4cc8b4e97781e346b8b189d5ff096ed720fd",
+    "crates/lmyzmail/src/redis.rs": "1dad829ffa06c63342d4d5352e42db3cb19a819bf5bc9eea662618d34baa61d6",
+    "crates/lmyzmail/src/renderer_bench.rs": "0b45e79d61e8e1d536def6989489640d6bfc1b19eba0e2663ba1e0320f0c9587",
+    "crates/lmyzmail/src/reporting.rs": "d4025a82019661fd44b41300a123f5974b30129527dd10ef8c880849fd3a37c4",
+    "crates/lmyzmail/src/skibidi.rs": "2ce67677009e07e02665cbdf10daa83e20d5f69550eb05cb1fb83f585ab536c8",
+    "crates/lmyzmail/src/skibidi_inferx/engine.rs": "040e468560c3eec7588a601586ef9f362344b6906e3186bcb7bda82fdf938db5",
+    "crates/lmyzmail/src/skibidi_inferx/kernels.rs": "8c524b4c4689cc50d1cdb018b0b8cd5d55dc3edaac1123dd0f526fcc2f6262fd",
+    "crates/lmyzmail/src/skibidi_inferx/mod.rs": "8988cf69d3a7ae0acdc878588ac944e835d9b23a9d69f1586a5c42727a614cef",
+    "crates/lmyzmail/src/skibidi_inferx/model.rs": "44039c64b68de2d7bcb627e1148c9ae146b009dcab07b32b69eaad354dc03453",
+    "crates/lmyzmail/src/skibidi_inferx/sampler.rs": "22cc5a30ec142c892a323b1b3df36757ccc6965253f73a554dce45ead7bf1636",
+    "crates/lmyzmail/src/skibidi_inferx/service.rs": "3860bb507b7fac39d62cbfe22a4ae214b49674953b2ea4caae581eb313a64ad1",
+    "crates/lmyzmail/src/skibidi_inferx/tokenizer.rs": "a35f22e4b9275cc68573333f9f3ce761f6c924f4799db578dd6396fc55f3ed29",
+    "crates/lmyzmail/src/smtp.rs": "29ef3dc3f0563f42e114b94b442124b1100d7bd05269dbbebea137cb5cea967c",
+    "crates/lmyzmail/src/smtp_ascii.rs": "92883633f46865dfd2137b23e9f58c4fa828b7768b9df8bd691bc7f906d9bcce",
+    "crates/lmyzmail/src/smtp_content_filter.rs": "99b5ed4627cf591aa4190831901360328d20be9c9e4a28f2fae94c340a600439",
+    "crates/lmyzmail/src/smtp_dkim.rs": "fa31f9c69c5601eea284c1e27ef84d4e16ec2b4965dec852d0011e446efbe7ec",
+    "crates/lmyzmail/src/smtp_dmarc.rs": "c5ee2d7c08c0f8b722f5375326346e4110827c367fe1b85c246145e6150c9cf0",
+    "crates/lmyzmail/src/smtp_domain.rs": "5cda7c1a4cde4c280f20a2b9f2fd162fed1b8711f5f3b78ea888822845774d5c",
+    "crates/lmyzmail/src/smtp_inbound_delivery.rs": "e71aa72e4c17a594d24dd58f2c3fa8f3a7b19cf49d24b46981476c834b225d06",
+    "crates/lmyzmail/src/smtp_skibidi_quiz.rs": "fcc715bcff86b64192793a31c60fa586e1af509074af8a41c1e217428337fdb8",
+    "crates/lmyzmail/src/smtp_skibidi_video.rs": "ff3d4b559adc19cccc7be90f95b068cb0d7a2e2c92b4fda199cc0f1a5c57ccc3",
+    "crates/lmyzmail/src/smtp_spamhaus.rs": "ac6bdf3451ac0b5a4e5ce49e186824bc625dd11cf6046289faef2c08c406af3a",
+    "crates/lmyzmail/src/smtp_spf.rs": "54bb29f29901252e335ce23a21349d5a09cba1c6239454d61b896f7848103d57",
+    "crates/lmyzmail/src/stress.rs": "ac7bbdb0b04c9c9b829a9b63215ada1f2865fc4a288e677bb5228369ad9ceeb8",
+    "crates/lmyzmail/src/stress_observer.rs": "19b76ef0dffd01f85d3a71dd3d6e98cf9a48b44cecbf052c5414930f6e096c2f",
+    "crates/lmyzmail/src/userdata.rs": "20a4c6f89bbd3ecf2d2ab215b7745c24616f778201c9cd41ec72bc1881bb1517",
+    "crates/lmyzmail/src/video_asset.rs": "c473b357eaa53a4f88be4c48917ee5d8a181994e4c4c30033a1422f4251d401b",
+    "crates/lmyzmail/src/web_multipart.rs": "16f4162d171e505ef29776f6e690393cfc019f4b82c39146108fee77b6e7cf68",
+    "crates/lmyzmail/src/web_static.rs": "fa66fd0ef179dc41f6d530817856e5ff6a880eb1295c95ff31101505070d2b8b",
+    "crates/lmyzmail/src/xdp.rs": "cd154280829989e88da596396da29dfe746b68900440b18181fb915570d35e9a",
+    "crates/lmyzmail/src/xdp_pps.rs": "05c6ab9e35ef305abadb7c3d6067446d046fa5f8290172b559784cea241f29cd",
+    "crates/lmyzmail/src/xdp_sync.rs": "2ef13bad792d3390eb17acf380e2ebb96c73838a3021d567663f5c206b9f5801",
+    "crates/lmyzmail/tests/auth_postgres.rs": "8bbd32b6324a4b5f27c6507c8441cd114a565c15b67f229346c942dbd62dbc52",
+    "crates/lmyzmail/tests/cringe_decay_postgres.rs": "0a6072581b18d3600fef572984be2992224971548524d8b38223575f0bb7d0c2",
+    "crates/lmyzmail/tests/outbound_coordinator_integration.rs": "6677e9bb356807495220b144ed96396f90c8730a0bb811bf5bc4c8bfc31f5087",
+    "crates/lmyzmail/tests/outbound_delivery_postgres.rs": "79a622da19501e844a9337d9e25ff29199b2b82dc580e2d1a46b0ea55afe034b",
+    "crates/lmyzmail/tests/outbound_queue_redis.rs": "a1a7e7be99c11d2b3a165868b6ed26d69d364a367018500cff87f7832486856a",
+    "crates/lmyzmail/tests/outbound_smtp_protocol.rs": "ddb893e9e2e06d2d8fbc9987106ca0b1b1ee726d0be0ecd9fdee5c16d2c0fe07",
+    "crates/lmyzmail/tests/xdp_pps_postgres.rs": "abf7b6fff5c472b137a568ec4026674e7ace7fc5476f4deaad77790a1939a742",
+    "evidence/performance/renderer_simd_runner_v2.py": "6dc13f053f6b69c7db4718607f3fc337d322839f5142f8c4e31abb22435f2f8e",
+    "evidence/performance/run-renderer-e2e-matrix-v1.py": "3c2c623410a802ba567f8e1a05fbda65f5b9c99680b53bb08d06a8ed2d5fc5b7",
+    "evidence/performance/run-renderer-simd-v1.sh": "c5d8dabb1898d07b8bca506c0cb24f177f181a5c37a8ef3abe52b5437b8bc8ca",
+    "evidence/performance/test_run_renderer_simd_launcher_v1.py": "d3b358abb17a101845bed84d7a117789cc01a45694b2b668425602fe2bf1b0cc",
+    "rust-toolchain.toml": "3df9436af858690ea7b0be00e5c0d649d3edc002c609cd7d756986e9d9f57bc6"
+  },
+  "source_sha256": "3a2c029498f35608169bb0a8255e6af575a5020393bc2aaa54e954d5e62f80e1",
+  "status": "recorded",
+  "telemetry": [
+    {
+      "captured_utc": "2026-10-22T14:13:43.066761+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-0-0-scalar",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:13:47.040772+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-0-0-avx2+fma",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:13:51.607451+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-0-1-scalar",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:13:55.782622+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-0-1-avx2+fma",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:13:58.603559+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-0-2-scalar",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:14:02.577705+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-0-2-avx2+fma",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:14:05.199698+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-1-0-avx2+fma",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:14:07.470059+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-1-0-scalar",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:14:11.701301+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-1-1-avx2+fma",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:14:15.372177+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-1-1-scalar",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:14:19.751271+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-1-2-avx2+fma",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:14:22.522212+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-1-2-scalar",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:14:29.042352+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-2-0-scalar",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:14:33.366438+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-2-0-avx2+fma",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:14:35.886966+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-2-1-scalar",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:14:40.010551+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-2-1-avx2+fma",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:14:42.881928+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-2-2-scalar",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:14:47.006359+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-2-2-avx2+fma",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:14:49.727244+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-3-0-avx2+fma",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:14:52.146198+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-3-0-scalar",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:14:56.219050+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-3-1-avx2+fma",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:15:01.412979+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-3-1-scalar",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:15:05.687550+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-3-2-avx2+fma",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:15:08.559205+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-3-2-scalar",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:15:12.781951+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-4-0-scalar",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:15:17.054499+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-4-0-avx2+fma",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:15:19.524143+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-4-1-scalar",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:15:23.847450+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-4-1-avx2+fma",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:15:26.868416+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-4-2-scalar",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:15:30.840022+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-4-2-avx2+fma",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:15:33.508960+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-5-0-avx2+fma",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:15:35.827924+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-5-0-scalar",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:15:39.699491+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-5-1-avx2+fma",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:15:42.570073+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-5-1-scalar",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:15:46.542002+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-5-2-avx2+fma",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    },
+    {
+      "captured_utc": "2026-10-22T14:15:52.225593+00:00",
+      "cpu": 23,
+      "frequency": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/cpuinfo_cur_freq'",
+        "status": "unavailable"
+      },
+      "governor": {
+        "path": "/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor",
+        "reason": "[Errno 2] No such file or directory: '/sys/devices/system/cpu/cpu23/cpufreq/scaling_governor'",
+        "status": "unavailable"
+      },
+      "label": "round-5-2-scalar",
+      "temperatures": {
+        "status": "unavailable",
+        "values": []
+      }
+    }
+  ],
+  "unverified_backend": "avx512f"
+}

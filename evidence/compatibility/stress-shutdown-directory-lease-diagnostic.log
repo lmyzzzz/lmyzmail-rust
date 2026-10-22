@@ -1,0 +1,22 @@
+Traceback (most recent call last):
+  File "/home/lmyzzz/lmyzmail-rust/tools/diagnose-outbound.py", line 107, in <module>
+    main()
+  File "/home/lmyzzz/lmyzmail-rust/tools/diagnose-outbound.py", line 97, in main
+    test_rust_candidate_sigterm_during_stress_delivery_keeps_queue_consistent()
+  File "/home/lmyzzz/lmyzmail-rust/blackbox/tests/test_oracle_stress.py", line 552, in test_rust_candidate_sigterm_during_stress_delivery_keeps_queue_consistent
+    _assert_stress_storage_clean(candidate)
+  File "/home/lmyzzz/lmyzmail-rust/blackbox/tests/test_oracle_stress.py", line 239, in _assert_stress_storage_clean
+    assert leftovers == [], f"stress Maildir leftovers={leftovers!r}; log={application_log}"
+           ^^^^^^^^^^^^^^^
+AssertionError: stress Maildir leftovers=['stress-sender@example.test', 'stress-sender@example.test/sent', 'stress-sender@example.test/sent/1', 'stress-sender@example.test/sent/1/.lmyzmail-quarantine', 'stress-sender@example.test/sent/1/20261022140718.262-lmyzmail-2.eml']; log=lmyzmail SkibidiInferX ready: backend=AVX2+FMA, timeout_ms=500, configured_max_tokens=80, effective_max_tokens=120
+lmyzmail SMTP Skibidi generator: backend=AVX2, version=1.8.0-skibidi-ultra, capabilities=0x7, hardware_avx2=true, hardware_avx512=false, avx512_enabled=false, simd_rng=true
+lmyzmail HTTP connection failed: Broken pipe (os error 32)
+========== [STRESS TEST] ROUND 1 (WARMUP) STARTING ==========
+[STRESS TEST] Config: Round=1, Mode=WARMUP, Sender=stress-sender@example.test, Receiver=stress-receiver@example.test, Count=1, EmailSize=32KB, MaxConcurrency=1000, InMemory=false
+[STRESS TEST] Queueing 1 emails (32KB each) with max concurrency 1000 (streaming mode)...
+[STRESS TEST] Queue completed in 86 ms: success=1, failed=0, exceptions=0, oom=0, rateLimited=0
+[STRESS TEST] Waiting for delivery...
+[STRESS TEST] Cleaning up data...
+lmyzmail stress round 1 cleanup failed; residual data may remain
+========== [STRESS TEST] ROUND 1 (WARMUP) FAILED ==========
+

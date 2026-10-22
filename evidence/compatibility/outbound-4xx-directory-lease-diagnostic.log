@@ -1,0 +1,15 @@
+Traceback (most recent call last):
+  File "/home/lmyzzz/lmyzmail-rust/tools/diagnose-outbound.py", line 94, in <module>
+    if args.mode == "STRESS_DELIVERY":
+    ^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/tools/diagnose-outbound.py", line 88, in main
+    with (destination / "redis-state.json").open("x") as stream:
+^^^^^^^^^^^^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 2629, in run_4xx_probe
+    backoff = _capture_4xx_backoff_sequence(backoff_server, runtime)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 2510, in _capture_4xx_backoff_sequence
+    _wait_until(
+  File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 463, in _wait_until
+    raise AssertionError(f"timed out waiting for {description}")
+AssertionError: timed out waiting for 4xx backoff SMTP reply 3

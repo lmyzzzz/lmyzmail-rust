@@ -1,0 +1,5900 @@
+{
+  "attribution_digest_basis": "Git HEAD and Cargo.lock; tracked source verified unchanged",
+  "binary_sha256": "e8a859bdf5a853d09393636df030f4de81368b47b06245f35863ba46f22aeea7",
+  "capabilities": {
+    "avx2": true,
+    "avx512f": false,
+    "fma": true
+  },
+  "full_simd_acceptance": false,
+  "git_head": "f3b10966eea7bd31ab9089b1000c6fce4ebd9923",
+  "runs": [
+    {
+      "backend": "scalar",
+      "dispatch": [
+        {
+          "build_sha256": "e8a859bdf5a853d09393636df030f4de81368b47b06245f35863ba46f22aeea7",
+          "component": "mail_render.map_palette",
+          "host_capabilities": {
+            "avx2": true,
+            "avx512f": false,
+            "fma": true
+          },
+          "requested_backend": "scalar",
+          "requested_mode": "SCALAR",
+          "resolved_backend": "scalar",
+          "schema": "lmyzmail.renderer-dispatch-observation.v1",
+          "sequence": 1,
+          "session": "9d6fabee3ba22a354380921da65f75c68f91ecbb3b47abe98288beeb84cbdb45",
+          "source_sha256": "c1913d45ec5e724e66074d668ca65ae7654186db513501b5545fb2f34174a3c3"
+        }
+      ],
+      "mode": "SCALAR",
+      "observation_sha256": "6423ffb74db22d4f94b0f150aaeb5d9d90ebd0dcda7dabb22734589e7403f6c3",
+      "render_digests": [
+        {
+          "length": 3519,
+          "path": "$.fixture.message",
+          "sha256": "d7fb8eb206756a46e4ebd6f71a7bb08938af8655a95b91dc81c9145c6a362230"
+        },
+        {
+          "length": 9,
+          "path": "$.render_size_packets.packets[0].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.render_size_packets.packets[1].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.render_size_packets.packets[2].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.render_size_packets.packets[3].frame",
+          "sha256": "e012f15f170d94372f62123b87e501e427549413df97c58e563b31dd165842d8"
+        },
+        {
+          "length": 44,
+          "path": "$.render_size_packets.packets[4].frame",
+          "sha256": "881c42f792ba16078a1ec674240a14d3d49e37c0927746fbb83dbeaf415f4d41"
+        },
+        {
+          "length": 45,
+          "path": "$.render_size_packets.packets[5].frame",
+          "sha256": "144eb79d856aca62fe0ae4876c1bc3bdda2caa643d2e360268f006ce2af9dc6d"
+        },
+        {
+          "length": 17,
+          "path": "$.render_size_packets.packets[6].frame",
+          "sha256": "97039c6adb84706113c3e1fcf18f6568d849b66937ff564163ba64c47a452791"
+        },
+        {
+          "length": 40,
+          "path": "$.render_size_packets.packets[7].frame",
+          "sha256": "740664867fd8d59ae54284a69dd0749ca48488e6f9fe59617ca9e1e0f51c6a5d"
+        },
+        {
+          "length": 33,
+          "path": "$.render_size_packets.packets[8].frame",
+          "sha256": "4336413012037212fab00fb82ff4bac326279ecd85668796c7ab0eab607320cd"
+        },
+        {
+          "length": 17,
+          "path": "$.render_size_packets.packets[9].frame",
+          "sha256": "2ea137b30495c7cade1e243af53687e36fd82756586a35cd837f340de4c1d705"
+        },
+        {
+          "length": 42,
+          "path": "$.render_size_packets.packets[10].frame",
+          "sha256": "16a1cc012b7162b2890938ab038821db199c1eae8050085666bc7cebf938b47c"
+        },
+        {
+          "length": 59,
+          "path": "$.render_size_packets.packets[11].frame",
+          "sha256": "3d062ae4b88594a0f111de7355f0d42bfba2a8f01bcd823fe7aef377fd22e635"
+        },
+        {
+          "length": 33,
+          "path": "$.render_size_packets.packets[12].frame",
+          "sha256": "ab365cbfd1f14dc5cc28056ab4e32d8fe69b56de3e4f0b885e005b941d314f02"
+        },
+        {
+          "length": 72,
+          "path": "$.render_size_packets.packets[13].frame",
+          "sha256": "9e9ea339d0a96e783d1103536573cb7ec43c3021952685758811b3b95866020d"
+        },
+        {
+          "path": "$.initial_render.page.palette_counts",
+          "value": [
+            [
+              4,
+              1
+            ],
+            [
+              7,
+              69
+            ],
+            [
+              8,
+              111
+            ],
+            [
+              9,
+              223
+            ],
+            [
+              10,
+              1873
+            ],
+            [
+              11,
+              57
+            ],
+            [
+              12,
+              41
+            ],
+            [
+              13,
+              63
+            ],
+            [
+              14,
+              218
+            ],
+            [
+              15,
+              87
+            ],
+            [
+              24,
+              32
+            ],
+            [
+              25,
+              44
+            ],
+            [
+              26,
+              84
+            ],
+            [
+              27,
+              32
+            ],
+            [
+              28,
+              1
+            ],
+            [
+              31,
+              264
+            ],
+            [
+              32,
+              84
+            ],
+            [
+              33,
+              827
+            ],
+            [
+              34,
+              45132
+            ],
+            [
+              35,
+              51
+            ],
+            [
+              36,
+              110
+            ],
+            [
+              37,
+              58
+            ],
+            [
+              38,
+              184
+            ],
+            [
+              39,
+              638
+            ],
+            [
+              44,
+              16
+            ],
+            [
+              45,
+              77
+            ],
+            [
+              46,
+              23
+            ],
+            [
+              47,
+              42
+            ],
+            [
+              54,
+              1
+            ],
+            [
+              56,
+              35
+            ],
+            [
+              57,
+              605
+            ],
+            [
+              58,
+              6845
+            ],
+            [
+              59,
+              3
+            ],
+            [
+              68,
+              305
+            ],
+            [
+              69,
+              7
+            ],
+            [
+              70,
+              2
+            ],
+            [
+              71,
+              1070
+            ],
+            [
+              84,
+              194
+            ],
+            [
+              85,
+              85
+            ],
+            [
+              86,
+              47
+            ],
+            [
+              87,
+              846
+            ],
+            [
+              88,
+              107
+            ],
+            [
+              89,
+              117
+            ],
+            [
+              90,
+              96
+            ],
+            [
+              91,
+              30
+            ],
+            [
+              92,
+              534
+            ],
+            [
+              93,
+              30
+            ],
+            [
+              94,
+              341
+            ],
+            [
+              95,
+              58
+            ],
+            [
+              100,
+              1
+            ],
+            [
+              103,
+              212
+            ],
+            [
+              108,
+              134
+            ],
+            [
+              109,
+              102
+            ],
+            [
+              110,
+              47
+            ],
+            [
+              111,
+              122
+            ],
+            [
+              118,
+              517
+            ],
+            [
+              124,
+              113
+            ],
+            [
+              125,
+              66
+            ],
+            [
+              126,
+              1219
+            ],
+            [
+              127,
+              82
+            ],
+            [
+              131,
+              1115
+            ],
+            [
+              135,
+              6
+            ]
+          ]
+        },
+        {
+          "length": 65536,
+          "path": "$.initial_render.page.pixels",
+          "sha256": "5d671786017068bd3ab94617468895c80258c100cd50e8027c78e35624fa8591"
+        },
+        {
+          "length": 16384,
+          "path": "$.initial_render.page.tiles[0].pixels",
+          "sha256": "b2e0fd4669ee42621173d75928f5c8c742a94faba27d2d81671111e52e6305ec"
+        },
+        {
+          "length": 16384,
+          "path": "$.initial_render.page.tiles[1].pixels",
+          "sha256": "8066f243eedec2c290dea9ca61a13a7236487d2594491f22226c24e71c35a69b"
+        },
+        {
+          "length": 16384,
+          "path": "$.initial_render.page.tiles[2].pixels",
+          "sha256": "2ccfbfe045906062e9136ff9b6e1f3b5be0b3385c7ddc8f8e707b0d445c1d0d1"
+        },
+        {
+          "length": 16384,
+          "path": "$.initial_render.page.tiles[3].pixels",
+          "sha256": "5e697827a7d61d04009452d7bf6dbbef2eda253b85d6f8e5cde65a9a2d95c690"
+        },
+        {
+          "length": 7,
+          "path": "$.initial_render.protocol.packets[0].frame",
+          "sha256": "ab225d595a7a054291410c301e9b71b38867e01db7db70c35c4d71b246190f6f"
+        },
+        {
+          "length": 8,
+          "path": "$.initial_render.protocol.packets[1].frame",
+          "sha256": "ed996cc35dd2b0a08b370106b73e128062f775a2f7cefc135e30f2f9e48b7c9d"
+        },
+        {
+          "length": 443,
+          "path": "$.initial_render.protocol.packets[2].frame",
+          "sha256": "a12025f8ec6ec571c45d16739f3bba8b363ae2aceed0e87c66755d5dc085924b"
+        },
+        {
+          "length": 4,
+          "path": "$.initial_render.protocol.packets[3].frame",
+          "sha256": "1802566f10069507d8743b73f699fc793dd6bd0071e334b2610ca5b1e624dcd8"
+        },
+        {
+          "length": 30,
+          "path": "$.initial_render.protocol.packets[4].frame",
+          "sha256": "53d3bf98930333abe2c0f3c44d32d05f4ed37da256707dcf8f2dc4d600950442"
+        },
+        {
+          "length": 142,
+          "path": "$.initial_render.protocol.packets[5].frame",
+          "sha256": "190ae2184077eb88a43e15382f6786d89f0bb8c35c6579d9b646b77eaef0265e"
+        },
+        {
+          "length": 52,
+          "path": "$.initial_render.protocol.packets[6].frame",
+          "sha256": "42cf253f2329eefd83996ba1f51f6f72969f088ce51f10bd5d525ee76bdae0f6"
+        },
+        {
+          "length": 16384,
+          "path": "$.initial_render.protocol.packets[11].map.pixels",
+          "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+        },
+        {
+          "length": 16384,
+          "path": "$.initial_render.protocol.packets[16].map.pixels",
+          "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+        },
+        {
+          "length": 16384,
+          "path": "$.initial_render.protocol.packets[21].map.pixels",
+          "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+        },
+        {
+          "length": 16384,
+          "path": "$.initial_render.protocol.packets[26].map.pixels",
+          "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+        },
+        {
+          "length": 16384,
+          "path": "$.initial_render.protocol.packets[27].map.pixels",
+          "sha256": "b2e0fd4669ee42621173d75928f5c8c742a94faba27d2d81671111e52e6305ec"
+        },
+        {
+          "length": 16384,
+          "path": "$.initial_render.protocol.packets[28].map.pixels",
+          "sha256": "8066f243eedec2c290dea9ca61a13a7236487d2594491f22226c24e71c35a69b"
+        },
+        {
+          "length": 16384,
+          "path": "$.initial_render.protocol.packets[29].map.pixels",
+          "sha256": "2ccfbfe045906062e9136ff9b6e1f3b5be0b3385c7ddc8f8e707b0d445c1d0d1"
+        },
+        {
+          "length": 16384,
+          "path": "$.initial_render.protocol.packets[30].map.pixels",
+          "sha256": "5e697827a7d61d04009452d7bf6dbbef2eda253b85d6f8e5cde65a9a2d95c690"
+        },
+        {
+          "length": 343,
+          "path": "$.initial_render.protocol.packets[31].frame",
+          "sha256": "7456aa3bae8eb11df205057dbec4177423fb92cc069483ffda493f89dc9a0b79"
+        },
+        {
+          "length": 89,
+          "path": "$.initial_render.protocol.packets[32].frame",
+          "sha256": "5db22c1aaef884b75e7a95adc685f3badf10e7078ebd7bfeb3da220c209a8b9f"
+        },
+        {
+          "length": 340,
+          "path": "$.initial_render.protocol.packets[33].frame",
+          "sha256": "ed83152196dba92f7f380c39c4687a744181ffed9ab5604e5fcf5b33806d3532"
+        },
+        {
+          "length": 4,
+          "path": "$.initial_render.protocol.packets[34].frame",
+          "sha256": "c5bb7427360d178e43e91c227fe5d0ccf158ec3dd1de761e44f3dc2e8b4e67f6"
+        },
+        {
+          "length": 9,
+          "path": "$.initial_render.protocol.packets[35].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.initial_render.protocol.packets[36].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.initial_render.protocol.packets[37].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.initial_render.protocol.packets[38].frame",
+          "sha256": "692a1e1913827cea82ddae8981aa8bc2c8ea35b717b3ac2c09ad6e2d6b254a63"
+        },
+        {
+          "length": 33,
+          "path": "$.initial_render.protocol.packets[39].frame",
+          "sha256": "af6736eafe2f8afc06a7a9fd47eab2310024c6d796f081d79788ec31b96d7b68"
+        },
+        {
+          "length": 38,
+          "path": "$.initial_render.protocol.packets[40].frame",
+          "sha256": "93281b6c832d49b03cffc68af83895b2a7a684e91e62c24da50a0879b025d1f8"
+        },
+        {
+          "length": 17,
+          "path": "$.initial_render.protocol.packets[41].frame",
+          "sha256": "87624e31bec5d0fe4faf67f501bce7c0059c2af74efff584bd58ee68776cfe63"
+        },
+        {
+          "length": 64,
+          "path": "$.initial_render.protocol.packets[42].frame",
+          "sha256": "7e30fa108c60de57b96ce57f6e803d0e58bc7cb546d5a38b7d1b79f437ec4657"
+        },
+        {
+          "length": 59,
+          "path": "$.initial_render.protocol.packets[43].frame",
+          "sha256": "e00208565ab853a937749fca197909da497aa9dfe3402b0d7b5149c67223a0cd"
+        },
+        {
+          "length": 33,
+          "path": "$.initial_render.protocol.packets[44].frame",
+          "sha256": "a2ef39c460e544797819415061be5b5a79d7daac69ab100db69fd01219b1780d"
+        },
+        {
+          "length": 93,
+          "path": "$.initial_render.protocol.packets[45].frame",
+          "sha256": "fa767c07c68e1a088a3ee4e04f0ff104e8d59442079c540cefdec3f7b27bc6b8"
+        },
+        {
+          "length": 65,
+          "path": "$.initial_render.protocol.packets[46].frame",
+          "sha256": "4ae1bced27502b5b9529f925e340ee7394cadc44b2ec0c6bd5d266a7e8578d0e"
+        },
+        {
+          "length": 104,
+          "path": "$.initial_render.protocol.packets[47].frame",
+          "sha256": "6ec757da0779b20fdffc0739089a5c6f67550358122bcf9fbcd87ebf90f4d519"
+        },
+        {
+          "length": 86,
+          "path": "$.initial_render.protocol.packets[48].frame",
+          "sha256": "96c0cfbddc8f305201a444485f0e24653bb29c703d82005d082d5856d8d748d4"
+        },
+        {
+          "length": 58,
+          "path": "$.first_page_boundary.packets[0].frame",
+          "sha256": "5beffb945c92fc602c78ef5e7e63b4fd3e02e7e9d66bf3e88eb1f6a666b8918e"
+        },
+        {
+          "path": "$.page_two_first.page.palette_counts",
+          "value": [
+            [
+              12,
+              201
+            ],
+            [
+              13,
+              163
+            ],
+            [
+              14,
+              632
+            ],
+            [
+              15,
+              267
+            ],
+            [
+              24,
+              111
+            ],
+            [
+              25,
+              303
+            ],
+            [
+              26,
+              191
+            ],
+            [
+              27,
+              110
+            ],
+            [
+              32,
+              270
+            ],
+            [
+              33,
+              1102
+            ],
+            [
+              34,
+              55713
+            ],
+            [
+              35,
+              163
+            ],
+            [
+              36,
+              234
+            ],
+            [
+              37,
+              87
+            ],
+            [
+              38,
+              45
+            ],
+            [
+              39,
+              374
+            ],
+            [
+              44,
+              77
+            ],
+            [
+              45,
+              270
+            ],
+            [
+              46,
+              122
+            ],
+            [
+              47,
+              195
+            ],
+            [
+              58,
+              3
+            ],
+            [
+              84,
+              885
+            ],
+            [
+              85,
+              245
+            ],
+            [
+              86,
+              150
+            ],
+            [
+              87,
+              1913
+            ],
+            [
+              88,
+              183
+            ],
+            [
+              89,
+              658
+            ],
+            [
+              90,
+              262
+            ],
+            [
+              91,
+              94
+            ],
+            [
+              95,
+              3
+            ],
+            [
+              118,
+              510
+            ]
+          ]
+        },
+        {
+          "length": 65536,
+          "path": "$.page_two_first.page.pixels",
+          "sha256": "51a3019d6d333ec797e2da18ef72f338711bff6b4d563516d123fa4613d88f1b"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_two_first.page.tiles[0].pixels",
+          "sha256": "a9ee6b8d5f5f4bdb4c13d36a3055fc2d443e10829fb90402539fa8664212e897"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_two_first.page.tiles[1].pixels",
+          "sha256": "d6324e5d12d4dc388daed6362dc169781e152aac38fdac71e89b006a8320fcc6"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_two_first.page.tiles[2].pixels",
+          "sha256": "95380c3bdfc2280a9b00a29445f1cb4f70a658656b6ef2abb91cd517dddef235"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_two_first.page.tiles[3].pixels",
+          "sha256": "ead36ac5696bbf7340ab36ee97b07cc9f6e81906b6cd8025c0595aa6aa82a609"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_two_first.protocol.packets[0].map.pixels",
+          "sha256": "a9ee6b8d5f5f4bdb4c13d36a3055fc2d443e10829fb90402539fa8664212e897"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_two_first.protocol.packets[1].map.pixels",
+          "sha256": "d6324e5d12d4dc388daed6362dc169781e152aac38fdac71e89b006a8320fcc6"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_two_first.protocol.packets[2].map.pixels",
+          "sha256": "95380c3bdfc2280a9b00a29445f1cb4f70a658656b6ef2abb91cd517dddef235"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_two_first.protocol.packets[3].map.pixels",
+          "sha256": "ead36ac5696bbf7340ab36ee97b07cc9f6e81906b6cd8025c0595aa6aa82a609"
+        },
+        {
+          "length": 9,
+          "path": "$.page_two_first.protocol.packets[4].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.page_two_first.protocol.packets[5].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.page_two_first.protocol.packets[6].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.page_two_first.protocol.packets[7].frame",
+          "sha256": "692a1e1913827cea82ddae8981aa8bc2c8ea35b717b3ac2c09ad6e2d6b254a63"
+        },
+        {
+          "length": 33,
+          "path": "$.page_two_first.protocol.packets[8].frame",
+          "sha256": "af6736eafe2f8afc06a7a9fd47eab2310024c6d796f081d79788ec31b96d7b68"
+        },
+        {
+          "length": 38,
+          "path": "$.page_two_first.protocol.packets[9].frame",
+          "sha256": "3f95c504812b80e56c4286f43187d2684c62c91ebbaf280b7942d2552595b740"
+        },
+        {
+          "length": 17,
+          "path": "$.page_two_first.protocol.packets[10].frame",
+          "sha256": "87624e31bec5d0fe4faf67f501bce7c0059c2af74efff584bd58ee68776cfe63"
+        },
+        {
+          "length": 64,
+          "path": "$.page_two_first.protocol.packets[11].frame",
+          "sha256": "7e30fa108c60de57b96ce57f6e803d0e58bc7cb546d5a38b7d1b79f437ec4657"
+        },
+        {
+          "length": 59,
+          "path": "$.page_two_first.protocol.packets[12].frame",
+          "sha256": "e00208565ab853a937749fca197909da497aa9dfe3402b0d7b5149c67223a0cd"
+        },
+        {
+          "length": 33,
+          "path": "$.page_two_first.protocol.packets[13].frame",
+          "sha256": "a2ef39c460e544797819415061be5b5a79d7daac69ab100db69fd01219b1780d"
+        },
+        {
+          "length": 93,
+          "path": "$.page_two_first.protocol.packets[14].frame",
+          "sha256": "238a7f82518006aaa712b83733346076a3f5301df989eb2e6e14a97bd52bc864"
+        },
+        {
+          "length": 51,
+          "path": "$.page_two_first.protocol.packets[15].frame",
+          "sha256": "dad748d031bbf7fd6d83735c3ca810a75abd7242a537ac554292db79a1e9fd35"
+        },
+        {
+          "path": "$.page_one_replay.page.palette_counts",
+          "value": [
+            [
+              4,
+              1
+            ],
+            [
+              7,
+              69
+            ],
+            [
+              8,
+              111
+            ],
+            [
+              9,
+              223
+            ],
+            [
+              10,
+              1873
+            ],
+            [
+              11,
+              57
+            ],
+            [
+              12,
+              41
+            ],
+            [
+              13,
+              63
+            ],
+            [
+              14,
+              218
+            ],
+            [
+              15,
+              87
+            ],
+            [
+              24,
+              32
+            ],
+            [
+              25,
+              44
+            ],
+            [
+              26,
+              84
+            ],
+            [
+              27,
+              32
+            ],
+            [
+              28,
+              1
+            ],
+            [
+              31,
+              264
+            ],
+            [
+              32,
+              84
+            ],
+            [
+              33,
+              827
+            ],
+            [
+              34,
+              45132
+            ],
+            [
+              35,
+              51
+            ],
+            [
+              36,
+              110
+            ],
+            [
+              37,
+              58
+            ],
+            [
+              38,
+              184
+            ],
+            [
+              39,
+              638
+            ],
+            [
+              44,
+              16
+            ],
+            [
+              45,
+              77
+            ],
+            [
+              46,
+              23
+            ],
+            [
+              47,
+              42
+            ],
+            [
+              54,
+              1
+            ],
+            [
+              56,
+              35
+            ],
+            [
+              57,
+              605
+            ],
+            [
+              58,
+              6845
+            ],
+            [
+              59,
+              3
+            ],
+            [
+              68,
+              305
+            ],
+            [
+              69,
+              7
+            ],
+            [
+              70,
+              2
+            ],
+            [
+              71,
+              1070
+            ],
+            [
+              84,
+              194
+            ],
+            [
+              85,
+              85
+            ],
+            [
+              86,
+              47
+            ],
+            [
+              87,
+              846
+            ],
+            [
+              88,
+              107
+            ],
+            [
+              89,
+              117
+            ],
+            [
+              90,
+              96
+            ],
+            [
+              91,
+              30
+            ],
+            [
+              92,
+              534
+            ],
+            [
+              93,
+              30
+            ],
+            [
+              94,
+              341
+            ],
+            [
+              95,
+              58
+            ],
+            [
+              100,
+              1
+            ],
+            [
+              103,
+              212
+            ],
+            [
+              108,
+              134
+            ],
+            [
+              109,
+              102
+            ],
+            [
+              110,
+              47
+            ],
+            [
+              111,
+              122
+            ],
+            [
+              118,
+              517
+            ],
+            [
+              124,
+              113
+            ],
+            [
+              125,
+              66
+            ],
+            [
+              126,
+              1219
+            ],
+            [
+              127,
+              82
+            ],
+            [
+              131,
+              1115
+            ],
+            [
+              135,
+              6
+            ]
+          ]
+        },
+        {
+          "length": 65536,
+          "path": "$.page_one_replay.page.pixels",
+          "sha256": "5d671786017068bd3ab94617468895c80258c100cd50e8027c78e35624fa8591"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_one_replay.page.tiles[0].pixels",
+          "sha256": "b2e0fd4669ee42621173d75928f5c8c742a94faba27d2d81671111e52e6305ec"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_one_replay.page.tiles[1].pixels",
+          "sha256": "8066f243eedec2c290dea9ca61a13a7236487d2594491f22226c24e71c35a69b"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_one_replay.page.tiles[2].pixels",
+          "sha256": "2ccfbfe045906062e9136ff9b6e1f3b5be0b3385c7ddc8f8e707b0d445c1d0d1"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_one_replay.page.tiles[3].pixels",
+          "sha256": "5e697827a7d61d04009452d7bf6dbbef2eda253b85d6f8e5cde65a9a2d95c690"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_one_replay.protocol.packets[0].map.pixels",
+          "sha256": "b2e0fd4669ee42621173d75928f5c8c742a94faba27d2d81671111e52e6305ec"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_one_replay.protocol.packets[1].map.pixels",
+          "sha256": "8066f243eedec2c290dea9ca61a13a7236487d2594491f22226c24e71c35a69b"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_one_replay.protocol.packets[2].map.pixels",
+          "sha256": "2ccfbfe045906062e9136ff9b6e1f3b5be0b3385c7ddc8f8e707b0d445c1d0d1"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_one_replay.protocol.packets[3].map.pixels",
+          "sha256": "5e697827a7d61d04009452d7bf6dbbef2eda253b85d6f8e5cde65a9a2d95c690"
+        },
+        {
+          "length": 9,
+          "path": "$.page_one_replay.protocol.packets[4].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.page_one_replay.protocol.packets[5].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.page_one_replay.protocol.packets[6].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.page_one_replay.protocol.packets[7].frame",
+          "sha256": "692a1e1913827cea82ddae8981aa8bc2c8ea35b717b3ac2c09ad6e2d6b254a63"
+        },
+        {
+          "length": 33,
+          "path": "$.page_one_replay.protocol.packets[8].frame",
+          "sha256": "af6736eafe2f8afc06a7a9fd47eab2310024c6d796f081d79788ec31b96d7b68"
+        },
+        {
+          "length": 38,
+          "path": "$.page_one_replay.protocol.packets[9].frame",
+          "sha256": "93281b6c832d49b03cffc68af83895b2a7a684e91e62c24da50a0879b025d1f8"
+        },
+        {
+          "length": 17,
+          "path": "$.page_one_replay.protocol.packets[10].frame",
+          "sha256": "87624e31bec5d0fe4faf67f501bce7c0059c2af74efff584bd58ee68776cfe63"
+        },
+        {
+          "length": 64,
+          "path": "$.page_one_replay.protocol.packets[11].frame",
+          "sha256": "7e30fa108c60de57b96ce57f6e803d0e58bc7cb546d5a38b7d1b79f437ec4657"
+        },
+        {
+          "length": 59,
+          "path": "$.page_one_replay.protocol.packets[12].frame",
+          "sha256": "e00208565ab853a937749fca197909da497aa9dfe3402b0d7b5149c67223a0cd"
+        },
+        {
+          "length": 33,
+          "path": "$.page_one_replay.protocol.packets[13].frame",
+          "sha256": "a2ef39c460e544797819415061be5b5a79d7daac69ab100db69fd01219b1780d"
+        },
+        {
+          "length": 93,
+          "path": "$.page_one_replay.protocol.packets[14].frame",
+          "sha256": "fa767c07c68e1a088a3ee4e04f0ff104e8d59442079c540cefdec3f7b27bc6b8"
+        },
+        {
+          "length": 51,
+          "path": "$.page_one_replay.protocol.packets[15].frame",
+          "sha256": "187d1792afe20844bb7d7d5fac435c82d9a1b894ffdb8e54da31415d0beedca8"
+        },
+        {
+          "path": "$.pages[0].palette_counts",
+          "value": [
+            [
+              4,
+              1
+            ],
+            [
+              7,
+              69
+            ],
+            [
+              8,
+              111
+            ],
+            [
+              9,
+              223
+            ],
+            [
+              10,
+              1873
+            ],
+            [
+              11,
+              57
+            ],
+            [
+              12,
+              41
+            ],
+            [
+              13,
+              63
+            ],
+            [
+              14,
+              218
+            ],
+            [
+              15,
+              87
+            ],
+            [
+              24,
+              32
+            ],
+            [
+              25,
+              44
+            ],
+            [
+              26,
+              84
+            ],
+            [
+              27,
+              32
+            ],
+            [
+              28,
+              1
+            ],
+            [
+              31,
+              264
+            ],
+            [
+              32,
+              84
+            ],
+            [
+              33,
+              827
+            ],
+            [
+              34,
+              45132
+            ],
+            [
+              35,
+              51
+            ],
+            [
+              36,
+              110
+            ],
+            [
+              37,
+              58
+            ],
+            [
+              38,
+              184
+            ],
+            [
+              39,
+              638
+            ],
+            [
+              44,
+              16
+            ],
+            [
+              45,
+              77
+            ],
+            [
+              46,
+              23
+            ],
+            [
+              47,
+              42
+            ],
+            [
+              54,
+              1
+            ],
+            [
+              56,
+              35
+            ],
+            [
+              57,
+              605
+            ],
+            [
+              58,
+              6845
+            ],
+            [
+              59,
+              3
+            ],
+            [
+              68,
+              305
+            ],
+            [
+              69,
+              7
+            ],
+            [
+              70,
+              2
+            ],
+            [
+              71,
+              1070
+            ],
+            [
+              84,
+              194
+            ],
+            [
+              85,
+              85
+            ],
+            [
+              86,
+              47
+            ],
+            [
+              87,
+              846
+            ],
+            [
+              88,
+              107
+            ],
+            [
+              89,
+              117
+            ],
+            [
+              90,
+              96
+            ],
+            [
+              91,
+              30
+            ],
+            [
+              92,
+              534
+            ],
+            [
+              93,
+              30
+            ],
+            [
+              94,
+              341
+            ],
+            [
+              95,
+              58
+            ],
+            [
+              100,
+              1
+            ],
+            [
+              103,
+              212
+            ],
+            [
+              108,
+              134
+            ],
+            [
+              109,
+              102
+            ],
+            [
+              110,
+              47
+            ],
+            [
+              111,
+              122
+            ],
+            [
+              118,
+              517
+            ],
+            [
+              124,
+              113
+            ],
+            [
+              125,
+              66
+            ],
+            [
+              126,
+              1219
+            ],
+            [
+              127,
+              82
+            ],
+            [
+              131,
+              1115
+            ],
+            [
+              135,
+              6
+            ]
+          ]
+        },
+        {
+          "length": 65536,
+          "path": "$.pages[0].pixels",
+          "sha256": "5d671786017068bd3ab94617468895c80258c100cd50e8027c78e35624fa8591"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[0].tiles[0].pixels",
+          "sha256": "b2e0fd4669ee42621173d75928f5c8c742a94faba27d2d81671111e52e6305ec"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[0].tiles[1].pixels",
+          "sha256": "8066f243eedec2c290dea9ca61a13a7236487d2594491f22226c24e71c35a69b"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[0].tiles[2].pixels",
+          "sha256": "2ccfbfe045906062e9136ff9b6e1f3b5be0b3385c7ddc8f8e707b0d445c1d0d1"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[0].tiles[3].pixels",
+          "sha256": "5e697827a7d61d04009452d7bf6dbbef2eda253b85d6f8e5cde65a9a2d95c690"
+        },
+        {
+          "path": "$.pages[1].palette_counts",
+          "value": [
+            [
+              12,
+              201
+            ],
+            [
+              13,
+              163
+            ],
+            [
+              14,
+              632
+            ],
+            [
+              15,
+              267
+            ],
+            [
+              24,
+              111
+            ],
+            [
+              25,
+              303
+            ],
+            [
+              26,
+              191
+            ],
+            [
+              27,
+              110
+            ],
+            [
+              32,
+              270
+            ],
+            [
+              33,
+              1102
+            ],
+            [
+              34,
+              55713
+            ],
+            [
+              35,
+              163
+            ],
+            [
+              36,
+              234
+            ],
+            [
+              37,
+              87
+            ],
+            [
+              38,
+              45
+            ],
+            [
+              39,
+              374
+            ],
+            [
+              44,
+              77
+            ],
+            [
+              45,
+              270
+            ],
+            [
+              46,
+              122
+            ],
+            [
+              47,
+              195
+            ],
+            [
+              58,
+              3
+            ],
+            [
+              84,
+              885
+            ],
+            [
+              85,
+              245
+            ],
+            [
+              86,
+              150
+            ],
+            [
+              87,
+              1913
+            ],
+            [
+              88,
+              183
+            ],
+            [
+              89,
+              658
+            ],
+            [
+              90,
+              262
+            ],
+            [
+              91,
+              94
+            ],
+            [
+              95,
+              3
+            ],
+            [
+              118,
+              510
+            ]
+          ]
+        },
+        {
+          "length": 65536,
+          "path": "$.pages[1].pixels",
+          "sha256": "51a3019d6d333ec797e2da18ef72f338711bff6b4d563516d123fa4613d88f1b"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[1].tiles[0].pixels",
+          "sha256": "a9ee6b8d5f5f4bdb4c13d36a3055fc2d443e10829fb90402539fa8664212e897"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[1].tiles[1].pixels",
+          "sha256": "d6324e5d12d4dc388daed6362dc169781e152aac38fdac71e89b006a8320fcc6"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[1].tiles[2].pixels",
+          "sha256": "95380c3bdfc2280a9b00a29445f1cb4f70a658656b6ef2abb91cd517dddef235"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[1].tiles[3].pixels",
+          "sha256": "ead36ac5696bbf7340ab36ee97b07cc9f6e81906b6cd8025c0595aa6aa82a609"
+        },
+        {
+          "path": "$.pages[2].palette_counts",
+          "value": [
+            [
+              12,
+              218
+            ],
+            [
+              13,
+              181
+            ],
+            [
+              14,
+              669
+            ],
+            [
+              15,
+              287
+            ],
+            [
+              24,
+              121
+            ],
+            [
+              25,
+              316
+            ],
+            [
+              26,
+              213
+            ],
+            [
+              27,
+              111
+            ],
+            [
+              32,
+              302
+            ],
+            [
+              33,
+              1189
+            ],
+            [
+              34,
+              54897
+            ],
+            [
+              35,
+              186
+            ],
+            [
+              36,
+              259
+            ],
+            [
+              37,
+              87
+            ],
+            [
+              38,
+              56
+            ],
+            [
+              39,
+              417
+            ],
+            [
+              44,
+              91
+            ],
+            [
+              45,
+              300
+            ],
+            [
+              46,
+              124
+            ],
+            [
+              47,
+              231
+            ],
+            [
+              58,
+              1
+            ],
+            [
+              84,
+              968
+            ],
+            [
+              85,
+              268
+            ],
+            [
+              86,
+              148
+            ],
+            [
+              87,
+              2049
+            ],
+            [
+              88,
+              204
+            ],
+            [
+              89,
+              712
+            ],
+            [
+              90,
+              288
+            ],
+            [
+              91,
+              99
+            ],
+            [
+              95,
+              2
+            ],
+            [
+              117,
+              1
+            ],
+            [
+              118,
+              541
+            ]
+          ]
+        },
+        {
+          "length": 65536,
+          "path": "$.pages[2].pixels",
+          "sha256": "cea2affb5cd5b6784154471e9ee9a6296af5fd7797248abd64b9a4c8a131c0b6"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[2].tiles[0].pixels",
+          "sha256": "d02c92a44346e0a6c9c4b1335abd502a7c3a377a658198a4dc8ccd32b6161bbb"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[2].tiles[1].pixels",
+          "sha256": "cd71e968911a2f67f93060fe9b124ba36caaaa92eea5a5bf39563cb516e300b2"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[2].tiles[2].pixels",
+          "sha256": "46529d1e744d4c36a5a5684712c9be631bb6dff13a91cb7afad37281ff4684f3"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[2].tiles[3].pixels",
+          "sha256": "5e5a785410d4dadebd572be73d6eb1c35374be0eabdeca5acd1287e901ff2bc6"
+        },
+        {
+          "path": "$.pages[3].palette_counts",
+          "value": [
+            [
+              12,
+              212
+            ],
+            [
+              13,
+              172
+            ],
+            [
+              14,
+              654
+            ],
+            [
+              15,
+              276
+            ],
+            [
+              24,
+              109
+            ],
+            [
+              25,
+              304
+            ],
+            [
+              26,
+              209
+            ],
+            [
+              27,
+              110
+            ],
+            [
+              32,
+              281
+            ],
+            [
+              33,
+              1181
+            ],
+            [
+              34,
+              55108
+            ],
+            [
+              35,
+              180
+            ],
+            [
+              36,
+              252
+            ],
+            [
+              37,
+              84
+            ],
+            [
+              38,
+              53
+            ],
+            [
+              39,
+              396
+            ],
+            [
+              44,
+              88
+            ],
+            [
+              45,
+              284
+            ],
+            [
+              46,
+              123
+            ],
+            [
+              47,
+              213
+            ],
+            [
+              84,
+              944
+            ],
+            [
+              85,
+              247
+            ],
+            [
+              86,
+              150
+            ],
+            [
+              87,
+              2037
+            ],
+            [
+              88,
+              208
+            ],
+            [
+              89,
+              710
+            ],
+            [
+              90,
+              319
+            ],
+            [
+              91,
+              96
+            ],
+            [
+              95,
+              2
+            ],
+            [
+              117,
+              1
+            ],
+            [
+              118,
+              533
+            ]
+          ]
+        },
+        {
+          "length": 65536,
+          "path": "$.pages[3].pixels",
+          "sha256": "d757706778c2bbfb1de2514b48d7c53afe6432915c0a5659c3181224ccf98cfb"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[3].tiles[0].pixels",
+          "sha256": "cebfaea65665dc7df32d1925f1d410526bbe35457587c290968f674739484278"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[3].tiles[1].pixels",
+          "sha256": "1d0fdad62eaa700fee23da17dab867be04a279dabf537834fe66c74c642fb614"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[3].tiles[2].pixels",
+          "sha256": "51fece6c7743c5112dcf4c8a6483789b0a6d197080dd8af601797d59cc41c6c8"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[3].tiles[3].pixels",
+          "sha256": "2fc783d3227cd43ce1e089ac78a9e926f10aaa37e12c660c3c4ef55c5a9c86ad"
+        },
+        {
+          "path": "$.pages[4].palette_counts",
+          "value": [
+            [
+              12,
+              216
+            ],
+            [
+              13,
+              172
+            ],
+            [
+              14,
+              676
+            ],
+            [
+              15,
+              269
+            ],
+            [
+              24,
+              121
+            ],
+            [
+              25,
+              310
+            ],
+            [
+              26,
+              214
+            ],
+            [
+              27,
+              109
+            ],
+            [
+              32,
+              296
+            ],
+            [
+              33,
+              1185
+            ],
+            [
+              34,
+              55002
+            ],
+            [
+              35,
+              185
+            ],
+            [
+              36,
+              252
+            ],
+            [
+              37,
+              86
+            ],
+            [
+              38,
+              57
+            ],
+            [
+              39,
+              392
+            ],
+            [
+              44,
+              87
+            ],
+            [
+              45,
+              284
+            ],
+            [
+              46,
+              118
+            ],
+            [
+              47,
+              221
+            ],
+            [
+              84,
+              942
+            ],
+            [
+              85,
+              237
+            ],
+            [
+              86,
+              149
+            ],
+            [
+              87,
+              2063
+            ],
+            [
+              88,
+              206
+            ],
+            [
+              89,
+              703
+            ],
+            [
+              90,
+              322
+            ],
+            [
+              91,
+              100
+            ],
+            [
+              117,
+              1
+            ],
+            [
+              118,
+              561
+            ]
+          ]
+        },
+        {
+          "length": 65536,
+          "path": "$.pages[4].pixels",
+          "sha256": "c8fdc2779dcc88ba2c60c402905b408a3817c38196099910f81bc8fee82d391f"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[4].tiles[0].pixels",
+          "sha256": "d887df5c4e46f1fff162abb5eb581db2a050dccb3d981ddbf98586c7bb2e8e7a"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[4].tiles[1].pixels",
+          "sha256": "63026ccae4907f2f2541ffe76420d998783bca7362fc31c5e8d7198fff7b3af2"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[4].tiles[2].pixels",
+          "sha256": "15bcdbe5db0689fa35ef57ed2cc117e4be117872a6691b098ebd88ed2f438ea3"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[4].tiles[3].pixels",
+          "sha256": "ba4bff48c5376dccc36c51353427fe0c6f32ce9cfa1e9752fac70d9f2466feaf"
+        },
+        {
+          "path": "$.pages[5].palette_counts",
+          "value": [
+            [
+              12,
+              193
+            ],
+            [
+              13,
+              149
+            ],
+            [
+              14,
+              446
+            ],
+            [
+              15,
+              166
+            ],
+            [
+              24,
+              89
+            ],
+            [
+              25,
+              268
+            ],
+            [
+              26,
+              212
+            ],
+            [
+              27,
+              76
+            ],
+            [
+              32,
+              256
+            ],
+            [
+              33,
+              3979
+            ],
+            [
+              34,
+              54513
+            ],
+            [
+              35,
+              170
+            ],
+            [
+              36,
+              146
+            ],
+            [
+              37,
+              59
+            ],
+            [
+              38,
+              40
+            ],
+            [
+              39,
+              207
+            ],
+            [
+              44,
+              65
+            ],
+            [
+              45,
+              171
+            ],
+            [
+              46,
+              77
+            ],
+            [
+              47,
+              136
+            ],
+            [
+              84,
+              1006
+            ],
+            [
+              85,
+              165
+            ],
+            [
+              86,
+              87
+            ],
+            [
+              87,
+              1307
+            ],
+            [
+              88,
+              127
+            ],
+            [
+              89,
+              406
+            ],
+            [
+              90,
+              582
+            ],
+            [
+              91,
+              56
+            ],
+            [
+              117,
+              1
+            ],
+            [
+              118,
+              381
+            ]
+          ]
+        },
+        {
+          "length": 65536,
+          "path": "$.pages[5].pixels",
+          "sha256": "45923281d922f9d1a7d342a9f6418a44fce0ee02c93f4739259044533dc9c26c"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[5].tiles[0].pixels",
+          "sha256": "5b165616e7609d198f5442d0dcec51992a7c301220402f7a845bcc1828e2f931"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[5].tiles[1].pixels",
+          "sha256": "98f9595d6741bb97351b7003cdac6d28291dc461ecc01e70e915e32eddb6da78"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[5].tiles[2].pixels",
+          "sha256": "296df10ffa4b150feb3c6ef8fa629faa249a2956370ee9687214b6d35939be8f"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[5].tiles[3].pixels",
+          "sha256": "4603b49a6c71896a323326153d0fbcce504c0de1da904ed18c8d3cf42124dd46"
+        },
+        {
+          "path": "$.pages[6].palette_counts",
+          "value": [
+            [
+              12,
+              45
+            ],
+            [
+              13,
+              25
+            ],
+            [
+              14,
+              80
+            ],
+            [
+              15,
+              11
+            ],
+            [
+              24,
+              15
+            ],
+            [
+              25,
+              123
+            ],
+            [
+              26,
+              72
+            ],
+            [
+              27,
+              2
+            ],
+            [
+              32,
+              47
+            ],
+            [
+              33,
+              1760
+            ],
+            [
+              34,
+              62554
+            ],
+            [
+              35,
+              115
+            ],
+            [
+              36,
+              36
+            ],
+            [
+              37,
+              4
+            ],
+            [
+              39,
+              18
+            ],
+            [
+              44,
+              2
+            ],
+            [
+              45,
+              29
+            ],
+            [
+              46,
+              4
+            ],
+            [
+              47,
+              9
+            ],
+            [
+              84,
+              19
+            ],
+            [
+              85,
+              20
+            ],
+            [
+              86,
+              7
+            ],
+            [
+              87,
+              112
+            ],
+            [
+              88,
+              1
+            ],
+            [
+              89,
+              40
+            ],
+            [
+              90,
+              321
+            ],
+            [
+              91,
+              1
+            ],
+            [
+              118,
+              64
+            ]
+          ]
+        },
+        {
+          "length": 65536,
+          "path": "$.pages[6].pixels",
+          "sha256": "d0e736614a11ab43b931a8280480883ab39923a4a31c7ff66da1c1b8835bd4a1"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[6].tiles[0].pixels",
+          "sha256": "f680c83fc721266a65545d6b60cc04d68a93560ade7024085aa285698609fd24"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[6].tiles[1].pixels",
+          "sha256": "857d9ed9900f6a9208b44220a251b12f39b069f6b5c11dcdc140fe4a9907c1b1"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[6].tiles[2].pixels",
+          "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[6].tiles[3].pixels",
+          "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[0].protocol.packets[0].map.pixels",
+          "sha256": "a9ee6b8d5f5f4bdb4c13d36a3055fc2d443e10829fb90402539fa8664212e897"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[0].protocol.packets[1].map.pixels",
+          "sha256": "d6324e5d12d4dc388daed6362dc169781e152aac38fdac71e89b006a8320fcc6"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[0].protocol.packets[2].map.pixels",
+          "sha256": "95380c3bdfc2280a9b00a29445f1cb4f70a658656b6ef2abb91cd517dddef235"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[0].protocol.packets[3].map.pixels",
+          "sha256": "ead36ac5696bbf7340ab36ee97b07cc9f6e81906b6cd8025c0595aa6aa82a609"
+        },
+        {
+          "length": 9,
+          "path": "$.page_transitions[0].protocol.packets[4].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.page_transitions[0].protocol.packets[5].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.page_transitions[0].protocol.packets[6].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.page_transitions[0].protocol.packets[7].frame",
+          "sha256": "692a1e1913827cea82ddae8981aa8bc2c8ea35b717b3ac2c09ad6e2d6b254a63"
+        },
+        {
+          "length": 33,
+          "path": "$.page_transitions[0].protocol.packets[8].frame",
+          "sha256": "af6736eafe2f8afc06a7a9fd47eab2310024c6d796f081d79788ec31b96d7b68"
+        },
+        {
+          "length": 38,
+          "path": "$.page_transitions[0].protocol.packets[9].frame",
+          "sha256": "3f95c504812b80e56c4286f43187d2684c62c91ebbaf280b7942d2552595b740"
+        },
+        {
+          "length": 17,
+          "path": "$.page_transitions[0].protocol.packets[10].frame",
+          "sha256": "87624e31bec5d0fe4faf67f501bce7c0059c2af74efff584bd58ee68776cfe63"
+        },
+        {
+          "length": 64,
+          "path": "$.page_transitions[0].protocol.packets[11].frame",
+          "sha256": "7e30fa108c60de57b96ce57f6e803d0e58bc7cb546d5a38b7d1b79f437ec4657"
+        },
+        {
+          "length": 59,
+          "path": "$.page_transitions[0].protocol.packets[12].frame",
+          "sha256": "e00208565ab853a937749fca197909da497aa9dfe3402b0d7b5149c67223a0cd"
+        },
+        {
+          "length": 33,
+          "path": "$.page_transitions[0].protocol.packets[13].frame",
+          "sha256": "a2ef39c460e544797819415061be5b5a79d7daac69ab100db69fd01219b1780d"
+        },
+        {
+          "length": 93,
+          "path": "$.page_transitions[0].protocol.packets[14].frame",
+          "sha256": "238a7f82518006aaa712b83733346076a3f5301df989eb2e6e14a97bd52bc864"
+        },
+        {
+          "length": 51,
+          "path": "$.page_transitions[0].protocol.packets[15].frame",
+          "sha256": "dad748d031bbf7fd6d83735c3ca810a75abd7242a537ac554292db79a1e9fd35"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[1].protocol.packets[0].map.pixels",
+          "sha256": "d02c92a44346e0a6c9c4b1335abd502a7c3a377a658198a4dc8ccd32b6161bbb"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[1].protocol.packets[1].map.pixels",
+          "sha256": "cd71e968911a2f67f93060fe9b124ba36caaaa92eea5a5bf39563cb516e300b2"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[1].protocol.packets[2].map.pixels",
+          "sha256": "46529d1e744d4c36a5a5684712c9be631bb6dff13a91cb7afad37281ff4684f3"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[1].protocol.packets[3].map.pixels",
+          "sha256": "5e5a785410d4dadebd572be73d6eb1c35374be0eabdeca5acd1287e901ff2bc6"
+        },
+        {
+          "length": 9,
+          "path": "$.page_transitions[1].protocol.packets[4].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.page_transitions[1].protocol.packets[5].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.page_transitions[1].protocol.packets[6].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.page_transitions[1].protocol.packets[7].frame",
+          "sha256": "692a1e1913827cea82ddae8981aa8bc2c8ea35b717b3ac2c09ad6e2d6b254a63"
+        },
+        {
+          "length": 33,
+          "path": "$.page_transitions[1].protocol.packets[8].frame",
+          "sha256": "af6736eafe2f8afc06a7a9fd47eab2310024c6d796f081d79788ec31b96d7b68"
+        },
+        {
+          "length": 38,
+          "path": "$.page_transitions[1].protocol.packets[9].frame",
+          "sha256": "78497d5f86ff2b4ed3ea7f59344d88e4a92d22be0b2de1d44ed66515ae292006"
+        },
+        {
+          "length": 17,
+          "path": "$.page_transitions[1].protocol.packets[10].frame",
+          "sha256": "87624e31bec5d0fe4faf67f501bce7c0059c2af74efff584bd58ee68776cfe63"
+        },
+        {
+          "length": 64,
+          "path": "$.page_transitions[1].protocol.packets[11].frame",
+          "sha256": "7e30fa108c60de57b96ce57f6e803d0e58bc7cb546d5a38b7d1b79f437ec4657"
+        },
+        {
+          "length": 59,
+          "path": "$.page_transitions[1].protocol.packets[12].frame",
+          "sha256": "e00208565ab853a937749fca197909da497aa9dfe3402b0d7b5149c67223a0cd"
+        },
+        {
+          "length": 33,
+          "path": "$.page_transitions[1].protocol.packets[13].frame",
+          "sha256": "a2ef39c460e544797819415061be5b5a79d7daac69ab100db69fd01219b1780d"
+        },
+        {
+          "length": 93,
+          "path": "$.page_transitions[1].protocol.packets[14].frame",
+          "sha256": "934adf50eb34faeb07934e53121210c04e05afc3ce3945faec5380d433d184cf"
+        },
+        {
+          "length": 51,
+          "path": "$.page_transitions[1].protocol.packets[15].frame",
+          "sha256": "799c4ce470421a765c901abf910a4c1eb95fc1586ca6be2c8324dcda3adb4a79"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[2].protocol.packets[0].map.pixels",
+          "sha256": "cebfaea65665dc7df32d1925f1d410526bbe35457587c290968f674739484278"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[2].protocol.packets[1].map.pixels",
+          "sha256": "1d0fdad62eaa700fee23da17dab867be04a279dabf537834fe66c74c642fb614"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[2].protocol.packets[2].map.pixels",
+          "sha256": "51fece6c7743c5112dcf4c8a6483789b0a6d197080dd8af601797d59cc41c6c8"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[2].protocol.packets[3].map.pixels",
+          "sha256": "2fc783d3227cd43ce1e089ac78a9e926f10aaa37e12c660c3c4ef55c5a9c86ad"
+        },
+        {
+          "length": 9,
+          "path": "$.page_transitions[2].protocol.packets[4].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.page_transitions[2].protocol.packets[5].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.page_transitions[2].protocol.packets[6].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.page_transitions[2].protocol.packets[7].frame",
+          "sha256": "692a1e1913827cea82ddae8981aa8bc2c8ea35b717b3ac2c09ad6e2d6b254a63"
+        },
+        {
+          "length": 33,
+          "path": "$.page_transitions[2].protocol.packets[8].frame",
+          "sha256": "af6736eafe2f8afc06a7a9fd47eab2310024c6d796f081d79788ec31b96d7b68"
+        },
+        {
+          "length": 38,
+          "path": "$.page_transitions[2].protocol.packets[9].frame",
+          "sha256": "f9b31ba1abc631fae2e408683399d4cbf433d03b4f76ebb7325ab828c8116527"
+        },
+        {
+          "length": 17,
+          "path": "$.page_transitions[2].protocol.packets[10].frame",
+          "sha256": "87624e31bec5d0fe4faf67f501bce7c0059c2af74efff584bd58ee68776cfe63"
+        },
+        {
+          "length": 64,
+          "path": "$.page_transitions[2].protocol.packets[11].frame",
+          "sha256": "7e30fa108c60de57b96ce57f6e803d0e58bc7cb546d5a38b7d1b79f437ec4657"
+        },
+        {
+          "length": 59,
+          "path": "$.page_transitions[2].protocol.packets[12].frame",
+          "sha256": "e00208565ab853a937749fca197909da497aa9dfe3402b0d7b5149c67223a0cd"
+        },
+        {
+          "length": 33,
+          "path": "$.page_transitions[2].protocol.packets[13].frame",
+          "sha256": "a2ef39c460e544797819415061be5b5a79d7daac69ab100db69fd01219b1780d"
+        },
+        {
+          "length": 93,
+          "path": "$.page_transitions[2].protocol.packets[14].frame",
+          "sha256": "d298d5d74699dd3947b0f1c0ccac0a5be11fe3ed6073238c940beb40c90a646c"
+        },
+        {
+          "length": 51,
+          "path": "$.page_transitions[2].protocol.packets[15].frame",
+          "sha256": "abf7809b6c648372288806184bbea698c1a76ac3b69413cde1b3f1d1777c5fd3"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[3].protocol.packets[0].map.pixels",
+          "sha256": "d887df5c4e46f1fff162abb5eb581db2a050dccb3d981ddbf98586c7bb2e8e7a"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[3].protocol.packets[1].map.pixels",
+          "sha256": "63026ccae4907f2f2541ffe76420d998783bca7362fc31c5e8d7198fff7b3af2"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[3].protocol.packets[2].map.pixels",
+          "sha256": "15bcdbe5db0689fa35ef57ed2cc117e4be117872a6691b098ebd88ed2f438ea3"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[3].protocol.packets[3].map.pixels",
+          "sha256": "ba4bff48c5376dccc36c51353427fe0c6f32ce9cfa1e9752fac70d9f2466feaf"
+        },
+        {
+          "length": 9,
+          "path": "$.page_transitions[3].protocol.packets[4].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.page_transitions[3].protocol.packets[5].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.page_transitions[3].protocol.packets[6].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.page_transitions[3].protocol.packets[7].frame",
+          "sha256": "692a1e1913827cea82ddae8981aa8bc2c8ea35b717b3ac2c09ad6e2d6b254a63"
+        },
+        {
+          "length": 33,
+          "path": "$.page_transitions[3].protocol.packets[8].frame",
+          "sha256": "af6736eafe2f8afc06a7a9fd47eab2310024c6d796f081d79788ec31b96d7b68"
+        },
+        {
+          "length": 38,
+          "path": "$.page_transitions[3].protocol.packets[9].frame",
+          "sha256": "9f7449c2a844b399e79dc79c6c1b385a0c8b3fcdfaa8cc9461ce3b3658362025"
+        },
+        {
+          "length": 17,
+          "path": "$.page_transitions[3].protocol.packets[10].frame",
+          "sha256": "87624e31bec5d0fe4faf67f501bce7c0059c2af74efff584bd58ee68776cfe63"
+        },
+        {
+          "length": 64,
+          "path": "$.page_transitions[3].protocol.packets[11].frame",
+          "sha256": "7e30fa108c60de57b96ce57f6e803d0e58bc7cb546d5a38b7d1b79f437ec4657"
+        },
+        {
+          "length": 59,
+          "path": "$.page_transitions[3].protocol.packets[12].frame",
+          "sha256": "e00208565ab853a937749fca197909da497aa9dfe3402b0d7b5149c67223a0cd"
+        },
+        {
+          "length": 33,
+          "path": "$.page_transitions[3].protocol.packets[13].frame",
+          "sha256": "a2ef39c460e544797819415061be5b5a79d7daac69ab100db69fd01219b1780d"
+        },
+        {
+          "length": 93,
+          "path": "$.page_transitions[3].protocol.packets[14].frame",
+          "sha256": "d30d899195edb39992fff68d5b1f04ddd95c57fcdeb26818860dfd8aa6b346e1"
+        },
+        {
+          "length": 51,
+          "path": "$.page_transitions[3].protocol.packets[15].frame",
+          "sha256": "97374604864f69ce84ae05d68515319deaa78bcaeaa4297929ffae42dd8c4ddc"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[4].protocol.packets[0].map.pixels",
+          "sha256": "5b165616e7609d198f5442d0dcec51992a7c301220402f7a845bcc1828e2f931"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[4].protocol.packets[1].map.pixels",
+          "sha256": "98f9595d6741bb97351b7003cdac6d28291dc461ecc01e70e915e32eddb6da78"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[4].protocol.packets[2].map.pixels",
+          "sha256": "296df10ffa4b150feb3c6ef8fa629faa249a2956370ee9687214b6d35939be8f"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[4].protocol.packets[3].map.pixels",
+          "sha256": "4603b49a6c71896a323326153d0fbcce504c0de1da904ed18c8d3cf42124dd46"
+        },
+        {
+          "length": 9,
+          "path": "$.page_transitions[4].protocol.packets[4].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.page_transitions[4].protocol.packets[5].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.page_transitions[4].protocol.packets[6].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.page_transitions[4].protocol.packets[7].frame",
+          "sha256": "692a1e1913827cea82ddae8981aa8bc2c8ea35b717b3ac2c09ad6e2d6b254a63"
+        },
+        {
+          "length": 33,
+          "path": "$.page_transitions[4].protocol.packets[8].frame",
+          "sha256": "af6736eafe2f8afc06a7a9fd47eab2310024c6d796f081d79788ec31b96d7b68"
+        },
+        {
+          "length": 38,
+          "path": "$.page_transitions[4].protocol.packets[9].frame",
+          "sha256": "7ee2106935002ba626388d80aa4fff126c3addb0d5b36d631d211895aa655111"
+        },
+        {
+          "length": 17,
+          "path": "$.page_transitions[4].protocol.packets[10].frame",
+          "sha256": "87624e31bec5d0fe4faf67f501bce7c0059c2af74efff584bd58ee68776cfe63"
+        },
+        {
+          "length": 64,
+          "path": "$.page_transitions[4].protocol.packets[11].frame",
+          "sha256": "7e30fa108c60de57b96ce57f6e803d0e58bc7cb546d5a38b7d1b79f437ec4657"
+        },
+        {
+          "length": 59,
+          "path": "$.page_transitions[4].protocol.packets[12].frame",
+          "sha256": "e00208565ab853a937749fca197909da497aa9dfe3402b0d7b5149c67223a0cd"
+        },
+        {
+          "length": 33,
+          "path": "$.page_transitions[4].protocol.packets[13].frame",
+          "sha256": "a2ef39c460e544797819415061be5b5a79d7daac69ab100db69fd01219b1780d"
+        },
+        {
+          "length": 93,
+          "path": "$.page_transitions[4].protocol.packets[14].frame",
+          "sha256": "62161ac4e58d18a1f416dadf43740c0192cac5124227a2786f8fe31f0abd7ade"
+        },
+        {
+          "length": 51,
+          "path": "$.page_transitions[4].protocol.packets[15].frame",
+          "sha256": "f27f91f0c677c0a56038b1025477da3cf29450951707d6dc26e8a72f8236ed41"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[5].protocol.packets[0].map.pixels",
+          "sha256": "f680c83fc721266a65545d6b60cc04d68a93560ade7024085aa285698609fd24"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[5].protocol.packets[1].map.pixels",
+          "sha256": "857d9ed9900f6a9208b44220a251b12f39b069f6b5c11dcdc140fe4a9907c1b1"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[5].protocol.packets[2].map.pixels",
+          "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[5].protocol.packets[3].map.pixels",
+          "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+        },
+        {
+          "length": 9,
+          "path": "$.page_transitions[5].protocol.packets[4].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.page_transitions[5].protocol.packets[5].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.page_transitions[5].protocol.packets[6].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.page_transitions[5].protocol.packets[7].frame",
+          "sha256": "692a1e1913827cea82ddae8981aa8bc2c8ea35b717b3ac2c09ad6e2d6b254a63"
+        },
+        {
+          "length": 33,
+          "path": "$.page_transitions[5].protocol.packets[8].frame",
+          "sha256": "af6736eafe2f8afc06a7a9fd47eab2310024c6d796f081d79788ec31b96d7b68"
+        },
+        {
+          "length": 38,
+          "path": "$.page_transitions[5].protocol.packets[9].frame",
+          "sha256": "b66ad0709413f9b55fff6f5fbed7d761a3c16b870877584cc2d42310c1ea74c8"
+        },
+        {
+          "length": 17,
+          "path": "$.page_transitions[5].protocol.packets[10].frame",
+          "sha256": "87624e31bec5d0fe4faf67f501bce7c0059c2af74efff584bd58ee68776cfe63"
+        },
+        {
+          "length": 64,
+          "path": "$.page_transitions[5].protocol.packets[11].frame",
+          "sha256": "7e30fa108c60de57b96ce57f6e803d0e58bc7cb546d5a38b7d1b79f437ec4657"
+        },
+        {
+          "length": 59,
+          "path": "$.page_transitions[5].protocol.packets[12].frame",
+          "sha256": "e00208565ab853a937749fca197909da497aa9dfe3402b0d7b5149c67223a0cd"
+        },
+        {
+          "length": 33,
+          "path": "$.page_transitions[5].protocol.packets[13].frame",
+          "sha256": "a2ef39c460e544797819415061be5b5a79d7daac69ab100db69fd01219b1780d"
+        },
+        {
+          "length": 93,
+          "path": "$.page_transitions[5].protocol.packets[14].frame",
+          "sha256": "659bc5d2f352a8eb08f037d39d664df1ef6de767be405cf8b6f093c882dbbe7c"
+        },
+        {
+          "length": 51,
+          "path": "$.page_transitions[5].protocol.packets[15].frame",
+          "sha256": "22ebaed970b98f6336f326ef74a85907883f63107773aa21a8e0df6d2ca607be"
+        },
+        {
+          "length": 57,
+          "path": "$.last_page_boundary.packets[0].frame",
+          "sha256": "043f958c1cda07ddc8c8ce66d94a9f148be2de46c60e455a36f9152d352d7734"
+        },
+        {
+          "length": 8,
+          "path": "$.close.packets[1].frame",
+          "sha256": "c1da7cbd879b044f506e12b8b5d60fd5b81271f14a04d5bc1cd2e98ba953ec1c"
+        },
+        {
+          "length": 8,
+          "path": "$.close.packets[2].frame",
+          "sha256": "4ecdaae026a170da3fd068797cac729be8c4dd0b357740b40f657f9989a13284"
+        },
+        {
+          "length": 8,
+          "path": "$.close.packets[3].frame",
+          "sha256": "381a6ccc0c8dd00cef1fc9f6428227deb5e8a2f02c7a5aebe8144be0d46ebe9e"
+        },
+        {
+          "length": 8,
+          "path": "$.close.packets[4].frame",
+          "sha256": "7563c851e1666322e67bf5f4c61cfe8b69f412ba58c4626ed3246aa9f174d36f"
+        },
+        {
+          "length": 8,
+          "path": "$.close.packets[5].frame",
+          "sha256": "81247005fdb8411d0059f5e11e00a9d77864f23e583ff1acb65b2ed9edfefc74"
+        },
+        {
+          "length": 8,
+          "path": "$.close.packets[6].frame",
+          "sha256": "1f976a3d8dc452aeb53135cdf203daea079fc5e35a361a90219d0344b9792224"
+        },
+        {
+          "length": 8,
+          "path": "$.close.packets[7].frame",
+          "sha256": "e5683044c133586d9f9d6ff062b6e9e087fee0b0a10052c1b666fbae20900d44"
+        },
+        {
+          "length": 30,
+          "path": "$.close.packets[8].frame",
+          "sha256": "53d3bf98930333abe2c0f3c44d32d05f4ed37da256707dcf8f2dc4d600950442"
+        },
+        {
+          "length": 142,
+          "path": "$.close.packets[9].frame",
+          "sha256": "190ae2184077eb88a43e15382f6786d89f0bb8c35c6579d9b646b77eaef0265e"
+        },
+        {
+          "length": 4,
+          "path": "$.close.packets[10].frame",
+          "sha256": "66eb83bb3c908858d9e4d9c61e538c3316d88505dc2709a6ca369acb1d853add"
+        },
+        {
+          "length": 9,
+          "path": "$.close.packets[11].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.close.packets[12].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.close.packets[13].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.close.packets[14].frame",
+          "sha256": "e012f15f170d94372f62123b87e501e427549413df97c58e563b31dd165842d8"
+        },
+        {
+          "length": 44,
+          "path": "$.close.packets[15].frame",
+          "sha256": "881c42f792ba16078a1ec674240a14d3d49e37c0927746fbb83dbeaf415f4d41"
+        },
+        {
+          "length": 45,
+          "path": "$.close.packets[16].frame",
+          "sha256": "144eb79d856aca62fe0ae4876c1bc3bdda2caa643d2e360268f006ce2af9dc6d"
+        },
+        {
+          "length": 17,
+          "path": "$.close.packets[17].frame",
+          "sha256": "97039c6adb84706113c3e1fcf18f6568d849b66937ff564163ba64c47a452791"
+        },
+        {
+          "length": 40,
+          "path": "$.close.packets[18].frame",
+          "sha256": "740664867fd8d59ae54284a69dd0749ca48488e6f9fe59617ca9e1e0f51c6a5d"
+        },
+        {
+          "length": 33,
+          "path": "$.close.packets[19].frame",
+          "sha256": "4336413012037212fab00fb82ff4bac326279ecd85668796c7ab0eab607320cd"
+        },
+        {
+          "length": 17,
+          "path": "$.close.packets[20].frame",
+          "sha256": "2ea137b30495c7cade1e243af53687e36fd82756586a35cd837f340de4c1d705"
+        },
+        {
+          "length": 42,
+          "path": "$.close.packets[21].frame",
+          "sha256": "16a1cc012b7162b2890938ab038821db199c1eae8050085666bc7cebf938b47c"
+        },
+        {
+          "length": 59,
+          "path": "$.close.packets[22].frame",
+          "sha256": "3d062ae4b88594a0f111de7355f0d42bfba2a8f01bcd823fe7aef377fd22e635"
+        },
+        {
+          "length": 33,
+          "path": "$.close.packets[23].frame",
+          "sha256": "ab365cbfd1f14dc5cc28056ab4e32d8fe69b56de3e4f0b885e005b941d314f02"
+        },
+        {
+          "length": 52,
+          "path": "$.close.packets[24].frame",
+          "sha256": "fc43825082f62cf6e82a285bdb8851c161e7738d79dda88eff868465c2875b2e"
+        },
+        {
+          "length": 49,
+          "path": "$.authenticated_menu_after_close.protocol.packets[0].frame",
+          "sha256": "44e891c97605029d05e6558827fc6df2b7dc59084cd7a489db6163671ccc6a11"
+        },
+        {
+          "length": 684,
+          "path": "$.authenticated_menu_after_close.protocol.packets[1].frame",
+          "sha256": "11f4601ffb243056e5dde8c3c5c935682686aaf881f31af675b1991a29294986"
+        }
+      ]
+    },
+    {
+      "backend": "avx2+fma",
+      "dispatch": [
+        {
+          "build_sha256": "e8a859bdf5a853d09393636df030f4de81368b47b06245f35863ba46f22aeea7",
+          "component": "mail_render.map_palette",
+          "host_capabilities": {
+            "avx2": true,
+            "avx512f": false,
+            "fma": true
+          },
+          "requested_backend": "avx2+fma",
+          "requested_mode": "AVX2",
+          "resolved_backend": "avx2+fma",
+          "schema": "lmyzmail.renderer-dispatch-observation.v1",
+          "sequence": 1,
+          "session": "427e615fde5ba768a8c3bd4aa2b6d7deb6bdf9a049c9a5e7b9f8ea0c5a7930c8",
+          "source_sha256": "c1913d45ec5e724e66074d668ca65ae7654186db513501b5545fb2f34174a3c3"
+        }
+      ],
+      "mode": "AVX2",
+      "observation_sha256": "6423ffb74db22d4f94b0f150aaeb5d9d90ebd0dcda7dabb22734589e7403f6c3",
+      "render_digests": [
+        {
+          "length": 3519,
+          "path": "$.fixture.message",
+          "sha256": "d7fb8eb206756a46e4ebd6f71a7bb08938af8655a95b91dc81c9145c6a362230"
+        },
+        {
+          "length": 9,
+          "path": "$.render_size_packets.packets[0].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.render_size_packets.packets[1].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.render_size_packets.packets[2].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.render_size_packets.packets[3].frame",
+          "sha256": "e012f15f170d94372f62123b87e501e427549413df97c58e563b31dd165842d8"
+        },
+        {
+          "length": 44,
+          "path": "$.render_size_packets.packets[4].frame",
+          "sha256": "881c42f792ba16078a1ec674240a14d3d49e37c0927746fbb83dbeaf415f4d41"
+        },
+        {
+          "length": 45,
+          "path": "$.render_size_packets.packets[5].frame",
+          "sha256": "144eb79d856aca62fe0ae4876c1bc3bdda2caa643d2e360268f006ce2af9dc6d"
+        },
+        {
+          "length": 17,
+          "path": "$.render_size_packets.packets[6].frame",
+          "sha256": "97039c6adb84706113c3e1fcf18f6568d849b66937ff564163ba64c47a452791"
+        },
+        {
+          "length": 40,
+          "path": "$.render_size_packets.packets[7].frame",
+          "sha256": "740664867fd8d59ae54284a69dd0749ca48488e6f9fe59617ca9e1e0f51c6a5d"
+        },
+        {
+          "length": 33,
+          "path": "$.render_size_packets.packets[8].frame",
+          "sha256": "4336413012037212fab00fb82ff4bac326279ecd85668796c7ab0eab607320cd"
+        },
+        {
+          "length": 17,
+          "path": "$.render_size_packets.packets[9].frame",
+          "sha256": "2ea137b30495c7cade1e243af53687e36fd82756586a35cd837f340de4c1d705"
+        },
+        {
+          "length": 42,
+          "path": "$.render_size_packets.packets[10].frame",
+          "sha256": "16a1cc012b7162b2890938ab038821db199c1eae8050085666bc7cebf938b47c"
+        },
+        {
+          "length": 59,
+          "path": "$.render_size_packets.packets[11].frame",
+          "sha256": "3d062ae4b88594a0f111de7355f0d42bfba2a8f01bcd823fe7aef377fd22e635"
+        },
+        {
+          "length": 33,
+          "path": "$.render_size_packets.packets[12].frame",
+          "sha256": "ab365cbfd1f14dc5cc28056ab4e32d8fe69b56de3e4f0b885e005b941d314f02"
+        },
+        {
+          "length": 72,
+          "path": "$.render_size_packets.packets[13].frame",
+          "sha256": "9e9ea339d0a96e783d1103536573cb7ec43c3021952685758811b3b95866020d"
+        },
+        {
+          "path": "$.initial_render.page.palette_counts",
+          "value": [
+            [
+              4,
+              1
+            ],
+            [
+              7,
+              69
+            ],
+            [
+              8,
+              111
+            ],
+            [
+              9,
+              223
+            ],
+            [
+              10,
+              1873
+            ],
+            [
+              11,
+              57
+            ],
+            [
+              12,
+              41
+            ],
+            [
+              13,
+              63
+            ],
+            [
+              14,
+              218
+            ],
+            [
+              15,
+              87
+            ],
+            [
+              24,
+              32
+            ],
+            [
+              25,
+              44
+            ],
+            [
+              26,
+              84
+            ],
+            [
+              27,
+              32
+            ],
+            [
+              28,
+              1
+            ],
+            [
+              31,
+              264
+            ],
+            [
+              32,
+              84
+            ],
+            [
+              33,
+              827
+            ],
+            [
+              34,
+              45132
+            ],
+            [
+              35,
+              51
+            ],
+            [
+              36,
+              110
+            ],
+            [
+              37,
+              58
+            ],
+            [
+              38,
+              184
+            ],
+            [
+              39,
+              638
+            ],
+            [
+              44,
+              16
+            ],
+            [
+              45,
+              77
+            ],
+            [
+              46,
+              23
+            ],
+            [
+              47,
+              42
+            ],
+            [
+              54,
+              1
+            ],
+            [
+              56,
+              35
+            ],
+            [
+              57,
+              605
+            ],
+            [
+              58,
+              6845
+            ],
+            [
+              59,
+              3
+            ],
+            [
+              68,
+              305
+            ],
+            [
+              69,
+              7
+            ],
+            [
+              70,
+              2
+            ],
+            [
+              71,
+              1070
+            ],
+            [
+              84,
+              194
+            ],
+            [
+              85,
+              85
+            ],
+            [
+              86,
+              47
+            ],
+            [
+              87,
+              846
+            ],
+            [
+              88,
+              107
+            ],
+            [
+              89,
+              117
+            ],
+            [
+              90,
+              96
+            ],
+            [
+              91,
+              30
+            ],
+            [
+              92,
+              534
+            ],
+            [
+              93,
+              30
+            ],
+            [
+              94,
+              341
+            ],
+            [
+              95,
+              58
+            ],
+            [
+              100,
+              1
+            ],
+            [
+              103,
+              212
+            ],
+            [
+              108,
+              134
+            ],
+            [
+              109,
+              102
+            ],
+            [
+              110,
+              47
+            ],
+            [
+              111,
+              122
+            ],
+            [
+              118,
+              517
+            ],
+            [
+              124,
+              113
+            ],
+            [
+              125,
+              66
+            ],
+            [
+              126,
+              1219
+            ],
+            [
+              127,
+              82
+            ],
+            [
+              131,
+              1115
+            ],
+            [
+              135,
+              6
+            ]
+          ]
+        },
+        {
+          "length": 65536,
+          "path": "$.initial_render.page.pixels",
+          "sha256": "5d671786017068bd3ab94617468895c80258c100cd50e8027c78e35624fa8591"
+        },
+        {
+          "length": 16384,
+          "path": "$.initial_render.page.tiles[0].pixels",
+          "sha256": "b2e0fd4669ee42621173d75928f5c8c742a94faba27d2d81671111e52e6305ec"
+        },
+        {
+          "length": 16384,
+          "path": "$.initial_render.page.tiles[1].pixels",
+          "sha256": "8066f243eedec2c290dea9ca61a13a7236487d2594491f22226c24e71c35a69b"
+        },
+        {
+          "length": 16384,
+          "path": "$.initial_render.page.tiles[2].pixels",
+          "sha256": "2ccfbfe045906062e9136ff9b6e1f3b5be0b3385c7ddc8f8e707b0d445c1d0d1"
+        },
+        {
+          "length": 16384,
+          "path": "$.initial_render.page.tiles[3].pixels",
+          "sha256": "5e697827a7d61d04009452d7bf6dbbef2eda253b85d6f8e5cde65a9a2d95c690"
+        },
+        {
+          "length": 7,
+          "path": "$.initial_render.protocol.packets[0].frame",
+          "sha256": "ab225d595a7a054291410c301e9b71b38867e01db7db70c35c4d71b246190f6f"
+        },
+        {
+          "length": 8,
+          "path": "$.initial_render.protocol.packets[1].frame",
+          "sha256": "ed996cc35dd2b0a08b370106b73e128062f775a2f7cefc135e30f2f9e48b7c9d"
+        },
+        {
+          "length": 443,
+          "path": "$.initial_render.protocol.packets[2].frame",
+          "sha256": "a12025f8ec6ec571c45d16739f3bba8b363ae2aceed0e87c66755d5dc085924b"
+        },
+        {
+          "length": 4,
+          "path": "$.initial_render.protocol.packets[3].frame",
+          "sha256": "1802566f10069507d8743b73f699fc793dd6bd0071e334b2610ca5b1e624dcd8"
+        },
+        {
+          "length": 30,
+          "path": "$.initial_render.protocol.packets[4].frame",
+          "sha256": "53d3bf98930333abe2c0f3c44d32d05f4ed37da256707dcf8f2dc4d600950442"
+        },
+        {
+          "length": 142,
+          "path": "$.initial_render.protocol.packets[5].frame",
+          "sha256": "190ae2184077eb88a43e15382f6786d89f0bb8c35c6579d9b646b77eaef0265e"
+        },
+        {
+          "length": 52,
+          "path": "$.initial_render.protocol.packets[6].frame",
+          "sha256": "42cf253f2329eefd83996ba1f51f6f72969f088ce51f10bd5d525ee76bdae0f6"
+        },
+        {
+          "length": 16384,
+          "path": "$.initial_render.protocol.packets[11].map.pixels",
+          "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+        },
+        {
+          "length": 16384,
+          "path": "$.initial_render.protocol.packets[16].map.pixels",
+          "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+        },
+        {
+          "length": 16384,
+          "path": "$.initial_render.protocol.packets[21].map.pixels",
+          "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+        },
+        {
+          "length": 16384,
+          "path": "$.initial_render.protocol.packets[26].map.pixels",
+          "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+        },
+        {
+          "length": 16384,
+          "path": "$.initial_render.protocol.packets[27].map.pixels",
+          "sha256": "b2e0fd4669ee42621173d75928f5c8c742a94faba27d2d81671111e52e6305ec"
+        },
+        {
+          "length": 16384,
+          "path": "$.initial_render.protocol.packets[28].map.pixels",
+          "sha256": "8066f243eedec2c290dea9ca61a13a7236487d2594491f22226c24e71c35a69b"
+        },
+        {
+          "length": 16384,
+          "path": "$.initial_render.protocol.packets[29].map.pixels",
+          "sha256": "2ccfbfe045906062e9136ff9b6e1f3b5be0b3385c7ddc8f8e707b0d445c1d0d1"
+        },
+        {
+          "length": 16384,
+          "path": "$.initial_render.protocol.packets[30].map.pixels",
+          "sha256": "5e697827a7d61d04009452d7bf6dbbef2eda253b85d6f8e5cde65a9a2d95c690"
+        },
+        {
+          "length": 343,
+          "path": "$.initial_render.protocol.packets[31].frame",
+          "sha256": "7456aa3bae8eb11df205057dbec4177423fb92cc069483ffda493f89dc9a0b79"
+        },
+        {
+          "length": 89,
+          "path": "$.initial_render.protocol.packets[32].frame",
+          "sha256": "5db22c1aaef884b75e7a95adc685f3badf10e7078ebd7bfeb3da220c209a8b9f"
+        },
+        {
+          "length": 340,
+          "path": "$.initial_render.protocol.packets[33].frame",
+          "sha256": "ed83152196dba92f7f380c39c4687a744181ffed9ab5604e5fcf5b33806d3532"
+        },
+        {
+          "length": 4,
+          "path": "$.initial_render.protocol.packets[34].frame",
+          "sha256": "c5bb7427360d178e43e91c227fe5d0ccf158ec3dd1de761e44f3dc2e8b4e67f6"
+        },
+        {
+          "length": 9,
+          "path": "$.initial_render.protocol.packets[35].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.initial_render.protocol.packets[36].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.initial_render.protocol.packets[37].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.initial_render.protocol.packets[38].frame",
+          "sha256": "692a1e1913827cea82ddae8981aa8bc2c8ea35b717b3ac2c09ad6e2d6b254a63"
+        },
+        {
+          "length": 33,
+          "path": "$.initial_render.protocol.packets[39].frame",
+          "sha256": "af6736eafe2f8afc06a7a9fd47eab2310024c6d796f081d79788ec31b96d7b68"
+        },
+        {
+          "length": 38,
+          "path": "$.initial_render.protocol.packets[40].frame",
+          "sha256": "93281b6c832d49b03cffc68af83895b2a7a684e91e62c24da50a0879b025d1f8"
+        },
+        {
+          "length": 17,
+          "path": "$.initial_render.protocol.packets[41].frame",
+          "sha256": "87624e31bec5d0fe4faf67f501bce7c0059c2af74efff584bd58ee68776cfe63"
+        },
+        {
+          "length": 64,
+          "path": "$.initial_render.protocol.packets[42].frame",
+          "sha256": "7e30fa108c60de57b96ce57f6e803d0e58bc7cb546d5a38b7d1b79f437ec4657"
+        },
+        {
+          "length": 59,
+          "path": "$.initial_render.protocol.packets[43].frame",
+          "sha256": "e00208565ab853a937749fca197909da497aa9dfe3402b0d7b5149c67223a0cd"
+        },
+        {
+          "length": 33,
+          "path": "$.initial_render.protocol.packets[44].frame",
+          "sha256": "a2ef39c460e544797819415061be5b5a79d7daac69ab100db69fd01219b1780d"
+        },
+        {
+          "length": 93,
+          "path": "$.initial_render.protocol.packets[45].frame",
+          "sha256": "fa767c07c68e1a088a3ee4e04f0ff104e8d59442079c540cefdec3f7b27bc6b8"
+        },
+        {
+          "length": 65,
+          "path": "$.initial_render.protocol.packets[46].frame",
+          "sha256": "4ae1bced27502b5b9529f925e340ee7394cadc44b2ec0c6bd5d266a7e8578d0e"
+        },
+        {
+          "length": 104,
+          "path": "$.initial_render.protocol.packets[47].frame",
+          "sha256": "6ec757da0779b20fdffc0739089a5c6f67550358122bcf9fbcd87ebf90f4d519"
+        },
+        {
+          "length": 86,
+          "path": "$.initial_render.protocol.packets[48].frame",
+          "sha256": "96c0cfbddc8f305201a444485f0e24653bb29c703d82005d082d5856d8d748d4"
+        },
+        {
+          "length": 58,
+          "path": "$.first_page_boundary.packets[0].frame",
+          "sha256": "5beffb945c92fc602c78ef5e7e63b4fd3e02e7e9d66bf3e88eb1f6a666b8918e"
+        },
+        {
+          "path": "$.page_two_first.page.palette_counts",
+          "value": [
+            [
+              12,
+              201
+            ],
+            [
+              13,
+              163
+            ],
+            [
+              14,
+              632
+            ],
+            [
+              15,
+              267
+            ],
+            [
+              24,
+              111
+            ],
+            [
+              25,
+              303
+            ],
+            [
+              26,
+              191
+            ],
+            [
+              27,
+              110
+            ],
+            [
+              32,
+              270
+            ],
+            [
+              33,
+              1102
+            ],
+            [
+              34,
+              55713
+            ],
+            [
+              35,
+              163
+            ],
+            [
+              36,
+              234
+            ],
+            [
+              37,
+              87
+            ],
+            [
+              38,
+              45
+            ],
+            [
+              39,
+              374
+            ],
+            [
+              44,
+              77
+            ],
+            [
+              45,
+              270
+            ],
+            [
+              46,
+              122
+            ],
+            [
+              47,
+              195
+            ],
+            [
+              58,
+              3
+            ],
+            [
+              84,
+              885
+            ],
+            [
+              85,
+              245
+            ],
+            [
+              86,
+              150
+            ],
+            [
+              87,
+              1913
+            ],
+            [
+              88,
+              183
+            ],
+            [
+              89,
+              658
+            ],
+            [
+              90,
+              262
+            ],
+            [
+              91,
+              94
+            ],
+            [
+              95,
+              3
+            ],
+            [
+              118,
+              510
+            ]
+          ]
+        },
+        {
+          "length": 65536,
+          "path": "$.page_two_first.page.pixels",
+          "sha256": "51a3019d6d333ec797e2da18ef72f338711bff6b4d563516d123fa4613d88f1b"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_two_first.page.tiles[0].pixels",
+          "sha256": "a9ee6b8d5f5f4bdb4c13d36a3055fc2d443e10829fb90402539fa8664212e897"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_two_first.page.tiles[1].pixels",
+          "sha256": "d6324e5d12d4dc388daed6362dc169781e152aac38fdac71e89b006a8320fcc6"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_two_first.page.tiles[2].pixels",
+          "sha256": "95380c3bdfc2280a9b00a29445f1cb4f70a658656b6ef2abb91cd517dddef235"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_two_first.page.tiles[3].pixels",
+          "sha256": "ead36ac5696bbf7340ab36ee97b07cc9f6e81906b6cd8025c0595aa6aa82a609"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_two_first.protocol.packets[0].map.pixels",
+          "sha256": "a9ee6b8d5f5f4bdb4c13d36a3055fc2d443e10829fb90402539fa8664212e897"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_two_first.protocol.packets[1].map.pixels",
+          "sha256": "d6324e5d12d4dc388daed6362dc169781e152aac38fdac71e89b006a8320fcc6"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_two_first.protocol.packets[2].map.pixels",
+          "sha256": "95380c3bdfc2280a9b00a29445f1cb4f70a658656b6ef2abb91cd517dddef235"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_two_first.protocol.packets[3].map.pixels",
+          "sha256": "ead36ac5696bbf7340ab36ee97b07cc9f6e81906b6cd8025c0595aa6aa82a609"
+        },
+        {
+          "length": 9,
+          "path": "$.page_two_first.protocol.packets[4].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.page_two_first.protocol.packets[5].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.page_two_first.protocol.packets[6].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.page_two_first.protocol.packets[7].frame",
+          "sha256": "692a1e1913827cea82ddae8981aa8bc2c8ea35b717b3ac2c09ad6e2d6b254a63"
+        },
+        {
+          "length": 33,
+          "path": "$.page_two_first.protocol.packets[8].frame",
+          "sha256": "af6736eafe2f8afc06a7a9fd47eab2310024c6d796f081d79788ec31b96d7b68"
+        },
+        {
+          "length": 38,
+          "path": "$.page_two_first.protocol.packets[9].frame",
+          "sha256": "3f95c504812b80e56c4286f43187d2684c62c91ebbaf280b7942d2552595b740"
+        },
+        {
+          "length": 17,
+          "path": "$.page_two_first.protocol.packets[10].frame",
+          "sha256": "87624e31bec5d0fe4faf67f501bce7c0059c2af74efff584bd58ee68776cfe63"
+        },
+        {
+          "length": 64,
+          "path": "$.page_two_first.protocol.packets[11].frame",
+          "sha256": "7e30fa108c60de57b96ce57f6e803d0e58bc7cb546d5a38b7d1b79f437ec4657"
+        },
+        {
+          "length": 59,
+          "path": "$.page_two_first.protocol.packets[12].frame",
+          "sha256": "e00208565ab853a937749fca197909da497aa9dfe3402b0d7b5149c67223a0cd"
+        },
+        {
+          "length": 33,
+          "path": "$.page_two_first.protocol.packets[13].frame",
+          "sha256": "a2ef39c460e544797819415061be5b5a79d7daac69ab100db69fd01219b1780d"
+        },
+        {
+          "length": 93,
+          "path": "$.page_two_first.protocol.packets[14].frame",
+          "sha256": "238a7f82518006aaa712b83733346076a3f5301df989eb2e6e14a97bd52bc864"
+        },
+        {
+          "length": 51,
+          "path": "$.page_two_first.protocol.packets[15].frame",
+          "sha256": "dad748d031bbf7fd6d83735c3ca810a75abd7242a537ac554292db79a1e9fd35"
+        },
+        {
+          "path": "$.page_one_replay.page.palette_counts",
+          "value": [
+            [
+              4,
+              1
+            ],
+            [
+              7,
+              69
+            ],
+            [
+              8,
+              111
+            ],
+            [
+              9,
+              223
+            ],
+            [
+              10,
+              1873
+            ],
+            [
+              11,
+              57
+            ],
+            [
+              12,
+              41
+            ],
+            [
+              13,
+              63
+            ],
+            [
+              14,
+              218
+            ],
+            [
+              15,
+              87
+            ],
+            [
+              24,
+              32
+            ],
+            [
+              25,
+              44
+            ],
+            [
+              26,
+              84
+            ],
+            [
+              27,
+              32
+            ],
+            [
+              28,
+              1
+            ],
+            [
+              31,
+              264
+            ],
+            [
+              32,
+              84
+            ],
+            [
+              33,
+              827
+            ],
+            [
+              34,
+              45132
+            ],
+            [
+              35,
+              51
+            ],
+            [
+              36,
+              110
+            ],
+            [
+              37,
+              58
+            ],
+            [
+              38,
+              184
+            ],
+            [
+              39,
+              638
+            ],
+            [
+              44,
+              16
+            ],
+            [
+              45,
+              77
+            ],
+            [
+              46,
+              23
+            ],
+            [
+              47,
+              42
+            ],
+            [
+              54,
+              1
+            ],
+            [
+              56,
+              35
+            ],
+            [
+              57,
+              605
+            ],
+            [
+              58,
+              6845
+            ],
+            [
+              59,
+              3
+            ],
+            [
+              68,
+              305
+            ],
+            [
+              69,
+              7
+            ],
+            [
+              70,
+              2
+            ],
+            [
+              71,
+              1070
+            ],
+            [
+              84,
+              194
+            ],
+            [
+              85,
+              85
+            ],
+            [
+              86,
+              47
+            ],
+            [
+              87,
+              846
+            ],
+            [
+              88,
+              107
+            ],
+            [
+              89,
+              117
+            ],
+            [
+              90,
+              96
+            ],
+            [
+              91,
+              30
+            ],
+            [
+              92,
+              534
+            ],
+            [
+              93,
+              30
+            ],
+            [
+              94,
+              341
+            ],
+            [
+              95,
+              58
+            ],
+            [
+              100,
+              1
+            ],
+            [
+              103,
+              212
+            ],
+            [
+              108,
+              134
+            ],
+            [
+              109,
+              102
+            ],
+            [
+              110,
+              47
+            ],
+            [
+              111,
+              122
+            ],
+            [
+              118,
+              517
+            ],
+            [
+              124,
+              113
+            ],
+            [
+              125,
+              66
+            ],
+            [
+              126,
+              1219
+            ],
+            [
+              127,
+              82
+            ],
+            [
+              131,
+              1115
+            ],
+            [
+              135,
+              6
+            ]
+          ]
+        },
+        {
+          "length": 65536,
+          "path": "$.page_one_replay.page.pixels",
+          "sha256": "5d671786017068bd3ab94617468895c80258c100cd50e8027c78e35624fa8591"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_one_replay.page.tiles[0].pixels",
+          "sha256": "b2e0fd4669ee42621173d75928f5c8c742a94faba27d2d81671111e52e6305ec"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_one_replay.page.tiles[1].pixels",
+          "sha256": "8066f243eedec2c290dea9ca61a13a7236487d2594491f22226c24e71c35a69b"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_one_replay.page.tiles[2].pixels",
+          "sha256": "2ccfbfe045906062e9136ff9b6e1f3b5be0b3385c7ddc8f8e707b0d445c1d0d1"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_one_replay.page.tiles[3].pixels",
+          "sha256": "5e697827a7d61d04009452d7bf6dbbef2eda253b85d6f8e5cde65a9a2d95c690"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_one_replay.protocol.packets[0].map.pixels",
+          "sha256": "b2e0fd4669ee42621173d75928f5c8c742a94faba27d2d81671111e52e6305ec"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_one_replay.protocol.packets[1].map.pixels",
+          "sha256": "8066f243eedec2c290dea9ca61a13a7236487d2594491f22226c24e71c35a69b"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_one_replay.protocol.packets[2].map.pixels",
+          "sha256": "2ccfbfe045906062e9136ff9b6e1f3b5be0b3385c7ddc8f8e707b0d445c1d0d1"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_one_replay.protocol.packets[3].map.pixels",
+          "sha256": "5e697827a7d61d04009452d7bf6dbbef2eda253b85d6f8e5cde65a9a2d95c690"
+        },
+        {
+          "length": 9,
+          "path": "$.page_one_replay.protocol.packets[4].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.page_one_replay.protocol.packets[5].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.page_one_replay.protocol.packets[6].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.page_one_replay.protocol.packets[7].frame",
+          "sha256": "692a1e1913827cea82ddae8981aa8bc2c8ea35b717b3ac2c09ad6e2d6b254a63"
+        },
+        {
+          "length": 33,
+          "path": "$.page_one_replay.protocol.packets[8].frame",
+          "sha256": "af6736eafe2f8afc06a7a9fd47eab2310024c6d796f081d79788ec31b96d7b68"
+        },
+        {
+          "length": 38,
+          "path": "$.page_one_replay.protocol.packets[9].frame",
+          "sha256": "93281b6c832d49b03cffc68af83895b2a7a684e91e62c24da50a0879b025d1f8"
+        },
+        {
+          "length": 17,
+          "path": "$.page_one_replay.protocol.packets[10].frame",
+          "sha256": "87624e31bec5d0fe4faf67f501bce7c0059c2af74efff584bd58ee68776cfe63"
+        },
+        {
+          "length": 64,
+          "path": "$.page_one_replay.protocol.packets[11].frame",
+          "sha256": "7e30fa108c60de57b96ce57f6e803d0e58bc7cb546d5a38b7d1b79f437ec4657"
+        },
+        {
+          "length": 59,
+          "path": "$.page_one_replay.protocol.packets[12].frame",
+          "sha256": "e00208565ab853a937749fca197909da497aa9dfe3402b0d7b5149c67223a0cd"
+        },
+        {
+          "length": 33,
+          "path": "$.page_one_replay.protocol.packets[13].frame",
+          "sha256": "a2ef39c460e544797819415061be5b5a79d7daac69ab100db69fd01219b1780d"
+        },
+        {
+          "length": 93,
+          "path": "$.page_one_replay.protocol.packets[14].frame",
+          "sha256": "fa767c07c68e1a088a3ee4e04f0ff104e8d59442079c540cefdec3f7b27bc6b8"
+        },
+        {
+          "length": 51,
+          "path": "$.page_one_replay.protocol.packets[15].frame",
+          "sha256": "187d1792afe20844bb7d7d5fac435c82d9a1b894ffdb8e54da31415d0beedca8"
+        },
+        {
+          "path": "$.pages[0].palette_counts",
+          "value": [
+            [
+              4,
+              1
+            ],
+            [
+              7,
+              69
+            ],
+            [
+              8,
+              111
+            ],
+            [
+              9,
+              223
+            ],
+            [
+              10,
+              1873
+            ],
+            [
+              11,
+              57
+            ],
+            [
+              12,
+              41
+            ],
+            [
+              13,
+              63
+            ],
+            [
+              14,
+              218
+            ],
+            [
+              15,
+              87
+            ],
+            [
+              24,
+              32
+            ],
+            [
+              25,
+              44
+            ],
+            [
+              26,
+              84
+            ],
+            [
+              27,
+              32
+            ],
+            [
+              28,
+              1
+            ],
+            [
+              31,
+              264
+            ],
+            [
+              32,
+              84
+            ],
+            [
+              33,
+              827
+            ],
+            [
+              34,
+              45132
+            ],
+            [
+              35,
+              51
+            ],
+            [
+              36,
+              110
+            ],
+            [
+              37,
+              58
+            ],
+            [
+              38,
+              184
+            ],
+            [
+              39,
+              638
+            ],
+            [
+              44,
+              16
+            ],
+            [
+              45,
+              77
+            ],
+            [
+              46,
+              23
+            ],
+            [
+              47,
+              42
+            ],
+            [
+              54,
+              1
+            ],
+            [
+              56,
+              35
+            ],
+            [
+              57,
+              605
+            ],
+            [
+              58,
+              6845
+            ],
+            [
+              59,
+              3
+            ],
+            [
+              68,
+              305
+            ],
+            [
+              69,
+              7
+            ],
+            [
+              70,
+              2
+            ],
+            [
+              71,
+              1070
+            ],
+            [
+              84,
+              194
+            ],
+            [
+              85,
+              85
+            ],
+            [
+              86,
+              47
+            ],
+            [
+              87,
+              846
+            ],
+            [
+              88,
+              107
+            ],
+            [
+              89,
+              117
+            ],
+            [
+              90,
+              96
+            ],
+            [
+              91,
+              30
+            ],
+            [
+              92,
+              534
+            ],
+            [
+              93,
+              30
+            ],
+            [
+              94,
+              341
+            ],
+            [
+              95,
+              58
+            ],
+            [
+              100,
+              1
+            ],
+            [
+              103,
+              212
+            ],
+            [
+              108,
+              134
+            ],
+            [
+              109,
+              102
+            ],
+            [
+              110,
+              47
+            ],
+            [
+              111,
+              122
+            ],
+            [
+              118,
+              517
+            ],
+            [
+              124,
+              113
+            ],
+            [
+              125,
+              66
+            ],
+            [
+              126,
+              1219
+            ],
+            [
+              127,
+              82
+            ],
+            [
+              131,
+              1115
+            ],
+            [
+              135,
+              6
+            ]
+          ]
+        },
+        {
+          "length": 65536,
+          "path": "$.pages[0].pixels",
+          "sha256": "5d671786017068bd3ab94617468895c80258c100cd50e8027c78e35624fa8591"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[0].tiles[0].pixels",
+          "sha256": "b2e0fd4669ee42621173d75928f5c8c742a94faba27d2d81671111e52e6305ec"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[0].tiles[1].pixels",
+          "sha256": "8066f243eedec2c290dea9ca61a13a7236487d2594491f22226c24e71c35a69b"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[0].tiles[2].pixels",
+          "sha256": "2ccfbfe045906062e9136ff9b6e1f3b5be0b3385c7ddc8f8e707b0d445c1d0d1"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[0].tiles[3].pixels",
+          "sha256": "5e697827a7d61d04009452d7bf6dbbef2eda253b85d6f8e5cde65a9a2d95c690"
+        },
+        {
+          "path": "$.pages[1].palette_counts",
+          "value": [
+            [
+              12,
+              201
+            ],
+            [
+              13,
+              163
+            ],
+            [
+              14,
+              632
+            ],
+            [
+              15,
+              267
+            ],
+            [
+              24,
+              111
+            ],
+            [
+              25,
+              303
+            ],
+            [
+              26,
+              191
+            ],
+            [
+              27,
+              110
+            ],
+            [
+              32,
+              270
+            ],
+            [
+              33,
+              1102
+            ],
+            [
+              34,
+              55713
+            ],
+            [
+              35,
+              163
+            ],
+            [
+              36,
+              234
+            ],
+            [
+              37,
+              87
+            ],
+            [
+              38,
+              45
+            ],
+            [
+              39,
+              374
+            ],
+            [
+              44,
+              77
+            ],
+            [
+              45,
+              270
+            ],
+            [
+              46,
+              122
+            ],
+            [
+              47,
+              195
+            ],
+            [
+              58,
+              3
+            ],
+            [
+              84,
+              885
+            ],
+            [
+              85,
+              245
+            ],
+            [
+              86,
+              150
+            ],
+            [
+              87,
+              1913
+            ],
+            [
+              88,
+              183
+            ],
+            [
+              89,
+              658
+            ],
+            [
+              90,
+              262
+            ],
+            [
+              91,
+              94
+            ],
+            [
+              95,
+              3
+            ],
+            [
+              118,
+              510
+            ]
+          ]
+        },
+        {
+          "length": 65536,
+          "path": "$.pages[1].pixels",
+          "sha256": "51a3019d6d333ec797e2da18ef72f338711bff6b4d563516d123fa4613d88f1b"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[1].tiles[0].pixels",
+          "sha256": "a9ee6b8d5f5f4bdb4c13d36a3055fc2d443e10829fb90402539fa8664212e897"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[1].tiles[1].pixels",
+          "sha256": "d6324e5d12d4dc388daed6362dc169781e152aac38fdac71e89b006a8320fcc6"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[1].tiles[2].pixels",
+          "sha256": "95380c3bdfc2280a9b00a29445f1cb4f70a658656b6ef2abb91cd517dddef235"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[1].tiles[3].pixels",
+          "sha256": "ead36ac5696bbf7340ab36ee97b07cc9f6e81906b6cd8025c0595aa6aa82a609"
+        },
+        {
+          "path": "$.pages[2].palette_counts",
+          "value": [
+            [
+              12,
+              218
+            ],
+            [
+              13,
+              181
+            ],
+            [
+              14,
+              669
+            ],
+            [
+              15,
+              287
+            ],
+            [
+              24,
+              121
+            ],
+            [
+              25,
+              316
+            ],
+            [
+              26,
+              213
+            ],
+            [
+              27,
+              111
+            ],
+            [
+              32,
+              302
+            ],
+            [
+              33,
+              1189
+            ],
+            [
+              34,
+              54897
+            ],
+            [
+              35,
+              186
+            ],
+            [
+              36,
+              259
+            ],
+            [
+              37,
+              87
+            ],
+            [
+              38,
+              56
+            ],
+            [
+              39,
+              417
+            ],
+            [
+              44,
+              91
+            ],
+            [
+              45,
+              300
+            ],
+            [
+              46,
+              124
+            ],
+            [
+              47,
+              231
+            ],
+            [
+              58,
+              1
+            ],
+            [
+              84,
+              968
+            ],
+            [
+              85,
+              268
+            ],
+            [
+              86,
+              148
+            ],
+            [
+              87,
+              2049
+            ],
+            [
+              88,
+              204
+            ],
+            [
+              89,
+              712
+            ],
+            [
+              90,
+              288
+            ],
+            [
+              91,
+              99
+            ],
+            [
+              95,
+              2
+            ],
+            [
+              117,
+              1
+            ],
+            [
+              118,
+              541
+            ]
+          ]
+        },
+        {
+          "length": 65536,
+          "path": "$.pages[2].pixels",
+          "sha256": "cea2affb5cd5b6784154471e9ee9a6296af5fd7797248abd64b9a4c8a131c0b6"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[2].tiles[0].pixels",
+          "sha256": "d02c92a44346e0a6c9c4b1335abd502a7c3a377a658198a4dc8ccd32b6161bbb"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[2].tiles[1].pixels",
+          "sha256": "cd71e968911a2f67f93060fe9b124ba36caaaa92eea5a5bf39563cb516e300b2"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[2].tiles[2].pixels",
+          "sha256": "46529d1e744d4c36a5a5684712c9be631bb6dff13a91cb7afad37281ff4684f3"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[2].tiles[3].pixels",
+          "sha256": "5e5a785410d4dadebd572be73d6eb1c35374be0eabdeca5acd1287e901ff2bc6"
+        },
+        {
+          "path": "$.pages[3].palette_counts",
+          "value": [
+            [
+              12,
+              212
+            ],
+            [
+              13,
+              172
+            ],
+            [
+              14,
+              654
+            ],
+            [
+              15,
+              276
+            ],
+            [
+              24,
+              109
+            ],
+            [
+              25,
+              304
+            ],
+            [
+              26,
+              209
+            ],
+            [
+              27,
+              110
+            ],
+            [
+              32,
+              281
+            ],
+            [
+              33,
+              1181
+            ],
+            [
+              34,
+              55108
+            ],
+            [
+              35,
+              180
+            ],
+            [
+              36,
+              252
+            ],
+            [
+              37,
+              84
+            ],
+            [
+              38,
+              53
+            ],
+            [
+              39,
+              396
+            ],
+            [
+              44,
+              88
+            ],
+            [
+              45,
+              284
+            ],
+            [
+              46,
+              123
+            ],
+            [
+              47,
+              213
+            ],
+            [
+              84,
+              944
+            ],
+            [
+              85,
+              247
+            ],
+            [
+              86,
+              150
+            ],
+            [
+              87,
+              2037
+            ],
+            [
+              88,
+              208
+            ],
+            [
+              89,
+              710
+            ],
+            [
+              90,
+              319
+            ],
+            [
+              91,
+              96
+            ],
+            [
+              95,
+              2
+            ],
+            [
+              117,
+              1
+            ],
+            [
+              118,
+              533
+            ]
+          ]
+        },
+        {
+          "length": 65536,
+          "path": "$.pages[3].pixels",
+          "sha256": "d757706778c2bbfb1de2514b48d7c53afe6432915c0a5659c3181224ccf98cfb"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[3].tiles[0].pixels",
+          "sha256": "cebfaea65665dc7df32d1925f1d410526bbe35457587c290968f674739484278"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[3].tiles[1].pixels",
+          "sha256": "1d0fdad62eaa700fee23da17dab867be04a279dabf537834fe66c74c642fb614"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[3].tiles[2].pixels",
+          "sha256": "51fece6c7743c5112dcf4c8a6483789b0a6d197080dd8af601797d59cc41c6c8"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[3].tiles[3].pixels",
+          "sha256": "2fc783d3227cd43ce1e089ac78a9e926f10aaa37e12c660c3c4ef55c5a9c86ad"
+        },
+        {
+          "path": "$.pages[4].palette_counts",
+          "value": [
+            [
+              12,
+              216
+            ],
+            [
+              13,
+              172
+            ],
+            [
+              14,
+              676
+            ],
+            [
+              15,
+              269
+            ],
+            [
+              24,
+              121
+            ],
+            [
+              25,
+              310
+            ],
+            [
+              26,
+              214
+            ],
+            [
+              27,
+              109
+            ],
+            [
+              32,
+              296
+            ],
+            [
+              33,
+              1185
+            ],
+            [
+              34,
+              55002
+            ],
+            [
+              35,
+              185
+            ],
+            [
+              36,
+              252
+            ],
+            [
+              37,
+              86
+            ],
+            [
+              38,
+              57
+            ],
+            [
+              39,
+              392
+            ],
+            [
+              44,
+              87
+            ],
+            [
+              45,
+              284
+            ],
+            [
+              46,
+              118
+            ],
+            [
+              47,
+              221
+            ],
+            [
+              84,
+              942
+            ],
+            [
+              85,
+              237
+            ],
+            [
+              86,
+              149
+            ],
+            [
+              87,
+              2063
+            ],
+            [
+              88,
+              206
+            ],
+            [
+              89,
+              703
+            ],
+            [
+              90,
+              322
+            ],
+            [
+              91,
+              100
+            ],
+            [
+              117,
+              1
+            ],
+            [
+              118,
+              561
+            ]
+          ]
+        },
+        {
+          "length": 65536,
+          "path": "$.pages[4].pixels",
+          "sha256": "c8fdc2779dcc88ba2c60c402905b408a3817c38196099910f81bc8fee82d391f"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[4].tiles[0].pixels",
+          "sha256": "d887df5c4e46f1fff162abb5eb581db2a050dccb3d981ddbf98586c7bb2e8e7a"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[4].tiles[1].pixels",
+          "sha256": "63026ccae4907f2f2541ffe76420d998783bca7362fc31c5e8d7198fff7b3af2"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[4].tiles[2].pixels",
+          "sha256": "15bcdbe5db0689fa35ef57ed2cc117e4be117872a6691b098ebd88ed2f438ea3"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[4].tiles[3].pixels",
+          "sha256": "ba4bff48c5376dccc36c51353427fe0c6f32ce9cfa1e9752fac70d9f2466feaf"
+        },
+        {
+          "path": "$.pages[5].palette_counts",
+          "value": [
+            [
+              12,
+              193
+            ],
+            [
+              13,
+              149
+            ],
+            [
+              14,
+              446
+            ],
+            [
+              15,
+              166
+            ],
+            [
+              24,
+              89
+            ],
+            [
+              25,
+              268
+            ],
+            [
+              26,
+              212
+            ],
+            [
+              27,
+              76
+            ],
+            [
+              32,
+              256
+            ],
+            [
+              33,
+              3979
+            ],
+            [
+              34,
+              54513
+            ],
+            [
+              35,
+              170
+            ],
+            [
+              36,
+              146
+            ],
+            [
+              37,
+              59
+            ],
+            [
+              38,
+              40
+            ],
+            [
+              39,
+              207
+            ],
+            [
+              44,
+              65
+            ],
+            [
+              45,
+              171
+            ],
+            [
+              46,
+              77
+            ],
+            [
+              47,
+              136
+            ],
+            [
+              84,
+              1006
+            ],
+            [
+              85,
+              165
+            ],
+            [
+              86,
+              87
+            ],
+            [
+              87,
+              1307
+            ],
+            [
+              88,
+              127
+            ],
+            [
+              89,
+              406
+            ],
+            [
+              90,
+              582
+            ],
+            [
+              91,
+              56
+            ],
+            [
+              117,
+              1
+            ],
+            [
+              118,
+              381
+            ]
+          ]
+        },
+        {
+          "length": 65536,
+          "path": "$.pages[5].pixels",
+          "sha256": "45923281d922f9d1a7d342a9f6418a44fce0ee02c93f4739259044533dc9c26c"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[5].tiles[0].pixels",
+          "sha256": "5b165616e7609d198f5442d0dcec51992a7c301220402f7a845bcc1828e2f931"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[5].tiles[1].pixels",
+          "sha256": "98f9595d6741bb97351b7003cdac6d28291dc461ecc01e70e915e32eddb6da78"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[5].tiles[2].pixels",
+          "sha256": "296df10ffa4b150feb3c6ef8fa629faa249a2956370ee9687214b6d35939be8f"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[5].tiles[3].pixels",
+          "sha256": "4603b49a6c71896a323326153d0fbcce504c0de1da904ed18c8d3cf42124dd46"
+        },
+        {
+          "path": "$.pages[6].palette_counts",
+          "value": [
+            [
+              12,
+              45
+            ],
+            [
+              13,
+              25
+            ],
+            [
+              14,
+              80
+            ],
+            [
+              15,
+              11
+            ],
+            [
+              24,
+              15
+            ],
+            [
+              25,
+              123
+            ],
+            [
+              26,
+              72
+            ],
+            [
+              27,
+              2
+            ],
+            [
+              32,
+              47
+            ],
+            [
+              33,
+              1760
+            ],
+            [
+              34,
+              62554
+            ],
+            [
+              35,
+              115
+            ],
+            [
+              36,
+              36
+            ],
+            [
+              37,
+              4
+            ],
+            [
+              39,
+              18
+            ],
+            [
+              44,
+              2
+            ],
+            [
+              45,
+              29
+            ],
+            [
+              46,
+              4
+            ],
+            [
+              47,
+              9
+            ],
+            [
+              84,
+              19
+            ],
+            [
+              85,
+              20
+            ],
+            [
+              86,
+              7
+            ],
+            [
+              87,
+              112
+            ],
+            [
+              88,
+              1
+            ],
+            [
+              89,
+              40
+            ],
+            [
+              90,
+              321
+            ],
+            [
+              91,
+              1
+            ],
+            [
+              118,
+              64
+            ]
+          ]
+        },
+        {
+          "length": 65536,
+          "path": "$.pages[6].pixels",
+          "sha256": "d0e736614a11ab43b931a8280480883ab39923a4a31c7ff66da1c1b8835bd4a1"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[6].tiles[0].pixels",
+          "sha256": "f680c83fc721266a65545d6b60cc04d68a93560ade7024085aa285698609fd24"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[6].tiles[1].pixels",
+          "sha256": "857d9ed9900f6a9208b44220a251b12f39b069f6b5c11dcdc140fe4a9907c1b1"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[6].tiles[2].pixels",
+          "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+        },
+        {
+          "length": 16384,
+          "path": "$.pages[6].tiles[3].pixels",
+          "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[0].protocol.packets[0].map.pixels",
+          "sha256": "a9ee6b8d5f5f4bdb4c13d36a3055fc2d443e10829fb90402539fa8664212e897"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[0].protocol.packets[1].map.pixels",
+          "sha256": "d6324e5d12d4dc388daed6362dc169781e152aac38fdac71e89b006a8320fcc6"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[0].protocol.packets[2].map.pixels",
+          "sha256": "95380c3bdfc2280a9b00a29445f1cb4f70a658656b6ef2abb91cd517dddef235"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[0].protocol.packets[3].map.pixels",
+          "sha256": "ead36ac5696bbf7340ab36ee97b07cc9f6e81906b6cd8025c0595aa6aa82a609"
+        },
+        {
+          "length": 9,
+          "path": "$.page_transitions[0].protocol.packets[4].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.page_transitions[0].protocol.packets[5].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.page_transitions[0].protocol.packets[6].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.page_transitions[0].protocol.packets[7].frame",
+          "sha256": "692a1e1913827cea82ddae8981aa8bc2c8ea35b717b3ac2c09ad6e2d6b254a63"
+        },
+        {
+          "length": 33,
+          "path": "$.page_transitions[0].protocol.packets[8].frame",
+          "sha256": "af6736eafe2f8afc06a7a9fd47eab2310024c6d796f081d79788ec31b96d7b68"
+        },
+        {
+          "length": 38,
+          "path": "$.page_transitions[0].protocol.packets[9].frame",
+          "sha256": "3f95c504812b80e56c4286f43187d2684c62c91ebbaf280b7942d2552595b740"
+        },
+        {
+          "length": 17,
+          "path": "$.page_transitions[0].protocol.packets[10].frame",
+          "sha256": "87624e31bec5d0fe4faf67f501bce7c0059c2af74efff584bd58ee68776cfe63"
+        },
+        {
+          "length": 64,
+          "path": "$.page_transitions[0].protocol.packets[11].frame",
+          "sha256": "7e30fa108c60de57b96ce57f6e803d0e58bc7cb546d5a38b7d1b79f437ec4657"
+        },
+        {
+          "length": 59,
+          "path": "$.page_transitions[0].protocol.packets[12].frame",
+          "sha256": "e00208565ab853a937749fca197909da497aa9dfe3402b0d7b5149c67223a0cd"
+        },
+        {
+          "length": 33,
+          "path": "$.page_transitions[0].protocol.packets[13].frame",
+          "sha256": "a2ef39c460e544797819415061be5b5a79d7daac69ab100db69fd01219b1780d"
+        },
+        {
+          "length": 93,
+          "path": "$.page_transitions[0].protocol.packets[14].frame",
+          "sha256": "238a7f82518006aaa712b83733346076a3f5301df989eb2e6e14a97bd52bc864"
+        },
+        {
+          "length": 51,
+          "path": "$.page_transitions[0].protocol.packets[15].frame",
+          "sha256": "dad748d031bbf7fd6d83735c3ca810a75abd7242a537ac554292db79a1e9fd35"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[1].protocol.packets[0].map.pixels",
+          "sha256": "d02c92a44346e0a6c9c4b1335abd502a7c3a377a658198a4dc8ccd32b6161bbb"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[1].protocol.packets[1].map.pixels",
+          "sha256": "cd71e968911a2f67f93060fe9b124ba36caaaa92eea5a5bf39563cb516e300b2"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[1].protocol.packets[2].map.pixels",
+          "sha256": "46529d1e744d4c36a5a5684712c9be631bb6dff13a91cb7afad37281ff4684f3"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[1].protocol.packets[3].map.pixels",
+          "sha256": "5e5a785410d4dadebd572be73d6eb1c35374be0eabdeca5acd1287e901ff2bc6"
+        },
+        {
+          "length": 9,
+          "path": "$.page_transitions[1].protocol.packets[4].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.page_transitions[1].protocol.packets[5].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.page_transitions[1].protocol.packets[6].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.page_transitions[1].protocol.packets[7].frame",
+          "sha256": "692a1e1913827cea82ddae8981aa8bc2c8ea35b717b3ac2c09ad6e2d6b254a63"
+        },
+        {
+          "length": 33,
+          "path": "$.page_transitions[1].protocol.packets[8].frame",
+          "sha256": "af6736eafe2f8afc06a7a9fd47eab2310024c6d796f081d79788ec31b96d7b68"
+        },
+        {
+          "length": 38,
+          "path": "$.page_transitions[1].protocol.packets[9].frame",
+          "sha256": "78497d5f86ff2b4ed3ea7f59344d88e4a92d22be0b2de1d44ed66515ae292006"
+        },
+        {
+          "length": 17,
+          "path": "$.page_transitions[1].protocol.packets[10].frame",
+          "sha256": "87624e31bec5d0fe4faf67f501bce7c0059c2af74efff584bd58ee68776cfe63"
+        },
+        {
+          "length": 64,
+          "path": "$.page_transitions[1].protocol.packets[11].frame",
+          "sha256": "7e30fa108c60de57b96ce57f6e803d0e58bc7cb546d5a38b7d1b79f437ec4657"
+        },
+        {
+          "length": 59,
+          "path": "$.page_transitions[1].protocol.packets[12].frame",
+          "sha256": "e00208565ab853a937749fca197909da497aa9dfe3402b0d7b5149c67223a0cd"
+        },
+        {
+          "length": 33,
+          "path": "$.page_transitions[1].protocol.packets[13].frame",
+          "sha256": "a2ef39c460e544797819415061be5b5a79d7daac69ab100db69fd01219b1780d"
+        },
+        {
+          "length": 93,
+          "path": "$.page_transitions[1].protocol.packets[14].frame",
+          "sha256": "934adf50eb34faeb07934e53121210c04e05afc3ce3945faec5380d433d184cf"
+        },
+        {
+          "length": 51,
+          "path": "$.page_transitions[1].protocol.packets[15].frame",
+          "sha256": "799c4ce470421a765c901abf910a4c1eb95fc1586ca6be2c8324dcda3adb4a79"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[2].protocol.packets[0].map.pixels",
+          "sha256": "cebfaea65665dc7df32d1925f1d410526bbe35457587c290968f674739484278"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[2].protocol.packets[1].map.pixels",
+          "sha256": "1d0fdad62eaa700fee23da17dab867be04a279dabf537834fe66c74c642fb614"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[2].protocol.packets[2].map.pixels",
+          "sha256": "51fece6c7743c5112dcf4c8a6483789b0a6d197080dd8af601797d59cc41c6c8"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[2].protocol.packets[3].map.pixels",
+          "sha256": "2fc783d3227cd43ce1e089ac78a9e926f10aaa37e12c660c3c4ef55c5a9c86ad"
+        },
+        {
+          "length": 9,
+          "path": "$.page_transitions[2].protocol.packets[4].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.page_transitions[2].protocol.packets[5].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.page_transitions[2].protocol.packets[6].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.page_transitions[2].protocol.packets[7].frame",
+          "sha256": "692a1e1913827cea82ddae8981aa8bc2c8ea35b717b3ac2c09ad6e2d6b254a63"
+        },
+        {
+          "length": 33,
+          "path": "$.page_transitions[2].protocol.packets[8].frame",
+          "sha256": "af6736eafe2f8afc06a7a9fd47eab2310024c6d796f081d79788ec31b96d7b68"
+        },
+        {
+          "length": 38,
+          "path": "$.page_transitions[2].protocol.packets[9].frame",
+          "sha256": "f9b31ba1abc631fae2e408683399d4cbf433d03b4f76ebb7325ab828c8116527"
+        },
+        {
+          "length": 17,
+          "path": "$.page_transitions[2].protocol.packets[10].frame",
+          "sha256": "87624e31bec5d0fe4faf67f501bce7c0059c2af74efff584bd58ee68776cfe63"
+        },
+        {
+          "length": 64,
+          "path": "$.page_transitions[2].protocol.packets[11].frame",
+          "sha256": "7e30fa108c60de57b96ce57f6e803d0e58bc7cb546d5a38b7d1b79f437ec4657"
+        },
+        {
+          "length": 59,
+          "path": "$.page_transitions[2].protocol.packets[12].frame",
+          "sha256": "e00208565ab853a937749fca197909da497aa9dfe3402b0d7b5149c67223a0cd"
+        },
+        {
+          "length": 33,
+          "path": "$.page_transitions[2].protocol.packets[13].frame",
+          "sha256": "a2ef39c460e544797819415061be5b5a79d7daac69ab100db69fd01219b1780d"
+        },
+        {
+          "length": 93,
+          "path": "$.page_transitions[2].protocol.packets[14].frame",
+          "sha256": "d298d5d74699dd3947b0f1c0ccac0a5be11fe3ed6073238c940beb40c90a646c"
+        },
+        {
+          "length": 51,
+          "path": "$.page_transitions[2].protocol.packets[15].frame",
+          "sha256": "abf7809b6c648372288806184bbea698c1a76ac3b69413cde1b3f1d1777c5fd3"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[3].protocol.packets[0].map.pixels",
+          "sha256": "d887df5c4e46f1fff162abb5eb581db2a050dccb3d981ddbf98586c7bb2e8e7a"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[3].protocol.packets[1].map.pixels",
+          "sha256": "63026ccae4907f2f2541ffe76420d998783bca7362fc31c5e8d7198fff7b3af2"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[3].protocol.packets[2].map.pixels",
+          "sha256": "15bcdbe5db0689fa35ef57ed2cc117e4be117872a6691b098ebd88ed2f438ea3"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[3].protocol.packets[3].map.pixels",
+          "sha256": "ba4bff48c5376dccc36c51353427fe0c6f32ce9cfa1e9752fac70d9f2466feaf"
+        },
+        {
+          "length": 9,
+          "path": "$.page_transitions[3].protocol.packets[4].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.page_transitions[3].protocol.packets[5].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.page_transitions[3].protocol.packets[6].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.page_transitions[3].protocol.packets[7].frame",
+          "sha256": "692a1e1913827cea82ddae8981aa8bc2c8ea35b717b3ac2c09ad6e2d6b254a63"
+        },
+        {
+          "length": 33,
+          "path": "$.page_transitions[3].protocol.packets[8].frame",
+          "sha256": "af6736eafe2f8afc06a7a9fd47eab2310024c6d796f081d79788ec31b96d7b68"
+        },
+        {
+          "length": 38,
+          "path": "$.page_transitions[3].protocol.packets[9].frame",
+          "sha256": "9f7449c2a844b399e79dc79c6c1b385a0c8b3fcdfaa8cc9461ce3b3658362025"
+        },
+        {
+          "length": 17,
+          "path": "$.page_transitions[3].protocol.packets[10].frame",
+          "sha256": "87624e31bec5d0fe4faf67f501bce7c0059c2af74efff584bd58ee68776cfe63"
+        },
+        {
+          "length": 64,
+          "path": "$.page_transitions[3].protocol.packets[11].frame",
+          "sha256": "7e30fa108c60de57b96ce57f6e803d0e58bc7cb546d5a38b7d1b79f437ec4657"
+        },
+        {
+          "length": 59,
+          "path": "$.page_transitions[3].protocol.packets[12].frame",
+          "sha256": "e00208565ab853a937749fca197909da497aa9dfe3402b0d7b5149c67223a0cd"
+        },
+        {
+          "length": 33,
+          "path": "$.page_transitions[3].protocol.packets[13].frame",
+          "sha256": "a2ef39c460e544797819415061be5b5a79d7daac69ab100db69fd01219b1780d"
+        },
+        {
+          "length": 93,
+          "path": "$.page_transitions[3].protocol.packets[14].frame",
+          "sha256": "d30d899195edb39992fff68d5b1f04ddd95c57fcdeb26818860dfd8aa6b346e1"
+        },
+        {
+          "length": 51,
+          "path": "$.page_transitions[3].protocol.packets[15].frame",
+          "sha256": "97374604864f69ce84ae05d68515319deaa78bcaeaa4297929ffae42dd8c4ddc"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[4].protocol.packets[0].map.pixels",
+          "sha256": "5b165616e7609d198f5442d0dcec51992a7c301220402f7a845bcc1828e2f931"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[4].protocol.packets[1].map.pixels",
+          "sha256": "98f9595d6741bb97351b7003cdac6d28291dc461ecc01e70e915e32eddb6da78"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[4].protocol.packets[2].map.pixels",
+          "sha256": "296df10ffa4b150feb3c6ef8fa629faa249a2956370ee9687214b6d35939be8f"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[4].protocol.packets[3].map.pixels",
+          "sha256": "4603b49a6c71896a323326153d0fbcce504c0de1da904ed18c8d3cf42124dd46"
+        },
+        {
+          "length": 9,
+          "path": "$.page_transitions[4].protocol.packets[4].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.page_transitions[4].protocol.packets[5].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.page_transitions[4].protocol.packets[6].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.page_transitions[4].protocol.packets[7].frame",
+          "sha256": "692a1e1913827cea82ddae8981aa8bc2c8ea35b717b3ac2c09ad6e2d6b254a63"
+        },
+        {
+          "length": 33,
+          "path": "$.page_transitions[4].protocol.packets[8].frame",
+          "sha256": "af6736eafe2f8afc06a7a9fd47eab2310024c6d796f081d79788ec31b96d7b68"
+        },
+        {
+          "length": 38,
+          "path": "$.page_transitions[4].protocol.packets[9].frame",
+          "sha256": "7ee2106935002ba626388d80aa4fff126c3addb0d5b36d631d211895aa655111"
+        },
+        {
+          "length": 17,
+          "path": "$.page_transitions[4].protocol.packets[10].frame",
+          "sha256": "87624e31bec5d0fe4faf67f501bce7c0059c2af74efff584bd58ee68776cfe63"
+        },
+        {
+          "length": 64,
+          "path": "$.page_transitions[4].protocol.packets[11].frame",
+          "sha256": "7e30fa108c60de57b96ce57f6e803d0e58bc7cb546d5a38b7d1b79f437ec4657"
+        },
+        {
+          "length": 59,
+          "path": "$.page_transitions[4].protocol.packets[12].frame",
+          "sha256": "e00208565ab853a937749fca197909da497aa9dfe3402b0d7b5149c67223a0cd"
+        },
+        {
+          "length": 33,
+          "path": "$.page_transitions[4].protocol.packets[13].frame",
+          "sha256": "a2ef39c460e544797819415061be5b5a79d7daac69ab100db69fd01219b1780d"
+        },
+        {
+          "length": 93,
+          "path": "$.page_transitions[4].protocol.packets[14].frame",
+          "sha256": "62161ac4e58d18a1f416dadf43740c0192cac5124227a2786f8fe31f0abd7ade"
+        },
+        {
+          "length": 51,
+          "path": "$.page_transitions[4].protocol.packets[15].frame",
+          "sha256": "f27f91f0c677c0a56038b1025477da3cf29450951707d6dc26e8a72f8236ed41"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[5].protocol.packets[0].map.pixels",
+          "sha256": "f680c83fc721266a65545d6b60cc04d68a93560ade7024085aa285698609fd24"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[5].protocol.packets[1].map.pixels",
+          "sha256": "857d9ed9900f6a9208b44220a251b12f39b069f6b5c11dcdc140fe4a9907c1b1"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[5].protocol.packets[2].map.pixels",
+          "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+        },
+        {
+          "length": 16384,
+          "path": "$.page_transitions[5].protocol.packets[3].map.pixels",
+          "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+        },
+        {
+          "length": 9,
+          "path": "$.page_transitions[5].protocol.packets[4].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.page_transitions[5].protocol.packets[5].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.page_transitions[5].protocol.packets[6].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.page_transitions[5].protocol.packets[7].frame",
+          "sha256": "692a1e1913827cea82ddae8981aa8bc2c8ea35b717b3ac2c09ad6e2d6b254a63"
+        },
+        {
+          "length": 33,
+          "path": "$.page_transitions[5].protocol.packets[8].frame",
+          "sha256": "af6736eafe2f8afc06a7a9fd47eab2310024c6d796f081d79788ec31b96d7b68"
+        },
+        {
+          "length": 38,
+          "path": "$.page_transitions[5].protocol.packets[9].frame",
+          "sha256": "b66ad0709413f9b55fff6f5fbed7d761a3c16b870877584cc2d42310c1ea74c8"
+        },
+        {
+          "length": 17,
+          "path": "$.page_transitions[5].protocol.packets[10].frame",
+          "sha256": "87624e31bec5d0fe4faf67f501bce7c0059c2af74efff584bd58ee68776cfe63"
+        },
+        {
+          "length": 64,
+          "path": "$.page_transitions[5].protocol.packets[11].frame",
+          "sha256": "7e30fa108c60de57b96ce57f6e803d0e58bc7cb546d5a38b7d1b79f437ec4657"
+        },
+        {
+          "length": 59,
+          "path": "$.page_transitions[5].protocol.packets[12].frame",
+          "sha256": "e00208565ab853a937749fca197909da497aa9dfe3402b0d7b5149c67223a0cd"
+        },
+        {
+          "length": 33,
+          "path": "$.page_transitions[5].protocol.packets[13].frame",
+          "sha256": "a2ef39c460e544797819415061be5b5a79d7daac69ab100db69fd01219b1780d"
+        },
+        {
+          "length": 93,
+          "path": "$.page_transitions[5].protocol.packets[14].frame",
+          "sha256": "659bc5d2f352a8eb08f037d39d664df1ef6de767be405cf8b6f093c882dbbe7c"
+        },
+        {
+          "length": 51,
+          "path": "$.page_transitions[5].protocol.packets[15].frame",
+          "sha256": "22ebaed970b98f6336f326ef74a85907883f63107773aa21a8e0df6d2ca607be"
+        },
+        {
+          "length": 57,
+          "path": "$.last_page_boundary.packets[0].frame",
+          "sha256": "043f958c1cda07ddc8c8ce66d94a9f148be2de46c60e455a36f9152d352d7734"
+        },
+        {
+          "length": 8,
+          "path": "$.close.packets[1].frame",
+          "sha256": "c1da7cbd879b044f506e12b8b5d60fd5b81271f14a04d5bc1cd2e98ba953ec1c"
+        },
+        {
+          "length": 8,
+          "path": "$.close.packets[2].frame",
+          "sha256": "4ecdaae026a170da3fd068797cac729be8c4dd0b357740b40f657f9989a13284"
+        },
+        {
+          "length": 8,
+          "path": "$.close.packets[3].frame",
+          "sha256": "381a6ccc0c8dd00cef1fc9f6428227deb5e8a2f02c7a5aebe8144be0d46ebe9e"
+        },
+        {
+          "length": 8,
+          "path": "$.close.packets[4].frame",
+          "sha256": "7563c851e1666322e67bf5f4c61cfe8b69f412ba58c4626ed3246aa9f174d36f"
+        },
+        {
+          "length": 8,
+          "path": "$.close.packets[5].frame",
+          "sha256": "81247005fdb8411d0059f5e11e00a9d77864f23e583ff1acb65b2ed9edfefc74"
+        },
+        {
+          "length": 8,
+          "path": "$.close.packets[6].frame",
+          "sha256": "1f976a3d8dc452aeb53135cdf203daea079fc5e35a361a90219d0344b9792224"
+        },
+        {
+          "length": 8,
+          "path": "$.close.packets[7].frame",
+          "sha256": "e5683044c133586d9f9d6ff062b6e9e087fee0b0a10052c1b666fbae20900d44"
+        },
+        {
+          "length": 30,
+          "path": "$.close.packets[8].frame",
+          "sha256": "53d3bf98930333abe2c0f3c44d32d05f4ed37da256707dcf8f2dc4d600950442"
+        },
+        {
+          "length": 142,
+          "path": "$.close.packets[9].frame",
+          "sha256": "190ae2184077eb88a43e15382f6786d89f0bb8c35c6579d9b646b77eaef0265e"
+        },
+        {
+          "length": 4,
+          "path": "$.close.packets[10].frame",
+          "sha256": "66eb83bb3c908858d9e4d9c61e538c3316d88505dc2709a6ca369acb1d853add"
+        },
+        {
+          "length": 9,
+          "path": "$.close.packets[11].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.close.packets[12].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.close.packets[13].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.close.packets[14].frame",
+          "sha256": "e012f15f170d94372f62123b87e501e427549413df97c58e563b31dd165842d8"
+        },
+        {
+          "length": 44,
+          "path": "$.close.packets[15].frame",
+          "sha256": "881c42f792ba16078a1ec674240a14d3d49e37c0927746fbb83dbeaf415f4d41"
+        },
+        {
+          "length": 45,
+          "path": "$.close.packets[16].frame",
+          "sha256": "144eb79d856aca62fe0ae4876c1bc3bdda2caa643d2e360268f006ce2af9dc6d"
+        },
+        {
+          "length": 17,
+          "path": "$.close.packets[17].frame",
+          "sha256": "97039c6adb84706113c3e1fcf18f6568d849b66937ff564163ba64c47a452791"
+        },
+        {
+          "length": 40,
+          "path": "$.close.packets[18].frame",
+          "sha256": "740664867fd8d59ae54284a69dd0749ca48488e6f9fe59617ca9e1e0f51c6a5d"
+        },
+        {
+          "length": 33,
+          "path": "$.close.packets[19].frame",
+          "sha256": "4336413012037212fab00fb82ff4bac326279ecd85668796c7ab0eab607320cd"
+        },
+        {
+          "length": 17,
+          "path": "$.close.packets[20].frame",
+          "sha256": "2ea137b30495c7cade1e243af53687e36fd82756586a35cd837f340de4c1d705"
+        },
+        {
+          "length": 42,
+          "path": "$.close.packets[21].frame",
+          "sha256": "16a1cc012b7162b2890938ab038821db199c1eae8050085666bc7cebf938b47c"
+        },
+        {
+          "length": 59,
+          "path": "$.close.packets[22].frame",
+          "sha256": "3d062ae4b88594a0f111de7355f0d42bfba2a8f01bcd823fe7aef377fd22e635"
+        },
+        {
+          "length": 33,
+          "path": "$.close.packets[23].frame",
+          "sha256": "ab365cbfd1f14dc5cc28056ab4e32d8fe69b56de3e4f0b885e005b941d314f02"
+        },
+        {
+          "length": 52,
+          "path": "$.close.packets[24].frame",
+          "sha256": "fc43825082f62cf6e82a285bdb8851c161e7738d79dda88eff868465c2875b2e"
+        },
+        {
+          "length": 49,
+          "path": "$.authenticated_menu_after_close.protocol.packets[0].frame",
+          "sha256": "44e891c97605029d05e6558827fc6df2b7dc59084cd7a489db6163671ccc6a11"
+        },
+        {
+          "length": 684,
+          "path": "$.authenticated_menu_after_close.protocol.packets[1].frame",
+          "sha256": "11f4601ffb243056e5dde8c3c5c935682686aaf881f31af675b1991a29294986"
+        }
+      ]
+    }
+  ],
+  "scenario": "minecraft-mail-view",
+  "schema": "lmyzmail.renderer-local-e2e.v1",
+  "source_sha256": "c1913d45ec5e724e66074d668ca65ae7654186db513501b5545fb2f34174a3c3",
+  "status": "passed",
+  "unverified_backend": "avx512f"
+}

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="15.900" timestamp="2026-10-22T21:52:02.476702+08:00" hostname="MSI"><testcase classname="" name="test_ordinary_maildir_survives_bidirectional_takeover" time="15.645"><failure message="lmyzmail_blackbox.errors.ProtocolError: SMTP DATA was not accepted: (b'503 5.5.1 Bad sequence of commands\r\n',)">tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-125/test_ordinary_maildir_survives0')
+
+    def test_ordinary_maildir_survives_bidirectional_takeover(tmp_path):
+        binary = Path(os.environ["LMYZMAIL_TAKEOVER_BINARY"]).resolve(strict=True)
+        assert binary.is_file()
+        runtime = TakeoverRuntime(tmp_path / "durable-takeover", shutdown_timeout=20)
+        message = (b"From: sender@sender.invalid\r\nTo: qa@example.test\r\n"
+                   b"Subject: Rust takeover inbound\r\nMessage-ID: &lt;takeover-inbound@example.test&gt;\r\n"
+                   b"MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n"
+                   b"Retained across Java Rust Java Rust.\r\n")
+        with binary.open("rb") as stream:
+            binary_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+        proof = {"scope": "ordinary ASCII mailbox; ambiguous names and pending outbound takeover remain separate gates",
+                 "binary_sha256": binary_sha256,
+                 "phases": []}
+        expected_raw = {}
+        try:
+            runtime.start()
+            _assert_http_takeover(ROOT, runtime)
+            proof["phases"].append("initial-java-legacy-reads")
+            runtime.rust_phase = True
+            runtime.restart_application()
+            _assert_http_takeover(ROOT, runtime)
+            assert runtime.ports is not None and runtime.workspace is not None
+&gt;           transcript = smtp_data_transaction(
+                "127.0.0.1", runtime.ports.smtp, sender="sender@sender.invalid",
+                recipient="qa@example.test", message=message,
+            )
+
+tools/test_release_takeover.py:64: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/protocols.py:329: in smtp_data_transaction
+    data_ready, accepted = client.data(message)
+                           ^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = RawSmtpClient(stream=&lt;lmyzmail_blackbox.protocols.BoundedSocket object at 0x7f9a4e46f530&gt;, greeting=(b'220 lmyzmail ESMTP lmyzmail SMTP Server 2.8.0 - Skibidi DoP dop yes yes!\r\n',), _closed=True)
+message = b'From: sender@sender.invalid\r\nTo: qa@example.test\r\nSubject: Rust takeover inbound\r\nMessage-ID: &lt;takeover-inboun....test&gt;\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nRetained across Java Rust Java Rust.\r\n'
+
+    def data(self, message: bytes) -&gt; tuple[tuple[bytes, ...], tuple[bytes, ...]]:
+        data_ready = self.command(b"DATA")
+        if not data_ready[0].startswith(b"354 "):
+&gt;           raise ProtocolError(f"SMTP DATA was not accepted: {data_ready!r}")
+E           lmyzmail_blackbox.errors.ProtocolError: SMTP DATA was not accepted: (b'503 5.5.1 Bad sequence of commands\r\n',)
+
+blackbox/src/lmyzmail_blackbox/protocols.py:237: ProtocolError</failure></testcase></testsuite></testsuites>

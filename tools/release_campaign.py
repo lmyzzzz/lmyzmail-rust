@@ -20,6 +20,7 @@ from lmyzmail_blackbox.golden import GoldenStore, _sha256_definition_tree
 ROOT = Path(__file__).resolve().parents[1]
 ORIGINAL = ROOT / "blackbox/golden/java"
 _resolve = GoldenStore._resolve
+_read_text = Path.read_text
 _before: dict[str, str] = {}
 _definition = ""
 _campaign: Path | None = None
@@ -47,6 +48,17 @@ def resolve(self: GoldenStore, relative_path: str) -> Path:
     return path
 
 
+def read_campaign_text(path: Path, *args, **kwargs):
+    # Some strict checkpoint-difference checks read an envelope directly
+    # rather than through GoldenStore. Give them the same fresh attestation;
+    # leave the assertion and the historical bytes untouched. The audit below
+    # deliberately reads bytes, so it continues to inspect the real originals.
+    if path.is_absolute() and path.is_relative_to(ORIGINAL):
+        assert _campaign is not None
+        path = _campaign / path.relative_to(ORIGINAL)
+    return _read_text(path, *args, **kwargs)
+
+
 def pytest_configure(config) -> None:
     global _before, _definition, _campaign
     name = os.environ.get("LMYZMAIL_GOLDEN_CAMPAIGN", "")
@@ -58,6 +70,7 @@ def pytest_configure(config) -> None:
     _before = inventory(ORIGINAL)
     _definition = _sha256_definition_tree(ROOT)
     GoldenStore._resolve = resolve
+    Path.read_text = read_campaign_text
 
 
 def pytest_sessionfinish(session, exitstatus) -> None:
@@ -103,3 +116,4 @@ def pytest_sessionfinish(session, exitstatus) -> None:
 
 def pytest_unconfigure(config) -> None:
     GoldenStore._resolve = _resolve
+    Path.read_text = _read_text

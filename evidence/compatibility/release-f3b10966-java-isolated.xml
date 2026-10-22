@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="65.009" timestamp="2026-10-22T22:10:59.873204+08:00" hostname="MSI"><testcase classname="tests.test_oracle_smtp_dmarc" name="test_managed_java_smtp_dmarc_golden" time="23.405"><failure message="AssertionError: SMTP DMARC contract violation: {'multiple-from': {'auth-multiple-from.dmarc-edge-example.net': (DnsQuery(qname='auth-multiple-from.dmarc-edge-example.net', qtype=16, qclass=1), DnsQuery(qname='_dmarc.auth-multiple-from.dmarc-edge-example.net', qtype=16, qclass=1), DnsQuery(qname='_dmarc.auth-multiple-from.dmarc-edge-example.net', qtype=16, qclass=1), DnsQuery(qname='_dmarc.dmarc-edge-example.net', qtype=16, qclass=1), DnsQuery(qname='_dmarc.dmarc-edge-example.net', qtype=16, qclass=1), DnsQuery(qname='auth-multiple-from.dmarc-edge-example.net', qtype=16, qclass=1))}}">record_java_golden = False
+
+    @pytest.mark.integration
+    @pytest.mark.oracle
+    @pytest.mark.timeout(420)
+    def test_managed_java_smtp_dmarc_golden(record_java_golden: bool) -&gt; None:
+        paths = JavaOracleRuntime().paths
+        differential = _runner(paths.repository, record_java=record_java_golden)
+        with _DmarcJavaRuntime(paths=paths) as oracle:
+            if record_java_golden:
+                differential.record_from_java(SMTP_DMARC_SCENARIOS, oracle)
+            else:
+&gt;               differential.verify_java(SMTP_DMARC_SCENARIOS, oracle)
+
+blackbox/tests/test_oracle_smtp_dmarc.py:129: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:127: in verify_java
+    observation = scenario.capture(target)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+blackbox/src/lmyzmail_blackbox/smtp_dmarc_contract.py:553: in capture_external_dmarc_edge_matrix
+    return {"cases": [_capture_edge_case(target, case) for case in _DMARC_EDGE_CASES]}
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+blackbox/src/lmyzmail_blackbox/smtp_dmarc_contract.py:530: in _capture_edge_case
+    _check(count == 1, {case.name: {qname: queries}})
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False
+details = {'multiple-from': {'auth-multiple-from.dmarc-edge-example.net': (DnsQuery(qname='auth-multiple-from.dmarc-edge-example...e-example.net', qtype=16, qclass=1), DnsQuery(qname='auth-multiple-from.dmarc-edge-example.net', qtype=16, qclass=1))}}
+
+    def _check(condition: bool, details: object) -&gt; None:
+        if not condition:
+&gt;           raise AssertionError(f"SMTP DMARC contract violation: {details!r}")
+E           AssertionError: SMTP DMARC contract violation: {'multiple-from': {'auth-multiple-from.dmarc-edge-example.net': (DnsQuery(qname='auth-multiple-from.dmarc-edge-example.net', qtype=16, qclass=1), DnsQuery(qname='_dmarc.auth-multiple-from.dmarc-edge-example.net', qtype=16, qclass=1), DnsQuery(qname='_dmarc.auth-multiple-from.dmarc-edge-example.net', qtype=16, qclass=1), DnsQuery(qname='_dmarc.dmarc-edge-example.net', qtype=16, qclass=1), DnsQuery(qname='_dmarc.dmarc-edge-example.net', qtype=16, qclass=1), DnsQuery(qname='auth-multiple-from.dmarc-edge-example.net', qtype=16, qclass=1))}}
+
+blackbox/src/lmyzmail_blackbox/smtp_dmarc_contract.py:368: AssertionError</failure></testcase><testcase classname="tools.test_java_multi_domain" name="test_java_multi_domain_golden" time="41.398"><failure message="AssertionError: stress start did not publish a multi-domain queue row">tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-128/test_java_multi_domain_golden0')
+
+    @pytest.mark.integration
+    @pytest.mark.oracle
+    @pytest.mark.timeout(240)
+    def test_java_multi_domain_golden(tmp_path: Path) -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runner = DifferentialRunner(
+            repository,
+            repository / "blackbox/golden/java" / _GOLDEN,
+            _PROFILE,
+            record_java=os.environ.get("LMYZMAIL_RECORD_JAVA_GOLDEN") == "1",
+        )
+        with _MultiDomainStressJavaRuntime(tmp_path / "java-multi-domain") as oracle:
+            if runner.record_java:
+                runner.record_from_java(SCENARIOS, _Target(oracle))
+            else:
+&gt;               runner.verify_java(SCENARIOS, _Target(oracle))
+
+blackbox/tools/test_java_multi_domain.py:438: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:127: in verify_java
+    observation = scenario.capture(target)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+target = _Target(runtime=_MultiDomainStressJavaRuntime(paths=HarnessPaths(repository=PosixPath('/home/lmyzzz/lmyzmail-rust'), r... ports=None, workspace=PosixPath('/tmp/pytest-of-lmyzzz/pytest-128/test_java_multi_domain_golden0/java-multi-domain')))
+
+    def _capture_stress_multi_domain(target: RuntimeTarget) -&gt; dict[str, Any]:
+        assert target.ports is not None
+        started = _http_json(target, "POST", "/api/stress/start")
+        deadline = time.monotonic() + 20.0
+        row: tuple[str, str] | None = None
+        with psycopg.connect(
+            host="127.0.0.1",
+            port=target.ports.postgres,
+            dbname="lmyzmail",
+            user="lmyzmail_test",
+            password="",
+            connect_timeout=3,
+            autocommit=True,
+        ) as connection:
+            while time.monotonic() &lt; deadline:
+                result = connection.execute(
+                    "SELECT sender_address,recipients_json FROM outbound_mail_queue "
+                    "WHERE sender_address LIKE %s ORDER BY id DESC LIMIT 1",
+                    ("multi-stress-sender@%",),
+                ).fetchone()
+                if result is not None:
+                    row = (str(result[0]), str(result[1]))
+                    break
+                time.sleep(0.05)
+        if row is None:
+&gt;           raise AssertionError("stress start did not publish a multi-domain queue row")
+E           AssertionError: stress start did not publish a multi-domain queue row
+
+blackbox/tools/test_java_multi_domain.py:348: AssertionError</failure></testcase></testsuite></testsuites>

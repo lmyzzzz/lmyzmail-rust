@@ -1,0 +1,142 @@
+[
+  {
+    "task_id": 2,
+    "generation": 1,
+    "owner_token": null,
+    "recipient_count": 1,
+    "roster_sha256": "\\x74f8b5492f33015159d560591dbd72185dd95387570d8f2c1487ddda11735b07",
+    "phase": "PROJECTED",
+    "created_at": "2026-10-22T14:05:16.756448+00:00",
+    "updated_at": "2026-10-22T14:05:16.840252+00:00"
+  },
+  {
+    "task_id": 10,
+    "generation": 2,
+    "owner_token": null,
+    "recipient_count": 1,
+    "roster_sha256": "\\x230898100ea3b3f83272b018e8d5af73989c767f653b4de0e96b0e0d43b24a61",
+    "phase": "PROJECTED",
+    "created_at": "2026-10-22T14:06:15.584905+00:00",
+    "updated_at": "2026-10-22T14:06:44.531141+00:00"
+  },
+  {
+    "task_id": 3,
+    "generation": 2,
+    "owner_token": null,
+    "recipient_count": 1,
+    "roster_sha256": "\\xf3028062c8b9ce55032089ae439483016737c6d6c7774a6930bd0d53fe0f07cd",
+    "phase": "PROJECTED",
+    "created_at": "2026-10-22T14:05:19.752052+00:00",
+    "updated_at": "2026-10-22T14:05:25.832522+00:00"
+  },
+  {
+    "task_id": 4,
+    "generation": 2,
+    "owner_token": null,
+    "recipient_count": 1,
+    "roster_sha256": "\\xbddb09d3f576ba23c68712c9213c14a44641353ef93e4742c04816d51ccbfba7",
+    "phase": "PROJECTED",
+    "created_at": "2026-10-22T14:05:28.75307+00:00",
+    "updated_at": "2026-10-22T14:05:34.830958+00:00"
+  },
+  {
+    "task_id": 11,
+    "generation": 2,
+    "owner_token": null,
+    "recipient_count": 1,
+    "roster_sha256": "\\x7abc2c4f6175ee4812ef1e4a66a2b61f2de685bcd19fe0b58ae56c2667bec403",
+    "phase": "PROJECTED",
+    "created_at": "2026-10-22T14:06:47.445641+00:00",
+    "updated_at": "2026-10-22T14:07:19.596258+00:00"
+  },
+  {
+    "task_id": 5,
+    "generation": 2,
+    "owner_token": null,
+    "recipient_count": 1,
+    "roster_sha256": "\\x1b741ca182110469b660b4b718d94f5e9a0a229a8dfcbf2811c8da70ea8894de",
+    "phase": "PROJECTED",
+    "created_at": "2026-10-22T14:05:37.751291+00:00",
+    "updated_at": "2026-10-22T14:05:40.834363+00:00"
+  },
+  {
+    "task_id": 1027,
+    "generation": 3,
+    "owner_token": null,
+    "recipient_count": 1,
+    "roster_sha256": "\\xae6d4bc2906710b6d5daad04500e84e740772d0b3a766c73716a4b11940cee28",
+    "phase": "PROJECTED",
+    "created_at": "2026-10-22T14:05:19.850193+00:00",
+    "updated_at": "2026-10-22T14:07:19.640826+00:00"
+  },
+  {
+    "task_id": 6,
+    "generation": 2,
+    "owner_token": null,
+    "recipient_count": 1,
+    "roster_sha256": "\\x8360069fef64e908f46c7be8b1eb1dc4b9866ac1666f0944aa67a30d51995eea",
+    "phase": "PROJECTED",
+    "created_at": "2026-10-22T14:05:43.752235+00:00",
+    "updated_at": "2026-10-22T14:05:51.664531+00:00"
+  },
+  {
+    "task_id": 7,
+    "generation": 1,
+    "owner_token": null,
+    "recipient_count": 1,
+    "roster_sha256": "\\x6d8e4436ab3a1ef22421be3809911ab73cf75882592ce2bccdd993312089e0da",
+    "phase": "PROJECTED",
+    "created_at": "2026-10-22T14:05:54.585072+00:00",
+    "updated_at": "2026-10-22T14:05:54.664603+00:00"
+  },
+  {
+    "task_id": 8,
+    "generation": 1,
+    "owner_token": null,
+    "recipient_count": 1,
+    "roster_sha256": "\\x03150066982afae82eeb699f805dedf29180e40be98716b7c758699459e7a62a",
+    "phase": "PROJECTED",
+    "created_at": "2026-10-22T14:05:57.585667+00:00",
+    "updated_at": "2026-10-22T14:05:57.669682+00:00"
+  },
+  {
+    "task_id": 12,
+    "generation": 2,
+    "owner_token": null,
+    "recipient_count": 1,
+    "roster_sha256": "\\x0f71cc41da862737be2fbd3fe62d56f8222e11b4a11c70843fb8d7e1cdad4eb6",
+    "phase": "PROJECTED",
+    "created_at": "2026-10-22T14:07:22.511315+00:00",
+    "updated_at": "2026-10-22T14:07:54.705618+00:00"
+  },
+  {
+    "task_id": 13,
+    "generation": 1,
+    "owner_token": null,
+    "recipient_count": 1,
+    "roster_sha256": "\\x3a93a9e20fa5a085038a4f133156514fba329ab780a32c9b819943c9653c8543",
+    "phase": "PROJECTED",
+    "created_at": "2026-10-22T14:07:57.62023+00:00",
+    "updated_at": "2026-10-22T14:07:57.70533+00:00"
+  },
+  {
+    "task_id": 9,
+    "generation": 2,
+    "owner_token": null,
+    "recipient_count": 1,
+    "roster_sha256": "\\x3355f69eec7dd8e3e1fca08b75809d3ed891a59d5242d6e5a14b2e170feb6f39",
+    "phase": "PROJECTED",
+    "created_at": "2026-10-22T14:06:00.584637+00:00",
+    "updated_at": "2026-10-22T14:06:12.675653+00:00"
+  },
+  {
+    "task_id": 14,
+    "generation": 2,
+    "owner_token": null,
+    "recipient_count": 1,
+    "roster_sha256": "\\x3483821541147278702dc42d90d3d7c8be321963c21cfd0ae8117c08ce98c044",
+    "phase": "PROJECTED",
+    "created_at": "2026-10-22T14:08:00.621228+00:00",
+    "updated_at": "2026-10-22T14:08:29.829932+00:00"
+  }
+]

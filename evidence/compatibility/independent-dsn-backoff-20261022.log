@@ -1,0 +1,7 @@
+{"external_candidate_binary": "/home/lmyzzz/lmyzmail-rust/.blackbox/target-takeover-fix/x86_64-unknown-linux-gnu/release/lmyzmail", "sha256_before": "04a0787548fe44739a0e67a0900d644e0b3189ddc51444ebd556773518c6391d"}
+..                                                                       [100%]
+Campaign audit: {"differences_requiring_review": [], "harness_definition_sha256": "73e751452ad6eecc90dc68019e56806ad11cbb19b22ad7dcbc55928dda2a446f", "historical_observations_equal": 346, "old_golden_files_unchanged": 6897, "pytest_exitstatus": 0}
+
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/independent-dsn-backoff-20261022.xml -
+2 passed, 1 deselected in 111.76s (0:01:51)
+{"sha256_after": "04a0787548fe44739a0e67a0900d644e0b3189ddc51444ebd556773518c6391d", "unchanged": true}

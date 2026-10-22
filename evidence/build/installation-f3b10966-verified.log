@@ -1,0 +1,7 @@
+staged lmyzmail installation under /tmp/lmyzmail-install-smoke.jBQ2jt2k
+preserved existing configuration: /tmp/lmyzmail-install-smoke.jBQ2jt2k/etc/lmyzmail/application.properties
+staged lmyzmail installation under /tmp/lmyzmail-install-smoke.jBQ2jt2k
+preserved existing configuration: /tmp/lmyzmail-install-smoke.jBQ2jt2k/etc/lmyzmail/application.properties
+staged lmyzmail installation under /tmp/lmyzmail-install-smoke.jBQ2jt2k
+removed lmyzmail executable, unit, example, and generated path grants; configuration, data, assets, user, and BPF pins were preserved
+lmyzmail staged install/upgrade/uninstall smoke passed: binary_sha256=d69bcf856e722b48cbe7a41a11502406330a01201b73e84a1cc20d91abc5f0b0

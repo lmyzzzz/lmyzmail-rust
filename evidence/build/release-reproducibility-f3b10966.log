@@ -1,0 +1,1026 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.47
+   Compiling libc v0.2.189
+   Compiling cfg-if v1.0.4
+   Compiling shlex v2.0.1
+   Compiling find-msvc-tools v0.1.9
+   Compiling stable_deref_trait v1.2.1
+   Compiling pin-project-lite v0.2.17
+   Compiling smallvec v1.15.2
+   Compiling bytes v1.12.1
+   Compiling pkg-config v0.3.33
+   Compiling futures-core v0.3.33
+   Compiling portable-atomic v1.14.0
+   Compiling vcpkg v0.2.15
+   Compiling futures-sink v0.3.33
+   Compiling log v0.4.33
+   Compiling critical-section v1.2.0
+   Compiling slab v0.4.12
+   Compiling futures-task v0.3.33
+   Compiling litemap v0.8.2
+   Compiling zeroize v1.9.0
+   Compiling bitflags v2.13.1
+   Compiling getrandom v0.4.3
+   Compiling writeable v0.6.3
+   Compiling typenum v1.20.1
+   Compiling rand_core v0.10.1
+   Compiling itoa v1.0.18
+   Compiling serde_core v1.0.229
+   Compiling icu_normalizer_data v2.2.0
+   Compiling cc v1.4.0
+   Compiling percent-encoding v2.3.2
+   Compiling icu_properties_data v2.2.0
+   Compiling utf8_iter v1.0.4
+   Compiling rustls-pki-types v1.15.1
+   Compiling autocfg v1.5.1
+   Compiling memchr v2.8.3
+   Compiling parking_lot_core v0.9.12
+   Compiling scopeguard v1.2.0
+   Compiling untrusted v0.9.0
+   Compiling serde v1.0.229
+   Compiling lock_api v0.4.14
+   Compiling siphasher v1.0.3
+   Compiling cpufeatures v0.3.0
+   Compiling subtle v2.6.1
+   Compiling tinyvec_macros v0.1.1
+   Compiling rustls v0.23.43
+   Compiling tinyvec v1.12.0
+   Compiling form_urlencoded v1.2.2
+   Compiling crc32fast v1.5.0
+   Compiling cmov v0.5.4
+   Compiling simd-adler32 v0.3.10
+   Compiling num-traits v0.2.19
+   Compiling chacha20 v0.10.1
+   Compiling futures-channel v0.3.33
+   Compiling ctutils v0.4.2
+   Compiling phf_shared v0.13.1
+   Compiling const-oid v0.10.2
+   Compiling adler2 v2.0.1
+   Compiling fastrand v2.5.0
+   Compiling base64 v0.22.1
+   Compiling miniz_oxide v0.8.9
+   Compiling http v1.5.0
+   Compiling openssl-probe v0.2.1
+   Compiling target-lexicon v0.13.5
+   Compiling parking v2.2.1
+   Compiling winnow v1.0.4
+   Compiling equivalent v1.0.2
+   Compiling phf_generator v0.13.1
+   Compiling rustix v1.1.4
+   Compiling hybrid-array v0.4.14
+   Compiling event-listener v5.4.2
+   Compiling rustls-native-certs v0.8.4
+   Compiling httparse v1.10.1
+   Compiling crossbeam-utils v0.8.22
+   Compiling phf_codegen v0.13.1
+   Compiling serde_spanned v1.1.1
+   Compiling toml_datetime v1.1.1+spec-1.1.0
+   Compiling phf v0.13.1
+   Compiling linux-raw-sys v0.12.1
+   Compiling byteorder v1.5.0
+   Compiling event-listener-strategy v0.5.4
+   Compiling toml_parser v1.1.3+spec-1.1.0
+   Compiling bytemuck v1.25.2
+   Compiling powerfmt v0.2.0
+   Compiling new_debug_unreachable v1.0.6
+   Compiling thiserror v2.0.19
+   Compiling async-lock v3.4.2
+   Compiling crypto-common v0.2.2
+   Compiling syn v2.0.119
+   Compiling syn v3.0.3
+   Compiling once_cell v1.21.4
+   Compiling block-buffer v0.12.1
+   Compiling string_cache_codegen v0.6.1
+   Compiling deranged v0.5.8
+   Compiling unicode-normalization v0.1.25
+   Compiling tracing-core v0.1.36
+   Compiling fdeflate v0.3.7
+   Compiling writeable v0.5.5
+   Compiling ring v0.17.14
+   Compiling libz-sys v1.1.29
+   Compiling http-body v1.1.0
+   Compiling web_atoms v0.2.5
+   Compiling toml v1.1.4+spec-1.1.0
+   Compiling either v1.17.0
+   Compiling time-core v0.1.8
+   Compiling crossbeam-epoch v0.9.20
+   Compiling errno v0.3.14
+   Compiling mio v1.2.2
+   Compiling socket2 v0.6.5
+   Compiling getrandom v0.2.17
+   Compiling signal-hook-registry v1.4.8
+   Compiling digest v0.11.3
+   Compiling cfg-expr v0.20.8
+   Compiling rand v0.10.2
+   Compiling version-compare v0.2.1
+   Compiling parking_lot v0.12.5
+   Compiling arrayvec v0.7.8
+   Compiling tower-service v0.3.3
+   Compiling num-conv v0.2.0
+   Compiling heck v0.5.0
+   Compiling float-cmp v0.9.0
+   Compiling unicode-bidi v0.3.18
+   Compiling icu_locid_transform_data v1.5.1
+   Compiling zmij v1.0.23
+   Compiling precomputed-hash v0.1.1
+   Compiling try-lock v0.2.5
+   Compiling unicode-properties v0.1.4
+   Compiling litemap v0.7.5
+   Compiling string_cache v0.9.0
+   Compiling want v0.3.1
+   Compiling strict-num v0.1.1
+   Compiling system-deps v7.0.8
+   Compiling sha2 v0.11.0
+   Compiling hmac v0.13.0
+   Compiling md-5 v0.11.0
+   Compiling time v0.3.47
+   Compiling num_cpus v1.17.0
+   Compiling freetype-sys v0.23.0
+   Compiling openssl-sys v0.9.117
+   Compiling arrayref v0.3.9
+   Compiling serde_json v1.0.151
+   Compiling fallible-iterator v0.2.0
+   Compiling linked-hash-map v0.5.6
+   Compiling stringprep v0.1.5
+   Compiling atomic-waker v1.1.2
+   Compiling icu_properties_data v1.5.1
+   Compiling hashbrown v0.17.1
+   Compiling color_quant v1.1.0
+   Compiling data-encoding v2.11.1
+   Compiling iana-time-zone v0.1.65
+   Compiling weezl v0.1.12
+   Compiling chrono v0.4.45
+   Compiling flate2 v1.1.9
+   Compiling lru-cache v0.1.2
+   Compiling cairo-sys-rs v0.22.0
+   Compiling postgres-protocol v0.6.12
+   Compiling tiny-skia-path v0.11.4
+   Compiling kurbo v0.11.3
+   Compiling crossbeam-channel v0.5.16
+   Compiling indexmap v2.14.0
+   Compiling uuid v1.24.0
+   Compiling inout v0.2.2
+   Compiling tendril v0.5.1
+   Compiling sync_wrapper v1.0.2
+   Compiling encoding_rs v0.8.35
+   Compiling dtoa v1.0.11
+   Compiling byteorder-lite v0.1.0
+   Compiling futures-io v0.3.33
+   Compiling tagptr v0.2.0
+   Compiling icu_casemap_data v1.5.1
+   Compiling bitflags v1.3.2
+   Compiling version_check v0.9.5
+   Compiling tower-layer v0.3.3
+   Compiling quick-error v2.0.1
+   Compiling png v0.17.16
+   Compiling markup5ever v0.39.0
+   Compiling image-webp v0.2.4
+   Compiling dtoa-short v0.3.5
+   Compiling cipher v0.5.2
+   Compiling whoami v2.1.2
+   Compiling aho-corasick v1.1.5
+   Compiling webpki-roots v1.0.9
+   Compiling simplecss v0.2.2
+   Compiling multer v3.1.0
+   Compiling roxmltree v0.20.0
+   Compiling resolv-conf v0.7.6
+   Compiling svgtypes v0.15.3
+   Compiling postgres-types v0.2.14
+   Compiling xmlwriter v0.1.0
+   Compiling zune-core v0.4.12
+   Compiling foreign-types-shared v0.1.1
+   Compiling pxfm v0.1.30
+   Compiling openssl v0.10.81
+   Compiling pico-args v0.5.0
+   Compiling ryu v1.0.23
+   Compiling allocator-api2 v0.2.21
+   Compiling foldhash v0.2.0
+   Compiling synstructure v0.13.2
+   Compiling gethostname v1.1.0
+   Compiling data-url v0.3.2
+   Compiling imagesize v0.13.0
+   Compiling lazy_static v1.5.0
+   Compiling xxhash-rust v0.8.18
+   Compiling regex-syntax v0.8.11
+   Compiling zune-core v0.5.3
+   Compiling displaydoc v0.2.7
+   Compiling tokio-macros v2.7.2
+   Compiling serde_derive v1.0.229
+   Compiling thiserror-impl v2.0.19
+   Compiling async-trait v0.1.91
+   Compiling arcstr v1.2.0
+   Compiling usvg v0.45.1
+   Compiling zune-jpeg v0.5.15
+   Compiling hashbrown v0.16.1
+   Compiling mail-builder v0.4.4
+   Compiling tempfile v3.27.0
+   Compiling zune-jpeg v0.4.21
+   Compiling foreign-types v0.3.2
+   Compiling tiny-skia v0.11.4
+   Compiling lmyzmail v0.1.0 (/home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail)
+   Compiling freetype-rs v0.38.0
+   Compiling tokio v1.53.1
+   Compiling blowfish v0.10.0
+   Compiling html5ever v0.39.0
+   Compiling zerofrom-derive v0.1.7
+   Compiling yoke-derive v0.8.2
+   Compiling zerovec-derive v0.11.3
+   Compiling futures-macro v0.3.33
+   Compiling tracing-attributes v0.1.31
+   Compiling yoke-derive v0.7.5
+   Compiling zerovec-derive v0.10.3
+   Compiling icu_provider_macros v1.5.0
+   Compiling hashify v0.2.9
+   Compiling regex-automata v0.4.18
+   Compiling openssl-macros v0.1.1
+   Compiling cssparser v0.37.0
+   Compiling png v0.18.1
+   Compiling gif v0.13.3
+   Compiling futures-util v0.3.33
+   Compiling zerofrom v0.1.8
+   Compiling moxcms v0.8.1
+   Compiling gif v0.14.2
+   Compiling http-body-util v0.1.4
+   Compiling rgb v0.8.53
+   Compiling spin v0.9.9
+   Compiling yoke v0.8.3
+   Compiling base64 v0.23.1
+   Compiling maplit v1.0.2
+   Compiling yoke v0.7.5
+   Compiling zerovec v0.11.6
+   Compiling zerotrie v0.2.4
+   Compiling mime v0.3.17
+   Compiling zerovec v0.10.4
+   Compiling mail-parser v0.11.5
+   Compiling tracing v0.1.44
+   Compiling similar v3.1.2
+   Compiling psl-types v2.0.11
+   Compiling bcrypt v0.19.3
+   Compiling resvg v0.45.1
+   Compiling cairo-rs v0.22.0
+   Compiling psl v2.1.223
+   Compiling sha1 v0.11.0
+   Compiling memmap2 v0.9.11
+   Compiling tinystr v0.8.3
+   Compiling potential_utf v0.1.5
+   Compiling icu_locale_core v2.2.0
+   Compiling icu_collections v2.2.0
+   Compiling tinystr v0.7.6
+   Compiling icu_collections v1.5.0
+   Compiling icu_locid v1.5.0
+   Compiling ipnet v2.12.1
+   Compiling safetensors v0.8.0
+   Compiling prefix-trie v0.8.4
+   Compiling icu_provider v2.2.0
+   Compiling regex v1.13.1
+   Compiling moka v0.12.15
+   Compiling icu_properties v2.2.0
+   Compiling icu_normalizer v2.2.0
+   Compiling rustls-webpki v0.103.13
+   Compiling icu_provider v1.5.0
+   Compiling icu_locid_transform v1.5.0
+   Compiling image v0.25.10
+   Compiling idna_adapter v1.2.2
+   Compiling idna v1.1.0
+   Compiling icu_properties v1.5.1
+   Compiling url v2.5.8
+   Compiling tokio-util v0.7.19
+   Compiling hyper v1.11.0
+   Compiling deadpool-runtime v0.3.1
+   Compiling deadpool-runtime v0.1.4
+   Compiling tower v0.5.3
+   Compiling deadpool v0.12.3
+   Compiling deadpool v0.13.0
+   Compiling hickory-proto v0.26.1
+   Compiling tower-http v0.6.11
+   Compiling ammonia v4.1.4
+   Compiling combine v4.6.7
+   Compiling tokio-postgres v0.7.18
+   Compiling hyper-util v0.1.20
+   Compiling icu_casemap v1.5.1
+   Compiling deadpool-postgres v0.14.1
+   Compiling tokio-rustls v0.26.4
+   Compiling rustls-platform-verifier v0.7.0
+   Compiling hickory-net v0.26.1
+   Compiling hyper-rustls v0.27.9
+   Compiling reqwest v0.13.4
+   Compiling redis v1.5.0
+   Compiling hickory-resolver v0.26.1
+   Compiling mail-auth v0.11.2
+   Compiling deadpool-redis v0.23.0
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/error.c: In function 'find_next_newline':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/error.c:157:17: warning: unused parameter 'original_text' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:   157 |     const char* original_text, const char* error_location) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~^~~~~~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/parser.c: In function 'malloc_wrapper':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/parser.c:58:35: warning: unused parameter 'unused' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:    58 | static void* malloc_wrapper(void* unused, size_t size) { return malloc(size); }
+warning: lmyzmail@0.1.0:       |                             ~~~~~~^~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/parser.c: In function 'free_wrapper':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/parser.c:60:32: warning: unused parameter 'unused' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:    60 | static void free_wrapper(void* unused, void* ptr) { free(ptr); }
+warning: lmyzmail@0.1.0:       |                          ~~~~~~^~~~~~
+warning: lmyzmail@0.1.0: In file included from /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/parser.c:17:
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/parser.c: In function 'append_node':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/parser.c:831:36: warning: comparison of integer expressions of different signedness: 'size_t' {aka 'long unsigned int'} and 'int' [-Wsign-compare]
+warning: lmyzmail@0.1.0:   831 |   assert(node->index_within_parent == -1);
+warning: lmyzmail@0.1.0:       |                                    ^~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/parser.c: In function 'insert_node':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/parser.c:852:36: warning: comparison of integer expressions of different signedness: 'size_t' {aka 'long unsigned int'} and 'int' [-Wsign-compare]
+warning: lmyzmail@0.1.0:   852 |   assert(node->index_within_parent == -1);
+warning: lmyzmail@0.1.0:       |                                    ^~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/string_buffer.c: In function 'gumbo_string_buffer_clear':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/string_buffer.c:103:33: warning: unused parameter 'parser' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:   103 |     struct GumboInternalParser* parser, GumboStringBuffer* input) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'temporary_buffer_equals':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:381:19: warning: comparison of integer expressions of different signedness: 'int' and 'size_t' {aka 'long unsigned int'} [-Wsign-compare]
+warning: lmyzmail@0.1.0:   381 |   return text_len == buffer->length &&
+warning: lmyzmail@0.1.0:       |                   ^~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'emit_char_ref':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:585:39: warning: unused parameter 'is_in_attribute' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:   585 |     int additional_allowed_char, bool is_in_attribute, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |                                       ^
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'add_duplicate_attr_error':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:760:71: warning: unused parameter 'attr_name' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:   760 | static void add_duplicate_attr_error(GumboParser* parser, const char* attr_name,
+warning: lmyzmail@0.1.0:       |                                                           ~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_char_ref_in_data_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:920:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:   920 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:920:41: warning: unused parameter 'c' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:   920 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |                                     ~~~~^
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_char_ref_in_rcdata_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:949:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:   949 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:949:41: warning: unused parameter 'c' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:   949 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |                                     ~~~~^
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_rawtext_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:956:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:   956 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_script_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:974:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:   974 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_plaintext_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:992:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:   992 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_tag_open_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1005:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1005 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_end_tag_open_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1038:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1038 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_tag_name_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1065:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1065 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_rcdata_end_tag_open_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1114:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1114 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_rawtext_end_tag_open_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1177:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1177 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_script_end_tag_open_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1246:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1246 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_script_escaped_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1319:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1319 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_script_escaped_dash_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1341:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1341 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_script_escaped_dash_dash_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1366:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1366 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_script_escaped_end_tag_open_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1414:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1414 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_script_double_escaped_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1490:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1490 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_script_double_escaped_dash_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1511:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1511 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_script_double_escaped_dash_dash_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1535:47: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1535 |     GumboParser* parser, GumboTokenizerState* tokenizer, int c,
+warning: lmyzmail@0.1.0:       |                          ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_before_attr_name_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1604:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1604 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_attr_name_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1642:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1642 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_after_attr_name_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1685:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1685 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_attr_value_double_quoted_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1774:56: warning: unused parameter 'output' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1774 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |                                            ~~~~~~~~~~~~^~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_attr_value_single_quoted_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1802:56: warning: unused parameter 'output' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1802 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |                                            ~~~~~~~~~~~~^~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_char_ref_in_attr_value_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1873:41: warning: unused parameter 'c' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1873 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |                                     ~~~~^
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1873:56: warning: unused parameter 'output' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1873 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |                                            ~~~~~~~~~~~~^~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_markup_declaration_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1982:41: warning: unused parameter 'c' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1982 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |                                     ~~~~^
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1982:56: warning: unused parameter 'output' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1982 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |                                            ~~~~~~~~~~~~^~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_comment_start_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:2017:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  2017 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_comment_start_dash_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:2046:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  2046 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_comment_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:2077:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  2077 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_comment_end_dash_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:2099:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  2099 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_comment_end_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:2125:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  2125 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_comment_end_bang_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:2164:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  2164 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_bogus_doctype_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:2744:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  2744 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/utf8.c:88:1: warning: 'static' is not at beginning of declaration [-Wold-style-declaration]
+warning: lmyzmail@0.1.0:    88 | uint32_t static inline decode(uint32_t* state, uint32_t* codep, uint32_t byte) {
+warning: lmyzmail@0.1.0:       | ^~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/utf8.c:88:1: warning: 'inline' is not at beginning of declaration [-Wold-style-declaration]
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/util.c: In function 'gumbo_debug':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/util.c:50:30: warning: unused parameter 'format' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:    50 | void gumbo_debug(const char* format, ...) {
+warning: lmyzmail@0.1.0:       |                  ~~~~~~~~~~~~^~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/vector.c: In function 'gumbo_vector_pop':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/vector.c:78:33: warning: unused parameter 'parser' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:    78 |     struct GumboInternalParser* parser, GumboVector* vector) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~
+warning: lmyzmail@0.1.0: In file included from /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/vector.c:19:
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/vector.c: In function 'gumbo_vector_insert_at':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/vector.c:96:16: warning: comparison of unsigned expression in '>= 0' is always true [-Wtype-limits]
+warning: lmyzmail@0.1.0:    96 |   assert(index >= 0);
+warning: lmyzmail@0.1.0:       |                ^~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/vector.c: In function 'gumbo_vector_remove_at':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/vector.c:116:16: warning: comparison of unsigned expression in '>= 0' is always true [-Wtype-limits]
+warning: lmyzmail@0.1.0:   116 |   assert(index >= 0);
+warning: lmyzmail@0.1.0:       |                ^~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/vector.c:114:58: warning: unused parameter 'parser' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:   114 | void* gumbo_vector_remove_at(struct GumboInternalParser* parser,
+warning: lmyzmail@0.1.0:       |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~
+    Finished `release` profile [optimized] target(s) in 3m 53s
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.47
+   Compiling libc v0.2.189
+   Compiling cfg-if v1.0.4
+   Compiling shlex v2.0.1
+   Compiling find-msvc-tools v0.1.9
+   Compiling stable_deref_trait v1.2.1
+   Compiling smallvec v1.15.2
+   Compiling pin-project-lite v0.2.17
+   Compiling pkg-config v0.3.33
+   Compiling bytes v1.12.1
+   Compiling portable-atomic v1.14.0
+   Compiling futures-core v0.3.33
+   Compiling vcpkg v0.2.15
+   Compiling futures-sink v0.3.33
+   Compiling log v0.4.33
+   Compiling critical-section v1.2.0
+   Compiling futures-task v0.3.33
+   Compiling slab v0.4.12
+   Compiling zeroize v1.9.0
+   Compiling writeable v0.6.3
+   Compiling typenum v1.20.1
+   Compiling litemap v0.8.2
+   Compiling itoa v1.0.18
+   Compiling bitflags v2.13.1
+   Compiling getrandom v0.4.3
+   Compiling rand_core v0.10.1
+   Compiling icu_properties_data v2.2.0
+   Compiling utf8_iter v1.0.4
+   Compiling serde_core v1.0.229
+   Compiling cc v1.4.0
+   Compiling icu_normalizer_data v2.2.0
+   Compiling percent-encoding v2.3.2
+   Compiling rustls-pki-types v1.15.1
+   Compiling memchr v2.8.3
+   Compiling autocfg v1.5.1
+   Compiling parking_lot_core v0.9.12
+   Compiling untrusted v0.9.0
+   Compiling scopeguard v1.2.0
+   Compiling lock_api v0.4.14
+   Compiling serde v1.0.229
+   Compiling cpufeatures v0.3.0
+   Compiling siphasher v1.0.3
+   Compiling subtle v2.6.1
+   Compiling tinyvec_macros v0.1.1
+   Compiling rustls v0.23.43
+   Compiling tinyvec v1.12.0
+   Compiling form_urlencoded v1.2.2
+   Compiling simd-adler32 v0.3.10
+   Compiling cmov v0.5.4
+   Compiling crc32fast v1.5.0
+   Compiling num-traits v0.2.19
+   Compiling ctutils v0.4.2
+   Compiling chacha20 v0.10.1
+   Compiling futures-channel v0.3.33
+   Compiling base64 v0.22.1
+   Compiling fastrand v2.5.0
+   Compiling const-oid v0.10.2
+   Compiling phf_shared v0.13.1
+   Compiling adler2 v2.0.1
+   Compiling http v1.5.0
+   Compiling miniz_oxide v0.8.9
+   Compiling parking v2.2.1
+   Compiling hybrid-array v0.4.14
+   Compiling target-lexicon v0.13.5
+   Compiling openssl-probe v0.2.1
+   Compiling event-listener v5.4.2
+   Compiling phf_generator v0.13.1
+   Compiling equivalent v1.0.2
+   Compiling httparse v1.10.1
+   Compiling winnow v1.0.4
+   Compiling rustls-native-certs v0.8.4
+   Compiling crossbeam-utils v0.8.22
+   Compiling rustix v1.1.4
+   Compiling phf_codegen v0.13.1
+   Compiling phf v0.13.1
+   Compiling byteorder v1.5.0
+   Compiling event-listener-strategy v0.5.4
+   Compiling toml_datetime v1.1.1+spec-1.1.0
+   Compiling powerfmt v0.2.0
+   Compiling toml_parser v1.1.3+spec-1.1.0
+   Compiling linux-raw-sys v0.12.1
+   Compiling new_debug_unreachable v1.0.6
+   Compiling crypto-common v0.2.2
+   Compiling block-buffer v0.12.1
+   Compiling serde_spanned v1.1.1
+   Compiling syn v2.0.119
+   Compiling syn v3.0.3
+   Compiling string_cache_codegen v0.6.1
+   Compiling bytemuck v1.25.2
+   Compiling ring v0.17.14
+   Compiling libz-sys v1.1.29
+   Compiling thiserror v2.0.19
+   Compiling deranged v0.5.8
+   Compiling async-lock v3.4.2
+   Compiling unicode-normalization v0.1.25
+   Compiling once_cell v1.21.4
+   Compiling http-body v1.1.0
+   Compiling tracing-core v0.1.36
+   Compiling web_atoms v0.2.5
+   Compiling toml v1.1.4+spec-1.1.0
+   Compiling fdeflate v0.3.7
+   Compiling version-compare v0.2.1
+   Compiling digest v0.11.3
+   Compiling either v1.17.0
+   Compiling tower-service v0.3.3
+   Compiling float-cmp v0.9.0
+   Compiling heck v0.5.0
+   Compiling errno v0.3.14
+   Compiling mio v1.2.2
+   Compiling socket2 v0.6.5
+   Compiling signal-hook-registry v1.4.8
+   Compiling getrandom v0.2.17
+   Compiling cfg-expr v0.20.8
+   Compiling precomputed-hash v0.1.1
+   Compiling rand v0.10.2
+   Compiling time-core v0.1.8
+   Compiling icu_locid_transform_data v1.5.1
+   Compiling litemap v0.7.5
+   Compiling zmij v1.0.23
+   Compiling parking_lot v0.12.5
+   Compiling arrayvec v0.7.8
+   Compiling crossbeam-epoch v0.9.20
+   Compiling unicode-properties v0.1.4
+   Compiling unicode-bidi v0.3.18
+   Compiling try-lock v0.2.5
+   Compiling writeable v0.5.5
+   Compiling num-conv v0.2.0
+   Compiling string_cache v0.9.0
+   Compiling strict-num v0.1.1
+   Compiling num_cpus v1.17.0
+   Compiling want v0.3.1
+   Compiling time v0.3.47
+   Compiling sha2 v0.11.0
+   Compiling hmac v0.13.0
+   Compiling md-5 v0.11.0
+   Compiling system-deps v7.0.8
+   Compiling freetype-sys v0.23.0
+   Compiling openssl-sys v0.9.117
+   Compiling linked-hash-map v0.5.6
+   Compiling color_quant v1.1.0
+   Compiling stringprep v0.1.5
+   Compiling atomic-waker v1.1.2
+   Compiling arrayref v0.3.9
+   Compiling icu_properties_data v1.5.1
+   Compiling iana-time-zone v0.1.65
+   Compiling hashbrown v0.17.1
+   Compiling weezl v0.1.12
+   Compiling data-encoding v2.11.1
+   Compiling serde_json v1.0.151
+   Compiling flate2 v1.1.9
+   Compiling fallible-iterator v0.2.0
+   Compiling chrono v0.4.45
+   Compiling tiny-skia-path v0.11.4
+   Compiling cairo-sys-rs v0.22.0
+   Compiling postgres-protocol v0.6.12
+   Compiling lru-cache v0.1.2
+   Compiling kurbo v0.11.3
+   Compiling crossbeam-channel v0.5.16
+   Compiling uuid v1.24.0
+   Compiling tendril v0.5.1
+   Compiling inout v0.2.2
+   Compiling sync_wrapper v1.0.2
+   Compiling indexmap v2.14.0
+   Compiling encoding_rs v0.8.35
+   Compiling tagptr v0.2.0
+   Compiling byteorder-lite v0.1.0
+   Compiling icu_casemap_data v1.5.1
+   Compiling bitflags v1.3.2
+   Compiling tower-layer v0.3.3
+   Compiling futures-io v0.3.33
+   Compiling quick-error v2.0.1
+   Compiling version_check v0.9.5
+   Compiling dtoa v1.0.11
+   Compiling image-webp v0.2.4
+   Compiling png v0.17.16
+   Compiling markup5ever v0.39.0
+   Compiling dtoa-short v0.3.5
+   Compiling cipher v0.5.2
+   Compiling multer v3.1.0
+   Compiling whoami v2.1.2
+   Compiling aho-corasick v1.1.5
+   Compiling webpki-roots v1.0.9
+   Compiling simplecss v0.2.2
+   Compiling zune-core v0.4.12
+   Compiling postgres-types v0.2.14
+   Compiling lazy_static v1.5.0
+   Compiling ryu v1.0.23
+   Compiling resolv-conf v0.7.6
+   Compiling xmlwriter v0.1.0
+   Compiling svgtypes v0.15.3
+   Compiling pico-args v0.5.0
+   Compiling xxhash-rust v0.8.18
+   Compiling imagesize v0.13.0
+   Compiling allocator-api2 v0.2.21
+   Compiling synstructure v0.13.2
+   Compiling pxfm v0.1.30
+   Compiling data-url v0.3.2
+   Compiling arcstr v1.2.0
+   Compiling foldhash v0.2.0
+   Compiling gethostname v1.1.0
+   Compiling regex-syntax v0.8.11
+   Compiling displaydoc v0.2.7
+   Compiling tokio-macros v2.7.2
+   Compiling serde_derive v1.0.229
+   Compiling thiserror-impl v2.0.19
+   Compiling async-trait v0.1.91
+   Compiling zune-core v0.5.3
+   Compiling openssl v0.10.81
+   Compiling roxmltree v0.20.0
+   Compiling foreign-types-shared v0.1.1
+   Compiling zune-jpeg v0.5.15
+   Compiling foreign-types v0.3.2
+   Compiling hashbrown v0.16.1
+   Compiling tempfile v3.27.0
+   Compiling mail-builder v0.4.4
+   Compiling lmyzmail v0.1.0 (/home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail)
+   Compiling tiny-skia v0.11.4
+   Compiling tokio v1.53.1
+   Compiling zune-jpeg v0.4.21
+   Compiling freetype-rs v0.38.0
+   Compiling blowfish v0.10.0
+   Compiling usvg v0.45.1
+   Compiling html5ever v0.39.0
+   Compiling cssparser v0.37.0
+   Compiling png v0.18.1
+   Compiling gif v0.14.2
+   Compiling gif v0.13.3
+   Compiling zerofrom-derive v0.1.7
+   Compiling yoke-derive v0.8.2
+   Compiling zerovec-derive v0.11.3
+   Compiling futures-macro v0.3.33
+   Compiling yoke-derive v0.7.5
+   Compiling tracing-attributes v0.1.31
+   Compiling zerovec-derive v0.10.3
+   Compiling icu_provider_macros v1.5.0
+   Compiling hashify v0.2.9
+   Compiling moxcms v0.8.1
+   Compiling regex-automata v0.4.18
+   Compiling openssl-macros v0.1.1
+   Compiling http-body-util v0.1.4
+   Compiling rgb v0.8.53
+   Compiling similar v3.1.2
+   Compiling futures-util v0.3.33
+   Compiling maplit v1.0.2
+   Compiling mime v0.3.17
+   Compiling base64 v0.23.1
+   Compiling zerofrom v0.1.8
+   Compiling spin v0.9.9
+   Compiling psl-types v2.0.11
+   Compiling psl v2.1.223
+   Compiling resvg v0.45.1
+   Compiling bcrypt v0.19.3
+   Compiling yoke v0.7.5
+   Compiling yoke v0.8.3
+   Compiling cairo-rs v0.22.0
+   Compiling memmap2 v0.9.11
+   Compiling zerovec v0.10.4
+   Compiling sha1 v0.11.0
+   Compiling zerovec v0.11.6
+   Compiling zerotrie v0.2.4
+   Compiling ipnet v2.12.1
+   Compiling safetensors v0.8.0
+   Compiling tracing v0.1.44
+   Compiling prefix-trie v0.8.4
+   Compiling tinystr v0.8.3
+   Compiling potential_utf v0.1.5
+   Compiling icu_collections v2.2.0
+   Compiling icu_locale_core v2.2.0
+   Compiling mail-parser v0.11.5
+   Compiling regex v1.13.1
+   Compiling tinystr v0.7.6
+   Compiling icu_collections v1.5.0
+   Compiling rustls-webpki v0.103.13
+   Compiling icu_locid v1.5.0
+   Compiling icu_provider v1.5.0
+   Compiling moka v0.12.15
+   Compiling icu_provider v2.2.0
+   Compiling tokio-util v0.7.19
+   Compiling hyper v1.11.0
+   Compiling tower v0.5.3
+   Compiling icu_properties v2.2.0
+   Compiling icu_normalizer v2.2.0
+   Compiling icu_locid_transform v1.5.0
+   Compiling deadpool-runtime v0.1.4
+   Compiling deadpool-runtime v0.3.1
+   Compiling image v0.25.10
+   Compiling deadpool v0.12.3
+   Compiling deadpool v0.13.0
+   Compiling hyper-util v0.1.20
+   Compiling combine v4.6.7
+   Compiling tokio-postgres v0.7.18
+   Compiling icu_properties v1.5.1
+   Compiling idna_adapter v1.2.2
+   Compiling idna v1.1.0
+   Compiling url v2.5.8
+   Compiling hickory-proto v0.26.1
+   Compiling tower-http v0.6.11
+   Compiling ammonia v4.1.4
+   Compiling deadpool-postgres v0.14.1
+   Compiling icu_casemap v1.5.1
+   Compiling tokio-rustls v0.26.4
+   Compiling rustls-platform-verifier v0.7.0
+   Compiling hyper-rustls v0.27.9
+   Compiling reqwest v0.13.4
+   Compiling redis v1.5.0
+   Compiling hickory-net v0.26.1
+   Compiling hickory-resolver v0.26.1
+   Compiling mail-auth v0.11.2
+   Compiling deadpool-redis v0.23.0
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/error.c: In function 'find_next_newline':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/error.c:157:17: warning: unused parameter 'original_text' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:   157 |     const char* original_text, const char* error_location) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~^~~~~~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/parser.c: In function 'malloc_wrapper':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/parser.c:58:35: warning: unused parameter 'unused' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:    58 | static void* malloc_wrapper(void* unused, size_t size) { return malloc(size); }
+warning: lmyzmail@0.1.0:       |                             ~~~~~~^~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/parser.c: In function 'free_wrapper':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/parser.c:60:32: warning: unused parameter 'unused' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:    60 | static void free_wrapper(void* unused, void* ptr) { free(ptr); }
+warning: lmyzmail@0.1.0:       |                          ~~~~~~^~~~~~
+warning: lmyzmail@0.1.0: In file included from /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/parser.c:17:
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/parser.c: In function 'append_node':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/parser.c:831:36: warning: comparison of integer expressions of different signedness: 'size_t' {aka 'long unsigned int'} and 'int' [-Wsign-compare]
+warning: lmyzmail@0.1.0:   831 |   assert(node->index_within_parent == -1);
+warning: lmyzmail@0.1.0:       |                                    ^~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/parser.c: In function 'insert_node':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/parser.c:852:36: warning: comparison of integer expressions of different signedness: 'size_t' {aka 'long unsigned int'} and 'int' [-Wsign-compare]
+warning: lmyzmail@0.1.0:   852 |   assert(node->index_within_parent == -1);
+warning: lmyzmail@0.1.0:       |                                    ^~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/string_buffer.c: In function 'gumbo_string_buffer_clear':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/string_buffer.c:103:33: warning: unused parameter 'parser' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:   103 |     struct GumboInternalParser* parser, GumboStringBuffer* input) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'temporary_buffer_equals':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:381:19: warning: comparison of integer expressions of different signedness: 'int' and 'size_t' {aka 'long unsigned int'} [-Wsign-compare]
+warning: lmyzmail@0.1.0:   381 |   return text_len == buffer->length &&
+warning: lmyzmail@0.1.0:       |                   ^~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'emit_char_ref':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:585:39: warning: unused parameter 'is_in_attribute' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:   585 |     int additional_allowed_char, bool is_in_attribute, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |                                       ^
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'add_duplicate_attr_error':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:760:71: warning: unused parameter 'attr_name' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:   760 | static void add_duplicate_attr_error(GumboParser* parser, const char* attr_name,
+warning: lmyzmail@0.1.0:       |                                                           ~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_char_ref_in_data_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:920:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:   920 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:920:41: warning: unused parameter 'c' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:   920 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |                                     ~~~~^
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_char_ref_in_rcdata_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:949:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:   949 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:949:41: warning: unused parameter 'c' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:   949 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |                                     ~~~~^
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_rawtext_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:956:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:   956 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_script_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:974:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:   974 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_plaintext_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:992:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:   992 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_tag_open_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1005:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1005 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_end_tag_open_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1038:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1038 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_tag_name_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1065:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1065 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_rcdata_end_tag_open_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1114:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1114 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_rawtext_end_tag_open_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1177:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1177 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_script_end_tag_open_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1246:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1246 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_script_escaped_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1319:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1319 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_script_escaped_dash_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1341:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1341 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_script_escaped_dash_dash_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1366:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1366 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_script_escaped_end_tag_open_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1414:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1414 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_script_double_escaped_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1490:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1490 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_script_double_escaped_dash_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1511:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1511 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_script_double_escaped_dash_dash_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1535:47: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1535 |     GumboParser* parser, GumboTokenizerState* tokenizer, int c,
+warning: lmyzmail@0.1.0:       |                          ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_before_attr_name_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1604:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1604 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_attr_name_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1642:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1642 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_after_attr_name_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1685:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1685 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_attr_value_double_quoted_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1774:56: warning: unused parameter 'output' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1774 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |                                            ~~~~~~~~~~~~^~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_attr_value_single_quoted_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1802:56: warning: unused parameter 'output' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1802 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |                                            ~~~~~~~~~~~~^~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_char_ref_in_attr_value_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1873:41: warning: unused parameter 'c' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1873 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |                                     ~~~~^
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1873:56: warning: unused parameter 'output' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1873 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |                                            ~~~~~~~~~~~~^~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_markup_declaration_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1982:41: warning: unused parameter 'c' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1982 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |                                     ~~~~^
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:1982:56: warning: unused parameter 'output' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  1982 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |                                            ~~~~~~~~~~~~^~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_comment_start_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:2017:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  2017 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_comment_start_dash_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:2046:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  2046 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_comment_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:2077:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  2077 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_comment_end_dash_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:2099:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  2099 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_comment_end_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:2125:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  2125 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_comment_end_bang_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:2164:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  2164 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c: In function 'handle_bogus_doctype_state':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/tokenizer.c:2744:26: warning: unused parameter 'tokenizer' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:  2744 |     GumboTokenizerState* tokenizer, int c, GumboToken* output) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/utf8.c:88:1: warning: 'static' is not at beginning of declaration [-Wold-style-declaration]
+warning: lmyzmail@0.1.0:    88 | uint32_t static inline decode(uint32_t* state, uint32_t* codep, uint32_t byte) {
+warning: lmyzmail@0.1.0:       | ^~~~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/utf8.c:88:1: warning: 'inline' is not at beginning of declaration [-Wold-style-declaration]
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/util.c: In function 'gumbo_debug':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/util.c:50:30: warning: unused parameter 'format' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:    50 | void gumbo_debug(const char* format, ...) {
+warning: lmyzmail@0.1.0:       |                  ~~~~~~~~~~~~^~~~~~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/vector.c: In function 'gumbo_vector_pop':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/vector.c:78:33: warning: unused parameter 'parser' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:    78 |     struct GumboInternalParser* parser, GumboVector* vector) {
+warning: lmyzmail@0.1.0:       |     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~
+warning: lmyzmail@0.1.0: In file included from /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/vector.c:19:
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/vector.c: In function 'gumbo_vector_insert_at':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/vector.c:96:16: warning: comparison of unsigned expression in '>= 0' is always true [-Wtype-limits]
+warning: lmyzmail@0.1.0:    96 |   assert(index >= 0);
+warning: lmyzmail@0.1.0:       |                ^~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/vector.c: In function 'gumbo_vector_remove_at':
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/vector.c:116:16: warning: comparison of unsigned expression in '>= 0' is always true [-Wtype-limits]
+warning: lmyzmail@0.1.0:   116 |   assert(index >= 0);
+warning: lmyzmail@0.1.0:       |                ^~
+warning: lmyzmail@0.1.0: /home/lmyzzz/lmyzmail-rust/.blackbox/release-source-f3b10966/crates/lmyzmail/../../vendor/litehtml/src/gumbo/vector.c:114:58: warning: unused parameter 'parser' [-Wunused-parameter]
+warning: lmyzmail@0.1.0:   114 | void* gumbo_vector_remove_at(struct GumboInternalParser* parser,
+warning: lmyzmail@0.1.0:       |                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~
+    Finished `release` profile [optimized] target(s) in 4m 06s

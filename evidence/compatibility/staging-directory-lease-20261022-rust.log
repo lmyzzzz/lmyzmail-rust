@@ -1,0 +1,81 @@
+
+running 764 tests
+....................................................................................... 87/764
+.............................................................[swscaler @ 0x718ed054c690] No accelerated colorspace conversion found from yuv420p to rgb24.
+[swscaler @ 0x718f20178910] No accelerated colorspace conversion found from yuv420p to rgb24.
+.......................... 174/764
+....................................................................................... 261/764
+....................................................................................... 348/764
+....................................................................................... 435/764
+....................................................................................... 522/764
+.....................................................................[swscaler @ 0x718eac7c4eb0] No accelerated colorspace conversion found from yuv420p to rgb24.
+.................. 609/764
+....................................................................................... 696/764
+....................................................................
+test result: ok. 764 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 14.28s
+
+
+running 2 tests
+..
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 3 tests
+...
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.83s
+
+
+running 5 tests
+.....
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.73s
+
+
+running 17 tests
+.................
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.30s
+
+
+running 13 tests
+.............
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.89s
+
+
+running 46 tests
+..............................................
+test result: ok. 46 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.80s
+
+
+running 21 tests
+.....................
+test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.52s
+
+
+running 6 tests
+......
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.71s
+
+
+running 62 tests
+..............................................................
+test result: ok. 62 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.07s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 5 tests
+.....
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+
+
+running 13 tests
+.............
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.56s
+

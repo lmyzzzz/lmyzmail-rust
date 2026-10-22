@@ -1,0 +1,3050 @@
+{
+  "attribution_digest_basis": "Git HEAD and Cargo.lock; tracked source verified unchanged",
+  "binary_sha256": "e8a859bdf5a853d09393636df030f4de81368b47b06245f35863ba46f22aeea7",
+  "capabilities": {
+    "avx2": true,
+    "avx512f": false,
+    "fma": true
+  },
+  "full_simd_acceptance": false,
+  "git_head": "f3b10966eea7bd31ab9089b1000c6fce4ebd9923",
+  "runs": [
+    {
+      "backend": "scalar",
+      "dispatch": [
+        {
+          "build_sha256": "e8a859bdf5a853d09393636df030f4de81368b47b06245f35863ba46f22aeea7",
+          "component": "mail_render.resize_rgb24_box",
+          "host_capabilities": {
+            "avx2": true,
+            "avx512f": false,
+            "fma": true
+          },
+          "requested_backend": "scalar",
+          "requested_mode": "SCALAR",
+          "resolved_backend": "scalar",
+          "schema": "lmyzmail.renderer-dispatch-observation.v1",
+          "sequence": 1,
+          "session": "e1dffd230200598341a16a13503dd64c38e75cc86a66a2040256df044199f879",
+          "source_sha256": "c1913d45ec5e724e66074d668ca65ae7654186db513501b5545fb2f34174a3c3"
+        },
+        {
+          "build_sha256": "e8a859bdf5a853d09393636df030f4de81368b47b06245f35863ba46f22aeea7",
+          "component": "mail_render.apply_rgb24_contrast",
+          "host_capabilities": {
+            "avx2": true,
+            "avx512f": false,
+            "fma": true
+          },
+          "requested_backend": "scalar",
+          "requested_mode": "SCALAR",
+          "resolved_backend": "scalar",
+          "schema": "lmyzmail.renderer-dispatch-observation.v1",
+          "sequence": 2,
+          "session": "e1dffd230200598341a16a13503dd64c38e75cc86a66a2040256df044199f879",
+          "source_sha256": "c1913d45ec5e724e66074d668ca65ae7654186db513501b5545fb2f34174a3c3"
+        },
+        {
+          "build_sha256": "e8a859bdf5a853d09393636df030f4de81368b47b06245f35863ba46f22aeea7",
+          "component": "minecraft.block_palette_rgb",
+          "host_capabilities": {
+            "avx2": true,
+            "avx512f": false,
+            "fma": true
+          },
+          "requested_backend": "scalar",
+          "requested_mode": "SCALAR",
+          "resolved_backend": "scalar",
+          "schema": "lmyzmail.renderer-dispatch-observation.v1",
+          "sequence": 3,
+          "session": "e1dffd230200598341a16a13503dd64c38e75cc86a66a2040256df044199f879",
+          "source_sha256": "c1913d45ec5e724e66074d668ca65ae7654186db513501b5545fb2f34174a3c3"
+        },
+        {
+          "build_sha256": "e8a859bdf5a853d09393636df030f4de81368b47b06245f35863ba46f22aeea7",
+          "component": "minecraft.map_palette",
+          "host_capabilities": {
+            "avx2": true,
+            "avx512f": false,
+            "fma": true
+          },
+          "requested_backend": "scalar",
+          "requested_mode": "SCALAR",
+          "resolved_backend": "scalar",
+          "schema": "lmyzmail.renderer-dispatch-observation.v1",
+          "sequence": 4,
+          "session": "e1dffd230200598341a16a13503dd64c38e75cc86a66a2040256df044199f879",
+          "source_sha256": "c1913d45ec5e724e66074d668ca65ae7654186db513501b5545fb2f34174a3c3"
+        },
+        {
+          "build_sha256": "e8a859bdf5a853d09393636df030f4de81368b47b06245f35863ba46f22aeea7",
+          "component": "minecraft.block_palette_states",
+          "host_capabilities": {
+            "avx2": true,
+            "avx512f": false,
+            "fma": true
+          },
+          "requested_backend": "scalar",
+          "requested_mode": "SCALAR",
+          "resolved_backend": "scalar",
+          "schema": "lmyzmail.renderer-dispatch-observation.v1",
+          "sequence": 5,
+          "session": "e1dffd230200598341a16a13503dd64c38e75cc86a66a2040256df044199f879",
+          "source_sha256": "c1913d45ec5e724e66074d668ca65ae7654186db513501b5545fb2f34174a3c3"
+        }
+      ],
+      "mode": "SCALAR",
+      "observation_sha256": "3390cf788306c20dda0d3a531ee20625dbcab969145a826ab84663791f3b7bdf",
+      "render_digests": [
+        {
+          "length": 15048248,
+          "path": "$.resource.bytes",
+          "sha256": "0e76229bb77ebcf471aec692fa34709cfbbe3dc192127a852a518e34bdd0ecc7"
+        },
+        {
+          "length": 49,
+          "path": "$.gui_and_commands.main_menu[0].frame",
+          "sha256": "d6782db9fde8cd7547f352ef8230f952367f4c2739feb2d9075f0cfe8ed54c32"
+        },
+        {
+          "length": 689,
+          "path": "$.gui_and_commands.main_menu[1].frame",
+          "sha256": "f140440733572fa89dbaafad369a0bfbde14f38b8c7442ec1072d2c22a023ce4"
+        },
+        {
+          "length": 7,
+          "path": "$.gui_and_commands.video_submenu.packets.packets[0].frame",
+          "sha256": "9bca109435b7be65506aff9fe5880825e530a539f402a7a7a842adc203f63382"
+        },
+        {
+          "length": 8,
+          "path": "$.gui_and_commands.video_submenu.packets.packets[1].frame",
+          "sha256": "ed996cc35dd2b0a08b370106b73e128062f775a2f7cefc135e30f2f9e48b7c9d"
+        },
+        {
+          "length": 689,
+          "path": "$.gui_and_commands.video_submenu.packets.packets[2].frame",
+          "sha256": "f140440733572fa89dbaafad369a0bfbde14f38b8c7442ec1072d2c22a023ce4"
+        },
+        {
+          "length": 30,
+          "path": "$.gui_and_commands.video_submenu.packets.packets[3].frame",
+          "sha256": "53d3bf98930333abe2c0f3c44d32d05f4ed37da256707dcf8f2dc4d600950442"
+        },
+        {
+          "length": 142,
+          "path": "$.gui_and_commands.video_submenu.packets.packets[4].frame",
+          "sha256": "190ae2184077eb88a43e15382f6786d89f0bb8c35c6579d9b646b77eaef0265e"
+        },
+        {
+          "length": 48,
+          "path": "$.gui_and_commands.video_submenu.packets.packets[5].frame",
+          "sha256": "133086918a809c25f1a70957eb0b67c49c3aa4dd16e7c8c339e5977889e92c23"
+        },
+        {
+          "length": 452,
+          "path": "$.gui_and_commands.video_submenu.packets.packets[6].frame",
+          "sha256": "471f2ffc0857033e6e3bc42bbe9ac6cbe74c615a5206e6763d3356d24707b39c"
+        },
+        {
+          "length": 52,
+          "path": "$.gui_and_commands.commands[0].response[0].frame",
+          "sha256": "e2dfb3bc6d7c55f66a88942caa50a93005a3171513ec7782aa523d215812e32e"
+        },
+        {
+          "length": 57,
+          "path": "$.gui_and_commands.commands[1].response[0].frame",
+          "sha256": "fe5cd79d959faace925c2bad02aee90d6529ffe26d11f057c5b3f6749fe76c70"
+        },
+        {
+          "length": 54,
+          "path": "$.gui_and_commands.commands[2].response[0].frame",
+          "sha256": "ff2d786df3bf5897bd1c1873e8532f94f23fff4d5576101583a72a90e314c09e"
+        },
+        {
+          "length": 52,
+          "path": "$.gui_and_commands.commands[3].response[0].frame",
+          "sha256": "2fbb87a7bc123f5a9777382b7d82b54ba4c55bc3ce32246e225468e52e88c711"
+        },
+        {
+          "length": 51,
+          "path": "$.gui_and_commands.commands[4].response[0].frame",
+          "sha256": "b5ff75455d512285d192bc5839a856d1595e43eabfc31c6781b19c5fe55bfbfe"
+        },
+        {
+          "length": 62,
+          "path": "$.gui_and_commands.commands[5].response[0].frame",
+          "sha256": "244a60d0066eb119a654a10557df1ef9925c19ed0b6ef2597c9e5e9e98cdafe6"
+        },
+        {
+          "length": 50,
+          "path": "$.gui_and_commands.commands[6].response[0].frame",
+          "sha256": "e610a4af1d1b66b1d92adb278f5152c6110b1ee5736fd6bbf4806e1f81b7f20f"
+        },
+        {
+          "length": 63,
+          "path": "$.gui_and_commands.commands[7].response[0].frame",
+          "sha256": "00af4942d5a2fcef0b6507d2baf0a97db161fa54c433ad05286396e7469d640f"
+        },
+        {
+          "length": 63,
+          "path": "$.gui_and_commands.commands[8].response[0].frame",
+          "sha256": "00af4942d5a2fcef0b6507d2baf0a97db161fa54c433ad05286396e7469d640f"
+        },
+        {
+          "length": 72,
+          "path": "$.gui_and_commands.commands[9].response[0].frame",
+          "sha256": "d2454f7fbc0d2c96c891eef366bdaee01cfb27da921108549a56a9c81e7f1ede"
+        },
+        {
+          "path": "$.map_video.first_frame.palette_counts",
+          "value": [
+            [
+              5,
+              3
+            ],
+            [
+              6,
+              207
+            ],
+            [
+              8,
+              39
+            ],
+            [
+              9,
+              501
+            ],
+            [
+              10,
+              1175
+            ],
+            [
+              11,
+              2
+            ],
+            [
+              16,
+              118
+            ],
+            [
+              19,
+              439
+            ],
+            [
+              33,
+              43
+            ],
+            [
+              34,
+              69
+            ],
+            [
+              40,
+              291
+            ],
+            [
+              41,
+              4
+            ],
+            [
+              42,
+              2
+            ],
+            [
+              43,
+              32
+            ],
+            [
+              47,
+              2
+            ],
+            [
+              52,
+              48
+            ],
+            [
+              53,
+              8
+            ],
+            [
+              54,
+              42
+            ],
+            [
+              55,
+              16
+            ],
+            [
+              57,
+              64
+            ],
+            [
+              58,
+              98
+            ],
+            [
+              59,
+              1
+            ],
+            [
+              60,
+              2074
+            ],
+            [
+              61,
+              13712
+            ],
+            [
+              62,
+              13918
+            ],
+            [
+              63,
+              180
+            ],
+            [
+              72,
+              159
+            ],
+            [
+              73,
+              38
+            ],
+            [
+              74,
+              1423
+            ],
+            [
+              75,
+              7
+            ],
+            [
+              83,
+              433
+            ],
+            [
+              84,
+              2
+            ],
+            [
+              87,
+              730
+            ],
+            [
+              99,
+              135
+            ],
+            [
+              103,
+              62
+            ],
+            [
+              104,
+              17
+            ],
+            [
+              106,
+              2
+            ],
+            [
+              107,
+              442
+            ],
+            [
+              108,
+              4
+            ],
+            [
+              111,
+              32
+            ],
+            [
+              112,
+              701
+            ],
+            [
+              113,
+              438
+            ],
+            [
+              114,
+              790
+            ],
+            [
+              115,
+              490
+            ],
+            [
+              116,
+              5174
+            ],
+            [
+              117,
+              4963
+            ],
+            [
+              118,
+              1678
+            ],
+            [
+              119,
+              583
+            ],
+            [
+              120,
+              2073
+            ],
+            [
+              121,
+              1228
+            ],
+            [
+              122,
+              8152
+            ],
+            [
+              123,
+              1134
+            ],
+            [
+              126,
+              98
+            ],
+            [
+              136,
+              102
+            ],
+            [
+              137,
+              22
+            ],
+            [
+              138,
+              174
+            ],
+            [
+              139,
+              148
+            ],
+            [
+              140,
+              1
+            ],
+            [
+              141,
+              1
+            ],
+            [
+              142,
+              57
+            ],
+            [
+              143,
+              955
+            ]
+          ]
+        },
+        {
+          "length": 65536,
+          "path": "$.map_video.first_frame.pixels",
+          "sha256": "b84f38e9169d6a5d170c72df09e15ff310d94ecbb9397c03971b18753fc04475"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.first_frame.tiles[0].pixels",
+          "sha256": "49d03783387df69775cd02397211d5a995ca8654224e3a67dfbd8f384959d1dc"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.first_frame.tiles[1].pixels",
+          "sha256": "f36d60f1ca5d5b9aa1b3858dd72c6a0cda10adbc04e87d8a2944cceffbdd1467"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.first_frame.tiles[2].pixels",
+          "sha256": "3ee7cf7ce4b6479fe2652c5a07c9758acd0d1e5355ff9d64d671c8e16ca9bfc7"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.first_frame.tiles[3].pixels",
+          "sha256": "d69044ca0b8f3080f15b18dcaeeab78191f84ec15f5dc2e983e1bf55db145a80"
+        },
+        {
+          "length": 339,
+          "path": "$.map_video.setup_protocol.packets[0].frame",
+          "sha256": "1f5bc9f7a4a706dd562be6b5f576bc1ed3806f3c658c4f50c7ffbdaeade60688"
+        },
+        {
+          "length": 88,
+          "path": "$.map_video.setup_protocol.packets[1].frame",
+          "sha256": "294b7806aef70a021c6d898d73d0b25569ba712b71926b1b94f7ba642e1c6d9b"
+        },
+        {
+          "length": 4,
+          "path": "$.map_video.setup_protocol.packets[2].frame",
+          "sha256": "c5bb7427360d178e43e91c227fe5d0ccf158ec3dd1de761e44f3dc2e8b4e67f6"
+        },
+        {
+          "length": 9,
+          "path": "$.map_video.setup_protocol.packets[3].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.map_video.setup_protocol.packets[4].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.map_video.setup_protocol.packets[5].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.map_video.setup_protocol.packets[6].frame",
+          "sha256": "8daa502da1ff4016c99da192f3e3de77682207b0da0533d855332d0fa13f8190"
+        },
+        {
+          "length": 33,
+          "path": "$.map_video.setup_protocol.packets[7].frame",
+          "sha256": "0d46799897d0ad7ae9d26cca1c9e41538ed3f7db35cf71807a366733d16ef3e0"
+        },
+        {
+          "length": 32,
+          "path": "$.map_video.setup_protocol.packets[8].frame",
+          "sha256": "0c4c5debd8c695c535c7c5c4c7467377ef53c7e7524b0dc914692697bc681239"
+        },
+        {
+          "length": 29,
+          "path": "$.map_video.setup_protocol.packets[9].frame",
+          "sha256": "41eebcac9b773433267481364500c0b5cdf7d250a9257ee722ff65729f2fc589"
+        },
+        {
+          "length": 17,
+          "path": "$.map_video.setup_protocol.packets[10].frame",
+          "sha256": "31ddffcd1f1273cf97fdddd20b2cdb6e57ce2f9d6fd7a5e39663dcaf907d6d9c"
+        },
+        {
+          "length": 48,
+          "path": "$.map_video.setup_protocol.packets[11].frame",
+          "sha256": "e8b1a42c5121dc08f0fe210c5ce34275c7085263ed590c2ccedbb2dabdb5eec8"
+        },
+        {
+          "length": 59,
+          "path": "$.map_video.setup_protocol.packets[12].frame",
+          "sha256": "dfeb932ff261da4032e2b4ff1c4bcb4ca153abc49cdd523d0d53a212ed3443da"
+        },
+        {
+          "length": 33,
+          "path": "$.map_video.setup_protocol.packets[13].frame",
+          "sha256": "a8615a61979175494772606156e65b54b899126a9858d44a6b1d797be2daee46"
+        },
+        {
+          "length": 68,
+          "path": "$.map_video.setup_protocol.packets[14].frame",
+          "sha256": "659954f0aa0910d6e519cf48e2a756cf9d5a4d7abf7272680593ae94914f42e6"
+        },
+        {
+          "length": 84,
+          "path": "$.map_video.setup_protocol.packets[15].frame",
+          "sha256": "1f7585eedfb87671bf99ad8435be0ed9567a5286baf43c927a9144282ed3dcc9"
+        },
+        {
+          "length": 70,
+          "path": "$.map_video.setup_protocol.packets[16].frame",
+          "sha256": "72a5131510d7040379d1e247b3a524275755e31f3ebd8b8686a6b9b5927ec0cb"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.setup_protocol.packets[21].map.pixels",
+          "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.setup_protocol.packets[26].map.pixels",
+          "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.setup_protocol.packets[31].map.pixels",
+          "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.setup_protocol.packets[36].map.pixels",
+          "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+        },
+        {
+          "length": 92,
+          "path": "$.map_video.setup_protocol.packets[37].frame",
+          "sha256": "a9826cd526eceaff871ce7b6e6b0f159fb162361607e6db99cc88cc06eb02e19"
+        },
+        {
+          "length": 50,
+          "path": "$.map_video.setup_protocol.packets[38].frame",
+          "sha256": "3b7ced4ead2aa5ae856a4b8039c11c8cd75e5cfce122ba99110f04b5f6755c40"
+        },
+        {
+          "length": 50,
+          "path": "$.map_video.setup_protocol.packets[39].frame",
+          "sha256": "5ecdd04973bdcaf32125498047bce1a769938021587237510c608fd34ae5d5e9"
+        },
+        {
+          "length": 47,
+          "path": "$.map_video.setup_protocol.packets[40].frame",
+          "sha256": "c48ad2359e9b69f2b5c722f10ceb3384c6513b59324a46fcaea0ae47fadd8143"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.first_frame_protocol.packets[0].map.pixels",
+          "sha256": "49d03783387df69775cd02397211d5a995ca8654224e3a67dfbd8f384959d1dc"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.first_frame_protocol.packets[1].map.pixels",
+          "sha256": "f36d60f1ca5d5b9aa1b3858dd72c6a0cda10adbc04e87d8a2944cceffbdd1467"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.first_frame_protocol.packets[2].map.pixels",
+          "sha256": "3ee7cf7ce4b6479fe2652c5a07c9758acd0d1e5355ff9d64d671c8e16ca9bfc7"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.first_frame_protocol.packets[3].map.pixels",
+          "sha256": "d69044ca0b8f3080f15b18dcaeeab78191f84ec15f5dc2e983e1bf55db145a80"
+        },
+        {
+          "length": 58,
+          "path": "$.map_video.first_frame_protocol.packets[4].frame",
+          "sha256": "6c00ff5a6008a23d91698a6fdd63a3635bde46a1d91d62de7ee670dccf2bec41"
+        },
+        {
+          "length": 29,
+          "path": "$.map_video.pause_protocol.packets[0].frame",
+          "sha256": "6572dda58152a3fec1a8d3363319557b374255327aca66fdef9579e4eb7918e0"
+        },
+        {
+          "length": 30,
+          "path": "$.map_video.resume_protocol.packets[0].frame",
+          "sha256": "516fa6f66682d09e591dc780db8f4209d0754ad270b303994987a4ca54a8f8ae"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.delta_protocol.packets[0].map.pixels",
+          "sha256": "09ea5e238aefde9604e44d10a17e6f45001ba927cda265c43c44277326a0fb5b"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.delta_protocol.packets[1].map.pixels",
+          "sha256": "3d16c92b94460b2d11a28cdbb7cbed68e2caa7ac03edc7e5cfd924dfa7a1b7dd"
+        },
+        {
+          "length": 16256,
+          "path": "$.map_video.delta_protocol.packets[2].map.pixels",
+          "sha256": "253861d739524601aa5d5a02aa5439dae9b94eb47c0d8865a4206576b2933e63"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.delta_protocol.packets[3].map.pixels",
+          "sha256": "4adbaed96e1980c470f83db5a8fafde55fe27ee098f3157e0955a23ec0eeed10"
+        },
+        {
+          "path": "$.map_video.resumed_frame.palette_counts",
+          "value": [
+            [
+              5,
+              3
+            ],
+            [
+              6,
+              619
+            ],
+            [
+              8,
+              70
+            ],
+            [
+              9,
+              1594
+            ],
+            [
+              10,
+              3388
+            ],
+            [
+              11,
+              9
+            ],
+            [
+              16,
+              353
+            ],
+            [
+              19,
+              503
+            ],
+            [
+              31,
+              1
+            ],
+            [
+              33,
+              166
+            ],
+            [
+              34,
+              337
+            ],
+            [
+              40,
+              126
+            ],
+            [
+              41,
+              4
+            ],
+            [
+              42,
+              4
+            ],
+            [
+              43,
+              10
+            ],
+            [
+              52,
+              77
+            ],
+            [
+              53,
+              8
+            ],
+            [
+              54,
+              81
+            ],
+            [
+              55,
+              23
+            ],
+            [
+              57,
+              222
+            ],
+            [
+              58,
+              378
+            ],
+            [
+              60,
+              2051
+            ],
+            [
+              61,
+              11001
+            ],
+            [
+              62,
+              10815
+            ],
+            [
+              63,
+              205
+            ],
+            [
+              72,
+              273
+            ],
+            [
+              73,
+              73
+            ],
+            [
+              74,
+              1847
+            ],
+            [
+              75,
+              27
+            ],
+            [
+              78,
+              3
+            ],
+            [
+              83,
+              102
+            ],
+            [
+              84,
+              1
+            ],
+            [
+              87,
+              110
+            ],
+            [
+              103,
+              1
+            ],
+            [
+              104,
+              12
+            ],
+            [
+              105,
+              2
+            ],
+            [
+              106,
+              1
+            ],
+            [
+              107,
+              235
+            ],
+            [
+              108,
+              10
+            ],
+            [
+              109,
+              1
+            ],
+            [
+              110,
+              1
+            ],
+            [
+              111,
+              61
+            ],
+            [
+              112,
+              260
+            ],
+            [
+              113,
+              262
+            ],
+            [
+              114,
+              655
+            ],
+            [
+              115,
+              72
+            ],
+            [
+              116,
+              4849
+            ],
+            [
+              117,
+              4526
+            ],
+            [
+              118,
+              334
+            ],
+            [
+              119,
+              532
+            ],
+            [
+              120,
+              3022
+            ],
+            [
+              121,
+              1408
+            ],
+            [
+              122,
+              12757
+            ],
+            [
+              123,
+              1077
+            ],
+            [
+              126,
+              370
+            ],
+            [
+              136,
+              119
+            ],
+            [
+              137,
+              18
+            ],
+            [
+              138,
+              108
+            ],
+            [
+              139,
+              187
+            ],
+            [
+              141,
+              2
+            ],
+            [
+              142,
+              78
+            ],
+            [
+              143,
+              92
+            ]
+          ]
+        },
+        {
+          "length": 65536,
+          "path": "$.map_video.resumed_frame.pixels",
+          "sha256": "c6cb3e505c9a412b8503e2de6637eeee251a56c6e830f6a5cab2117d70b9e7c9"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.resumed_frame.tiles[0].pixels",
+          "sha256": "09ea5e238aefde9604e44d10a17e6f45001ba927cda265c43c44277326a0fb5b"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.resumed_frame.tiles[1].pixels",
+          "sha256": "3d16c92b94460b2d11a28cdbb7cbed68e2caa7ac03edc7e5cfd924dfa7a1b7dd"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.resumed_frame.tiles[2].pixels",
+          "sha256": "4f871d32b3cabeecb77fcec5d5d245da172bbd406758974845f809e5a0ca6466"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.resumed_frame.tiles[3].pixels",
+          "sha256": "4adbaed96e1980c470f83db5a8fafde55fe27ee098f3157e0955a23ec0eeed10"
+        },
+        {
+          "length": 61,
+          "path": "$.map_video.stop_protocol.packets[0].frame",
+          "sha256": "3d659c83d81ade9d0440f59e15c3d808905ff5dc7b0dfc5943ee0d2f1fb98d27"
+        },
+        {
+          "length": 8,
+          "path": "$.map_video.stop_protocol.packets[2].frame",
+          "sha256": "c1da7cbd879b044f506e12b8b5d60fd5b81271f14a04d5bc1cd2e98ba953ec1c"
+        },
+        {
+          "length": 8,
+          "path": "$.map_video.stop_protocol.packets[3].frame",
+          "sha256": "4ecdaae026a170da3fd068797cac729be8c4dd0b357740b40f657f9989a13284"
+        },
+        {
+          "length": 8,
+          "path": "$.map_video.stop_protocol.packets[4].frame",
+          "sha256": "381a6ccc0c8dd00cef1fc9f6428227deb5e8a2f02c7a5aebe8144be0d46ebe9e"
+        },
+        {
+          "length": 8,
+          "path": "$.map_video.stop_protocol.packets[5].frame",
+          "sha256": "7563c851e1666322e67bf5f4c61cfe8b69f412ba58c4626ed3246aa9f174d36f"
+        },
+        {
+          "length": 8,
+          "path": "$.map_video.stop_protocol.packets[6].frame",
+          "sha256": "81247005fdb8411d0059f5e11e00a9d77864f23e583ff1acb65b2ed9edfefc74"
+        },
+        {
+          "length": 8,
+          "path": "$.map_video.stop_protocol.packets[7].frame",
+          "sha256": "1f976a3d8dc452aeb53135cdf203daea079fc5e35a361a90219d0344b9792224"
+        },
+        {
+          "length": 8,
+          "path": "$.map_video.stop_protocol.packets[8].frame",
+          "sha256": "e5683044c133586d9f9d6ff062b6e9e087fee0b0a10052c1b666fbae20900d44"
+        },
+        {
+          "length": 30,
+          "path": "$.map_video.stop_protocol.packets[9].frame",
+          "sha256": "53d3bf98930333abe2c0f3c44d32d05f4ed37da256707dcf8f2dc4d600950442"
+        },
+        {
+          "length": 142,
+          "path": "$.map_video.stop_protocol.packets[10].frame",
+          "sha256": "190ae2184077eb88a43e15382f6786d89f0bb8c35c6579d9b646b77eaef0265e"
+        },
+        {
+          "length": 4,
+          "path": "$.map_video.stop_protocol.packets[11].frame",
+          "sha256": "66eb83bb3c908858d9e4d9c61e538c3316d88505dc2709a6ca369acb1d853add"
+        },
+        {
+          "length": 9,
+          "path": "$.map_video.stop_protocol.packets[12].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.map_video.stop_protocol.packets[13].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.map_video.stop_protocol.packets[14].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.map_video.stop_protocol.packets[15].frame",
+          "sha256": "e012f15f170d94372f62123b87e501e427549413df97c58e563b31dd165842d8"
+        },
+        {
+          "length": 44,
+          "path": "$.map_video.stop_protocol.packets[16].frame",
+          "sha256": "881c42f792ba16078a1ec674240a14d3d49e37c0927746fbb83dbeaf415f4d41"
+        },
+        {
+          "length": 45,
+          "path": "$.map_video.stop_protocol.packets[17].frame",
+          "sha256": "144eb79d856aca62fe0ae4876c1bc3bdda2caa643d2e360268f006ce2af9dc6d"
+        },
+        {
+          "length": 17,
+          "path": "$.map_video.stop_protocol.packets[18].frame",
+          "sha256": "97039c6adb84706113c3e1fcf18f6568d849b66937ff564163ba64c47a452791"
+        },
+        {
+          "length": 42,
+          "path": "$.map_video.stop_protocol.packets[19].frame",
+          "sha256": "87213ec86c2ff615d14684d8b055d142024163ef12109256b783a3fc73570aea"
+        },
+        {
+          "length": 33,
+          "path": "$.map_video.stop_protocol.packets[20].frame",
+          "sha256": "b678627e4c9abbe82cba776b7a1b8de9634a18cf2feee6c4364c07817a15db16"
+        },
+        {
+          "length": 17,
+          "path": "$.map_video.stop_protocol.packets[21].frame",
+          "sha256": "2ea137b30495c7cade1e243af53687e36fd82756586a35cd837f340de4c1d705"
+        },
+        {
+          "length": 42,
+          "path": "$.map_video.stop_protocol.packets[22].frame",
+          "sha256": "16a1cc012b7162b2890938ab038821db199c1eae8050085666bc7cebf938b47c"
+        },
+        {
+          "length": 59,
+          "path": "$.map_video.stop_protocol.packets[23].frame",
+          "sha256": "3d062ae4b88594a0f111de7355f0d42bfba2a8f01bcd823fe7aef377fd22e635"
+        },
+        {
+          "length": 33,
+          "path": "$.map_video.stop_protocol.packets[24].frame",
+          "sha256": "ab365cbfd1f14dc5cc28056ab4e32d8fe69b56de3e4f0b885e005b941d314f02"
+        },
+        {
+          "length": 9,
+          "path": "$.map_video.stop_protocol.packets[25].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.map_video.stop_protocol.packets[26].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.map_video.stop_protocol.packets[27].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.map_video.stop_protocol.packets[28].frame",
+          "sha256": "e012f15f170d94372f62123b87e501e427549413df97c58e563b31dd165842d8"
+        },
+        {
+          "length": 44,
+          "path": "$.map_video.stop_protocol.packets[29].frame",
+          "sha256": "881c42f792ba16078a1ec674240a14d3d49e37c0927746fbb83dbeaf415f4d41"
+        },
+        {
+          "length": 45,
+          "path": "$.map_video.stop_protocol.packets[30].frame",
+          "sha256": "144eb79d856aca62fe0ae4876c1bc3bdda2caa643d2e360268f006ce2af9dc6d"
+        },
+        {
+          "length": 17,
+          "path": "$.map_video.stop_protocol.packets[31].frame",
+          "sha256": "97039c6adb84706113c3e1fcf18f6568d849b66937ff564163ba64c47a452791"
+        },
+        {
+          "length": 42,
+          "path": "$.map_video.stop_protocol.packets[32].frame",
+          "sha256": "87213ec86c2ff615d14684d8b055d142024163ef12109256b783a3fc73570aea"
+        },
+        {
+          "length": 33,
+          "path": "$.map_video.stop_protocol.packets[33].frame",
+          "sha256": "b678627e4c9abbe82cba776b7a1b8de9634a18cf2feee6c4364c07817a15db16"
+        },
+        {
+          "length": 17,
+          "path": "$.map_video.stop_protocol.packets[34].frame",
+          "sha256": "2ea137b30495c7cade1e243af53687e36fd82756586a35cd837f340de4c1d705"
+        },
+        {
+          "length": 42,
+          "path": "$.map_video.stop_protocol.packets[35].frame",
+          "sha256": "16a1cc012b7162b2890938ab038821db199c1eae8050085666bc7cebf938b47c"
+        },
+        {
+          "length": 59,
+          "path": "$.map_video.stop_protocol.packets[36].frame",
+          "sha256": "3d062ae4b88594a0f111de7355f0d42bfba2a8f01bcd823fe7aef377fd22e635"
+        },
+        {
+          "length": 33,
+          "path": "$.map_video.stop_protocol.packets[37].frame",
+          "sha256": "ab365cbfd1f14dc5cc28056ab4e32d8fe69b56de3e4f0b885e005b941d314f02"
+        },
+        {
+          "length": 63,
+          "path": "$.map_video.stop_protocol.packets[38].frame",
+          "sha256": "cd3ad27e764f6dca8a634c31d564dc2fad446e5df0a14cde59d75f2ef60b268d"
+        },
+        {
+          "length": 339,
+          "path": "$.block_video.setup_protocol.packets[0].frame",
+          "sha256": "1f5bc9f7a4a706dd562be6b5f576bc1ed3806f3c658c4f50c7ffbdaeade60688"
+        },
+        {
+          "length": 88,
+          "path": "$.block_video.setup_protocol.packets[1].frame",
+          "sha256": "294b7806aef70a021c6d898d73d0b25569ba712b71926b1b94f7ba642e1c6d9b"
+        },
+        {
+          "length": 4,
+          "path": "$.block_video.setup_protocol.packets[2].frame",
+          "sha256": "c5bb7427360d178e43e91c227fe5d0ccf158ec3dd1de761e44f3dc2e8b4e67f6"
+        },
+        {
+          "length": 9,
+          "path": "$.block_video.setup_protocol.packets[3].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.block_video.setup_protocol.packets[4].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.block_video.setup_protocol.packets[5].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.block_video.setup_protocol.packets[6].frame",
+          "sha256": "8daa502da1ff4016c99da192f3e3de77682207b0da0533d855332d0fa13f8190"
+        },
+        {
+          "length": 33,
+          "path": "$.block_video.setup_protocol.packets[7].frame",
+          "sha256": "0d46799897d0ad7ae9d26cca1c9e41538ed3f7db35cf71807a366733d16ef3e0"
+        },
+        {
+          "length": 34,
+          "path": "$.block_video.setup_protocol.packets[8].frame",
+          "sha256": "a50caeba5e082a4b1869308365662c63c004ddc744cf0cdd0278aebaeed7a657"
+        },
+        {
+          "length": 29,
+          "path": "$.block_video.setup_protocol.packets[9].frame",
+          "sha256": "41eebcac9b773433267481364500c0b5cdf7d250a9257ee722ff65729f2fc589"
+        },
+        {
+          "length": 17,
+          "path": "$.block_video.setup_protocol.packets[10].frame",
+          "sha256": "31ddffcd1f1273cf97fdddd20b2cdb6e57ce2f9d6fd7a5e39663dcaf907d6d9c"
+        },
+        {
+          "length": 48,
+          "path": "$.block_video.setup_protocol.packets[11].frame",
+          "sha256": "e8b1a42c5121dc08f0fe210c5ce34275c7085263ed590c2ccedbb2dabdb5eec8"
+        },
+        {
+          "length": 59,
+          "path": "$.block_video.setup_protocol.packets[12].frame",
+          "sha256": "dfeb932ff261da4032e2b4ff1c4bcb4ca153abc49cdd523d0d53a212ed3443da"
+        },
+        {
+          "length": 33,
+          "path": "$.block_video.setup_protocol.packets[13].frame",
+          "sha256": "a8615a61979175494772606156e65b54b899126a9858d44a6b1d797be2daee46"
+        },
+        {
+          "length": 70,
+          "path": "$.block_video.setup_protocol.packets[14].frame",
+          "sha256": "1f2a2b92e3b34a1ae015c29b8c7de23eb3d5338b1a1be2785030c8bbccd78d96"
+        },
+        {
+          "length": 67,
+          "path": "$.block_video.setup_protocol.packets[15].frame",
+          "sha256": "2327c6c77eccf18f60ae0d3adc48d4c77a3380b4e5e927bfa8088307033f51f8"
+        },
+        {
+          "length": 70,
+          "path": "$.block_video.setup_protocol.packets[16].frame",
+          "sha256": "72a5131510d7040379d1e247b3a524275755e31f3ebd8b8686a6b9b5927ec0cb"
+        },
+        {
+          "length": 53,
+          "path": "$.block_video.setup_protocol.packets[17].frame",
+          "sha256": "95a3e1849dd5cc6aa432b27db4ca5c201d51b0da6e156daebcf86338ee91f1b5"
+        },
+        {
+          "length": 6293,
+          "path": "$.block_video.setup_protocol.packets[18].frame",
+          "sha256": "5d2ff8a5fad7d3c93c578a251240d8957b5898816880b0da2c5c52e5b2c50059"
+        },
+        {
+          "length": 5984,
+          "path": "$.block_video.setup_protocol.packets[19].frame",
+          "sha256": "4fe9f13a7964ccf60b89007d24d8e2a145dc13de98194c880fc56ab863caebec"
+        },
+        {
+          "length": 4895,
+          "path": "$.block_video.setup_protocol.packets[20].frame",
+          "sha256": "b93f16d583735ac928f20376fac992f2ab80535e1a1c41ae69c1932634a1315e"
+        },
+        {
+          "length": 5942,
+          "path": "$.block_video.setup_protocol.packets[21].frame",
+          "sha256": "bc9f808deaf8a871da2b9a110a17c9771625f8c18a38eb0498a1eed438e8bcf6"
+        },
+        {
+          "length": 50,
+          "path": "$.block_video.setup_protocol.packets[22].frame",
+          "sha256": "d71901fd8453a999aef0b3d1ff662c571a9b522c27eaedab9b3882491f779180"
+        },
+        {
+          "length": 50,
+          "path": "$.block_video.setup_protocol.packets[23].frame",
+          "sha256": "3b7ced4ead2aa5ae856a4b8039c11c8cd75e5cfce122ba99110f04b5f6755c40"
+        },
+        {
+          "length": 50,
+          "path": "$.block_video.setup_protocol.packets[24].frame",
+          "sha256": "5ecdd04973bdcaf32125498047bce1a769938021587237510c608fd34ae5d5e9"
+        },
+        {
+          "length": 47,
+          "path": "$.block_video.setup_protocol.packets[25].frame",
+          "sha256": "c48ad2359e9b69f2b5c722f10ceb3384c6513b59324a46fcaea0ae47fadd8143"
+        },
+        {
+          "length": 219,
+          "path": "$.block_video.first_frame_protocol.packets[0].frame",
+          "sha256": "4a0d8f93c297bdccfbb169d383d13dec4579ced10ed13fca9a527e8e86a0dffa"
+        },
+        {
+          "length": 169,
+          "path": "$.block_video.first_frame_protocol.packets[1].frame",
+          "sha256": "29b4b54fed632f20a1120e32bfba23adc18b73126f1ea57954b068c4fd9cadfc"
+        },
+        {
+          "length": 37,
+          "path": "$.block_video.first_frame_protocol.packets[2].frame",
+          "sha256": "30fc103772d8398d3df2a5de6e3e8521ec9d1a84c4ca5e045ca064764f266a3d"
+        },
+        {
+          "length": 29,
+          "path": "$.block_video.pause_protocol.packets[0].frame",
+          "sha256": "6572dda58152a3fec1a8d3363319557b374255327aca66fdef9579e4eb7918e0"
+        },
+        {
+          "length": 30,
+          "path": "$.block_video.resume_protocol.packets[0].frame",
+          "sha256": "516fa6f66682d09e591dc780db8f4209d0754ad270b303994987a4ca54a8f8ae"
+        },
+        {
+          "length": 224,
+          "path": "$.block_video.delta_protocol.packets[0].frame",
+          "sha256": "331de64b5ee10c949ee913006d725b7fcb25b94a7aa2eea69b32219f6d956f2a"
+        },
+        {
+          "length": 174,
+          "path": "$.block_video.delta_protocol.packets[1].frame",
+          "sha256": "cef819fc1512ef94e1a867248387316deaccac9590ae63514dff183c60e520ba"
+        },
+        {
+          "length": 61,
+          "path": "$.block_video.stop_protocol.packets[0].frame",
+          "sha256": "3d659c83d81ade9d0440f59e15c3d808905ff5dc7b0dfc5943ee0d2f1fb98d27"
+        },
+        {
+          "length": 4901,
+          "path": "$.block_video.stop_protocol.packets[1].frame",
+          "sha256": "b69f0057e7ee30d2fdacaf9fac0fcc502602a3d7f9c32373f8b3a39de16007e4"
+        },
+        {
+          "length": 5944,
+          "path": "$.block_video.stop_protocol.packets[2].frame",
+          "sha256": "7f2ea6b938897de813a4bc2ab7803d8f21074717ca6917a9ab48175c00fe87d9"
+        },
+        {
+          "length": 99,
+          "path": "$.block_video.stop_protocol.packets[3].frame",
+          "sha256": "0fa0c322ab82ae607eb7067a052b340307e0d752f12c264f276c968d039327d8"
+        },
+        {
+          "length": 99,
+          "path": "$.block_video.stop_protocol.packets[4].frame",
+          "sha256": "f77c122706ca4400b895549f3cd2e9b56486cb74fb877221f7449177cea376ee"
+        },
+        {
+          "length": 99,
+          "path": "$.block_video.stop_protocol.packets[5].frame",
+          "sha256": "855c8852feb8af043a45c6ea6c745222d70475e00cd6f9b8885ae879b59f5d1e"
+        },
+        {
+          "length": 6300,
+          "path": "$.block_video.stop_protocol.packets[6].frame",
+          "sha256": "970849c2504c709553975473e36bc5cee931e073e38b054b6144e7bad71b3a70"
+        },
+        {
+          "length": 5983,
+          "path": "$.block_video.stop_protocol.packets[7].frame",
+          "sha256": "c07b9ba6dde692abb3b7a526c0ce7fd0edaf47d63499457e3d328d42a90d3064"
+        },
+        {
+          "length": 99,
+          "path": "$.block_video.stop_protocol.packets[8].frame",
+          "sha256": "03896261e9db685cc8b8f4d9a05da932c1cc5ce3cc9f81bc4c7bad87237b93ed"
+        },
+        {
+          "length": 99,
+          "path": "$.block_video.stop_protocol.packets[9].frame",
+          "sha256": "68a42f818abb4664989fa5df9a0e720a395efe221038a5efbb2da447e013dd57"
+        },
+        {
+          "length": 51,
+          "path": "$.block_video.stop_protocol.packets[10].frame",
+          "sha256": "f274cd0694f62f669cfd337dc94b9179e241eecd24380acf2e8f9cb2ea4a6237"
+        },
+        {
+          "length": 8,
+          "path": "$.block_video.stop_protocol.packets[11].frame",
+          "sha256": "c1da7cbd879b044f506e12b8b5d60fd5b81271f14a04d5bc1cd2e98ba953ec1c"
+        },
+        {
+          "length": 8,
+          "path": "$.block_video.stop_protocol.packets[12].frame",
+          "sha256": "4ecdaae026a170da3fd068797cac729be8c4dd0b357740b40f657f9989a13284"
+        },
+        {
+          "length": 8,
+          "path": "$.block_video.stop_protocol.packets[13].frame",
+          "sha256": "381a6ccc0c8dd00cef1fc9f6428227deb5e8a2f02c7a5aebe8144be0d46ebe9e"
+        },
+        {
+          "length": 8,
+          "path": "$.block_video.stop_protocol.packets[14].frame",
+          "sha256": "7563c851e1666322e67bf5f4c61cfe8b69f412ba58c4626ed3246aa9f174d36f"
+        },
+        {
+          "length": 8,
+          "path": "$.block_video.stop_protocol.packets[15].frame",
+          "sha256": "81247005fdb8411d0059f5e11e00a9d77864f23e583ff1acb65b2ed9edfefc74"
+        },
+        {
+          "length": 8,
+          "path": "$.block_video.stop_protocol.packets[16].frame",
+          "sha256": "1f976a3d8dc452aeb53135cdf203daea079fc5e35a361a90219d0344b9792224"
+        },
+        {
+          "length": 8,
+          "path": "$.block_video.stop_protocol.packets[17].frame",
+          "sha256": "e5683044c133586d9f9d6ff062b6e9e087fee0b0a10052c1b666fbae20900d44"
+        },
+        {
+          "length": 30,
+          "path": "$.block_video.stop_protocol.packets[18].frame",
+          "sha256": "53d3bf98930333abe2c0f3c44d32d05f4ed37da256707dcf8f2dc4d600950442"
+        },
+        {
+          "length": 142,
+          "path": "$.block_video.stop_protocol.packets[19].frame",
+          "sha256": "190ae2184077eb88a43e15382f6786d89f0bb8c35c6579d9b646b77eaef0265e"
+        },
+        {
+          "length": 4,
+          "path": "$.block_video.stop_protocol.packets[20].frame",
+          "sha256": "66eb83bb3c908858d9e4d9c61e538c3316d88505dc2709a6ca369acb1d853add"
+        },
+        {
+          "length": 9,
+          "path": "$.block_video.stop_protocol.packets[21].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.block_video.stop_protocol.packets[22].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.block_video.stop_protocol.packets[23].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.block_video.stop_protocol.packets[24].frame",
+          "sha256": "e012f15f170d94372f62123b87e501e427549413df97c58e563b31dd165842d8"
+        },
+        {
+          "length": 44,
+          "path": "$.block_video.stop_protocol.packets[25].frame",
+          "sha256": "881c42f792ba16078a1ec674240a14d3d49e37c0927746fbb83dbeaf415f4d41"
+        },
+        {
+          "length": 45,
+          "path": "$.block_video.stop_protocol.packets[26].frame",
+          "sha256": "144eb79d856aca62fe0ae4876c1bc3bdda2caa643d2e360268f006ce2af9dc6d"
+        },
+        {
+          "length": 17,
+          "path": "$.block_video.stop_protocol.packets[27].frame",
+          "sha256": "97039c6adb84706113c3e1fcf18f6568d849b66937ff564163ba64c47a452791"
+        },
+        {
+          "length": 42,
+          "path": "$.block_video.stop_protocol.packets[28].frame",
+          "sha256": "87213ec86c2ff615d14684d8b055d142024163ef12109256b783a3fc73570aea"
+        },
+        {
+          "length": 33,
+          "path": "$.block_video.stop_protocol.packets[29].frame",
+          "sha256": "b678627e4c9abbe82cba776b7a1b8de9634a18cf2feee6c4364c07817a15db16"
+        },
+        {
+          "length": 17,
+          "path": "$.block_video.stop_protocol.packets[30].frame",
+          "sha256": "2ea137b30495c7cade1e243af53687e36fd82756586a35cd837f340de4c1d705"
+        },
+        {
+          "length": 42,
+          "path": "$.block_video.stop_protocol.packets[31].frame",
+          "sha256": "16a1cc012b7162b2890938ab038821db199c1eae8050085666bc7cebf938b47c"
+        },
+        {
+          "length": 59,
+          "path": "$.block_video.stop_protocol.packets[32].frame",
+          "sha256": "3d062ae4b88594a0f111de7355f0d42bfba2a8f01bcd823fe7aef377fd22e635"
+        },
+        {
+          "length": 33,
+          "path": "$.block_video.stop_protocol.packets[33].frame",
+          "sha256": "ab365cbfd1f14dc5cc28056ab4e32d8fe69b56de3e4f0b885e005b941d314f02"
+        },
+        {
+          "length": 9,
+          "path": "$.block_video.stop_protocol.packets[34].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.block_video.stop_protocol.packets[35].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.block_video.stop_protocol.packets[36].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.block_video.stop_protocol.packets[37].frame",
+          "sha256": "e012f15f170d94372f62123b87e501e427549413df97c58e563b31dd165842d8"
+        },
+        {
+          "length": 44,
+          "path": "$.block_video.stop_protocol.packets[38].frame",
+          "sha256": "881c42f792ba16078a1ec674240a14d3d49e37c0927746fbb83dbeaf415f4d41"
+        },
+        {
+          "length": 45,
+          "path": "$.block_video.stop_protocol.packets[39].frame",
+          "sha256": "144eb79d856aca62fe0ae4876c1bc3bdda2caa643d2e360268f006ce2af9dc6d"
+        },
+        {
+          "length": 17,
+          "path": "$.block_video.stop_protocol.packets[40].frame",
+          "sha256": "97039c6adb84706113c3e1fcf18f6568d849b66937ff564163ba64c47a452791"
+        },
+        {
+          "length": 42,
+          "path": "$.block_video.stop_protocol.packets[41].frame",
+          "sha256": "87213ec86c2ff615d14684d8b055d142024163ef12109256b783a3fc73570aea"
+        },
+        {
+          "length": 33,
+          "path": "$.block_video.stop_protocol.packets[42].frame",
+          "sha256": "b678627e4c9abbe82cba776b7a1b8de9634a18cf2feee6c4364c07817a15db16"
+        },
+        {
+          "length": 17,
+          "path": "$.block_video.stop_protocol.packets[43].frame",
+          "sha256": "2ea137b30495c7cade1e243af53687e36fd82756586a35cd837f340de4c1d705"
+        },
+        {
+          "length": 42,
+          "path": "$.block_video.stop_protocol.packets[44].frame",
+          "sha256": "16a1cc012b7162b2890938ab038821db199c1eae8050085666bc7cebf938b47c"
+        },
+        {
+          "length": 59,
+          "path": "$.block_video.stop_protocol.packets[45].frame",
+          "sha256": "3d062ae4b88594a0f111de7355f0d42bfba2a8f01bcd823fe7aef377fd22e635"
+        },
+        {
+          "length": 33,
+          "path": "$.block_video.stop_protocol.packets[46].frame",
+          "sha256": "ab365cbfd1f14dc5cc28056ab4e32d8fe69b56de3e4f0b885e005b941d314f02"
+        },
+        {
+          "length": 65,
+          "path": "$.block_video.stop_protocol.packets[47].frame",
+          "sha256": "b36f085e509387a0b3c318dca2d841e2d7154bc1f5b3febea40f5253cac2b7d2"
+        }
+      ]
+    },
+    {
+      "backend": "avx2+fma",
+      "dispatch": [
+        {
+          "build_sha256": "e8a859bdf5a853d09393636df030f4de81368b47b06245f35863ba46f22aeea7",
+          "component": "mail_render.resize_rgb24_box",
+          "host_capabilities": {
+            "avx2": true,
+            "avx512f": false,
+            "fma": true
+          },
+          "requested_backend": "avx2+fma",
+          "requested_mode": "AVX2",
+          "resolved_backend": "avx2+fma",
+          "schema": "lmyzmail.renderer-dispatch-observation.v1",
+          "sequence": 1,
+          "session": "725f84dcc9f6a34a86a0647a3c4bd18af193bae452d5771f9b56794666def0a0",
+          "source_sha256": "c1913d45ec5e724e66074d668ca65ae7654186db513501b5545fb2f34174a3c3"
+        },
+        {
+          "build_sha256": "e8a859bdf5a853d09393636df030f4de81368b47b06245f35863ba46f22aeea7",
+          "component": "mail_render.apply_rgb24_contrast",
+          "host_capabilities": {
+            "avx2": true,
+            "avx512f": false,
+            "fma": true
+          },
+          "requested_backend": "avx2+fma",
+          "requested_mode": "AVX2",
+          "resolved_backend": "avx2+fma",
+          "schema": "lmyzmail.renderer-dispatch-observation.v1",
+          "sequence": 2,
+          "session": "725f84dcc9f6a34a86a0647a3c4bd18af193bae452d5771f9b56794666def0a0",
+          "source_sha256": "c1913d45ec5e724e66074d668ca65ae7654186db513501b5545fb2f34174a3c3"
+        },
+        {
+          "build_sha256": "e8a859bdf5a853d09393636df030f4de81368b47b06245f35863ba46f22aeea7",
+          "component": "minecraft.block_palette_rgb",
+          "host_capabilities": {
+            "avx2": true,
+            "avx512f": false,
+            "fma": true
+          },
+          "requested_backend": "avx2+fma",
+          "requested_mode": "AVX2",
+          "resolved_backend": "avx2+fma",
+          "schema": "lmyzmail.renderer-dispatch-observation.v1",
+          "sequence": 3,
+          "session": "725f84dcc9f6a34a86a0647a3c4bd18af193bae452d5771f9b56794666def0a0",
+          "source_sha256": "c1913d45ec5e724e66074d668ca65ae7654186db513501b5545fb2f34174a3c3"
+        },
+        {
+          "build_sha256": "e8a859bdf5a853d09393636df030f4de81368b47b06245f35863ba46f22aeea7",
+          "component": "minecraft.map_palette",
+          "host_capabilities": {
+            "avx2": true,
+            "avx512f": false,
+            "fma": true
+          },
+          "requested_backend": "avx2+fma",
+          "requested_mode": "AVX2",
+          "resolved_backend": "avx2+fma",
+          "schema": "lmyzmail.renderer-dispatch-observation.v1",
+          "sequence": 4,
+          "session": "725f84dcc9f6a34a86a0647a3c4bd18af193bae452d5771f9b56794666def0a0",
+          "source_sha256": "c1913d45ec5e724e66074d668ca65ae7654186db513501b5545fb2f34174a3c3"
+        },
+        {
+          "build_sha256": "e8a859bdf5a853d09393636df030f4de81368b47b06245f35863ba46f22aeea7",
+          "component": "minecraft.block_palette_states",
+          "host_capabilities": {
+            "avx2": true,
+            "avx512f": false,
+            "fma": true
+          },
+          "requested_backend": "avx2+fma",
+          "requested_mode": "AVX2",
+          "resolved_backend": "avx2+fma",
+          "schema": "lmyzmail.renderer-dispatch-observation.v1",
+          "sequence": 5,
+          "session": "725f84dcc9f6a34a86a0647a3c4bd18af193bae452d5771f9b56794666def0a0",
+          "source_sha256": "c1913d45ec5e724e66074d668ca65ae7654186db513501b5545fb2f34174a3c3"
+        }
+      ],
+      "mode": "AVX2",
+      "observation_sha256": "3390cf788306c20dda0d3a531ee20625dbcab969145a826ab84663791f3b7bdf",
+      "render_digests": [
+        {
+          "length": 15048248,
+          "path": "$.resource.bytes",
+          "sha256": "0e76229bb77ebcf471aec692fa34709cfbbe3dc192127a852a518e34bdd0ecc7"
+        },
+        {
+          "length": 49,
+          "path": "$.gui_and_commands.main_menu[0].frame",
+          "sha256": "d6782db9fde8cd7547f352ef8230f952367f4c2739feb2d9075f0cfe8ed54c32"
+        },
+        {
+          "length": 689,
+          "path": "$.gui_and_commands.main_menu[1].frame",
+          "sha256": "f140440733572fa89dbaafad369a0bfbde14f38b8c7442ec1072d2c22a023ce4"
+        },
+        {
+          "length": 7,
+          "path": "$.gui_and_commands.video_submenu.packets.packets[0].frame",
+          "sha256": "9bca109435b7be65506aff9fe5880825e530a539f402a7a7a842adc203f63382"
+        },
+        {
+          "length": 8,
+          "path": "$.gui_and_commands.video_submenu.packets.packets[1].frame",
+          "sha256": "ed996cc35dd2b0a08b370106b73e128062f775a2f7cefc135e30f2f9e48b7c9d"
+        },
+        {
+          "length": 689,
+          "path": "$.gui_and_commands.video_submenu.packets.packets[2].frame",
+          "sha256": "f140440733572fa89dbaafad369a0bfbde14f38b8c7442ec1072d2c22a023ce4"
+        },
+        {
+          "length": 30,
+          "path": "$.gui_and_commands.video_submenu.packets.packets[3].frame",
+          "sha256": "53d3bf98930333abe2c0f3c44d32d05f4ed37da256707dcf8f2dc4d600950442"
+        },
+        {
+          "length": 142,
+          "path": "$.gui_and_commands.video_submenu.packets.packets[4].frame",
+          "sha256": "190ae2184077eb88a43e15382f6786d89f0bb8c35c6579d9b646b77eaef0265e"
+        },
+        {
+          "length": 48,
+          "path": "$.gui_and_commands.video_submenu.packets.packets[5].frame",
+          "sha256": "133086918a809c25f1a70957eb0b67c49c3aa4dd16e7c8c339e5977889e92c23"
+        },
+        {
+          "length": 452,
+          "path": "$.gui_and_commands.video_submenu.packets.packets[6].frame",
+          "sha256": "471f2ffc0857033e6e3bc42bbe9ac6cbe74c615a5206e6763d3356d24707b39c"
+        },
+        {
+          "length": 52,
+          "path": "$.gui_and_commands.commands[0].response[0].frame",
+          "sha256": "e2dfb3bc6d7c55f66a88942caa50a93005a3171513ec7782aa523d215812e32e"
+        },
+        {
+          "length": 57,
+          "path": "$.gui_and_commands.commands[1].response[0].frame",
+          "sha256": "fe5cd79d959faace925c2bad02aee90d6529ffe26d11f057c5b3f6749fe76c70"
+        },
+        {
+          "length": 54,
+          "path": "$.gui_and_commands.commands[2].response[0].frame",
+          "sha256": "ff2d786df3bf5897bd1c1873e8532f94f23fff4d5576101583a72a90e314c09e"
+        },
+        {
+          "length": 52,
+          "path": "$.gui_and_commands.commands[3].response[0].frame",
+          "sha256": "2fbb87a7bc123f5a9777382b7d82b54ba4c55bc3ce32246e225468e52e88c711"
+        },
+        {
+          "length": 51,
+          "path": "$.gui_and_commands.commands[4].response[0].frame",
+          "sha256": "b5ff75455d512285d192bc5839a856d1595e43eabfc31c6781b19c5fe55bfbfe"
+        },
+        {
+          "length": 62,
+          "path": "$.gui_and_commands.commands[5].response[0].frame",
+          "sha256": "244a60d0066eb119a654a10557df1ef9925c19ed0b6ef2597c9e5e9e98cdafe6"
+        },
+        {
+          "length": 50,
+          "path": "$.gui_and_commands.commands[6].response[0].frame",
+          "sha256": "e610a4af1d1b66b1d92adb278f5152c6110b1ee5736fd6bbf4806e1f81b7f20f"
+        },
+        {
+          "length": 63,
+          "path": "$.gui_and_commands.commands[7].response[0].frame",
+          "sha256": "00af4942d5a2fcef0b6507d2baf0a97db161fa54c433ad05286396e7469d640f"
+        },
+        {
+          "length": 63,
+          "path": "$.gui_and_commands.commands[8].response[0].frame",
+          "sha256": "00af4942d5a2fcef0b6507d2baf0a97db161fa54c433ad05286396e7469d640f"
+        },
+        {
+          "length": 72,
+          "path": "$.gui_and_commands.commands[9].response[0].frame",
+          "sha256": "d2454f7fbc0d2c96c891eef366bdaee01cfb27da921108549a56a9c81e7f1ede"
+        },
+        {
+          "path": "$.map_video.first_frame.palette_counts",
+          "value": [
+            [
+              5,
+              3
+            ],
+            [
+              6,
+              207
+            ],
+            [
+              8,
+              39
+            ],
+            [
+              9,
+              501
+            ],
+            [
+              10,
+              1175
+            ],
+            [
+              11,
+              2
+            ],
+            [
+              16,
+              118
+            ],
+            [
+              19,
+              439
+            ],
+            [
+              33,
+              43
+            ],
+            [
+              34,
+              69
+            ],
+            [
+              40,
+              291
+            ],
+            [
+              41,
+              4
+            ],
+            [
+              42,
+              2
+            ],
+            [
+              43,
+              32
+            ],
+            [
+              47,
+              2
+            ],
+            [
+              52,
+              48
+            ],
+            [
+              53,
+              8
+            ],
+            [
+              54,
+              42
+            ],
+            [
+              55,
+              16
+            ],
+            [
+              57,
+              64
+            ],
+            [
+              58,
+              98
+            ],
+            [
+              59,
+              1
+            ],
+            [
+              60,
+              2074
+            ],
+            [
+              61,
+              13712
+            ],
+            [
+              62,
+              13918
+            ],
+            [
+              63,
+              180
+            ],
+            [
+              72,
+              159
+            ],
+            [
+              73,
+              38
+            ],
+            [
+              74,
+              1423
+            ],
+            [
+              75,
+              7
+            ],
+            [
+              83,
+              433
+            ],
+            [
+              84,
+              2
+            ],
+            [
+              87,
+              730
+            ],
+            [
+              99,
+              135
+            ],
+            [
+              103,
+              62
+            ],
+            [
+              104,
+              17
+            ],
+            [
+              106,
+              2
+            ],
+            [
+              107,
+              442
+            ],
+            [
+              108,
+              4
+            ],
+            [
+              111,
+              32
+            ],
+            [
+              112,
+              701
+            ],
+            [
+              113,
+              438
+            ],
+            [
+              114,
+              790
+            ],
+            [
+              115,
+              490
+            ],
+            [
+              116,
+              5174
+            ],
+            [
+              117,
+              4963
+            ],
+            [
+              118,
+              1678
+            ],
+            [
+              119,
+              583
+            ],
+            [
+              120,
+              2073
+            ],
+            [
+              121,
+              1228
+            ],
+            [
+              122,
+              8152
+            ],
+            [
+              123,
+              1134
+            ],
+            [
+              126,
+              98
+            ],
+            [
+              136,
+              102
+            ],
+            [
+              137,
+              22
+            ],
+            [
+              138,
+              174
+            ],
+            [
+              139,
+              148
+            ],
+            [
+              140,
+              1
+            ],
+            [
+              141,
+              1
+            ],
+            [
+              142,
+              57
+            ],
+            [
+              143,
+              955
+            ]
+          ]
+        },
+        {
+          "length": 65536,
+          "path": "$.map_video.first_frame.pixels",
+          "sha256": "b84f38e9169d6a5d170c72df09e15ff310d94ecbb9397c03971b18753fc04475"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.first_frame.tiles[0].pixels",
+          "sha256": "49d03783387df69775cd02397211d5a995ca8654224e3a67dfbd8f384959d1dc"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.first_frame.tiles[1].pixels",
+          "sha256": "f36d60f1ca5d5b9aa1b3858dd72c6a0cda10adbc04e87d8a2944cceffbdd1467"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.first_frame.tiles[2].pixels",
+          "sha256": "3ee7cf7ce4b6479fe2652c5a07c9758acd0d1e5355ff9d64d671c8e16ca9bfc7"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.first_frame.tiles[3].pixels",
+          "sha256": "d69044ca0b8f3080f15b18dcaeeab78191f84ec15f5dc2e983e1bf55db145a80"
+        },
+        {
+          "length": 339,
+          "path": "$.map_video.setup_protocol.packets[0].frame",
+          "sha256": "1f5bc9f7a4a706dd562be6b5f576bc1ed3806f3c658c4f50c7ffbdaeade60688"
+        },
+        {
+          "length": 88,
+          "path": "$.map_video.setup_protocol.packets[1].frame",
+          "sha256": "294b7806aef70a021c6d898d73d0b25569ba712b71926b1b94f7ba642e1c6d9b"
+        },
+        {
+          "length": 4,
+          "path": "$.map_video.setup_protocol.packets[2].frame",
+          "sha256": "c5bb7427360d178e43e91c227fe5d0ccf158ec3dd1de761e44f3dc2e8b4e67f6"
+        },
+        {
+          "length": 9,
+          "path": "$.map_video.setup_protocol.packets[3].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.map_video.setup_protocol.packets[4].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.map_video.setup_protocol.packets[5].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.map_video.setup_protocol.packets[6].frame",
+          "sha256": "8daa502da1ff4016c99da192f3e3de77682207b0da0533d855332d0fa13f8190"
+        },
+        {
+          "length": 33,
+          "path": "$.map_video.setup_protocol.packets[7].frame",
+          "sha256": "0d46799897d0ad7ae9d26cca1c9e41538ed3f7db35cf71807a366733d16ef3e0"
+        },
+        {
+          "length": 32,
+          "path": "$.map_video.setup_protocol.packets[8].frame",
+          "sha256": "0c4c5debd8c695c535c7c5c4c7467377ef53c7e7524b0dc914692697bc681239"
+        },
+        {
+          "length": 29,
+          "path": "$.map_video.setup_protocol.packets[9].frame",
+          "sha256": "41eebcac9b773433267481364500c0b5cdf7d250a9257ee722ff65729f2fc589"
+        },
+        {
+          "length": 17,
+          "path": "$.map_video.setup_protocol.packets[10].frame",
+          "sha256": "31ddffcd1f1273cf97fdddd20b2cdb6e57ce2f9d6fd7a5e39663dcaf907d6d9c"
+        },
+        {
+          "length": 48,
+          "path": "$.map_video.setup_protocol.packets[11].frame",
+          "sha256": "e8b1a42c5121dc08f0fe210c5ce34275c7085263ed590c2ccedbb2dabdb5eec8"
+        },
+        {
+          "length": 59,
+          "path": "$.map_video.setup_protocol.packets[12].frame",
+          "sha256": "dfeb932ff261da4032e2b4ff1c4bcb4ca153abc49cdd523d0d53a212ed3443da"
+        },
+        {
+          "length": 33,
+          "path": "$.map_video.setup_protocol.packets[13].frame",
+          "sha256": "a8615a61979175494772606156e65b54b899126a9858d44a6b1d797be2daee46"
+        },
+        {
+          "length": 68,
+          "path": "$.map_video.setup_protocol.packets[14].frame",
+          "sha256": "659954f0aa0910d6e519cf48e2a756cf9d5a4d7abf7272680593ae94914f42e6"
+        },
+        {
+          "length": 84,
+          "path": "$.map_video.setup_protocol.packets[15].frame",
+          "sha256": "1f7585eedfb87671bf99ad8435be0ed9567a5286baf43c927a9144282ed3dcc9"
+        },
+        {
+          "length": 70,
+          "path": "$.map_video.setup_protocol.packets[16].frame",
+          "sha256": "72a5131510d7040379d1e247b3a524275755e31f3ebd8b8686a6b9b5927ec0cb"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.setup_protocol.packets[21].map.pixels",
+          "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.setup_protocol.packets[26].map.pixels",
+          "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.setup_protocol.packets[31].map.pixels",
+          "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.setup_protocol.packets[36].map.pixels",
+          "sha256": "85a2c608cc10fc4a8e4487caffe3576cd1cd312079678b118d0994000ce2458c"
+        },
+        {
+          "length": 92,
+          "path": "$.map_video.setup_protocol.packets[37].frame",
+          "sha256": "a9826cd526eceaff871ce7b6e6b0f159fb162361607e6db99cc88cc06eb02e19"
+        },
+        {
+          "length": 50,
+          "path": "$.map_video.setup_protocol.packets[38].frame",
+          "sha256": "3b7ced4ead2aa5ae856a4b8039c11c8cd75e5cfce122ba99110f04b5f6755c40"
+        },
+        {
+          "length": 50,
+          "path": "$.map_video.setup_protocol.packets[39].frame",
+          "sha256": "5ecdd04973bdcaf32125498047bce1a769938021587237510c608fd34ae5d5e9"
+        },
+        {
+          "length": 47,
+          "path": "$.map_video.setup_protocol.packets[40].frame",
+          "sha256": "c48ad2359e9b69f2b5c722f10ceb3384c6513b59324a46fcaea0ae47fadd8143"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.first_frame_protocol.packets[0].map.pixels",
+          "sha256": "49d03783387df69775cd02397211d5a995ca8654224e3a67dfbd8f384959d1dc"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.first_frame_protocol.packets[1].map.pixels",
+          "sha256": "f36d60f1ca5d5b9aa1b3858dd72c6a0cda10adbc04e87d8a2944cceffbdd1467"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.first_frame_protocol.packets[2].map.pixels",
+          "sha256": "3ee7cf7ce4b6479fe2652c5a07c9758acd0d1e5355ff9d64d671c8e16ca9bfc7"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.first_frame_protocol.packets[3].map.pixels",
+          "sha256": "d69044ca0b8f3080f15b18dcaeeab78191f84ec15f5dc2e983e1bf55db145a80"
+        },
+        {
+          "length": 58,
+          "path": "$.map_video.first_frame_protocol.packets[4].frame",
+          "sha256": "6c00ff5a6008a23d91698a6fdd63a3635bde46a1d91d62de7ee670dccf2bec41"
+        },
+        {
+          "length": 29,
+          "path": "$.map_video.pause_protocol.packets[0].frame",
+          "sha256": "6572dda58152a3fec1a8d3363319557b374255327aca66fdef9579e4eb7918e0"
+        },
+        {
+          "length": 30,
+          "path": "$.map_video.resume_protocol.packets[0].frame",
+          "sha256": "516fa6f66682d09e591dc780db8f4209d0754ad270b303994987a4ca54a8f8ae"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.delta_protocol.packets[0].map.pixels",
+          "sha256": "09ea5e238aefde9604e44d10a17e6f45001ba927cda265c43c44277326a0fb5b"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.delta_protocol.packets[1].map.pixels",
+          "sha256": "3d16c92b94460b2d11a28cdbb7cbed68e2caa7ac03edc7e5cfd924dfa7a1b7dd"
+        },
+        {
+          "length": 16256,
+          "path": "$.map_video.delta_protocol.packets[2].map.pixels",
+          "sha256": "253861d739524601aa5d5a02aa5439dae9b94eb47c0d8865a4206576b2933e63"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.delta_protocol.packets[3].map.pixels",
+          "sha256": "4adbaed96e1980c470f83db5a8fafde55fe27ee098f3157e0955a23ec0eeed10"
+        },
+        {
+          "path": "$.map_video.resumed_frame.palette_counts",
+          "value": [
+            [
+              5,
+              3
+            ],
+            [
+              6,
+              619
+            ],
+            [
+              8,
+              70
+            ],
+            [
+              9,
+              1594
+            ],
+            [
+              10,
+              3388
+            ],
+            [
+              11,
+              9
+            ],
+            [
+              16,
+              353
+            ],
+            [
+              19,
+              503
+            ],
+            [
+              31,
+              1
+            ],
+            [
+              33,
+              166
+            ],
+            [
+              34,
+              337
+            ],
+            [
+              40,
+              126
+            ],
+            [
+              41,
+              4
+            ],
+            [
+              42,
+              4
+            ],
+            [
+              43,
+              10
+            ],
+            [
+              52,
+              77
+            ],
+            [
+              53,
+              8
+            ],
+            [
+              54,
+              81
+            ],
+            [
+              55,
+              23
+            ],
+            [
+              57,
+              222
+            ],
+            [
+              58,
+              378
+            ],
+            [
+              60,
+              2051
+            ],
+            [
+              61,
+              11001
+            ],
+            [
+              62,
+              10815
+            ],
+            [
+              63,
+              205
+            ],
+            [
+              72,
+              273
+            ],
+            [
+              73,
+              73
+            ],
+            [
+              74,
+              1847
+            ],
+            [
+              75,
+              27
+            ],
+            [
+              78,
+              3
+            ],
+            [
+              83,
+              102
+            ],
+            [
+              84,
+              1
+            ],
+            [
+              87,
+              110
+            ],
+            [
+              103,
+              1
+            ],
+            [
+              104,
+              12
+            ],
+            [
+              105,
+              2
+            ],
+            [
+              106,
+              1
+            ],
+            [
+              107,
+              235
+            ],
+            [
+              108,
+              10
+            ],
+            [
+              109,
+              1
+            ],
+            [
+              110,
+              1
+            ],
+            [
+              111,
+              61
+            ],
+            [
+              112,
+              260
+            ],
+            [
+              113,
+              262
+            ],
+            [
+              114,
+              655
+            ],
+            [
+              115,
+              72
+            ],
+            [
+              116,
+              4849
+            ],
+            [
+              117,
+              4526
+            ],
+            [
+              118,
+              334
+            ],
+            [
+              119,
+              532
+            ],
+            [
+              120,
+              3022
+            ],
+            [
+              121,
+              1408
+            ],
+            [
+              122,
+              12757
+            ],
+            [
+              123,
+              1077
+            ],
+            [
+              126,
+              370
+            ],
+            [
+              136,
+              119
+            ],
+            [
+              137,
+              18
+            ],
+            [
+              138,
+              108
+            ],
+            [
+              139,
+              187
+            ],
+            [
+              141,
+              2
+            ],
+            [
+              142,
+              78
+            ],
+            [
+              143,
+              92
+            ]
+          ]
+        },
+        {
+          "length": 65536,
+          "path": "$.map_video.resumed_frame.pixels",
+          "sha256": "c6cb3e505c9a412b8503e2de6637eeee251a56c6e830f6a5cab2117d70b9e7c9"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.resumed_frame.tiles[0].pixels",
+          "sha256": "09ea5e238aefde9604e44d10a17e6f45001ba927cda265c43c44277326a0fb5b"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.resumed_frame.tiles[1].pixels",
+          "sha256": "3d16c92b94460b2d11a28cdbb7cbed68e2caa7ac03edc7e5cfd924dfa7a1b7dd"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.resumed_frame.tiles[2].pixels",
+          "sha256": "4f871d32b3cabeecb77fcec5d5d245da172bbd406758974845f809e5a0ca6466"
+        },
+        {
+          "length": 16384,
+          "path": "$.map_video.resumed_frame.tiles[3].pixels",
+          "sha256": "4adbaed96e1980c470f83db5a8fafde55fe27ee098f3157e0955a23ec0eeed10"
+        },
+        {
+          "length": 61,
+          "path": "$.map_video.stop_protocol.packets[0].frame",
+          "sha256": "3d659c83d81ade9d0440f59e15c3d808905ff5dc7b0dfc5943ee0d2f1fb98d27"
+        },
+        {
+          "length": 8,
+          "path": "$.map_video.stop_protocol.packets[2].frame",
+          "sha256": "c1da7cbd879b044f506e12b8b5d60fd5b81271f14a04d5bc1cd2e98ba953ec1c"
+        },
+        {
+          "length": 8,
+          "path": "$.map_video.stop_protocol.packets[3].frame",
+          "sha256": "4ecdaae026a170da3fd068797cac729be8c4dd0b357740b40f657f9989a13284"
+        },
+        {
+          "length": 8,
+          "path": "$.map_video.stop_protocol.packets[4].frame",
+          "sha256": "381a6ccc0c8dd00cef1fc9f6428227deb5e8a2f02c7a5aebe8144be0d46ebe9e"
+        },
+        {
+          "length": 8,
+          "path": "$.map_video.stop_protocol.packets[5].frame",
+          "sha256": "7563c851e1666322e67bf5f4c61cfe8b69f412ba58c4626ed3246aa9f174d36f"
+        },
+        {
+          "length": 8,
+          "path": "$.map_video.stop_protocol.packets[6].frame",
+          "sha256": "81247005fdb8411d0059f5e11e00a9d77864f23e583ff1acb65b2ed9edfefc74"
+        },
+        {
+          "length": 8,
+          "path": "$.map_video.stop_protocol.packets[7].frame",
+          "sha256": "1f976a3d8dc452aeb53135cdf203daea079fc5e35a361a90219d0344b9792224"
+        },
+        {
+          "length": 8,
+          "path": "$.map_video.stop_protocol.packets[8].frame",
+          "sha256": "e5683044c133586d9f9d6ff062b6e9e087fee0b0a10052c1b666fbae20900d44"
+        },
+        {
+          "length": 30,
+          "path": "$.map_video.stop_protocol.packets[9].frame",
+          "sha256": "53d3bf98930333abe2c0f3c44d32d05f4ed37da256707dcf8f2dc4d600950442"
+        },
+        {
+          "length": 142,
+          "path": "$.map_video.stop_protocol.packets[10].frame",
+          "sha256": "190ae2184077eb88a43e15382f6786d89f0bb8c35c6579d9b646b77eaef0265e"
+        },
+        {
+          "length": 4,
+          "path": "$.map_video.stop_protocol.packets[11].frame",
+          "sha256": "66eb83bb3c908858d9e4d9c61e538c3316d88505dc2709a6ca369acb1d853add"
+        },
+        {
+          "length": 9,
+          "path": "$.map_video.stop_protocol.packets[12].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.map_video.stop_protocol.packets[13].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.map_video.stop_protocol.packets[14].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.map_video.stop_protocol.packets[15].frame",
+          "sha256": "e012f15f170d94372f62123b87e501e427549413df97c58e563b31dd165842d8"
+        },
+        {
+          "length": 44,
+          "path": "$.map_video.stop_protocol.packets[16].frame",
+          "sha256": "881c42f792ba16078a1ec674240a14d3d49e37c0927746fbb83dbeaf415f4d41"
+        },
+        {
+          "length": 45,
+          "path": "$.map_video.stop_protocol.packets[17].frame",
+          "sha256": "144eb79d856aca62fe0ae4876c1bc3bdda2caa643d2e360268f006ce2af9dc6d"
+        },
+        {
+          "length": 17,
+          "path": "$.map_video.stop_protocol.packets[18].frame",
+          "sha256": "97039c6adb84706113c3e1fcf18f6568d849b66937ff564163ba64c47a452791"
+        },
+        {
+          "length": 42,
+          "path": "$.map_video.stop_protocol.packets[19].frame",
+          "sha256": "87213ec86c2ff615d14684d8b055d142024163ef12109256b783a3fc73570aea"
+        },
+        {
+          "length": 33,
+          "path": "$.map_video.stop_protocol.packets[20].frame",
+          "sha256": "b678627e4c9abbe82cba776b7a1b8de9634a18cf2feee6c4364c07817a15db16"
+        },
+        {
+          "length": 17,
+          "path": "$.map_video.stop_protocol.packets[21].frame",
+          "sha256": "2ea137b30495c7cade1e243af53687e36fd82756586a35cd837f340de4c1d705"
+        },
+        {
+          "length": 42,
+          "path": "$.map_video.stop_protocol.packets[22].frame",
+          "sha256": "16a1cc012b7162b2890938ab038821db199c1eae8050085666bc7cebf938b47c"
+        },
+        {
+          "length": 59,
+          "path": "$.map_video.stop_protocol.packets[23].frame",
+          "sha256": "3d062ae4b88594a0f111de7355f0d42bfba2a8f01bcd823fe7aef377fd22e635"
+        },
+        {
+          "length": 33,
+          "path": "$.map_video.stop_protocol.packets[24].frame",
+          "sha256": "ab365cbfd1f14dc5cc28056ab4e32d8fe69b56de3e4f0b885e005b941d314f02"
+        },
+        {
+          "length": 9,
+          "path": "$.map_video.stop_protocol.packets[25].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.map_video.stop_protocol.packets[26].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.map_video.stop_protocol.packets[27].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.map_video.stop_protocol.packets[28].frame",
+          "sha256": "e012f15f170d94372f62123b87e501e427549413df97c58e563b31dd165842d8"
+        },
+        {
+          "length": 44,
+          "path": "$.map_video.stop_protocol.packets[29].frame",
+          "sha256": "881c42f792ba16078a1ec674240a14d3d49e37c0927746fbb83dbeaf415f4d41"
+        },
+        {
+          "length": 45,
+          "path": "$.map_video.stop_protocol.packets[30].frame",
+          "sha256": "144eb79d856aca62fe0ae4876c1bc3bdda2caa643d2e360268f006ce2af9dc6d"
+        },
+        {
+          "length": 17,
+          "path": "$.map_video.stop_protocol.packets[31].frame",
+          "sha256": "97039c6adb84706113c3e1fcf18f6568d849b66937ff564163ba64c47a452791"
+        },
+        {
+          "length": 42,
+          "path": "$.map_video.stop_protocol.packets[32].frame",
+          "sha256": "87213ec86c2ff615d14684d8b055d142024163ef12109256b783a3fc73570aea"
+        },
+        {
+          "length": 33,
+          "path": "$.map_video.stop_protocol.packets[33].frame",
+          "sha256": "b678627e4c9abbe82cba776b7a1b8de9634a18cf2feee6c4364c07817a15db16"
+        },
+        {
+          "length": 17,
+          "path": "$.map_video.stop_protocol.packets[34].frame",
+          "sha256": "2ea137b30495c7cade1e243af53687e36fd82756586a35cd837f340de4c1d705"
+        },
+        {
+          "length": 42,
+          "path": "$.map_video.stop_protocol.packets[35].frame",
+          "sha256": "16a1cc012b7162b2890938ab038821db199c1eae8050085666bc7cebf938b47c"
+        },
+        {
+          "length": 59,
+          "path": "$.map_video.stop_protocol.packets[36].frame",
+          "sha256": "3d062ae4b88594a0f111de7355f0d42bfba2a8f01bcd823fe7aef377fd22e635"
+        },
+        {
+          "length": 33,
+          "path": "$.map_video.stop_protocol.packets[37].frame",
+          "sha256": "ab365cbfd1f14dc5cc28056ab4e32d8fe69b56de3e4f0b885e005b941d314f02"
+        },
+        {
+          "length": 63,
+          "path": "$.map_video.stop_protocol.packets[38].frame",
+          "sha256": "cd3ad27e764f6dca8a634c31d564dc2fad446e5df0a14cde59d75f2ef60b268d"
+        },
+        {
+          "length": 339,
+          "path": "$.block_video.setup_protocol.packets[0].frame",
+          "sha256": "1f5bc9f7a4a706dd562be6b5f576bc1ed3806f3c658c4f50c7ffbdaeade60688"
+        },
+        {
+          "length": 88,
+          "path": "$.block_video.setup_protocol.packets[1].frame",
+          "sha256": "294b7806aef70a021c6d898d73d0b25569ba712b71926b1b94f7ba642e1c6d9b"
+        },
+        {
+          "length": 4,
+          "path": "$.block_video.setup_protocol.packets[2].frame",
+          "sha256": "c5bb7427360d178e43e91c227fe5d0ccf158ec3dd1de761e44f3dc2e8b4e67f6"
+        },
+        {
+          "length": 9,
+          "path": "$.block_video.setup_protocol.packets[3].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.block_video.setup_protocol.packets[4].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.block_video.setup_protocol.packets[5].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.block_video.setup_protocol.packets[6].frame",
+          "sha256": "8daa502da1ff4016c99da192f3e3de77682207b0da0533d855332d0fa13f8190"
+        },
+        {
+          "length": 33,
+          "path": "$.block_video.setup_protocol.packets[7].frame",
+          "sha256": "0d46799897d0ad7ae9d26cca1c9e41538ed3f7db35cf71807a366733d16ef3e0"
+        },
+        {
+          "length": 34,
+          "path": "$.block_video.setup_protocol.packets[8].frame",
+          "sha256": "a50caeba5e082a4b1869308365662c63c004ddc744cf0cdd0278aebaeed7a657"
+        },
+        {
+          "length": 29,
+          "path": "$.block_video.setup_protocol.packets[9].frame",
+          "sha256": "41eebcac9b773433267481364500c0b5cdf7d250a9257ee722ff65729f2fc589"
+        },
+        {
+          "length": 17,
+          "path": "$.block_video.setup_protocol.packets[10].frame",
+          "sha256": "31ddffcd1f1273cf97fdddd20b2cdb6e57ce2f9d6fd7a5e39663dcaf907d6d9c"
+        },
+        {
+          "length": 48,
+          "path": "$.block_video.setup_protocol.packets[11].frame",
+          "sha256": "e8b1a42c5121dc08f0fe210c5ce34275c7085263ed590c2ccedbb2dabdb5eec8"
+        },
+        {
+          "length": 59,
+          "path": "$.block_video.setup_protocol.packets[12].frame",
+          "sha256": "dfeb932ff261da4032e2b4ff1c4bcb4ca153abc49cdd523d0d53a212ed3443da"
+        },
+        {
+          "length": 33,
+          "path": "$.block_video.setup_protocol.packets[13].frame",
+          "sha256": "a8615a61979175494772606156e65b54b899126a9858d44a6b1d797be2daee46"
+        },
+        {
+          "length": 70,
+          "path": "$.block_video.setup_protocol.packets[14].frame",
+          "sha256": "1f2a2b92e3b34a1ae015c29b8c7de23eb3d5338b1a1be2785030c8bbccd78d96"
+        },
+        {
+          "length": 67,
+          "path": "$.block_video.setup_protocol.packets[15].frame",
+          "sha256": "2327c6c77eccf18f60ae0d3adc48d4c77a3380b4e5e927bfa8088307033f51f8"
+        },
+        {
+          "length": 70,
+          "path": "$.block_video.setup_protocol.packets[16].frame",
+          "sha256": "72a5131510d7040379d1e247b3a524275755e31f3ebd8b8686a6b9b5927ec0cb"
+        },
+        {
+          "length": 53,
+          "path": "$.block_video.setup_protocol.packets[17].frame",
+          "sha256": "95a3e1849dd5cc6aa432b27db4ca5c201d51b0da6e156daebcf86338ee91f1b5"
+        },
+        {
+          "length": 6293,
+          "path": "$.block_video.setup_protocol.packets[18].frame",
+          "sha256": "5d2ff8a5fad7d3c93c578a251240d8957b5898816880b0da2c5c52e5b2c50059"
+        },
+        {
+          "length": 5984,
+          "path": "$.block_video.setup_protocol.packets[19].frame",
+          "sha256": "4fe9f13a7964ccf60b89007d24d8e2a145dc13de98194c880fc56ab863caebec"
+        },
+        {
+          "length": 4895,
+          "path": "$.block_video.setup_protocol.packets[20].frame",
+          "sha256": "b93f16d583735ac928f20376fac992f2ab80535e1a1c41ae69c1932634a1315e"
+        },
+        {
+          "length": 5942,
+          "path": "$.block_video.setup_protocol.packets[21].frame",
+          "sha256": "bc9f808deaf8a871da2b9a110a17c9771625f8c18a38eb0498a1eed438e8bcf6"
+        },
+        {
+          "length": 50,
+          "path": "$.block_video.setup_protocol.packets[22].frame",
+          "sha256": "d71901fd8453a999aef0b3d1ff662c571a9b522c27eaedab9b3882491f779180"
+        },
+        {
+          "length": 50,
+          "path": "$.block_video.setup_protocol.packets[23].frame",
+          "sha256": "3b7ced4ead2aa5ae856a4b8039c11c8cd75e5cfce122ba99110f04b5f6755c40"
+        },
+        {
+          "length": 50,
+          "path": "$.block_video.setup_protocol.packets[24].frame",
+          "sha256": "5ecdd04973bdcaf32125498047bce1a769938021587237510c608fd34ae5d5e9"
+        },
+        {
+          "length": 47,
+          "path": "$.block_video.setup_protocol.packets[25].frame",
+          "sha256": "c48ad2359e9b69f2b5c722f10ceb3384c6513b59324a46fcaea0ae47fadd8143"
+        },
+        {
+          "length": 219,
+          "path": "$.block_video.first_frame_protocol.packets[0].frame",
+          "sha256": "4a0d8f93c297bdccfbb169d383d13dec4579ced10ed13fca9a527e8e86a0dffa"
+        },
+        {
+          "length": 169,
+          "path": "$.block_video.first_frame_protocol.packets[1].frame",
+          "sha256": "29b4b54fed632f20a1120e32bfba23adc18b73126f1ea57954b068c4fd9cadfc"
+        },
+        {
+          "length": 37,
+          "path": "$.block_video.first_frame_protocol.packets[2].frame",
+          "sha256": "30fc103772d8398d3df2a5de6e3e8521ec9d1a84c4ca5e045ca064764f266a3d"
+        },
+        {
+          "length": 29,
+          "path": "$.block_video.pause_protocol.packets[0].frame",
+          "sha256": "6572dda58152a3fec1a8d3363319557b374255327aca66fdef9579e4eb7918e0"
+        },
+        {
+          "length": 30,
+          "path": "$.block_video.resume_protocol.packets[0].frame",
+          "sha256": "516fa6f66682d09e591dc780db8f4209d0754ad270b303994987a4ca54a8f8ae"
+        },
+        {
+          "length": 224,
+          "path": "$.block_video.delta_protocol.packets[0].frame",
+          "sha256": "331de64b5ee10c949ee913006d725b7fcb25b94a7aa2eea69b32219f6d956f2a"
+        },
+        {
+          "length": 174,
+          "path": "$.block_video.delta_protocol.packets[1].frame",
+          "sha256": "cef819fc1512ef94e1a867248387316deaccac9590ae63514dff183c60e520ba"
+        },
+        {
+          "length": 61,
+          "path": "$.block_video.stop_protocol.packets[0].frame",
+          "sha256": "3d659c83d81ade9d0440f59e15c3d808905ff5dc7b0dfc5943ee0d2f1fb98d27"
+        },
+        {
+          "length": 4901,
+          "path": "$.block_video.stop_protocol.packets[1].frame",
+          "sha256": "b69f0057e7ee30d2fdacaf9fac0fcc502602a3d7f9c32373f8b3a39de16007e4"
+        },
+        {
+          "length": 5944,
+          "path": "$.block_video.stop_protocol.packets[2].frame",
+          "sha256": "7f2ea6b938897de813a4bc2ab7803d8f21074717ca6917a9ab48175c00fe87d9"
+        },
+        {
+          "length": 99,
+          "path": "$.block_video.stop_protocol.packets[3].frame",
+          "sha256": "0fa0c322ab82ae607eb7067a052b340307e0d752f12c264f276c968d039327d8"
+        },
+        {
+          "length": 99,
+          "path": "$.block_video.stop_protocol.packets[4].frame",
+          "sha256": "f77c122706ca4400b895549f3cd2e9b56486cb74fb877221f7449177cea376ee"
+        },
+        {
+          "length": 99,
+          "path": "$.block_video.stop_protocol.packets[5].frame",
+          "sha256": "855c8852feb8af043a45c6ea6c745222d70475e00cd6f9b8885ae879b59f5d1e"
+        },
+        {
+          "length": 6300,
+          "path": "$.block_video.stop_protocol.packets[6].frame",
+          "sha256": "970849c2504c709553975473e36bc5cee931e073e38b054b6144e7bad71b3a70"
+        },
+        {
+          "length": 5983,
+          "path": "$.block_video.stop_protocol.packets[7].frame",
+          "sha256": "c07b9ba6dde692abb3b7a526c0ce7fd0edaf47d63499457e3d328d42a90d3064"
+        },
+        {
+          "length": 99,
+          "path": "$.block_video.stop_protocol.packets[8].frame",
+          "sha256": "03896261e9db685cc8b8f4d9a05da932c1cc5ce3cc9f81bc4c7bad87237b93ed"
+        },
+        {
+          "length": 99,
+          "path": "$.block_video.stop_protocol.packets[9].frame",
+          "sha256": "68a42f818abb4664989fa5df9a0e720a395efe221038a5efbb2da447e013dd57"
+        },
+        {
+          "length": 51,
+          "path": "$.block_video.stop_protocol.packets[10].frame",
+          "sha256": "f274cd0694f62f669cfd337dc94b9179e241eecd24380acf2e8f9cb2ea4a6237"
+        },
+        {
+          "length": 8,
+          "path": "$.block_video.stop_protocol.packets[11].frame",
+          "sha256": "c1da7cbd879b044f506e12b8b5d60fd5b81271f14a04d5bc1cd2e98ba953ec1c"
+        },
+        {
+          "length": 8,
+          "path": "$.block_video.stop_protocol.packets[12].frame",
+          "sha256": "4ecdaae026a170da3fd068797cac729be8c4dd0b357740b40f657f9989a13284"
+        },
+        {
+          "length": 8,
+          "path": "$.block_video.stop_protocol.packets[13].frame",
+          "sha256": "381a6ccc0c8dd00cef1fc9f6428227deb5e8a2f02c7a5aebe8144be0d46ebe9e"
+        },
+        {
+          "length": 8,
+          "path": "$.block_video.stop_protocol.packets[14].frame",
+          "sha256": "7563c851e1666322e67bf5f4c61cfe8b69f412ba58c4626ed3246aa9f174d36f"
+        },
+        {
+          "length": 8,
+          "path": "$.block_video.stop_protocol.packets[15].frame",
+          "sha256": "81247005fdb8411d0059f5e11e00a9d77864f23e583ff1acb65b2ed9edfefc74"
+        },
+        {
+          "length": 8,
+          "path": "$.block_video.stop_protocol.packets[16].frame",
+          "sha256": "1f976a3d8dc452aeb53135cdf203daea079fc5e35a361a90219d0344b9792224"
+        },
+        {
+          "length": 8,
+          "path": "$.block_video.stop_protocol.packets[17].frame",
+          "sha256": "e5683044c133586d9f9d6ff062b6e9e087fee0b0a10052c1b666fbae20900d44"
+        },
+        {
+          "length": 30,
+          "path": "$.block_video.stop_protocol.packets[18].frame",
+          "sha256": "53d3bf98930333abe2c0f3c44d32d05f4ed37da256707dcf8f2dc4d600950442"
+        },
+        {
+          "length": 142,
+          "path": "$.block_video.stop_protocol.packets[19].frame",
+          "sha256": "190ae2184077eb88a43e15382f6786d89f0bb8c35c6579d9b646b77eaef0265e"
+        },
+        {
+          "length": 4,
+          "path": "$.block_video.stop_protocol.packets[20].frame",
+          "sha256": "66eb83bb3c908858d9e4d9c61e538c3316d88505dc2709a6ca369acb1d853add"
+        },
+        {
+          "length": 9,
+          "path": "$.block_video.stop_protocol.packets[21].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.block_video.stop_protocol.packets[22].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.block_video.stop_protocol.packets[23].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.block_video.stop_protocol.packets[24].frame",
+          "sha256": "e012f15f170d94372f62123b87e501e427549413df97c58e563b31dd165842d8"
+        },
+        {
+          "length": 44,
+          "path": "$.block_video.stop_protocol.packets[25].frame",
+          "sha256": "881c42f792ba16078a1ec674240a14d3d49e37c0927746fbb83dbeaf415f4d41"
+        },
+        {
+          "length": 45,
+          "path": "$.block_video.stop_protocol.packets[26].frame",
+          "sha256": "144eb79d856aca62fe0ae4876c1bc3bdda2caa643d2e360268f006ce2af9dc6d"
+        },
+        {
+          "length": 17,
+          "path": "$.block_video.stop_protocol.packets[27].frame",
+          "sha256": "97039c6adb84706113c3e1fcf18f6568d849b66937ff564163ba64c47a452791"
+        },
+        {
+          "length": 42,
+          "path": "$.block_video.stop_protocol.packets[28].frame",
+          "sha256": "87213ec86c2ff615d14684d8b055d142024163ef12109256b783a3fc73570aea"
+        },
+        {
+          "length": 33,
+          "path": "$.block_video.stop_protocol.packets[29].frame",
+          "sha256": "b678627e4c9abbe82cba776b7a1b8de9634a18cf2feee6c4364c07817a15db16"
+        },
+        {
+          "length": 17,
+          "path": "$.block_video.stop_protocol.packets[30].frame",
+          "sha256": "2ea137b30495c7cade1e243af53687e36fd82756586a35cd837f340de4c1d705"
+        },
+        {
+          "length": 42,
+          "path": "$.block_video.stop_protocol.packets[31].frame",
+          "sha256": "16a1cc012b7162b2890938ab038821db199c1eae8050085666bc7cebf938b47c"
+        },
+        {
+          "length": 59,
+          "path": "$.block_video.stop_protocol.packets[32].frame",
+          "sha256": "3d062ae4b88594a0f111de7355f0d42bfba2a8f01bcd823fe7aef377fd22e635"
+        },
+        {
+          "length": 33,
+          "path": "$.block_video.stop_protocol.packets[33].frame",
+          "sha256": "ab365cbfd1f14dc5cc28056ab4e32d8fe69b56de3e4f0b885e005b941d314f02"
+        },
+        {
+          "length": 9,
+          "path": "$.block_video.stop_protocol.packets[34].frame",
+          "sha256": "8074459ddc8b46a9ecd48cc5a2a3086d96c2920235f49e5c5c06b62a3e965a8b"
+        },
+        {
+          "length": 30,
+          "path": "$.block_video.stop_protocol.packets[35].frame",
+          "sha256": "7fbc933829f3f9fce0198c2533e868532119557880155454a74701210b66ad5f"
+        },
+        {
+          "length": 9,
+          "path": "$.block_video.stop_protocol.packets[36].frame",
+          "sha256": "c34114a309ea927d9d6a7a6f57e148104d4e43916dc0fadcd934efd0a818dd0d"
+        },
+        {
+          "length": 59,
+          "path": "$.block_video.stop_protocol.packets[37].frame",
+          "sha256": "e012f15f170d94372f62123b87e501e427549413df97c58e563b31dd165842d8"
+        },
+        {
+          "length": 44,
+          "path": "$.block_video.stop_protocol.packets[38].frame",
+          "sha256": "881c42f792ba16078a1ec674240a14d3d49e37c0927746fbb83dbeaf415f4d41"
+        },
+        {
+          "length": 45,
+          "path": "$.block_video.stop_protocol.packets[39].frame",
+          "sha256": "144eb79d856aca62fe0ae4876c1bc3bdda2caa643d2e360268f006ce2af9dc6d"
+        },
+        {
+          "length": 17,
+          "path": "$.block_video.stop_protocol.packets[40].frame",
+          "sha256": "97039c6adb84706113c3e1fcf18f6568d849b66937ff564163ba64c47a452791"
+        },
+        {
+          "length": 42,
+          "path": "$.block_video.stop_protocol.packets[41].frame",
+          "sha256": "87213ec86c2ff615d14684d8b055d142024163ef12109256b783a3fc73570aea"
+        },
+        {
+          "length": 33,
+          "path": "$.block_video.stop_protocol.packets[42].frame",
+          "sha256": "b678627e4c9abbe82cba776b7a1b8de9634a18cf2feee6c4364c07817a15db16"
+        },
+        {
+          "length": 17,
+          "path": "$.block_video.stop_protocol.packets[43].frame",
+          "sha256": "2ea137b30495c7cade1e243af53687e36fd82756586a35cd837f340de4c1d705"
+        },
+        {
+          "length": 42,
+          "path": "$.block_video.stop_protocol.packets[44].frame",
+          "sha256": "16a1cc012b7162b2890938ab038821db199c1eae8050085666bc7cebf938b47c"
+        },
+        {
+          "length": 59,
+          "path": "$.block_video.stop_protocol.packets[45].frame",
+          "sha256": "3d062ae4b88594a0f111de7355f0d42bfba2a8f01bcd823fe7aef377fd22e635"
+        },
+        {
+          "length": 33,
+          "path": "$.block_video.stop_protocol.packets[46].frame",
+          "sha256": "ab365cbfd1f14dc5cc28056ab4e32d8fe69b56de3e4f0b885e005b941d314f02"
+        },
+        {
+          "length": 65,
+          "path": "$.block_video.stop_protocol.packets[47].frame",
+          "sha256": "b36f085e509387a0b3c318dca2d841e2d7154bc1f5b3febea40f5253cac2b7d2"
+        }
+      ]
+    }
+  ],
+  "scenario": "minecraft-video",
+  "schema": "lmyzmail.renderer-local-e2e.v1",
+  "source_sha256": "c1913d45ec5e724e66074d668ca65ae7654186db513501b5545fb2f34174a3c3",
+  "status": "passed",
+  "unverified_backend": "avx512f"
+}

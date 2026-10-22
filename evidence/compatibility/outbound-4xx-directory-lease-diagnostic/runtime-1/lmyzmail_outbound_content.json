@@ -1,0 +1,128 @@
+[
+  {
+    "task_id": 2,
+    "source_root": "SPOOL",
+    "relative_path": "message-2.eml",
+    "content_size": 335,
+    "content_sha256": "\\x0bdb5370f885d2c8b13251c0b890ca775c2ad0215cd4bf90c972a6dcd3e79cef",
+    "created_at": "2026-10-22T14:05:12.116545+00:00",
+    "updated_at": "2026-10-22T14:05:12.116545+00:00"
+  },
+  {
+    "task_id": 3,
+    "source_root": "SPOOL",
+    "relative_path": "message-3.eml",
+    "content_size": 335,
+    "content_sha256": "\\x10b0ab641a10845fa9973788cf560b159bb95bdf0dcfb220d5d0a297a699856a",
+    "created_at": "2026-10-22T14:05:16.990466+00:00",
+    "updated_at": "2026-10-22T14:05:16.990466+00:00"
+  },
+  {
+    "task_id": 1027,
+    "source_root": "SPOOL",
+    "relative_path": "message-1027.eml",
+    "content_size": 1329,
+    "content_sha256": "\\x5e1717c7f1a4632ed495adb7e8e23e7a533bdaa64de13b643b4f71d0ce2366f6",
+    "created_at": "2026-10-22T14:05:16.840252+00:00",
+    "updated_at": "2026-10-22T14:05:16.840252+00:00"
+  },
+  {
+    "task_id": 4,
+    "source_root": "SPOOL",
+    "relative_path": "message-4.eml",
+    "content_size": 335,
+    "content_sha256": "\\x6016bf0b9257c8266019c1a88940e18ca4bc79d6c8527c5a2341310556ab1e74",
+    "created_at": "2026-10-22T14:05:25.946007+00:00",
+    "updated_at": "2026-10-22T14:05:25.946007+00:00"
+  },
+  {
+    "task_id": 5,
+    "source_root": "SPOOL",
+    "relative_path": "message-5.eml",
+    "content_size": 335,
+    "content_sha256": "\\xb8a1308cbedc762c582e41c95fdd6b3442ccc9fa4459e1ea66b6e89981b1089d",
+    "created_at": "2026-10-22T14:05:34.951293+00:00",
+    "updated_at": "2026-10-22T14:05:34.951293+00:00"
+  },
+  {
+    "task_id": 6,
+    "source_root": "SPOOL",
+    "relative_path": "message-6.eml",
+    "content_size": 335,
+    "content_sha256": "\\x6dc4bb050d0c988e5725faabb75b276354440c657baf62ebf2e455b3860c4d19",
+    "created_at": "2026-10-22T14:05:40.953603+00:00",
+    "updated_at": "2026-10-22T14:05:40.953603+00:00"
+  },
+  {
+    "task_id": 7,
+    "source_root": "SPOOL",
+    "relative_path": "message-7.eml",
+    "content_size": 335,
+    "content_sha256": "\\xe50923e305f2b247aa20e8aed9dd168bffc547c657299667fea4b836ca29c4ae",
+    "created_at": "2026-10-22T14:05:51.881078+00:00",
+    "updated_at": "2026-10-22T14:05:51.881078+00:00"
+  },
+  {
+    "task_id": 8,
+    "source_root": "SPOOL",
+    "relative_path": "message-8.eml",
+    "content_size": 335,
+    "content_sha256": "\\x0737b4167bad78590af67057c93b16c2cc4ee67a469a541a007ca8e16f932e7e",
+    "created_at": "2026-10-22T14:05:54.880842+00:00",
+    "updated_at": "2026-10-22T14:05:54.880842+00:00"
+  },
+  {
+    "task_id": 9,
+    "source_root": "SPOOL",
+    "relative_path": "message-9.eml",
+    "content_size": 335,
+    "content_sha256": "\\xb25fa4f09906b2adf7dd5141e82d5f61b9b0d06423fdca29f085ae34a2c1d9fc",
+    "created_at": "2026-10-22T14:05:57.776639+00:00",
+    "updated_at": "2026-10-22T14:05:57.776639+00:00"
+  },
+  {
+    "task_id": 10,
+    "source_root": "SPOOL",
+    "relative_path": "message-10.eml",
+    "content_size": 335,
+    "content_sha256": "\\x9573777b73d35307b9e16198ec4fecd0b69f640c9e27d0faa9d4aab12b0a3315",
+    "created_at": "2026-10-22T14:06:12.794085+00:00",
+    "updated_at": "2026-10-22T14:06:12.794085+00:00"
+  },
+  {
+    "task_id": 11,
+    "source_root": "SPOOL",
+    "relative_path": "message-11.eml",
+    "content_size": 338,
+    "content_sha256": "\\xf7a8bd0adfcf916f2ee65881fdd607e781aaa16e25c7cb18ac04f790cf62e0bd",
+    "created_at": "2026-10-22T14:06:44.651377+00:00",
+    "updated_at": "2026-10-22T14:06:44.651377+00:00"
+  },
+  {
+    "task_id": 12,
+    "source_root": "SPOOL",
+    "relative_path": "message-12.eml",
+    "content_size": 338,
+    "content_sha256": "\\xaa733a05a6a1a576713920771b00a708e9cc1bf8e562edea266964724d676a67",
+    "created_at": "2026-10-22T14:07:19.807711+00:00",
+    "updated_at": "2026-10-22T14:07:19.807711+00:00"
+  },
+  {
+    "task_id": 13,
+    "source_root": "SPOOL",
+    "relative_path": "message-13.eml",
+    "content_size": 338,
+    "content_sha256": "\\x7040df0d1a45c21fb2aa0f5b3120196da8f91919f61f43ca6eba172e43a6f18e",
+    "created_at": "2026-10-22T14:07:54.816275+00:00",
+    "updated_at": "2026-10-22T14:07:54.816275+00:00"
+  },
+  {
+    "task_id": 14,
+    "source_root": "SPOOL",
+    "relative_path": "message-14.eml",
+    "content_size": 349,
+    "content_sha256": "\\x623093181cc9e66cca7fc90db8d4470f3b4af64fbda5469da4b6ac24d5e5a15d",
+    "created_at": "2026-10-22T14:07:57.81235+00:00",
+    "updated_at": "2026-10-22T14:07:57.81235+00:00"
+  }
+]

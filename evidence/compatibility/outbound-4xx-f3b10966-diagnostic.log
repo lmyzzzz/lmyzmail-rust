@@ -1,0 +1,13 @@
+Traceback (most recent call last):
+  File "/home/lmyzzz/lmyzmail-rust/tools/diagnose-outbound.py", line 71, in <module>
+    main()
+  File "/home/lmyzzz/lmyzmail-rust/tools/diagnose-outbound.py", line 65, in main
+    result = runners[args.mode]()
+             ^^^^^^^^^^^^^^^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 2610, in run_4xx_probe
+    _capture_4xx_case(
+  File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 2454, in _capture_4xx_case
+    _wait_until(
+  File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 463, in _wait_until
+    raise AssertionError(f"timed out waiting for {description}")
+AssertionError: timed out waiting for 4xx DATA 452 exhausted SMTP reply

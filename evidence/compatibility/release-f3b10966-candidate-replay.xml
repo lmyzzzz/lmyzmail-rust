@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="6" skipped="0" tests="126" time="1053.495" timestamp="2026-10-22T21:33:26.720104+08:00" hostname="MSI"><testcase classname="tests.test_candidate_auth_golden" name="test_rust_candidate_auth_http_matches_frozen_java_golden" time="2.835" /><testcase classname="tests.test_candidate_auth_golden" name="test_rust_candidate_persists_only_session_token_hash_and_logout_deletes_it" time="2.093" /><testcase classname="tests.test_candidate_auth_golden" name="test_rust_candidate_bounds_concurrent_sessions_per_mailbox" time="2.238" /><testcase classname="tests.test_candidate_auth_golden" name="test_rust_candidate_enforces_registration_limit_under_concurrency" time="2.155" /><testcase classname="tests.test_candidate_cringe_api_golden" name="test_rust_candidate_cringe_api_matches_frozen_java_golden" time="2.529" /><testcase classname="tests.test_candidate_cringe_api_golden" name="test_rust_candidate_cringe_decay_matches_frozen_java_golden" time="4.979" /><testcase classname="tests.test_candidate_cringe_api_golden" name="test_rust_candidate_rejects_invalid_cringe_paging" time="5.683" /><testcase classname="tests.test_candidate_cringe_api_golden" name="test_rust_candidate_caps_cringe_score_exports_at_ten_thousand_rows" time="5.095" /><testcase classname="tests.test_candidate_cringe_api_golden" name="test_rust_candidate_cancels_stalled_cringe_query_and_recovers_pool" time="14.633" /><testcase classname="tests.test_candidate_http_golden" name="test_rust_candidate_foundation_http_matches_frozen_java_golden" time="1.894" /><testcase classname="tests.test_candidate_mail_read_golden" name="test_rust_candidate_mail_read_matches_frozen_java_golden" time="2.187" /><testcase classname="tests.test_candidate_mail_read_golden" name="test_rust_candidate_mail_attachment_matches_frozen_java_golden" time="2.540" /><testcase classname="tests.test_candidate_mail_read_golden" name="test_rust_candidate_mail_state_matches_frozen_java_golden" time="2.289" /><testcase classname="tests.test_candidate_mail_read_golden" name="test_rust_candidate_mail_mutations_match_frozen_java_golden" time="2.241" /><testcase classname="tests.test_candidate_mail_read_golden" name="test_rust_candidate_delete_email_matches_frozen_java_golden" time="2.319" /><testcase classname="tests.test_candidate_mail_read_golden" name="test_rust_candidate_rejects_unindexed_maildir_file" time="2.434" /><testcase classname="tests.test_candidate_mailbox_api_golden" name="test_rust_candidate_mailbox_api_matches_frozen_java_golden" time="2.212" /><testcase classname="tests.test_candidate_mailbox_api_golden" name="test_rust_candidate_serializes_duplicate_mailbox_creation" time="1.870" /><testcase classname="tests.test_candidate_mailbox_api_golden" name="test_rust_candidate_mailbox_api_enforces_registration_limit" time="1.865" /><testcase classname="tests.test_candidate_mailbox_api_golden" name="test_rust_candidate_mailbox_creation_survives_restart" time="2.768" /><testcase classname="tests.test_candidate_mailbox_api_golden" name="test_rust_candidate_management_creation_and_receive_alias_precedence" time="5.684" /><testcase classname="tests.test_candidate_mailbox_api_golden" name="test_rust_candidate_auth_cancellation_keeps_single_connection_pool_healthy" time="1.864" /><testcase classname="tests.test_candidate_outbound_http_golden" name="test_rust_candidate_outbound_http_matches_frozen_java_golden" time="1.859" /><testcase classname="tests.test_candidate_outbound_http_golden" name="test_rust_candidate_outbound_status_redis_outage_is_bounded" time="1.851" /><testcase classname="tests.test_candidate_outbound_http_golden" name="test_rust_candidate_acknowledges_only_after_postgres_admission" time="1.987" /><testcase classname="tests.test_candidate_outbound_http_golden" name="test_rust_candidate_enforces_outbound_queue_bound_atomically" time="1.864" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_userdata_matches_frozen_java_golden" time="1.915" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_userdata_rejects_malformed_writes_without_side_effects" time="1.916" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_serializes_duplicate_contact_admission" time="1.990" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_userdata_survives_restart" time="2.955" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_userdata_database_wait_is_deadline_bounded" time="5.069" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_userdata_contact_list_has_a_hard_bound" time="1.975" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_userdata_contact_list_has_a_byte_bound" time="1.946" /><testcase classname="tests.test_candidate_web_multipart_golden" name="test_rust_candidate_web_multipart_matches_frozen_java_golden" time="1.893" /><testcase classname="tests.test_candidate_web_multipart_golden" name="test_rust_candidate_web_multipart_redacts_errors_and_cleans_uploads" time="1.872" /><testcase classname="tests.test_candidate_web_multipart_golden" name="test_rust_candidate_web_multipart_backend_failures_clean_uploads" time="3.865" /><testcase classname="tests.test_candidate_web_multipart_golden" name="test_rust_candidate_web_multipart_disconnect_and_timeout_clean_uploads" time="4.158" /><testcase classname="tests.test_oracle_honeypot" name="test_rust_candidate_honeypot_matches_frozen_java_golden" time="3.178" /><testcase classname="tests.test_oracle_honeypot" name="test_rust_candidate_honeypot_classifies_fragmented_input_incrementally" time="1.836" /><testcase classname="tests.test_oracle_honeypot" name="test_rust_candidate_honeypot_replays_after_database_outage_and_restart" time="7.281" /><testcase classname="tests.test_oracle_htcpcp" name="test_rust_candidate_htcpcp_matches_frozen_java_golden" time="75.832" /><testcase classname="tests.test_oracle_htcpcp" name="test_rust_candidate_htcpcp_state_is_process_local" time="2.779" /><testcase classname="tests.test_oracle_mta_sts_discovery" name="test_rust_candidate_mta_sts_discovery" time="80.888" /><testcase classname="tests.test_oracle_outbound_4xx" name="test_rust_candidate_outbound_4xx_matches_frozen_java_golden" time="121.763"><failure message="AssertionError: outbound 4xx probe failed with 1:&#10;stdout=&#10;stderr=Traceback (most recent call last):&#10;  File &quot;&lt;frozen runpy&gt;&quot;, line 198, in _run_module_as_main&#10;  File &quot;&lt;frozen runpy&gt;&quot;, line 88, in _run_code&#10;  File &quot;/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py&quot;, line 2917, in &lt;module&gt;&#10;    raise SystemExit(main())&#10;                     ^^^^^^&#10;  File &quot;/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py&quot;, line 2895, in main&#10;    observed = run_4xx_probe()&#10;               ^^^^^^^^^^^^^^^&#10;  File &quot;/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py&quot;, line 2610, in run_4xx_probe&#10;    _capture_4xx_case(&#10;  File &quot;/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py&quot;, line 2454, in _capture_4xx_case&#10;    _wait_until(&#10;  File &quot;/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py&quot;, line 463, in _wait_until&#10;    raise AssertionError(f&quot;timed out waiting for {description}&quot;)&#10;AssertionError: timed out waiting for 4xx DATA 451 exhausted SMTP reply">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(900)
+    def test_rust_candidate_outbound_4xx_matches_frozen_java_golden() -&gt; None:
+        repository = _repository()
+&gt;       observed = _run_probe(repository, target="candidate")
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tests/test_oracle_outbound_4xx.py:200: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+repository = PosixPath('/home/lmyzzz/lmyzmail-rust')
+
+    def _run_probe(repository: Path, *, target: str) -&gt; dict[str, object]:
+        result = subprocess.run(  # noqa: S603,S607
+            [
+                "/bin/bash",
+                str(repository / "blackbox/bin/run-outbound-probe.sh"),
+            ],
+            cwd=repository,
+            capture_output=True,
+            text=True,
+            env={
+                **os.environ,
+                "LMYZMAIL_BLACKBOX_PYTHON": sys.executable,
+                "LMYZMAIL_OUTBOUND_ORACLE_MODE": "4XX",
+                "LMYZMAIL_OUTBOUND_TARGET": target,
+            },
+            timeout=850,
+            check=False,
+        )
+        if result.returncode != 0:
+&gt;           raise AssertionError(
+                "outbound 4xx probe failed with "
+                f"{result.returncode}:\nstdout={result.stdout}\nstderr={result.stderr}"
+            )
+E           AssertionError: outbound 4xx probe failed with 1:
+E           stdout=
+E           stderr=Traceback (most recent call last):
+E             File "&lt;frozen runpy&gt;", line 198, in _run_module_as_main
+E             File "&lt;frozen runpy&gt;", line 88, in _run_code
+E             File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 2917, in &lt;module&gt;
+E               raise SystemExit(main())
+E                                ^^^^^^
+E             File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 2895, in main
+E               observed = run_4xx_probe()
+E                          ^^^^^^^^^^^^^^^
+E             File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 2610, in run_4xx_probe
+E               _capture_4xx_case(
+E             File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 2454, in _capture_4xx_case
+E               _wait_until(
+E             File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/outbound_oracle_probe.py", line 463, in _wait_until
+E               raise AssertionError(f"timed out waiting for {description}")
+E           AssertionError: timed out waiting for 4xx DATA 451 exhausted SMTP reply
+
+blackbox/tests/test_oracle_outbound_4xx.py:39: AssertionError</failure></testcase><testcase classname="tests.test_oracle_outbound_5xx" name="test_rust_candidate_outbound_5xx_matches_frozen_java_golden" time="31.741" /><testcase classname="tests.test_oracle_outbound_dsn" name="test_rust_candidate_emits_durable_rfc3464_dsn" time="7.767" /><testcase classname="tests.test_oracle_outbound_queue" name="test_rust_candidate_outbound_queue_matches_frozen_java_golden" time="7.978"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for managed-outbound-queue-v43.json: expected sha256=a627b744004e4d4d4180cca1097e69b1ebe2fb295e907201008b0e781310a02b, actual sha256=3def4ac487e3f5c96291130c43ade03d3dd9687d28c36c4d34f6d80a62db55fe">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_outbound_queue_matches_frozen_java_golden() -&gt; None:
+        repository = _repository()
+        observed = _run_probe(repository, target="candidate")
+&gt;       _assert_golden(repository, observed, record_java=False)
+
+blackbox/tests/test_oracle_outbound_queue.py:80: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/tests/test_oracle_outbound_queue.py:62: in _assert_golden
+    store.assert_observation(path.name, observed)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java'), attestation=GoldenAttestation(oracle_co...e', normalizers=('outbound:generated-sent-filename', 'outbound:redis-seven-day-ttl-observation-window')), record=False)
+relative_path = 'managed-outbound-queue-v43.json'
+observation = {'body_lengths': {'at_threshold': 8192, 'below_threshold': 8191, 'large': 12288, 'small': 19}, 'post': {'db': [{'id': ... True, ...}, 'small': {'error': None, 'message_id_present': True, 'queue_id_present': True, 'queued': True, ...}}, ...}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+&gt;           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for managed-outbound-queue-v43.json: expected sha256=a627b744004e4d4d4180cca1097e69b1ebe2fb295e907201008b0e781310a02b, actual sha256=3def4ac487e3f5c96291130c43ade03d3dd9687d28c36c4d34f6d80a62db55fe
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch</failure></testcase><testcase classname="tests.test_oracle_outbound_tls" name="test_rust_candidate_outbound_starttls_and_mta_sts" time="31.490" /><testcase classname="tests.test_oracle_outbound_tls_negotiation" name="test_rust_candidate_outbound_tls_negotiation" time="27.597" /><testcase classname="tests.test_oracle_outbound_tls_validity" name="test_rust_candidate_outbound_tls_certificate_validity" time="15.397" /><testcase classname="tests.test_oracle_report_scheduler" name="test_rust_report_scheduler_crosses_real_cron_boundary" time="48.447"><failure message="AssertionError: report scheduler did not publish after the fake 01:00 UTC boundary">tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-124/test_rust_report_scheduler_cro0')
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(120)
+    def test_rust_report_scheduler_crosses_real_cron_boundary(tmp_path: Path) -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        shim = tmp_path / "fake-realtime.so"
+        _compile_shim(repository, shim)
+        with report_dns_server() as dns:
+            with _candidate(repository, dns, shim) as runtime:
+&gt;               observed = _capture_scheduler(runtime)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tests/test_oracle_report_scheduler.py:425: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/tests/test_oracle_report_scheduler.py:261: in _capture_scheduler
+    _wait_until_due_side_effects(runtime, client, before_pending, before_files)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+runtime = _SchedulerCandidateRuntime(paths=HarnessPaths(repository=PosixPath('/home/lmyzzz/lmyzmail-rust'), runtime=PosixPath('/...mmand_template=('/home/lmyzzz/lmyzmail-rust/target/x86_64-unknown-linux-gnu/release/lmyzmail', '--config', '{config}'))
+client = &lt;redis.client.Redis(&lt;redis.connection.ConnectionPool(&lt;redis.connection.Connection(host=127.0.0.1,port=47913,db=0)&gt;)&gt;)&gt;
+before_pending = [], before_files = {}
+
+    def _wait_until_due_side_effects(
+        runtime: RuntimeTarget,
+        client: redis.Redis,
+        before_pending: list[int],
+        before_files: dict[str, Path],
+    ) -&gt; None:
+        time.sleep(2.0)
+        if _redis_pending(client) != before_pending or _sent_files(runtime) != before_files:
+            raise AssertionError("report scheduler published before the fake 01:00 UTC boundary")
+        deadline = time.monotonic() + 45.0
+        while time.monotonic() &lt; deadline:
+            if (
+                len(_redis_pending(client)) == len(before_pending) + 2
+                and len(_sent_files(runtime)) == len(before_files) + 2
+            ):
+                return
+            time.sleep(0.05)
+&gt;       raise AssertionError("report scheduler did not publish after the fake 01:00 UTC boundary")
+E       AssertionError: report scheduler did not publish after the fake 01:00 UTC boundary
+
+blackbox/tests/test_oracle_report_scheduler.py:243: AssertionError</failure></testcase><testcase classname="tests.test_oracle_report_scheduler" name="test_rust_report_scheduler_does_not_catch_up_after_restart" time="7.576" /><testcase classname="tests.test_oracle_reports" name="test_rust_candidate_reports_match_frozen_java_golden" time="6.531"><failure message="AssertionError: timed out waiting for two report queue and Maildir publications">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(240)
+    def test_rust_candidate_reports_match_frozen_java_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        with report_dns_server() as dns:
+            with _candidate(repository, dns) as candidate:
+                DifferentialRunner(
+                    repository,
+                    repository / "blackbox/golden/java/managed-reports-v53",
+                    "managed-reports",
+&gt;               ).verify_candidate(REPORT_SCENARIOS, candidate)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tests/test_oracle_reports.py:190: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:111: in verify_candidate
+    observation = scenario.capture(target)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+blackbox/src/lmyzmail_blackbox/report_contract.py:929: in capture_seeded_report_delivery
+    pending_order, tasks, maildir_messages, added_files = _capture_report_publications(
+blackbox/src/lmyzmail_blackbox/report_contract.py:851: in _capture_report_publications
+    new_ids, added_files = _wait_for_report_side_effects(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+target = _ReportsCandidateRuntime(paths=HarnessPaths(repository=PosixPath('/home/lmyzzz/lmyzmail-rust'), runtime=PosixPath('/ho...il.reporting.enabled=true', '--lmyzmail.queue.poll-interval-ms=60000', '--lmyzmail.maildir.max-files-per-directory=1'))
+client = &lt;redis.client.Redis(&lt;redis.connection.ConnectionPool(&lt;redis.connection.Connection(host=127.0.0.1,port=46621,db=0)&gt;)&gt;)&gt;
+before_pending = [], before_files = {}
+
+    def _wait_for_report_side_effects(
+        target: RuntimeTarget,
+        client: redis.Redis,
+        before_pending: list[int],
+        before_files: dict[str, Path],
+    ) -&gt; tuple[list[int], dict[str, Path]]:
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() &lt; deadline:
+            pending = _redis_pending(client)
+            files = _sent_files(target)
+            if len(pending) == len(before_pending) + 2 and len(files) == len(before_files) + 2:
+                if pending[: len(before_pending)] != before_pending:
+                    raise AssertionError("report queue mutated the pre-existing pending prefix")
+                return pending[len(before_pending) :], {
+                    key: path for key, path in files.items() if key not in before_files
+                }
+            time.sleep(0.05)
+&gt;       raise AssertionError("timed out waiting for two report queue and Maildir publications")
+E       AssertionError: timed out waiting for two report queue and Maildir publications
+
+blackbox/src/lmyzmail_blackbox/report_contract.py:772: AssertionError</failure></testcase><testcase classname="tests.test_oracle_reports" name="test_rust_report_scheduler_enabled_runtime_starts_and_stops" time="2.406" /><testcase classname="tests.test_oracle_smtp_auth" name="test_rust_candidate_smtp_auth_matches_frozen_java_golden" time="9.266" /><testcase classname="tests.test_oracle_smtp_auth" name="test_rust_candidate_smtp_auth_starttls_matches_frozen_java_golden" time="9.195" /><testcase classname="tests.test_oracle_smtp_commands" name="test_rust_candidate_smtp_commands_match_frozen_java_golden" time="1.715" /><testcase classname="tests.test_oracle_smtp_content_filter_default" name="test_rust_candidate_smtp_content_filter_default_matches_golden" time="3.253" /><testcase classname="tests.test_oracle_smtp_data" name="test_rust_candidate_smtp_data_matches_frozen_java_golden" time="7.223" /><testcase classname="tests.test_oracle_smtp_data" name="test_rust_candidate_exact_count_survives_parallel_inserts_and_deletes" time="3.271" /><testcase classname="tests.test_oracle_smtp_dkim" name="test_rust_candidate_smtp_dkim_matches_frozen_java_golden" time="10.356" /><testcase classname="tests.test_oracle_smtp_dkim" name="test_rust_candidate_rejects_invalid_dkim_identities" time="5.300" /><testcase classname="tests.test_oracle_smtp_dmarc" name="test_rust_candidate_smtp_dmarc_matches_frozen_java_golden" time="18.460" /><testcase classname="tests.test_oracle_smtp_mime" name="test_rust_candidate_smtp_mime_matches_frozen_java_golden" time="4.688" /><testcase classname="tests.test_oracle_smtp_self_spoof" name="test_rust_candidate_smtp_self_spoof_matches_frozen_java_golden[inferx]" time="2.703" /><testcase classname="tests.test_oracle_smtp_self_spoof" name="test_rust_candidate_smtp_self_spoof_matches_frozen_java_golden[fallback]" time="2.316" /><testcase classname="tests.test_oracle_smtp_self_spoof" name="test_rust_candidate_smtp_self_spoof_matches_frozen_java_golden[generic]" time="2.269" /><testcase classname="tests.test_oracle_smtp_sender_domain" name="test_rust_candidate_smtp_sender_domain_matches_frozen_java_golden" time="2.116" /><testcase classname="tests.test_oracle_smtp_skibidi" name="test_rust_candidate_smtp_skibidi_matches_frozen_java_golden" time="3.224" /><testcase classname="tests.test_oracle_smtp_spamhaus" name="test_rust_candidate_smtp_spamhaus_matches_frozen_java_golden[reject]" time="3.193" /><testcase classname="tests.test_oracle_smtp_spamhaus" name="test_rust_candidate_smtp_spamhaus_matches_frozen_java_golden[reject-disabled]" time="2.250" /><testcase classname="tests.test_oracle_smtp_spamhaus" name="test_rust_candidate_smtp_spamhaus_matches_frozen_java_golden[disabled]" time="2.075" /><testcase classname="tests.test_oracle_smtp_spf" name="test_rust_candidate_smtp_spf_matches_frozen_java_golden" time="6.468" /><testcase classname="tests.test_oracle_smtp_spf_dkim" name="test_rust_candidate_smtp_spf_dkim_matches_frozen_java_golden" time="21.467" /><testcase classname="tests.test_oracle_smtp_starttls" name="test_rust_candidate_starttls_matches_frozen_java_golden" time="2.613" /><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_stress_matches_frozen_java_golden[False]" time="2.059" /><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_stress_matches_frozen_java_golden[True]" time="1.982" /><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_stress_streaming_matches_frozen_java_golden" time="2.068" /><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_bounds_overlapping_stress_runs" time="1.950" /><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_serializes_cleanup_with_active_run" time="1.932" /><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_sigterm_during_stress_generation_cleans_owned_state" time="2.060" /><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_sigterm_during_stress_enqueue_preserves_recovery" time="2.085"><failure message="AssertionError: assert [PosixPath('/...aging.lease')] == []&#10;  &#10;  Left contains one more item: PosixPath('/tmp/lmyzmail-blackbox-d9o5arko/maildir/.lmyzmail-outbound/.lmyzmail-quarantine/.lmyzmail-staging.lease')&#10;  Use -v to get more diff">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(240)
+    def test_rust_candidate_sigterm_during_stress_enqueue_preserves_recovery() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository, True, 32) as candidate:
+            blocker = _postgres_connection(candidate)
+            try:
+                blocker.execute(
+                    "SELECT pg_advisory_lock(hashtextextended(%s::text, 0))",
+                    ("lmyzmail:outbound:queue",),
+                )
+                _start_stress(candidate)
+                files = cast(
+                    list[Path],
+                    _wait_for(
+                        lambda: _outbound_spool_files(candidate),
+                        "materialized stress enqueue blocked before commit",
+                    ),
+                )
+                assert files
+                assert _stress_queue_rows(candidate) == []
+                assert _pending_stress_ids(candidate) == []
+                _stop_application(candidate)
+            finally:
+                blocker.close()
+    
+            _assert_stress_storage_clean(candidate)
+&gt;           assert _outbound_spool_files(candidate) == []
+E           AssertionError: assert [PosixPath('/...aging.lease')] == []
+E             
+E             Left contains one more item: PosixPath('/tmp/lmyzmail-blackbox-d9o5arko/maildir/.lmyzmail-outbound/.lmyzmail-quarantine/.lmyzmail-staging.lease')
+E             Use -v to get more diff
+
+blackbox/tests/test_oracle_stress.py:530: AssertionError</failure></testcase><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_sigterm_during_stress_delivery_keeps_queue_consistent" time="13.753"><failure message="AssertionError: assert [PosixPath('/...aging.lease')] == []&#10;  &#10;  Left contains one more item: PosixPath('/tmp/lmyzmail-blackbox-6yjkjnpv/maildir/.lmyzmail-stress/.lmyzmail-quarantine/.lmyzmail-staging.lease')&#10;  Use -v to get more diff">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(240)
+    def test_rust_candidate_sigterm_during_stress_delivery_keeps_queue_consistent() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository, True, 32) as candidate:
+            _start_stress(candidate)
+            pending = cast(
+                list[int],
+                _wait_for(
+                    lambda: _pending_stress_ids(candidate),
+                    "published stress delivery task",
+                ),
+            )
+            assert pending
+    
+            _stop_application(candidate)
+    
+&gt;           _assert_stress_storage_clean(candidate)
+
+blackbox/tests/test_oracle_stress.py:552: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+candidate = _StressCandidateRuntime(paths=HarnessPaths(repository=PosixPath('/home/lmyzzz/lmyzmail-rust'), runtime=PosixPath('/hom.../release/lmyzmail', '--config', '{config}'), stress_enabled=True, email_size_kb=32, production_count=2, warmup_count=1)
+
+    def _assert_stress_storage_clean(candidate: CandidateRuntime) -&gt; None:
+        assert candidate.workspace is not None
+&gt;       assert _stress_temp_files(candidate) == []
+E       AssertionError: assert [PosixPath('/...aging.lease')] == []
+E         
+E         Left contains one more item: PosixPath('/tmp/lmyzmail-blackbox-6yjkjnpv/maildir/.lmyzmail-stress/.lmyzmail-quarantine/.lmyzmail-staging.lease')
+E         Use -v to get more diff
+
+blackbox/tests/test_oracle_stress.py:228: AssertionError</failure></testcase><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_restart_recovers_sigkill_stress_state" time="2.313" /><testcase classname="tests.test_oracle_tlsrpt_https" name="test_rust_candidate_tlsrpt_https" time="5.646" /><testcase classname="tests.test_oracle_web_static" name="test_rust_candidate_web_static_matches_frozen_java_golden" time="4.983" /><testcase classname="tests.test_oracle_web_ui" name="test_rust_candidate_web_ui_matches_frozen_java_golden" time="9.258" /><testcase classname="tests.test_smtp_greeting_distribution" name="test_rust_smtp_greeting_uses_frozen_c_probability_contract" time="22.734" /><testcase classname="tools.test_candidate_smtp_skibidi_security" name="test_candidate_smtp_skibidi_rejects_non_finite_inputs_and_bounds_admission" time="2.079" /><testcase classname="tools.test_candidate_xdp" name="test_rust_candidate_xdp_disabled_matches_frozen_java" time="2.235" /><testcase classname="tools.test_fail2ban" name="test_rust_candidate_fail2ban_matches_golden" time="7.922" /><testcase classname="tools.test_java_multi_domain" name="test_rust_candidate_multi_domain_matches_java_golden" time="2.625" /><testcase classname="tools.test_mail_api_poll" name="test_rust_candidate_mail_api_poll_matches_golden" time="1.943" /><testcase classname="tools.test_minecraft_authenticated_commands" name="test_rust_candidate_minecraft_authenticated_commands_matches_golden" time="5.878" /><testcase classname="tools.test_minecraft_draft_commands" name="test_rust_candidate_minecraft_draft_commands_matches_golden" time="5.824" /><testcase classname="tools.test_minecraft_draft_editing" name="test_rust_candidate_minecraft_draft_editing_matches_golden" time="9.466" /><testcase classname="tools.test_minecraft_email_prompt" name="test_rust_candidate_minecraft_email_prompt_matches_golden" time="5.813" /><testcase classname="tools.test_minecraft_folder_gui" name="test_rust_candidate_minecraft_folder_gui_matches_golden" time="5.839" /><testcase classname="tools.test_minecraft_login" name="test_rust_candidate_minecraft_offline_login_matches_golden" time="5.625" /><testcase classname="tools.test_minecraft_login_admission" name="test_rust_candidate_minecraft_login_admission_matches_golden" time="2.139" /><testcase classname="tools.test_minecraft_logout_confirmation" name="test_rust_candidate_minecraft_logout_confirmation_matches_golden" time="5.756" /><testcase classname="tools.test_minecraft_mail_view" name="test_rust_candidate_minecraft_mail_view_matches_golden" time="5.943" /><testcase classname="tools.test_minecraft_main_menu" name="test_rust_candidate_minecraft_main_menu_matches_golden" time="5.709" /><testcase classname="tools.test_minecraft_main_menu_actions" name="test_rust_candidate_minecraft_main_menu_actions_matches_golden" time="6.051" /><testcase classname="tools.test_minecraft_main_menu_lifecycle" name="test_rust_candidate_minecraft_main_menu_lifecycle_matches_golden" time="5.873" /><testcase classname="tools.test_minecraft_online" name="test_rust_candidate_minecraft_online_boundaries" time="1.980" /><testcase classname="tools.test_minecraft_outbound_delivery" name="test_rust_candidate_minecraft_outbound_matches_golden" time="21.979" /><testcase classname="tools.test_minecraft_outbound_duplicate" name="test_rust_candidate_rejects_overlapping_minecraft_send" time="8.449" /><testcase classname="tools.test_minecraft_password_auth" name="test_rust_candidate_minecraft_password_auth_matches_golden" time="9.469" /><testcase classname="tools.test_minecraft_position_rebound" name="test_rust_candidate_minecraft_position_rebound_matches_golden" time="8.144" /><testcase classname="tools.test_minecraft_post_static" name="test_rust_candidate_minecraft_post_static_matches_golden" time="5.806" /><testcase classname="tools.test_minecraft_render_settings" name="test_rust_candidate_minecraft_render_settings_matches_golden" time="6.087" /><testcase classname="tools.test_minecraft_render_size_commands" name="test_rust_candidate_minecraft_render_size_commands_matches_golden" time="5.702" /><testcase classname="tools.test_minecraft_scheduled_play" name="test_rust_candidate_minecraft_scheduled_play_matches_golden" time="7.702" /><testcase classname="tools.test_minecraft_static_play" name="test_rust_candidate_minecraft_static_play_matches_golden" time="5.783" /><testcase classname="tools.test_minecraft_status" name="test_rust_candidate_minecraft_status_matches_golden" time="1.950" /><testcase classname="tools.test_minecraft_status" name="test_rust_candidate_minecraft_configured_status_matches_golden" time="2.069" /><testcase classname="tools.test_minecraft_time_update" name="test_rust_candidate_minecraft_time_update_matches_golden" time="20.760" /><testcase classname="tools.test_minecraft_video" name="test_rust_candidate_minecraft_video_matches_golden" time="25.576" /><testcase classname="tools.test_minecraft_world" name="test_rust_candidate_minecraft_world_matches_golden" time="5.828" /><testcase classname="tools.test_smtp_content_filter_attachments" name="test_rust_candidate_smtp_content_filter_attachments_match_golden" time="14.255" /><testcase classname="tools.test_smtp_content_filter_body" name="test_rust_candidate_smtp_content_filter_body_matches_golden" time="5.271" /><testcase classname="tools.test_smtp_content_filter_body" name="test_rust_candidate_smtp_content_filter_body_edge_matches_golden" time="7.265" /><testcase classname="tools.test_smtp_content_filter_default" name="test_rust_candidate_smtp_content_filter_default_matches_golden" time="3.311" /><testcase classname="tools.test_smtp_content_filter_default_v4" name="test_rust_candidate_smtp_content_filter_default_v4" time="3.320" /><testcase classname="tools.test_smtp_content_filter_headers" name="test_rust_candidate_smtp_content_filter_headers_match_golden" time="7.262" /></testsuite></testsuites>

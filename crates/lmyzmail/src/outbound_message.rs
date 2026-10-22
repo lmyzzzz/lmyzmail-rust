@@ -59,7 +59,6 @@ const OWNERSHIP_RECEIPT_HEADER_BYTES: usize = 100;
 const MAX_OWNERSHIP_FILE_NAME_BYTES: usize = 4_096;
 const MAX_OWNERSHIP_RECEIPT_BYTES: usize =
     OWNERSHIP_RECEIPT_HEADER_BYTES + MAX_OWNERSHIP_FILE_NAME_BYTES;
-const STAGING_LEASE_NAME: &str = ".lmyzmail-staging.lease";
 static STAGING_INSTANCE_ID: OnceLock<[u8; 16]> = OnceLock::new();
 #[derive(Debug)]
 struct OwnershipReceipt {
@@ -4803,27 +4802,33 @@ fn open_quarantine_directory(parent: &std::os::fd::OwnedFd) -> io::Result<std::o
     Ok(descriptor)
 }
 
-fn open_staging_lease_file(quarantine: &std::os::fd::OwnedFd) -> io::Result<std::os::fd::OwnedFd> {
+fn open_staging_lease_directory(
+    quarantine: &std::os::fd::OwnedFd,
+) -> io::Result<std::os::fd::OwnedFd> {
     use rustix::fs::{FileType, Mode, OFlags, ResolveFlags, fstat, openat2};
 
     let descriptor = openat2(
         quarantine,
-        STAGING_LEASE_NAME,
-        OFlags::RDWR | OFlags::CREATE | OFlags::NOFOLLOW | OFlags::CLOEXEC,
-        Mode::RUSR | Mode::WUSR,
+        ".",
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
         ResolveFlags::BENEATH | ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
     )
     .map_err(io::Error::from)?;
     let directory_stat = fstat(quarantine).map_err(io::Error::from)?;
     let stat = fstat(&descriptor).map_err(io::Error::from)?;
-    if FileType::from_raw_mode(stat.st_mode) != FileType::RegularFile
+    // flock is supported on directory descriptors on Linux. A fresh open
+    // description (not dup) keeps independent shared/exclusive leases while
+    // leaving no permanent file in the externally observed Maildir tree.
+    if FileType::from_raw_mode(stat.st_mode) != FileType::Directory
+        || stat.st_dev != directory_stat.st_dev
+        || stat.st_ino != directory_stat.st_ino
         || stat.st_uid != directory_stat.st_uid
-        || stat.st_mode & 0o777 != 0o600
-        || stat.st_nlink != 1
+        || stat.st_mode & 0o777 != 0o700
     {
         return Err(io::Error::new(
             io::ErrorKind::PermissionDenied,
-            "outbound staging lease is not a private owner file",
+            "outbound staging lease is not the private quarantine directory",
         ));
     }
     Ok(descriptor)
@@ -4833,17 +4838,15 @@ fn verify_staging_lease_binding(
     quarantine: &std::os::fd::OwnedFd,
     descriptor: &std::os::fd::OwnedFd,
 ) -> io::Result<()> {
-    use rustix::fs::{AtFlags, fstat, statat};
+    use rustix::fs::{FileType, fstat};
 
     let opened = fstat(descriptor).map_err(io::Error::from)?;
-    let bound = statat(quarantine, STAGING_LEASE_NAME, AtFlags::SYMLINK_NOFOLLOW)
-        .map_err(io::Error::from)?;
-    if !is_regular_stat(&bound)
+    let bound = fstat(quarantine).map_err(io::Error::from)?;
+    if FileType::from_raw_mode(bound.st_mode) != FileType::Directory
         || bound.st_dev != opened.st_dev
         || bound.st_ino != opened.st_ino
         || bound.st_uid != opened.st_uid
-        || bound.st_mode & 0o777 != 0o600
-        || bound.st_nlink != 1
+        || bound.st_mode & 0o777 != 0o700
     {
         return Err(io::Error::new(
             io::ErrorKind::PermissionDenied,
@@ -4858,7 +4861,7 @@ fn acquire_staging_writer_lease(
 ) -> io::Result<std::os::fd::OwnedFd> {
     use rustix::fs::{FlockOperation, flock};
 
-    let descriptor = open_staging_lease_file(quarantine)?;
+    let descriptor = open_staging_lease_directory(quarantine)?;
     let deadline = Instant::now() + STAGING_WRITER_LEASE_DEADLINE;
     loop {
         match flock(&descriptor, FlockOperation::NonBlockingLockShared) {
@@ -4885,7 +4888,7 @@ fn try_acquire_staging_recovery_lease(
 ) -> io::Result<Option<std::os::fd::OwnedFd>> {
     use rustix::fs::{FlockOperation, flock};
 
-    let descriptor = open_staging_lease_file(quarantine)?;
+    let descriptor = open_staging_lease_directory(quarantine)?;
     match flock(&descriptor, FlockOperation::NonBlockingLockExclusive) {
         Ok(()) => {}
         Err(rustix::io::Errno::WOULDBLOCK) => return Ok(None),
@@ -5411,9 +5414,6 @@ mod tests {
         entries
             .filter_map(Result::ok)
             .map(|entry| {
-                if entry.file_name() == OsStr::new(STAGING_LEASE_NAME) {
-                    return 0;
-                }
                 let Ok(kind) = entry.file_type() else {
                     return 0;
                 };

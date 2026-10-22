@@ -4,9 +4,9 @@ This record is intentionally a status report, not a completion claim. The overal
 
 ## Passed in the current milestone
 
-- The current candidate passed the formal multi-module soak recorded in [`candidate-soak-v6-0eb2-v1.json`](../evidence/compatibility/candidate-soak-v6-0eb2-v1.json).
-- The run lasted `1800.184` seconds with `16` workers and exercised HTTP, SMTP, HTCPCP, and Minecraft continuously.
-- It recorded `0` failures, a peak RSS of `412040 KiB`, a peak FD count of `28`, a peak task count of `61`, and a queue range of `0..0`.
+- Commit `f3b10966` passed the fresh formal multi-module soak recorded in [`candidate-soak-f3b10966-20261022.json`](../evidence/compatibility/candidate-soak-f3b10966-20261022.json).
+- The run lasted `1800.046` seconds with `16` workers and completed `252608` HTTP, SMTP, HTCPCP, and Minecraft operations.
+- It recorded `0` failures, a peak RSS of `413072 KiB`, a constant FD count of `27`, a peak task count of `61`, and a queue range of `0..0`. After initialization, RSS grew by `768 KiB`, FD/tasks by zero, and the workspace by `5787648` bytes (PostgreSQL data). These observations pass the existing resource gates for this workload; they do not substitute for the separate mail-publication stress test.
 - The runner verified protocol activity, unchanged immutable inputs, release-binary stability, cleanup of candidate/PostgreSQL/Redis, workspace removal, and no residual PIDs or ports.
 - The SMTP endpoint harness now has a dedicated `candidate-stability` profile. It preserves one original endpoint invocation per tier, has no harness batching, and lets each Rust tier qualify independently after the separate Java baseline is frozen.
 - The profile's fsync-off and fsync-on 1 KiB end-to-end smokes both passed with one arm, `8/8` passively observed messages, zero failures/retries, and successful root cleanup receipts. As smokes they are intentionally not formal 500,000-message evidence.
@@ -26,21 +26,42 @@ The 30-second smoke companion is retained as [`candidate-soak-v6-smoke-0eb2-v1.j
   publication uses an encoded path absent from the frozen layout. Both now have
   product fixes: 957 Rust tests, strict Clippy, and 17 external mail/attachment/
   multipart checks passed. All 6897 historical golden files remained unchanged;
-  343 fresh Java observations/artifacts match their historical counterparts.
-  The full Java recording run had 103 passes and four failures; all four passed
-  in an isolated rerun without assertion changes. This is not a clean full replay.
+  346 fresh Java observations/artifacts match their historical counterparts.
+  The fresh full Java replay had 105 passes and two failures (DMARC DNS query
+  count and multi-domain stress publication); both failed again in isolation.
+  The full candidate replay had 120 passes and six failures. Replacing permanent
+  staging lease files with Linux directory locks fixed the exact Maildir file
+  counts: queue layout, reports, cron scheduler and enqueue-time SIGTERM checks
+  passed unchanged. The 4xx retry and DSN tests also passed after separating DSN
+  publication backoff from ordinary queue maintenance. Delivery-time SIGTERM
+  cleanup remains open: a PENDING task is preserved safely, but its Sent copy
+  prevents the required complete stress-mailbox cleanup. Diagnostic state and
+  every failing log are retained. This is not a clean full replay.
   A new package and fresh full replay are still required. See
   [Maildir takeover status](maildir-takeover.md) for the remaining ambiguous-name
   layout and rollback gap. Package availability is not production acceptance.
 - The packaged compact 2026-10-22 InferX model has independent frozen-Java
   Scalar/AVX2 output goldens, 24 Rust inference tests, and two real SMTP/DB tests
   (Scalar and Auto) with model mmap and no JVM/kernel runtime dependency.
+- The real same-state Java -> Rust -> Java -> Rust takeover passed for ordinary
+  ASCII addresses, including byte-exact reads of existing mail, newly received
+  SMTP mail and multipart Sent attachments. Evidence:
+  `takeover-directory-lease-20261022-v2.json`. This does not cover ambiguous
+  mailbox names or all pending-outbound transitions.
 - Privileged XDP attach, IPv4/IPv6 ban/drop, restart persistence, unban/pass and
   isolated cleanup passed in `xdp-privileged-20261022.json`.
 - Run the revised single-invocation `candidate-stability` SMTP profile formally: 250,000 messages at 1 KiB and 10 KiB, then 100,000 more in the same process with at least 90% of the first 100,000-message rate, plus a disk-budgeted 10 MiB run. Record fsync-off throughput for the independent Java comparison and fsync-on durability, restart recovery, no-loss, leak, and cleanup evidence. Formal v9 and v10 are recorded product stability failures; the shared delivery-state fix in `af56b587` still needs a qualifying rerun. The user permits moving to other incomplete gates after ten unsuccessful stability rounds; that does not turn a failed round into passing evidence.
 - Re-run current-HEAD reproducible release and installation/rollback verification.
 - Complete the full Java/Rust differential matrix, including all HTTP/UI/auth/API/attachment/error/security cases, SMTP client/server paths, storage/restart behavior, HTCPCP, Minecraft, honeypots, rendering, InferX, and XDP privileged gates.
 - Verify actual AVX2+FMA and AVX-512 runtime-dispatch execution evidence for the implemented mail rendering and Minecraft palette/resize/color conversion paths; Scalar-only evidence is insufficient. The current 275HX WSL host exposes AVX2/FMA but no AVX-512F, so compilation and safe fallback alone cannot prove AVX-512 execution or native performance.
+  Local Scalar/AVX2 Minecraft video and mail-view wire/pixel goldens passed with
+  verified runtime-dispatch events (`renderer-local-f3b10966/`). The six-round
+  local benchmark (`renderer-local-20261022-v2/summary.json`) kept every output
+  hash identical. Median AVX2 speedups across sizes/dithers were 1.50x for block
+  palette RGB, 1.47x for block states, 1.64x for map palette, 6.40x for contrast,
+  and 1.09x for resize; the slowest resize case was 0.84x. These measurements
+  share the host with other acceptance processes and are partial comparative
+  evidence, not full three-backend performance qualification.
   The user confirmed that no AVX-512 test host is available and requested that
   all locally verifiable work continue. This leaves the native AVX-512 gate open.
 
