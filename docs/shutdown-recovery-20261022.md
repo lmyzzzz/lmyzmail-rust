@@ -35,9 +35,30 @@ Evidence under `evidence/compatibility/shutdown-recovery-20261022-*` records:
 - `model-takeover.xml`, `model-takeover.log` and `takeover.json`: both compact
   model Scalar/Auto SMTP/DB tests and the same-state ordinary-address
   Java/Rust/Java/Rust takeover passed against that exact ELF.
+- `candidate.xml` and `candidate.log`: all 88 candidate-marked scenarios passed
+  in 691.56 seconds, including the unchanged MTA-STS discovery and stress
+  termination regressions.
+- `unmarked.xml` and `unmarked.log`: all 178 non-oracle, non-candidate-marked
+  checks passed. Together these two disjoint selections cover all 266 non-oracle
+  checks in `blackbox/tests`; no test assertion or golden was changed.
+
+Both replay audits confirmed that all 6,897 historical golden files were
+unchanged, all 346 campaign observations/artifacts matched their historical
+counterparts, and the executable hash was unchanged. The previously observed
+intermittent A/AAAA query-order failure is still retained: one successful full
+replay does not establish that this ordering race can no longer occur. The
+frozen-Java replay's earlier DMARC query-count and multi-domain stress failures
+also remain unresolved evidence.
+
+The actual independently reproduced release ELF has a different hash from the
+development checkout build. Its complete 310-check replay, separate RBL check,
+model/takeover checks and packaged installation subsequently passed. See
+[the exact release validation](release-bf6c0d53-validation.md); do not substitute
+the development ELF hash above for the published executable's hash.
 
 The compact weights are the final model from user-specified thread
 `01a16323-de1d-7a11-976d-8e2ff3322839`, SHA-256
 `4fc4f7a0eb5d7e1210ddd7fee63a756775f5b7155db210080cfd8cc759403428`.
 This milestone does not close formal large-mail SMTP stability, ambiguous-mailbox
-rollback, full differential replay or native AVX-512 acceptance.
+rollback, a clean repeatable frozen-Java differential matrix or native AVX-512
+acceptance.

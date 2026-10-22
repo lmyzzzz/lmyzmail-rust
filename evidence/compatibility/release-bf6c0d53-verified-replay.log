@@ -1,0 +1,11 @@
+{"external_candidate_binary": "/home/lmyzzz/lmyzmail-rust/.blackbox/release-artifacts-bf6c0d53/lmyzmail", "sha256_before": "3b60ca5856f23abff1985bb7435b5bda8527c646885ddeb422cbd22cb906a536"}
+........................................................................ [ 23%]
+........................................................................ [ 46%]
+........................................................................ [ 69%]
+........................................................................ [ 92%]
+......................                                                   [100%]
+Campaign audit: {"differences_requiring_review": [], "harness_definition_sha256": "73e751452ad6eecc90dc68019e56806ad11cbb19b22ad7dcbc55928dda2a446f", "historical_observations_equal": 346, "old_golden_files_unchanged": 6897, "pytest_exitstatus": 0}
+
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/release-bf6c0d53-verified-replay.xml -
+310 passed, 107 deselected in 903.29s (0:15:03)
+{"sha256_after": "3b60ca5856f23abff1985bb7435b5bda8527c646885ddeb422cbd22cb906a536", "staged_sha256_after": "3b60ca5856f23abff1985bb7435b5bda8527c646885ddeb422cbd22cb906a536", "unchanged": true}

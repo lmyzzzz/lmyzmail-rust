@@ -1,0 +1,27 @@
+{"external_candidate_binary": "/home/lmyzzz/lmyzmail-rust/target/x86_64-unknown-linux-gnu/release/lmyzmail", "sha256_before": "210510cec73f5da0416799ce834a66d7b2844ac3d00070ffef9e8cb36cd8bb7d"}
+............................................F                            [100%]
+Campaign audit: {"differences_requiring_review": [], "harness_definition_sha256": "73e751452ad6eecc90dc68019e56806ad11cbb19b22ad7dcbc55928dda2a446f", "historical_observations_equal": 346, "old_golden_files_unchanged": 6897, "pytest_exitstatus": 1}
+
+=================================== FAILURES ===================================
+__________ test_rust_candidate_smtp_content_filter_rbl_matches_golden __________
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(240)
+    def test_rust_candidate_smtp_content_filter_rbl_matches_golden() -> None:
+>       _require_runner()
+
+blackbox/tools/test_smtp_content_filter_rbl.py:307: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _require_runner() -> None:
+        if any(os.environ.get(name) is None for name in _RBL_ENVIRONMENT):
+>           pytest.fail("RBL differential must run through blackbox/tools/run_smtp_rbl.py")
+E           Failed: RBL differential must run through blackbox/tools/run_smtp_rbl.py
+
+blackbox/tools/test_smtp_content_filter_rbl.py:279: Failed
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/shutdown-recovery-20261022-tools.xml -
+=========================== short test summary info ============================
+FAILED blackbox/tools/test_smtp_content_filter_rbl.py::test_rust_candidate_smtp_content_filter_rbl_matches_golden
+1 failed, 44 passed, 37 deselected in 222.22s (0:03:42)
+{"sha256_after": "210510cec73f5da0416799ce834a66d7b2844ac3d00070ffef9e8cb36cd8bb7d", "staged_sha256_after": "210510cec73f5da0416799ce834a66d7b2844ac3d00070ffef9e8cb36cd8bb7d", "unchanged": true}

@@ -2,18 +2,28 @@
 
 This record is intentionally a status report, not a completion claim. The overall rewrite goal remains incomplete until every required protocol, rendering, model, security, stress, differential, release, and rollback gate has evidence.
 
-Release candidate `39379c04` and complete source/history are available in the
-Windows delivery directory. See [its validation supplement](release-39379c04-validation.md)
-for exact reproduced-ELF checks, the latest full replay, and a corrected
-per-profile test invocation. Packaging does not close the remaining gates.
+Release candidate `bf6c0d53` and its complete source/history are available in
+`D:\MiscProjects\lmyzmail-rust\releases\20261022-rc.bf6c0d53`.
+See [its validation supplement](release-bf6c0d53-validation.md) for the exact
+reproduced-ELF checks, all 311 non-oracle checks, model/takeover checks and
+installation evidence. The older `39379c04` package and
+[its negative and corrected evidence](release-39379c04-validation.md) are retained.
+Packaging does not close the remaining gates.
 
 ## Passed in the current milestone
 
 - The 2026-10-22 shutdown recovery repair passed all 959 Rust tests, strict
   Clippy, all four unchanged stress SIGTERM/SIGKILL regressions, compact-model
   Scalar/Auto SMTP/DB checks, and ordinary-address bidirectional Java/Rust
-  takeover. See [the evidence record](shutdown-recovery-20261022.md). The final
-  full candidate replay and refreshed reproducible package remain separate gates.
+  takeover. The current candidate-marked replay passed 88 scenarios and the
+  disjoint unmarked non-oracle suite passed 178 checks. Both audits retained all
+  6,897 historical golden files unchanged and matched all 346 campaign
+  observations/artifacts. See [the evidence record](shutdown-recovery-20261022.md).
+  The reproduced `bf6c0d53` ELF then passed all 310 non-oracle checks across both
+  test directories and the separately required RBL runner, plus model/takeover
+  and packaged installation checks. Source inventory, full-history bundle and
+  all Windows package checksums passed. Earlier Java-oracle failures and the
+  intermittent DNS order failure remain recorded.
 - Commit `f3b10966` passed the fresh formal multi-module soak recorded in [`candidate-soak-f3b10966-20261022.json`](../evidence/compatibility/candidate-soak-f3b10966-20261022.json).
 - The run lasted `1800.046` seconds with `16` workers and completed `252608` HTTP, SMTP, HTCPCP, and Minecraft operations.
 - It recorded `0` failures, a peak RSS of `413072 KiB`, a constant FD count of `27`, a peak task count of `61`, and a queue range of `0..0`. After initialization, RSS grew by `768 KiB`, FD/tasks by zero, and the workspace by `5787648` bytes (PostgreSQL data). These observations pass the existing resource gates for this workload; they do not substitute for the separate mail-publication stress test.
@@ -49,7 +59,8 @@ The 30-second smoke companion is retained as [`candidate-soak-v6-smoke-0eb2-v1.j
   shutdown-only recovery proof passed the original regression, including exact
   cleanup and queue recoverability. Diagnostic state and every earlier failing
   log are retained. The historical replay is still not a clean full replay.
-  A new package and fresh full replay are still required. See
+  The later `bf6c0d53` package and complete non-oracle replay passed, but a clean
+  repeatable Java differential matrix remains required. See
   [Maildir takeover status](maildir-takeover.md) for the remaining ambiguous-name
   layout and rollback gap. Package availability is not production acceptance.
 - The packaged compact 2026-10-22 InferX model has independent frozen-Java
@@ -63,8 +74,14 @@ The 30-second smoke companion is retained as [`candidate-soak-v6-smoke-0eb2-v1.j
 - Privileged XDP attach, IPv4/IPv6 ban/drop, restart persistence, unban/pass and
   isolated cleanup passed in `xdp-privileged-20261022.json`.
 - Run the revised single-invocation `candidate-stability` SMTP profile formally: 250,000 messages at 1 KiB and 10 KiB, then 100,000 more in the same process with at least 90% of the first 100,000-message rate, plus a disk-budgeted 10 MiB run. Record fsync-off throughput for the independent Java comparison and fsync-on durability, restart recovery, no-loss, leak, and cleanup evidence. Formal v9 and v10 are recorded product stability failures; the shared delivery-state fix in `af56b587` still needs a qualifying rerun. The user permits moving to other incomplete gates after ten unsuccessful stability rounds; that does not turn a failed round into passing evidence.
-- Re-run current-HEAD reproducible release and installation/rollback verification.
-- Complete the full Java/Rust differential matrix, including all HTTP/UI/auth/API/attachment/error/security cases, SMTP client/server paths, storage/restart behavior, HTCPCP, Minecraft, honeypots, rendering, InferX, and XDP privileged gates.
+- Repeat reproducible release and installation verification after further product
+  changes. The `bf6c0d53` independent-target-directory builds, install, upgrade,
+  configuration preservation and uninstall passed. Complete data rollback is
+  still a separate requirement.
+- Complete a clean repeatable Java/Rust differential matrix. The exact retained
+  `bf6c0d53` ELF passed all 311 current non-oracle checks without changing golden
+  files or assertions; the frozen-Java DMARC and multi-domain observations and
+  previously recorded intermittent DNS query order still need resolution.
 - Verify actual AVX2+FMA and AVX-512 runtime-dispatch execution evidence for the implemented mail rendering and Minecraft palette/resize/color conversion paths; Scalar-only evidence is insufficient. The current 275HX WSL host exposes AVX2/FMA but no AVX-512F, so compilation and safe fallback alone cannot prove AVX-512 execution or native performance.
   Local Scalar/AVX2 Minecraft video and mail-view wire/pixel goldens passed with
   verified runtime-dispatch events (`renderer-local-f3b10966/`). The six-round

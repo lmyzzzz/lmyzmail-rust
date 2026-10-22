@@ -1,0 +1,9 @@
+{"external_candidate_binary": "/home/lmyzzz/lmyzmail-rust/target/x86_64-unknown-linux-gnu/release/lmyzmail", "sha256_before": "210510cec73f5da0416799ce834a66d7b2844ac3d00070ffef9e8cb36cd8bb7d"}
+........................................................................ [ 40%]
+........................................................................ [ 80%]
+..................................                                       [100%]
+Campaign audit: {"differences_requiring_review": [], "harness_definition_sha256": "73e751452ad6eecc90dc68019e56806ad11cbb19b22ad7dcbc55928dda2a446f", "historical_observations_equal": 346, "old_golden_files_unchanged": 6897, "pytest_exitstatus": 0}
+
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/shutdown-recovery-20261022-unmarked.xml -
+178 passed, 159 deselected in 14.02s
+{"sha256_after": "210510cec73f5da0416799ce834a66d7b2844ac3d00070ffef9e8cb36cd8bb7d", "staged_sha256_after": "210510cec73f5da0416799ce834a66d7b2844ac3d00070ffef9e8cb36cd8bb7d", "unchanged": true}
