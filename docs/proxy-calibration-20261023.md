@@ -113,3 +113,24 @@ successful operational/cleanup checks. Root receipts record `DONE`, cleanup
 passed, no lazy unmount and no recovery. Both JSON reports explicitly retain
 `qualified=false`: these smokes do not run the formal preflight, large counts
 or same-process continuation, and are not formal acceptance evidence.
+
+## Formal preflight after the correction
+
+One fresh formal launch, `c0756010-e43b-4848-805d-ef88587fa840`, exercised the
+actual root launcher, private network namespace and unchanged cgroup/resource
+policy. It retained every raw CPU/elapsed/rate measurement. All round spreads
+now passed `0.20`, but the independent proxy/control ratio failed `0.90`:
+
+| Tier | Ratio | Direct spread | Proxy spread | Verified | Failed connections |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1 KiB | 0.895412 | 0.009568 | 0.039233 | 1,000,000 | 0 |
+| 10 KiB | 0.847545 | 0.037767 | 0.050758 | 1,000,000 | 0 |
+| 10 MiB | 0.720337 | 0.089213 | 0.102491 | 8,000 | 0 |
+
+The producer correctly refused qualification before candidate startup. The
+authoritative root receipt records `ABORT`, cleanup passed, no lazy unmount,
+no recovery, and `qualified_cleanup=0`. The retained files are
+`release-22dae7d0-formal-off-10mb-v2.console.log` and its `.root-cleanup.txt`.
+No formal candidate tier or high-volume continuation ran. This confirms the
+remaining calibration-overhead gate; passing protocol and cleanup observations
+do not substitute for it. No retry was used to select a favorable round.

@@ -1,0 +1,387 @@
+{
+  "status": "proxy-headroom-failed",
+  "passed": false,
+  "semantic_transparency_passed": false,
+  "max_active_connections": 1500,
+  "minimum_product_headroom_ratio": 2.0,
+  "tiers": {
+    "10KB": {
+      "passed": false,
+      "sustained_messages_per_second": 107979.55761595027,
+      "raw": {
+        "qualification": false,
+        "proxy_to_direct_ratio": 0.8475453433519592,
+        "minimum_proxy_to_direct_ratio": 0.9,
+        "direct_round_spread": 0.03776655835494395,
+        "proxied_round_spread": 0.05075801615025009,
+        "maximum_round_spread": 0.2,
+        "direct_rounds": [
+          {
+            "messages": 250000,
+            "message_bytes": 10240,
+            "duration_ns": 1887623886,
+            "messages_per_second": 132441.63832328195,
+            "mebibytes_per_second": 1293.3753742508002,
+            "process_scheduled_cpu_ns": 15040470793
+          },
+          {
+            "messages": 250000,
+            "message_bytes": 10240,
+            "duration_ns": 1822788353,
+            "messages_per_second": 137152.51119996596,
+            "mebibytes_per_second": 1339.3799921871675,
+            "process_scheduled_cpu_ns": 14516199751
+          },
+          {
+            "messages": 250000,
+            "message_bytes": 10240,
+            "duration_ns": 1861661540,
+            "messages_per_second": 134288.64196227634,
+            "mebibytes_per_second": 1311.4125191628548,
+            "process_scheduled_cpu_ns": 14829186462
+          },
+          {
+            "messages": 250000,
+            "message_bytes": 10240,
+            "duration_ns": 1892279795,
+            "messages_per_second": 132115.7688522484,
+            "mebibytes_per_second": 1290.1930551977384,
+            "process_scheduled_cpu_ns": 15077065355
+          }
+        ],
+        "proxied_rounds": [
+          {
+            "messages": 250000,
+            "message_bytes": 10240,
+            "duration_ns": 2315253049,
+            "messages_per_second": 107979.55761595027,
+            "mebibytes_per_second": 1054.4878673432643,
+            "process_scheduled_cpu_ns": 17921049230
+          },
+          {
+            "messages": 250000,
+            "message_bytes": 10240,
+            "duration_ns": 2216749700,
+            "messages_per_second": 112777.7303860693,
+            "mebibytes_per_second": 1101.345023301458,
+            "process_scheduled_cpu_ns": 17490144072
+          },
+          {
+            "messages": 250000,
+            "message_bytes": 10240,
+            "duration_ns": 2198442140,
+            "messages_per_second": 113716.8886327843,
+            "mebibytes_per_second": 1110.5164905545341,
+            "process_scheduled_cpu_ns": 17304662106
+          },
+          {
+            "messages": 250000,
+            "message_bytes": 10240,
+            "duration_ns": 2206759671,
+            "messages_per_second": 113288.27660091854,
+            "mebibytes_per_second": 1106.3308261808452,
+            "process_scheduled_cpu_ns": 17436736143
+          }
+        ],
+        "observer_qualification": true,
+        "observer_verified": 1000000,
+        "proxy_failed_connections": 0,
+        "proxy_peak_connections": 1000
+      },
+      "persistence_gate": {
+        "qualification": false,
+        "median_on_to_off_ratio": 0.9870714404159845,
+        "minimum_median_on_to_off_ratio": 0.995,
+        "paired_on_to_off_ratios": [
+          0.973976708395925,
+          0.9738671767289505,
+          0.9986618962560423,
+          0.9968232114176504
+        ],
+        "minimum_paired_on_to_off_ratio": 0.99,
+        "off_round_spread": 0.03458244192384332,
+        "on_round_spread": 0.055636070184383275,
+        "maximum_round_spread": 0.01,
+        "on_gate_timings": [
+          {
+            "round_duration_ns": 88479007,
+            "gate_hold_ns": 1075442,
+            "release_to_forwarding_started_ns": 22146,
+            "forwarding_duration_ns": 4823
+          },
+          {
+            "round_duration_ns": 85443160,
+            "gate_hold_ns": 736806,
+            "release_to_forwarding_started_ns": 28536,
+            "forwarding_duration_ns": 2331
+          },
+          {
+            "round_duration_ns": 83619077,
+            "gate_hold_ns": 1353249,
+            "release_to_forwarding_started_ns": 32890,
+            "forwarding_duration_ns": 4389
+          },
+          {
+            "round_duration_ns": 83965298,
+            "gate_hold_ns": 1012020,
+            "release_to_forwarding_started_ns": 61946,
+            "forwarding_duration_ns": 4332
+          }
+        ]
+      }
+    },
+    "10MB": {
+      "passed": false,
+      "sustained_messages_per_second": 869.046458244677,
+      "raw": {
+        "qualification": false,
+        "proxy_to_direct_ratio": 0.7203370029083445,
+        "minimum_proxy_to_direct_ratio": 0.9,
+        "direct_round_spread": 0.08921300256522549,
+        "proxied_round_spread": 0.102491454330227,
+        "maximum_round_spread": 0.2,
+        "direct_rounds": [
+          {
+            "messages": 2000,
+            "message_bytes": 10485760,
+            "duration_ns": 1703561059,
+            "messages_per_second": 1174.0113390323745,
+            "mebibytes_per_second": 11740.113390323744,
+            "process_scheduled_cpu_ns": 13473298048
+          },
+          {
+            "messages": 2000,
+            "message_bytes": 10485760,
+            "duration_ns": 1566473187,
+            "messages_per_second": 1276.7534207401661,
+            "mebibytes_per_second": 12767.53420740166,
+            "process_scheduled_cpu_ns": 12423354100
+          },
+          {
+            "messages": 2000,
+            "message_bytes": 10485760,
+            "duration_ns": 1552974162,
+            "messages_per_second": 1287.8514330362698,
+            "mebibytes_per_second": 12878.514330362697,
+            "process_scheduled_cpu_ns": 12282343410
+          },
+          {
+            "messages": 2000,
+            "message_bytes": 10485760,
+            "duration_ns": 1568205525,
+            "messages_per_second": 1275.3430389808123,
+            "mebibytes_per_second": 12753.430389808122,
+            "process_scheduled_cpu_ns": 12405667393
+          }
+        ],
+        "proxied_rounds": [
+          {
+            "messages": 2000,
+            "message_bytes": 10485760,
+            "duration_ns": 2301372937,
+            "messages_per_second": 869.046458244677,
+            "mebibytes_per_second": 8690.46458244677,
+            "process_scheduled_cpu_ns": 18282868822
+          },
+          {
+            "messages": 2000,
+            "message_bytes": 10485760,
+            "duration_ns": 2076293313,
+            "messages_per_second": 963.2550408353601,
+            "mebibytes_per_second": 9632.550408353602,
+            "process_scheduled_cpu_ns": 16489178455
+          },
+          {
+            "messages": 2000,
+            "message_bytes": 10485760,
+            "duration_ns": 2179202215,
+            "messages_per_second": 917.767055408394,
+            "mebibytes_per_second": 9177.67055408394,
+            "process_scheduled_cpu_ns": 17321193192
+          },
+          {
+            "messages": 2000,
+            "message_bytes": 10485760,
+            "duration_ns": 2172490394,
+            "messages_per_second": 920.6024595200121,
+            "mebibytes_per_second": 9206.02459520012,
+            "process_scheduled_cpu_ns": 17240474641
+          }
+        ],
+        "observer_qualification": true,
+        "observer_verified": 8000,
+        "proxy_failed_connections": 0,
+        "proxy_peak_connections": 80
+      },
+      "persistence_gate": {
+        "qualification": true,
+        "median_on_to_off_ratio": 1.0280898928574311,
+        "minimum_median_on_to_off_ratio": 0.995,
+        "paired_on_to_off_ratios": [
+          1.0300236018128426,
+          1.1548320513336596,
+          1.0261521267403155,
+          1.0041192446169538
+        ],
+        "minimum_paired_on_to_off_ratio": 0.99,
+        "off_round_spread": 0.14915516765375994,
+        "on_round_spread": 0.01569742658837086,
+        "maximum_round_spread": 0.01,
+        "on_gate_timings": [
+          {
+            "round_duration_ns": 98727162,
+            "gate_hold_ns": 230835,
+            "release_to_forwarding_started_ns": 22615,
+            "forwarding_duration_ns": 7597
+          },
+          {
+            "round_duration_ns": 99417342,
+            "gate_hold_ns": 157569,
+            "release_to_forwarding_started_ns": 17168,
+            "forwarding_duration_ns": 7262
+          },
+          {
+            "round_duration_ns": 99307564,
+            "gate_hold_ns": 146725,
+            "release_to_forwarding_started_ns": 16892,
+            "forwarding_duration_ns": 4465
+          },
+          {
+            "round_duration_ns": 97874741,
+            "gate_hold_ns": 139021,
+            "release_to_forwarding_started_ns": 52668,
+            "forwarding_duration_ns": 5345
+          }
+        ]
+      }
+    },
+    "1KB": {
+      "passed": false,
+      "sustained_messages_per_second": 120759.4427456202,
+      "raw": {
+        "qualification": false,
+        "proxy_to_direct_ratio": 0.8954116815137395,
+        "minimum_proxy_to_direct_ratio": 0.9,
+        "direct_round_spread": 0.009568406442561338,
+        "proxied_round_spread": 0.03923282395425633,
+        "maximum_round_spread": 0.2,
+        "direct_rounds": [
+          {
+            "messages": 250000,
+            "message_bytes": 1024,
+            "duration_ns": 1793821276,
+            "messages_per_second": 139367.28443620043,
+            "mebibytes_per_second": 136.10086370722698,
+            "process_scheduled_cpu_ns": 14189582312
+          },
+          {
+            "messages": 250000,
+            "message_bytes": 1024,
+            "duration_ns": 1776789068,
+            "messages_per_second": 140703.25200807684,
+            "mebibytes_per_second": 137.40551953913754,
+            "process_scheduled_cpu_ns": 14102406049
+          },
+          {
+            "messages": 250000,
+            "message_bytes": 1024,
+            "duration_ns": 1792974816,
+            "messages_per_second": 139433.07946607543,
+            "mebibytes_per_second": 136.1651166660893,
+            "process_scheduled_cpu_ns": 14247292731
+          },
+          {
+            "messages": 250000,
+            "message_bytes": 1024,
+            "duration_ns": 1788109152,
+            "messages_per_second": 139812.49395227074,
+            "mebibytes_per_second": 136.5356386252644,
+            "process_scheduled_cpu_ns": 14193548663
+          }
+        ],
+        "proxied_rounds": [
+          {
+            "messages": 250000,
+            "message_bytes": 1024,
+            "duration_ns": 2070231481,
+            "messages_per_second": 120759.4427456202,
+            "mebibytes_per_second": 117.92914330626972,
+            "process_scheduled_cpu_ns": 16095888345
+          },
+          {
+            "messages": 250000,
+            "message_bytes": 1024,
+            "duration_ns": 2007434353,
+            "messages_per_second": 124537.07371620338,
+            "mebibytes_per_second": 121.61823605097986,
+            "process_scheduled_cpu_ns": 15842531590
+          },
+          {
+            "messages": 250000,
+            "message_bytes": 1024,
+            "duration_ns": 1989426984,
+            "messages_per_second": 125664.32546186876,
+            "mebibytes_per_second": 122.71906783385622,
+            "process_scheduled_cpu_ns": 15711279631
+          },
+          {
+            "messages": 250000,
+            "message_bytes": 1024,
+            "duration_ns": 1991989418,
+            "messages_per_second": 125502.67473358636,
+            "mebibytes_per_second": 122.56120579451793,
+            "process_scheduled_cpu_ns": 15708447597
+          }
+        ],
+        "observer_qualification": true,
+        "observer_verified": 1000000,
+        "proxy_failed_connections": 0,
+        "proxy_peak_connections": 1500
+      },
+      "persistence_gate": {
+        "qualification": true,
+        "median_on_to_off_ratio": 1.0008282852997468,
+        "minimum_median_on_to_off_ratio": 0.995,
+        "paired_on_to_off_ratios": [
+          0.9701729841250952,
+          0.9952812901114426,
+          1.0076966494727824,
+          1.0195921404099122
+        ],
+        "minimum_paired_on_to_off_ratio": 0.99,
+        "off_round_spread": 0.030670507064480237,
+        "on_round_spread": 0.020557677460327616,
+        "maximum_round_spread": 0.01,
+        "on_gate_timings": [
+          {
+            "round_duration_ns": 209819716,
+            "gate_hold_ns": 1265483,
+            "release_to_forwarding_started_ns": 25739,
+            "forwarding_duration_ns": 3682
+          },
+          {
+            "round_duration_ns": 208119385,
+            "gate_hold_ns": 835894,
+            "release_to_forwarding_started_ns": 53254,
+            "forwarding_duration_ns": 4534
+          },
+          {
+            "round_duration_ns": 208246719,
+            "gate_hold_ns": 1971204,
+            "release_to_forwarding_started_ns": 34502,
+            "forwarding_duration_ns": 4356
+          },
+          {
+            "round_duration_ns": 205560644,
+            "gate_hold_ns": 957313,
+            "release_to_forwarding_started_ns": 20709,
+            "forwarding_duration_ns": 2524
+          }
+        ]
+      }
+    }
+  }
+}
+Error: "proxy headroom attestation did not qualify"
+formal benchmark requires a passing root-owned proxy attestation
+benchmark watchdog qualification failed:  artifact_receipt_valid=0  runner_success_valid=0
