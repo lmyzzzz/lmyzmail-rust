@@ -398,7 +398,7 @@ close_runner_artifact_fds() {
     fi
 }
 
-remove_unqualified_artifacts() {
+retain_unqualified_artifacts() {
     local identifier=$1 success_schema=missing
     derive_run_paths "${identifier}" || return 1
     if [[ -e ${runner_success_path} || -L ${runner_success_path} ]]; then
@@ -418,7 +418,7 @@ import sys
 
 root = pathlib.Path(sys.argv[1])
 artifacts = (
-    (pathlib.Path(sys.argv[2]), {0o600, 0o444}, "output"),
+    (pathlib.Path(sys.argv[2]), {0o600, 0o444, 0o400}, "output"),
     (pathlib.Path(sys.argv[3]), {0o600, 0o400}, "checkpoint"),
 )
 if any(path.parent != root for path, _, _ in artifacts):
@@ -460,7 +460,11 @@ try:
                 and stat.S_IMODE(path_metadata.st_mode) in allowed_modes
             ):
                 raise SystemExit(f"unqualified {label} artifact changed identity")
-            os.unlink(path.name, dir_fd=directory)
+            # Preserve failed/partial evidence outside the disposable quota
+            # image. It remains root-private and cannot be promoted without
+            # the existing qualified producer and cleanup receipts.
+            os.fchmod(descriptor, 0o400)
+            os.fsync(descriptor)
             os.fsync(directory)
         finally:
             os.close(descriptor)
@@ -2896,7 +2900,7 @@ recover_incomplete_runs() {
         fi
         if [[ ${intent_schema} == 1 ]]; then
             write_legacy_unqualified_receipt "${identifier}" || recovered_failed=1
-            remove_unqualified_artifacts "${identifier}" || recovered_failed=1
+            retain_unqualified_artifacts "${identifier}" || recovered_failed=1
             continue
         fi
         success_schema=missing
@@ -2914,7 +2918,7 @@ recover_incomplete_runs() {
             && $(read_journal_value "${done_path}" qualified_cleanup) == 1 ]]; then
             publish_provisional "${identifier}" || recovered_failed=1
         else
-            remove_unqualified_artifacts "${identifier}" || recovered_failed=1
+            retain_unqualified_artifacts "${identifier}" || recovered_failed=1
         fi
     done
     shopt -u nullglob
@@ -3482,6 +3486,16 @@ expected_gate_shapes = {
     "10KB": (8_000, 1000),
     "10MB": (100, 20),
 }
+calibration_cpu_set = set()
+for field in housekeeping_cpus.split(","):
+    bounds = field.split("-")
+    start, end = (int(bounds[0]), int(bounds[-1]))
+    calibration_cpu_set.update(range(start, end + 1))
+expected_runtime_topology = {
+    "synthetic_worker_threads": 1,
+    "proxy_worker_threads": min(8, len(calibration_cpu_set)),
+    "separate_proxy_runtime": True,
+}
 tiers = proxy.get("tiers")
 if not isinstance(tiers, dict) or set(tiers) != set(expected_tiers):
     raise SystemExit("proxy attestation tier set changed")
@@ -3642,8 +3656,10 @@ for label, (message_bytes, messages, concurrency) in expected_tiers.items():
     maximum_release_to_forwarding_ns = max(value[1] for value in gate_timings)
     maximum_forwarding_ns = max(value[2] for value in gate_timings)
     if not (
-        gate.get("schema_version") == 2
-        and gate.get("profile") == "lmyzmail-persistence-gate-overhead-calibration-v2"
+        gate.get("schema_version") == 3
+        and canonical_sha(gate.get("runtime_topology"))
+        == canonical_sha(expected_runtime_topology)
+        and gate.get("profile") == "lmyzmail-persistence-gate-overhead-calibration-v3"
         and gate.get("qualification_basis") == "direct-gate-timing"
         and gate.get("synthetic_no_postgres_or_maildir") is True
         and gate.get("messages") == gate_messages
@@ -3726,7 +3742,9 @@ for label, (message_bytes, messages, concurrency) in expected_tiers.items():
     expected_observed = messages * 4
     expected_connections = concurrency * 4
     raw_passed = (
-        raw.get("schema_version") == 4
+        raw.get("schema_version") == 5
+        and canonical_sha(raw.get("runtime_topology"))
+        == canonical_sha(expected_runtime_topology)
         and raw.get("control_topology") == "bounded-unobserved-proxy"
         and raw.get("observed_topology") == "bounded-observing-proxy"
         and raw.get("equal_tcp_hop_topology") is True
@@ -3796,9 +3814,9 @@ for label, (message_bytes, messages, concurrency) in expected_tiers.items():
         and tier.get("messages_per_round") == messages
         and tier.get("concurrency") == concurrency
         and tier.get("rounds_per_arm") == 4
-        and tier.get("raw_calibration_schema_version") == 4
+        and tier.get("raw_calibration_schema_version") == 5
         and tier.get("raw_calibration_sha256") == raw_sha
-        and tier.get("gate_overhead_calibration_schema_version") == 2
+        and tier.get("gate_overhead_calibration_schema_version") == 3
         and tier.get("gate_overhead_calibration_sha256") == gate_sha
         and math.isclose(
             tier.get("sustained_messages_per_second", -1),
@@ -4387,7 +4405,7 @@ root_cleanup_watchdog() {
             "${identifier}" "${request}" 0 0 \
             "${managed_runner_pid}" "${managed_runner_start_time}"; then
             cleanup_failed=1
-        elif ! remove_unqualified_artifacts "${identifier}"; then
+        elif ! retain_unqualified_artifacts "${identifier}"; then
             cleanup_failed=1
         fi
     fi
@@ -4444,7 +4462,7 @@ cleanup() {
     elif [[ -n ${run_id} ]]; then
         if cleanup_run_resources "${run_id}" 0; then
             if ! write_cleanup_receipt "${run_id}" ABORT 0 0 \
-                || ! remove_unqualified_artifacts "${run_id}"; then
+                || ! retain_unqualified_artifacts "${run_id}"; then
                 cleanup_failed=1
             fi
         else

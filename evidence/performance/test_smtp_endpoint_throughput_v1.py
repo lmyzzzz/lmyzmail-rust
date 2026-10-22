@@ -2165,7 +2165,10 @@ class PlanAndComparisonTests(unittest.TestCase):
                     + control_runtime_reserve_bytes
                 )
                 raw = {
-                    "schema_version": 4,
+                    "schema_version": 5,
+                    "runtime_topology": runner._calibration_runtime_topology(
+                        environment["calibration_cpus"]
+                    ),
                     "control_topology": "bounded-unobserved-proxy",
                     "observed_topology": "bounded-observing-proxy",
                     "equal_tcp_hop_topology": True,
@@ -2322,8 +2325,11 @@ class PlanAndComparisonTests(unittest.TestCase):
                     "process_scheduled_cpu_ns": gate_duration_ns // 2,
                 }
                 gate = {
-                    "schema_version": 2,
-                    "profile": "lmyzmail-persistence-gate-overhead-calibration-v2",
+                    "schema_version": 3,
+                    "runtime_topology": runner._calibration_runtime_topology(
+                        environment["calibration_cpus"]
+                    ),
+                    "profile": "lmyzmail-persistence-gate-overhead-calibration-v3",
                     "qualification_basis": "direct-gate-timing",
                     "synthetic_no_postgres_or_maildir": True,
                     "messages": gate_messages,
@@ -2381,10 +2387,10 @@ class PlanAndComparisonTests(unittest.TestCase):
                     "concurrency": concurrency,
                     "rounds_per_arm": 4,
                     "sustained_messages_per_second": 1_800.0,
-                    "raw_calibration_schema_version": 4,
+                    "raw_calibration_schema_version": 5,
                     "raw_calibration_sha256": raw_sha,
                     "raw_calibration": raw,
-                    "gate_overhead_calibration_schema_version": 2,
+                    "gate_overhead_calibration_schema_version": 3,
                     "gate_overhead_calibration_sha256": gate_sha,
                     "gate_overhead_calibration": gate,
                     "passed": True,
@@ -2461,6 +2467,52 @@ class PlanAndComparisonTests(unittest.TestCase):
                             layout=layout,
                             started_attestation=started_attestation,
                         )
+
+            # Rehash every level so failure must come from topology validation,
+            # rather than the existing integrity checks masking that contract.
+            for report_name, old_version in (
+                ("raw_calibration", 4), ("gate_overhead_calibration", 2),
+            ):
+                for field, replacement in (
+                    ("synthetic_worker_threads", 2),
+                    ("synthetic_worker_threads", True),
+                    ("proxy_worker_threads", 99),
+                    ("separate_proxy_runtime", False),
+                    ("missing", None),
+                    ("old_schema", old_version),
+                ):
+                    with self.subTest(report=report_name, topology=field):
+                        changed = json.loads(json.dumps(proxy))
+                        report = changed["tiers"]["10KB"][report_name]
+                        if field == "missing":
+                            del report["runtime_topology"]
+                        elif field == "old_schema":
+                            report["schema_version"] = replacement
+                        else:
+                            report["runtime_topology"][field] = replacement
+                        hashes = {}
+                        for label, tier in changed["tiers"].items():
+                            for name in ("raw_calibration", "gate_overhead_calibration"):
+                                tier[f"{name}_sha256"] = runner._canonical_json_sha256(
+                                    tier[name]
+                                )
+                                tier[f"{name}_schema_version"] = tier[name][
+                                    "schema_version"
+                                ]
+                            hashes[label] = runner._canonical_json_sha256({
+                                "raw_calibration_sha256": tier["raw_calibration_sha256"],
+                                "gate_overhead_calibration_sha256": tier[
+                                    "gate_overhead_calibration_sha256"
+                                ],
+                            })
+                        changed["calibration_bundle_sha256"] = (
+                            runner._canonical_json_sha256(hashes)
+                        )
+                        with self.assertRaises(RuntimeError):
+                            runner._validate_proxy_headroom_raw(
+                                changed, layout=layout,
+                                started_attestation=started_attestation,
+                            )
 
     def test_io_max_parser_accepts_only_exact_bandwidth_and_unlimited_iops(
         self,
@@ -5994,6 +6046,21 @@ class CleanupStateTests(unittest.TestCase):
 
 
 class CgroupLayoutTests(unittest.TestCase):
+    def test_read_only_check_uses_visible_mount_when_bind_covers_writable_mount(
+        self,
+    ) -> None:
+        stacked = (
+            "556 555 0:23 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n"
+            "711 556 0:23 / /sys/fs/cgroup ro - cgroup2 cgroup2 rw\n"
+        )
+        for flag, expected in ((runner.os.ST_RDONLY, True), (0, False)):
+            with self.subTest(flag=flag), mock.patch.object(
+                Path, "read_text", return_value=stacked
+            ), mock.patch.object(
+                runner.os, "statvfs", return_value=SimpleNamespace(f_flag=flag)
+            ):
+                self.assertIs(runner._cgroup_mount_is_read_only(), expected)
+
     def test_runner_is_non_dumpable_and_drops_ptrace_from_bounding_set(self) -> None:
         class FakePrctl:
             def __init__(self) -> None:

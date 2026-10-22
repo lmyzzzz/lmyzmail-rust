@@ -1,0 +1,9 @@
+schema_version=2
+run_id=694dd432-31d6-47bd-a5e1-dffebabd6b83
+request=ABORT
+cleanup=passed
+lazy_unmount=0
+recovered=0
+qualified_cleanup=0
+provisional_sha256=missing
+checkpoint_sha256=missing

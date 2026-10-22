@@ -1,0 +1,6 @@
+before False
+after True
+kernel_visible_read_only True
+mounts
+556 555 0:23 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime - cgroup2 cgroup2 rw,nsdelegate
+711 556 0:23 / /sys/fs/cgroup ro,nosuid,nodev,noexec,relatime - cgroup2 cgroup2 rw,nsdelegate

@@ -9102,17 +9102,10 @@ def _definition_attestation() -> dict[str, Any]:
 
 
 def _cgroup_mount_is_read_only() -> bool:
-    expected = Path("/sys/fs/cgroup")
-    for line in Path("/proc/self/mountinfo").read_text(encoding="ascii").splitlines():
-        left, separator, right = line.partition(" - ")
-        fields = left.split()
-        filesystem = right.split()
-        if not separator or len(fields) < 6 or len(filesystem) < 3:
-            continue
-        if Path(fields[4]) != expected:
-            continue
-        return "ro" in fields[5].split(",") or "ro" in filesystem[2].split(",")
-    return False
+    # Bind mounts can leave multiple mountinfo rows at the same mountpoint.
+    # statvfs resolves the mount visible to this process, including its VFS
+    # read-only flag; the covered original mount is not the effective policy.
+    return bool(os.statvfs("/sys/fs/cgroup").f_flag & os.ST_RDONLY)
 
 
 def _nofile_evidence(layout: CgroupLayout) -> dict[str, Any]:
@@ -9633,8 +9626,12 @@ def _validate_gate_overhead_calibration(
         "concurrency": concurrency,
     }
     if not (
-        gate.get("schema_version") == 2
-        and gate.get("profile") == "lmyzmail-persistence-gate-overhead-calibration-v2"
+        gate.get("schema_version") == 3
+        and _canonical_json_sha256(gate.get("runtime_topology"))
+        == _canonical_json_sha256(
+            _calibration_runtime_topology(expected_environment["calibration_cpus"])
+        )
+        and gate.get("profile") == "lmyzmail-persistence-gate-overhead-calibration-v3"
         and gate.get("qualification_basis") == "direct-gate-timing"
         and gate.get("synthetic_no_postgres_or_maildir") is True
         and gate.get("messages") == messages
@@ -9713,6 +9710,14 @@ def _io_max_lines_match_fixed_limits(
         if iops not in ((None, None), ("max", "max")):
             return False
     return seen == devices
+
+
+def _calibration_runtime_topology(cpus: str) -> dict[str, Any]:
+    return {
+        "synthetic_worker_threads": 1,
+        "proxy_worker_threads": min(8, len(_parse_cpu_list(cpus))),
+        "separate_proxy_runtime": True,
+    }
 
 
 def _validate_proxy_headroom_raw(
@@ -9842,7 +9847,11 @@ def _validate_proxy_headroom_raw(
         ):
             raise RuntimeError(f"proxy headroom raw proof is incomplete: {label}")
         raw_passed = bool(
-            raw.get("schema_version") == 4
+            raw.get("schema_version") == 5
+            and _canonical_json_sha256(raw.get("runtime_topology"))
+            == _canonical_json_sha256(
+                _calibration_runtime_topology(expected_environment["calibration_cpus"])
+            )
             and raw.get("control_topology") == "bounded-unobserved-proxy"
             and raw.get("observed_topology") == "bounded-observing-proxy"
             and raw.get("equal_tcp_hop_topology") is True
@@ -9917,9 +9926,9 @@ def _validate_proxy_headroom_raw(
             and tier.get("messages_per_round") == messages
             and tier.get("concurrency") == concurrency
             and tier.get("rounds_per_arm") == 4
-            and tier.get("raw_calibration_schema_version") == 4
+            and tier.get("raw_calibration_schema_version") == 5
             and tier.get("raw_calibration_sha256") == raw_sha
-            and tier.get("gate_overhead_calibration_schema_version") == 2
+            and tier.get("gate_overhead_calibration_schema_version") == 3
             and tier.get("gate_overhead_calibration_sha256") == gate_sha
             and isinstance(gate, dict)
             and gate.get("qualification") is True
@@ -10483,6 +10492,21 @@ def _run_benchmark(args: argparse.Namespace, layout: CgroupLayout) -> dict[str, 
                 "cgroup": layout.snapshot(),
             }
         )
+        if (
+            not java_small_baseline
+            and not args.smoke
+            and not qualification_prerequisites_passed
+        ):
+            raise RuntimeError(
+                "formal benchmark prerequisites did not qualify before workload: "
+                + json.dumps({
+                    "target": args.target, "tier": args.tier,
+                    "disk_budget_bytes": disk_budget_bytes,
+                    "isolation_policy": attestation["isolation_policy"],
+                    "external_prerequisites_passed": external_prerequisites["passed"],
+                    "cgroup": layout.snapshot(),
+                }, sort_keys=True)
+            )
     except BaseException as error:
         with contextlib.suppress(BaseException):
             checkpoint.append(

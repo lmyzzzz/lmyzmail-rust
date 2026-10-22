@@ -1,0 +1,240 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.17s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.19s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.21s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.20s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.23s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.21s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.21s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.19s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.21s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.21s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.20s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.20s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.18s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.23s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.22s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.24s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.43s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.21s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.22s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.23s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.23s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.21s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.22s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.21s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.22s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.22s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.22s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.22s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.18s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 1 test
+test calibration::tests::isolated_gate_calibration_keeps_all_messages_and_final_reply_checks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.19s
+

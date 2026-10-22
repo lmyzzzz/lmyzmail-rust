@@ -7,6 +7,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use std::fs;
+use std::future::Future;
 use std::io;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::os::unix::fs::PermissionsExt;
@@ -22,7 +23,8 @@ use tokio::task::JoinSet;
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
-pub const RAW_CALIBRATION_SCHEMA_VERSION: u32 = 4;
+pub const RAW_CALIBRATION_SCHEMA_VERSION: u32 = 5;
+const MAX_CALIBRATION_PROXY_WORKERS: usize = 8;
 const CALIBRATION_ROUND: u64 = 1;
 const MAX_CALIBRATION_CONNECTIONS: usize = 2_048;
 const CALIBRATION_STARTUP_TIMEOUT: Duration = Duration::from_secs(60);
@@ -151,6 +153,7 @@ pub struct CalibrationMeasurement {
 #[derive(Clone, Debug, Serialize)]
 pub struct CalibrationReport {
     pub schema_version: u32,
+    pub runtime_topology: CalibrationRuntimeTopology,
     pub control_topology: &'static str,
     pub observed_topology: &'static str,
     pub equal_tcp_hop_topology: bool,
@@ -189,6 +192,7 @@ pub struct GateCalibrationRound {
 #[derive(Clone, Debug, Serialize)]
 pub struct GateOverheadCalibrationReport {
     pub schema_version: u32,
+    pub runtime_topology: CalibrationRuntimeTopology,
     pub profile: &'static str,
     pub qualification_basis: &'static str,
     pub synthetic_no_postgres_or_maildir: bool,
@@ -218,7 +222,64 @@ pub struct GateOverheadCalibrationReport {
     pub qualification: bool,
 }
 
+#[derive(Clone, Copy, Debug, Serialize)]
+pub struct CalibrationRuntimeTopology {
+    pub synthetic_worker_threads: usize,
+    pub proxy_worker_threads: usize,
+    pub separate_proxy_runtime: bool,
+}
+
+impl CalibrationRuntimeTopology {
+    fn current() -> io::Result<Self> {
+        Ok(Self {
+            synthetic_worker_threads: 1,
+            proxy_worker_threads: std::thread::available_parallelism()?
+                .get()
+                .min(MAX_CALIBRATION_PROXY_WORKERS),
+            separate_proxy_runtime: true,
+        })
+    }
+}
+
+// Runtime shutdown must also be safe if the caller cancels an async calibration.
+// Dropping this guard cancels its tasks without dropping a blocking Runtime in
+// another async runtime. No tasks or CPU budget are borrowed from the caller.
+struct CalibrationRuntime(Option<tokio::runtime::Runtime>);
+
+impl Drop for CalibrationRuntime {
+    fn drop(&mut self) {
+        if let Some(runtime) = self.0.take() {
+            runtime.shutdown_background();
+        }
+    }
+}
+
+async fn run_on_synthetic_runtime<T: Send + 'static>(
+    operation: impl Future<Output = Result<T, BoxError>> + Send + 'static,
+) -> Result<T, BoxError> {
+    let runtime = CalibrationRuntime(Some(
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .thread_name("calibration-load")
+            .enable_all()
+            .build()?,
+    ));
+    let task = runtime
+        .0
+        .as_ref()
+        .expect("live calibration runtime")
+        .spawn(operation);
+    task.await?
+}
+
 pub async fn run_calibration(
+    config: CalibrationConfig,
+    limits: ObserverLimits,
+) -> Result<CalibrationReport, BoxError> {
+    run_on_synthetic_runtime(run_calibration_inner(config, limits)).await
+}
+
+async fn run_calibration_inner(
     config: CalibrationConfig,
     limits: ObserverLimits,
 ) -> Result<CalibrationReport, BoxError> {
@@ -262,8 +323,7 @@ pub async fn run_calibration(
         return Err(error.into());
     }
     let telemetry = ProxyTelemetry::shared();
-    let (proxy_shutdown, proxy_shutdown_rx) = watch::channel(false);
-    let proxy = match ProxyServer::bind(
+    let (proxy_addr, proxy_shutdown, proxy_task) = match start_isolated_proxy(
         ProxyConfig {
             listen: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
             backend: backend_addr,
@@ -283,16 +343,6 @@ pub async fn run_calibration(
             return Err(error);
         }
     };
-    let proxy_addr = match proxy.local_addr() {
-        Ok(address) => address,
-        Err(error) => {
-            drop(proxy);
-            let _ = stop_service(control_shutdown, control_task).await;
-            let _ = stop_service(backend_shutdown, backend_task).await;
-            return Err(error.into());
-        }
-    };
-    let proxy_task = tokio::spawn(proxy.serve(proxy_shutdown_rx));
     let sequence = balanced_sequence(config.rounds_per_arm);
     let mut direct_rounds = Vec::with_capacity(config.rounds_per_arm);
     let mut proxied_rounds = Vec::with_capacity(config.rounds_per_arm);
@@ -377,6 +427,7 @@ pub async fn run_calibration(
         && proxied_spread <= config.maximum_round_spread;
     Ok(CalibrationReport {
         schema_version: RAW_CALIBRATION_SCHEMA_VERSION,
+        runtime_topology: CalibrationRuntimeTopology::current()?,
         control_topology: "bounded-unobserved-proxy",
         observed_topology: "bounded-observing-proxy",
         equal_tcp_hop_topology: true,
@@ -407,6 +458,23 @@ pub async fn run_calibration(
 }
 
 pub async fn run_gate_overhead_calibration(
+    messages: usize,
+    message_bytes: usize,
+    concurrency: usize,
+    limits: ObserverLimits,
+    binding: Value,
+) -> Result<GateOverheadCalibrationReport, BoxError> {
+    run_on_synthetic_runtime(run_gate_overhead_calibration_inner(
+        messages,
+        message_bytes,
+        concurrency,
+        limits,
+        binding,
+    ))
+    .await
+}
+
+async fn run_gate_overhead_calibration_inner(
     messages: usize,
     message_bytes: usize,
     concurrency: usize,
@@ -538,8 +606,9 @@ pub async fn run_gate_overhead_calibration(
         && observed_maximum_release_to_forwarding_ns <= MAXIMUM_GATE_RELEASE_TO_FORWARDING_NS
         && observed_maximum_forwarding_ns <= MAXIMUM_GATE_FORWARDING_NS;
     Ok(GateOverheadCalibrationReport {
-        schema_version: 2,
-        profile: "lmyzmail-persistence-gate-overhead-calibration-v2",
+        schema_version: 3,
+        runtime_topology: CalibrationRuntimeTopology::current()?,
+        profile: "lmyzmail-persistence-gate-overhead-calibration-v3",
         qualification_basis: "direct-gate-timing",
         synthetic_no_postgres_or_maildir: true,
         messages,
@@ -613,10 +682,9 @@ async fn run_gate_calibration_arm(
 ) -> Result<GateCalibrationRound, BoxError> {
     let observer = ObserverHub::new(limits)?;
     let telemetry = ProxyTelemetry::shared();
-    let (proxy_shutdown_tx, proxy_shutdown_rx) = watch::channel(false);
     let (control_shutdown_tx, control_shutdown_rx) = watch::channel(false);
     let (proxy_stopped_tx, proxy_stopped_rx) = watch::channel(false);
-    let proxy = ProxyServer::bind(
+    let (proxy_addr, proxy_shutdown_tx, proxy_task) = start_isolated_proxy(
         ProxyConfig {
             listen: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
             backend: backend_addr,
@@ -628,9 +696,8 @@ async fn run_gate_calibration_arm(
         telemetry.clone(),
     )
     .await?;
-    let proxy_addr = proxy.local_addr()?;
     let proxy_task = tokio::spawn(async move {
-        let result = proxy.serve(proxy_shutdown_rx).await;
+        let result = proxy_task.await.map_err(io::Error::other)?;
         proxy_stopped_tx.send(true).ok();
         result
     });
@@ -747,7 +814,18 @@ async fn control_command(
     command: Value,
     timeout: Duration,
 ) -> Result<Value, BoxError> {
-    let mut stream = tokio::time::timeout(timeout, UnixStream::connect(path)).await??;
+    let mut stream = tokio::time::timeout(timeout, UnixStream::connect(path))
+        .await?
+        .map_err(|error| {
+            io::Error::new(
+                error.kind(),
+                format!(
+                    "gate control connect failed: path={}, command={}, error={error}",
+                    path.display(),
+                    command["command"],
+                ),
+            )
+        })?;
     let payload = serde_json::to_vec(&command)?;
     if payload.len() > 64 * 1024 {
         return Err("gate calibration control command exceeded its fixed bound".into());
@@ -947,7 +1025,7 @@ async fn start_unobserved_control_proxy(
 > {
     let observer = ObserverHub::disabled(limits)?;
     let telemetry = ProxyTelemetry::shared();
-    let proxy = ProxyServer::bind(
+    let (address, shutdown_tx, task) = start_isolated_proxy(
         ProxyConfig {
             listen: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
             backend,
@@ -959,10 +1037,59 @@ async fn start_unobserved_control_proxy(
         telemetry.clone(),
     )
     .await?;
-    let address = proxy.local_addr()?;
-    let (shutdown_tx, shutdown_rx) = watch::channel(false);
-    let task = tokio::spawn(proxy.serve(shutdown_rx));
     Ok((address, shutdown_tx, task, telemetry))
+}
+
+// Both arms have the same independent, bounded proxy scheduler, like the real
+// external proxy. Load generation/backend work has its own single worker.
+async fn start_isolated_proxy(
+    config: ProxyConfig,
+    observer: ObserverHub,
+    telemetry: Arc<ProxyTelemetry>,
+) -> Result<
+    (
+        SocketAddr,
+        watch::Sender<bool>,
+        tokio::task::JoinHandle<io::Result<()>>,
+    ),
+    BoxError,
+> {
+    let runtime = CalibrationRuntime(Some(
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(CalibrationRuntimeTopology::current()?.proxy_worker_threads)
+            .thread_name("calibration-proxy")
+            .enable_all()
+            .build()?,
+    ));
+    let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
+    let service = runtime
+        .0
+        .as_ref()
+        .expect("live calibration runtime")
+        .spawn(async move {
+            let proxy = ProxyServer::bind(config, observer, telemetry)
+                .await
+                .map_err(io::Error::other)?;
+            let address = proxy.local_addr()?;
+            ready_tx
+                .send(address)
+                .map_err(|_| io::Error::other("calibration readiness receiver closed"))?;
+            proxy.serve(shutdown_rx).await
+        });
+    let task = tokio::spawn(async move {
+        let result = service.await.map_err(io::Error::other);
+        drop(runtime);
+        result?
+    });
+    match ready_rx.await {
+        Ok(address) => Ok((address, shutdown_tx, task)),
+        Err(_) => {
+            shutdown_tx.send(true).ok();
+            task.await??;
+            Err("calibration proxy stopped before readiness".into())
+        }
+    }
 }
 
 async fn wait_for_proxy_idle(telemetry: &Arc<ProxyTelemetry>, arm: &str) -> io::Result<()> {
@@ -1506,6 +1633,56 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cancelling_calibration_stops_the_independent_runtime_tasks() {
+        struct NotifyOnDrop(Option<tokio::sync::oneshot::Sender<()>>);
+        impl Drop for NotifyOnDrop {
+            fn drop(&mut self) {
+                self.0.take().unwrap().send(()).ok();
+            }
+        }
+        let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+        let (dropped_tx, dropped_rx) = tokio::sync::oneshot::channel();
+        let task = tokio::spawn(run_on_synthetic_runtime(async move {
+            let _guard = NotifyOnDrop(Some(dropped_tx));
+            assert_eq!(std::thread::current().name(), Some("calibration-load"));
+            ready_tx.send(()).unwrap();
+            std::future::pending::<Result<(), BoxError>>().await
+        }));
+        ready_rx.await.unwrap();
+        task.abort();
+        assert!(task.await.unwrap_err().is_cancelled());
+        tokio::time::timeout(Duration::from_secs(5), dropped_rx)
+            .await
+            .unwrap()
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn isolated_gate_calibration_keeps_all_messages_and_final_reply_checks() {
+        let report = run_gate_overhead_calibration(
+            16,
+            1_024,
+            4,
+            ObserverLimits::default(),
+            json!({"test": "isolated-runtime"}),
+        )
+        .await
+        .unwrap();
+        assert_eq!(report.schema_version, 3);
+        assert_eq!(report.runtime_topology.synthetic_worker_threads, 1);
+        assert!(report.runtime_topology.separate_proxy_runtime);
+        assert_eq!(report.off_rounds.len(), 4);
+        assert_eq!(report.on_rounds.len(), 4);
+        for round in report.off_rounds.iter().chain(&report.on_rounds) {
+            assert_eq!(round.observer.verified, 16);
+            assert!(round.observer.qualification, "{round:#?}");
+            assert_eq!(round.proxy.completed_connections, 4);
+            assert_eq!(round.proxy.failed_connections, 0);
+            assert!(round.observer.persistence_gate.qualified);
+        }
+    }
+
+    #[tokio::test]
     async fn smoke_calibration_exercises_real_proxy_and_data_observer() {
         let report = run_calibration(
             CalibrationConfig {
@@ -1521,7 +1698,13 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(report.schema_version, 4);
+        assert_eq!(report.schema_version, 5);
+        assert_eq!(report.runtime_topology.synthetic_worker_threads, 1);
+        assert_eq!(
+            report.runtime_topology.proxy_worker_threads,
+            std::thread::available_parallelism().unwrap().get().min(8)
+        );
+        assert!(report.runtime_topology.separate_proxy_runtime);
         assert_eq!(report.control_topology, "bounded-unobserved-proxy");
         assert!(report.observer.qualification, "{report:#?}");
         assert_eq!(report.observer.verified, 48);

@@ -77,11 +77,22 @@ The 30-second smoke companion is retained as [`candidate-soak-v6-smoke-0eb2-v1.j
 
 ## Still required
 
-- The current `22dae7d0` formal SMTP attempt failed before candidate startup on
+- The role-isolated calibration now passed the actual root/cgroup producer and
+  independent verifier for every tier, without changing the 0.90 ratio or 0.20
+  spread gates. The next 10 MiB fsync-off workload observed 500/500 messages and
+  passed its comparison, but remained unqualified. A reproduced visible-mount
+  detection bug incorrectly read the covered writable cgroup mount; the fixed
+  probe now follows the actual read-only bind. Failed raw artifacts will also be
+  retained instead of deleted. See [the runtime-isolation evidence](proxy-runtime-isolation-20261023.md).
+  That run is still negative evidence; a new formal run must exercise real-product
+  gate calibration and retain complete publication, resource, recovery and cleanup
+  proofs before any SMTP tier can qualify.
+
+- The earlier `22dae7d0` formal SMTP attempts failed before candidate startup on
   the proxy preflight. A controlled diagnosis found that WSL host loopback
   traffic traverses Windows, while the workload uses private Linux loopback.
   Matching that isolation removed the large round-to-round variation, but
-  exposed a separate observer-overhead ratio below the unchanged `0.90` gate.
+  exposed a separate shared-runtime observer ratio below the unchanged `0.90` gate.
   Benchmark tooling repairs and all negative evidence are documented in
   [the calibration record](proxy-calibration-20261023.md). No current formal
   SMTP tier can be counted as passing from these diagnostic observations.

@@ -1,0 +1,25 @@
+{
+  "comparisons": [
+    {
+      "endpoint_invocations": 1,
+      "observer_verified_messages": 500,
+      "passed": true,
+      "queue_scheduler_observed": true,
+      "requested_messages": 500,
+      "same_process_continuation_messages": 0,
+      "same_process_continuation_passed": true,
+      "same_process_continuation_ratio": null,
+      "same_process_continuation_required": false,
+      "single_endpoint_invocation": true,
+      "target": "rust-candidate",
+      "throughput_messages_per_second": 2.941438,
+      "tier": "10MB"
+    }
+  ],
+  "output": "/home/lmyzzz/lmyzmail-rust/evidence/performance/.release-22dae7d0-formal-off-10mb-v3.json.694dd432-31d6-47bd-a5e1-dffebabd6b83.provisional.json",
+  "output_sha256": "07b2a5cc9e6e17434edad20b2d810bdffc3a44f6ba1cbdd8345e821aeaf68d32",
+  "qualified": false,
+  "status": "passed"
+}
+formal candidate stability evidence is not qualified
+benchmark watchdog qualification failed:  artifact_receipt_valid=0  runner_success_valid=0

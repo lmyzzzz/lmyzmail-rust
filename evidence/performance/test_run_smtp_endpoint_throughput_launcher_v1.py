@@ -6,11 +6,15 @@ import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 LAUNCHER = Path(__file__).with_name("run-smtp-endpoint-throughput-v1.sh")
 DEFAULT_BASH = (
@@ -1065,21 +1069,68 @@ printf 'journal-newline-compatibility: PASS\n'
         self.assertLess(close_launcher_fds, source.rindex("runner_start_time=$("))
 
     def test_unqualified_artifact_cleanup_is_bounded_and_fail_closed(self) -> None:
-        cleanup = self.bash_function("remove_unqualified_artifacts")
+        cleanup = self.bash_function("retain_unqualified_artifacts")
         self.assertIn("${success_schema} == 2", cleanup)
         self.assertIn("path.parent != root", cleanup)
         self.assertIn("os.O_NOFOLLOW", cleanup)
         self.assertIn("root_metadata.st_uid == 0", cleanup)
         self.assertIn("root_metadata.st_gid == 0", cleanup)
         self.assertIn("metadata.st_nlink == path_metadata.st_nlink == 1", cleanup)
-        self.assertIn("{0o600, 0o444}", cleanup)
+        self.assertIn("{0o600, 0o444, 0o400}", cleanup)
         self.assertIn("{0o600, 0o400}", cleanup)
-        self.assertIn("os.unlink(path.name, dir_fd=directory)", cleanup)
+        self.assertIn("os.fchmod(descriptor, 0o400)", cleanup)
+        self.assertIn("os.fsync(descriptor)", cleanup)
+        self.assertNotIn("os.unlink", cleanup)
         self.assertIn("os.fsync(directory)", cleanup)
         self.assertGreaterEqual(
-            self.source.count('remove_unqualified_artifacts "${identifier}"'), 3
+            self.source.count('retain_unqualified_artifacts "${identifier}"'), 3
         )
-        self.assertIn('remove_unqualified_artifacts "${run_id}"', self.source)
+        self.assertIn('retain_unqualified_artifacts "${run_id}"', self.source)
+
+    def test_unqualified_partial_bytes_are_retained_sealed_and_aliases_rejected(
+        self,
+    ) -> None:
+        source = self.embedded_python("retain_unqualified_artifacts")
+        real_fstat, real_stat = os.fstat, os.stat
+
+        def root_owned(metadata):
+            return SimpleNamespace(**{
+                name: (0 if name in {"st_uid", "st_gid"} else getattr(metadata, name))
+                for name in (
+                    "st_mode", "st_uid", "st_gid", "st_nlink", "st_dev", "st_ino"
+                )
+            })
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            root.chmod(0o700)
+            output, checkpoint = root / "run.output", root / "run.checkpoint"
+            payloads = {output: b'{"partial":', checkpoint: b'{"event":"started"}\n'}
+            for path, payload in payloads.items():
+                path.write_bytes(payload)
+                path.chmod(0o600)
+            with (
+                mock.patch.object(
+                    sys, "argv", ["retain", str(root), str(output), str(checkpoint)]
+                ),
+                mock.patch.object(
+                    os, "fstat", side_effect=lambda fd: root_owned(real_fstat(fd))
+                ),
+                mock.patch.object(
+                    os, "stat", side_effect=lambda *a, **k: root_owned(real_stat(*a, **k))
+                ),
+            ):
+                exec(compile(source, "retain-unqualified", "exec"), {})
+                # Recovery can safely visit already sealed partial artifacts.
+                exec(compile(source, "retain-unqualified", "exec"), {})
+                for path, payload in payloads.items():
+                    self.assertEqual(path.read_bytes(), payload)
+                    self.assertEqual(stat.S_IMODE(real_stat(path).st_mode), 0o400)
+                alias = root / "alias"
+                os.link(output, alias)
+                with self.assertRaisesRegex(SystemExit, "changed identity"):
+                    exec(compile(source, "retain-unqualified", "exec"), {})
+                self.assertEqual(output.read_bytes(), payloads[output])
 
     def test_artifact_validation_rejects_alias_replay_and_checkpoint_tamper(
         self,
@@ -1512,7 +1563,7 @@ read_journal_value() {{
         *) printf '%s\n' {root!r}/final.json ;;
     esac
 }}
-remove_unqualified_artifacts() {{ ((artifact_cleanup_calls += 1)); }}
+retain_unqualified_artifacts() {{ ((artifact_cleanup_calls += 1)); }}
 publish_provisional() {{ exit 41; }}
         recover_incomplete_runs
         recover_incomplete_runs
@@ -1558,7 +1609,7 @@ read_journal_value() {{
     esac
 }}
 publish_provisional() {{ ((publish_calls += 1)); }}
-remove_unqualified_artifacts() {{ exit 42; }}
+retain_unqualified_artifacts() {{ exit 42; }}
 recover_incomplete_runs
 [[ $publish_calls -eq 1 ]]
 printf 'resume-existing-final: PASS\n'
@@ -1848,7 +1899,7 @@ read_journal_value() {{
 }}
 cleanup_run_resources() {{ cleanup_lazy_used=0; }}
 write_legacy_unqualified_receipt() {{ ((legacy_receipts += 1)); }}
-remove_unqualified_artifacts() {{ ((artifact_cleanups += 1)); }}
+retain_unqualified_artifacts() {{ ((artifact_cleanups += 1)); }}
 write_cleanup_receipt() {{ exit 45; }}
 publish_provisional() {{ exit 46; }}
 recover_incomplete_runs
