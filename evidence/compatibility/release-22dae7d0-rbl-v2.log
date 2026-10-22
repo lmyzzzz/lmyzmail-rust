@@ -1,0 +1,5 @@
+..                                                                       [100%]
+Campaign audit: {"differences_requiring_review": [], "harness_definition_sha256": "c447cb7a88931c15ad51e3f304a6948f267131914a58e802f0415caa60a0bc27", "historical_observations_equal": 116, "old_golden_files_unchanged": 6897, "pytest_exitstatus": 0}
+
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/release-22dae7d0-rbl-v2.xml -
+2 passed in 22.01s

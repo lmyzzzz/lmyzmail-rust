@@ -1,0 +1,20 @@
+.
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/handoff-port-diagnostic-20261023/result-1.xml -
+1 passed in 27.40s
+{"iteration": 1, "pytest_exitstatus": 0}
+.
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/handoff-port-diagnostic-20261023/result-2.xml -
+1 passed in 29.96s
+{"iteration": 2, "pytest_exitstatus": 0}
+.
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/handoff-port-diagnostic-20261023/result-3.xml -
+1 passed in 29.84s
+{"iteration": 3, "pytest_exitstatus": 0}
+.
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/handoff-port-diagnostic-20261023/result-4.xml -
+1 passed in 25.79s
+{"iteration": 4, "pytest_exitstatus": 0}
+.
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/handoff-port-diagnostic-20261023/result-5.xml -
+1 passed in 24.69s
+{"iteration": 5, "pytest_exitstatus": 0}

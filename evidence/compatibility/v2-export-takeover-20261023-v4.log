@@ -1,0 +1,91 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________ test_new_v2_maildir_exports_for_java_and_reopens_in_rust ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-163/test_new_v2_maildir_exports_fo0')
+
+    @pytest.mark.timeout(300)
+    def test_new_v2_maildir_exports_for_java_and_reopens_in_rust(tmp_path):
+        binary = Path(os.environ["LMYZMAIL_TAKEOVER_BINARY"]).resolve(strict=True)
+        proof = {"binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(), "phases": []}
+        runtime = ExportRuntime(tmp_path / "export-takeover", shutdown_timeout=20)
+        try:
+            runtime.start()
+            tokens = {address: _seed(runtime, address) for address in ADDRESSES}
+            runtime.rust_phase = True
+            runtime.restart_application()
+            references = {address: _deliver(runtime, address, index + 10)
+                          for index, address in enumerate(ADDRESSES)}
+            original_bytes = {}
+            for address in ADDRESSES:
+                response = _raw(runtime, tokens[address], references[address])
+                assert response.status_code == 200, response.text
+                original_bytes[address] = response.content
+            proof["phases"].append("rust-creates-and-reads-four-new-v2-address-classes")
+            assert runtime._application is not None and runtime.ports is not None
+            runtime._application.stop(timeout=20, kill_timeout=2)
+            source = runtime.workspace / "maildir"
+            before = snapshot(source)
+            dsn = (f"host=127.0.0.1 port={runtime.ports.postgres} "
+                   "user=lmyzmail_test dbname=lmyzmail")
+            with _db(runtime) as db:
+                rows_before = db.execute("SELECT * FROM email_index ORDER BY id").fetchall()
+            # Failed budgets and symlink/collision cases must never publish output.
+            with pytest.raises(ValueError, match="disk budget"):
+                export_maildir(source, tmp_path / "budget-rejected", dsn,
+                               offline=True, max_bytes=1)
+            assert not (tmp_path / "budget-rejected").exists()
+            with pytest.raises(ValueError, match="offline"):
+                export_maildir(source, tmp_path / "not-offline", dsn,
+                               offline=False, max_bytes=1024 * 1024)
+            proof["export"] = export_maildir(source, tmp_path / "java-rollback", dsn,
+                                            offline=True, max_bytes=1024 * 1024)
+            assert snapshot(source) == before
+            with _db(runtime) as db:
+                assert db.execute("SELECT * FROM email_index ORDER BY id").fetchall() == rows_before
+            proof["phases"].append("offline-streamed-copy-with-unchanged-source-and-database")
+            runtime.export_path = Path(proof["export"]["output"])
+            runtime.rust_phase = False
+            runtime.restart_application()
+            for address in ADDRESSES:
+                response = _raw(runtime, tokens[address], references[address])
+                assert response.status_code == 200, (address, response.text)
+                assert response.content == original_bytes[address]
+            proof["phases"].append("frozen-java-byte-exact-reads-of-all-exported-v2-mail")
+            runtime.rust_phase = True
+>           runtime.restart_application()
+
+tools/test_maildir_export.py:82: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/persistent_runtime.py:642: in restart_application
+    self._port_allocator.reserve_port(port)
+blackbox/src/lmyzmail_blackbox/ports.py:79: in reserve_port
+    self._reserve(port, reuse_address=True)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <lmyzmail_blackbox.ports.PortAllocator object at 0x7ebf843904a0>
+port = 24352
+
+    def _reserve(self, port: int = 0, *, reuse_address: bool = False) -> int:
+        if port == 0 and sys.platform.startswith("linux"):
+            for candidate in _non_ephemeral_ports():
+                try:
+                    return self._reserve(candidate)
+                except OSError as error:
+                    if error.errno not in (errno.EADDRINUSE, errno.EACCES):
+                        raise
+            raise OSError(errno.EADDRINUSE, "no available non-ephemeral loopback port")
+        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+                listener.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            elif reuse_address:
+                listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+>           listener.bind(("127.0.0.1", port))
+E           OSError: [Errno 98] Address already in use
+
+blackbox/src/lmyzmail_blackbox/ports.py:66: OSError
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/v2-export-takeover-20261023-v4.xml -
+=========================== short test summary info ============================
+FAILED blackbox::test_new_v2_maildir_exports_for_java_and_reopens_in_rust - O...
+1 failed in 27.74s

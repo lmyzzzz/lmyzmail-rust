@@ -1,0 +1,168 @@
+.......................................................................F [ 67%]
+...................................                                      [100%]
+Campaign audit: {"differences_requiring_review": [], "harness_definition_sha256": "7f72a4886dbf44ded308424ee8cacce9a3dafb356816f78a78e7afc220414a0d", "historical_observations_equal": 339, "old_golden_files_unchanged": 6897, "pytest_exitstatus": 1}
+
+=================================== FAILURES ===================================
+_______________________ test_frozen_java_fail2ban_golden _______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-140/test_frozen_java_fail2ban_gold0')
+
+    @pytest.mark.integration
+    @pytest.mark.oracle
+    @pytest.mark.timeout(240)
+    def test_frozen_java_fail2ban_golden(tmp_path: Path) -> None:
+        repository = Path(__file__).resolve().parents[2]
+        record = os.environ.get("LMYZMAIL_RECORD_JAVA_GOLDEN") == "1"
+        runner = DifferentialRunner(
+            repository,
+            repository / "blackbox/golden/java" / _GOLDEN,
+            _PROFILE,
+            record_java=record,
+        )
+>       with _Fail2BanJavaRuntime(tmp_path / "java-fail2ban") as oracle:
+
+blackbox/tools/test_fail2ban.py:355: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/persistent_runtime.py:719: in __enter__
+    return self.start()
+           ^^^^^^^^^^^^
+blackbox/src/lmyzmail_blackbox/persistent_runtime.py:616: in start
+    self._start_application()
+blackbox/src/lmyzmail_blackbox/persistent_runtime.py:534: in _start_application
+    super()._start_application()
+blackbox/src/lmyzmail_blackbox/runtime.py:612: in _start_application
+    self._application.wait_for_tcp("127.0.0.1", ports.http, timeout=remaining)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ManagedProcess(name='java-oracle-persistent-0001', argv=['/home/lmyzzz/lmyzmail-rust/.blackbox/runtime/jdk22/bin/java'...A_HOME': '/tmp/pytest-of-lmyzzz/pytest-140/test_frozen_java_fail2ban_gold0/java-fail2ban/xdg-data'}, inherit_env=False)
+host = '127.0.0.1', port = 48305
+
+    def wait_for_tcp(self, host: str, port: int, *, timeout: float) -> None:
+        if self._process is None:
+            raise RuntimeError(f"{self.name} has not started")
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError("TCP readiness timeout must be finite and positive")
+        deadline = time.monotonic() + timeout
+        last_error: OSError | None = None
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            exit_code = self._process.poll()
+            if exit_code is not None:
+                raise ProcessStartError(
+                    f"{self.name} exited with {exit_code}; tail:\n{self.log_tail()}"
+                )
+            try:
+                with socket.create_connection((host, port), timeout=min(0.25, remaining)):
+                    return
+            except OSError as error:
+                last_error = error
+                remaining = deadline - time.monotonic()
+                if remaining > 0:
+                    time.sleep(min(0.05, remaining))
+>       raise ProcessStartError(
+            f"{self.name} did not listen on {host}:{port} within {timeout}s: {last_error}; "
+            f"tail:\n{self.log_tail()}"
+        )
+E       lmyzmail_blackbox.errors.ProcessStartError: java-oracle-persistent-0001 did not listen on 127.0.0.1:48305 within 89.99999916600063s: [Errno 111] Connection refused; tail:
+E       .629Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║   ThreadLocal buffer: 64 chars                             ║
+E       2026-10-22T16:54:36.629Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ╠════════════════════════════════════════════════════════════╣
+E       2026-10-22T16:54:36.629Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║ Sample expressions (20):                                   ║
+E       2026-10-22T16:54:36.629Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ╠════════════════════════════════════════════════════════════╣
+E       2026-10-22T16:54:36.629Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║ [ 1] Skibidi dop dop yes yes!                              ║
+E       2026-10-22T16:54:36.629Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║ [ 2] Skibidi dop yes Yes!                                  ║
+E       2026-10-22T16:54:36.630Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║ [ 3] Brrrrr Skibidi dop dom yes yes!                       ║
+E       2026-10-22T16:54:36.630Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║ [ 4] Skibidi dop doP yes yes!                              ║
+E       2026-10-22T16:54:36.630Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║ [ 5] Skibidi dom dop no no!                                ║
+E       2026-10-22T16:54:36.630Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║ [ 6] Skibidi dop dop yes yes!                              ║
+E       2026-10-22T16:54:36.630Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║ [ 7] Skibidi dop dop yes yes!                              ║
+E       2026-10-22T16:54:36.630Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║ [ 8] Skibidi dop dOP dom dOp dop yes yes!                  ║
+E       2026-10-22T16:54:36.630Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║ [ 9] Skibidi dop dop yes YEs!                              ║
+E       2026-10-22T16:54:36.630Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║ [10] Skibidi DOP dop Dop dOM yes yes!                      ║
+E       2026-10-22T16:54:36.630Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║ [11] Skibidi dop dop yes yes!                              ║
+E       2026-10-22T16:54:36.630Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║ [12] Skibidi dop Dop dop no no!                            ║
+E       2026-10-22T16:54:36.631Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║ [13] Skibidi dop dop yes yes!                              ║
+E       2026-10-22T16:54:36.631Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║ [14] Skibidi dop dop yes yes!                              ║
+E       2026-10-22T16:54:36.631Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║ [15] Skibidi dOp dop yes YEs!                              ║
+E       2026-10-22T16:54:36.631Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║ [16] Skibidi dop dop yes yes!                              ║
+E       2026-10-22T16:54:36.631Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║ [17] Skibidi dop dop yes yes!                              ║
+E       2026-10-22T16:54:36.631Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║ [18] Skibidi dop dop yes yes!                              ║
+E       2026-10-22T16:54:36.631Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║ [19] Skibidi dop dOp yes yes!                              ║
+E       2026-10-22T16:54:36.631Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║ [20] Skibidi dop dop yes yes!                              ║
+E       2026-10-22T16:54:36.631Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ╠════════════════════════════════════════════════════════════╣
+E       2026-10-22T16:54:36.631Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║ Generation stats (20 samples):                             ║
+E       2026-10-22T16:54:36.631Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║   Fast-path hits: 6 (30.0%)                                ║
+E       2026-10-22T16:54:36.631Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║   Java calls:     14 (70.0%)                               ║
+E       2026-10-22T16:54:36.631Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ╠════════════════════════════════════════════════════════════╣
+E       2026-10-22T16:54:36.631Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║ Active mode: JAVA (Pure Java with fast-path)               ║
+E       2026-10-22T16:54:36.631Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ║ Skibidi generator ready!                                   ║
+E       2026-10-22T16:54:36.631Z  INFO 2048643 --- [           main] n.l.l.util.native_.SkibidiNativeService  : ╚════════════════════════════════════════════════════════════╝
+E       2026-10-22T16:54:36.632Z  INFO 2048643 --- [           main] n.l.l.util.native_.XdpPpsMonitorService  : XDP is disabled, PPS monitor will not start
+E       2026-10-22T16:54:36.635Z  INFO 2048643 --- [           main] n.l.lmyzmail.web.StressTestController    : StressTestController initialized with streaming support, tempDir: /tmp/pytest-of-lmyzzz/pytest-140/test_frozen_java_fail2ban_gold0/java-fail2ban/java-tmp/botmail-outbound, inMemoryThreshold: 20KB
+E       2026-10-22T16:54:36.642Z  INFO 2048643 --- [           main] n.l.l.c.fail2ban.SshFail2BanService      : Fail2Ban: Monitoring SSH log file: /tmp/pytest-of-lmyzzz/pytest-140/test_frozen_java_fail2ban_gold0/java-fail2ban/auth.log
+E       2026-10-22T16:54:36.642Z  INFO 2048643 --- [           main] n.l.l.c.fail2ban.SshFail2BanService      : Fail2Ban: Started — maxRetries=2, findTime=PT10M, scanInterval=PT0.05S, hourly summary enabled
+E       2026-10-22T16:54:36.654Z  INFO 2048643 --- [           main] n.l.l.netty.honeypot.HoneypotServer      : Starting Honeypot server with 8 traps
+E       2026-10-22T16:54:36.659Z  INFO 2048643 --- [           main] n.l.l.netty.honeypot.HoneypotServer      : Honeypot trap [trap-0] started on 127.0.0.1:45725 (protocol: MYSQL)
+E       2026-10-22T16:54:36.670Z  INFO 2048643 --- [           main] n.l.l.netty.honeypot.HoneypotServer      : Honeypot trap [trap-1] started on 127.0.0.1:46981 (protocol: SSH)
+E       2026-10-22T16:54:36.681Z  INFO 2048643 --- [           main] n.l.l.netty.honeypot.HoneypotServer      : Honeypot trap [trap-2] started on 127.0.0.1:45627 (protocol: VNC)
+E       2026-10-22T16:54:36.691Z  INFO 2048643 --- [           main] n.l.l.netty.honeypot.HoneypotServer      : Honeypot trap [trap-3] started on 127.0.0.1:46369 (protocol: NONE)
+E       2026-10-22T16:54:36.701Z  INFO 2048643 --- [           main] n.l.l.netty.honeypot.HoneypotServer      : Honeypot trap [trap-4] started on 127.0.0.1:47877 (protocol: NONE)
+E       2026-10-22T16:54:36.722Z  INFO 2048643 --- [           main] n.l.l.netty.honeypot.HoneypotServer      : Honeypot trap [trap-5] started on 127.0.0.1:47379 (protocol: NONE)
+E       2026-10-22T16:54:36.733Z  INFO 2048643 --- [           main] n.l.l.netty.honeypot.HoneypotServer      : Honeypot trap [trap-6] started on 127.0.0.1:46235 (protocol: FTP)
+E       2026-10-22T16:54:36.744Z  INFO 2048643 --- [           main] n.l.l.netty.honeypot.HoneypotServer      : Honeypot trap [trap-7] started on 127.0.0.1:47383 (protocol: VNC)
+E       2026-10-22T16:54:36.744Z  INFO 2048643 --- [           main] n.l.l.netty.honeypot.HoneypotServer      : Honeypot server started with 8 active traps
+E       2026-10-22T16:54:36.760Z  INFO 2048643 --- [           main] n.l.lmyzmail.netty.htcpcp.HtcpcpServer   : ☕ HTCPCP/1.0 server started on port 47403 (RFC 2324 + RFC 7168)
+E       2026-10-22T16:54:36.760Z  INFO 2048643 --- [           main] n.l.lmyzmail.netty.htcpcp.HtcpcpServer   :    Registered 8 pot(s):
+E       2026-10-22T16:54:36.761Z  INFO 2048643 --- [           main] n.l.lmyzmail.netty.htcpcp.HtcpcpServer   :      - pot-0 (types: [COFFEE, TEA], tea varieties: [darjeeling, earl-grey, english-breakfast, green, peppermint, oolong])
+E       2026-10-22T16:54:36.761Z  INFO 2048643 --- [           main] n.l.lmyzmail.netty.htcpcp.HtcpcpServer   :      - pot-1 (types: [TEA], tea varieties: [darjeeling, earl-grey, peppermint, chamomile, jasmine])
+E       2026-10-22T16:54:36.761Z  INFO 2048643 --- [           main] n.l.lmyzmail.netty.htcpcp.HtcpcpServer   :      - pot-2 (types: [TEA], tea varieties: [earl-grey, english-breakfast, darjeeling, chamomile])
+E       2026-10-22T16:54:36.761Z  INFO 2048643 --- [           main] n.l.lmyzmail.netty.htcpcp.HtcpcpServer   :      - pot-3 (types: [COFFEE], tea varieties: [])
+E       2026-10-22T16:54:36.761Z  INFO 2048643 --- [           main] n.l.lmyzmail.netty.htcpcp.HtcpcpServer   :      - pot-4 (types: [COFFEE], tea varieties: [])
+E       2026-10-22T16:54:36.761Z  INFO 2048643 --- [           main] n.l.lmyzmail.netty.htcpcp.HtcpcpServer   :      - pot-5 (types: [TEA], tea varieties: [peppermint, chamomile])
+E       2026-10-22T16:54:36.761Z  INFO 2048643 --- [           main] n.l.lmyzmail.netty.htcpcp.HtcpcpServer   :      - pot-6 (types: [COFFEE], tea varieties: [])
+E       2026-10-22T16:54:36.761Z  INFO 2048643 --- [           main] n.l.lmyzmail.netty.htcpcp.HtcpcpServer   :      - pot-7 (types: [COFFEE, TEA], tea varieties: [darjeeling, earl-grey, peppermint, green, oolong, chamomile, jasmine, english-breakfast])
+E       2026-10-22T16:54:36.762Z  INFO 2048643 --- [           main] n.l.l.n.h.s.NettyHttpAutoConfiguration   : Found 11 @NettyController beans: [skibidiCringeIPController, xdpFirewallController, apiStatusController, mailPollController, mailSendController, mailboxController, loginController, reportController, stressTestController, userDataController, webMailController]
+E       2026-10-22T16:54:36.774Z  INFO 2048643 --- [           main] n.l.l.n.h.s.NettyHttpAutoConfiguration   : Registered 4 Netty HTTP filters in order: [CorsFilter, NettyRateLimitFilter, NettyJsonBodySizeFilter, NettyApiKeyFilter]
+E       2026-10-22T16:54:36.775Z  INFO 2048643 --- [           main] n.l.l.n.h.s.NettyHttpAutoConfiguration   : Configured trusted proxies for X-Forwarded-For: [127.0.0.1, ::1]
+E       2026-10-22T16:54:36.775Z  INFO 2048643 --- [           main] n.l.l.n.h.s.NettyHttpAutoConfiguration   : SkibidiCringeIPService available - HTTP port scanning detection enabled
+E       2026-10-22T16:54:36.805Z  WARN 2048643 --- [           main] ConfigServletWebServerApplicationContext : Exception encountered during context initialization - cancelling refresh attempt: org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'nettyHttpServer' defined in class path resource [net/lmyz/lmyzmail/netty/http/server/NettyHttpAutoConfiguration.class]: bind(..) failed: Address already in use
+E       2026-10-22T16:54:36.806Z  INFO 2048643 --- [           main] n.l.lmyzmail.netty.htcpcp.HtcpcpServer   : Shutting down HTCPCP server...
+E       2026-10-22T16:54:36.815Z  INFO 2048643 --- [           main] n.l.lmyzmail.netty.htcpcp.HtcpcpServer   : HTCPCP server stopped
+E       2026-10-22T16:54:36.815Z  INFO 2048643 --- [           main] n.l.l.netty.honeypot.HoneypotServer      : Shutting down Honeypot server...
+E       2026-10-22T16:54:36.816Z  INFO 2048643 --- [           main] n.l.l.netty.honeypot.HoneypotServer      : Honeypot server stopped
+E       2026-10-22T16:54:36.817Z  WARN 2048643 --- [s-eventloop-6-1] io.netty.channel.AbstractChannel         : Can't invoke task later as EventLoop rejected it
+E       
+E       java.util.concurrent.RejectedExecutionException: event executor terminated
+E       	at io.netty.util.concurrent.SingleThreadEventExecutor.reject(SingleThreadEventExecutor.java:934) ~[netty-common-4.1.123.Final.jar!/:4.1.123.Final]
+E       	at io.netty.util.concurrent.SingleThreadEventExecutor.offerTask(SingleThreadEventExecutor.java:353) ~[netty-common-4.1.123.Final.jar!/:4.1.123.Final]
+E       	at io.netty.util.concurrent.SingleThreadEventExecutor.addTask(SingleThreadEventExecutor.java:346) ~[netty-common-4.1.123.Final.jar!/:4.1.123.Final]
+E       	at io.netty.util.concurrent.SingleThreadEventExecutor.execute(SingleThreadEventExecutor.java:836) ~[netty-common-4.1.123.Final.jar!/:4.1.123.Final]
+E       	at io.netty.util.concurrent.SingleThreadEventExecutor.execute0(SingleThreadEventExecutor.java:827) ~[netty-common-4.1.123.Final.jar!/:4.1.123.Final]
+E       	at io.netty.util.concurrent.SingleThreadEventExecutor.execute(SingleThreadEventExecutor.java:817) ~[netty-common-4.1.123.Final.jar!/:4.1.123.Final]
+E       	at io.netty.channel.AbstractChannel$AbstractUnsafe.invokeLater(AbstractChannel.java:1022) ~[netty-transport-4.1.123.Final.jar!/:4.1.123.Final]
+E       	at io.netty.channel.AbstractChannel$AbstractUnsafe.deregister(AbstractChannel.java:802) ~[netty-transport-4.1.123.Final.jar!/:4.1.123.Final]
+E       	at io.netty.channel.AbstractChannel$AbstractUnsafe.fireChannelInactiveAndDeregister(AbstractChannel.java:762) ~[netty-transport-4.1.123.Final.jar!/:4.1.123.Final]
+E       	at io.netty.channel.AbstractChannel$AbstractUnsafe.close(AbstractChannel.java:745) ~[netty-transport-4.1.123.Final.jar!/:4.1.123.Final]
+E       	at io.netty.channel.AbstractChannel$AbstractUnsafe.close(AbstractChannel.java:619) ~[netty-transport-4.1.123.Final.jar!/:4.1.123.Final]
+E       	at io.netty.incubator.channel.uring.AbstractIOUringChannel$AbstractUringUnsafe.forceClose(AbstractIOUringChannel.java:358) ~[netty-incubator-transport-classes-io_uring-0.0.25.Final.jar!/:0.0.25.Final]
+E       	at io.netty.incubator.channel.uring.AbstractIOUringChannel$AbstractUringUnsafe.close(AbstractIOUringChannel.java:341) ~[netty-incubator-transport-classes-io_uring-0.0.25.Final.jar!/:0.0.25.Final]
+E       	at io.netty.channel.DefaultChannelPipeline$HeadContext.close(DefaultChannelPipeline.java:1299) ~[netty-transport-4.1.123.Final.jar!/:4.1.123.Final]
+E       	at io.netty.channel.AbstractChannelHandlerContext.invokeClose(AbstractChannelHandlerContext.java:755) ~[netty-transport-4.1.123.Final.jar!/:4.1.123.Final]
+E       	at io.netty.channel.AbstractChannelHandlerContext.access$1200(AbstractChannelHandlerContext.java:61) ~[netty-transport-4.1.123.Final.jar!/:4.1.123.Final]
+E       	at io.netty.channel.AbstractChannelHandlerContext$11.run(AbstractChannelHandlerContext.java:738) ~[netty-transport-4.1.123.Final.jar!/:4.1.123.Final]
+E       	at io.netty.util.concurrent.AbstractEventExecutor.runTask(AbstractEventExecutor.java:173) ~[netty-common-4.1.123.Final.jar!/:4.1.123.Final]
+E       	at io.netty.util.concurrent.AbstractEventExecutor.safeExecute(AbstractEventExecutor.java:166) ~[netty-common-4.1.123.Final.jar!/:4.1.123.Final]
+E       	at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasksFrom(SingleThreadEventExecutor.java:428) ~[netty-common-4.1.123.Final.jar!/:4.1.123.Final]
+E       	at io.netty.util.concurrent.SingleThreadEventExecutor.runAllTasks(SingleThreadEventExecutor.java:377) ~[netty-common-4.1.123.Final.jar!/:4.1.123.Final]
+E       	at io.netty.incubator.channel.uring.IOUringEventLoop.run(IOUringEventLoop.java:222) ~[netty-incubator-transport-classes-io_uring-0.0.25.Final.jar!/:0.0.25.Final]
+E       	at io.netty.util.concurrent.SingleThreadEventExecutor$4.run(SingleThreadEventExecutor.java:998) ~[netty-common-4.1.123.Final.jar!/:4.1.123.Final]
+E       	at io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74) ~[netty-common-4.1.123.Final.jar!/:4.1.123.Final]
+E       	at io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30) ~[netty-common-4.1.123.Final.jar!/:4.1.123.Final]
+E       	at java.base/java.lang.Thread.run(Thread.java:1570) ~[na:na]
+
+blackbox/src/lmyzmail_blackbox/processes.py:85: ProcessStartError
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/release-oracle-20261023-full.xml -
+=========================== short test summary info ============================
+FAILED blackbox/tools/test_fail2ban.py::test_frozen_java_fail2ban_golden - lm...
+1 failed, 106 passed, 312 deselected in 2165.88s (0:36:05)

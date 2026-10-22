@@ -1,0 +1,364 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "7f72a4886dbf44ded308424ee8cacce9a3dafb356816f78a78e7afc220414a0d",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "suite-manifest-v1"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-smtp-content-filter-headers"
+  },
+  "observation": {
+    "profile": "managed-smtp-content-filter-headers",
+    "scenarios": [
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "expected": {
+            "rules": [],
+            "score": "0.0",
+            "status": "No",
+            "storage_folder": "spam"
+          },
+          "message_id": "<bb-filter-clean-001@example.test>",
+          "message_sha256": "de4290d42506e312f2595c68c694e1859a8f6eb30d081bb880184d4916a57485",
+          "operation": "content-filter-header-phase",
+          "protocol": "smtp",
+          "rules_disabled": [
+            "RBL_CHECK.enabled=false",
+            "NEW_DOMAIN.enabled=false",
+            "FROM_REPLYTO_MISMATCH.enabled=false",
+            "SUSPICIOUS_DATE.enabled=false",
+            "SPAM_KEYWORDS.enabled=false",
+            "SUSPICIOUS_URL.enabled=false",
+            "HTML_TEXT_RATIO.enabled=false",
+            "PHISHING_PATTERN.enabled=false",
+            "INVISIBLE_TEXT.enabled=false",
+            "DANGEROUS_EXTENSION.enabled=false",
+            "DOUBLE_EXTENSION.enabled=false",
+            "MIME_TYPE_MISMATCH.enabled=false"
+          ],
+          "rules_enabled": [
+            "MISSING_HEADERS",
+            "SUBJECT_ENCODING_TRICK",
+            "EXCESSIVE_RECIPIENTS"
+          ],
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ]
+        },
+        "name": "smtp/content-filter/header-clean",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:data-dot-unstuff"
+        ]
+      },
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "expected": {
+            "rules": [
+              [
+                "MISSING_HEADERS",
+                "3.5"
+              ]
+            ],
+            "score": "3.5",
+            "status": "No",
+            "storage_folder": "spam"
+          },
+          "message_id": "<bb-filter-missing-001@example.test>",
+          "message_sha256": "00572cbaa9d8f722208fb6c1368d97a2613fd0aa32be1a6dfb73783dc1eba5e4",
+          "operation": "content-filter-header-phase",
+          "protocol": "smtp",
+          "rules_disabled": [
+            "RBL_CHECK.enabled=false",
+            "NEW_DOMAIN.enabled=false",
+            "FROM_REPLYTO_MISMATCH.enabled=false",
+            "SUSPICIOUS_DATE.enabled=false",
+            "SPAM_KEYWORDS.enabled=false",
+            "SUSPICIOUS_URL.enabled=false",
+            "HTML_TEXT_RATIO.enabled=false",
+            "PHISHING_PATTERN.enabled=false",
+            "INVISIBLE_TEXT.enabled=false",
+            "DANGEROUS_EXTENSION.enabled=false",
+            "DOUBLE_EXTENSION.enabled=false",
+            "MIME_TYPE_MISMATCH.enabled=false"
+          ],
+          "rules_enabled": [
+            "MISSING_HEADERS",
+            "SUBJECT_ENCODING_TRICK",
+            "EXCESSIVE_RECIPIENTS"
+          ],
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ]
+        },
+        "name": "smtp/content-filter/header-missing-required",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:data-dot-unstuff"
+        ]
+      },
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "expected": {
+            "rules": [
+              [
+                "MISSING_HEADERS",
+                "1.8"
+              ]
+            ],
+            "score": "1.8",
+            "status": "No",
+            "storage_folder": "spam"
+          },
+          "message_id": "<bb-filter-malformed-001@example.test>",
+          "message_sha256": "e738d33de0509ed8d703cff44b7f014be36921a788084400ee8fcddc0f53f699",
+          "operation": "content-filter-header-phase",
+          "protocol": "smtp",
+          "rules_disabled": [
+            "RBL_CHECK.enabled=false",
+            "NEW_DOMAIN.enabled=false",
+            "FROM_REPLYTO_MISMATCH.enabled=false",
+            "SUSPICIOUS_DATE.enabled=false",
+            "SPAM_KEYWORDS.enabled=false",
+            "SUSPICIOUS_URL.enabled=false",
+            "HTML_TEXT_RATIO.enabled=false",
+            "PHISHING_PATTERN.enabled=false",
+            "INVISIBLE_TEXT.enabled=false",
+            "DANGEROUS_EXTENSION.enabled=false",
+            "DOUBLE_EXTENSION.enabled=false",
+            "MIME_TYPE_MISMATCH.enabled=false"
+          ],
+          "rules_enabled": [
+            "MISSING_HEADERS",
+            "SUBJECT_ENCODING_TRICK",
+            "EXCESSIVE_RECIPIENTS"
+          ],
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ]
+        },
+        "name": "smtp/content-filter/header-malformed-required",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:data-dot-unstuff"
+        ]
+      },
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "expected": {
+            "rules": [
+              [
+                "SUBJECT_ENCODING_TRICK",
+                "2.5"
+              ]
+            ],
+            "score": "2.5",
+            "status": "No",
+            "storage_folder": "spam"
+          },
+          "message_id": "<bb-filter-encoded-001@example.test>",
+          "message_sha256": "49674f5e1474c560914fc14883f17196725e21011c14296e864a0559793461f0",
+          "operation": "content-filter-header-phase",
+          "protocol": "smtp",
+          "rules_disabled": [
+            "RBL_CHECK.enabled=false",
+            "NEW_DOMAIN.enabled=false",
+            "FROM_REPLYTO_MISMATCH.enabled=false",
+            "SUSPICIOUS_DATE.enabled=false",
+            "SPAM_KEYWORDS.enabled=false",
+            "SUSPICIOUS_URL.enabled=false",
+            "HTML_TEXT_RATIO.enabled=false",
+            "PHISHING_PATTERN.enabled=false",
+            "INVISIBLE_TEXT.enabled=false",
+            "DANGEROUS_EXTENSION.enabled=false",
+            "DOUBLE_EXTENSION.enabled=false",
+            "MIME_TYPE_MISMATCH.enabled=false"
+          ],
+          "rules_enabled": [
+            "MISSING_HEADERS",
+            "SUBJECT_ENCODING_TRICK",
+            "EXCESSIVE_RECIPIENTS"
+          ],
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ]
+        },
+        "name": "smtp/content-filter/header-encoded-subject",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:data-dot-unstuff"
+        ]
+      },
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "expected": {
+            "rules": [
+              [
+                "EXCESSIVE_RECIPIENTS",
+                "1.0"
+              ]
+            ],
+            "score": "1.0",
+            "status": "No",
+            "storage_folder": "spam"
+          },
+          "message_id": "<bb-filter-recipient-20@example.test>",
+          "message_sha256": "e540523179ab8e63bf1d2eb8b523162d754d0a351de5495a0e9ca9e659f397fc",
+          "operation": "content-filter-header-phase",
+          "protocol": "smtp",
+          "rules_disabled": [
+            "RBL_CHECK.enabled=false",
+            "NEW_DOMAIN.enabled=false",
+            "FROM_REPLYTO_MISMATCH.enabled=false",
+            "SUSPICIOUS_DATE.enabled=false",
+            "SPAM_KEYWORDS.enabled=false",
+            "SUSPICIOUS_URL.enabled=false",
+            "HTML_TEXT_RATIO.enabled=false",
+            "PHISHING_PATTERN.enabled=false",
+            "INVISIBLE_TEXT.enabled=false",
+            "DANGEROUS_EXTENSION.enabled=false",
+            "DOUBLE_EXTENSION.enabled=false",
+            "MIME_TYPE_MISMATCH.enabled=false"
+          ],
+          "rules_enabled": [
+            "MISSING_HEADERS",
+            "SUBJECT_ENCODING_TRICK",
+            "EXCESSIVE_RECIPIENTS"
+          ],
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ]
+        },
+        "name": "smtp/content-filter/header-recipients-20",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:data-dot-unstuff"
+        ]
+      },
+      {
+        "contract": {
+          "delivery_cardinality": "exactly-once",
+          "expected": {
+            "rules": [
+              [
+                "EXCESSIVE_RECIPIENTS",
+                "2.0"
+              ]
+            ],
+            "score": "2.0",
+            "status": "No",
+            "storage_folder": "spam"
+          },
+          "message_id": "<bb-filter-recipient-50@example.test>",
+          "message_sha256": "dae64b8cab160ecee19aa4dc8a10b087237294727904e31289df3b414c5b3f54",
+          "operation": "content-filter-header-phase",
+          "protocol": "smtp",
+          "rules_disabled": [
+            "RBL_CHECK.enabled=false",
+            "NEW_DOMAIN.enabled=false",
+            "FROM_REPLYTO_MISMATCH.enabled=false",
+            "SUSPICIOUS_DATE.enabled=false",
+            "SPAM_KEYWORDS.enabled=false",
+            "SUSPICIOUS_URL.enabled=false",
+            "HTML_TEXT_RATIO.enabled=false",
+            "PHISHING_PATTERN.enabled=false",
+            "INVISIBLE_TEXT.enabled=false",
+            "DANGEROUS_EXTENSION.enabled=false",
+            "DOUBLE_EXTENSION.enabled=false",
+            "MIME_TYPE_MISMATCH.enabled=false"
+          ],
+          "rules_enabled": [
+            "MISSING_HEADERS",
+            "SUBJECT_ENCODING_TRICK",
+            "EXCESSIVE_RECIPIENTS"
+          ],
+          "side_effects": [
+            "maildir",
+            "postgres:email_index",
+            "redis:mail-count"
+          ]
+        },
+        "name": "smtp/content-filter/header-recipients-50",
+        "normalizers": [
+          "smtp:greeting-skibidi-grammar",
+          "smtp:server-hostname",
+          "smtp:session-id",
+          "maildir:generated-filename",
+          "maildir:server-hostname",
+          "maildir:received-id",
+          "maildir:received-at",
+          "postgres:identity-timestamps-and-hostname-derived-size",
+          "smtp:data-dot-unstuff"
+        ]
+      }
+    ]
+  },
+  "schema_version": 2
+}

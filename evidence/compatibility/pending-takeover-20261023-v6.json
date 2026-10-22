@@ -1,0 +1,50 @@
+{
+  "binary_sha256": "78a4c31145010e479ec64a9e0a2f3ac767b2860e32180100cad699a155c37790",
+  "managed_process_cleanup": "passed",
+  "phases": [
+    {
+      "accepted": 2,
+      "consumer": "rust",
+      "duplicates": 0,
+      "producer": "java",
+      "retries": 0,
+      "tasks": [
+        {
+          "bytes": 320,
+          "mode": "memory",
+          "sha256": "3ee5250e5c4a1ad405130d1e0fbe89f7aef74ec81a69ab9fe26670bc3908ea21"
+        },
+        {
+          "bytes": 13077,
+          "mode": "file",
+          "sha256": "8ec77f26536cbf62029cca1e148abbb61fb893fc3630b287e5e10c73dc13d31d"
+        }
+      ]
+    },
+    {
+      "accepted": 2,
+      "consumer": "java",
+      "duplicates": 0,
+      "producer": "rust",
+      "retries": 0,
+      "tasks": [
+        {
+          "bytes": 319,
+          "mode": "memory",
+          "sha256": "0617f4546b1db3f4f8e389a879e5820da7deff371b84a4fc95a7d47d62831e2c"
+        },
+        {
+          "bytes": 13076,
+          "mode": "file",
+          "sha256": "11c4440d8dec024a2e3185371537726230ad0d51018f6dcd25b378a3bdf58966"
+        }
+      ]
+    },
+    {
+      "duplicates": 0,
+      "observed_seconds": 35,
+      "phase": "rust-reopen-after-java-completion"
+    }
+  ],
+  "status": "passed"
+}

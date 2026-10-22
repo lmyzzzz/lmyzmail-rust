@@ -1,0 +1,1971 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="44" skipped="0" tests="126" time="777.994" timestamp="2026-10-23T01:25:16.135661+08:00" hostname="MSI"><testcase classname="tests.test_candidate_auth_golden" name="test_rust_candidate_auth_http_matches_frozen_java_golden" time="2.403" /><testcase classname="tests.test_candidate_auth_golden" name="test_rust_candidate_persists_only_session_token_hash_and_logout_deletes_it" time="1.704" /><testcase classname="tests.test_candidate_auth_golden" name="test_rust_candidate_bounds_concurrent_sessions_per_mailbox" time="1.843" /><testcase classname="tests.test_candidate_auth_golden" name="test_rust_candidate_enforces_registration_limit_under_concurrency" time="1.897" /><testcase classname="tests.test_candidate_cringe_api_golden" name="test_rust_candidate_cringe_api_matches_frozen_java_golden" time="1.938" /><testcase classname="tests.test_candidate_cringe_api_golden" name="test_rust_candidate_cringe_decay_matches_frozen_java_golden" time="1.912" /><testcase classname="tests.test_candidate_cringe_api_golden" name="test_rust_candidate_rejects_invalid_cringe_paging" time="1.909" /><testcase classname="tests.test_candidate_cringe_api_golden" name="test_rust_candidate_caps_cringe_score_exports_at_ten_thousand_rows" time="1.828" /><testcase classname="tests.test_candidate_cringe_api_golden" name="test_rust_candidate_cancels_stalled_cringe_query_and_recovers_pool" time="9.096" /><testcase classname="tests.test_candidate_http_golden" name="test_rust_candidate_foundation_http_matches_frozen_java_golden" time="1.692" /><testcase classname="tests.test_candidate_mail_read_golden" name="test_rust_candidate_mail_read_matches_frozen_java_golden" time="1.772" /><testcase classname="tests.test_candidate_mail_read_golden" name="test_rust_candidate_mail_attachment_matches_frozen_java_golden" time="1.806" /><testcase classname="tests.test_candidate_mail_read_golden" name="test_rust_candidate_mail_state_matches_frozen_java_golden" time="1.697" /><testcase classname="tests.test_candidate_mail_read_golden" name="test_rust_candidate_mail_mutations_match_frozen_java_golden" time="1.848" /><testcase classname="tests.test_candidate_mail_read_golden" name="test_rust_candidate_delete_email_matches_frozen_java_golden" time="2.053" /><testcase classname="tests.test_candidate_mail_read_golden" name="test_rust_candidate_rejects_unindexed_maildir_file" time="1.904" /><testcase classname="tests.test_candidate_mailbox_api_golden" name="test_rust_candidate_mailbox_api_matches_frozen_java_golden" time="1.888" /><testcase classname="tests.test_candidate_mailbox_api_golden" name="test_rust_candidate_serializes_duplicate_mailbox_creation" time="1.824" /><testcase classname="tests.test_candidate_mailbox_api_golden" name="test_rust_candidate_mailbox_api_enforces_registration_limit" time="1.904" /><testcase classname="tests.test_candidate_mailbox_api_golden" name="test_rust_candidate_mailbox_creation_survives_restart" time="2.717" /><testcase classname="tests.test_candidate_mailbox_api_golden" name="test_rust_candidate_management_creation_and_receive_alias_precedence" time="5.220" /><testcase classname="tests.test_candidate_mailbox_api_golden" name="test_rust_candidate_auth_cancellation_keeps_single_connection_pool_healthy" time="1.815" /><testcase classname="tests.test_candidate_outbound_http_golden" name="test_rust_candidate_outbound_http_matches_frozen_java_golden" time="1.870" /><testcase classname="tests.test_candidate_outbound_http_golden" name="test_rust_candidate_outbound_status_redis_outage_is_bounded" time="1.767" /><testcase classname="tests.test_candidate_outbound_http_golden" name="test_rust_candidate_acknowledges_only_after_postgres_admission" time="1.716" /><testcase classname="tests.test_candidate_outbound_http_golden" name="test_rust_candidate_enforces_outbound_queue_bound_atomically" time="1.783" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_userdata_matches_frozen_java_golden" time="1.802" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_userdata_rejects_malformed_writes_without_side_effects" time="1.796" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_serializes_duplicate_contact_admission" time="1.921" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_userdata_survives_restart" time="2.954" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_userdata_database_wait_is_deadline_bounded" time="5.220" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_userdata_contact_list_has_a_hard_bound" time="1.730" /><testcase classname="tests.test_candidate_userdata_golden" name="test_rust_candidate_userdata_contact_list_has_a_byte_bound" time="1.699" /><testcase classname="tests.test_candidate_web_multipart_golden" name="test_rust_candidate_web_multipart_matches_frozen_java_golden" time="1.790" /><testcase classname="tests.test_candidate_web_multipart_golden" name="test_rust_candidate_web_multipart_redacts_errors_and_cleans_uploads" time="1.854" /><testcase classname="tests.test_candidate_web_multipart_golden" name="test_rust_candidate_web_multipart_backend_failures_clean_uploads" time="3.611" /><testcase classname="tests.test_candidate_web_multipart_golden" name="test_rust_candidate_web_multipart_disconnect_and_timeout_clean_uploads" time="4.107" /><testcase classname="tests.test_oracle_honeypot" name="test_rust_candidate_honeypot_matches_frozen_java_golden" time="2.124" /><testcase classname="tests.test_oracle_honeypot" name="test_rust_candidate_honeypot_classifies_fragmented_input_incrementally" time="1.889" /><testcase classname="tests.test_oracle_honeypot" name="test_rust_candidate_honeypot_replays_after_database_outage_and_restart" time="7.319" /><testcase classname="tests.test_oracle_htcpcp" name="test_rust_candidate_htcpcp_matches_frozen_java_golden" time="75.794" /><testcase classname="tests.test_oracle_htcpcp" name="test_rust_candidate_htcpcp_state_is_process_local" time="2.936" /><testcase classname="tests.test_oracle_mta_sts_discovery" name="test_rust_candidate_mta_sts_discovery" time="80.987" /><testcase classname="tests.test_oracle_outbound_4xx" name="test_rust_candidate_outbound_4xx_matches_frozen_java_golden" time="103.438" /><testcase classname="tests.test_oracle_outbound_5xx" name="test_rust_candidate_outbound_5xx_matches_frozen_java_golden" time="31.676" /><testcase classname="tests.test_oracle_outbound_dsn" name="test_rust_candidate_emits_durable_rfc3464_dsn" time="7.656" /><testcase classname="tests.test_oracle_outbound_queue" name="test_rust_candidate_outbound_queue_matches_frozen_java_golden" time="7.723" /><testcase classname="tests.test_oracle_outbound_tls" name="test_rust_candidate_outbound_starttls_and_mta_sts" time="31.246" /><testcase classname="tests.test_oracle_outbound_tls_negotiation" name="test_rust_candidate_outbound_tls_negotiation" time="27.164" /><testcase classname="tests.test_oracle_outbound_tls_validity" name="test_rust_candidate_outbound_tls_certificate_validity" time="15.214" /><testcase classname="tests.test_oracle_report_scheduler" name="test_rust_report_scheduler_crosses_real_cron_boundary" time="31.593" /><testcase classname="tests.test_oracle_report_scheduler" name="test_rust_report_scheduler_does_not_catch_up_after_restart" time="7.416" /><testcase classname="tests.test_oracle_reports" name="test_rust_candidate_reports_match_frozen_java_golden" time="1.937" /><testcase classname="tests.test_oracle_reports" name="test_rust_report_scheduler_enabled_runtime_starts_and_stops" time="2.008" /><testcase classname="tests.test_oracle_smtp_auth" name="test_rust_candidate_smtp_auth_matches_frozen_java_golden" time="9.208" /><testcase classname="tests.test_oracle_smtp_auth" name="test_rust_candidate_smtp_auth_starttls_matches_frozen_java_golden" time="9.194" /><testcase classname="tests.test_oracle_smtp_commands" name="test_rust_candidate_smtp_commands_match_frozen_java_golden" time="1.857" /><testcase classname="tests.test_oracle_smtp_content_filter_default" name="test_rust_candidate_smtp_content_filter_default_matches_golden" time="3.187" /><testcase classname="tests.test_oracle_smtp_data" name="test_rust_candidate_smtp_data_matches_frozen_java_golden" time="7.211" /><testcase classname="tests.test_oracle_smtp_data" name="test_rust_candidate_exact_count_survives_parallel_inserts_and_deletes" time="2.196" /><testcase classname="tests.test_oracle_smtp_dkim" name="test_rust_candidate_smtp_dkim_matches_frozen_java_golden" time="10.423" /><testcase classname="tests.test_oracle_smtp_dkim" name="test_rust_candidate_rejects_invalid_dkim_identities" time="5.407" /><testcase classname="tests.test_oracle_smtp_dmarc" name="test_rust_candidate_smtp_dmarc_matches_frozen_java_golden" time="18.554" /><testcase classname="tests.test_oracle_smtp_mime" name="test_rust_candidate_smtp_mime_matches_frozen_java_golden" time="4.217" /><testcase classname="tests.test_oracle_smtp_self_spoof" name="test_rust_candidate_smtp_self_spoof_matches_frozen_java_golden[inferx]" time="2.009" /><testcase classname="tests.test_oracle_smtp_self_spoof" name="test_rust_candidate_smtp_self_spoof_matches_frozen_java_golden[fallback]" time="2.165" /><testcase classname="tests.test_oracle_smtp_self_spoof" name="test_rust_candidate_smtp_self_spoof_matches_frozen_java_golden[generic]" time="2.061" /><testcase classname="tests.test_oracle_smtp_sender_domain" name="test_rust_candidate_smtp_sender_domain_matches_frozen_java_golden" time="2.134" /><testcase classname="tests.test_oracle_smtp_skibidi" name="test_rust_candidate_smtp_skibidi_matches_frozen_java_golden" time="1.970" /><testcase classname="tests.test_oracle_smtp_spamhaus" name="test_rust_candidate_smtp_spamhaus_matches_frozen_java_golden[reject]" time="3.083" /><testcase classname="tests.test_oracle_smtp_spamhaus" name="test_rust_candidate_smtp_spamhaus_matches_frozen_java_golden[reject-disabled]" time="2.098" /><testcase classname="tests.test_oracle_smtp_spamhaus" name="test_rust_candidate_smtp_spamhaus_matches_frozen_java_golden[disabled]" time="1.769" /><testcase classname="tests.test_oracle_smtp_spf" name="test_rust_candidate_smtp_spf_matches_frozen_java_golden" time="6.308" /><testcase classname="tests.test_oracle_smtp_spf_dkim" name="test_rust_candidate_smtp_spf_dkim_matches_frozen_java_golden" time="1.880"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(900)
+    def test_rust_candidate_smtp_spf_dkim_matches_frozen_java_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        differential = _runner(repository)
+        with _candidate(repository) as candidate:
+&gt;           differential.verify_candidate(SMTP_SPF_DKIM_SCENARIOS, candidate)
+
+blackbox/tests/test_oracle_smtp_spf_dkim.py:222: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-smtp-spf-dkim-v8'), attestation=Go...f267131914a58e802f0415caa60a0bc27', profile='managed-smtp-spf-dkim', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-smtp-spf-dkim', 'scenarios': [{'contract': {'case_count': 20, 'dkim_verdicts': 'pass, fail, perme...r-hostname', 'smtp:session-id', 'maildir:generated-filename', 'maildir:server-hostname', 'maildir:received-id', ...]}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tests.test_oracle_smtp_starttls" name="test_rust_candidate_starttls_matches_frozen_java_golden" time="1.930"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_starttls_matches_frozen_java_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        differential = DifferentialRunner(
+            repository,
+            repository / "blackbox/golden/java/managed-starttls-v45",
+            "managed-starttls",
+        )
+        with _candidate(repository) as candidate:
+&gt;           differential.verify_candidate(STARTTLS_SCENARIOS, candidate)
+
+blackbox/tests/test_oracle_smtp_starttls.py:71: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-starttls-v45'), attestation=Golden...a6948f267131914a58e802f0415caa60a0bc27', profile='managed-starttls', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-starttls', 'scenarios': [{'contract': {'certificate': 'ephemeral-rsa-2048-pkcs12', 'delivery_card...med-handshake-recovery', 'normalizers': ['smtp:greeting-skibidi-grammar', 'smtp:server-hostname', 'smtp:session-id']}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_stress_matches_frozen_java_golden[False]" time="1.904"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">enabled = False
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.parametrize("enabled", (False, True))
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_stress_matches_frozen_java_golden(enabled: bool) -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runner, scenarios = _runner(repository, enabled)
+        with _candidate(repository, enabled) as candidate:
+&gt;           runner.verify_candidate(scenarios, candidate)
+
+blackbox/tests/test_oracle_stress.py:337: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-stress-disabled-v11'), attestation...67131914a58e802f0415caa60a0bc27', profile='managed-stress-disabled', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-stress-disabled', 'scenarios': [{'contract': {'configuration': 'stress test disabled', 'coverage'...ate', 'json-object-order:jdk-map-of', 'stress:generated-queue-id-and-millis', 'brand:legacy-config-key-to-lmyzmail']}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_stress_matches_frozen_java_golden[True]" time="1.979"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">enabled = True
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.parametrize("enabled", (False, True))
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_stress_matches_frozen_java_golden(enabled: bool) -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runner, scenarios = _runner(repository, enabled)
+        with _candidate(repository, enabled) as candidate:
+&gt;           runner.verify_candidate(scenarios, candidate)
+
+blackbox/tests/test_oracle_stress.py:337: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-stress-enabled-v11'), attestation=...267131914a58e802f0415caa60a0bc27', profile='managed-stress-enabled', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-stress-enabled', 'scenarios': [{'contract': {'configuration': {'emailSizeKB': 1, 'enabled': True,...e', 'normalizers': ['header:date:http-date', 'json-object-order:jdk-map-of', 'stress:generated-queue-id-and-millis']}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_stress_streaming_matches_frozen_java_golden" time="1.938"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_stress_streaming_matches_frozen_java_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runner = DifferentialRunner(
+            repository,
+            repository / "blackbox/golden/java/managed-stress-streaming-v9",
+            "managed-stress-streaming",
+        )
+        with _candidate(repository, True, 32) as candidate:
+&gt;           runner.verify_candidate(STRESS_STREAMING_SCENARIOS, candidate)
+
+blackbox/tests/test_oracle_stress.py:373: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-stress-streaming-v9'), attestation...7131914a58e802f0415caa60a0bc27', profile='managed-stress-streaming', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-stress-streaming', 'scenarios': [{'contract': {'configuration': {'emailSizeKB': 32, 'enabled': Tr...e', 'normalizers': ['header:date:http-date', 'json-object-order:jdk-map-of', 'stress:generated-queue-id-and-millis']}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_bounds_overlapping_stress_runs" time="1.883" /><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_serializes_cleanup_with_active_run" time="1.826" /><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_sigterm_during_stress_generation_cleans_owned_state" time="1.828" /><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_sigterm_during_stress_enqueue_preserves_recovery" time="1.820" /><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_sigterm_during_stress_delivery_keeps_queue_consistent" time="1.913" /><testcase classname="tests.test_oracle_stress" name="test_rust_candidate_restart_recovers_sigkill_stress_state" time="2.277" /><testcase classname="tests.test_oracle_tlsrpt_https" name="test_rust_candidate_tlsrpt_https" time="5.173"><failure message="FileNotFoundError: [Errno 2] No such file or directory: '/home/lmyzzz/lmyzmail-rust/blackbox/golden/campaigns/release-20261023-v3/java/managed-tlsrpt-https-v18.json'">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(260)
+    def test_rust_candidate_tlsrpt_https() -&gt; None:
+        repository = _repository()
+        observed = _run_probe(repository, target="candidate")
+        _assert_contract(observed, target="candidate")
+&gt;       _assert_candidate_matches(repository, observed)
+
+blackbox/tests/test_oracle_tlsrpt_https.py:260: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/tests/test_oracle_tlsrpt_https.py:229: in _assert_candidate_matches
+    ).read_text(encoding="utf-8")
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tools/release_campaign.py:59: in read_campaign_text
+    return _read_text(path, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.12/pathlib.py:1029: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/campaigns/release-20261023-v3/java/managed-tlsrpt-https-v18.json')
+mode = 'r', buffering = -1, encoding = 'utf-8', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+&gt;       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/lmyzzz/lmyzmail-rust/blackbox/golden/campaigns/release-20261023-v3/java/managed-tlsrpt-https-v18.json'
+
+/usr/lib/python3.12/pathlib.py:1015: FileNotFoundError</failure></testcase><testcase classname="tests.test_oracle_web_static" name="test_rust_candidate_web_static_matches_frozen_java_golden" time="1.747"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_web_static_matches_frozen_java_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+&gt;           _runner(repository).verify_candidate(WEB_STATIC_SCENARIOS, candidate)
+
+blackbox/tests/test_oracle_web_static.py:53: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-web-static-v8'), attestation=Golde...948f267131914a58e802f0415caa60a0bc27', profile='managed-web-static', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-web-static', 'scenarios': [{'contract': {'case_count': 11, 'comparison': 'status line, ordered he...e-emailtest-internet.nl.svg'], ...}, 'name': 'http/static/embedded-assets', 'normalizers': ['header:date:http-date']}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tests.test_oracle_web_ui" name="test_rust_candidate_web_ui_matches_frozen_java_golden" time="4.211"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.playwright
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_web_ui_matches_frozen_java_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+&gt;           _assert_capture(repository, capture_web_ui(candidate), record=False)
+
+blackbox/tests/test_oracle_web_ui.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/tests/test_oracle_web_ui.py:47: in _assert_capture
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-web-ui-v12'), attestation=GoldenAt...ons:disabled', 'focus:blurred', 'password-fields:cleared-after-validation', 'css-transitions:disabled')), record=False)
+relative_path = 'suite.json'
+observation = {'contract': {'interactions': ['registration tab and client-side password confirmation validation', 'database-backed l... 'animations:disabled', 'focus:blurred', 'password-fields:cleared-after-validation', ...], 'profile': 'managed-web-ui'}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tests.test_smtp_greeting_distribution" name="test_rust_smtp_greeting_uses_frozen_c_probability_contract" time="22.737" /><testcase classname="tools.test_candidate_smtp_skibidi_security" name="test_candidate_smtp_skibidi_rejects_non_finite_inputs_and_bounds_admission" time="1.850" /><testcase classname="tools.test_candidate_xdp" name="test_rust_candidate_xdp_disabled_matches_frozen_java" time="1.912"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(120)
+    def test_rust_candidate_xdp_disabled_matches_frozen_java() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        candidate = (
+            CandidateRuntime.from_environment()
+            if os.environ.get("LMYZMAIL_CANDIDATE_COMMAND_JSON") is not None
+            else CandidateRuntime(
+                command_template=(
+                    str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                    "--config",
+                    "{config}",
+                )
+            )
+        )
+        with candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java/managed-xdp-disabled-v12",
+                "managed-xdp-disabled",
+&gt;           ).verify_candidate(XDP_SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_candidate_xdp.py:34: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-xdp-disabled-v12'), attestation=Go...8f267131914a58e802f0415caa60a0bc27', profile='managed-xdp-disabled', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-xdp-disabled', 'scenarios': [{'contract': {'authentication': 'admin API key', 'configuration': 'b...ket'}, 'name': 'http/xdp/parameter-errors', 'normalizers': ['header:date:http-date', 'json-object-order:jdk-map-of']}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_fail2ban" name="test_rust_candidate_fail2ban_matches_golden" time="1.896"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(240)
+    def test_rust_candidate_fail2ban_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _PROFILE,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_fail2ban.py:373: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-fail2ban-v7'), attestation=GoldenA...a6948f267131914a58e802f0415caa60a0bc27', profile='managed-fail2ban', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-fail2ban', 'scenarios': [{'contract': {'activity': {'score': 10, 'type': 'SSH_BRUTEFORCE'}, 'find...t resets offset and reads new file from byte zero'}, 'name': 'fail2ban/partial-line-and-rotation', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_java_multi_domain" name="test_rust_candidate_multi_domain_matches_java_golden" time="1.863"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(240)
+    def test_rust_candidate_multi_domain_matches_java_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        if os.environ.get("LMYZMAIL_CANDIDATE_COMMAND_JSON") is not None:
+            candidate = _MultiDomainCandidateRuntime.from_environment()
+        else:
+            candidate = _MultiDomainCandidateRuntime(
+                command_template=(
+                    str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                    "--config",
+                    "{config}",
+                )
+            )
+        with candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _PROFILE,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_java_multi_domain.py:465: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-java-multi-domain-v15'), attestati...131914a58e802f0415caa60a0bc27', profile='managed-java-multi-domain', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-java-multi-domain', 'scenarios': [{'contract': {'domains': ['example.test', 'second.example.test'... 'protocol': 'HTTP/1.1 plus isolated PostgreSQL'}, 'name': 'config/multi-domain-stress-selection', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_mail_api_poll" name="test_rust_candidate_mail_api_poll_matches_golden" time="1.969"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_mail_api_poll_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = LegacyCandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                "managed-mail-api-poll",
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_mail_api_poll.py:186: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-mail-api-poll-v16'), attestation=G...f267131914a58e802f0415caa60a0bc27', profile='managed-mail-api-poll', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-mail-api-poll', 'scenarios': [{'contract': {'headers': [['X-API-Key', 'blackbox-admin-key']], 'js...808}, 'method': 'POST', 'protocol': 'http', ...}, 'name': 'http/mail-api/poll-since-i64-min', 'normalizers': []}, ...]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_authenticated_commands" name="test_rust_candidate_minecraft_authenticated_commands_matches_golden" time="1.914"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(900)
+    def test_rust_candidate_minecraft_authenticated_commands_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+                "--lmyzmail.minecraft.online-mode=false",
+                "--lmyzmail.minecraft.spawn.x=-12.75",
+                "--lmyzmail.minecraft.spawn.y=70.9",
+                "--lmyzmail.minecraft.spawn.z=34.5",
+                "--lmyzmail.minecraft.spawn.yaw=45.0",
+                "--lmyzmail.minecraft.spawn.pitch=-15.0",
+                "--lmyzmail.minecraft.video.center-x=0",
+                "--lmyzmail.minecraft.video.wall-z=-50",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _GOLDEN,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_authenticated_commands.py:153: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-authenticated-commands-v...aa60a0bc27', profile='managed-minecraft-authenticated-commands-v11', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-authenticated-commands-v11', 'scenarios': [{'contract': {'commands': [{'input': '  /HeL...mediate server responses', 'input_packet_id': 1, ...}, 'name': 'minecraft/authenticated-commands', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_draft_commands" name="test_rust_candidate_minecraft_draft_commands_matches_golden" time="1.941"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(900)
+    def test_rust_candidate_minecraft_draft_commands_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+                "--lmyzmail.minecraft.online-mode=false",
+                "--lmyzmail.minecraft.spawn.x=-12.75",
+                "--lmyzmail.minecraft.spawn.y=70.9",
+                "--lmyzmail.minecraft.spawn.z=34.5",
+                "--lmyzmail.minecraft.spawn.yaw=45.0",
+                "--lmyzmail.minecraft.spawn.pitch=-15.0",
+                "--lmyzmail.minecraft.video.center-x=0",
+                "--lmyzmail.minecraft.video.wall-z=-50",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _GOLDEN,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_draft_commands.py:135: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-draft-commands-v11'), at...02f0415caa60a0bc27', profile='managed-minecraft-draft-commands-v11', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-draft-commands-v11', 'scenarios': [{'contract': {'commands': [{'input': '/draft', 'name...pection, clear, and reinspection', 'input_packet_id': 1, ...}, 'name': 'minecraft/draft-commands', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_draft_editing" name="test_rust_candidate_minecraft_draft_editing_matches_golden" time="2.044"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(900)
+    def test_rust_candidate_minecraft_draft_editing_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+                "--lmyzmail.minecraft.online-mode=false",
+                "--lmyzmail.minecraft.spawn.x=-12.75",
+                "--lmyzmail.minecraft.spawn.y=70.9",
+                "--lmyzmail.minecraft.spawn.z=34.5",
+                "--lmyzmail.minecraft.spawn.yaw=45.0",
+                "--lmyzmail.minecraft.spawn.pitch=-15.0",
+                "--lmyzmail.minecraft.video.center-x=0",
+                "--lmyzmail.minecraft.video.wall-z=-50",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _GOLDEN,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_draft_editing.py:243: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-draft-editing-v6'), atte...e802f0415caa60a0bc27', profile='managed-minecraft-draft-editing-v6', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-draft-editing-v6', 'scenarios': [{'contract': {'body_pages': ['First page', 'Second pag...em_id': 386, 'book_packet_id': 23, 'sign_packet_id': 18}, ...}, 'name': 'minecraft/draft-editing', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_email_prompt" name="test_rust_candidate_minecraft_email_prompt_matches_golden" time="2.075"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(600)
+    def test_rust_candidate_minecraft_email_prompt_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+                "--lmyzmail.minecraft.online-mode=false",
+                "--lmyzmail.minecraft.spawn.x=-12.75",
+                "--lmyzmail.minecraft.spawn.y=70.9",
+                "--lmyzmail.minecraft.spawn.z=34.5",
+                "--lmyzmail.minecraft.spawn.yaw=45.0",
+                "--lmyzmail.minecraft.spawn.pitch=-15.0",
+                "--lmyzmail.minecraft.video.center-x=0",
+                "--lmyzmail.minecraft.video.wall-z=-50",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _GOLDEN,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_email_prompt.py:152: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-email-prompt-v11'), atte...e802f0415caa60a0bc27', profile='managed-minecraft-email-prompt-v11', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-email-prompt-v11', 'scenarios': [{'contract': {'captured_packet_ids': [2, 2, 2, 2], 'ch... -&gt; ASCII-padded valid email -&gt; AwaitingPassword prompts', ...}, 'name': 'minecraft/email-prompt', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_folder_gui" name="test_rust_candidate_minecraft_folder_gui_matches_golden" time="1.933"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(900)
+    def test_rust_candidate_minecraft_folder_gui_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+                "--lmyzmail.minecraft.online-mode=false",
+                "--lmyzmail.minecraft.spawn.x=-12.75",
+                "--lmyzmail.minecraft.spawn.y=70.9",
+                "--lmyzmail.minecraft.spawn.z=34.5",
+                "--lmyzmail.minecraft.spawn.yaw=45.0",
+                "--lmyzmail.minecraft.spawn.pitch=-15.0",
+                "--lmyzmail.minecraft.video.center-x=0",
+                "--lmyzmail.minecraft.video.wall-z=-50",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _GOLDEN,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_folder_gui.py:316: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-folder-gui-v11'), attest...58e802f0415caa60a0bc27', profile='managed-minecraft-folder-gui-v11', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-folder-gui-v11', 'scenarios': [{'contract': {'compression_threshold': 256, 'fixture': {..._slots': {'inbox': 10, 'sent': 12, 'spam': 16, 'trash': 14}, ...}, 'name': 'minecraft/folder-gui', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_login" name="test_rust_candidate_minecraft_offline_login_matches_golden" time="1.842"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_minecraft_offline_login_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+                "--lmyzmail.minecraft.online-mode=false",
+                "--lmyzmail.minecraft.spawn.x=-12.75",
+                "--lmyzmail.minecraft.spawn.y=70.9",
+                "--lmyzmail.minecraft.spawn.z=34.5",
+                "--lmyzmail.minecraft.spawn.yaw=45.0",
+                "--lmyzmail.minecraft.spawn.pitch=-15.0",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _GOLDEN,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_login.py:563: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-login-v14'), attestation...1914a58e802f0415caa60a0bc27', profile='managed-minecraft-login-v14', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-login-v14', 'scenarios': [{'contract': {'captured_play_packet_ids': [1, 65, 5, 57, 3, 6...r-dependent', ...}, 'name': 'minecraft/login-boundaries', 'normalizers': ['minecraft-concurrent-bootstrap-drain-v1']}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_login_admission" name="test_rust_candidate_minecraft_login_admission_matches_golden" time="1.861"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_minecraft_login_admission_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+                "--lmyzmail.minecraft.online-mode=false",
+                "--lmyzmail.minecraft.blacklist.players=BlockedUser,\u00c4User",
+                "--lmyzmail.minecraft.whitelist.enabled=true",
+                "--lmyzmail.minecraft.whitelist.players=AllowedUser",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _GOLDEN,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_login_admission.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-login-admission-v12'), a...2f0415caa60a0bc27', profile='managed-minecraft-login-admission-v12', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-login-admission-v12', 'scenarios': [{'contract': {'configured_blacklist': ['BlockedUser...ame_utf16_units': 16, 'protocol': 'minecraft-1.8.9'}, 'name': 'minecraft/login/overlong-username', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_logout_confirmation" name="test_rust_candidate_minecraft_logout_confirmation_matches_golden" time="1.944"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(900)
+    def test_rust_candidate_minecraft_logout_confirmation_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+                "--lmyzmail.minecraft.online-mode=false",
+                "--lmyzmail.minecraft.spawn.x=-12.75",
+                "--lmyzmail.minecraft.spawn.y=70.9",
+                "--lmyzmail.minecraft.spawn.z=34.5",
+                "--lmyzmail.minecraft.spawn.yaw=45.0",
+                "--lmyzmail.minecraft.spawn.pitch=-15.0",
+                "--lmyzmail.minecraft.video.center-x=0",
+                "--lmyzmail.minecraft.video.wall-z=-50",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _GOLDEN,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_logout_confirmation.py:195: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-logout-confirmation-v11'...15caa60a0bc27', profile='managed-minecraft-logout-confirmation-v11', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-logout-confirmation-v11', 'scenarios': [{'contract': {'behavior_difference': 'minecraft..., and disconnects', ...}, 'name': 'minecraft/logout-confirmation', 'normalizers': ['minecraft-logout-close-race-v1']}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_mail_view" name="test_rust_candidate_minecraft_mail_view_matches_golden" time="2.000"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(900)
+    def test_rust_candidate_minecraft_mail_view_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+                "--lmyzmail.minecraft.online-mode=false",
+                "--lmyzmail.minecraft.spawn.x=-12.75",
+                "--lmyzmail.minecraft.spawn.y=70.9",
+                "--lmyzmail.minecraft.spawn.z=34.5",
+                "--lmyzmail.minecraft.spawn.yaw=45.0",
+                "--lmyzmail.minecraft.spawn.pitch=-15.0",
+                "--lmyzmail.mailrender.simd-mode=SCALAR",
+            )
+        )
+        with _renderer_capture_lock():
+            with runtime as candidate:
+                DifferentialRunner(
+                    repository,
+                    repository / "blackbox/golden/java" / _GOLDEN,
+                    _GOLDEN,
+&gt;               ).verify_candidate(SCENARIOS, candidate)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_mail_view.py:1392: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-mail-view-v13'), attesta...a58e802f0415caa60a0bc27', profile='managed-minecraft-mail-view-v13', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-mail-view-v13', 'scenarios': [{'contract': {'budgets': {'expanded_bytes': 16777216, 'lo..., 'native-render-error', 'phase-timeout', 'disconnect', ...], ...}, 'name': 'minecraft/mail-view', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_main_menu" name="test_rust_candidate_minecraft_main_menu_matches_golden" time="1.984"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(900)
+    def test_rust_candidate_minecraft_main_menu_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+                "--lmyzmail.minecraft.online-mode=false",
+                "--lmyzmail.minecraft.spawn.x=-12.75",
+                "--lmyzmail.minecraft.spawn.y=70.9",
+                "--lmyzmail.minecraft.spawn.z=34.5",
+                "--lmyzmail.minecraft.spawn.yaw=45.0",
+                "--lmyzmail.minecraft.spawn.pitch=-15.0",
+                "--lmyzmail.minecraft.video.center-x=0",
+                "--lmyzmail.minecraft.video.wall-z=-50",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _GOLDEN,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_main_menu.py:144: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-main-menu-v11'), attesta...a58e802f0415caa60a0bc27', profile='managed-minecraft-main-menu-v11', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-main-menu-v11', 'scenarios': [{'contract': {'compression_threshold': 256, 'flow': 'auth...in chest GUI', 'input_packet_id': 1, 'normalization': 'none', ...}, 'name': 'minecraft/main-menu', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_main_menu_actions" name="test_rust_candidate_minecraft_main_menu_actions_matches_golden" time="1.883"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(900)
+    def test_rust_candidate_minecraft_main_menu_actions_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+                "--lmyzmail.minecraft.online-mode=false",
+                "--lmyzmail.minecraft.spawn.x=-12.75",
+                "--lmyzmail.minecraft.spawn.y=70.9",
+                "--lmyzmail.minecraft.spawn.z=34.5",
+                "--lmyzmail.minecraft.spawn.yaw=45.0",
+                "--lmyzmail.minecraft.spawn.pitch=-15.0",
+                "--lmyzmail.minecraft.video.center-x=0",
+                "--lmyzmail.minecraft.video.wall-z=-50",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _GOLDEN,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_main_menu_actions.py:196: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-main-menu-actions-v11'),...0415caa60a0bc27', profile='managed-minecraft-main-menu-actions-v11', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-main-menu-actions-v11', 'scenarios': [{'contract': {'actions': [{'action_number': 11, '...and account-switch actions', 'normalization': 'none', ...}, 'name': 'minecraft/main-menu-actions', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_main_menu_lifecycle" name="test_rust_candidate_minecraft_main_menu_lifecycle_matches_golden" time="1.943"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(900)
+    def test_rust_candidate_minecraft_main_menu_lifecycle_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+                "--lmyzmail.minecraft.online-mode=false",
+                "--lmyzmail.minecraft.spawn.x=-12.75",
+                "--lmyzmail.minecraft.spawn.y=70.9",
+                "--lmyzmail.minecraft.spawn.z=34.5",
+                "--lmyzmail.minecraft.spawn.yaw=45.0",
+                "--lmyzmail.minecraft.spawn.pitch=-15.0",
+                "--lmyzmail.minecraft.video.center-x=0",
+                "--lmyzmail.minecraft.video.wall-z=-50",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _GOLDEN,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_main_menu_lifecycle.py:205: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-main-menu-lifecycle-v11'...15caa60a0bc27', profile='managed-minecraft-main-menu-lifecycle-v11', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-main-menu-lifecycle-v11', 'scenarios': [{'contract': {'click': {'action_number': 7, 'bu...main-menu filler click and client close lifecycle', ...}, 'name': 'minecraft/main-menu-lifecycle', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_online" name="test_rust_candidate_minecraft_online_boundaries" time="1.875"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_minecraft_online_boundaries() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+                "--lmyzmail.minecraft.online-mode=true",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _GOLDEN,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_online.py:222: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-online-v11'), attestatio...914a58e802f0415caa60a0bc27', profile='managed-minecraft-online-v11', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-online-v11', 'scenarios': [{'contract': {'flow': 'LOGIN -&gt; Encryption Request -&gt; malfor...ine_mode': True, 'protocol': 'minecraft-1.8.9', ...}, 'name': 'minecraft/online-login-boundaries', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_outbound_delivery" name="test_rust_candidate_minecraft_outbound_matches_golden" time="22.273"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden managed-minecraft-outbound-v11.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(520)
+    def test_rust_candidate_minecraft_outbound_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        observed = {
+            "success": _run_probe(repository, target="candidate", case="success"),
+            "permanent_failure": _run_probe(repository, target="candidate", case="failure"),
+        }
+&gt;       _assert_golden(repository, observed, record=False)
+
+blackbox/tools/test_minecraft_outbound_delivery.py:546: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/tools/test_minecraft_outbound_delivery.py:518: in _assert_golden
+    GoldenStore(path.parent, attestation, record=record).assert_observation(path.name, observed)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java'), attestation=GoldenAttestation(oracle_co...bound:queue-id', 'minecraft-outbound:message-id', 'smtp:date-and-dkim-excluded-by-semantic-projection')), record=False)
+relative_path = 'managed-minecraft-outbound-v11.json'
+observation = {'permanent_failure': {'book_response': [{'chat': '§7Book saved: 2 page(s)', 'packet_id': 2, 'position': 0}], 'case': ....test', 'packet_id': 2, 'position': 0}, {'frame': {...}, 'packet_id': 51}], 'value': 'd@outbound.fixture.test'}], ...}}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden managed-minecraft-outbound-v11.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_outbound_duplicate" name="test_rust_candidate_rejects_overlapping_minecraft_send" time="8.450" /><testcase classname="tools.test_minecraft_password_auth" name="test_rust_candidate_minecraft_password_auth_matches_golden" time="1.902"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(900)
+    def test_rust_candidate_minecraft_password_auth_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+                "--lmyzmail.minecraft.online-mode=false",
+                "--lmyzmail.minecraft.spawn.x=-12.75",
+                "--lmyzmail.minecraft.spawn.y=70.9",
+                "--lmyzmail.minecraft.spawn.z=34.5",
+                "--lmyzmail.minecraft.spawn.yaw=45.0",
+                "--lmyzmail.minecraft.spawn.pitch=-15.0",
+                "--lmyzmail.minecraft.video.center-x=0",
+                "--lmyzmail.minecraft.video.wall-z=-50",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _GOLDEN,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_password_auth.py:168: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-password-auth-v10'), att...802f0415caa60a0bc27', profile='managed-minecraft-password-auth-v10', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-password-auth-v10', 'scenarios': [{'contract': {'captured_failure_packet_ids': [2, 2], ...ord -&gt; authenticated instructions/signs/book/scoreboard', ...}, 'name': 'minecraft/password-auth', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_position_rebound" name="test_rust_candidate_minecraft_position_rebound_matches_golden" time="2.016"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(600)
+    def test_rust_candidate_minecraft_position_rebound_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+                "--lmyzmail.minecraft.online-mode=false",
+                "--lmyzmail.minecraft.spawn.x=-12.75",
+                "--lmyzmail.minecraft.spawn.y=70.9",
+                "--lmyzmail.minecraft.spawn.z=34.5",
+                "--lmyzmail.minecraft.spawn.yaw=45.0",
+                "--lmyzmail.minecraft.spawn.pitch=-15.0",
+                "--lmyzmail.minecraft.video.center-x=0",
+                "--lmyzmail.minecraft.video.wall-z=-50",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _GOLDEN,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_position_rebound.py:158: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-position-rebound-v11'), ...f0415caa60a0bc27', profile='managed-minecraft-position-rebound-v11', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-position-rebound-v11', 'scenarios': [{'contract': {'captured_packet_ids': [8, 2, 24, 24...at -&gt; seven hologram teleports', 'input_packet_id': 4, ...}, 'name': 'minecraft/position-rebound', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_post_static" name="test_rust_candidate_minecraft_post_static_matches_golden" time="2.001"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(600)
+    def test_rust_candidate_minecraft_post_static_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+                "--lmyzmail.minecraft.online-mode=false",
+                "--lmyzmail.minecraft.spawn.x=-12.75",
+                "--lmyzmail.minecraft.spawn.y=70.9",
+                "--lmyzmail.minecraft.spawn.z=34.5",
+                "--lmyzmail.minecraft.spawn.yaw=45.0",
+                "--lmyzmail.minecraft.spawn.pitch=-15.0",
+                "--lmyzmail.minecraft.video.center-x=0",
+                "--lmyzmail.minecraft.video.wall-z=-50",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _GOLDEN,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_post_static.py:154: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-post-static-v11'), attes...8e802f0415caa60a0bc27', profile='managed-minecraft-post-static-v11', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-post-static-v11', 'scenarios': [{'contract': {'captured_packet_ids': [51, 51, 51, 51, 5... spawn', 'hologram_entity_ids': [900000, 900006], ...}, 'name': 'minecraft/post-static-bootstrap', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_render_settings" name="test_rust_candidate_minecraft_render_settings_matches_golden" time="1.896"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(900)
+    def test_rust_candidate_minecraft_render_settings_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+                "--lmyzmail.minecraft.online-mode=false",
+                "--lmyzmail.minecraft.spawn.x=-12.75",
+                "--lmyzmail.minecraft.spawn.y=70.9",
+                "--lmyzmail.minecraft.spawn.z=34.5",
+                "--lmyzmail.minecraft.spawn.yaw=45.0",
+                "--lmyzmail.minecraft.spawn.pitch=-15.0",
+                "--lmyzmail.minecraft.video.center-x=0",
+                "--lmyzmail.minecraft.video.wall-z=-50",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _GOLDEN,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_render_settings.py:312: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-render-settings-v11'), a...2f0415caa60a0bc27', profile='managed-minecraft-render-settings-v11', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-render-settings-v11', 'scenarios': [{'contract': {'cases': [{'lines': [...], 'name': 'v...n editor and per-session state', 'input_packet_id': 18, ...}, 'name': 'minecraft/render-settings', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_render_size_commands" name="test_rust_candidate_minecraft_render_size_commands_matches_golden" time="2.036"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(900)
+    def test_rust_candidate_minecraft_render_size_commands_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+                "--lmyzmail.minecraft.online-mode=false",
+                "--lmyzmail.minecraft.spawn.x=-12.75",
+                "--lmyzmail.minecraft.spawn.y=70.9",
+                "--lmyzmail.minecraft.spawn.z=34.5",
+                "--lmyzmail.minecraft.spawn.yaw=45.0",
+                "--lmyzmail.minecraft.spawn.pitch=-15.0",
+                "--lmyzmail.minecraft.video.center-x=0",
+                "--lmyzmail.minecraft.video.wall-z=-50",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _GOLDEN,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_render_size_commands.py:207: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-render-size-commands-v11...5caa60a0bc27', profile='managed-minecraft-render-size-commands-v11', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-render-size-commands-v11', 'scenarios': [{'contract': {'commands': [{'input': '/mail re...d 0x03/0x18 PLAY ticks covered by scheduled-play', ...}, 'name': 'minecraft/render-size-commands', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_scheduled_play" name="test_rust_candidate_minecraft_scheduled_play_matches_golden" time="2.007"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(600)
+    def test_rust_candidate_minecraft_scheduled_play_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+                "--lmyzmail.minecraft.online-mode=false",
+                "--lmyzmail.minecraft.spawn.x=-12.75",
+                "--lmyzmail.minecraft.spawn.y=70.9",
+                "--lmyzmail.minecraft.spawn.z=34.5",
+                "--lmyzmail.minecraft.spawn.yaw=45.0",
+                "--lmyzmail.minecraft.spawn.pitch=-15.0",
+                "--lmyzmail.minecraft.video.center-x=0",
+                "--lmyzmail.minecraft.video.wall-z=-50",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _GOLDEN,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_scheduled_play.py:125: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-scheduled-play-v11'), at...02f0415caa60a0bc27', profile='managed-minecraft-scheduled-play-v11', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-scheduled-play-v11', 'scenarios': [{'contract': {'captured_packet_ids': [24, 24, 24, 24...second hologram teleport tick', 'normalization': 'none', ...}, 'name': 'minecraft/scheduled-play', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_static_play" name="test_rust_candidate_minecraft_static_play_matches_golden" time="1.813"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(600)
+    def test_rust_candidate_minecraft_static_play_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+                "--lmyzmail.minecraft.online-mode=false",
+                "--lmyzmail.minecraft.spawn.x=-12.75",
+                "--lmyzmail.minecraft.spawn.y=70.9",
+                "--lmyzmail.minecraft.spawn.z=34.5",
+                "--lmyzmail.minecraft.spawn.yaw=45.0",
+                "--lmyzmail.minecraft.spawn.pitch=-15.0",
+                "--lmyzmail.minecraft.video.center-x=0",
+                "--lmyzmail.minecraft.video.wall-z=-50",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _GOLDEN,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_static_play.py:171: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-static-play-v11'), attes...8e802f0415caa60a0bc27', profile='managed-minecraft-static-play-v11', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-static-play-v11', 'scenarios': [{'contract': {'captured_packet_ids': [56, 71, 69, 69, 6... static PLAY bootstrap', 'normalization': 'none', ...}, 'name': 'minecraft/static-play-bootstrap', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_status" name="test_rust_candidate_minecraft_status_matches_golden" time="2.028"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_minecraft_status_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _GOLDEN,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_status.py:293: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-status-v16'), attestatio...914a58e802f0415caa60a0bc27', profile='managed-minecraft-status-v16', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-status-v16', 'scenarios': [{'contract': {'flow': 'fragmented handshake -&gt; status reques...max_frame_bytes': 2097152, 'protocol': 'minecraft-1.8.9'}, 'name': 'minecraft/framing-rejections', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_status" name="test_rust_candidate_minecraft_configured_status_matches_golden" time="2.041"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_minecraft_configured_status_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+                "--lmyzmail.minecraft.max-players=42",
+                f"--lmyzmail.minecraft.motd={_CUSTOM_MOTD}",
+                f"--lmyzmail.minecraft.favicon={_CUSTOM_FAVICON}",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _CUSTOM_GOLDEN,
+                _CUSTOM_GOLDEN,
+&gt;           ).verify_candidate(CUSTOM_SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_status.py:317: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-status-config-v13'), att...802f0415caa60a0bc27', profile='managed-minecraft-status-config-v13', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-status-config-v13', 'scenarios': [{'contract': {'favicon_input': '  cGl4ZWw=  ', 'favic...onse -&gt; ping -&gt; pong -&gt; EOF', 'max_players': 42, ...}, 'name': 'minecraft/configured-status-ping', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_time_update" name="test_rust_candidate_minecraft_time_update_matches_golden" time="1.977"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(600)
+    def test_rust_candidate_minecraft_time_update_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+                "--lmyzmail.minecraft.online-mode=false",
+                "--lmyzmail.minecraft.spawn.x=-12.75",
+                "--lmyzmail.minecraft.spawn.y=70.9",
+                "--lmyzmail.minecraft.spawn.z=34.5",
+                "--lmyzmail.minecraft.spawn.yaw=45.0",
+                "--lmyzmail.minecraft.spawn.pitch=-15.0",
+                "--lmyzmail.minecraft.video.center-x=0",
+                "--lmyzmail.minecraft.video.wall-z=-50",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _GOLDEN,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_time_update.py:129: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-time-update-v11'), attes...8e802f0415caa60a0bc27', profile='managed-minecraft-time-update-v11', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-time-update-v11', 'scenarios': [{'contract': {'captured_packet_ids': [3], 'compression_...ogram ticks -&gt; 15-second Time Update', 'hologram_ticks': 7, ...}, 'name': 'minecraft/time-update', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_video" name="test_rust_candidate_minecraft_video_matches_golden" time="1.870"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(1200)
+    def test_rust_candidate_minecraft_video_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+                "--lmyzmail.minecraft.online-mode=false",
+                "--lmyzmail.minecraft.spawn.x=0.5",
+                "--lmyzmail.minecraft.spawn.y=160.0",
+                "--lmyzmail.minecraft.spawn.z=0.5",
+                "--lmyzmail.minecraft.spawn.yaw=0.0",
+                "--lmyzmail.minecraft.spawn.pitch=0.0",
+                "--lmyzmail.minecraft.max-concurrent-videos=2",
+                "--lmyzmail.minecraft.read-timeout-seconds=120",
+                "--lmyzmail.minecraft.video.center-x=0",
+                "--lmyzmail.minecraft.video.center-y=161",
+                "--lmyzmail.minecraft.video.wall-z=-3",
+                "--lmyzmail.minecraft.video.clear-margin=2",
+                "--lmyzmail.minecraft.video.spawn-protect-radius=1",
+                "--lmyzmail.minecraft.map-video.center-x=0",
+                "--lmyzmail.minecraft.map-video.center-y=161",
+                "--lmyzmail.minecraft.map-video.center-z=-3",
+                "--lmyzmail.minecraft.map-video.facing=SOUTH",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _GOLDEN,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_video.py:730: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-video-v12'), attestation...1914a58e802f0415caa60a0bc27', profile='managed-minecraft-video-v12', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-video-v12', 'scenarios': [{'contract': {'budgets': {'expanded_bytes_per_phase': 6710886...video GUI, commands, map playback, block playback, and recovery', ...}, 'name': 'minecraft/video', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_minecraft_world" name="test_rust_candidate_minecraft_world_matches_golden" time="1.958"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(600)
+    def test_rust_candidate_minecraft_world_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = CandidateRuntime(
+            command_template=(
+                str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                "--config",
+                "{config}",
+                "--lmyzmail.minecraft.enabled=true",
+                "--lmyzmail.minecraft.online-mode=false",
+                "--lmyzmail.minecraft.spawn.x=-12.75",
+                "--lmyzmail.minecraft.spawn.y=70.9",
+                "--lmyzmail.minecraft.spawn.z=34.5",
+                "--lmyzmail.minecraft.spawn.yaw=45.0",
+                "--lmyzmail.minecraft.spawn.pitch=-15.0",
+                "--lmyzmail.minecraft.video.center-x=0",
+                "--lmyzmail.minecraft.video.wall-z=-50",
+            )
+        )
+        with runtime as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _GOLDEN,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_minecraft_world.py:246: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-world-v11'), attestation...1914a58e802f0415caa60a0bc27', profile='managed-minecraft-world-v11', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-world-v11', 'scenarios': [{'contract': {'compression_threshold': 256, 'flow': 'offline ...'normalization': 'none', 'protocol': 'minecraft-1.8.9', ...}, 'name': 'minecraft/world-bootstrap', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_smtp_content_filter_attachments" name="test_rust_candidate_smtp_content_filter_attachments_match_golden" time="1.960"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(360)
+    def test_rust_candidate_smtp_content_filter_attachments_match_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _PROFILE,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_smtp_content_filter_attachments.py:520: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-smtp-content-filter-attachments-v1...0415caa60a0bc27', profile='managed-smtp-content-filter-attachments', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-smtp-content-filter-attachments', 'scenarios': [{'contract': {'delivery_cardinality': 'exactly-on...tname', 'smtp:session-id', 'maildir:generated-filename', 'maildir:server-hostname', 'maildir:received-id', ...]}, ...]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_smtp_content_filter_body" name="test_rust_candidate_smtp_content_filter_body_matches_golden" time="1.777"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(360)
+    def test_rust_candidate_smtp_content_filter_body_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _PROFILE,
+&gt;           ).verify_candidate(BASE_SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_smtp_content_filter_body.py:348: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-smtp-content-filter-body-v8'), att...58e802f0415caa60a0bc27', profile='managed-smtp-content-filter-body', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-smtp-content-filter-body', 'scenarios': [{'contract': {'delivery_cardinality': 'exactly-once', 'e...r-hostname', 'smtp:session-id', 'maildir:generated-filename', 'maildir:server-hostname', 'maildir:received-id', ...]}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_smtp_content_filter_body" name="test_rust_candidate_smtp_content_filter_body_edge_matches_golden" time="1.975"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(360)
+    def test_rust_candidate_smtp_content_filter_body_edge_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _EDGE_GOLDEN,
+                _EDGE_PROFILE,
+&gt;           ).verify_candidate(EDGE_SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_smtp_content_filter_body.py:381: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-smtp-content-filter-body-edge-v8')...2f0415caa60a0bc27', profile='managed-smtp-content-filter-body-edge', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-smtp-content-filter-body-edge', 'scenarios': [{'contract': {'delivery_cardinality': 'exactly-once...r-hostname', 'smtp:session-id', 'maildir:generated-filename', 'maildir:server-hostname', 'maildir:received-id', ...]}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_smtp_content_filter_default" name="test_rust_candidate_smtp_content_filter_default_matches_golden" time="2.039"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(240)
+    def test_rust_candidate_smtp_content_filter_default_matches_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _PROFILE,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_smtp_content_filter_default.py:234: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-smtp-content-filter-default-v21'),...802f0415caa60a0bc27', profile='managed-smtp-content-filter-default', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-smtp-content-filter-default', 'scenarios': [{'contract': {'delivery_cardinality': 'exactly-once',...r-hostname', 'smtp:session-id', 'maildir:generated-filename', 'maildir:server-hostname', 'maildir:received-id', ...]}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_smtp_content_filter_default_v4" name="test_rust_candidate_smtp_content_filter_default_v4" time="2.017"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(240)
+    def test_rust_candidate_smtp_content_filter_default_v4() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        with base._candidate(repository) as candidate:
+&gt;           _runner(repository).verify_candidate(base.SCENARIOS, candidate)
+
+blackbox/tools/test_smtp_content_filter_default_v4.py:47: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-smtp-content-filter-default-v22'),...f0415caa60a0bc27', profile='managed-smtp-content-filter-default-v4', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-smtp-content-filter-default-v4', 'scenarios': [{'contract': {'delivery_cardinality': 'exactly-onc...r-hostname', 'smtp:session-id', 'maildir:generated-filename', 'maildir:server-hostname', 'maildir:received-id', ...]}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_smtp_content_filter_headers" name="test_rust_candidate_smtp_content_filter_headers_match_golden" time="1.884"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">@pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(360)
+    def test_rust_candidate_smtp_content_filter_headers_match_golden() -&gt; None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java" / _GOLDEN,
+                _PROFILE,
+&gt;           ).verify_candidate(SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_smtp_content_filter_headers.py:298: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-smtp-content-filter-headers-v14'),...802f0415caa60a0bc27', profile='managed-smtp-content-filter-headers', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-smtp-content-filter-headers', 'scenarios': [{'contract': {'delivery_cardinality': 'exactly-once',...r-hostname', 'smtp:session-id', 'maildir:generated-filename', 'maildir:server-hostname', 'maildir:received-id', ...]}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase></testsuite></testsuites>

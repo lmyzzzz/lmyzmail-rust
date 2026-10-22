@@ -2,23 +2,48 @@
 
 This record is intentionally a status report, not a completion claim. The overall rewrite goal remains incomplete until every required protocol, rendering, model, security, stress, differential, release, and rollback gate has evidence.
 
-Release candidate `bf6c0d53` and its complete source/history are available in
-`D:\MiscProjects\lmyzmail-rust\releases\20261022-rc.bf6c0d53`.
-See [its validation supplement](release-bf6c0d53-validation.md) for the exact
-reproduced-ELF checks, all 311 non-oracle checks, model/takeover checks and
-installation evidence. The older `39379c04` package and
+Release candidate `22dae7d0` and its complete source/history are available in
+`D:\MiscProjects\lmyzmail-rust\releases\20261023-rc.22dae7d0`.
+See [its validation supplement](release-22dae7d0-validation.md) for the exact
+reproduced ELF, source/package inventory, installation and current validation
+results. The earlier `bf6c0d53` package and
+[its validation supplement](release-bf6c0d53-validation.md), `39379c04` package and
 [its negative and corrected evidence](release-39379c04-validation.md) are retained.
 Packaging does not close the remaining gates.
 
 The [2026-10-23 local follow-up](local-validation-20261023.md) fixes isolation
 of the two retained oracle fixtures and adds evidenced four-class legacy-name
 takeover and alias security regressions. The repaired source passed all 961
-Rust tests and strict Clippy. The delivered `bf6c0d53` package remains unchanged;
-new source and development-artifact evidence do not retroactively update its
-checksums or qualify a new release.
+Rust tests and strict Clippy. The new reproduced `22dae7d0` ELF is packaged
+separately; every older package and its checksums remain unchanged.
+
+The current milestone also adds a copy-only, fsynced offline exporter for
+new v2 mail and real PENDING memory/file-mode queue handoff in both runtime
+directions. The exporter passed five consecutive same-state Java/Rust checks;
+the queue check passed and observed a full scheduling cycle after a final
+Rust restart. These close the tested rollback/handoff cases without claiming
+all in-flight crash boundaries or allowing unsafe colliding Java aliases.
 
 ## Passed in the current milestone
 
+- The full fresh frozen-Java campaign passed 107 oracle tests in 2,129.89
+  seconds; the separately isolated RBL Java/candidate checks also passed.
+  All 6,897 historical golden files remained unchanged and all 346 fresh
+  campaign observations/artifacts matched them without semantic differences.
+  The complete retained `22dae7d0` candidate replay then passed all 126
+  selected checks in 899.16 seconds, matching the same observations with
+  unchanged ELF hashes. With 188 disjoint unmarked checks and independent
+  candidate RBL, all 315 non-oracle checks passed.
+- The retained `22dae7d0` runtime/source/history package passed complete source
+  stream and 17,240-path inventory checks, full Git-bundle verification and
+  checksums after copying to Windows. Two independent-target frozen builds
+  produced identical ELF bytes. The full installation regression and actual
+  unpacked package installation/reinstallation/uninstallation passed.
+- The first `22dae7d0` half-hour soak is retained as a failure: zero protocol
+  errors across 254,064 operations and stable RSS/FD/tasks do not override its
+  filesystem-wide disk peak of 2,767,642,624 bytes against the 1 GiB gate.
+  Its own workspace grew by 5,787,648 bytes while oracle/package work ran
+  concurrently. The same unchanged policy must pass in an isolated rerun.
 - The 2026-10-22 shutdown recovery repair passed all 959 Rust tests, strict
   Clippy, all four unchanged stress SIGTERM/SIGKILL regressions, compact-model
   Scalar/Auto SMTP/DB checks, and ordinary-address bidirectional Java/Rust
@@ -68,8 +93,9 @@ The 30-second smoke companion is retained as [`candidate-soak-v6-smoke-0eb2-v1.j
   log are retained. The historical replay is still not a clean full replay.
   The later `bf6c0d53` package and complete non-oracle replay passed, but a clean
   repeatable Java differential matrix remains required. See
-  [Maildir takeover status](maildir-takeover.md) for the remaining ambiguous-name
-  layout and rollback gap. Package availability is not production acceptance.
+  [Maildir takeover status](maildir-takeover.md) for the later ownership repair,
+  four-class offline rollback, pending-queue handoff and remaining limitations.
+  Package availability is not production acceptance.
 - The packaged compact 2026-10-22 InferX model has independent frozen-Java
   Scalar/AVX2 output goldens, 24 Rust inference tests, and two real SMTP/DB tests
   (Scalar and Auto) with model mmap and no JVM/kernel runtime dependency.
@@ -85,10 +111,11 @@ The 30-second smoke companion is retained as [`candidate-soak-v6-smoke-0eb2-v1.j
   changes. The `bf6c0d53` independent-target-directory builds, install, upgrade,
   configuration preservation and uninstall passed. Complete data rollback is
   still a separate requirement.
-- Complete a clean repeatable Java/Rust differential matrix. The exact retained
-  `bf6c0d53` ELF passed all 311 current non-oracle checks without changing golden
-  files or assertions; the frozen-Java DMARC and multi-domain observations and
-  previously recorded intermittent DNS query order still need resolution.
+- The fresh `22dae7d0` full Java/candidate matrix now passes, including the
+  isolated DMARC and corrected multi-domain scheduling fixture. Preserve this
+  evidence and rerun after product or harness changes. The earlier intermittent
+  DNS query-order failure remains retained; one successful complete run does
+  not establish that its underlying ordering race has been eliminated.
 - Verify actual AVX2+FMA and AVX-512 runtime-dispatch execution evidence for the implemented mail rendering and Minecraft palette/resize/color conversion paths; Scalar-only evidence is insufficient. The current 275HX WSL host exposes AVX2/FMA but no AVX-512F, so compilation and safe fallback alone cannot prove AVX-512 execution or native performance.
   Local Scalar/AVX2 Minecraft video and mail-view wire/pixel goldens passed with
   verified runtime-dispatch events (`renderer-local-f3b10966/`). The six-round

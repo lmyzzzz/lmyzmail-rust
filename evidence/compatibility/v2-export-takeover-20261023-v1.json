@@ -1,0 +1,24 @@
+{
+  "binary_sha256": "78a4c31145010e479ec64a9e0a2f3ac767b2860e32180100cad699a155c37790",
+  "export": {
+    "copied_bytes": 7413,
+    "database_read_only": true,
+    "elapsed_seconds": 0.06323970900848508,
+    "export_files": 11,
+    "indexed_mappings": 7,
+    "output": "/tmp/pytest-of-lmyzzz/pytest-156/test_new_v2_maildir_exports_fo0/java-rollback/maildir",
+    "pending_spool_requirement": "retain the original source path and Redis state",
+    "source_files": 7,
+    "source_unchanged": true,
+    "status": "passed"
+  },
+  "managed_process_cleanup": "passed",
+  "phases": [
+    "rust-creates-and-reads-four-new-v2-address-classes",
+    "offline-streamed-copy-with-unchanged-source-and-database",
+    "frozen-java-byte-exact-reads-of-all-exported-v2-mail",
+    "rust-byte-exact-reopen-after-java-rollback",
+    "lossy-owner-collision-and-symlink-export-fail-closed"
+  ],
+  "status": "passed"
+}

@@ -1,0 +1,45 @@
+{
+  "binary_sha256": "78a4c31145010e479ec64a9e0a2f3ac767b2860e32180100cad699a155c37790",
+  "managed_process_cleanup": "passed",
+  "phases": [
+    {
+      "accepted": 2,
+      "consumer": "rust",
+      "duplicates": 0,
+      "producer": "java",
+      "retries": 0,
+      "tasks": [
+        {
+          "bytes": 320,
+          "mode": "memory",
+          "sha256": "1d06530890a736958fabc8d7a59caf35247249fdb27b52659b5cbb37f65ebf40"
+        },
+        {
+          "bytes": 13077,
+          "mode": "file",
+          "sha256": "f8b204c2a047e53aeaa22f9536178149ed7796333d929f951555433f78017e54"
+        }
+      ]
+    },
+    {
+      "accepted": 2,
+      "consumer": "java",
+      "duplicates": 0,
+      "producer": "rust",
+      "retries": 0,
+      "tasks": [
+        {
+          "bytes": 319,
+          "mode": "memory",
+          "sha256": "48638988163461bc3853e3dfcad96ccb5d5e6353eaed70215f6a6f4076b68eec"
+        },
+        {
+          "bytes": 13076,
+          "mode": "file",
+          "sha256": "3394474ce92d2f084eb1a7455a0b9373b3d9f1e3bbc03ed8a3d867a39715128f"
+        }
+      ]
+    }
+  ],
+  "status": "passed"
+}

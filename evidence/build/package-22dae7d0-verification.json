@@ -1,0 +1,9 @@
+{
+  "binary_sha256": "78a4c31145010e479ec64a9e0a2f3ac767b2860e32180100cad699a155c37790",
+  "complete_history_bundle": true,
+  "exact_git_archive_sha256": "2f20ca7bf314e4eaf78ec3edd8bf881033a55a1b3d5d7a1ed0e9872c3461dc98",
+  "package_checksums": 4,
+  "source_commit": "22dae7d0f8728f355fc6a31bdc65263bd21aa10d",
+  "status": "passed",
+  "tracked_source_paths": 17240
+}

@@ -1,0 +1,9 @@
+package=/home/lmyzzz/lmyzmail-rust/.blackbox/package-check-22dae7d0/lmyzmail-0.1.0-rc.22dae7d0
+stage=/home/lmyzzz/lmyzmail-rust/.blackbox/actual-package-install-22dae7d0.mA06tXve
+staged lmyzmail installation under /home/lmyzzz/lmyzmail-rust/.blackbox/actual-package-install-22dae7d0.mA06tXve
+78a4c31145010e479ec64a9e0a2f3ac767b2860e32180100cad699a155c37790  /home/lmyzzz/lmyzmail-rust/.blackbox/actual-package-install-22dae7d0.mA06tXve/usr/bin/lmyzmail
+config=/home/lmyzzz/lmyzmail-rust/.blackbox/actual-package-install-22dae7d0.mA06tXve/etc/lmyzmail/application.properties http=8080 smtp=25 htcpcp=8888 minecraft=25565 maildir=/var/lib/lmyzmail/data/mail fsync=true api_keys=0 xdp=false
+preserved existing configuration: /home/lmyzzz/lmyzmail-rust/.blackbox/actual-package-install-22dae7d0.mA06tXve/etc/lmyzmail/application.properties
+staged lmyzmail installation under /home/lmyzzz/lmyzmail-rust/.blackbox/actual-package-install-22dae7d0.mA06tXve
+removed lmyzmail executable, unit, example, and generated path grants; configuration, data, assets, user, and BPF pins were preserved
+actual packaged install/reinstall/config-check/uninstall/config-and-model-preservation passed

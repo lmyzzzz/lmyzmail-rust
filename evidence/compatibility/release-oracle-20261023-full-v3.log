@@ -1,0 +1,6 @@
+........................................................................ [ 67%]
+...................................                                      [100%]
+Campaign audit: {"differences_requiring_review": [], "harness_definition_sha256": "c447cb7a88931c15ad51e3f304a6948f267131914a58e802f0415caa60a0bc27", "historical_observations_equal": 346, "old_golden_files_unchanged": 6897, "pytest_exitstatus": 0}
+
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/release-oracle-20261023-full-v3.xml -
+107 passed, 316 deselected in 2129.89s (0:35:29)

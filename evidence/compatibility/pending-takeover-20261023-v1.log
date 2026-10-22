@@ -1,0 +1,168 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_pending_memory_and_file_tasks_survive_both_runtime_handoffs _______
+
+tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-147/test_pending_memory_and_file_t0')
+
+    @pytest.mark.timeout(300)
+    def test_pending_memory_and_file_tasks_survive_both_runtime_handoffs(tmp_path):
+        binary = Path(os.environ["LMYZMAIL_TAKEOVER_BINARY"]).resolve(strict=True)
+        with binary.open("rb") as source:
+            binary_sha256 = hashlib.file_digest(source, "sha256").hexdigest()
+        proof = {"binary_sha256": binary_sha256, "phases": []}
+        runtime = HandoffRuntime(tmp_path / "pending-takeover")
+        dns = _candidate_dns_server()
+        smtp = ScriptedSmtpServer(SmtpScenario(), bind_host=_FAKE_IP, bind_port=25)
+        cache = None
+        try:
+            dns.start()
+            smtp.start()
+>           runtime.start()
+
+tools/test_pending_takeover.py:72: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/persistent_runtime.py:616: in start
+    self._start_application()
+tools/test_pending_takeover.py:47: in _start_application
+    super()._start_application()
+blackbox/src/lmyzmail_blackbox/persistent_runtime.py:534: in _start_application
+    super()._start_application()
+blackbox/src/lmyzmail_blackbox/runtime.py:612: in _start_application
+    self._application.wait_for_tcp("127.0.0.1", ports.http, timeout=remaining)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ManagedProcess(name='java-oracle-persistent-0001', argv=['/home/lmyzzz/lmyzmail-rust/.blackbox/runtime/jdk22/bin/java'...OME': '/tmp/pytest-of-lmyzzz/pytest-147/test_pending_memory_and_file_t0/pending-takeover/xdg-data'}, inherit_env=False)
+host = '127.0.0.1', port = 43825
+
+    def wait_for_tcp(self, host: str, port: int, *, timeout: float) -> None:
+        if self._process is None:
+            raise RuntimeError(f"{self.name} has not started")
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError("TCP readiness timeout must be finite and positive")
+        deadline = time.monotonic() + timeout
+        last_error: OSError | None = None
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            exit_code = self._process.poll()
+            if exit_code is not None:
+>               raise ProcessStartError(
+                    f"{self.name} exited with {exit_code}; tail:\n{self.log_tail()}"
+                )
+E               lmyzmail_blackbox.errors.ProcessStartError: java-oracle-persistent-0001 exited with 1; tail:
+E               INFO 2093304 --- [           main] n.l.lmyzmail.inbound.EarlyRejectService  : Spamhaus cache initialized with TTL: 300s
+E               2026-10-22T17:05:04.192Z  INFO 2093304 --- [           main] n.l.lmyzmail.inbound.EarlyRejectService  : SkibidiCringeIPService is available for recording cringe activities
+E               2026-10-22T17:05:04.192Z  INFO 2093304 --- [           main] n.l.lmyzmail.inbound.EarlyRejectService  : SMTPUTF8/EAI (Internationalized Email) support is enabled
+E               2026-10-22T17:05:04.197Z  INFO 2093304 --- [           main] n.lmyz.lmyzmail.inbound.MailFileStore    : MailFileStore initialized with sharding=true, maxFilesPerDirectory=1
+E               2026-10-22T17:05:04.203Z  INFO 2093304 --- [           main] n.lmyz.lmyzmail.inbound.MtaStsService    : MTA-STS service initialized, enabled=false
+E               2026-10-22T17:05:04.244Z  INFO 2093304 --- [           main] n.l.l.mailbox.service.MailboxService     : Initialized mailbox cache loader executor with 48 threads
+E               2026-10-22T17:05:04.244Z  INFO 2093304 --- [           main] n.l.l.mailbox.service.MailboxService     : Initialized mailbox existence cache (async mode, max=100000, ttl=15min)
+E               2026-10-22T17:05:04.527Z  INFO 2093304 --- [           main] n.l.l.mailbox.service.EmailIndexService  : Started 2 inbound index worker threads
+E               2026-10-22T17:05:04.542Z  INFO 2093304 --- [           main] n.l.lmyzmail.ratelimit.RateLimitService  : Initialized inbound rate limit bucket: 100.0 MB bytes per 1 hours
+E               2026-10-22T17:05:04.546Z  INFO 2093304 --- [           main] n.l.lmyzmail.inbound.SmtpTarpitService   : Local IP cache initialized with 6 addresses
+E               2026-10-22T17:05:04.548Z  INFO 2093304 --- [           main] n.l.l.r.service.ReportingBatchService    : ReportingBatchService initialized with batchSize=500, flushIntervalMs=2000
+E               2026-10-22T17:05:04.660Z  INFO 2093304 --- [           main] n.l.l.n.smtp.quiz.BrainrotQuizService    : Brainrot Quiz loaded: 474 questions across 10 buckets
+E               2026-10-22T17:05:04.672Z  WARN 2093304 --- [           main] n.l.l.inbound.NettySmtpServerStarter     : SMTP Server TLS disabled (no custom certificate configured)
+E               2026-10-22T17:05:04.673Z  INFO 2093304 --- [           main] n.lmyz.lmyzmail.netty.smtp.SmtpServer    : Starting SMTP server on port 59333 with hostname 'blackbox.example'
+E               2026-10-22T17:05:04.673Z  INFO 2093304 --- [           main] n.l.lmyzmail.util.NettyTransportSupport  : Netty Transport: Using IO_URING
+E               2026-10-22T17:05:04.873Z  WARN 2093304 --- [           main] io.netty.util.internal.MacAddressUtil    : Failed to find a usable hardware address from the network interfaces; using random bytes: 70:b1:1c:1d:e9:15:ee:3b
+E               2026-10-22T17:05:04.895Z  INFO 2093304 --- [           main] n.lmyz.lmyzmail.netty.smtp.SmtpServer    : SMTP server started successfully on /127.0.0.1:59333
+E               2026-10-22T17:05:04.896Z  INFO 2093304 --- [           main] n.l.l.inbound.NettySmtpServerStarter     : ========================================
+E               2026-10-22T17:05:04.897Z  INFO 2093304 --- [           main] n.l.l.inbound.NettySmtpServerStarter     : lmyzmail SMTP Server 2.8.0 - Skibidi dop dop yes yes!
+E               2026-10-22T17:05:04.897Z  INFO 2093304 --- [           main] n.l.l.inbound.NettySmtpServerStarter     : ========================================
+E               2026-10-22T17:05:04.897Z  INFO 2093304 --- [           main] n.l.l.inbound.NettySmtpServerStarter     : SMTP Server started on 127.0.0.1:59333
+E               2026-10-22T17:05:04.897Z  INFO 2093304 --- [           main] n.l.l.inbound.NettySmtpServerStarter     : SMTP Extensions: SIZE=15.0 MB, PIPELINING, CHUNKING, 8BITMIME, SKIBIDITOILET
+E               2026-10-22T17:05:04.897Z  INFO 2093304 --- [           main] n.l.l.inbound.NettySmtpServerStarter     : ========================================
+E               2026-10-22T17:05:04.929Z  INFO 2093304 --- [           main] net.lmyz.lmyzmail.outbound.MxResolver    : MxResolver initialized: L1[maxSize=10000, TTL=15min], L2[TTL=30min], timeout=1s
+E               2026-10-22T17:05:05.303Z  INFO 2093304 --- [           main] n.l.l.outbound.MailQueueRedisService     : MailQueueRedisService initialized with streaming, sharding, memory-mode and retry support
+E               2026-10-22T17:05:05.307Z  INFO 2093304 --- [           main] n.l.l.outbound.SmtpConnectionPool        : SmtpConnectionPool initialized. Pool enabled: false
+E               2026-10-22T17:05:05.311Z  INFO 2093304 --- [           main] n.lmyz.lmyzmail.inbound.MailFileStore    : MailFileStore initialized with sharding=true, maxFilesPerDirectory=1
+E               2026-10-22T17:05:05.312Z  INFO 2093304 --- [           main] n.l.l.outbound.OutboundMailService       : Outbound mail temp directory: /tmp/pytest-of-lmyzzz/pytest-147/test_pending_memory_and_file_t0/pending-takeover/java-tmp/botmail-outbound
+E               2026-10-22T17:05:05.314Z  INFO 2093304 --- [           main] n.l.l.outbound.OutboundMailService       : OutboundMailService initialized with temp dir: /tmp/pytest-of-lmyzzz/pytest-147/test_pending_memory_and_file_t0/pending-takeover/java-tmp/botmail-outbound
+E               2026-10-22T17:05:05.332Z  INFO 2093304 --- [           main] n.l.lmyzmail.outbound.AsyncMailSender    : AsyncMailSender temp directory: /tmp/pytest-of-lmyzzz/pytest-147/test_pending_memory_and_file_t0/pending-takeover/java-tmp/botmail-async-sender
+E               2026-10-22T17:05:05.334Z  INFO 2093304 --- [           main] n.l.l.outbound.MailQueuePersister        : MailQueuePersister initialized with Write-Behind strategy (multi-threaded batch mode, JDBC batch insert)
+E               2026-10-22T17:05:05.346Z  INFO 2093304 --- [           main] n.l.l.outbound.MailQueueScheduler        : Mail queue scheduler initialized with Write-Behind strategy, max concurrent sends: 1
+E               2026-10-22T17:05:05.348Z  WARN 2093304 --- [           main] ConfigServletWebServerApplicationContext : Exception encountered during context initialization - cancelling refresh attempt: org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'mailQueueScheduler': Unsatisfied dependency expressed through field 'batchSize': Failed to convert value of type 'java.lang.String' to required type 'int'; For input string: "2,4"
+E               2026-10-22T17:05:05.348Z  INFO 2093304 --- [           main] n.l.l.outbound.MailQueuePersister        : Shutting down mail queue persister...
+E               2026-10-22T17:05:05.348Z  INFO 2093304 --- [           main] n.l.l.outbound.MailQueuePersister        : Flushing remaining data...
+E               2026-10-22T17:05:05.633Z  INFO 2093304 --- [           main] n.l.l.outbound.MailQueuePersister        : Mail queue persister stopped. Total archived: 0, errors: 0, files deleted: 0, deadlock retries: 0
+E               2026-10-22T17:05:05.633Z  INFO 2093304 --- [           main] n.l.l.outbound.SmtpConnectionPool        : Shutting down SmtpConnectionPool...
+E               2026-10-22T17:05:05.634Z  INFO 2093304 --- [           main] n.l.l.outbound.SmtpConnectionPool        : SmtpConnectionPool shutdown complete. Closed 0 connections. Stats: borrows=0, returns=0, created=0, invalidated=0, hitRate=0.0%
+E               2026-10-22T17:05:05.635Z  INFO 2093304 --- [           main] n.l.l.inbound.NettySmtpServerStarter     : Shutting down SMTP Server...
+E               2026-10-22T17:05:05.635Z  INFO 2093304 --- [           main] n.lmyz.lmyzmail.netty.smtp.SmtpServer    : Stopping SMTP server...
+E               2026-10-22T17:05:05.646Z  INFO 2093304 --- [           main] n.lmyz.lmyzmail.netty.smtp.SmtpServer    : SMTP server stopped
+E               2026-10-22T17:05:05.646Z  INFO 2093304 --- [           main] n.l.l.inbound.NettySmtpServerStarter     : [SMTP Netty] Final stats | Total sessions handled: 0 | Uptime: 0m
+E               2026-10-22T17:05:05.646Z  INFO 2093304 --- [           main] n.l.l.inbound.NettySmtpServerStarter     : SMTP Server shutdown complete
+E               2026-10-22T17:05:05.647Z  INFO 2093304 --- [           main] n.l.l.r.service.ReportingBatchService    : Shutting down ReportingBatchService...
+E               2026-10-22T17:05:06.548Z  INFO 2093304 --- [           main] n.l.l.r.service.ReportingBatchService    : Final flush: DMARC pending=0, TLS pending=0
+E               2026-10-22T17:05:06.548Z  INFO 2093304 --- [           main] n.l.l.r.service.ReportingBatchService    : ReportingBatchService stopped. Total DMARC=0, TLS=0
+E               2026-10-22T17:05:06.549Z  INFO 2093304 --- [           main] n.l.l.mailbox.service.EmailIndexService  : Shutting down email index service...
+E               2026-10-22T17:05:07.028Z  INFO 2093304 --- [           main] n.l.l.mailbox.service.EmailIndexService  : Email index service stopped. Total indexed: 0, batches: 0, errors: 0
+E               2026-10-22T17:05:07.029Z  INFO 2093304 --- [           main] n.l.l.mailbox.service.MailboxService     : Shutting down mailbox cache loader executor...
+E               2026-10-22T17:05:07.029Z  INFO 2093304 --- [           main] n.l.l.mailbox.service.MailboxService     : Mailbox cache loader executor shutdown complete
+E               2026-10-22T17:05:07.041Z  INFO 2093304 --- [           main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx] Inference engine closed
+E               2026-10-22T17:05:07.059Z  INFO 2093304 --- [           main] n.l.l.c.s.SkibidiCringeDecayScheduler    : CringeDecay: Shutting down scheduler...
+E               2026-10-22T17:05:07.059Z  INFO 2093304 --- [           main] n.l.l.c.s.SkibidiCringeDecayScheduler    : CringeDecay: Scheduler shutdown complete
+E               2026-10-22T17:05:07.060Z  INFO 2093304 --- [           main] j.LocalContainerEntityManagerFactoryBean : Closing JPA EntityManagerFactory for persistence unit 'default'
+E               2026-10-22T17:05:07.062Z  INFO 2093304 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown initiated...
+E               2026-10-22T17:05:07.063Z  INFO 2093304 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown completed.
+E               2026-10-22T17:05:07.064Z  INFO 2093304 --- [           main] o.apache.catalina.core.StandardService   : Stopping service [Tomcat]
+E               2026-10-22T17:05:07.071Z  INFO 2093304 --- [           main] .s.b.a.l.ConditionEvaluationReportLogger : 
+E               
+E               Error starting ApplicationContext. To display the condition evaluation report re-run your application with 'debug' enabled.
+E               2026-10-22T17:05:07.081Z ERROR 2093304 --- [           main] o.s.boot.SpringApplication               : Application run failed
+E               
+E               org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'mailQueueScheduler': Unsatisfied dependency expressed through field 'batchSize': Failed to convert value of type 'java.lang.String' to required type 'int'; For input string: "2,4"
+E               	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor$AutowiredFieldElement.resolveFieldValue(AutowiredAnnotationBeanPostProcessor.java:788) ~[spring-beans-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor$AutowiredFieldElement.inject(AutowiredAnnotationBeanPostProcessor.java:768) ~[spring-beans-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.beans.factory.annotation.InjectionMetadata.inject(InjectionMetadata.java:146) ~[spring-beans-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor.postProcessProperties(AutowiredAnnotationBeanPostProcessor.java:509) ~[spring-beans-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.populateBean(AbstractAutowireCapableBeanFactory.java:1459) ~[spring-beans-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:606) ~[spring-beans-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:529) ~[spring-beans-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:339) ~[spring-beans-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:373) ~[spring-beans-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:337) ~[spring-beans-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:202) ~[spring-beans-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.beans.factory.support.DefaultListableBeanFactory.instantiateSingleton(DefaultListableBeanFactory.java:1222) ~[spring-beans-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.beans.factory.support.DefaultListableBeanFactory.preInstantiateSingleton(DefaultListableBeanFactory.java:1188) ~[spring-beans-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.beans.factory.support.DefaultListableBeanFactory.preInstantiateSingletons(DefaultListableBeanFactory.java:1123) ~[spring-beans-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.context.support.AbstractApplicationContext.finishBeanFactoryInitialization(AbstractApplicationContext.java:987) ~[spring-context-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.context.support.AbstractApplicationContext.refresh(AbstractApplicationContext.java:627) ~[spring-context-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.refresh(ServletWebServerApplicationContext.java:146) ~[spring-boot-3.5.4.jar!/:3.5.4]
+E               	at org.springframework.boot.SpringApplication.refresh(SpringApplication.java:752) ~[spring-boot-3.5.4.jar!/:3.5.4]
+E               	at org.springframework.boot.SpringApplication.refreshContext(SpringApplication.java:439) ~[spring-boot-3.5.4.jar!/:3.5.4]
+E               	at org.springframework.boot.SpringApplication.run(SpringApplication.java:318) ~[spring-boot-3.5.4.jar!/:3.5.4]
+E               	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1361) ~[spring-boot-3.5.4.jar!/:3.5.4]
+E               	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1350) ~[spring-boot-3.5.4.jar!/:3.5.4]
+E               	at net.lmyz.lmyzmail.BotmailApplication.main(BotmailApplication.java:73) ~[!/:2.8.0]
+E               	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+E               	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+E               	at org.springframework.boot.loader.launch.Launcher.launch(Launcher.java:102) ~[lmyzmail-java-oracle.jar:2.8.0]
+E               	at org.springframework.boot.loader.launch.Launcher.launch(Launcher.java:64) ~[lmyzmail-java-oracle.jar:2.8.0]
+E               	at org.springframework.boot.loader.launch.PropertiesLauncher.main(PropertiesLauncher.java:580) ~[lmyzmail-java-oracle.jar:2.8.0]
+E               Caused by: org.springframework.beans.TypeMismatchException: Failed to convert value of type 'java.lang.String' to required type 'int'; For input string: "2,4"
+E               	at org.springframework.beans.TypeConverterSupport.convertIfNecessary(TypeConverterSupport.java:87) ~[spring-beans-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.beans.TypeConverterSupport.convertIfNecessary(TypeConverterSupport.java:71) ~[spring-beans-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.beans.factory.support.DefaultListableBeanFactory.doResolveDependency(DefaultListableBeanFactory.java:1657) ~[spring-beans-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.beans.factory.support.DefaultListableBeanFactory.resolveDependency(DefaultListableBeanFactory.java:1628) ~[spring-beans-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor$AutowiredFieldElement.resolveFieldValue(AutowiredAnnotationBeanPostProcessor.java:785) ~[spring-beans-6.2.9.jar!/:6.2.9]
+E               	... 27 common frames omitted
+E               Caused by: java.lang.NumberFormatException: For input string: "2,4"
+E               	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67) ~[na:na]
+E               	at java.base/java.lang.Integer.parseInt(Integer.java:588) ~[na:na]
+E               	at java.base/java.lang.Integer.valueOf(Integer.java:935) ~[na:na]
+E               	at org.springframework.util.NumberUtils.parseNumber(NumberUtils.java:201) ~[spring-core-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.beans.propertyeditors.CustomNumberEditor.setAsText(CustomNumberEditor.java:115) ~[spring-beans-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.beans.TypeConverterDelegate.doConvertTextValue(TypeConverterDelegate.java:439) ~[spring-beans-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.beans.TypeConverterDelegate.doConvertValue(TypeConverterDelegate.java:412) ~[spring-beans-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.beans.TypeConverterDelegate.convertIfNecessary(TypeConverterDelegate.java:161) ~[spring-beans-6.2.9.jar!/:6.2.9]
+E               	at org.springframework.beans.TypeConverterSupport.convertIfNecessary(TypeConverterSupport.java:80) ~[spring-beans-6.2.9.jar!/:6.2.9]
+E               	... 31 common frames omitted
+
+blackbox/src/lmyzmail_blackbox/processes.py:74: ProcessStartError
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/pending-takeover-20261023-v1.xml -
+=========================== short test summary info ============================
+FAILED blackbox::test_pending_memory_and_file_tasks_survive_both_runtime_handoffs
+1 failed in 12.53s

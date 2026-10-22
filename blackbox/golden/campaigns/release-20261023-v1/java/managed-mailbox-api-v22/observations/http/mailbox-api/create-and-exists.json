@@ -1,0 +1,359 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "7f72a4886dbf44ded308424ee8cacce9a3dafb356816f78a78e7afc220414a0d",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "json-object-order:jdk-map-of:mailbox-api-errors-and-exists",
+      "json:session-token",
+      "header:content-length:normalized-json"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-mailbox-api"
+  },
+  "observation": {
+    "blank_address": {
+      "body_json": {
+        "error": "address_required"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "28"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlcnJvciI6ImFkZHJlc3NfcmVxdWlyZWQifQ==",
+        "length": 28,
+        "sha256": "9930719221693c139a8b9c0abb59895f01d89f9ea7d33fec6502a775d38d8791"
+      },
+      "status_code": 400,
+      "status_line": "HTTP/1.1 400 Bad Request"
+    },
+    "created": {
+      "body_json": {
+        "address": "api-created@example.test",
+        "id": 1002
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "48"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJpZCI6MTAwMiwiYWRkcmVzcyI6ImFwaS1jcmVhdGVkQGV4YW1wbGUudGVzdCJ9",
+        "length": 48,
+        "sha256": "2f43d388bbb4ea4b2fa9ac2a3dd202b9ed2345815ffef8beedc1dbd74be77360"
+      },
+      "status_code": 201,
+      "status_line": "HTTP/1.1 201 Created"
+    },
+    "created_exists": {
+      "body_json": {
+        "address": "API-CREATED@EXAMPLE.TEST",
+        "exists": true
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "52"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJhZGRyZXNzIjoiQVBJLUNSRUFURURARVhBTVBMRS5URVNUIiwiZXhpc3RzIjp0cnVlfQ==",
+        "length": 52,
+        "sha256": "0f90a866b51379fef368b831930c96ad7afe3e7eaba229e9cfc5272e7abba4d0"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "created_login": {
+      "body_json": {
+        "address": "API-CREATED@example.test",
+        "token": "<session-token>"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "64"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJ0b2tlbiI6IjxzZXNzaW9uLXRva2VuPiIsImFkZHJlc3MiOiJBUEktQ1JFQVRFREBleGFtcGxlLnRlc3QifQ==",
+        "length": 64,
+        "sha256": "81a82c43c41ddc53670fb6a4c0d1c2f8f0637c023f95d9136bc0e8916b2010c7"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "database_rows": [
+      [
+        1002,
+        "api-created@example.test",
+        60
+      ]
+    ],
+    "duplicate": {
+      "body_json": {
+        "error": "creation_failed",
+        "message": "Mailbox already exists: api-created@example.test"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "88"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlcnJvciI6ImNyZWF0aW9uX2ZhaWxlZCIsIm1lc3NhZ2UiOiJNYWlsYm94IGFscmVhZHkgZXhpc3RzOiBhcGktY3JlYXRlZEBleGFtcGxlLnRlc3QifQ==",
+        "length": 88,
+        "sha256": "5f43120dbf745d7562a78e14d1c9bca851bdbb653ba863201174513b6beea274"
+      },
+      "status_code": 400,
+      "status_line": "HTTP/1.1 400 Bad Request"
+    },
+    "empty": {
+      "body_json": {
+        "error": "invalid_request",
+        "message": "Address and password are required."
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "74"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlcnJvciI6ImludmFsaWRfcmVxdWVzdCIsIm1lc3NhZ2UiOiJBZGRyZXNzIGFuZCBwYXNzd29yZCBhcmUgcmVxdWlyZWQuIn0=",
+        "length": 74,
+        "sha256": "9bf074359788fe28ef48f20a6e3aa232062b0f7d7508d1d9e9805a5341139327"
+      },
+      "status_code": 400,
+      "status_line": "HTTP/1.1 400 Bad Request"
+    },
+    "existing": {
+      "body_json": {
+        "address": "QA@EXAMPLE.TEST",
+        "exists": true
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "43"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJhZGRyZXNzIjoiUUFARVhBTVBMRS5URVNUIiwiZXhpc3RzIjp0cnVlfQ==",
+        "length": 43,
+        "sha256": "51ca3e176f1fd83ca7e4575ac35e5c1e28d1ee0b688f2a56b5d6d2fbeeecd9d4"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "malformed": {
+      "body_json": {
+        "error": "internal_error"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "26"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlcnJvciI6ImludGVybmFsX2Vycm9yIn0=",
+        "length": 26,
+        "sha256": "b1fd618132befbb9c0fa6847793b9a066f5b17444df3d01fe2e43699f8c1eb08"
+      },
+      "status_code": 500,
+      "status_line": "HTTP/1.1 500 Internal Server Error"
+    },
+    "missing_key": {
+      "body_json": {
+        "error": "invalid_api_key",
+        "message": "Missing or invalid API key. Please provide a valid X-API-Key header."
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "108"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlcnJvciI6ImludmFsaWRfYXBpX2tleSIsIm1lc3NhZ2UiOiJNaXNzaW5nIG9yIGludmFsaWQgQVBJIGtleS4gUGxlYXNlIHByb3ZpZGUgYSB2YWxpZCBYLUFQSS1LZXkgaGVhZGVyLiJ9",
+        "length": 108,
+        "sha256": "56ef7c72c1f7117ee0b85b62a4f428bd437a03fcf3c8e9b0477f778dd5f1eaa1"
+      },
+      "status_code": 401,
+      "status_line": "HTTP/1.1 401 Unauthorized"
+    },
+    "read_only_create": {
+      "body_json": {
+        "error": "permission_denied",
+        "message": "This API key does not have write permission"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "85"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHdyaXRlIHBlcm1pc3Npb24ifQ==",
+        "length": 85,
+        "sha256": "32107ee217d8f6bf694dbf509a82534f15826fe78e97624819be0503c063980b"
+      },
+      "status_code": 403,
+      "status_line": "HTTP/1.1 403 Forbidden"
+    },
+    "short_password": {
+      "body_json": {
+        "error": "password_too_short",
+        "message": "Password must be at least 8 characters."
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "82"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlcnJvciI6InBhc3N3b3JkX3Rvb19zaG9ydCIsIm1lc3NhZ2UiOiJQYXNzd29yZCBtdXN0IGJlIGF0IGxlYXN0IDggY2hhcmFjdGVycy4ifQ==",
+        "length": 82,
+        "sha256": "88e5c287f27abc36f001156b7894969b3ecec15b8fcab17e53641182ffa29e0d"
+      },
+      "status_code": 400,
+      "status_line": "HTTP/1.1 400 Bad Request"
+    },
+    "unknown": {
+      "body_json": {
+        "address": "unknown@example.test",
+        "exists": false
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "49"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJhZGRyZXNzIjoidW5rbm93bkBleGFtcGxlLnRlc3QiLCJleGlzdHMiOmZhbHNlfQ==",
+        "length": 49,
+        "sha256": "2eeeb2c0139590d06d84975c9e36a7aada5485301535b9a423b5f9d71f06f7ba"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "write_only_exists": {
+      "body_json": {
+        "error": "permission_denied",
+        "message": "This API key does not have read permission"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "84"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+        "length": 84,
+        "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+      },
+      "status_code": 403,
+      "status_line": "HTTP/1.1 403 Forbidden"
+    },
+    "wrong_domain": {
+      "body_json": {
+        "error": "creation_failed",
+        "message": "Domain not configured: invalid.test"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "75"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlcnJvciI6ImNyZWF0aW9uX2ZhaWxlZCIsIm1lc3NhZ2UiOiJEb21haW4gbm90IGNvbmZpZ3VyZWQ6IGludmFsaWQudGVzdCJ9",
+        "length": 75,
+        "sha256": "82f102d878a75124a36c2e8e95a55fce8ca9a8266c0ec2dede1f7cbbf368a116"
+      },
+      "status_code": 400,
+      "status_line": "HTTP/1.1 400 Bad Request"
+    }
+  },
+  "schema_version": 2
+}

@@ -1,0 +1,5 @@
+{"external_candidate_binary": "/home/lmyzzz/lmyzmail-rust/.blackbox/release-artifacts-22dae7d0/lmyzmail", "sha256_before": "78a4c31145010e479ec64a9e0a2f3ac767b2860e32180100cad699a155c37790"}
+..                                                                       [100%]
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/release-22dae7d0-takeover-v2.xml -
+2 passed in 47.54s
+{"sha256_after": "78a4c31145010e479ec64a9e0a2f3ac767b2860e32180100cad699a155c37790", "staged_sha256_after": "78a4c31145010e479ec64a9e0a2f3ac767b2860e32180100cad699a155c37790", "unchanged": true}

@@ -64,5 +64,23 @@ Literal `v1-` Java mailbox reads remain available through their own exclusive
 legacy mapping. Unit regressions cover both frozen sanitizers and this boundary.
 
 All 961 workspace Rust tests and strict Clippy passed for the repair. Original
-negative logs and intermediate positive results are retained. These results
-do not erase the separate ambiguous-name export/rollback requirement above.
+negative logs and intermediate positive results are retained.
+
+## Offline v2 rollback and pending handoff follow-up
+
+The [offline export procedure](maildir-offline-rollback.md) now has real
+Java/Rust evidence for newly created v2 mail in all four address classes.
+It creates a copy, proves exclusive ownership and leaves the source, indexes
+and queue untouched. Shared lossy Java aliases are explicitly rejected.
+`handoff-port-diagnostic-20261023/result-1.json` through `result-5.json` record
+five consecutive passing export/Java/Rust cycles and negative budget,
+symlink and collision checks. An earlier rare exact-port reservation failure
+remains recorded; successful repetitions do not establish its cause.
+
+`pending-takeover-20261023-v6.json` separately proves HTTP-created PENDING
+memory-mode and file-mode tasks pass from Java to Rust and from Rust to Java,
+with exact SMTP DATA bytes, no duplicates/retries and exact SENT archives,
+followed by a full scheduler-cycle observation after restarting Rust.
+The reproduced `22dae7d0` ELF identifies both results. This qualifies those
+scenarios; it does not assert all in-flight/crash transitions or make colliding
+mailboxes safe in Java. Earlier statements above describe the pre-export gap.

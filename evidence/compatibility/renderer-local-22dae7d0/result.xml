@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="4.067" timestamp="2026-10-23T01:42:50.004887+08:00" hostname="MSI"><testcase classname="" name="test_local_renderer_matches_java_and_scalar[minecraft-video-managed-minecraft-video-v12]" time="2.125"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">scenario = 'minecraft-video', profile = 'managed-minecraft-video-v12'
+
+    @pytest.mark.parametrize("scenario,profile", E2E.TESTS)
+    def test_local_renderer_matches_java_and_scalar(scenario, profile):
+        binary = Path(os.environ["LMYZMAIL_LOCAL_RENDER_BINARY"]).resolve(strict=True)
+        capabilities_path = Path(os.environ["LMYZMAIL_LOCAL_RENDER_CAPABILITIES"])
+        capabilities = json.loads(capabilities_path.read_text())["host_capabilities"]
+        assert capabilities["avx2"] and capabilities["fma"]
+        output = Path(os.environ["LMYZMAIL_LOCAL_RENDER_OUTPUT"]) / f"{scenario}.json"
+        assert not output.exists()
+        head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+        assert not subprocess.check_output(["git", "diff", "HEAD", "--", "crates", "Cargo.lock", ".cargo"], cwd=ROOT)
+        source_digest = E2E.sha256_bytes(head.encode() + (ROOT / "Cargo.lock").read_bytes())
+        mail_view, video, runner, scenario_type, candidate_runtime, runtime_module = E2E._load_blackbox()
+        module = video if scenario == "minecraft-video" else mail_view
+        original = module.SCENARIOS[0]
+        observations = {}
+        runs = []
+        with contextlib.ExitStack() as resources:
+            binary_pin = E2E.RENDERER_VERIFIER.PinnedFile(binary, label="local candidate", executable=True)
+            resources.callback(binary_pin.close)
+            for mode, backend in (("SCALAR", "scalar"), ("AVX2", "avx2+fma")):
+                captured = {}
+    
+                def capture(target):
+                    captured["observation"] = original.capture(target)
+                    return captured["observation"]
+    
+                wrapped = scenario_type(original.name, capture, normalizers=original.normalizers, contract=original.contract)
+                observer = E2E.ObserverPipe()
+                session = secrets.token_hex(32)
+                runtime = E2E._candidate_runtime(
+                    scenario, binary_pin, mode, candidate_runtime, observer,
+                    source_sha256=source_digest, session=session,
+                )
+                lock = mail_view._renderer_capture_lock() if scenario == "minecraft-mail-view" else contextlib.nullcontext()
+                try:
+                    with E2E.candidate_process_with_fds(runtime_module, observer, binary_pin.descriptor):
+                        with E2E.scenario_deadline(1800), lock, runtime as candidate:
+&gt;                           runner(ROOT, ROOT / "blackbox/golden/java" / profile, profile).verify_candidate((wrapped,), candidate)
+
+tools/test_renderer_local_release.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-video-v12'), attestation...1914a58e802f0415caa60a0bc27', profile='managed-minecraft-video-v12', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-video-v12', 'scenarios': [{'contract': {'budgets': {'expanded_bytes_per_phase': 6710886...video GUI, commands, map playback, block playback, and recovery', ...}, 'name': 'minecraft/video', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="" name="test_local_renderer_matches_java_and_scalar[minecraft-mail-view-managed-minecraft-mail-view-v13]" time="1.903"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">scenario = 'minecraft-mail-view', profile = 'managed-minecraft-mail-view-v13'
+
+    @pytest.mark.parametrize("scenario,profile", E2E.TESTS)
+    def test_local_renderer_matches_java_and_scalar(scenario, profile):
+        binary = Path(os.environ["LMYZMAIL_LOCAL_RENDER_BINARY"]).resolve(strict=True)
+        capabilities_path = Path(os.environ["LMYZMAIL_LOCAL_RENDER_CAPABILITIES"])
+        capabilities = json.loads(capabilities_path.read_text())["host_capabilities"]
+        assert capabilities["avx2"] and capabilities["fma"]
+        output = Path(os.environ["LMYZMAIL_LOCAL_RENDER_OUTPUT"]) / f"{scenario}.json"
+        assert not output.exists()
+        head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+        assert not subprocess.check_output(["git", "diff", "HEAD", "--", "crates", "Cargo.lock", ".cargo"], cwd=ROOT)
+        source_digest = E2E.sha256_bytes(head.encode() + (ROOT / "Cargo.lock").read_bytes())
+        mail_view, video, runner, scenario_type, candidate_runtime, runtime_module = E2E._load_blackbox()
+        module = video if scenario == "minecraft-video" else mail_view
+        original = module.SCENARIOS[0]
+        observations = {}
+        runs = []
+        with contextlib.ExitStack() as resources:
+            binary_pin = E2E.RENDERER_VERIFIER.PinnedFile(binary, label="local candidate", executable=True)
+            resources.callback(binary_pin.close)
+            for mode, backend in (("SCALAR", "scalar"), ("AVX2", "avx2+fma")):
+                captured = {}
+    
+                def capture(target):
+                    captured["observation"] = original.capture(target)
+                    return captured["observation"]
+    
+                wrapped = scenario_type(original.name, capture, normalizers=original.normalizers, contract=original.contract)
+                observer = E2E.ObserverPipe()
+                session = secrets.token_hex(32)
+                runtime = E2E._candidate_runtime(
+                    scenario, binary_pin, mode, candidate_runtime, observer,
+                    source_sha256=source_digest, session=session,
+                )
+                lock = mail_view._renderer_capture_lock() if scenario == "minecraft-mail-view" else contextlib.nullcontext()
+                try:
+                    with E2E.candidate_process_with_fds(runtime_module, observer, binary_pin.descriptor):
+                        with E2E.scenario_deadline(1800), lock, runtime as candidate:
+&gt;                           runner(ROOT, ROOT / "blackbox/golden/java" / profile, profile).verify_candidate((wrapped,), candidate)
+
+tools/test_renderer_local_release.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-minecraft-mail-view-v13'), attesta...a58e802f0415caa60a0bc27', profile='managed-minecraft-mail-view-v13', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-minecraft-mail-view-v13', 'scenarios': [{'contract': {'budgets': {'expanded_bytes': 16777216, 'lo..., 'native-render-error', 'phase-timeout', 'disconnect', ...], ...}, 'name': 'minecraft/mail-view', 'normalizers': []}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase></testsuite></testsuites>

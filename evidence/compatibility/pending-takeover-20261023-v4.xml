@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="91.228" timestamp="2026-10-23T01:09:15.555360+08:00" hostname="MSI"><testcase classname="" name="test_pending_memory_and_file_tasks_survive_both_runtime_handoffs" time="91.055"><failure message="AssertionError: timed out: scheduler boundary">tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-151/test_pending_memory_and_file_t0')
+
+    @pytest.mark.timeout(300)
+    def test_pending_memory_and_file_tasks_survive_both_runtime_handoffs(tmp_path):
+        binary = Path(os.environ["LMYZMAIL_TAKEOVER_BINARY"]).resolve(strict=True)
+        with binary.open("rb") as source:
+            binary_sha256 = hashlib.file_digest(source, "sha256").hexdigest()
+        proof = {"binary_sha256": binary_sha256, "phases": []}
+        runtime = HandoffRuntime(tmp_path / "pending-takeover")
+        dns = _candidate_dns_server()
+        smtp = ScriptedSmtpServer(SmtpScenario(), bind_host=_FAKE_IP, bind_port=25)
+        cache = None
+        try:
+            dns.start()
+            smtp.start()
+            runtime.start()
+            assert runtime.ports is not None
+            cache = redis.Redis(host="127.0.0.1", port=runtime.ports.redis)
+            for producer_rust in (False, True):
+                assert runtime.rust_phase == producer_rust
+                # Consume a nonexistent task to observe a scheduler tick externally.
+                # With a 30s poll this leaves a full interval to enqueue two messages
+                # and stop the producer, without mutating any real task/worklist.
+                sentinel = b"-987654321"
+                cache.rpush(PREFIX + "pending", sentinel)
+&gt;               wait_for(lambda: sentinel not in cache.lrange(PREFIX + "pending", 0, -1)
+                         and sentinel not in cache.smembers(PREFIX + "processing"),
+                         "scheduler boundary")
+
+tools/test_pending_takeover.py:85: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+predicate = &lt;function test_pending_memory_and_file_tasks_survive_both_runtime_handoffs.&lt;locals&gt;.&lt;lambda&gt; at 0x76c80b49b920&gt;
+description = 'scheduler boundary', seconds = 45
+
+    def wait_for(predicate, description, seconds=45):
+        deadline = time.monotonic() + seconds
+        while time.monotonic() &lt; deadline:
+            if predicate():
+                return
+            time.sleep(0.05)
+&gt;       raise AssertionError(f"timed out: {description}")
+E       AssertionError: timed out: scheduler boundary
+
+tools/test_pending_takeover.py:59: AssertionError</failure></testcase></testsuite></testsuites>

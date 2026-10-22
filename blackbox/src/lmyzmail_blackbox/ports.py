@@ -1,8 +1,34 @@
 from __future__ import annotations
 
 import contextlib
+import errno
+import secrets
 import socket
+import sys
+from collections.abc import Iterator
 from dataclasses import dataclass
+from pathlib import Path
+
+
+def _non_ephemeral_ports() -> Iterator[int]:
+    # Child processes cannot inherit these sockets, so reservations must be
+    # released before they bind. Linux may otherwise reuse a released service
+    # port as a PostgreSQL/Redis client's source port during application startup.
+    fields = Path("/proc/sys/net/ipv4/ip_local_port_range").read_text(encoding="ascii").split()
+    if len(fields) != 2:
+        raise ValueError("invalid Linux ephemeral port range")
+    low, high = map(int, fields)
+    if not 1 <= low <= high <= 65535:
+        raise ValueError("invalid Linux ephemeral port range")
+    below = max(0, low - 1024)
+    above_start = max(1024, high + 1)
+    count = below + 65536 - above_start
+    if count == 0:
+        raise ValueError("Linux ephemeral range leaves no unprivileged service port")
+    start = secrets.randbelow(count)
+    for offset in range(count):
+        index = (start + offset) % count
+        yield 1024 + index if index < below else above_start + index - below
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,6 +49,14 @@ class PortAllocator:
         self._sockets: list[socket.socket] = []
 
     def _reserve(self, port: int = 0, *, reuse_address: bool = False) -> int:
+        if port == 0 and sys.platform.startswith("linux"):
+            for candidate in _non_ephemeral_ports():
+                try:
+                    return self._reserve(candidate)
+                except OSError as error:
+                    if error.errno not in (errno.EADDRINUSE, errno.EACCES):
+                        raise
+            raise OSError(errno.EADDRINUSE, "no available non-ephemeral loopback port")
         listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
@@ -47,7 +81,11 @@ class PortAllocator:
     def reserve_all(self, *, honeypot_count: int = 8) -> PortSet:
         if self._sockets:
             raise RuntimeError("PortAllocator instances may only reserve once")
-        values = [self._reserve() for _ in range(6 + honeypot_count)]
+        try:
+            values = [self._reserve() for _ in range(6 + honeypot_count)]
+        except BaseException:
+            self.release()
+            raise
         return PortSet(
             postgres=values[0],
             redis=values[1],

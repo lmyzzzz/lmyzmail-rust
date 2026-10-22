@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="46.439" timestamp="2026-10-23T01:07:18.078917+08:00" hostname="MSI"><testcase classname="" name="test_pending_memory_and_file_tasks_survive_both_runtime_handoffs" time="46.217"><failure message="AssertionError: assert b'LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL...LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL' in b'From: qa@example.test\r\nTo: recipient@outbound.fixture.test\r\nSubject: handoff False file\r\nDate: Thu, 22 Oct 202...LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL=\r\nLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL\r\n'&#10; +  where b'From: qa@example.test\r\nTo: recipient@outbound.fixture.test\r\nSubject: handoff False file\r\nDate: Thu, 22 Oct 202...LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL=\r\nLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL\r\n' = SmtpMessageAttempt(connection_id=1, sender=b'qa@example.test', recipients=(b'recipient@outbound.fixture.test',), data=...LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL\r\n.\r\n', received_at_ns=1443722502101795, accepted=True).data">tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-149/test_pending_memory_and_file_t0')
+
+    @pytest.mark.timeout(300)
+    def test_pending_memory_and_file_tasks_survive_both_runtime_handoffs(tmp_path):
+        binary = Path(os.environ["LMYZMAIL_TAKEOVER_BINARY"]).resolve(strict=True)
+        with binary.open("rb") as source:
+            binary_sha256 = hashlib.file_digest(source, "sha256").hexdigest()
+        proof = {"binary_sha256": binary_sha256, "phases": []}
+        runtime = HandoffRuntime(tmp_path / "pending-takeover")
+        dns = _candidate_dns_server()
+        smtp = ScriptedSmtpServer(SmtpScenario(), bind_host=_FAKE_IP, bind_port=25)
+        cache = None
+        try:
+            dns.start()
+            smtp.start()
+            runtime.start()
+            assert runtime.ports is not None
+            cache = redis.Redis(host="127.0.0.1", port=runtime.ports.redis)
+            for producer_rust in (False, True):
+                assert runtime.rust_phase == producer_rust
+                # Consume a nonexistent task to observe a scheduler tick externally.
+                # With a 30s poll this leaves a full interval to enqueue two messages
+                # and stop the producer, without mutating any real task/worklist.
+                sentinel = b"-987654321"
+                cache.rpush(PREFIX + "pending", sentinel)
+                wait_for(lambda: sentinel not in cache.lrange(PREFIX + "pending", 0, -1)
+                         and sentinel not in cache.smembers(PREFIX + "processing"),
+                         "scheduler boundary")
+                cache.set("dns:mx:outbound.fixture.test", b"outbound.fixture.test", ex=300)
+                before = len(smtp.messages())
+                tasks = []
+                with httpx.Client(trust_env=False, timeout=10,
+                                  headers={"X-API-Key": API_KEY}) as client:
+                    for label, body in (("memory", "handoff small body"),
+                                        ("file", "L" * (12 * 1024))):
+                        response = client.post(f"http://127.0.0.1:{runtime.ports.http}/api/mail/send",
+                            json={"from": "qa@example.test", "password": QA_PASSWORD,
+                                  "to": ["recipient@outbound.fixture.test"],
+                                  "subject": f"handoff {producer_rust} {label}",
+                                  "text": body, "async": True})
+                        assert response.status_code == 202, response.text
+                        task_id = response.json()["queueId"]
+                        key = PREFIX + f"task:{task_id}"
+                        detail = json.loads(cache.get(key))
+                        assert detail["status"] == "PENDING", detail
+                        assert str(task_id).encode() in cache.lrange(PREFIX + "pending", 0, -1)
+                        if label == "memory":
+                            assert detail.get("signedContentBase64") is not None
+                            message = base64.b64decode(detail["signedContentBase64"], validate=True)
+                        else:
+                            assert detail.get("messageFilePath") is not None
+                            message = Path(detail["messageFilePath"]).read_bytes()
+                        ttl = cache.ttl(key)
+                        assert 604770 &lt;= ttl &lt;= 604800, ttl
+                        tasks.append((task_id, detail["messageId"], body.encode(), message, label))
+                assert len(smtp.messages()) == before, "producer delivered before handoff"
+                runtime.rust_phase = not producer_rust
+                runtime.restart_application()
+                wait_for(lambda: len(smtp.messages()) == before + len(tasks), "consumer SMTP delivery")
+                attempts = smtp.messages()[before:]
+                assert len(attempts) == 2 and all(attempt.accepted for attempt in attempts)
+                for task_id, message_id, body, message, label in tasks:
+                    matches = [attempt for attempt in attempts if message_id.encode() in attempt.data]
+                    assert len(matches) == 1, (task_id, message_id, attempts)
+                    # SMTP DATA must end on a CRLF boundary before its dot
+                    # terminator. Neither producer appends that boundary to its
+                    # queued MIME buffer, so assert the exact wire transformation.
+                    wire_message = message if message.endswith(b"\r\n") else message + b"\r\n"
+                    assert matches[0].data == wire_message, (label, "queued message bytes changed")
+&gt;                   assert body in matches[0].data
+E                   AssertionError: assert b'LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL...LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL' in b'From: qa@example.test\r\nTo: recipient@outbound.fixture.test\r\nSubject: handoff False file\r\nDate: Thu, 22 Oct 202...LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL=\r\nLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL\r\n'
+E                    +  where b'From: qa@example.test\r\nTo: recipient@outbound.fixture.test\r\nSubject: handoff False file\r\nDate: Thu, 22 Oct 202...LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL=\r\nLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL\r\n' = SmtpMessageAttempt(connection_id=1, sender=b'qa@example.test', recipients=(b'recipient@outbound.fixture.test',), data=...LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL\r\n.\r\n', received_at_ns=1443722502101795, accepted=True).data
+
+tools/test_pending_takeover.py:127: AssertionError</failure></testcase></testsuite></testsuites>

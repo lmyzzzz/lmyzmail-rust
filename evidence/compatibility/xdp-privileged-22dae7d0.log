@@ -1,0 +1,15 @@
+lmyzmail XDP initialization failed: XDP native operation failed (-2): Interface 'lmyz-xdp0-missing' not found
+lmyzmail XDP initialization failed: XDP I/O failed: Too many levels of symbolic links (os error 40)
+lmyzmail XDP initialization failed: XDP native operation failed (-22): XDP pinned map ABI validation failed for existing maps
+lmyzmail XDP initialization failed: XDP operation cancelled
+lmyzmail XDP initialization failed: XDP native operation failed (-22): failed to adopt legacy XDP map pins
+lmyzmail XDP initialization failed: XDP native operation failed (-2): failed to adopt legacy XDP map pins
+lmyzmail XDP initialization failed: XDP native operation failed (-7): refusing to replace foreign XDP program on 'lmyz-xdp0': XdpAttachment { program_id: 1215, interface_index: 3, flags: 2 }: XDP native operation failed (-2): attached XDP program/map identity validation failed
+lmyzmail XDP global PPS critical: 2 pps (threshold: 0, consecutive: 1)
+lmyzmail XDP global SYN flood: 0 syn/s (threshold: 0, consecutive: 1)
+lmyzmail XDP global PPS critical: 0 pps (threshold: 0, consecutive: 2)
+lmyzmail XDP global SYN flood: 0 syn/s (threshold: 0, consecutive: 2)
+lmyzmail XDP global PPS critical: 0 pps (threshold: 0, consecutive: 3)
+lmyzmail XDP global SYN flood: 0 syn/s (threshold: 0, consecutive: 3)
+lmyzmail XDP global PPS critical: 97 pps (threshold: 0, consecutive: 4)
+lmyzmail XDP global SYN flood: 0 syn/s (threshold: 0, consecutive: 4)

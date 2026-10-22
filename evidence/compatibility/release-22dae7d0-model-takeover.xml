@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="4" time="51.238" timestamp="2026-10-23T01:10:03.698993+08:00" hostname="MSI"><testcase classname="" name="test_compact_release_generates_smtp_rejection_and_persists_exact_activity[scalar]" time="1.924" /><testcase classname="" name="test_compact_release_generates_smtp_rejection_and_persists_exact_activity[auto]" time="1.895" /><testcase classname="" name="test_ordinary_maildir_survives_bidirectional_takeover" time="22.305"><failure message="OSError: [Errno 98] Address already in use">tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-152/test_ordinary_maildir_survives0')
+
+    def test_ordinary_maildir_survives_bidirectional_takeover(tmp_path):
+        binary = Path(os.environ["LMYZMAIL_TAKEOVER_BINARY"]).resolve(strict=True)
+        assert binary.is_file()
+        runtime = TakeoverRuntime(tmp_path / "durable-takeover", shutdown_timeout=20)
+        message = (b"From: sender@sender.invalid\r\nTo: qa@example.test\r\n"
+                   b"Subject: Rust takeover inbound\r\nMessage-ID: &lt;takeover-inbound@example.test&gt;\r\n"
+                   b"MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n"
+                   b"Retained across Java Rust Java Rust.\r\n")
+        with binary.open("rb") as stream:
+            binary_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+        proof = {"scope": "ordinary ASCII mailbox; ambiguous names and pending outbound takeover remain separate gates",
+                 "binary_sha256": binary_sha256,
+                 "phases": []}
+        expected_raw = {}
+        try:
+            runtime.start()
+            _assert_http_takeover(ROOT, runtime)
+            proof["phases"].append("initial-java-legacy-reads")
+            runtime.rust_phase = True
+            runtime.restart_application()
+            _assert_http_takeover(ROOT, runtime)
+            assert runtime.ports is not None and runtime.workspace is not None
+            transcript = smtp_data_transaction(
+                "127.0.0.1", runtime.ports.smtp, sender="",
+                recipient="qa@example.test", message=message,
+            )
+            assert transcript.data_ready[0].startswith(b"354")
+            assert transcript.accepted[0].startswith(b"250"), transcript
+            response = _request(runtime, _multipart((
+                _data({"to": ["recipient@multipart.invalid"], "subject": "Rust takeover sent",
+                       "text": "retained sent body", "async": True}),
+                _Part("attachments", b"retained attachment\x00", filename="takeover.bin"),
+            )))
+            assert response.status_code == 202, response
+            sent_name = json.loads(response.body)["sentFileName"]
+            with psycopg.connect(host="127.0.0.1", port=runtime.ports.postgres,
+                                 user="lmyzmail_test", dbname="lmyzmail") as connection:
+                inbound = connection.execute(
+                    "SELECT folder,file_name FROM email_index WHERE message_id=%s",
+                    ("&lt;takeover-inbound@example.test&gt;",),
+                ).fetchall()
+            assert len(inbound) == 1, inbound
+            references = [tuple(inbound[0]), ("sent", sent_name)]
+            for folder, name in references:
+                matches = list((runtime.workspace / "maildir/qa@example.test" / folder).rglob(name))
+                assert len(matches) == 1, matches
+                expected_raw[(folder, name)] = matches[0].read_bytes()
+            proof["phases"].append("rust-reads-legacy-and-publishes-inbound-and-attachment-sent")
+    
+            for rust_phase, phase in ((False, "java-reads-rust-publications"), (True, "rust-reopens-after-java")):
+                runtime.rust_phase = rust_phase
+&gt;               runtime.restart_application()
+
+tools/test_release_takeover.py:93: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/persistent_runtime.py:642: in restart_application
+    self._port_allocator.reserve_port(port)
+blackbox/src/lmyzmail_blackbox/ports.py:76: in reserve_port
+    self._reserve(port, reuse_address=True)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;lmyzmail_blackbox.ports.PortAllocator object at 0x71af6c5decc0&gt;
+port = 48718
+
+    def _reserve(self, port: int = 0, *, reuse_address: bool = False) -&gt; int:
+        if port == 0 and sys.platform.startswith("linux"):
+            for candidate in _non_ephemeral_ports():
+                try:
+                    return self._reserve(candidate)
+                except OSError as error:
+                    if error.errno not in (errno.EADDRINUSE, errno.EACCES):
+                        raise
+            raise OSError(errno.EADDRINUSE, "no available non-ephemeral loopback port")
+        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+                listener.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            elif reuse_address:
+                listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+&gt;           listener.bind(("127.0.0.1", port))
+E           OSError: [Errno 98] Address already in use
+
+blackbox/src/lmyzmail_blackbox/ports.py:63: OSError</failure></testcase><testcase classname="" name="test_unique_legacy_ambiguous_names_and_collision_fail_closed" time="24.909"><failure message="KeyError: 'LMYZMAIL_AMBIGUOUS_TAKEOVER_OUTPUT'">tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-152/test_unique_legacy_ambiguous_n0')
+
+    @pytest.mark.timeout(240)
+    def test_unique_legacy_ambiguous_names_and_collision_fail_closed(tmp_path):
+        binary = Path(os.environ["LMYZMAIL_TAKEOVER_BINARY"]).resolve(strict=True)
+        with binary.open("rb") as stream:
+            binary_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+        proof = {"binary_sha256": binary_sha256,
+                 "scope": "legacy reads and ownership collision; new v2 rollback is a separate gate",
+                 "addresses": [], "phases": []}
+        runtime = TakeoverRuntime(tmp_path / "ambiguous-takeover", shutdown_timeout=20)
+        originals = {}
+        tokens = {}
+        references = {}
+        try:
+            runtime.start()
+            for number, address in enumerate(ADDRESSES):
+                tokens[address] = _seed(runtime, address)
+                references[address] = _deliver(runtime, address, number)
+                response = _raw(runtime, tokens[address], references[address])
+                # Frozen Java's writer preserves interior dots, while its reader
+                # replaces them. Independently capture the delivered Maildir bytes
+                # and retain that 404 as bug evidence; Rust must recover the mail.
+                expected_status = 404 if ".." in address else 200
+                assert response.status_code == expected_status, (address, response.text)
+                matches = list((runtime.workspace / "maildir").rglob(references[address][1]))
+                assert len(matches) == 1
+                originals[address] = matches[0].read_bytes()
+                if response.status_code == 200:
+                    assert response.content == originals[address]
+                proof["addresses"].append({"address": address,
+                    "java_raw_status": response.status_code,
+                    "raw_sha256": hashlib.sha256(originals[address]).hexdigest(),
+                    "bytes": len(originals[address])})
+            proof["phases"].append("java-creates-and-reads-four-legacy-address-classes")
+            runtime.rust_phase = True
+            runtime.restart_application()
+            for address in ADDRESSES:
+                response = _raw(runtime, tokens[address], references[address])
+                assert response.status_code == 200, (address, response.text)
+                assert response.content == originals[address]
+            proof["phases"].append("rust-byte-exact-legacy-takeover")
+    
+            # The early Rust v1 namespace shares a flat directory component with
+            # literal Java addresses starting with "v1-". Even an indexed filename
+            # must not let qa read v1-qa's legacy publication through that fallback.
+            v1_folder, v1_name = references[ADDRESSES[2]]
+            with _db(runtime) as db:
+                db.execute("INSERT INTO email_index (has_attachments,subdirectory,indexed_at,"
+                           "received_at,size_bytes,folder,from_address,message_id,subject,"
+                           "to_addresses,file_name,mailbox_address) "
+                           "SELECT has_attachments,subdirectory,indexed_at,received_at,size_bytes,"
+                           "folder,from_address,message_id,subject,to_addresses,file_name,%s "
+                           "FROM email_index WHERE mailbox_address=%s AND folder=%s AND file_name=%s",
+                           ("qa@example.test", ADDRESSES[2], v1_folder, v1_name))
+            assert _raw(runtime, LEGACY_SESSION_TOKEN, (v1_folder, v1_name)).status_code == 404
+            proof["phases"].append("rust-denies-v1-namespace-cross-owner-fallback")
+    
+            attacker = "under/score@example.test"
+            attacker_token = _seed(runtime, attacker)
+            folder, name = references[ADDRESSES[0]]
+            with _db(runtime) as db:
+                db.execute("INSERT INTO email_index (has_attachments,subdirectory,indexed_at,"
+                           "received_at,size_bytes,folder,from_address,message_id,subject,"
+                           "to_addresses,file_name,mailbox_address) "
+                           "SELECT has_attachments,subdirectory,indexed_at,received_at,size_bytes,"
+                           "folder,from_address,message_id,subject,to_addresses,file_name,%s "
+                           "FROM email_index WHERE mailbox_address=%s AND folder=%s AND file_name=%s",
+                           (attacker, ADDRESSES[0], folder, name))
+            for token in (tokens[ADDRESSES[0]], attacker_token):
+                assert _raw(runtime, token, (folder, name)).status_code == 404
+            for address in ADDRESSES[1:]:
+                assert _raw(runtime, tokens[address], references[address]).content == originals[address]
+            proof["phases"].append("rust-denies-registered-lossy-alias-with-index-row")
+    
+            runtime.rust_phase = False
+            runtime.restart_application()
+            for token in (tokens[ADDRESSES[0]], attacker_token):
+                response = _raw(runtime, token, (folder, name))
+                assert response.status_code == 200, response.text
+                assert response.content == originals[ADDRESSES[0]]
+            proof["phases"].append("frozen-java-reproduces-cross-mailbox-alias-disclosure")
+            runtime.rust_phase = True
+            runtime.restart_application()
+            for token in (tokens[ADDRESSES[0]], attacker_token):
+                assert _raw(runtime, token, (folder, name)).status_code == 404
+            proof["phases"].append("rust-restart-preserves-fail-closed-ownership")
+        finally:
+            runtime.close()
+        proof["status"] = "passed"
+        proof["managed_process_cleanup"] = "passed"
+&gt;       output = Path(os.environ["LMYZMAIL_AMBIGUOUS_TAKEOVER_OUTPUT"])
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tools/test_ambiguous_takeover.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = environ({'PYTHONPATH': 'tools:blackbox/src', 'SHELL': '/bin/bash', 'WSL2_GUI_APPS_ENABLED': '1', 'WSL_DISTRO_NAME': 'U...EST_VERSION': '8.4.1', 'PYTEST_CURRENT_TEST': '::test_unique_legacy_ambiguous_names_and_collision_fail_closed (call)'})
+key = 'LMYZMAIL_AMBIGUOUS_TAKEOVER_OUTPUT'
+
+&gt;   ???
+E   KeyError: 'LMYZMAIL_AMBIGUOUS_TAKEOVER_OUTPUT'
+
+&lt;frozen os&gt;:685: KeyError</failure></testcase></testsuite></testsuites>

@@ -1,0 +1,21 @@
+tests/test_legacy_storage.py:203:101: E501 Line too long (104 > 100)
+    |
+201 |         "formal-v5-delivery-deadline-failure.txt"
+202 |     )
+203 |     assert delivery_wait["scope"].startswith("Only the origin of the 20-minute delivery-wait deadline.")
+    |                                                                                                     ^^^^ E501
+204 |
+205 |     htcpcp_close = by_id["htcpcp-connection-close-lifecycle"]
+    |
+
+tests/test_ports.py:80:101: E501 Line too long (103 > 100)
+   |
+78 |         busy_port, free_port = occupied.getsockname()[1], available.getsockname()[1]
+79 |         available.close()
+80 |         monkeypatch.setattr(ports_module, "_non_ephemeral_ports", lambda: iter((busy_port, free_port)))
+   |                                                                                                     ^^^ E501
+81 |         with PortAllocator() as allocator:
+82 |             assert allocator._reserve() == free_port
+   |
+
+Found 2 errors.
