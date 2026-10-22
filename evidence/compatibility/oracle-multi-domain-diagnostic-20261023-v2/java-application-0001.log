@@ -1,0 +1,247 @@
+2026-10-22T16:22:30.001Z  INFO 1979749 --- [main] net.lmyz.lmyzmail.BotmailApplication     : Starting BotmailApplication v2.8.0 using Java 22.0.2 with PID 1979749 (/home/lmyzzz/lmyzmail-rust/oracle/artifacts/lmyzmail-java-oracle.jar started by lmyzzz in /home/lmyzzz/lmyzmail-rust/evidence/compatibility/oracle-multi-domain-diagnostic-20261023-v2/runtime)
+2026-10-22T16:22:30.003Z  INFO 1979749 --- [main] net.lmyz.lmyzmail.BotmailApplication     : No active profile set, falling back to 1 default profile: "default"
+2026-10-22T16:22:30.501Z  INFO 1979749 --- [main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-10-22T16:22:30.502Z  INFO 1979749 --- [main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-10-22T16:22:30.610Z  INFO 1979749 --- [main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 104 ms. Found 13 JPA repository interfaces.
+2026-10-22T16:22:31.231Z  INFO 1979749 --- [main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 0 (http)
+2026-10-22T16:22:31.245Z  INFO 1979749 --- [main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-10-22T16:22:31.245Z  INFO 1979749 --- [main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.43]
+2026-10-22T16:22:31.266Z  INFO 1979749 --- [main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-10-22T16:22:31.267Z  INFO 1979749 --- [main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1214 ms
+2026-10-22T16:22:31.390Z  INFO 1979749 --- [main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-10-22T16:22:31.414Z  INFO 1979749 --- [main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.22.Final
+2026-10-22T16:22:31.432Z  INFO 1979749 --- [main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-10-22T16:22:31.571Z  INFO 1979749 --- [main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-10-22T16:22:31.584Z  INFO 1979749 --- [main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-10-22T16:22:31.634Z  INFO 1979749 --- [main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@490d9c41
+2026-10-22T16:22:31.634Z  INFO 1979749 --- [main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-10-22T16:22:31.647Z  WARN 1979749 --- [main] org.hibernate.orm.deprecation            : HHH90000025: PostgreSQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-10-22T16:22:31.656Z  INFO 1979749 --- [main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
+	Database driver: undefined/unknown
+	Database version: 16.2
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-10-22T16:22:32.303Z  INFO 1979749 --- [main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-10-22T16:22:32.325Z  INFO 1979749 --- [main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-10-22T16:22:32.487Z  INFO 1979749 --- [main] n.l.lmyzmail.asciiart.AsciiArtLibrary    : libasciiart 1.0.0 loaded, CPU SIMD capability: AVX2
+2026-10-22T16:22:32.498Z  INFO 1979749 --- [main] n.l.l.a.AsciiArtAutoConfiguration        : Minecraft Map Color API initialized, palette size: 140
+2026-10-22T16:22:32.504Z  INFO 1979749 --- [main] n.l.l.a.AsciiArtAutoConfiguration        : Mail Render API initialized (litehtml + cairo)
+2026-10-22T16:22:32.504Z  INFO 1979749 --- [main] n.l.l.a.AsciiArtAutoConfiguration        : ASCII Art SIMD: configured=AUTO (resolved to AVX2), hardware_max=AVX2
+2026-10-22T16:22:32.554Z  INFO 1979749 --- [main] n.l.l.c.pipeline.RulePipeline            : Rule pipeline initialized: envelope=2, header=3, body=5, final=0
+2026-10-22T16:22:32.555Z  INFO 1979749 --- [main] n.l.l.contentfilter.ContentSpamScanner   : Content spam scanner initialized with 15 rules, thresholds: suspicious=5.0, spam=10.0, keywords: spam=16, phishing=7
+2026-10-22T16:22:32.665Z  INFO 1979749 --- [main] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-10-22T16:22:33.116Z  INFO 1979749 --- [main] n.l.l.util.native_.XdpFirewallService    : XDP Firewall is disabled by configuration
+2026-10-22T16:22:33.144Z  INFO 1979749 --- [main] n.l.l.c.service.CringeBatchWriteService  : CringeBatch: Batch write is disabled, using direct write mode
+2026-10-22T16:22:33.157Z  INFO 1979749 --- [main] n.l.l.c.s.SkibidiCringeDecayScheduler    : CringeDecay: Initializing with config - 10 points every PT24H, check interval: PT1H, rate: 0.42/hour
+2026-10-22T16:22:33.159Z  INFO 1979749 --- [main] n.l.l.c.s.SkibidiCringeDecayScheduler    : CringeDecay: Scheduler started, next check in PT1H
+2026-10-22T16:22:33.341Z  INFO 1979749 --- [main] net.lmyz.lmyzmail.config.RedisConfig     : Creating StringRedisTemplate for mail queue
+2026-10-22T16:22:33.397Z  INFO 1979749 --- [main] n.lmyz.lmyzmail.inbound.DnsCacheService  : DNS cache initialized with AsyncCache - L1: maxSize=10000, L2: enabled=true, keyPrefix=dns:
+2026-10-22T16:22:33.412Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : ╔══════════════════════════════════════════════════════════╗
+2026-10-22T16:22:33.412Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : ║          SkibidiInferX LM Engine Initialization          ║
+2026-10-22T16:22:33.413Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : ╚══════════════════════════════════════════════════════════╝
+2026-10-22T16:22:33.413Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx] Status: ENABLED
+2026-10-22T16:22:33.413Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx] Configuration:
+2026-10-22T16:22:33.413Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   temperature       = 0.85
+2026-10-22T16:22:33.413Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   top-k             = 50
+2026-10-22T16:22:33.413Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   top-p             = 0.92
+2026-10-22T16:22:33.413Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   max-tokens        = 80
+2026-10-22T16:22:33.413Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   timeout-ms        = 500
+2026-10-22T16:22:33.413Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   max-concurrent    = 1
+2026-10-22T16:22:33.413Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   fallback-on-error = true
+2026-10-22T16:22:33.413Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   simd-level        = auto (config)
+2026-10-22T16:22:33.413Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx] Step 1/4: Loading native library...
+2026-10-22T16:22:33.414Z  INFO 1979749 --- [main] n.l.l.skibidi_inferx.NativeLibLoader     : [skibidi_inferx] Extracted native library from: /native/linux-x86_64/libskibidi_inferx_native.so
+2026-10-22T16:22:33.415Z  INFO 1979749 --- [main] n.l.l.skibidi_inferx.NativeLibLoader     : [skibidi_inferx] Native library loaded: skibidi_inferx_8430951519824161579.so
+2026-10-22T16:22:33.427Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx] ✓ Native library loaded successfully
+2026-10-22T16:22:33.427Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   SIMD dispatch:  1 (AVX2+FMA) — auto-detected
+2026-10-22T16:22:33.427Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx] Step 2/4: Resolving model weights...
+2026-10-22T16:22:33.427Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   Configured path: classpath:skibidi-inferx-model/skibidi_ai.safetensors
+2026-10-22T16:22:33.722Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx] ✓ Model weights resolved: skibidi_16359321075788879641.safetensors
+2026-10-22T16:22:33.723Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   File size:     82.6 MB
+2026-10-22T16:22:33.723Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   Resolved to:   /home/lmyzzz/lmyzmail-rust/evidence/compatibility/oracle-multi-domain-diagnostic-20261023-v2/runtime/java-tmp/skibidi_16359321075788879641.safetensors
+2026-10-22T16:22:33.723Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx] Step 3/4: Resolving tokenizer...
+2026-10-22T16:22:33.723Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   Configured path: classpath:skibidi-inferx-model/tokenizer.json
+2026-10-22T16:22:33.724Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx] ✓ Tokenizer resolved: skibidi_619476244845636893.json
+2026-10-22T16:22:33.724Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   File size:     468452 bytes
+2026-10-22T16:22:33.724Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   Resolved to:   /home/lmyzzz/lmyzmail-rust/evidence/compatibility/oracle-multi-domain-diagnostic-20261023-v2/runtime/java-tmp/skibidi_619476244845636893.json
+2026-10-22T16:22:33.724Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx] Step 4/4: Initializing inference engine...
+2026-10-22T16:22:33.825Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx] ✓ Inference engine initialized in 101ms
+2026-10-22T16:22:33.825Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx] Model Architecture:
+2026-10-22T16:22:33.825Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   Type:          GPT-2 Decoder-Only Transformer (Pre-RMSNorm, SwiGLU)
+2026-10-22T16:22:33.825Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   vocab_size:    6969
+2026-10-22T16:22:33.825Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   d_model:       384
+2026-10-22T16:22:33.825Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   n_layers:      8
+2026-10-22T16:22:33.825Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   n_heads:       6
+2026-10-22T16:22:33.825Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   d_k:           64 (d_model / n_heads)
+2026-10-22T16:22:33.825Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   d_ff:          1536 (SwiGLU intermediate)
+2026-10-22T16:22:33.825Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   max_seq_len:   128
+2026-10-22T16:22:33.825Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   Parameters:    21.65M (21.65 M)
+2026-10-22T16:22:33.825Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx]   Weight tying:  lm_head shares token_embedding
+2026-10-22T16:22:33.825Z  INFO 1979749 --- [main] n.l.l.s.SkibidiInferxService             : [skibidi_inferx] SkibidiInferX LM is Ready: Self-spoofing attempts will receive unique AI-generated skibidi rejection messages.
+2026-10-22T16:22:33.828Z  INFO 1979749 --- [main] n.l.lmyzmail.inbound.EarlyRejectService  : Spamhaus cache initialized with TTL: 300s
+2026-10-22T16:22:33.828Z  INFO 1979749 --- [main] n.l.lmyzmail.inbound.EarlyRejectService  : SkibidiCringeIPService is available for recording cringe activities
+2026-10-22T16:22:33.828Z  INFO 1979749 --- [main] n.l.lmyzmail.inbound.EarlyRejectService  : SMTPUTF8/EAI (Internationalized Email) support is enabled
+2026-10-22T16:22:33.830Z  INFO 1979749 --- [main] n.lmyz.lmyzmail.inbound.MailFileStore    : MailFileStore initialized with sharding=true, maxFilesPerDirectory=1
+2026-10-22T16:22:33.833Z  INFO 1979749 --- [main] n.lmyz.lmyzmail.inbound.MtaStsService    : MTA-STS service initialized, enabled=false
+2026-10-22T16:22:33.846Z  INFO 1979749 --- [main] n.l.l.mailbox.service.MailboxService     : Initialized mailbox cache loader executor with 48 threads
+2026-10-22T16:22:33.846Z  INFO 1979749 --- [main] n.l.l.mailbox.service.MailboxService     : Initialized mailbox existence cache (async mode, max=100000, ttl=15min)
+2026-10-22T16:22:33.980Z  INFO 1979749 --- [main] n.l.l.mailbox.service.EmailIndexService  : Started 2 inbound index worker threads
+2026-10-22T16:22:33.991Z  INFO 1979749 --- [main] n.l.lmyzmail.ratelimit.RateLimitService  : Initialized inbound rate limit bucket: 100.0 MB bytes per 1 hours
+2026-10-22T16:22:33.994Z  INFO 1979749 --- [main] n.l.lmyzmail.inbound.SmtpTarpitService   : Local IP cache initialized with 12 addresses
+2026-10-22T16:22:33.995Z  INFO 1979749 --- [main] n.l.l.r.service.ReportingBatchService    : ReportingBatchService initialized with batchSize=500, flushIntervalMs=2000
+2026-10-22T16:22:34.065Z  INFO 1979749 --- [main] n.l.l.n.smtp.quiz.BrainrotQuizService    : Brainrot Quiz loaded: 474 questions across 10 buckets
+2026-10-22T16:22:34.075Z  WARN 1979749 --- [main] n.l.l.inbound.NettySmtpServerStarter     : SMTP Server TLS disabled (no custom certificate configured)
+2026-10-22T16:22:34.075Z  INFO 1979749 --- [main] n.lmyz.lmyzmail.netty.smtp.SmtpServer    : Starting SMTP server on port 44783 with hostname 'MSI'
+2026-10-22T16:22:34.075Z  INFO 1979749 --- [main] n.l.lmyzmail.util.NettyTransportSupport  : Netty Transport: Using IO_URING
+2026-10-22T16:22:34.136Z  INFO 1979749 --- [main] n.lmyz.lmyzmail.netty.smtp.SmtpServer    : SMTP server started successfully on /127.0.0.1:44783
+2026-10-22T16:22:34.136Z  INFO 1979749 --- [main] n.l.l.inbound.NettySmtpServerStarter     : ========================================
+2026-10-22T16:22:34.136Z  INFO 1979749 --- [main] n.l.l.inbound.NettySmtpServerStarter     : lmyzmail SMTP Server 2.8.0 - Skibidi dop dop yes yes!
+2026-10-22T16:22:34.136Z  INFO 1979749 --- [main] n.l.l.inbound.NettySmtpServerStarter     : ========================================
+2026-10-22T16:22:34.136Z  INFO 1979749 --- [main] n.l.l.inbound.NettySmtpServerStarter     : SMTP Server started on 127.0.0.1:44783
+2026-10-22T16:22:34.136Z  INFO 1979749 --- [main] n.l.l.inbound.NettySmtpServerStarter     : SMTP Extensions: SIZE=15.0 MB, PIPELINING, CHUNKING, 8BITMIME, SKIBIDITOILET
+2026-10-22T16:22:34.136Z  INFO 1979749 --- [main] n.l.l.inbound.NettySmtpServerStarter     : ========================================
+2026-10-22T16:22:34.158Z  INFO 1979749 --- [main] net.lmyz.lmyzmail.outbound.MxResolver    : MxResolver initialized: L1[maxSize=10000, TTL=15min], L2[TTL=30min], timeout=15s
+2026-10-22T16:22:34.307Z  INFO 1979749 --- [main] n.l.l.outbound.MailQueueRedisService     : MailQueueRedisService initialized with streaming, sharding, memory-mode and retry support
+2026-10-22T16:22:34.309Z  INFO 1979749 --- [main] n.l.l.outbound.SmtpConnectionPool        : SmtpConnectionPool initialized. Pool enabled: true
+2026-10-22T16:22:34.311Z  INFO 1979749 --- [main] n.lmyz.lmyzmail.inbound.MailFileStore    : MailFileStore initialized with sharding=true, maxFilesPerDirectory=1
+2026-10-22T16:22:34.312Z  INFO 1979749 --- [main] n.l.l.outbound.OutboundMailService       : Outbound mail temp directory: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/oracle-multi-domain-diagnostic-20261023-v2/runtime/java-tmp/botmail-outbound
+2026-10-22T16:22:34.313Z  INFO 1979749 --- [main] n.l.l.outbound.OutboundMailService       : OutboundMailService initialized with temp dir: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/oracle-multi-domain-diagnostic-20261023-v2/runtime/java-tmp/botmail-outbound
+2026-10-22T16:22:34.324Z  INFO 1979749 --- [main] n.l.lmyzmail.outbound.AsyncMailSender    : AsyncMailSender temp directory: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/oracle-multi-domain-diagnostic-20261023-v2/runtime/java-tmp/botmail-async-sender
+2026-10-22T16:22:34.326Z  INFO 1979749 --- [main] n.l.l.outbound.MailQueuePersister        : MailQueuePersister initialized with Write-Behind strategy (multi-threaded batch mode, JDBC batch insert)
+2026-10-22T16:22:34.333Z  INFO 1979749 --- [main] n.l.l.outbound.MailQueueScheduler        : Mail queue scheduler initialized with Write-Behind strategy, max concurrent sends: 100
+2026-10-22T16:22:34.526Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ╔════════════════════════════════════════════════════════════╗
+2026-10-22T16:22:34.526Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║          Skibidi Generator Initialization v1.2.0           ║
+2026-10-22T16:22:34.526Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ╠════════════════════════════════════════════════════════════╣
+2026-10-22T16:22:34.526Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ Configured mode: JAVA                                      ║
+2026-10-22T16:22:34.526Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ Using pure Java implementation (configured)                ║
+2026-10-22T16:22:34.527Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ╠════════════════════════════════════════════════════════════╣
+2026-10-22T16:22:34.527Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ Using pure Java implementation                             ║
+2026-10-22T16:22:34.527Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║   Java fast-path: ENABLED (~26.85% fast returns)           ║
+2026-10-22T16:22:34.527Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║   ThreadLocal buffer: 64 chars                             ║
+2026-10-22T16:22:34.527Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ╠════════════════════════════════════════════════════════════╣
+2026-10-22T16:22:34.527Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ Sample expressions (20):                                   ║
+2026-10-22T16:22:34.527Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ╠════════════════════════════════════════════════════════════╣
+2026-10-22T16:22:34.527Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ [ 1] Skibidi dop dop yes yes!                              ║
+2026-10-22T16:22:34.527Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ [ 2] Skibidi DOp dop yes yes!                              ║
+2026-10-22T16:22:34.527Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ [ 3] Skibidi dop dop dop dop yes YeS!                      ║
+2026-10-22T16:22:34.527Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ [ 4] Skibidi dop dop yes yes!                              ║
+2026-10-22T16:22:34.527Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ [ 5] Skibidi dop dop no no!                                ║
+2026-10-22T16:22:34.527Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ [ 6] Skibidi dop dop yes yes!                              ║
+2026-10-22T16:22:34.527Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ [ 7] Skibidi dop dop yes yes!                              ║
+2026-10-22T16:22:34.528Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ [ 8] Skibidi dop dop dop dop no no!                        ║
+2026-10-22T16:22:34.528Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ [ 9] Skibidi dom dop dop dop yes yes!                      ║
+2026-10-22T16:22:34.528Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ [10] Skibidi dop dop yes yes!                              ║
+2026-10-22T16:22:34.528Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ [11] Skibidi dop dop yes yes!                              ║
+2026-10-22T16:22:34.528Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ [12] Skibidi Dop dop yes yes!                              ║
+2026-10-22T16:22:34.528Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ [13] Skibidi dop dop yes yes!                              ║
+2026-10-22T16:22:34.528Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ [14] Brrrrr Skibidi dop dom dop yes yes!                   ║
+2026-10-22T16:22:34.528Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ [15] Skibidi dop dop yes yes!                              ║
+2026-10-22T16:22:34.528Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ [16] Skibidi dop dop yeS yes!                              ║
+2026-10-22T16:22:34.528Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ [17] Skibidi dop dop yes yEs!                              ║
+2026-10-22T16:22:34.528Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ [18] Skibidi dop dop yes yes!                              ║
+2026-10-22T16:22:34.528Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ [19] Brrrrr Skibidi dop dOp dom yes yes!                   ║
+2026-10-22T16:22:34.528Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ [20] Skibidi dop dOP yes Yes!                              ║
+2026-10-22T16:22:34.528Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ╠════════════════════════════════════════════════════════════╣
+2026-10-22T16:22:34.528Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ Generation stats (20 samples):                             ║
+2026-10-22T16:22:34.528Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║   Fast-path hits: 3 (15.0%)                                ║
+2026-10-22T16:22:34.528Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║   Java calls:     17 (85.0%)                               ║
+2026-10-22T16:22:34.528Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ╠════════════════════════════════════════════════════════════╣
+2026-10-22T16:22:34.528Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ Active mode: JAVA (Pure Java with fast-path)               ║
+2026-10-22T16:22:34.528Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ║ Skibidi generator ready!                                   ║
+2026-10-22T16:22:34.528Z  INFO 1979749 --- [main] n.l.l.util.native_.SkibidiNativeService  : ╚════════════════════════════════════════════════════════════╝
+2026-10-22T16:22:34.529Z  INFO 1979749 --- [main] n.l.l.util.native_.XdpPpsMonitorService  : XDP is disabled, PPS monitor will not start
+2026-10-22T16:22:34.533Z  INFO 1979749 --- [main] n.l.lmyzmail.web.StressTestController    : StressTestController initialized with streaming support, tempDir: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/oracle-multi-domain-diagnostic-20261023-v2/runtime/java-tmp/botmail-outbound, inMemoryThreshold: 20KB
+2026-10-22T16:22:34.545Z  INFO 1979749 --- [main] n.l.l.netty.honeypot.HoneypotServer      : Starting Honeypot server with 8 traps
+2026-10-22T16:22:34.553Z  INFO 1979749 --- [main] n.l.l.netty.honeypot.HoneypotServer      : Honeypot trap [trap-0] started on 127.0.0.1:46603 (protocol: MYSQL)
+2026-10-22T16:22:34.563Z  INFO 1979749 --- [main] n.l.l.netty.honeypot.HoneypotServer      : Honeypot trap [trap-1] started on 127.0.0.1:48409 (protocol: SSH)
+2026-10-22T16:22:34.574Z  INFO 1979749 --- [main] n.l.l.netty.honeypot.HoneypotServer      : Honeypot trap [trap-2] started on 127.0.0.1:46645 (protocol: VNC)
+2026-10-22T16:22:34.584Z  INFO 1979749 --- [main] n.l.l.netty.honeypot.HoneypotServer      : Honeypot trap [trap-3] started on 127.0.0.1:46205 (protocol: NONE)
+2026-10-22T16:22:34.595Z  INFO 1979749 --- [main] n.l.l.netty.honeypot.HoneypotServer      : Honeypot trap [trap-4] started on 127.0.0.1:46859 (protocol: NONE)
+2026-10-22T16:22:34.614Z  INFO 1979749 --- [main] n.l.l.netty.honeypot.HoneypotServer      : Honeypot trap [trap-5] started on 127.0.0.1:45361 (protocol: NONE)
+2026-10-22T16:22:34.625Z  INFO 1979749 --- [main] n.l.l.netty.honeypot.HoneypotServer      : Honeypot trap [trap-6] started on 127.0.0.1:45513 (protocol: FTP)
+2026-10-22T16:22:34.635Z  INFO 1979749 --- [main] n.l.l.netty.honeypot.HoneypotServer      : Honeypot trap [trap-7] started on 127.0.0.1:46871 (protocol: VNC)
+2026-10-22T16:22:34.635Z  INFO 1979749 --- [main] n.l.l.netty.honeypot.HoneypotServer      : Honeypot server started with 8 active traps
+2026-10-22T16:22:34.647Z  INFO 1979749 --- [main] n.l.lmyzmail.netty.htcpcp.HtcpcpServer   : ☕ HTCPCP/1.0 server started on port 46271 (RFC 2324 + RFC 7168)
+2026-10-22T16:22:34.647Z  INFO 1979749 --- [main] n.l.lmyzmail.netty.htcpcp.HtcpcpServer   :    Registered 8 pot(s):
+2026-10-22T16:22:34.647Z  INFO 1979749 --- [main] n.l.lmyzmail.netty.htcpcp.HtcpcpServer   :      - pot-0 (types: [COFFEE, TEA], tea varieties: [darjeeling, earl-grey, english-breakfast, green, peppermint, oolong])
+2026-10-22T16:22:34.647Z  INFO 1979749 --- [main] n.l.lmyzmail.netty.htcpcp.HtcpcpServer   :      - pot-1 (types: [TEA], tea varieties: [darjeeling, earl-grey, peppermint, chamomile, jasmine])
+2026-10-22T16:22:34.647Z  INFO 1979749 --- [main] n.l.lmyzmail.netty.htcpcp.HtcpcpServer   :      - pot-2 (types: [TEA], tea varieties: [earl-grey, english-breakfast, darjeeling, chamomile])
+2026-10-22T16:22:34.647Z  INFO 1979749 --- [main] n.l.lmyzmail.netty.htcpcp.HtcpcpServer   :      - pot-3 (types: [COFFEE], tea varieties: [])
+2026-10-22T16:22:34.647Z  INFO 1979749 --- [main] n.l.lmyzmail.netty.htcpcp.HtcpcpServer   :      - pot-4 (types: [COFFEE], tea varieties: [])
+2026-10-22T16:22:34.647Z  INFO 1979749 --- [main] n.l.lmyzmail.netty.htcpcp.HtcpcpServer   :      - pot-5 (types: [TEA], tea varieties: [peppermint, chamomile])
+2026-10-22T16:22:34.647Z  INFO 1979749 --- [main] n.l.lmyzmail.netty.htcpcp.HtcpcpServer   :      - pot-6 (types: [COFFEE], tea varieties: [])
+2026-10-22T16:22:34.647Z  INFO 1979749 --- [main] n.l.lmyzmail.netty.htcpcp.HtcpcpServer   :      - pot-7 (types: [COFFEE, TEA], tea varieties: [darjeeling, earl-grey, peppermint, green, oolong, chamomile, jasmine, english-breakfast])
+2026-10-22T16:22:34.648Z  INFO 1979749 --- [main] n.l.l.n.h.s.NettyHttpAutoConfiguration   : Found 11 @NettyController beans: [skibidiCringeIPController, xdpFirewallController, apiStatusController, mailPollController, mailSendController, mailboxController, loginController, reportController, stressTestController, userDataController, webMailController]
+2026-10-22T16:22:34.657Z  INFO 1979749 --- [main] n.l.l.n.h.s.NettyHttpAutoConfiguration   : Registered 4 Netty HTTP filters in order: [CorsFilter, NettyRateLimitFilter, NettyJsonBodySizeFilter, NettyApiKeyFilter]
+2026-10-22T16:22:34.659Z  INFO 1979749 --- [main] n.l.l.n.h.s.NettyHttpAutoConfiguration   : Configured trusted proxies for X-Forwarded-For: [127.0.0.1, ::1]
+2026-10-22T16:22:34.659Z  INFO 1979749 --- [main] n.l.l.n.h.s.NettyHttpAutoConfiguration   : SkibidiCringeIPService available - HTTP port scanning detection enabled
+2026-10-22T16:22:34.687Z  INFO 1979749 --- [main] n.l.l.netty.http.server.NettyHttpServer  : Netty HTTP server started on port 47809 (boss=1, workers=0, blocking=virtual threads)
+2026-10-22T16:22:34.691Z  INFO 1979749 --- [main] n.l.l.netty.minecraft.MinecraftServer    : [Minecraft] Starting Minecraft 1.8.9 server on port 46273...
+2026-10-22T16:22:34.699Z  INFO 1979749 --- [main] n.l.l.netty.minecraft.MinecraftServer    : [Minecraft] RSA key pair generated (1024-bit)
+2026-10-22T16:22:34.700Z  INFO 1979749 --- [main] n.l.l.netty.minecraft.MinecraftServer    : [Minecraft] Block name registry initialized (152 entries)
+2026-10-22T16:22:34.714Z  INFO 1979749 --- [main] n.l.l.n.minecraft.world.WorldTemplate    : [Minecraft] Loading region r.-1.-1.mca (5255168 bytes)
+2026-10-22T16:22:34.945Z  INFO 1979749 --- [main] n.l.l.n.minecraft.world.WorldTemplate    : [Minecraft] Loaded 770 chunks from r.-1.-1.mca
+2026-10-22T16:22:34.961Z  INFO 1979749 --- [main] n.l.l.n.minecraft.world.WorldTemplate    : [Minecraft] Loading region r.-1.0.mca (6049792 bytes)
+2026-10-22T16:22:35.197Z  INFO 1979749 --- [main] n.l.l.n.minecraft.world.WorldTemplate    : [Minecraft] Loaded 808 chunks from r.-1.0.mca
+2026-10-22T16:22:35.212Z  INFO 1979749 --- [main] n.l.l.n.minecraft.world.WorldTemplate    : [Minecraft] Loading region r.0.-1.mca (5648384 bytes)
+2026-10-22T16:22:35.399Z  INFO 1979749 --- [main] n.l.l.n.minecraft.world.WorldTemplate    : [Minecraft] Loaded 771 chunks from r.0.-1.mca
+2026-10-22T16:22:35.418Z  INFO 1979749 --- [main] n.l.l.n.minecraft.world.WorldTemplate    : [Minecraft] Loading region r.0.0.mca (6787072 bytes)
+2026-10-22T16:22:35.618Z  INFO 1979749 --- [main] n.l.l.n.minecraft.world.WorldTemplate    : [Minecraft] Loaded 860 chunks from r.0.0.mca
+2026-10-22T16:22:35.618Z  INFO 1979749 --- [main] n.l.l.n.minecraft.world.WorldTemplate    : [Minecraft] World template ready: 3209 total chunks
+2026-10-22T16:22:35.618Z  INFO 1979749 --- [main] n.l.l.netty.minecraft.MinecraftServer    : [Minecraft] World template loaded: 3209 chunks
+2026-10-22T16:22:35.703Z  INFO 1979749 --- [main] n.l.l.netty.minecraft.MinecraftServer    : [Minecraft] ⛏ Minecraft server started on port 46273 (Protocol 47, 1.8.9)
+2026-10-22T16:22:35.704Z  INFO 1979749 --- [main] n.l.l.netty.minecraft.MinecraftServer    : [Minecraft]   Online mode: false
+2026-10-22T16:22:35.704Z  INFO 1979749 --- [main] n.l.l.netty.minecraft.MinecraftServer    : [Minecraft]   Max players: 20
+2026-10-22T16:22:35.704Z  INFO 1979749 --- [main] n.l.l.netty.minecraft.MinecraftServer    : [Minecraft]   Whitelist: false
+2026-10-22T16:22:35.704Z  INFO 1979749 --- [main] n.l.l.netty.minecraft.MinecraftServer    : [Minecraft]   MOTD: §6LMYZMAIL §7- Send emails in Minecraft
+2026-10-22T16:22:35.733Z  WARN 1979749 --- [main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-10-22T16:22:35.742Z  INFO 1979749 --- [main] o.s.b.a.w.s.WelcomePageHandlerMapping    : Adding welcome page: class path resource [static/index.html]
+2026-10-22T16:22:35.985Z  INFO 1979749 --- [main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 45485 (http) with context path '/'
+2026-10-22T16:22:35.986Z  INFO 1979749 --- [main] n.l.l.inbound.config.DnsResolverConfig   : DNS Resolver started
+2026-10-22T16:22:35.994Z  INFO 1979749 --- [main] net.lmyz.lmyzmail.BotmailApplication     : Started BotmailApplication in 6.295 seconds (process running for 6.772)
+2026-10-22T16:22:35.999Z  INFO 1979749 --- [main] n.l.l.outbound.MailQueuePersister        : Application ready, enabling mail queue persister...
+2026-10-22T16:22:35.999Z  INFO 1979749 --- [virtual-99] n.l.l.m.service.EmailIndexMigrationTask  : Email index migration is disabled
+2026-10-22T16:22:36.177Z  INFO 1979749 --- [main] n.l.l.outbound.MailQueuePersister        : Redis ID sequence is already at 2101 (DB max is 2101)
+2026-10-22T16:22:36.178Z  INFO 1979749 --- [main] n.l.l.outbound.MailQueuePersister        : Started 2 outbound persist worker threads
+2026-10-22T16:22:36.178Z  INFO 1979749 --- [main] n.l.l.outbound.MailQueueScheduler        : Application ready, enabling mail queue scheduler...
+2026-10-22T16:22:36.179Z  INFO 1979749 --- [main] n.l.l.outbound.MailQueueScheduler        : Redis connection is healthy
+2026-10-22T16:22:36.462Z  WARN 1979749 --- [virtual-137] net.lmyz.lmyzmail.outbound.DkimSigner    : No DKIM configuration for domain: example.test. Returning unsigned message.
+2026-10-22T16:22:36.499Z  INFO 1979749 --- [virtual-137] n.l.l.outbound.OutboundMailService       : Email queued: id=2102, from=outbound-primary@example.test, mode=memory, size=332, domains=[example.invalid], subject='Multi-domain outbound admission'
+2026-10-22T16:22:36.559Z  WARN 1979749 --- [virtual-142] net.lmyz.lmyzmail.outbound.DkimSigner    : No DKIM configuration for domain: send-only.example.test. Returning unsigned message.
+2026-10-22T16:22:36.574Z  INFO 1979749 --- [virtual-142] n.l.l.outbound.OutboundMailService       : Email queued: id=2103, from=outbound-send-only@send-only.example.test, mode=memory, size=354, domains=[example.invalid], subject='Multi-domain outbound admission'
+2026-10-22T16:22:36.739Z  INFO 1979749 --- [IOUringEventLoopGroup-5-2] n.l.l.n.s.u.MessageProcessingExecutor    : MessageProcessingExecutor initialized with virtual threads
+2026-10-22T16:22:41.066Z  WARN 1979749 --- [dns-query-7] net.lmyz.lmyzmail.outbound.MxResolver    : Domain not found: example.invalid
+2026-10-22T16:22:41.068Z  WARN 1979749 --- [virtual-177] n.l.lmyzmail.outbound.AsyncMailSender    : Failed to deliver to domain example.invalid: Hostname cannot be null or empty
+2026-10-22T16:22:41.068Z  WARN 1979749 --- [virtual-176] n.l.lmyzmail.outbound.AsyncMailSender    : Failed to deliver to domain example.invalid: Hostname cannot be null or empty
+2026-10-22T16:22:41.078Z  WARN 1979749 --- [virtual-175] n.l.lmyzmail.outbound.AsyncMailSender    : Mail task 2103 failed permanently (mode: memory): All domains failed: {example.invalid=Hostname cannot be null or empty}
+2026-10-22T16:22:41.078Z  WARN 1979749 --- [virtual-174] n.l.lmyzmail.outbound.AsyncMailSender    : Mail task 2102 failed permanently (mode: memory): All domains failed: {example.invalid=Hostname cannot be null or empty}
+2026-10-22T16:22:41.235Z  INFO 1979749 --- [outbound-persist-2] n.l.l.outbound.MailQueuePersister        : Worker 1 batch persisted 2 tasks in 13ms (0 errors, 0 files deleted, throughput: 153/s)
+2026-10-22T16:22:42.772Z ERROR 1979749 --- [virtual-183] n.l.lmyzmail.web.StressTestController    : [STRESS TEST] Starting round 1 (WARMUP mode), count: 1, email size: 1KB, maxConcurrency: 1500, inMemory: true
+2026-10-22T16:22:42.773Z ERROR 1979749 --- [virtual-184] n.l.lmyzmail.web.StressTestController    : ========== [STRESS TEST] ROUND 1 (WARMUP) STARTING ==========
+2026-10-22T16:22:42.774Z ERROR 1979749 --- [virtual-184] n.l.lmyzmail.web.StressTestController    : [STRESS TEST] Config: Round=1, Mode=WARMUP, Sender=multi-stress-sender@send-only.example.test, Receiver=multi-stress-receiver@example.test, Count=1, EmailSize=1KB, MaxConcurrency=1500, InMemory=true
+2026-10-22T16:22:42.822Z ERROR 1979749 --- [virtual-184] n.l.lmyzmail.web.StressTestController    : [STRESS TEST] Rate limits bypassed for sender: multi-stress-sender@send-only.example.test
+2026-10-22T16:22:42.822Z ERROR 1979749 --- [virtual-184] n.l.lmyzmail.web.StressTestController    : [STRESS TEST] Queueing 1 emails (1KB each) with max concurrency 1500 (in-memory mode)...
+2026-10-22T16:22:42.827Z  WARN 1979749 --- [virtual-186] net.lmyz.lmyzmail.outbound.DkimSigner    : No DKIM configuration for domain: send-only.example.test. Returning unsigned message.
+2026-10-22T16:22:42.843Z  INFO 1979749 --- [virtual-186] n.l.l.outbound.OutboundMailService       : Email queued: id=2104, from=multi-stress-sender@send-only.example.test, mode=memory, size=1441, domains=[example.test], subject='Stress Test R1 #0 - 1792686162823'
+2026-10-22T16:22:42.843Z ERROR 1979749 --- [virtual-184] n.l.lmyzmail.web.StressTestController    : [STRESS TEST] Queue completed in 20 ms: success=1, failed=0, exceptions=0, oom=0, rateLimited=0
+2026-10-22T16:22:42.843Z ERROR 1979749 --- [virtual-184] n.l.lmyzmail.web.StressTestController    : [STRESS TEST] Waiting for delivery...
+2026-10-22T16:22:47.863Z ERROR 1979749 --- [virtual-184] n.l.lmyzmail.web.StressTestController    : [STRESS TEST] Progress: 0/1 received (5s elapsed, target=1)
+2026-10-22T16:22:53.371Z ERROR 1979749 --- [virtual-184] n.l.lmyzmail.web.StressTestController    : [STRESS TEST] Progress: 0/1 received (10s elapsed, target=1)
+2026-10-22T16:22:58.386Z ERROR 1979749 --- [virtual-184] n.l.lmyzmail.web.StressTestController    : [STRESS TEST] Progress: 0/1 received (15s elapsed, target=1)
+2026-10-22T16:23:03.407Z ERROR 1979749 --- [virtual-184] n.l.lmyzmail.web.StressTestController    : [STRESS TEST] Progress: 0/1 received (20s elapsed, target=1)
+2026-10-22T16:23:08.425Z ERROR 1979749 --- [virtual-184] n.l.lmyzmail.web.StressTestController    : [STRESS TEST] Progress: 0/1 received (25s elapsed, target=1)
+2026-10-22T16:23:13.445Z ERROR 1979749 --- [virtual-184] n.l.lmyzmail.web.StressTestController    : [STRESS TEST] Progress: 0/1 received (30s elapsed, target=1)
+2026-10-22T16:23:18.461Z ERROR 1979749 --- [virtual-184] n.l.lmyzmail.web.StressTestController    : [STRESS TEST] Progress: 0/1 received (35s elapsed, target=1)
+2026-10-22T16:23:23.477Z ERROR 1979749 --- [virtual-184] n.l.lmyzmail.web.StressTestController    : [STRESS TEST] Progress: 0/1 received (40s elapsed, target=1)
+2026-10-22T16:23:28.001Z ERROR 1979749 --- [virtual-184] n.l.lmyzmail.web.StressTestController    : [STRESS TEST] Progress: 0/1 received (45s elapsed, target=1)
+2026-10-22T16:23:33.013Z ERROR 1979749 --- [virtual-184] n.l.lmyzmail.web.StressTestController    : [STRESS TEST] Progress: 0/1 received (50s elapsed, target=1)
+2026-10-22T16:23:38.027Z ERROR 1979749 --- [virtual-184] n.l.lmyzmail.web.StressTestController    : [STRESS TEST] Progress: 0/1 received (55s elapsed, target=1)
+2026-10-22T16:23:41.007Z  INFO 1979749 --- [SimpleAsyncTaskScheduler-85] n.l.l.inbound.NettySmtpServerStarter     : [SMTP Netty] Idle | Total sessions: 5 (+5 since last)
+2026-10-22T16:23:43.040Z ERROR 1979749 --- [virtual-184] n.l.lmyzmail.web.StressTestController    : [STRESS TEST] Progress: 0/1 received (60s elapsed, target=1)
+2026-10-22T16:23:46.083Z  WARN 1979749 --- [dns-query-9] net.lmyz.lmyzmail.outbound.MxResolver    : Domain not found: example.test
+2026-10-22T16:23:46.084Z  WARN 1979749 --- [virtual-270] n.l.lmyzmail.outbound.AsyncMailSender    : Failed to deliver to domain example.test: Hostname cannot be null or empty
+2026-10-22T16:23:46.093Z  WARN 1979749 --- [virtual-269] n.l.lmyzmail.outbound.AsyncMailSender    : Mail task 2104 failed permanently (mode: memory): All domains failed: {example.test=Hostname cannot be null or empty}
+2026-10-22T16:23:46.353Z  INFO 1979749 --- [outbound-persist-2] n.l.l.outbound.MailQueuePersister        : Worker 1 batch persisted 1 tasks in 9ms (0 errors, 0 files deleted, throughput: 111/s)

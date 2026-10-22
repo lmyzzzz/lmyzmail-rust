@@ -152,7 +152,11 @@ class _MultiDomainCandidateRuntime(CandidateRuntime):
             "warmup_rounds": 1,
             "email_size_kb": 1,
         }
-        value["limits"]["outbound_poll_interval_ms"] = 60_000
+        # PostgreSQL is a terminal Write-Behind archive in Java. A 60s poll
+        # makes the unchanged 20s publication assertion depend on whether the
+        # stress call catches the first scheduler tick. Use the same bounded
+        # active poll interval for both implementations, including delayed starts.
+        value["limits"]["outbound_poll_interval_ms"] = 1_000
         path.write_text(
             json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
             encoding="utf-8",
@@ -368,7 +372,7 @@ class _MultiDomainStressJavaRuntime(_MultiDomainJavaRuntime):
             "--botmail.stress-test-warmup-count=1",
             "--botmail.stress-test-warmup-rounds=1",
             "--botmail.stress-test-email-size-kb=1",
-            "--botmail.queue.poll-interval-ms=60000",
+            "--botmail.queue.poll-interval-ms=1000",
         ]
 
 

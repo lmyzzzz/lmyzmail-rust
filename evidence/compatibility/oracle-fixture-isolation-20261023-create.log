@@ -1,0 +1,48 @@
+F.                                                                       [100%]
+Campaign audit: {"differences_requiring_review": [], "harness_definition_sha256": "7f72a4886dbf44ded308424ee8cacce9a3dafb356816f78a78e7afc220414a0d", "historical_observations_equal": 3, "old_golden_files_unchanged": 6897, "pytest_exitstatus": 1}
+
+=================================== FAILURES ===================================
+_____________________ test_managed_java_smtp_dmarc_golden ______________________
+
+record_java_golden = False
+
+    @pytest.mark.integration
+    @pytest.mark.oracle
+    @pytest.mark.timeout(420)
+    def test_managed_java_smtp_dmarc_golden(record_java_golden: bool) -> None:
+        paths = JavaOracleRuntime().paths
+        differential = _runner(paths.repository, record_java=record_java_golden)
+        with _DmarcJavaRuntime(paths=paths) as oracle:
+            if record_java_golden:
+                differential.record_from_java(SMTP_DMARC_SCENARIOS, oracle)
+            else:
+>               differential.verify_java(SMTP_DMARC_SCENARIOS, oracle)
+
+blackbox/tests/test_oracle_smtp_dmarc.py:139: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:125: in verify_java
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-smtp-dmarc-v10'), attestation=Gold...cce9a3dafb356816f78a78e7afc220414a0d', profile='managed-smtp-dmarc', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-smtp-dmarc', 'scenarios': [{'contract': {'alignment': 'strict DKIM and SPF plus relaxed SPF cross...r-hostname', 'smtp:session-id', 'maildir:generated-filename', 'maildir:server-hostname', 'maildir:received-id', ...]}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -> None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+>               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/oracle-fixture-isolation-20261023-create.xml -
+=========================== short test summary info ============================
+FAILED blackbox/tests/test_oracle_smtp_dmarc.py::test_managed_java_smtp_dmarc_golden
+1 failed, 1 passed in 32.67s

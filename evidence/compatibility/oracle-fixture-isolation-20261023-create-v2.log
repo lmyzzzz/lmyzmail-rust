@@ -1,0 +1,5 @@
+.                                                                        [100%]
+Campaign audit: {"differences_requiring_review": [], "harness_definition_sha256": "7f72a4886dbf44ded308424ee8cacce9a3dafb356816f78a78e7afc220414a0d", "historical_observations_equal": 6, "old_golden_files_unchanged": 6897, "pytest_exitstatus": 0}
+
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/oracle-fixture-isolation-20261023-create-v2.xml -
+1 passed in 20.76s

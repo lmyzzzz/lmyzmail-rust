@@ -26,6 +26,12 @@ class _DmarcJavaRuntime(JavaOracleRuntime):
         return True
 
     def _start_application(self) -> None:
+        workspace, _ = self._require_state()
+        # dnsjava uses the scripted server, but InetAddress's reverse lookup
+        # uses a separate name service. Keep these unassigned loopback sources
+        # unresolved locally so host DNS cannot trigger the 5s allOf timeout
+        # and a second SPF lookup. This preserves the unverified Received bytes.
+        (workspace / "java-hosts").write_text("127.0.0.1 localhost\n", encoding="ascii")
         self._dns = ScriptedDnsServer(dmarc_dns_answers())
         self._dns.start()
         JavaOracleRuntime._start_application(self)
@@ -37,6 +43,10 @@ class _DmarcJavaRuntime(JavaOracleRuntime):
         arguments.insert(
             arguments.index("-jar"),
             f"-Ddns.server={self._dns.host}:{self._dns.port}",
+        )
+        workspace, _ = self._require_state()
+        arguments.insert(
+            arguments.index("-jar"), f"-Djdk.net.hosts.file={workspace / 'java-hosts'}"
         )
         arguments.append("--botmail.contentfilter.enabled=false")
         return arguments

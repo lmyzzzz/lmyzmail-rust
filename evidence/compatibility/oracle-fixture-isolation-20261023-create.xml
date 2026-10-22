@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="32.295" timestamp="2026-10-23T00:24:23.367289+08:00" hostname="MSI"><testcase classname="tests.test_oracle_smtp_dmarc" name="test_managed_java_smtp_dmarc_golden" time="10.969"><failure message="lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required">record_java_golden = False
+
+    @pytest.mark.integration
+    @pytest.mark.oracle
+    @pytest.mark.timeout(420)
+    def test_managed_java_smtp_dmarc_golden(record_java_golden: bool) -&gt; None:
+        paths = JavaOracleRuntime().paths
+        differential = _runner(paths.repository, record_java=record_java_golden)
+        with _DmarcJavaRuntime(paths=paths) as oracle:
+            if record_java_golden:
+                differential.record_from_java(SMTP_DMARC_SCENARIOS, oracle)
+            else:
+&gt;               differential.verify_java(SMTP_DMARC_SCENARIOS, oracle)
+
+blackbox/tests/test_oracle_smtp_dmarc.py:139: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:125: in verify_java
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-smtp-dmarc-v10'), attestation=Gold...cce9a3dafb356816f78a78e7afc220414a0d', profile='managed-smtp-dmarc', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-smtp-dmarc', 'scenarios': [{'contract': {'alignment': 'strict DKIM and SPF plus relaxed SPF cross...r-hostname', 'smtp:session-id', 'maildir:generated-filename', 'maildir:server-hostname', 'maildir:received-id', ...]}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -&gt; None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+&gt;               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch</failure></testcase><testcase classname="tools.test_java_multi_domain" name="test_java_multi_domain_golden" time="21.148" /></testsuite></testsuites>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="28.969" timestamp="2026-10-23T00:20:03.077561+08:00" hostname="MSI"><testcase classname="tests.test_oracle_smtp_dmarc" name="test_managed_java_smtp_dmarc_golden" time="28.856"><failure message="AssertionError: SMTP DMARC contract violation: {'malformed-then-valid': {'auth.malformed-dmarc-example.net': (DnsQuery(qname='_dmarc.auth.malformed-dmarc-example.net', qtype=16, qclass=1), DnsQuery(qname='auth.malformed-dmarc-example.net', qtype=16, qclass=1), DnsQuery(qname='_dmarc.auth.malformed-dmarc-example.net', qtype=16, qclass=1), DnsQuery(qname='_dmarc.malformed-dmarc-example.net', qtype=16, qclass=1), DnsQuery(qname='_dmarc.malformed-dmarc-example.net', qtype=16, qclass=1), DnsQuery(qname='auth.malformed-dmarc-example.net', qtype=16, qclass=1), DnsQuery(qname='_dmarc.malformed-dmarc-example.com', qtype=16, qclass=1))}}">record_java_golden = False
+
+    @pytest.mark.integration
+    @pytest.mark.oracle
+    @pytest.mark.timeout(420)
+    def test_managed_java_smtp_dmarc_golden(record_java_golden: bool) -&gt; None:
+        paths = JavaOracleRuntime().paths
+        differential = _runner(paths.repository, record_java=record_java_golden)
+        with _DmarcJavaRuntime(paths=paths) as oracle:
+            if record_java_golden:
+                differential.record_from_java(SMTP_DMARC_SCENARIOS, oracle)
+            else:
+&gt;               differential.verify_java(SMTP_DMARC_SCENARIOS, oracle)
+
+blackbox/tests/test_oracle_smtp_dmarc.py:129: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:127: in verify_java
+    observation = scenario.capture(target)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+blackbox/src/lmyzmail_blackbox/smtp_dmarc_contract.py:553: in capture_external_dmarc_edge_matrix
+    return {"cases": [_capture_edge_case(target, case) for case in _DMARC_EDGE_CASES]}
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+blackbox/src/lmyzmail_blackbox/smtp_dmarc_contract.py:530: in _capture_edge_case
+    _check(count == 1, {case.name: {qname: queries}})
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+condition = False
+details = {'malformed-then-valid': {'auth.malformed-dmarc-example.net': (DnsQuery(qname='_dmarc.auth.malformed-dmarc-example.net...dmarc-example.net', qtype=16, qclass=1), DnsQuery(qname='auth.malformed-dmarc-example.net', qtype=16, qclass=1), ...)}}
+
+    def _check(condition: bool, details: object) -&gt; None:
+        if not condition:
+&gt;           raise AssertionError(f"SMTP DMARC contract violation: {details!r}")
+E           AssertionError: SMTP DMARC contract violation: {'malformed-then-valid': {'auth.malformed-dmarc-example.net': (DnsQuery(qname='_dmarc.auth.malformed-dmarc-example.net', qtype=16, qclass=1), DnsQuery(qname='auth.malformed-dmarc-example.net', qtype=16, qclass=1), DnsQuery(qname='_dmarc.auth.malformed-dmarc-example.net', qtype=16, qclass=1), DnsQuery(qname='_dmarc.malformed-dmarc-example.net', qtype=16, qclass=1), DnsQuery(qname='_dmarc.malformed-dmarc-example.net', qtype=16, qclass=1), DnsQuery(qname='auth.malformed-dmarc-example.net', qtype=16, qclass=1), DnsQuery(qname='_dmarc.malformed-dmarc-example.com', qtype=16, qclass=1))}}
+
+blackbox/src/lmyzmail_blackbox/smtp_dmarc_contract.py:368: AssertionError</failure></testcase></testsuite></testsuites>

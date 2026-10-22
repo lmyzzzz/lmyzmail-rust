@@ -1,0 +1,150 @@
+{
+  "cases": [],
+  "dns_events": [
+    {
+      "elapsed_seconds": 7.048584803938866,
+      "qclass": 1,
+      "qname": "blackbox._domainkey.dkim.blackbox-example.com",
+      "qtype": 16
+    },
+    {
+      "elapsed_seconds": 7.0645397999323905,
+      "qclass": 1,
+      "qname": "_dmarc.dkim.blackbox-example.com",
+      "qtype": 16
+    },
+    {
+      "elapsed_seconds": 7.715954384068027,
+      "qclass": 1,
+      "qname": "blackbox._domainkey.dkim.blackbox-example.com",
+      "qtype": 16
+    },
+    {
+      "elapsed_seconds": 7.728102033026516,
+      "qclass": 1,
+      "qname": "_dmarc.dkim.blackbox-example.com",
+      "qtype": 16
+    },
+    {
+      "elapsed_seconds": 8.222394676879048,
+      "qclass": 1,
+      "qname": "_dmarc.spf-aligned.dmarc-blackbox-example.com",
+      "qtype": 16
+    },
+    {
+      "elapsed_seconds": 8.233843920053914,
+      "qclass": 1,
+      "qname": "spf-aligned.dmarc-blackbox-example.com",
+      "qtype": 16
+    },
+    {
+      "elapsed_seconds": 8.716661327984184,
+      "qclass": 1,
+      "qname": "spf-auth.dmarc-blackbox-example.net",
+      "qtype": 16
+    },
+    {
+      "elapsed_seconds": 8.728309596888721,
+      "qclass": 1,
+      "qname": "_dmarc.spf-auth.dmarc-blackbox-example.net",
+      "qtype": 16
+    },
+    {
+      "elapsed_seconds": 8.739435799885541,
+      "qclass": 1,
+      "qname": "_dmarc.spf-auth.dmarc-blackbox-example.net",
+      "qtype": 16
+    },
+    {
+      "elapsed_seconds": 8.751599435927346,
+      "qclass": 1,
+      "qname": "_dmarc.dmarc-blackbox-example.net",
+      "qtype": 16
+    },
+    {
+      "elapsed_seconds": 8.76237890101038,
+      "qclass": 1,
+      "qname": "_dmarc.dmarc-blackbox-example.net",
+      "qtype": 16
+    },
+    {
+      "elapsed_seconds": 8.774424987845123,
+      "qclass": 1,
+      "qname": "_dmarc.from-unaligned.dmarc-blackbox-example.org",
+      "qtype": 16
+    },
+    {
+      "elapsed_seconds": 9.232198151992634,
+      "qclass": 1,
+      "qname": "_dmarc.reject.dmarc-blackbox-example.info",
+      "qtype": 16
+    },
+    {
+      "elapsed_seconds": 14.262102379929274,
+      "qclass": 1,
+      "qname": "auth-multiple-from.dmarc-edge-example.net",
+      "qtype": 16
+    },
+    {
+      "elapsed_seconds": 14.272934356005862,
+      "qclass": 1,
+      "qname": "_dmarc.auth-multiple-from.dmarc-edge-example.net",
+      "qtype": 16
+    },
+    {
+      "elapsed_seconds": 14.28428956400603,
+      "qclass": 1,
+      "qname": "_dmarc.auth-multiple-from.dmarc-edge-example.net",
+      "qtype": 16
+    },
+    {
+      "elapsed_seconds": 14.295938181923702,
+      "qclass": 1,
+      "qname": "_dmarc.dmarc-edge-example.net",
+      "qtype": 16
+    },
+    {
+      "elapsed_seconds": 14.306751277064905,
+      "qclass": 1,
+      "qname": "_dmarc.dmarc-edge-example.net",
+      "qtype": 16
+    },
+    {
+      "elapsed_seconds": 14.722191640874371,
+      "qclass": 1,
+      "qname": "_dmarc.auth-group-from.dmarc-edge-example.net",
+      "qtype": 16
+    },
+    {
+      "elapsed_seconds": 14.73245483986102,
+      "qclass": 1,
+      "qname": "auth-group-from.dmarc-edge-example.net",
+      "qtype": 16
+    },
+    {
+      "elapsed_seconds": 14.746154916938394,
+      "qclass": 1,
+      "qname": "_dmarc.auth-group-from.dmarc-edge-example.net",
+      "qtype": 16
+    },
+    {
+      "elapsed_seconds": 14.756864516995847,
+      "qclass": 1,
+      "qname": "_dmarc.dmarc-edge-example.net",
+      "qtype": 16
+    },
+    {
+      "elapsed_seconds": 14.768032610882074,
+      "qclass": 1,
+      "qname": "_dmarc.dmarc-edge-example.net",
+      "qtype": 16
+    },
+    {
+      "elapsed_seconds": 19.717596957925707,
+      "qclass": 1,
+      "qname": "auth-group-from.dmarc-edge-example.net",
+      "qtype": 16
+    }
+  ],
+  "pytest_exitstatus": 1
+}
