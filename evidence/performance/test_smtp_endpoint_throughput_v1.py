@@ -5112,6 +5112,23 @@ class RoundContractTests(unittest.TestCase):
 
 
 class RealGateCalibrationTests(unittest.TestCase):
+    def test_actual_start_response_preserves_endpoint_identity(self) -> None:
+        body = {
+            "mode": "PRODUCTION", "emailCount": 100,
+            "emailSizeKB": 10_240, "maxConcurrency": 80,
+            "inMemoryMode": False, "round": 1,
+        }
+        invocation = runner._start_invocation_record()
+        record = runner._start_round_response_record(
+            SimpleNamespace(status_code=200, body=json.dumps(body).encode()),
+            requested_at=invocation["at"],
+            started_monotonic=runner.time.monotonic(),
+            invocation=invocation, expected_mode="PRODUCTION",
+            expected_count=100, expected_size_kib=10_240,
+        )
+        self.assertEqual(record["endpoint"], "/api/stress/start")
+        self.assertEqual(record["endpoint"], record["invocation"]["endpoint"])
+
     @staticmethod
     def round_record(mode: str, rate: float) -> dict[str, Any]:
         messages, message_bytes, concurrency = runner.REAL_GATE_CALIBRATION_SHAPES[

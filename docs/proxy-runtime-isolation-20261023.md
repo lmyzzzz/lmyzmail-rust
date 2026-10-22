@@ -257,3 +257,32 @@ checks lossless JSON round-trip, missing/unknown-field rejection and incorrect
 Sent count rejection. The real-product report regression also rejects a missing
 Sent count. All 85 proxy Rust tests, strict Clippy, formatting, 220 Python checks
 and Bash syntax validation passed. Product source/model/ELF remain unchanged.
+
+## Complete v9 calibration and aggregate rejection
+
+Run `1306843d-8b6f-48b0-8903-2cb7d7be94f7` completed all eight original-endpoint
+calibration invocations in the same candidate process. Each requested and
+verified 100 messages of 10 MiB; every endpoint outcome and persistence barrier
+passed. All four gate-on snapshots round-tripped exactly after the Sent-field
+repair, with holds of 9.0--10.3 ms. The retained per-round rates, in the original
+off/on/on/off/on/off/off/on order, are 2.898770, 3.355424, 3.358823, 3.319290,
+3.410694, 3.390536, 3.239142 and 3.255868 msg/s.
+
+The median on/off ratio was 1.023758; all four paired ratios exceeded 0.99.
+The off/on spreads were 0.149965 and 0.046119, both above the unchanged 0.01
+bound. The aggregate therefore failed closed before the formal 500-message
+measurement. All rounds and the complete failed evaluation are retained in
+`release-22dae7d0-formal-off-10mb-v9.runner-proof.jsonl`, SHA-256
+`3e866da2da0c5f76b37a4f8de79b13ebf21a6ab394e4a3fc595d59abad053d15`.
+Root cleanup passed without recovery/lazy unmount and with no qualified receipt.
+These 800 delivered calibration messages do not replace a qualified stress tier.
+
+The retained report also exposes a second record-schema defect: actual start
+records stored the endpoint under `invocation.endpoint`, while the real report
+requires a top-level `endpoint`. Every round's standalone `passed` consequently
+remained false even when its outcome and barrier passed. The response-record
+builder now copies the actual journaled endpoint into that required field;
+the existing report assertion is unchanged. A regression uses the real builder
+and verifies both copies identify `/api/stress/start`. All 221 Python checks
+and Bash syntax validation passed. The observed aggregate spread failure is
+independent and is not retrospectively promoted by the schema repair.

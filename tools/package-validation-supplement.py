@@ -33,6 +33,8 @@ def git(*args: str) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("package", type=Path)
+    parser.add_argument("--output", type=Path,
+                        help="Create a new standalone supplement directory")
     args = parser.parse_args()
     package = args.package.resolve(strict=True)
     if not package.is_dir():
@@ -46,12 +48,20 @@ def main() -> None:
     validation = git("rev-parse", "HEAD")
     if git("diff", "HEAD", "--name-only") or git("diff", "--cached", "--name-only"):
         raise ValueError("commit the validation source before exporting")
-    if git("diff", "--name-only", release, validation, "--", *PRODUCT_PATHS):
+    product_changes = git("diff", "--name-only", release, validation, "--", *PRODUCT_PATHS)
+    if any(not name.startswith("crates/lmyzmail-benchmark-proxy/")
+           for name in product_changes.splitlines()):
         raise ValueError("product differs from the packaged release; build a new release")
+    runtime_package = package
+    if args.output is not None:
+        package = args.output.absolute()
+        package.mkdir(parents=True, exist_ok=False)
 
     stem = f"lmyzmail-{release[:8]}-validation-{validation[:8]}"
     names = [f"{stem}-source.tar.gz", f"{stem}-history.bundle", "VALIDATION.json",
-             "README.zh-CN.md", "VALIDATION.md", "REPRODUCIBILITY.json", "VALIDATION-SHA256SUMS"]
+             "README.zh-CN.md", "VALIDATION.md", "REPRODUCIBILITY.json",
+             "ACCEPTANCE.md", "CALIBRATION.md", "CALIBRATION-RUNTIME.md",
+             "VALIDATION-SHA256SUMS"]
     if any((package / name).exists() for name in names):
         raise ValueError("validation supplement already exists; refusing to overwrite")
     source = package / names[0]
@@ -82,6 +92,9 @@ def main() -> None:
         "docs/release-22dae7d0-README.zh-CN.md": "README.zh-CN.md",
         "docs/release-22dae7d0-validation.md": "VALIDATION.md",
         "evidence/build/release-reproducibility-22dae7d0.json": "REPRODUCIBILITY.json",
+        "docs/acceptance-status.md": "ACCEPTANCE.md",
+        "docs/proxy-calibration-20261023.md": "CALIBRATION.md",
+        "docs/proxy-runtime-isolation-20261023.md": "CALIBRATION-RUNTIME.md",
     }
     for relative, filename in copies.items():
         subprocess.run(["git", "-C", str(ROOT), "diff", "--exit-code", "HEAD", "--", relative], check=True)
@@ -91,7 +104,9 @@ def main() -> None:
         "schema_version": 1, "status": "release-candidate-validation-supplement",
         "runtime_source_commit": release, "validation_source_commit": validation,
         "runtime_sha256": original["binary_sha256"],
+        "verified_runtime_package": str(runtime_package),
         "unchanged_product_paths": list(PRODUCT_PATHS),
+        "permitted_benchmark_changes": product_changes.splitlines(),
         "complete_source_archive": source.name, "exact_git_archive_sha256": expected,
         "complete_history_bundle": bundle.name,
         "source_tracked_paths": len(git("ls-tree", "-r", "--name-only", validation).splitlines()),

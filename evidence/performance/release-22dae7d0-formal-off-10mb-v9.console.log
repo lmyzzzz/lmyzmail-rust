@@ -1,0 +1,19 @@
+Traceback (most recent call last):
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 11273, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 11254, in main
+    result = _run_benchmark(args, layout)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 10707, in _run_benchmark
+    raise primary_error
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 10580, in _run_benchmark
+    gate_tiers[label] = _run_real_gate_calibration_tier(
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 7668, in _run_real_gate_calibration_tier
+    raise primary_error
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 7627, in _run_real_gate_calibration_tier
+    raise RuntimeError(f"real gate calibration did not qualify: {label}")
+RuntimeError: real gate calibration did not qualify: 10MB
+benchmark watchdog refused to signal a stale or out-of-cgroup runner PID
+benchmark watchdog qualification failed:  artifact_receipt_valid=0  runner_success_valid=0

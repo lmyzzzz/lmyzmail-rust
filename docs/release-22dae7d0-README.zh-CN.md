@@ -22,6 +22,14 @@
 或用 `git clone <validation-history.bundle> lmyzmail-source` 恢复完整历史。
 生产运行时代码与原始 `22dae7d0` 发布提交完全一致。
 
+`updates/` 下保留后续版本化完整源码、Git 历史和验收补充。
+每个子目录的 `VALIDATION.json` 给出精确源码提交，
+`VALIDATION-SHA256SUMS` 校验其中全部交付文件；旧补充目录使用 `SHA256SUMS`。
+最新补充包含外部 SMTP 观测器修正、85 项 Rust 观测器测试、221 项 Python
+工具回归及完整失败证据。运行包及其模型和 ELF 未被这些工具变更替换。
+最新 10 MiB 校准完成 8 轮、800/800 封，持久化核对全部通过，
+但轮间波动未通过原有门槛，不能作为正式长压测验收结果。
+
 ## 安装
 
 在 Linux x86_64 上先检查 `SHA256SUMS`。Windows 只能保存这些交付文件，

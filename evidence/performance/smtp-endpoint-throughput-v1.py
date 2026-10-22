@@ -5775,6 +5775,7 @@ def _start_round_response_record(
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
         raise RuntimeError("stress endpoint returned invalid JSON") from error
     record = {
+        "endpoint": invocation["endpoint"],
         "requested_at": requested_at,
         "completed_at": _utc_now(),
         "duration_ms": round((time.monotonic() - started_monotonic) * 1_000, 3),

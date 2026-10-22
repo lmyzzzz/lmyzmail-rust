@@ -77,6 +77,15 @@ The 30-second smoke companion is retained as [`candidate-soak-v6-smoke-0eb2-v1.j
 
 ## Still required
 
+- V9 completed all eight actual 10 MiB calibration rounds in the same process:
+  800/800 messages, all endpoint outcomes and persistence barriers passed.
+  Snapshot field equality now passes. Aggregate off/on spread was 15.00%/4.61%
+  against the unchanged 1% calibration bound; formal measurement never began.
+  A separate endpoint-identity record defect is repaired with a real-builder
+  regression (221 Python checks passed), without promoting that failed run.
+  Full rounds, evaluation and successful unqualified cleanup are retained in
+  [the calibration record](proxy-runtime-isolation-20261023.md).
+
 - The uncontaminated v8 actual gate-on round verified 100/100 10 MiB messages,
   zero observer failures and passing causal timing, then exposed a missing Sent
   count in the Rust benchmark control snapshot. It now preserves and validates
