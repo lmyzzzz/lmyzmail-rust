@@ -1,0 +1,156 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 26K of event 'cpu-clock'
+# Event count (approx.): 131437169500
+#
+# Overhead  Shared Object             Symbol                                                                                                                                  IPC   [IPC Coverage]
+# ........  ........................  ......................................................................................................................................  ....................
+#
+    10.58%  [kernel.kallsyms]         [k] _raw_spin_unlock_irqrestore                                                                                                         -      -            
+     5.20%  [kernel.kallsyms]         [k] copyout                                                                                                                             -      -            
+     3.28%  lmyzmail-benchmark-proxy  [.] tokio::runtime::io::registration::Registration::poll_ready                                                                          -      -            
+     2.64%  [kernel.kallsyms]         [k] __inet_lookup_established                                                                                                           -      -            
+     2.37%  [kernel.kallsyms]         [k] __fget_light                                                                                                                        -      -            
+     2.13%  lmyzmail-benchmark-proxy  [.] sha2::sha256::x86_sha::compress                                                                                                     -      -            
+     2.07%  [kernel.kallsyms]         [k] ___slab_alloc                                                                                                                       -      -            
+     2.00%  [kernel.kallsyms]         [k] copyin                                                                                                                              -      -            
+     1.96%  [kernel.kallsyms]         [k] skb_release_data                                                                                                                    -      -            
+     1.74%  [kernel.kallsyms]         [k] __alloc_skb                                                                                                                         -      -            
+     1.59%  [kernel.kallsyms]         [k] clear_page_erms                                                                                                                     -      -            
+     1.43%  [kernel.kallsyms]         [k] tcp_ack                                                                                                                             -      -            
+     1.21%  [kernel.kallsyms]         [k] sock_poll                                                                                                                           -      -            
+     1.20%  [kernel.kallsyms]         [k] net_rx_action                                                                                                                       -      -            
+     1.10%  [kernel.kallsyms]         [k] syscall_enter_from_user_mode                                                                                                        -      -            
+     1.06%  [kernel.kallsyms]         [k] tcp_check_space                                                                                                                     -      -            
+     1.02%  lmyzmail-benchmark-proxy  [.] <core::pin::Pin<P> as core::future::future::Future>::poll                                                                           -      -            
+     1.02%  [kernel.kallsyms]         [k] tcp_rcv_established                                                                                                                 -      -            
+     1.00%  [kernel.kallsyms]         [k] __raw_callee_save___pv_queued_spin_unlock                                                                                           -      -            
+     0.93%  [kernel.kallsyms]         [k] __check_object_size                                                                                                                 -      -            
+     0.93%  libc.so.6                 [.] __send                                                                                                                              -      -            
+     0.91%  [kernel.kallsyms]         [k] read_tsc                                                                                                                            -      -            
+     0.88%  [kernel.kallsyms]         [k] __list_del_entry_valid_or_report                                                                                                    -      -            
+     0.88%  [kernel.kallsyms]         [k] _raw_spin_unlock_irq                                                                                                                -      -            
+     0.87%  lmyzmail-benchmark-proxy  [.] lmyzmail_benchmark_proxy::proxy::ProxyServer::serve::_$u7b$$u7b$closure$u7d$$u7d$::_$u7b$$u7b$closure$u7d$$u7d$::h362d8fbf32e23eb5  -      -            
+     0.83%  [kernel.kallsyms]         [k] selinux_socket_recvmsg                                                                                                              -      -            
+     0.83%  [kernel.kallsyms]         [k] _raw_spin_lock_bh                                                                                                                   -      -            
+     0.79%  [kernel.kallsyms]         [k] kmem_cache_alloc_node                                                                                                               -      -            
+     0.78%  lmyzmail-benchmark-proxy  [.] tokio::runtime::task::waker::wake_by_val                                                                                            -      -            
+     0.73%  [kernel.kallsyms]         [k] __dev_queue_xmit                                                                                                                    -      -            
+     0.71%  [kernel.kallsyms]         [k] selinux_socket_sendmsg                                                                                                              -      -            
+     0.71%  lmyzmail-benchmark-proxy  [.] <core::pin::Pin<P> as core::future::future::Future>::poll                                                                           -      -            
+     0.71%  libc.so.6                 [.] __memmove_avx_unaligned_erms                                                                                                        -      -            
+     0.70%  [kernel.kallsyms]         [k] sock_rfree                                                                                                                          -      -            
+     0.68%  [kernel.kallsyms]         [k] tcp_rcv_space_adjust                                                                                                                -      -            
+     0.67%  [kernel.kallsyms]         [k] tcp_sendmsg_locked                                                                                                                  -      -            
+     0.67%  [kernel.kallsyms]         [k] __sys_recvfrom                                                                                                                      -      -            
+     0.66%  lmyzmail-benchmark-proxy  [.] tokio::runtime::scheduler::multi_thread::worker::Context::run_task                                                                  -      -            
+     0.65%  [kernel.kallsyms]         [k] tcp_v4_rcv                                                                                                                          -      -            
+     0.62%  [kernel.kallsyms]         [k] ep_item_poll.isra.0                                                                                                                 -      -            
+     0.62%  lmyzmail-benchmark-proxy  [.] memchr::arch::x86_64::avx2::packedpair::Finder::find_impl                                                                           -      -            
+     0.60%  libc.so.6                 [.] __libc_recv                                                                                                                         -      -            
+     0.58%  lmyzmail-benchmark-proxy  [.] std::sys::sync::mutex::futex::Mutex::lock_contended                                                                                 -      -            
+     0.58%  [kernel.kallsyms]         [k] _raw_spin_lock                                                                                                                      -      -            
+     0.56%  lmyzmail-benchmark-proxy  [.] <tokio::io::util::read_until::ReadUntil<R> as core::future::future::Future>::poll                                                   -      -            
+     0.56%  [kernel.kallsyms]         [k] __tcp_transmit_skb                                                                                                                  -      -            
+     0.56%  libc.so.6                 [.] __GI___pthread_disable_asynccancel                                                                                                  -      -            
+     0.55%  [kernel.kallsyms]         [k] __slab_free                                                                                                                         -      -            
+     0.55%  [kernel.kallsyms]         [k] __skb_datagram_iter                                                                                                                 -      -            
+     0.52%  [kernel.kallsyms]         [k] __sys_sendto                                                                                                                        -      -            
+     0.52%  [kernel.kallsyms]         [k] cache_from_obj                                                                                                                      -      -            
+     0.52%  lmyzmail-benchmark-proxy  [.] <core::pin::Pin<P> as core::future::future::Future>::poll                                                                           -      -            
+     0.52%  lmyzmail-benchmark-proxy  [.] tokio::runtime::scheduler::multi_thread::worker::run                                                                                -      -            
+     0.51%  [kernel.kallsyms]         [k] slab_update_freelist.constprop.0.isra.0                                                                                             -      -            
+     0.50%  [kernel.kallsyms]         [k] handle_softirqs                                                                                                                     -      -            
+     0.50%  [kernel.kallsyms]         [k] kfree_skbmem                                                                                                                        -      -            
+     0.50%  [kernel.kallsyms]         [k] __ip_queue_xmit                                                                                                                     -      -            
+     0.48%  [kernel.kallsyms]         [k] dst_release                                                                                                                         -      -            
+     0.45%  [kernel.kallsyms]         [k] tcp_poll                                                                                                                            -      -            
+     0.45%  libc.so.6                 [.] _int_malloc                                                                                                                         -      -            
+     0.45%  lmyzmail-benchmark-proxy  [.] lmyzmail_benchmark_proxy::observer::ObserverHub::record_message                                                                     -      -            
+     0.44%  [kernel.kallsyms]         [k] tcp_recvmsg_locked                                                                                                                  -      -            
+     0.44%  lmyzmail-benchmark-proxy  [.] lmyzmail_benchmark_proxy::calibration::run_load::_$u7b$$u7b$closure$u7d$$u7d$::_$u7b$$u7b$closure$u7d$$u7d$::h1efc77018626dcf4      -      -            
+     0.43%  lmyzmail-benchmark-proxy  [.] lmyzmail_benchmark_proxy::observer::ClientObserver::observe                                                                         -      -            
+     0.43%  libc.so.6                 [.] malloc                                                                                                                              -      -            
+     0.41%  [kernel.kallsyms]         [k] put_cpu_partial                                                                                                                     -      -            
+     0.41%  libc.so.6                 [.] cfree@GLIBC_2.2.5                                                                                                                   -      -            
+     0.41%  lmyzmail-benchmark-proxy  [.] <tokio::net::tcp::split_owned::OwnedReadHalf as tokio::io::async_read::AsyncRead>::poll_read                                        -      -            
+     0.39%  [kernel.kallsyms]         [k] sock_def_readable                                                                                                                   -      -            
+     0.39%  lmyzmail-benchmark-proxy  [.] tokio::runtime::io::scheduled_io::ScheduledIo::wake                                                                                 -      -            
+     0.38%  lmyzmail-benchmark-proxy  [.] tokio::runtime::io::driver::Driver::turn                                                                                            -      -            
+     0.38%  [kernel.kallsyms]         [k] preempt_count_sub                                                                                                                   -      -            
+     0.36%  libc.so.6                 [.] __GI___pthread_enable_asynccancel                                                                                                   -      -            
+     0.35%  [kernel.kallsyms]         [k] ip_finish_output2                                                                                                                   -      -            
+     0.35%  [vdso]                    [.] __vdso_clock_gettime                                                                                                                -      -            
+     0.32%  [kernel.kallsyms]         [k] fput                                                                                                                                -      -            
+     0.32%  [kernel.kallsyms]         [k] ip_send_check                                                                                                                       -      -            
+     0.32%  lmyzmail-benchmark-proxy  [.] lmyzmail_benchmark_proxy::proxy::AtomicLagHistogram::record                                                                         -      -            
+     0.32%  [kernel.kallsyms]         [k] check_preemption_disabled                                                                                                           -      -            
+     0.29%  [kernel.kallsyms]         [k] sockfd_lookup_light                                                                                                                 -      -            
+     0.29%  [kernel.kallsyms]         [k] kmem_cache_free                                                                                                                     -      -            
+     0.28%  [kernel.kallsyms]         [k] __rcu_read_lock                                                                                                                     -      -            
+     0.27%  [kernel.kallsyms]         [k] __put_user_nocheck_4                                                                                                                -      -            
+     0.27%  [kernel.kallsyms]         [k] preempt_count_add                                                                                                                   -      -            
+     0.27%  lmyzmail-benchmark-proxy  [.] hashbrown::map::HashMap<K,V,S,A>::insert                                                                                            -      -            
+     0.26%  [kernel.kallsyms]         [k] __rcu_read_unlock                                                                                                                   -      -            
+     0.26%  [kernel.kallsyms]         [k] ip_rcv_finish_core.constprop.0                                                                                                      -      -            
+     0.26%  [kernel.kallsyms]         [k] ktime_get                                                                                                                           -      -            
+     0.25%  [kernel.kallsyms]         [k] __virt_addr_valid                                                                                                                   -      -            
+     0.24%  [kernel.kallsyms]         [k] _raw_write_unlock_irq                                                                                                               -      -            
+     0.24%  [kernel.kallsyms]         [k] tcp_wfree                                                                                                                           -      -            
+     0.24%  libc.so.6                 [.] _int_free                                                                                                                           -      -            
+     0.23%  [kernel.kallsyms]         [k] do_softirq.part.0                                                                                                                   -      -            
+     0.23%  [kernel.kallsyms]         [k] skb_attempt_defer_free                                                                                                              -      -            
+     0.23%  lmyzmail-benchmark-proxy  [.] lmyzmail_benchmark_proxy::observer::ClientObserver::finish_data_capture                                                             -      -            
+     0.22%  [kernel.kallsyms]         [k] __put_user_nocheck_8                                                                                                                -      -            
+     0.21%  [kernel.kallsyms]         [k] __skb_clone                                                                                                                         -      -            
+     0.21%  [kernel.kallsyms]         [k] __xfrm_policy_check2.constprop.0                                                                                                    -      -            
+     0.21%  [kernel.kallsyms]         [k] tcp_event_new_data_sent                                                                                                             -      -            
+     0.21%  [kernel.kallsyms]         [k] __memset                                                                                                                            -      -            
+     0.21%  [kernel.kallsyms]         [k] avc_lookup                                                                                                                          -      -            
+     0.19%  lmyzmail-benchmark-proxy  [.] lmyzmail_benchmark_proxy::calibration::expect_code::_$u7b$$u7b$closure$u7d$$u7d$::h5e539e88c67cdf42                                 -      -            
+     0.19%  lmyzmail-benchmark-proxy  [.] lmyzmail_benchmark_proxy::observer::ServerObserver::observe_pending                                                                 -      -            
+     0.19%  [kernel.kallsyms]         [k] tcp_queue_rcv                                                                                                                       -      -            
+     0.18%  [kernel.kallsyms]         [k] __seccomp_filter                                                                                                                    -      -            
+     0.18%  [kernel.kallsyms]         [k] tcp_write_xmit                                                                                                                      -      -            
+     0.18%  [kernel.kallsyms]         [k] sk_filter_trim_cap                                                                                                                  -      -            
+     0.17%  [kernel.kallsyms]         [k] tcp_current_mss                                                                                                                     -      -            
+     0.17%  lmyzmail-benchmark-proxy  [.] tokio::net::tcp::stream::TcpStream::poll_read_priv                                                                                  -      -            
+     0.17%  [kernel.kallsyms]         [k] __mod_timer                                                                                                                         -      -            
+     0.16%  lmyzmail-benchmark-proxy  [.] tokio::runtime::task::state::State::transition_to_idle                                                                              -      -            
+     0.16%  [kernel.kallsyms]         [k] ip_rcv_core                                                                                                                         -      -            
+     0.16%  lmyzmail-benchmark-proxy  [.] lmyzmail_benchmark_proxy::calibration::CalibrationMessage::set_index                                                                -      -            
+     0.16%  lmyzmail-benchmark-proxy  [.] tokio::runtime::task::state::State::transition_to_running                                                                           -      -            
+     0.16%  lmyzmail-benchmark-proxy  [.] lmyzmail_benchmark_proxy::observer::ServerObserver::complete_reply                                                                  -      -            
+     0.15%  [kernel.kallsyms]         [k] avc_has_perm_noaudit                                                                                                                -      -            
+     0.15%  [kernel.kallsyms]         [k] sock_put                                                                                                                            -      -            
+     0.15%  [kernel.kallsyms]         [k] _raw_spin_lock_irqsave                                                                                                              -      -            
+     0.15%  lmyzmail-benchmark-proxy  [.] tokio::runtime::task::raw::poll                                                                                                     -      -            
+     0.15%  [kernel.kallsyms]         [k] tcp_rate_check_app_limited                                                                                                          -      -            
+     0.14%  [kernel.kallsyms]         [k] __this_cpu_preempt_check                                                                                                            -      -            
+     0.14%  [kernel.kallsyms]         [k] selinux_parse_skb.constprop.0                                                                                                       -      -            
+     0.14%  [kernel.kallsyms]         [k] napi_consume_skb                                                                                                                    -      -            
+     0.14%  [kernel.kallsyms]         [k] should_failslab                                                                                                                     -      -            
+     0.13%  [kernel.kallsyms]         [k] tcp_update_pacing_rate                                                                                                              -      -            
+     0.13%  lmyzmail-benchmark-proxy  [.] tokio::runtime::task::waker::clone_waker                                                                                            -      -            
+     0.13%  [kernel.kallsyms]         [k] __netif_receive_skb_core.constprop.0                                                                                                -      -            
+     0.13%  [kernel.kallsyms]         [k] in_lock_functions                                                                                                                   -      -            
+     0.12%  [kernel.kallsyms]         [k] tcp_mstamp_refresh                                                                                                                  -      -            
+     0.12%  [kernel.kallsyms]         [k] do_user_addr_fault                                                                                                                  -      -            
+     0.12%  [kernel.kallsyms]         [k] tcp_ack_update_rtt                                                                                                                  -      -            
+     0.11%  [kernel.kallsyms]         [k] __copy_skb_header                                                                                                                   -      -            
+     0.11%  [kernel.kallsyms]         [k] tcp_rearm_rto                                                                                                                       -      -            
+     0.11%  [kernel.kallsyms]         [k] __sk_mem_raise_allocated                                                                                                            -      -            
+     0.11%  [kernel.kallsyms]         [k] sk_free                                                                                                                             -      -            
+     0.10%  [kernel.kallsyms]         [k] _copy_to_iter                                                                                                                       -      -            
+     0.10%  [kernel.kallsyms]         [k] avc_has_perm                                                                                                                        -      -            
+     0.10%  [kernel.kallsyms]         [k] selinux_socket_sock_rcv_skb                                                                                                         -      -            
+     0.10%  [kernel.kallsyms]         [k] tcp_tso_segs                                                                                                                        -      -            
+     0.10%  python3.12                [.] _PyUnicode_IsAlpha                                                                                                                  -      -            
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

@@ -1,0 +1,7 @@
+{
+  "status": "failed",
+  "output": "/home/lmyzzz/lmyzmail-rust/evidence/performance/proxy-calibration-20261023-preparse-v1/calibration.json",
+  "proxy_to_direct_ratio": 0.8019625869580801,
+  "observer_verified": 1000000
+}
+Error: "proxy calibration did not meet its qualification gate"

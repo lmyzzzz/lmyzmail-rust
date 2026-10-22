@@ -861,6 +861,10 @@ impl ObserverHub {
     }
 
     fn record_message(&self, message: CapturedMessage, boundary: ReplyBoundary) {
+        // Header parsing and hashing depend only on this completed capture.
+        // Keep their allocations/CPU work outside the shared round lock; the
+        // epoch, uniqueness and publication checks remain atomic below.
+        let details = MessageDetails::parse(&message, &boundary);
         let mut guard = lock_unpoisoned(&self.inner.round);
         let Some(round) = guard.as_mut() else {
             return;
@@ -872,6 +876,7 @@ impl ObserverHub {
         let reached_expected = round.record_message(
             message,
             boundary,
+            details,
             &self.inner.limits,
             self.inner.limits.retained_failures,
         );
@@ -1055,14 +1060,19 @@ impl RoundState {
         &mut self,
         message: CapturedMessage,
         boundary: ReplyBoundary,
+        details: Result<MessageDetails, String>,
         limits: &ObserverLimits,
         retained_failures: usize,
     ) -> bool {
         if self.finalized {
             return false;
         }
-        let headers = match parse_stress_headers(&message.header_prefix) {
-            Ok(headers) => headers,
+        let MessageDetails {
+            headers,
+            message_id_sha256,
+            sample,
+        } = match details {
+            Ok(details) => details,
             Err(error) => {
                 self.record_failure(error, retained_failures);
                 return false;
@@ -1137,7 +1147,6 @@ impl RoundState {
             );
             return false;
         }
-        let message_id_sha256: [u8; 32] = Sha256::digest(headers.message_id.as_bytes()).into();
         if !self.message_ids.insert(message_id_sha256) {
             self.record_failure(
                 format!(
@@ -1170,23 +1179,11 @@ impl RoundState {
         self.record_stream.update(message_id_sha256);
         self.record_stream.update(boundary.code.to_be_bytes());
         self.record_stream.update(boundary.reply_sha256);
-        let transaction_latency_ns = boundary
-            .completed_at_monotonic_ns
-            .saturating_sub(message.transaction_started_monotonic_ns);
         record_latency(
             &mut self.transaction_latency_buckets,
             &mut self.maximum_transaction_latency_ns,
-            transaction_latency_ns,
+            sample.transaction_latency_ns,
         );
-        let sample = MessageSample {
-            round: headers.round,
-            index: headers.index,
-            wire_bytes: message.wire_bytes,
-            wire_sha256: encode_hex(message.wire_sha256),
-            message_id_sha256: encode_hex(message_id_sha256),
-            accepted_at_monotonic_ns: boundary.completed_at_monotonic_ns,
-            transaction_latency_ns,
-        };
         if self.first_samples.len() < limits.retained_samples {
             self.first_samples.push(sample.clone());
         }
@@ -2481,6 +2478,35 @@ struct StressHeaders {
     message_id: String,
 }
 
+struct MessageDetails {
+    headers: StressHeaders,
+    message_id_sha256: [u8; 32],
+    sample: MessageSample,
+}
+
+impl MessageDetails {
+    fn parse(message: &CapturedMessage, boundary: &ReplyBoundary) -> Result<Self, String> {
+        let headers = parse_stress_headers(&message.header_prefix)?;
+        let message_id_sha256 = Sha256::digest(headers.message_id.as_bytes()).into();
+        let sample = MessageSample {
+            round: headers.round,
+            index: headers.index,
+            wire_bytes: message.wire_bytes,
+            wire_sha256: encode_hex(message.wire_sha256),
+            message_id_sha256: encode_hex(message_id_sha256),
+            accepted_at_monotonic_ns: boundary.completed_at_monotonic_ns,
+            transaction_latency_ns: boundary
+                .completed_at_monotonic_ns
+                .saturating_sub(message.transaction_started_monotonic_ns),
+        };
+        Ok(Self {
+            headers,
+            message_id_sha256,
+            sample,
+        })
+    }
+}
+
 fn parse_stress_headers(prefix: &[u8]) -> Result<StressHeaders, String> {
     let end = find_bytes(prefix, b"\r\n\r\n")
         .ok_or_else(|| "SMTP headers exceeded the fixed prefix capture".to_owned())?;
@@ -2554,6 +2580,43 @@ fn lock_unpoisoned<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stress_headers_keep_first_duplicates_and_fold_only_their_own_lines() {
+        let headers = parse_stress_headers(
+            b"sUbJeCt: Stress Test R7 #12 - 1234\r\nFrom: first@lmyz.net\r\n\tcontinued\r\nFrom: second@lmyz.net\r\n ignored-duplicate\r\nX-Ignored: value\r\n folded-unknown\r\nTo: receiver@lmyz.net\r\nMessage-ID: <first>\r\nMessage-ID: <second>\r\n\r\nbody",
+        ).unwrap();
+        assert_eq!((headers.round, headers.index), (7, 12));
+        assert_eq!(headers.from, "first@lmyz.net continued");
+        assert_eq!(headers.to, "receiver@lmyz.net");
+        assert_eq!(headers.message_id, "<first>");
+    }
+
+    #[test]
+    fn unselected_headers_still_require_valid_syntax_and_a_fold_predecessor() {
+        assert_eq!(
+            parse_stress_headers(b" folded-first\r\n\r\n")
+                .err()
+                .as_deref(),
+            Some("SMTP first header line was folded")
+        );
+        assert_eq!(
+            parse_stress_headers(
+                b"Subject: Stress Test R1 #0 - 1\r\nX-Unused: valid\r\ninvalid-unknown\r\n\r\n"
+            )
+            .err()
+            .as_deref(),
+            Some("SMTP header line omitted its colon")
+        );
+        let headers = parse_stress_headers(
+            "Subject: Stress Test R1 #0 - 1\r\nFrom:\u{2003}sender@lmyz.net\u{2003}\r\n\r\n"
+                .as_bytes(),
+        )
+        .unwrap();
+        assert_eq!(headers.from, "sender@lmyz.net");
+        assert!(headers.to.is_empty());
+        assert!(headers.message_id.is_empty());
+    }
 
     fn spec(expected: usize, bytes: usize) -> RoundSpec {
         RoundSpec {

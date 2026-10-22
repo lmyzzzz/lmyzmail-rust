@@ -382,6 +382,10 @@ async fn handle_connection(
     telemetry: Arc<ProxyTelemetry>,
 ) -> io::Result<()> {
     let server = TcpStream::connect(backend).await?;
+    // A transparent observer must not add Nagle/delayed-ACK stalls to small
+    // pipelined commands or replies. Apply the same policy to both proxy arms.
+    client.set_nodelay(true)?;
+    server.set_nodelay(true)?;
     let (client_reader, client_writer) = client.into_split();
     let (server_reader, server_writer) = server.into_split();
     let client_to_backend = pump_client_to_backend(

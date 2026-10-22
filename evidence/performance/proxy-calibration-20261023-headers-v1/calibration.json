@@ -1,0 +1,402 @@
+{
+  "schema_version": 4,
+  "control_topology": "bounded-unobserved-proxy",
+  "observed_topology": "bounded-observing-proxy",
+  "equal_tcp_hop_topology": true,
+  "mode": "data",
+  "messages": 250000,
+  "message_bytes": 10240,
+  "concurrency": 1000,
+  "rounds_per_arm": 4,
+  "sequence": [
+    "direct",
+    "proxied",
+    "proxied",
+    "direct",
+    "direct",
+    "proxied",
+    "proxied",
+    "direct"
+  ],
+  "direct_rounds": [
+    {
+      "messages": 250000,
+      "message_bytes": 10240,
+      "duration_ns": 1679751059,
+      "messages_per_second": 148831.57754865865,
+      "mebibytes_per_second": 1453.4333744986197,
+      "process_scheduled_cpu_ns": 13319772113
+    },
+    {
+      "messages": 250000,
+      "message_bytes": 10240,
+      "duration_ns": 1721011360,
+      "messages_per_second": 145263.42231697997,
+      "mebibytes_per_second": 1418.5881085642573,
+      "process_scheduled_cpu_ns": 13672440965
+    },
+    {
+      "messages": 250000,
+      "message_bytes": 10240,
+      "duration_ns": 1709530331,
+      "messages_per_second": 146238.99644632865,
+      "mebibytes_per_second": 1428.115199671178,
+      "process_scheduled_cpu_ns": 13604267597
+    },
+    {
+      "messages": 250000,
+      "message_bytes": 10240,
+      "duration_ns": 1844717665,
+      "messages_per_second": 135522.09356655128,
+      "mebibytes_per_second": 1323.4579449858522,
+      "process_scheduled_cpu_ns": 14684197074
+    }
+  ],
+  "proxied_rounds": [
+    {
+      "messages": 250000,
+      "message_bytes": 10240,
+      "duration_ns": 1974915999,
+      "messages_per_second": 126587.66252670375,
+      "mebibytes_per_second": 1236.2076418623412,
+      "process_scheduled_cpu_ns": 15343298905
+    },
+    {
+      "messages": 250000,
+      "message_bytes": 10240,
+      "duration_ns": 1912469366,
+      "messages_per_second": 130721.04810906551,
+      "mebibytes_per_second": 1276.5727354400929,
+      "process_scheduled_cpu_ns": 15092948741
+    },
+    {
+      "messages": 250000,
+      "message_bytes": 10240,
+      "duration_ns": 2116799769,
+      "messages_per_second": 118102.80956242867,
+      "mebibytes_per_second": 1153.3477496330925,
+      "process_scheduled_cpu_ns": 16793873825
+    },
+    {
+      "messages": 250000,
+      "message_bytes": 10240,
+      "duration_ns": 2150621607,
+      "messages_per_second": 116245.46093384431,
+      "mebibytes_per_second": 1135.2095794320735,
+      "process_scheduled_cpu_ns": 17071656408
+    }
+  ],
+  "direct": {
+    "messages": 250000,
+    "message_bytes": 10240,
+    "duration_ns": 1715270845,
+    "messages_per_second": 145751.2093816543,
+    "mebibytes_per_second": 1423.3516541177178,
+    "process_scheduled_cpu_ns": 13638354281
+  },
+  "proxied": {
+    "messages": 250000,
+    "message_bytes": 10240,
+    "duration_ns": 2045857884,
+    "messages_per_second": 122345.2360445662,
+    "mebibytes_per_second": 1194.7776957477167,
+    "process_scheduled_cpu_ns": 16068586365
+  },
+  "proxy_to_direct_ratio": 0.8394114639845026,
+  "direct_round_spread": 0.09131645657399692,
+  "proxied_round_spread": 0.11831753849367893,
+  "maximum_round_spread": 0.2,
+  "estimated_observer_cpu_ns_per_message": 9720.928336,
+  "minimum_proxy_to_direct_ratio": 0.9,
+  "control_proxy": {
+    "accepted_connections": 4000,
+    "completed_connections": 4000,
+    "failed_connections": 0,
+    "active_connections": 0,
+    "peak_connections": 1000,
+    "client_to_backend_bytes": 10321120000,
+    "backend_to_client_bytes": 45316000,
+    "client_to_backend_forwarding_stall": {
+      "samples": 3008005,
+      "p50_ns_upper_bound": 4096,
+      "p95_ns_upper_bound": 8192,
+      "p99_ns_upper_bound": 8192,
+      "maximum_ns": 1590886
+    },
+    "backend_to_client_forwarding_stall": {
+      "samples": 3012004,
+      "p50_ns_upper_bound": 4096,
+      "p95_ns_upper_bound": 4096,
+      "p99_ns_upper_bound": 8192,
+      "maximum_ns": 890570
+    },
+    "pump_buffer_bytes": 65536,
+    "configured_max_connections": 1000,
+    "backend_reply_block_limit_bytes": 131072,
+    "accounted_backend_reply_buffer_bytes": 131072,
+    "memory_permit_quantum_bytes": 65536,
+    "memory_budget_bytes": 2147483648,
+    "usable_memory_budget_bytes": 2147483648,
+    "required_memory_budget_bytes": 965345280,
+    "memory_budget_headroom_bytes": 1182138368,
+    "accounted_connection_bytes": 851968,
+    "active_accounted_connection_bytes": 0,
+    "peak_accounted_connection_bytes": 851968000,
+    "observer_round_reserve_bytes": 106823680,
+    "control_runtime_reserve_bytes": 6553600,
+    "active_total_accounted_bytes": 113377280,
+    "peak_total_accounted_bytes": 965345280,
+    "shutdown_grace_ns": 30000000000,
+    "shutdown_wait_ns": 261905,
+    "shutdown_grace_exceeded": false,
+    "shutdown_forced_connections": 0
+  },
+  "proxy": {
+    "accepted_connections": 4000,
+    "completed_connections": 4000,
+    "failed_connections": 0,
+    "active_connections": 0,
+    "peak_connections": 1000,
+    "client_to_backend_bytes": 10321120000,
+    "backend_to_client_bytes": 45316000,
+    "client_to_backend_forwarding_stall": {
+      "samples": 3008001,
+      "p50_ns_upper_bound": 4096,
+      "p95_ns_upper_bound": 16384,
+      "p99_ns_upper_bound": 16384,
+      "maximum_ns": 1643512
+    },
+    "backend_to_client_forwarding_stall": {
+      "samples": 3012004,
+      "p50_ns_upper_bound": 4096,
+      "p95_ns_upper_bound": 8192,
+      "p99_ns_upper_bound": 16384,
+      "maximum_ns": 2681165
+    },
+    "pump_buffer_bytes": 65536,
+    "configured_max_connections": 1000,
+    "backend_reply_block_limit_bytes": 131072,
+    "accounted_backend_reply_buffer_bytes": 131072,
+    "memory_permit_quantum_bytes": 65536,
+    "memory_budget_bytes": 2147483648,
+    "usable_memory_budget_bytes": 2147483648,
+    "required_memory_budget_bytes": 965345280,
+    "memory_budget_headroom_bytes": 1182138368,
+    "accounted_connection_bytes": 851968,
+    "active_accounted_connection_bytes": 0,
+    "peak_accounted_connection_bytes": 851968000,
+    "observer_round_reserve_bytes": 106823680,
+    "control_runtime_reserve_bytes": 6553600,
+    "active_total_accounted_bytes": 113377280,
+    "peak_total_accounted_bytes": 965345280,
+    "shutdown_grace_ns": 30000000000,
+    "shutdown_wait_ns": 417443,
+    "shutdown_grace_exceeded": false,
+    "shutdown_forced_connections": 0
+  },
+  "observer": {
+    "run_id": "synthetic-proxy-calibration",
+    "expected": 1000000,
+    "verified": 1000000,
+    "missing": 0,
+    "missing_indexes": [],
+    "duplicates": 0,
+    "unique_message_ids": 1000000,
+    "observer_failure_count": 0,
+    "observer_failures": [],
+    "qualification": true,
+    "round": 1,
+    "armed_at_monotonic_ns": 1301,
+    "duration_ns": 13540197401,
+    "progress_duration_ns": 13540197401,
+    "throughput_messages_per_second": 73854.16699509461,
+    "total_wire_bytes": 10240000000,
+    "wire_digest_xor": "468453460a9fbc037624db9e1ab62461b1e038859ef3009363bb73068613e98b",
+    "wire_digest_sum_mod_2_256": "947f30b34bb720e2cc8b36743746a05f82a69751d33581a77c8ef3de154d07b1",
+    "record_stream_sha256": "52553d87bf6e8a3002615e8464e6f1cb852878b1731496ec54e8566f32f209a8",
+    "transaction_latency": {
+      "samples": 1000000,
+      "p50_ns_upper_bound": 8388608,
+      "p95_ns_upper_bound": 16777216,
+      "p99_ns_upper_bound": 16777216,
+      "maximum_ns": 18914624
+    },
+    "first_samples": [
+      {
+        "round": 1,
+        "index": 85,
+        "wire_bytes": 10240,
+        "wire_sha256": "185bc133f5fcdd5b35f7ee951b5175d759446a6476f5f6ad14f851789896c91a",
+        "message_id_sha256": "e5b13abfc834199bb72ce833602486e699efaf12d59a3e10bdd1b9b784760608",
+        "accepted_at_monotonic_ns": 1856473250,
+        "transaction_latency_ns": 3956473
+      },
+      {
+        "round": 1,
+        "index": 23,
+        "wire_bytes": 10240,
+        "wire_sha256": "4f65cc2ad9df140057d9c55c6058a14e34f25973054f2ed30ac78df6df0bb8cc",
+        "message_id_sha256": "ffc603de84a3a3f8fd15296b0b9952cca2f837d4e4a7968026b57ae600b19cbb",
+        "accepted_at_monotonic_ns": 1856568938,
+        "transaction_latency_ns": 4285278
+      },
+      {
+        "round": 1,
+        "index": 0,
+        "wire_bytes": 10240,
+        "wire_sha256": "f6394e3a604c2801a66ed5d6e73f54ad93dfc2ba6cc65303b6d0973dad0b7985",
+        "message_id_sha256": "37a448851db4bc37a2e12473d311edcd1a729910ff881b6f7a8dcf5bd1515ef0",
+        "accepted_at_monotonic_ns": 1856915522,
+        "transaction_latency_ns": 4849706
+      },
+      {
+        "round": 1,
+        "index": 149,
+        "wire_bytes": 10240,
+        "wire_sha256": "0d2577fdb056eafc2e0b6f97a2fea399436ddf433d520ad8dd9244f02fcb5097",
+        "message_id_sha256": "42ec27075c0f7722290c13702ca9947863e0b272169be5c773dc4a7280c03b9b",
+        "accepted_at_monotonic_ns": 1856963510,
+        "transaction_latency_ns": 4197522
+      },
+      {
+        "round": 1,
+        "index": 249,
+        "wire_bytes": 10240,
+        "wire_sha256": "b5fdcfb1b0c0b11eaa6070472d7081839a493d67547a535d9586e84df7503ea7",
+        "message_id_sha256": "33ed523af8bc98e4970f65efce1a4d6deb0095982aa699780aa7fa1452836454",
+        "accepted_at_monotonic_ns": 1856962543,
+        "transaction_latency_ns": 4423857
+      },
+      {
+        "round": 1,
+        "index": 435,
+        "wire_bytes": 10240,
+        "wire_sha256": "1aefbe6404f4b8aadf9e832850f0a630b87ee468da979118f9ce22785fe3cb9a",
+        "message_id_sha256": "d3bf21db38a3b3e9a7b70d26a90bcbc67db0a37c885462b8c3da5a6d0594fe86",
+        "accepted_at_monotonic_ns": 1857061401,
+        "transaction_latency_ns": 4312861
+      },
+      {
+        "round": 1,
+        "index": 295,
+        "wire_bytes": 10240,
+        "wire_sha256": "e296d827900afda43e1869249d262a2c1f3ba2ac6f671994b865e030849a8743",
+        "message_id_sha256": "7b89007f18ac903cd6c5e20bb809b4175a3bfb698b6112f051efea23ded24a26",
+        "accepted_at_monotonic_ns": 1857105212,
+        "transaction_latency_ns": 4355881
+      },
+      {
+        "round": 1,
+        "index": 422,
+        "wire_bytes": 10240,
+        "wire_sha256": "21a4e0a8c382b44086cd2b177a543d9effa0539d5073b337fdd558a188af5b37",
+        "message_id_sha256": "2c15b2d2321bd24fcc8cdc53bcbe91374c39e3f7e881113ed31a2f5a2b4c3d39",
+        "accepted_at_monotonic_ns": 1857207779,
+        "transaction_latency_ns": 4560995
+      }
+    ],
+    "last_samples": [
+      {
+        "round": 1,
+        "index": 999783,
+        "wire_bytes": 10240,
+        "wire_sha256": "b848ac42e22922e4982b8d8f7deb97b3f84a00c275e294a207f4eb0aa2be06ef",
+        "message_id_sha256": "fe20e007a1861b8283f72ff1f20705892930914a8dc4c7b063fc4bb5799fd9f4",
+        "accepted_at_monotonic_ns": 13538420243,
+        "transaction_latency_ns": 15746336
+      },
+      {
+        "round": 1,
+        "index": 999897,
+        "wire_bytes": 10240,
+        "wire_sha256": "26cad5bcff56fa333eb9da275945ebbb328787e8945192f9bb1b92f1ad9c348b",
+        "message_id_sha256": "11f39ff1249d2fa53a3080872a41daef6f09a5524f4854d80af0e832860c53fe",
+        "accepted_at_monotonic_ns": 13538631579,
+        "transaction_latency_ns": 15122729
+      },
+      {
+        "round": 1,
+        "index": 999864,
+        "wire_bytes": 10240,
+        "wire_sha256": "630a061ada23bf1a725e7363bbbee7b32e4f30400f788f423c5553e85ec3354a",
+        "message_id_sha256": "d9d01b530b5a3a0441dadd56c5462d1af9bb7831df80f17dfefc0750d7c912ca",
+        "accepted_at_monotonic_ns": 13538691170,
+        "transaction_latency_ns": 15203387
+      },
+      {
+        "round": 1,
+        "index": 999995,
+        "wire_bytes": 10240,
+        "wire_sha256": "e63c919a2852ae8b5cf245ed985c1a3f9094ba94aea3c7e291d8a1357393285e",
+        "message_id_sha256": "ed372c28350e9cc04082874f4d4e9eb390d5c304c2eaf1ce29ce340ec1a841f6",
+        "accepted_at_monotonic_ns": 13538725560,
+        "transaction_latency_ns": 14645749
+      },
+      {
+        "round": 1,
+        "index": 999945,
+        "wire_bytes": 10240,
+        "wire_sha256": "50a93e41e0c60ceb61c4782c8c2f12055e7c6922af1ff254d48e69a2d56cc864",
+        "message_id_sha256": "fe3d3600f67218a3022b66e18e41b5b21f86110d034fa03e17997edce4e80330",
+        "accepted_at_monotonic_ns": 13538841812,
+        "transaction_latency_ns": 15178203
+      },
+      {
+        "round": 1,
+        "index": 999984,
+        "wire_bytes": 10240,
+        "wire_sha256": "cdb268b557a5d1d39ed57cfeb037e618f5152747cd3783f54d731c1e1c3e92a8",
+        "message_id_sha256": "248059dc0fb259e539569b2987348e3b996e6449c3351042853ba6b3dd10ad93",
+        "accepted_at_monotonic_ns": 13539103007,
+        "transaction_latency_ns": 15300132
+      },
+      {
+        "round": 1,
+        "index": 999909,
+        "wire_bytes": 10240,
+        "wire_sha256": "7276477ec04749505d9bf4a44054dcaa36e7d31ae8592ca68f6c73cd09897b1f",
+        "message_id_sha256": "ad4e9ddffd73cde566e9d01f85f15b7486128775b6e5f7678b8bd43db0b6d626",
+        "accepted_at_monotonic_ns": 13539458088,
+        "transaction_latency_ns": 15853756
+      },
+      {
+        "round": 1,
+        "index": 999941,
+        "wire_bytes": 10240,
+        "wire_sha256": "0d20b744eadf8cddb763bfcba738b21921e5931ff020c0213cbd0a04d435325f",
+        "message_id_sha256": "c60f09a38037b7e154b6f626d38cf0394953aafc775264c8bc779ded4bb6acd2",
+        "accepted_at_monotonic_ns": 13540198702,
+        "transaction_latency_ns": 16732009
+      }
+    ],
+    "final_250_boundary": {
+      "round": 1,
+      "index": 999941,
+      "reply_code": 250,
+      "reply_bytes": 14,
+      "reply_sha256": "edf681a3f1835271f29f2e0954e91538ca04cb620f806d2c7b8cda04d2761742",
+      "completed_at_monotonic_ns": 13540198702
+    },
+    "persistence_gate": {
+      "required": false,
+      "proxy_clock_domain": "observer_origin_elapsed",
+      "status": "disabled",
+      "gate_id": null,
+      "triggered_at_proxy_monotonic_ns": null,
+      "release_received_at_proxy_monotonic_ns": null,
+      "forwarding_started_at_proxy_monotonic_ns": null,
+      "forwarding_completed_at_proxy_monotonic_ns": null,
+      "gate_hold_ns": null,
+      "snapshot": null,
+      "qualified": true
+    },
+    "smtp_final_replies": {
+      "success": 1000000,
+      "transient_failure": 0,
+      "permanent_failure": 0,
+      "other": 0
+    },
+    "retry_responses": 0
+  },
+  "qualification": false
+}

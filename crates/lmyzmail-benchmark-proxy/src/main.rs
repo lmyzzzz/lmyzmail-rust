@@ -138,6 +138,8 @@ async fn run_headroom_attestation_command(
                             "direct_round_spread": tier.raw_calibration.direct_round_spread,
                             "proxied_round_spread": tier.raw_calibration.proxied_round_spread,
                             "maximum_round_spread": tier.raw_calibration.maximum_round_spread,
+                            "direct_rounds": tier.raw_calibration.direct_rounds,
+                            "proxied_rounds": tier.raw_calibration.proxied_rounds,
                             "observer_qualification": tier.raw_calibration.observer.qualification,
                             "observer_verified": tier.raw_calibration.observer.verified,
                             "proxy_failed_connections": tier.raw_calibration.proxy.failed_connections,

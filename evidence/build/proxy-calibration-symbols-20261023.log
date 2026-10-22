@@ -1,0 +1,3 @@
+   Compiling serde_json v1.0.151
+   Compiling lmyzmail-benchmark-proxy v0.1.0 (/home/lmyzzz/lmyzmail-rust/crates/lmyzmail-benchmark-proxy)
+    Finished `release-with-debug` profile [optimized + debuginfo] target(s) in 9.32s

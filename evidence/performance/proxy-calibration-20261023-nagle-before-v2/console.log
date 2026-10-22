@@ -1,0 +1,7 @@
+{
+  "status": "failed",
+  "output": "/home/lmyzzz/lmyzmail-rust/evidence/performance/proxy-calibration-20261023-nagle-before-v2/calibration.json",
+  "proxy_to_direct_ratio": 0.746304876902969,
+  "observer_verified": 100000
+}
+Error: "proxy calibration did not meet its qualification gate"

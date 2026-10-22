@@ -3174,7 +3174,12 @@ generate_proxy_attestation() {
     generated=$(
         (
             printf '%s\n' "${BASHPID}" >"${harness_group}/cgroup.procs"
-            exec prlimit --nofile="${nofile_limit}:${nofile_limit}" -- \
+            # Match the workload's private Linux loopback topology. WSL mirrored
+            # networking can route host-namespace 127.0.0.1 through Windows.
+            exec unshare --net -- bash -ceu '
+ip link set dev lo up
+exec "$@"
+' bash prlimit --nofile="${nofile_limit}:${nofile_limit}" -- \
                 "${proxy_binary}" headroom-attest \
                 --output-root "${proxy_attestation_root}" \
                 --runner-sha256 "${runner_sha}" \

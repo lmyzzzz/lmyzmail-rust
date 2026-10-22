@@ -1202,6 +1202,8 @@ printf 'bounded-housekeeping-cpuset: PASS\n'
         self.assertIn('"${BASHPID}" >"${harness_group}/cgroup.procs"', producer)
         self.assertIn('"${proxy_binary}" headroom-attest', producer)
         self.assertIn('--nofile="${nofile_limit}:${nofile_limit}"', producer)
+        self.assertIn('exec unshare --net -- bash -ceu', producer)
+        self.assertIn('ip link set dev lo up', producer)
         self.assertIn(
             "generate_proxy_attestation || ! create_external_attestation",
             self.source,
@@ -1242,6 +1244,30 @@ exec "$@"
                 newline="\n",
             )
             prlimit.chmod(0o755)
+            unshare = root / "unshare"
+            unshare.write_text(
+                """#!/usr/bin/env bash
+set -euo pipefail
+[[ $1 == --net && $2 == -- ]]
+printf 'private-network\n' >>"$TOPOLOGY_LOG"
+shift 2
+exec "$@"
+""",
+                encoding="utf-8",
+                newline="\n",
+            )
+            unshare.chmod(0o755)
+            ip = root / "ip"
+            ip.write_text(
+                """#!/usr/bin/env bash
+set -euo pipefail
+[[ $* == 'link set dev lo up' ]]
+printf 'loopback-up\n' >>"$TOPOLOGY_LOG"
+""",
+                encoding="utf-8",
+                newline="\n",
+            )
+            ip.chmod(0o755)
             root_bash = (
                 f"/{root.drive[0].lower()}{root.as_posix()[2:]}"
                 if os.name == "nt"
@@ -1253,6 +1279,7 @@ exec "$@"
 set -euo pipefail
 export PATH={root_bash!r}:$PATH
 export ARG_LOG={str(root / "args.log").replace(chr(92), "/")!r}
+export TOPOLOGY_LOG={str(root / "topology.log").replace(chr(92), "/")!r}
 proxy_binary={proxy.as_posix()!r}
 proxy_attestation_root={str(root / "attestations").replace(chr(92), "/")!r}
 runner=/runner
@@ -1276,6 +1303,7 @@ generate_proxy_attestation
 grep -qx headroom-attest "$ARG_LOG"
 grep -qx -- --nofile-soft-and-hard "$ARG_LOG"
 grep -qx 8192 "$ARG_LOG"
+[[ $(cat "$TOPOLOGY_LOG") == $'private-network\nloopback-up' ]]
 printf 'automatic-headroom-producer: PASS\n'
 """
             )

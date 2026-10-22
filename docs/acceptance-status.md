@@ -77,6 +77,15 @@ The 30-second smoke companion is retained as [`candidate-soak-v6-smoke-0eb2-v1.j
 
 ## Still required
 
+- The current `22dae7d0` formal SMTP attempt failed before candidate startup on
+  the proxy preflight. A controlled diagnosis found that WSL host loopback
+  traffic traverses Windows, while the workload uses private Linux loopback.
+  Matching that isolation removed the large round-to-round variation, but
+  exposed a separate observer-overhead ratio below the unchanged `0.90` gate.
+  Benchmark tooling repairs and all negative evidence are documented in
+  [the calibration record](proxy-calibration-20261023.md). No current formal
+  SMTP tier can be counted as passing from these diagnostic observations.
+
 - The earlier release-candidate `292cf3b3` is available with full source/history and
   reproducible binary hash `958a7d7b448491e726e7c25461188bcc5e0b3300c32b8a0050206eb76afad570`.
   The 2026-10-22 current-harness HTTP run passed 35 checks and exposed two real

@@ -1,0 +1,183 @@
+{
+  "status": "proxy-headroom-failed",
+  "passed": false,
+  "semantic_transparency_passed": false,
+  "max_active_connections": 1500,
+  "minimum_product_headroom_ratio": 2.0,
+  "tiers": {
+    "10KB": {
+      "passed": false,
+      "sustained_messages_per_second": 6745.155839612539,
+      "raw": {
+        "qualification": false,
+        "proxy_to_direct_ratio": 0.9751476943289928,
+        "minimum_proxy_to_direct_ratio": 0.9,
+        "direct_round_spread": 0.4838618471599801,
+        "proxied_round_spread": 0.5175737226787921,
+        "maximum_round_spread": 0.2,
+        "observer_qualification": true,
+        "observer_verified": 1000000,
+        "proxy_failed_connections": 0,
+        "proxy_peak_connections": 1000
+      },
+      "persistence_gate": {
+        "qualification": true,
+        "median_on_to_off_ratio": 1.6906368414301804,
+        "minimum_median_on_to_off_ratio": 0.995,
+        "paired_on_to_off_ratios": [
+          8.101779718001387,
+          1.1865659355374345,
+          0.9968832812591242,
+          0.35227000776340905
+        ],
+        "minimum_paired_on_to_off_ratio": 0.99,
+        "off_round_spread": 2.4852722021436695,
+        "on_round_spread": 1.4381367112422487,
+        "maximum_round_spread": 0.01,
+        "on_gate_timings": [
+          {
+            "round_duration_ns": 836492129,
+            "gate_hold_ns": 111258,
+            "release_to_forwarding_started_ns": 26173,
+            "forwarding_duration_ns": 6498
+          },
+          {
+            "round_duration_ns": 6150148202,
+            "gate_hold_ns": 272039,
+            "release_to_forwarding_started_ns": 22408,
+            "forwarding_duration_ns": 5283
+          },
+          {
+            "round_duration_ns": 840982847,
+            "gate_hold_ns": 201027,
+            "release_to_forwarding_started_ns": 19376,
+            "forwarding_duration_ns": 6751
+          },
+          {
+            "round_duration_ns": 4043401546,
+            "gate_hold_ns": 170805,
+            "release_to_forwarding_started_ns": 35354,
+            "forwarding_duration_ns": 3048
+          }
+        ]
+      }
+    },
+    "10MB": {
+      "passed": false,
+      "sustained_messages_per_second": 125.4303453610073,
+      "raw": {
+        "qualification": false,
+        "proxy_to_direct_ratio": 1.2232129241033585,
+        "minimum_proxy_to_direct_ratio": 0.9,
+        "direct_round_spread": 0.688658246780472,
+        "proxied_round_spread": 0.7358075145943298,
+        "maximum_round_spread": 0.2,
+        "observer_qualification": true,
+        "observer_verified": 8000,
+        "proxy_failed_connections": 0,
+        "proxy_peak_connections": 80
+      },
+      "persistence_gate": {
+        "qualification": true,
+        "median_on_to_off_ratio": 2.0662171290745115,
+        "minimum_median_on_to_off_ratio": 0.995,
+        "paired_on_to_off_ratios": [
+          1.0714546678352805,
+          1.4570702566945952,
+          0.8167790923512187,
+          4.051419526317484
+        ],
+        "minimum_paired_on_to_off_ratio": 0.99,
+        "off_round_spread": 1.6154601938926938,
+        "on_round_spread": 0.8740994244494257,
+        "maximum_round_spread": 0.01,
+        "on_gate_timings": [
+          {
+            "round_duration_ns": 447163369,
+            "gate_hold_ns": 164259,
+            "release_to_forwarding_started_ns": 20272,
+            "forwarding_duration_ns": 8004
+          },
+          {
+            "round_duration_ns": 488822641,
+            "gate_hold_ns": 160866,
+            "release_to_forwarding_started_ns": 22040,
+            "forwarding_duration_ns": 4206
+          },
+          {
+            "round_duration_ns": 2174210466,
+            "gate_hold_ns": 110636,
+            "release_to_forwarding_started_ns": 13684,
+            "forwarding_duration_ns": 4133
+          },
+          {
+            "round_duration_ns": 495355205,
+            "gate_hold_ns": 144958,
+            "release_to_forwarding_started_ns": 48189,
+            "forwarding_duration_ns": 4947
+          }
+        ]
+      }
+    },
+    "1KB": {
+      "passed": false,
+      "sustained_messages_per_second": 6997.403565209012,
+      "raw": {
+        "qualification": false,
+        "proxy_to_direct_ratio": 1.059366212796991,
+        "minimum_proxy_to_direct_ratio": 0.9,
+        "direct_round_spread": 0.6780705806832187,
+        "proxied_round_spread": 0.13411332360036746,
+        "maximum_round_spread": 0.2,
+        "observer_qualification": true,
+        "observer_verified": 1000000,
+        "proxy_failed_connections": 0,
+        "proxy_peak_connections": 1500
+      },
+      "persistence_gate": {
+        "qualification": true,
+        "median_on_to_off_ratio": 1.1226056065310388,
+        "minimum_median_on_to_off_ratio": 0.995,
+        "paired_on_to_off_ratios": [
+          1.9965623729240947,
+          0.6837187255524995,
+          1.0364454215218495,
+          1.1376935648641786
+        ],
+        "minimum_paired_on_to_off_ratio": 0.99,
+        "off_round_spread": 1.0377703600290382,
+        "on_round_spread": 0.9748217676733428,
+        "maximum_round_spread": 0.01,
+        "on_gate_timings": [
+          {
+            "round_duration_ns": 1971911976,
+            "gate_hold_ns": 120113,
+            "release_to_forwarding_started_ns": 14922,
+            "forwarding_duration_ns": 4948
+          },
+          {
+            "round_duration_ns": 3099387647,
+            "gate_hold_ns": 112182,
+            "release_to_forwarding_started_ns": 18971,
+            "forwarding_duration_ns": 3550
+          },
+          {
+            "round_duration_ns": 2216501295,
+            "gate_hold_ns": 176806,
+            "release_to_forwarding_started_ns": 19545,
+            "forwarding_duration_ns": 7147
+          },
+          {
+            "round_duration_ns": 7694637887,
+            "gate_hold_ns": 175708,
+            "release_to_forwarding_started_ns": 20594,
+            "forwarding_duration_ns": 3736
+          }
+        ]
+      }
+    }
+  }
+}
+Error: "proxy headroom attestation did not qualify"
+formal benchmark requires a passing root-owned proxy attestation
+benchmark watchdog qualification failed:  artifact_receipt_valid=0  runner_success_valid=0

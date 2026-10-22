@@ -1,0 +1,114 @@
+   Compiling lmyzmail-benchmark-proxy v0.1.0 (/home/lmyzzz/lmyzmail-rust/crates/lmyzmail-benchmark-proxy)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.73s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-da5ff1117ca3897e)
+
+running 62 tests
+test attestation::tests::canonical_hash_matches_cross_language_sorted_json_fixture ... ok
+test attestation::tests::io_max_rejects_unknown_duplicate_or_limited_iops_fields ... ok
+test attestation::tests::io_max_accepts_explicit_unlimited_iops_readback ... ok
+test attestation::tests::memory_high_watermark_must_stay_below_the_hard_limit ... ok
+test attestation::tests::formal_tiers_are_complete_and_bound_to_expected_sizes ... ok
+test calibration::tests::calibration_message_reuses_one_fixed_size_buffer ... ok
+test calibration::tests::calibration_sequence_is_balanced_abba_with_three_or_more_rounds ... ok
+test control::tests::armed_shutdown_guard_signals_on_drop ... ok
+test control::tests::control_commands_reject_unknown_fields ... ok
+test calibration::tests::synthetic_data_terminator_preserves_bytes_after_a_split_marker ... ok
+test control::tests::bounded_line_reader_accepts_fragmented_input ... ok
+test control::tests::stop_waits_for_listener_and_connection_join_acknowledgement ... ok
+test observer::tests::connection_end_audits_data_bdat_capture_and_transaction_residuals ... ok
+test observer::tests::connection_created_before_begin_cannot_write_the_round ... ok
+test observer::tests::client_half_close_while_waiting_for_final_reply_is_legal ... ok
+test observer::tests::delayed_final_250_client_write_does_not_complete_observation_early ... ok
+test observer::tests::bdat_last_success_uses_the_same_pre_final_250_gate ... ok
+test attestation::tests::nofile_formula_rejects_limit_below_1500_connection_requirement ... ok
+test observer::tests::complete_crlf_lines_still_obey_the_fixed_limit ... ok
+test observer::tests::client_half_close_while_waiting_for_noop_reply_is_legal ... ok
+test observer::tests::duplicate_index_fails_qualification_without_unbounded_state ... ok
+test observer::tests::mixed_code_multiline_reply_disables_without_consuming_a_later_reply ... ok
+test observer::tests::connection_lifetime_rejects_a_pending_noop_reply ... ok
+test observer::tests::duplicate_message_id_across_distinct_indexes_is_rejected ... ok
+test observer::tests::completion_notification_reaches_all_concurrent_waiters ... ok
+test observer::tests::digest_sum_wraps_modulo_256_bits ... ok
+test control::tests::bounded_line_reader_rejects_oversize_without_growth ... ok
+test observer::tests::coalesced_bdat_chunks_are_hashed_as_one_message ... ok
+test observer::tests::fragmented_bdat_command_and_payload_are_verified ... ok
+test observer::tests::finalized_process_cannot_begin_a_second_round ... ok
+test control::tests::finish_stops_the_data_plane_without_terminating_control ... ok
+test observer::tests::out_of_order_final_reply_forwarding_keeps_progress_duration_monotonic ... ok
+test observer::tests::early_bdat_rejection_is_matched_before_payload_completion ... ok
+test observer::tests::fragmented_pipelined_data_is_verified_at_final_250 ... ok
+test observer::tests::permanently_disabled_hub_cannot_arm_and_bypasses_connection_parsers ... ok
+test observer::tests::partial_summary_exposes_verified_progress_duration_before_final_250 ... ok
+test observer::tests::pending_ring_overflow_disables_only_observation ... ok
+test control::tests::maximum_legal_summary_fits_the_control_response_limit ... ok
+test observer::tests::retained_evidence_limits_preserve_the_control_response_ceiling ... ok
+test observer::tests::retained_failures_have_a_fixed_byte_ceiling ... ok
+test observer::tests::starttls_switches_to_opaque_forwarding_and_disqualifies_observation ... ok
+test observer::tests::persistence_gate_is_single_use_and_rejects_release_before_publication ... ok
+test observer::tests::rejected_rset_does_not_clear_a_rejected_bdat_transaction ... ok
+test observer::tests::gate_timeout_and_write_failure_cannot_create_a_final_boundary ... ok
+test proxy::tests::coalesced_reply_blocks_are_split_at_protocol_boundaries ... ok
+test observer::tests::transaction_latency_histogram_has_exact_power_of_two_bounds ... ok
+test observer::tests::unqualified_snapshot_and_abort_never_forward_the_gated_reply ... ok
+test observer::tests::one_direction_failure_disables_the_peer_observer_without_duplicate_failures ... ok
+test proxy::tests::global_memory_budget_rejects_a_max_connection_overcommit ... ok
+test proxy::tests::connection_memory_accounting_includes_the_backend_reply_buffer ... ok
+test proxy::tests::lag_histogram_is_fixed_and_reports_upper_bounds ... ok
+test control::tests::response_limit_includes_the_trailing_lf ... ok
+test proxy::tests::lag_histogram_keeps_exact_power_of_two_upper_bounds ... ok
+test proxy::tests::fragmented_and_multiline_replies_are_held_as_complete_blocks ... ok
+test observer::tests::large_data_chunks_retain_only_the_marker_tail ... ok
+test proxy::tests::many_short_multiline_continuations_are_bounded_by_total_block_bytes ... ok
+test observer::tests::ordinal_n_gate_waits_for_out_of_order_prior_final_250_forward ... ok
+test attestation::tests::publication_is_content_addressed_immutable_and_idempotent ... ok
+test attestation::tests::publication_rejects_mutable_existing_attestation ... ok
+test calibration::tests::smoke_calibration_exercises_bdat_observer ... ok
+test calibration::tests::smoke_calibration_exercises_real_proxy_and_data_observer ... ok
+test observer::tests::ten_mebibyte_tier_accepts_conservative_qp_expansion_and_full_header ... ok
+
+test result: ok. 62 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+
+     Running unittests src/main.rs (target/x86_64-unknown-linux-gnu/debug/deps/lmyzmail_benchmark_proxy-e39ad930322ad4ee)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/control_integration.rs (target/x86_64-unknown-linux-gnu/debug/deps/control_integration-3be86e256a97ded0)
+
+running 5 tests
+test unix_control_returns_bounded_round_and_proxy_summaries ... ok
+test malformed_oversize_and_disconnected_clients_do_not_break_control ... ok
+test socket_cleanup_does_not_remove_a_replacement_file ... ok
+test broken_pipe_finish_still_stops_proxy_and_control ... ok
+test finish_waits_for_active_socket_join_and_reports_final_telemetry ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+
+     Running tests/proxy_integration.rs (target/x86_64-unknown-linux-gnu/debug/deps/proxy_integration-7533068665a6168e)
+
+running 13 tests
+test completed_round_forces_idle_keepalive_closed_without_losing_qualification ... ok
+test incomplete_round_shutdown_timeout_remains_an_observer_failure ... ok
+test early_bdat_rejection_is_matched_before_backend_reads_the_chunk ... ok
+test concurrent_connections_cross_the_global_n_minus_one_and_n_gate_boundary ... ok
+test starttls_payload_is_forwarded_exactly_after_observer_becomes_opaque ... ok
+test accepted_message_remains_qualified_when_client_half_closes_after_final_reply ... ok
+test shutdown_drops_listener_backlog_before_joining_active_connection ... ok
+test oversized_multiline_reply_is_failed_closed_without_partial_forwarding ... ok
+test rset_discards_partial_bdat_capture_before_the_next_transaction ... ok
+test malformed_observer_stream_is_still_forwarded_exactly_across_half_close ... ok
+test rejected_non_final_bdat_chunk_cannot_become_a_verified_message ... ok
+test pipeline_reaches_backend_before_backend_emits_any_command_reply ... ok
+test slow_backend_applies_bounded_backpressure_without_byte_loss ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+
+   Doc-tests lmyzmail_benchmark_proxy
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Compiling lmyzmail-benchmark-proxy v0.1.0 (/home/lmyzzz/lmyzmail-rust/crates/lmyzmail-benchmark-proxy)
+    Finished `release` profile [optimized] target(s) in 7.41s
