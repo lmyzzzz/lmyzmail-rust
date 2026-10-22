@@ -77,6 +77,7 @@ fn qualified_snapshot(expected_messages: usize) -> PersistenceSnapshotEvidence {
         postgres_row_delta: expected_messages as i64,
         expected_messages,
         maildir_atomic_rename_publications: expected_messages,
+        maildir_sender_sent_publications: expected_messages,
         qualified: true,
     }
 }

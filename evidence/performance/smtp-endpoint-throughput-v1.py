@@ -6782,6 +6782,7 @@ def _run_round(
         if not gate_passed:
             diagnostic = {
                 "persistence_gate": gate_evidence,
+                "expected_gate_snapshot": gate_snapshot,
                 "final_250_boundary": final_boundary,
                 "duration_ns": duration_ns,
                 "verified": capture.get("verified"),
@@ -7377,6 +7378,7 @@ def _real_gate_calibration_report(
                 and snapshot.get("transaction_read_only") is True
                 and snapshot.get("postgres_row_delta") == messages
                 and snapshot.get("maildir_atomic_rename_publications") == messages
+                and snapshot.get("maildir_sender_sent_publications") == messages
                 and snapshot.get("qualified") is True
             )
             or (
@@ -9617,6 +9619,7 @@ def _validate_gate_overhead_calibration(
             or snapshot.get("postgres_expected_rows") != messages
             or snapshot.get("postgres_row_delta") != messages
             or snapshot.get("maildir_atomic_rename_publications") != messages
+            or snapshot.get("maildir_sender_sent_publications") != messages
             or snapshot.get("qualified") is not True
         ):
             raise RuntimeError(f"gate overhead timing evidence is invalid: {label}")

@@ -1,0 +1,30 @@
+Traceback (most recent call last):
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 11270, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 11251, in main
+    result = _run_benchmark(args, layout)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 10704, in _run_benchmark
+    raise primary_error
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 10577, in _run_benchmark
+    gate_tiers[label] = _run_real_gate_calibration_tier(
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 7666, in _run_real_gate_calibration_tier
+    raise primary_error
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 7558, in _run_real_gate_calibration_tier
+    record = _run_attested_round(
+             ^^^^^^^^^^^^^^^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 7316, in _run_attested_round
+    raise primary_error
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 7276, in _run_attested_round
+    result = _run_round(
+             ^^^^^^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 6969, in _run_round
+    raise primary_error
+  File "/home/lmyzzz/lmyzmail-rust/evidence/performance/smtp-endpoint-throughput-v1.py", line 6793, in _run_round
+    raise RuntimeError(
+RuntimeError: final-250 persistence gate failed causal qualification: {"duration_ns":31568753537,"expected":100,"final_250_boundary":{"completed_at_monotonic_ns":31640167179,"index":97,"reply_bytes":54,"reply_code":250,"reply_sha256":"a42639385d9dd9addb73968cc13242a8aeab63f8e769e659d4528aa2399b2674","round":2},"observer_failure_count":0,"observer_failures":[],"persistence_gate":{"duration_fraction":0.00034068367594541557,"duration_fraction_enforced":true,"forwarding_completed_at_proxy_monotonic_ns":31640167179,"forwarding_started_at_proxy_monotonic_ns":31640157600,"gate_hold_ns":10754959,"gate_id":1,"hard_overhead_gate_passed":true,"maximum_duration_fraction":0.005,"maximum_gate_hold_ns":250000000,"proxy_clock_domain":"observer_origin_elapsed","qualified":true,"release_received_at_proxy_monotonic_ns":31640135126,"required":true,"snapshot":{"clock_id":"CLOCK_MONOTONIC","expected_messages":100,"maildir_atomic_rename_publications":100,"maildir_snapshot_duration_ns":8081169,"postgres_before_rows":100,"postgres_expected_rows":200,"postgres_query_duration_ns":1534193,"postgres_row_delta":100,"postgres_rows":200,"qualified":true,"snapshot_completed_monotonic_ns":1456405568371062,"snapshot_started_monotonic_ns":1456405557991055,"transaction_isolation":"repeatable_read","transaction_read_only":true},"status":"forwarded","triggered_at_proxy_monotonic_ns":31629380167},"proxy":{"accepted_connections":8,"accounted_backend_reply_buffer_bytes":131072,"accounted_connection_bytes":851968,"active_accounted_connection_bytes":0,"active_connections":0,"active_total_accounted_bytes":113377280,"backend_reply_block_limit_bytes":131072,"backend_to_client_bytes":18320,"backend_to_client_forwarding_stall":{"maximum_ns":10801638,"p50_ns_upper_bound":8192,"p95_ns_upper_bound":65536,"p99_ns_upper_bound":131072,"samples":519},"client_to_backend_bytes":1048686210,"client_to_backend_forwarding_stall":{"maximum_ns":15612284,"p50_ns_upper_bound":8192,"p95_ns_upper_bound":16384,"p99_ns_upper_bound":32768,"samples":62512},"completed_connections":0,"configured_max_connections":2048,"control_runtime_reserve_bytes":6553600,"failed_connections":0,"memory_budget_bytes":2147483648,"memory_budget_headroom_bytes":289275904,"memory_permit_quantum_bytes":65536,"observer_round_reserve_bytes":106823680,"peak_accounted_connection_bytes":6815744,"peak_connections":8,"peak_total_accounted_bytes":120193024,"pump_buffer_bytes":65536,"required_memory_budget_bytes":1858207744,"shutdown_forced_connections":8,"shutdown_grace_exceeded":true,"shutdown_grace_ns":30000000000,"shutdown_wait_ns":30001405096,"usable_memory_budget_bytes":2147483648},"verified":100}
+benchmark arm target=rust-candidate tier=10MB phase=real-gate-calibration-on ordinal=1
+benchmark watchdog refused to signal a stale or out-of-cgroup runner PID
+benchmark watchdog qualification failed:  artifact_receipt_valid=0  runner_success_valid=0

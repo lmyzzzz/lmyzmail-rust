@@ -77,6 +77,14 @@ The 30-second smoke companion is retained as [`candidate-soak-v6-smoke-0eb2-v1.j
 
 ## Still required
 
+- The uncontaminated v8 actual gate-on round verified 100/100 10 MiB messages,
+  zero observer failures and passing causal timing, then exposed a missing Sent
+  count in the Rust benchmark control snapshot. It now preserves and validates
+  that field while retaining exact snapshot equality. All 85 proxy Rust tests,
+  strict Clippy and 220 Python checks passed. V8 remains negative evidence; a
+  new actual calibration and formal workload must pass before any tier closes.
+  See [the snapshot protocol repair](proxy-runtime-isolation-20261023.md).
+
 - The v5 actual-product calibration reached two 100-message 10 MiB endpoint
   rounds, but an agent diagnostic used root for a UID-1000 control socket and
   contaminated observer evidence. The gate-on round failed causal qualification;

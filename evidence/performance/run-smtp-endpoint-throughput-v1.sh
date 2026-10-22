@@ -3635,6 +3635,8 @@ for label, (message_bytes, messages, concurrency) in expected_tiers.items():
                     or snapshot.get("expected_messages") != gate_messages
                     or snapshot.get("maildir_atomic_rename_publications")
                     != gate_messages
+                    or snapshot.get("maildir_sender_sent_publications")
+                    != gate_messages
                     or snapshot.get("qualified") is not True
                 ):
                     raise SystemExit(

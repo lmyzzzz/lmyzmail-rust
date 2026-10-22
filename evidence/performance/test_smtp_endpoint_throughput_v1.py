@@ -2280,6 +2280,7 @@ class PlanAndComparisonTests(unittest.TestCase):
                                     "postgres_row_delta": gate_messages,
                                     "expected_messages": gate_messages,
                                     "maildir_atomic_rename_publications": gate_messages,
+                                    "maildir_sender_sent_publications": gate_messages,
                                     "qualified": True,
                                 },
                             }
@@ -5127,6 +5128,7 @@ class RealGateCalibrationTests(unittest.TestCase):
                 "transaction_read_only": True,
                 "postgres_row_delta": messages,
                 "maildir_atomic_rename_publications": messages,
+                "maildir_sender_sent_publications": messages,
                 "qualified": True,
             }
             if mode == "on"
@@ -5216,6 +5218,15 @@ class RealGateCalibrationTests(unittest.TestCase):
         self.assertFalse(
             runner._real_gate_calibration_report(
                 "10KB", missing_snapshot, binding={"synthetic_backend": False}
+            )["qualification"]
+        )
+        missing_sent = json.loads(json.dumps(rounds))
+        del missing_sent[1]["smtp"]["persistence_gate"]["snapshot"][
+            "maildir_sender_sent_publications"
+        ]
+        self.assertFalse(
+            runner._real_gate_calibration_report(
+                "10KB", missing_sent, binding={"synthetic_backend": False}
             )["qualification"]
         )
 

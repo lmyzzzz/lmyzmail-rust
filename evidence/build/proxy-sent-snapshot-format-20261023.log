@@ -1,0 +1,12 @@
+Diff in /home/lmyzzz/lmyzmail-rust/crates/lmyzmail-benchmark-proxy/src/observer.rs:2698:
+         decoded.validate(2).unwrap();
+ 
+         let mut missing = wire.clone();
+[31m-        missing.as_object_mut().unwrap().remove("maildir_sender_sent_publications");
+(B[m[32m+        missing
+(B[m[32m+            .as_object_mut()
+(B[m[32m+            .unwrap()
+(B[m[32m+            .remove("maildir_sender_sent_publications");
+(B[m         assert!(serde_json::from_value::<PersistenceSnapshotEvidence>(missing).is_err());
+         let mut extra = wire;
+         extra["unrecognized_publications"] = serde_json::json!(2);

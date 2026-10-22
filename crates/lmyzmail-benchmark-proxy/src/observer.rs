@@ -202,6 +202,7 @@ pub struct Final250Boundary {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct PersistenceSnapshotEvidence {
     pub clock_id: String,
     pub snapshot_started_monotonic_ns: u64,
@@ -216,6 +217,7 @@ pub struct PersistenceSnapshotEvidence {
     pub postgres_row_delta: i64,
     pub expected_messages: usize,
     pub maildir_atomic_rename_publications: usize,
+    pub maildir_sender_sent_publications: usize,
     pub qualified: bool,
 }
 
@@ -269,7 +271,8 @@ impl PersistenceSnapshotEvidence {
         }
         let exact = self.postgres_rows == expected_rows
             && self.postgres_row_delta == expected_messages as i64
-            && self.maildir_atomic_rename_publications == expected_messages;
+            && self.maildir_atomic_rename_publications == expected_messages
+            && self.maildir_sender_sent_publications == expected_messages;
         if self.qualified != exact {
             return Err("persistence snapshot qualification did not match exact counts".into());
         }
@@ -2680,8 +2683,33 @@ mod tests {
             postgres_row_delta: expected_messages as i64,
             expected_messages,
             maildir_atomic_rename_publications: expected_messages,
+            maildir_sender_sent_publications: expected_messages,
             qualified: true,
         }
+    }
+
+    #[test]
+    fn persistence_snapshot_wire_contract_preserves_sent_and_rejects_field_drift() {
+        let snapshot = qualified_snapshot(2);
+        let wire = serde_json::to_value(&snapshot).unwrap();
+        let decoded: PersistenceSnapshotEvidence = serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(serde_json::to_value(&decoded).unwrap(), wire);
+        assert_eq!(decoded.maildir_sender_sent_publications, 2);
+        decoded.validate(2).unwrap();
+
+        let mut missing = wire.clone();
+        missing
+            .as_object_mut()
+            .unwrap()
+            .remove("maildir_sender_sent_publications");
+        assert!(serde_json::from_value::<PersistenceSnapshotEvidence>(missing).is_err());
+        let mut extra = wire;
+        extra["unrecognized_publications"] = serde_json::json!(2);
+        assert!(serde_json::from_value::<PersistenceSnapshotEvidence>(extra).is_err());
+
+        let mut inconsistent = decoded;
+        inconsistent.maildir_sender_sent_publications = 1;
+        assert!(inconsistent.validate(2).is_err());
     }
 
     fn pending_data_exchange(

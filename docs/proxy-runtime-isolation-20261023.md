@@ -227,3 +227,33 @@ capacity thresholds. The independent Rust producer, root launcher and Python
 verifier all bind to the new exact counts. Real-product calibration and the
 formal endpoint counts remain unchanged. All 84 proxy Rust tests, strict
 Clippy, all 220 Python checks and Bash syntax validation passed.
+
+## Actual snapshot field loss, v8
+
+The sustained preflight passed in run
+`507ce62e-1123-428d-9362-4c20ed11c259`. The first actual gate-off round passed
+with 100/100 messages and external rate 3.099625 msg/s. The next gate-on round
+also verified 100/100, with zero duplicate/observer/connection failures.
+Its causal gate nevertheless rejected. The newly retained diagnostic proves
+the gate was forwarded and qualified, all timestamps were ordered, the final
+boundary matched forwarding, and the hard overhead gate passed: 10,754,959 ns
+hold, fraction 0.000340684 against the 0.005 bound.
+
+The actual Python snapshot includes `maildir_sender_sent_publications=100`.
+Rust's `PersistenceSnapshotEvidence` lacked that field and serde silently
+discarded it. Therefore the mandatory exact returned-snapshot comparison could
+never match, despite the correct counts and timing. This is an observed
+benchmark protocol defect, not a product mail-delivery failure. The v8
+checkpoint copy has SHA-256
+`e3215ae4586cf26e9ba100eca5cdc45506a18776bbfae7b1c0c8951f7688be4f`.
+Its console and successful unqualified root-cleanup receipt are retained.
+No formal 500-message workload began.
+
+The Rust evidence type now requires and preserves the Sent publication count,
+rejects unknown snapshot fields, and includes the Sent count in exact-count
+qualification. Rust synthetic fixtures and both independent verifiers require
+the same count. The exact snapshot equality remains unchanged. A regression
+checks lossless JSON round-trip, missing/unknown-field rejection and incorrect
+Sent count rejection. The real-product report regression also rejects a missing
+Sent count. All 85 proxy Rust tests, strict Clippy, formatting, 220 Python checks
+and Bash syntax validation passed. Product source/model/ELF remain unchanged.
