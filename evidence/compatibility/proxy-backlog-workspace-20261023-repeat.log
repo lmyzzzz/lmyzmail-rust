@@ -1,0 +1,336 @@
+
+running 13 tests
+test completed_round_forces_idle_keepalive_closed_without_losing_qualification ... ok
+test malformed_observer_stream_is_still_forwarded_exactly_across_half_close ... ok
+test concurrent_connections_cross_the_global_n_minus_one_and_n_gate_boundary ... ok
+test incomplete_round_shutdown_timeout_remains_an_observer_failure ... ok
+test early_bdat_rejection_is_matched_before_backend_reads_the_chunk ... ok
+test accepted_message_remains_qualified_when_client_half_closes_after_final_reply ... ok
+test shutdown_drops_listener_backlog_before_joining_active_connection ... ok
+test starttls_payload_is_forwarded_exactly_after_observer_becomes_opaque ... ok
+test pipeline_reaches_backend_before_backend_emits_any_command_reply ... ok
+test oversized_multiline_reply_is_failed_closed_without_partial_forwarding ... ok
+test rset_discards_partial_bdat_capture_before_the_next_transaction ... ok
+test rejected_non_final_bdat_chunk_cannot_become_a_verified_message ... ok
+test slow_backend_applies_bounded_backpressure_without_byte_loss ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+
+
+running 13 tests
+test starttls_payload_is_forwarded_exactly_after_observer_becomes_opaque ... ok
+test rset_discards_partial_bdat_capture_before_the_next_transaction ... ok
+test accepted_message_remains_qualified_when_client_half_closes_after_final_reply ... ok
+test completed_round_forces_idle_keepalive_closed_without_losing_qualification ... ok
+test concurrent_connections_cross_the_global_n_minus_one_and_n_gate_boundary ... ok
+test shutdown_drops_listener_backlog_before_joining_active_connection ... ok
+test incomplete_round_shutdown_timeout_remains_an_observer_failure ... ok
+test malformed_observer_stream_is_still_forwarded_exactly_across_half_close ... ok
+test early_bdat_rejection_is_matched_before_backend_reads_the_chunk ... ok
+test oversized_multiline_reply_is_failed_closed_without_partial_forwarding ... ok
+test pipeline_reaches_backend_before_backend_emits_any_command_reply ... ok
+test rejected_non_final_bdat_chunk_cannot_become_a_verified_message ... ok
+test slow_backend_applies_bounded_backpressure_without_byte_loss ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s
+
+
+running 13 tests
+test accepted_message_remains_qualified_when_client_half_closes_after_final_reply ... ok
+test completed_round_forces_idle_keepalive_closed_without_losing_qualification ... ok
+test oversized_multiline_reply_is_failed_closed_without_partial_forwarding ... ok
+test concurrent_connections_cross_the_global_n_minus_one_and_n_gate_boundary ... ok
+test incomplete_round_shutdown_timeout_remains_an_observer_failure ... ok
+test early_bdat_rejection_is_matched_before_backend_reads_the_chunk ... ok
+test pipeline_reaches_backend_before_backend_emits_any_command_reply ... ok
+test shutdown_drops_listener_backlog_before_joining_active_connection ... ok
+test starttls_payload_is_forwarded_exactly_after_observer_becomes_opaque ... ok
+test malformed_observer_stream_is_still_forwarded_exactly_across_half_close ... ok
+test rset_discards_partial_bdat_capture_before_the_next_transaction ... ok
+test rejected_non_final_bdat_chunk_cannot_become_a_verified_message ... ok
+test slow_backend_applies_bounded_backpressure_without_byte_loss ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+
+
+running 13 tests
+test accepted_message_remains_qualified_when_client_half_closes_after_final_reply ... ok
+test incomplete_round_shutdown_timeout_remains_an_observer_failure ... ok
+test completed_round_forces_idle_keepalive_closed_without_losing_qualification ... ok
+test early_bdat_rejection_is_matched_before_backend_reads_the_chunk ... ok
+test concurrent_connections_cross_the_global_n_minus_one_and_n_gate_boundary ... ok
+test oversized_multiline_reply_is_failed_closed_without_partial_forwarding ... ok
+test shutdown_drops_listener_backlog_before_joining_active_connection ... ok
+test pipeline_reaches_backend_before_backend_emits_any_command_reply ... ok
+test malformed_observer_stream_is_still_forwarded_exactly_across_half_close ... ok
+test starttls_payload_is_forwarded_exactly_after_observer_becomes_opaque ... ok
+test rset_discards_partial_bdat_capture_before_the_next_transaction ... ok
+test rejected_non_final_bdat_chunk_cannot_become_a_verified_message ... ok
+test slow_backend_applies_bounded_backpressure_without_byte_loss ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+
+
+running 13 tests
+test rset_discards_partial_bdat_capture_before_the_next_transaction ... ok
+test incomplete_round_shutdown_timeout_remains_an_observer_failure ... ok
+test early_bdat_rejection_is_matched_before_backend_reads_the_chunk ... ok
+test oversized_multiline_reply_is_failed_closed_without_partial_forwarding ... ok
+test concurrent_connections_cross_the_global_n_minus_one_and_n_gate_boundary ... ok
+test pipeline_reaches_backend_before_backend_emits_any_command_reply ... ok
+test completed_round_forces_idle_keepalive_closed_without_losing_qualification ... ok
+test starttls_payload_is_forwarded_exactly_after_observer_becomes_opaque ... ok
+test shutdown_drops_listener_backlog_before_joining_active_connection ... ok
+test accepted_message_remains_qualified_when_client_half_closes_after_final_reply ... ok
+test malformed_observer_stream_is_still_forwarded_exactly_across_half_close ... ok
+test rejected_non_final_bdat_chunk_cannot_become_a_verified_message ... ok
+test slow_backend_applies_bounded_backpressure_without_byte_loss ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+
+
+running 13 tests
+test incomplete_round_shutdown_timeout_remains_an_observer_failure ... ok
+test early_bdat_rejection_is_matched_before_backend_reads_the_chunk ... ok
+test completed_round_forces_idle_keepalive_closed_without_losing_qualification ... ok
+test accepted_message_remains_qualified_when_client_half_closes_after_final_reply ... ok
+test shutdown_drops_listener_backlog_before_joining_active_connection ... ok
+test starttls_payload_is_forwarded_exactly_after_observer_becomes_opaque ... ok
+test oversized_multiline_reply_is_failed_closed_without_partial_forwarding ... ok
+test pipeline_reaches_backend_before_backend_emits_any_command_reply ... ok
+test concurrent_connections_cross_the_global_n_minus_one_and_n_gate_boundary ... ok
+test malformed_observer_stream_is_still_forwarded_exactly_across_half_close ... ok
+test rset_discards_partial_bdat_capture_before_the_next_transaction ... ok
+test rejected_non_final_bdat_chunk_cannot_become_a_verified_message ... ok
+test slow_backend_applies_bounded_backpressure_without_byte_loss ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+
+
+running 13 tests
+test completed_round_forces_idle_keepalive_closed_without_losing_qualification ... ok
+test accepted_message_remains_qualified_when_client_half_closes_after_final_reply ... ok
+test incomplete_round_shutdown_timeout_remains_an_observer_failure ... ok
+test shutdown_drops_listener_backlog_before_joining_active_connection ... ok
+test early_bdat_rejection_is_matched_before_backend_reads_the_chunk ... ok
+test starttls_payload_is_forwarded_exactly_after_observer_becomes_opaque ... ok
+test concurrent_connections_cross_the_global_n_minus_one_and_n_gate_boundary ... ok
+test pipeline_reaches_backend_before_backend_emits_any_command_reply ... ok
+test oversized_multiline_reply_is_failed_closed_without_partial_forwarding ... ok
+test rset_discards_partial_bdat_capture_before_the_next_transaction ... ok
+test malformed_observer_stream_is_still_forwarded_exactly_across_half_close ... ok
+test rejected_non_final_bdat_chunk_cannot_become_a_verified_message ... ok
+test slow_backend_applies_bounded_backpressure_without_byte_loss ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+
+
+running 13 tests
+test completed_round_forces_idle_keepalive_closed_without_losing_qualification ... ok
+test incomplete_round_shutdown_timeout_remains_an_observer_failure ... ok
+test accepted_message_remains_qualified_when_client_half_closes_after_final_reply ... ok
+test shutdown_drops_listener_backlog_before_joining_active_connection ... ok
+test early_bdat_rejection_is_matched_before_backend_reads_the_chunk ... ok
+test oversized_multiline_reply_is_failed_closed_without_partial_forwarding ... ok
+test pipeline_reaches_backend_before_backend_emits_any_command_reply ... ok
+test rset_discards_partial_bdat_capture_before_the_next_transaction ... ok
+test concurrent_connections_cross_the_global_n_minus_one_and_n_gate_boundary ... ok
+test malformed_observer_stream_is_still_forwarded_exactly_across_half_close ... ok
+test starttls_payload_is_forwarded_exactly_after_observer_becomes_opaque ... ok
+test rejected_non_final_bdat_chunk_cannot_become_a_verified_message ... ok
+test slow_backend_applies_bounded_backpressure_without_byte_loss ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+
+
+running 13 tests
+test incomplete_round_shutdown_timeout_remains_an_observer_failure ... ok
+test completed_round_forces_idle_keepalive_closed_without_losing_qualification ... ok
+test early_bdat_rejection_is_matched_before_backend_reads_the_chunk ... ok
+test accepted_message_remains_qualified_when_client_half_closes_after_final_reply ... ok
+test shutdown_drops_listener_backlog_before_joining_active_connection ... ok
+test malformed_observer_stream_is_still_forwarded_exactly_across_half_close ... ok
+test pipeline_reaches_backend_before_backend_emits_any_command_reply ... ok
+test oversized_multiline_reply_is_failed_closed_without_partial_forwarding ... ok
+test starttls_payload_is_forwarded_exactly_after_observer_becomes_opaque ... ok
+test concurrent_connections_cross_the_global_n_minus_one_and_n_gate_boundary ... ok
+test rejected_non_final_bdat_chunk_cannot_become_a_verified_message ... ok
+test rset_discards_partial_bdat_capture_before_the_next_transaction ... ok
+test slow_backend_applies_bounded_backpressure_without_byte_loss ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+
+
+running 13 tests
+test completed_round_forces_idle_keepalive_closed_without_losing_qualification ... ok
+test incomplete_round_shutdown_timeout_remains_an_observer_failure ... ok
+test accepted_message_remains_qualified_when_client_half_closes_after_final_reply ... ok
+test concurrent_connections_cross_the_global_n_minus_one_and_n_gate_boundary ... ok
+test shutdown_drops_listener_backlog_before_joining_active_connection ... ok
+test starttls_payload_is_forwarded_exactly_after_observer_becomes_opaque ... ok
+test oversized_multiline_reply_is_failed_closed_without_partial_forwarding ... ok
+test early_bdat_rejection_is_matched_before_backend_reads_the_chunk ... ok
+test rset_discards_partial_bdat_capture_before_the_next_transaction ... ok
+test malformed_observer_stream_is_still_forwarded_exactly_across_half_close ... ok
+test pipeline_reaches_backend_before_backend_emits_any_command_reply ... ok
+test rejected_non_final_bdat_chunk_cannot_become_a_verified_message ... ok
+test slow_backend_applies_bounded_backpressure_without_byte_loss ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+
+
+running 13 tests
+test accepted_message_remains_qualified_when_client_half_closes_after_final_reply ... ok
+test completed_round_forces_idle_keepalive_closed_without_losing_qualification ... ok
+test shutdown_drops_listener_backlog_before_joining_active_connection ... ok
+test early_bdat_rejection_is_matched_before_backend_reads_the_chunk ... ok
+test incomplete_round_shutdown_timeout_remains_an_observer_failure ... ok
+test concurrent_connections_cross_the_global_n_minus_one_and_n_gate_boundary ... ok
+test oversized_multiline_reply_is_failed_closed_without_partial_forwarding ... ok
+test rejected_non_final_bdat_chunk_cannot_become_a_verified_message ... ok
+test malformed_observer_stream_is_still_forwarded_exactly_across_half_close ... ok
+test pipeline_reaches_backend_before_backend_emits_any_command_reply ... ok
+test starttls_payload_is_forwarded_exactly_after_observer_becomes_opaque ... ok
+test rset_discards_partial_bdat_capture_before_the_next_transaction ... ok
+test slow_backend_applies_bounded_backpressure_without_byte_loss ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+
+
+running 13 tests
+test completed_round_forces_idle_keepalive_closed_without_losing_qualification ... ok
+test accepted_message_remains_qualified_when_client_half_closes_after_final_reply ... ok
+test early_bdat_rejection_is_matched_before_backend_reads_the_chunk ... ok
+test incomplete_round_shutdown_timeout_remains_an_observer_failure ... ok
+test shutdown_drops_listener_backlog_before_joining_active_connection ... ok
+test pipeline_reaches_backend_before_backend_emits_any_command_reply ... ok
+test starttls_payload_is_forwarded_exactly_after_observer_becomes_opaque ... ok
+test malformed_observer_stream_is_still_forwarded_exactly_across_half_close ... ok
+test rset_discards_partial_bdat_capture_before_the_next_transaction ... ok
+test oversized_multiline_reply_is_failed_closed_without_partial_forwarding ... ok
+test concurrent_connections_cross_the_global_n_minus_one_and_n_gate_boundary ... ok
+test rejected_non_final_bdat_chunk_cannot_become_a_verified_message ... ok
+test slow_backend_applies_bounded_backpressure_without_byte_loss ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+
+
+running 13 tests
+test completed_round_forces_idle_keepalive_closed_without_losing_qualification ... ok
+test accepted_message_remains_qualified_when_client_half_closes_after_final_reply ... ok
+test incomplete_round_shutdown_timeout_remains_an_observer_failure ... ok
+test shutdown_drops_listener_backlog_before_joining_active_connection ... ok
+test oversized_multiline_reply_is_failed_closed_without_partial_forwarding ... ok
+test early_bdat_rejection_is_matched_before_backend_reads_the_chunk ... ok
+test starttls_payload_is_forwarded_exactly_after_observer_becomes_opaque ... ok
+test rset_discards_partial_bdat_capture_before_the_next_transaction ... ok
+test concurrent_connections_cross_the_global_n_minus_one_and_n_gate_boundary ... ok
+test pipeline_reaches_backend_before_backend_emits_any_command_reply ... ok
+test malformed_observer_stream_is_still_forwarded_exactly_across_half_close ... ok
+test rejected_non_final_bdat_chunk_cannot_become_a_verified_message ... ok
+test slow_backend_applies_bounded_backpressure_without_byte_loss ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+
+
+running 13 tests
+test starttls_payload_is_forwarded_exactly_after_observer_becomes_opaque ... ok
+test accepted_message_remains_qualified_when_client_half_closes_after_final_reply ... ok
+test shutdown_drops_listener_backlog_before_joining_active_connection ... ok
+test completed_round_forces_idle_keepalive_closed_without_losing_qualification ... ok
+test incomplete_round_shutdown_timeout_remains_an_observer_failure ... ok
+test malformed_observer_stream_is_still_forwarded_exactly_across_half_close ... ok
+test oversized_multiline_reply_is_failed_closed_without_partial_forwarding ... ok
+test early_bdat_rejection_is_matched_before_backend_reads_the_chunk ... ok
+test concurrent_connections_cross_the_global_n_minus_one_and_n_gate_boundary ... ok
+test rset_discards_partial_bdat_capture_before_the_next_transaction ... ok
+test pipeline_reaches_backend_before_backend_emits_any_command_reply ... ok
+test rejected_non_final_bdat_chunk_cannot_become_a_verified_message ... ok
+test slow_backend_applies_bounded_backpressure_without_byte_loss ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.47s
+
+
+running 13 tests
+test incomplete_round_shutdown_timeout_remains_an_observer_failure ... ok
+test completed_round_forces_idle_keepalive_closed_without_losing_qualification ... ok
+test accepted_message_remains_qualified_when_client_half_closes_after_final_reply ... ok
+test shutdown_drops_listener_backlog_before_joining_active_connection ... ok
+test early_bdat_rejection_is_matched_before_backend_reads_the_chunk ... ok
+test starttls_payload_is_forwarded_exactly_after_observer_becomes_opaque ... ok
+test rset_discards_partial_bdat_capture_before_the_next_transaction ... ok
+test oversized_multiline_reply_is_failed_closed_without_partial_forwarding ... ok
+test pipeline_reaches_backend_before_backend_emits_any_command_reply ... ok
+test malformed_observer_stream_is_still_forwarded_exactly_across_half_close ... ok
+test concurrent_connections_cross_the_global_n_minus_one_and_n_gate_boundary ... ok
+test rejected_non_final_bdat_chunk_cannot_become_a_verified_message ... ok
+test slow_backend_applies_bounded_backpressure_without_byte_loss ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.47s
+
+
+running 13 tests
+test accepted_message_remains_qualified_when_client_half_closes_after_final_reply ... ok
+test rset_discards_partial_bdat_capture_before_the_next_transaction ... ok
+test oversized_multiline_reply_is_failed_closed_without_partial_forwarding ... ok
+test completed_round_forces_idle_keepalive_closed_without_losing_qualification ... ok
+test pipeline_reaches_backend_before_backend_emits_any_command_reply ... ok
+test incomplete_round_shutdown_timeout_remains_an_observer_failure ... ok
+test starttls_payload_is_forwarded_exactly_after_observer_becomes_opaque ... ok
+test shutdown_drops_listener_backlog_before_joining_active_connection ... ok
+test malformed_observer_stream_is_still_forwarded_exactly_across_half_close ... ok
+test concurrent_connections_cross_the_global_n_minus_one_and_n_gate_boundary ... ok
+test early_bdat_rejection_is_matched_before_backend_reads_the_chunk ... ok
+test rejected_non_final_bdat_chunk_cannot_become_a_verified_message ... ok
+test slow_backend_applies_bounded_backpressure_without_byte_loss ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+
+
+running 13 tests
+test accepted_message_remains_qualified_when_client_half_closes_after_final_reply ... ok
+test completed_round_forces_idle_keepalive_closed_without_losing_qualification ... ok
+test rset_discards_partial_bdat_capture_before_the_next_transaction ... ok
+test incomplete_round_shutdown_timeout_remains_an_observer_failure ... ok
+test malformed_observer_stream_is_still_forwarded_exactly_across_half_close ... ok
+test early_bdat_rejection_is_matched_before_backend_reads_the_chunk ... ok
+test oversized_multiline_reply_is_failed_closed_without_partial_forwarding ... ok
+test shutdown_drops_listener_backlog_before_joining_active_connection ... ok
+test concurrent_connections_cross_the_global_n_minus_one_and_n_gate_boundary ... ok
+test rejected_non_final_bdat_chunk_cannot_become_a_verified_message ... ok
+test starttls_payload_is_forwarded_exactly_after_observer_becomes_opaque ... ok
+test pipeline_reaches_backend_before_backend_emits_any_command_reply ... ok
+test slow_backend_applies_bounded_backpressure_without_byte_loss ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+
+
+running 13 tests
+test completed_round_forces_idle_keepalive_closed_without_losing_qualification ... ok
+test accepted_message_remains_qualified_when_client_half_closes_after_final_reply ... ok
+test early_bdat_rejection_is_matched_before_backend_reads_the_chunk ... ok
+test pipeline_reaches_backend_before_backend_emits_any_command_reply ... ok
+test incomplete_round_shutdown_timeout_remains_an_observer_failure ... ok
+test starttls_payload_is_forwarded_exactly_after_observer_becomes_opaque ... ok
+test rset_discards_partial_bdat_capture_before_the_next_transaction ... ok
+test concurrent_connections_cross_the_global_n_minus_one_and_n_gate_boundary ... ok
+test oversized_multiline_reply_is_failed_closed_without_partial_forwarding ... ok
+test malformed_observer_stream_is_still_forwarded_exactly_across_half_close ... ok
+test rejected_non_final_bdat_chunk_cannot_become_a_verified_message ... ok
+test slow_backend_applies_bounded_backpressure_without_byte_loss ... ok
+test shutdown_drops_listener_backlog_before_joining_active_connection ... FAILED
+
+failures:
+
+---- shutdown_drops_listener_backlog_before_joining_active_connection stdout ----
+
+thread 'shutdown_drops_listener_backlog_before_joining_active_connection' (2034768) panicked at crates/lmyzmail-benchmark-proxy/tests/proxy_integration.rs:862:10:
+queued connection remained in the closed listener backlog: Elapsed(())
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    shutdown_drops_listener_backlog_before_joining_active_connection
+
+test result: FAILED. 12 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.20s
+

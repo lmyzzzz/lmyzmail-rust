@@ -10,6 +10,13 @@ installation evidence. The older `39379c04` package and
 [its negative and corrected evidence](release-39379c04-validation.md) are retained.
 Packaging does not close the remaining gates.
 
+The [2026-10-23 local follow-up](local-validation-20261023.md) fixes isolation
+of the two retained oracle fixtures and adds evidenced four-class legacy-name
+takeover and alias security regressions. The repaired source passed all 961
+Rust tests and strict Clippy. The delivered `bf6c0d53` package remains unchanged;
+new source and development-artifact evidence do not retroactively update its
+checksums or qualify a new release.
+
 ## Passed in the current milestone
 
 - The 2026-10-22 shutdown recovery repair passed all 959 Rust tests, strict

@@ -1,0 +1,39 @@
+{
+  "addresses": [
+    {
+      "address": "under_score@example.test",
+      "bytes": 671,
+      "java_raw_status": 200,
+      "raw_sha256": "f973a403adf14ab215c672a8f30da188fc55c42cf6e3f43b064f7858ab9e8cb6"
+    },
+    {
+      "address": "user..dots@example.test",
+      "bytes": 669,
+      "java_raw_status": 404,
+      "raw_sha256": "d0a30e679ef5cd69e168a69d6890eb05127bf377cf3647982ad8450a2be44082"
+    },
+    {
+      "address": "v1-qa@example.test",
+      "bytes": 659,
+      "java_raw_status": 200,
+      "raw_sha256": "1bb545f4ff0c08a83a9ea5dede98f9e11bfb57eb0214a8e0750e7c3ab6cf437b"
+    },
+    {
+      "address": "邮箱@example.test",
+      "bytes": 661,
+      "java_raw_status": 200,
+      "raw_sha256": "723c5d4571b47da50d6a2c3b3d8a51b815ed06c71091a0a6a9e8006f6c21de20"
+    }
+  ],
+  "binary_sha256": "0f5df534c8209dac890605b4ee04eaab51d3f2d36af7c8cb4cd662a7621dff54",
+  "managed_process_cleanup": "passed",
+  "phases": [
+    "java-creates-and-reads-four-legacy-address-classes",
+    "rust-byte-exact-legacy-takeover",
+    "rust-denies-registered-lossy-alias-with-index-row",
+    "frozen-java-reproduces-cross-mailbox-alias-disclosure",
+    "rust-restart-preserves-fail-closed-ownership"
+  ],
+  "scope": "legacy reads and ownership collision; new v2 rollback is a separate gate",
+  "status": "passed"
+}

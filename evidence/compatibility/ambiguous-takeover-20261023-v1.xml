@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="13.574" timestamp="2026-10-23T00:32:41.285321+08:00" hostname="MSI"><testcase classname="" name="test_unique_legacy_ambiguous_names_and_collision_fail_closed" time="13.414"><failure message="AssertionError: {&quot;error&quot;:&quot;not_found&quot;}&#10;assert 404 == 200&#10; +  where 404 = &lt;Response [404 Not Found]&gt;.status_code">tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-141/test_unique_legacy_ambiguous_n0')
+
+    @pytest.mark.timeout(240)
+    def test_unique_legacy_ambiguous_names_and_collision_fail_closed(tmp_path):
+        binary = Path(os.environ["LMYZMAIL_TAKEOVER_BINARY"]).resolve(strict=True)
+        proof = {"binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
+                 "scope": "legacy reads and ownership collision; new v2 rollback is a separate gate",
+                 "addresses": [], "phases": []}
+        runtime = TakeoverRuntime(tmp_path / "ambiguous-takeover", shutdown_timeout=20)
+        originals = {}
+        tokens = {}
+        references = {}
+        try:
+            runtime.start()
+            for number, address in enumerate(ADDRESSES):
+                tokens[address] = _seed(runtime, address)
+                references[address] = _deliver(runtime, address, number)
+                response = _raw(runtime, tokens[address], references[address])
+&gt;               assert response.status_code == 200, response.text
+E               AssertionError: {"error":"not_found"}
+E               assert 404 == 200
+E                +  where 404 = &lt;Response [404 Not Found]&gt;.status_code
+
+tools/test_ambiguous_takeover.py:98: AssertionError</failure></testcase></testsuite></testsuites>

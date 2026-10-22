@@ -1,0 +1,136 @@
+{"external_candidate_binary": "/home/lmyzzz/lmyzmail-rust/.blackbox/release-legacy-writer-path-20261023/lmyzmail", "sha256_before": "78ac1919e25812181202455ba28a12e33276f7ffb8b88c1b4e4ef08c05e3861e"}
+.F                                                                       [100%]
+=================================== FAILURES ===================================
+____________ test_ordinary_maildir_survives_bidirectional_takeover _____________
+
+self = ManagedProcess(name='java-oracle-persistent-0001', argv=['/home/lmyzzz/lmyzmail-rust/.blackbox/runtime/jdk22/bin/java'...OME': '/tmp/pytest-of-lmyzzz/pytest-145/test_ordinary_maildir_survives0/durable-takeover/xdg-data'}, inherit_env=False)
+host = '127.0.0.1', port = 48507
+
+    def wait_for_tcp(self, host: str, port: int, *, timeout: float) -> None:
+        if self._process is None:
+            raise RuntimeError(f"{self.name} has not started")
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError("TCP readiness timeout must be finite and positive")
+        deadline = time.monotonic() + timeout
+        last_error: OSError | None = None
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            exit_code = self._process.poll()
+            if exit_code is not None:
+                raise ProcessStartError(
+                    f"{self.name} exited with {exit_code}; tail:\n{self.log_tail()}"
+                )
+            try:
+>               with socket.create_connection((host, port), timeout=min(0.25, remaining)):
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/src/lmyzmail_blackbox/processes.py:78: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.12/socket.py:852: in create_connection
+    raise exceptions[0]
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+address = ('127.0.0.1', 48507), timeout = 0.25, source_address = None
+
+    def create_connection(address, timeout=_GLOBAL_DEFAULT_TIMEOUT,
+                          source_address=None, *, all_errors=False):
+        """Connect to *address* and return the socket object.
+    
+        Convenience function.  Connect to *address* (a 2-tuple ``(host,
+        port)``) and return the socket object.  Passing the optional
+        *timeout* parameter will set the timeout on the socket instance
+        before attempting to connect.  If no *timeout* is supplied, the
+        global default timeout setting returned by :func:`getdefaulttimeout`
+        is used.  If *source_address* is set it must be a tuple of (host, port)
+        for the socket to bind as a source address before making the connection.
+        A host of '' or port 0 tells the OS to use the default. When a connection
+        cannot be created, raises the last error if *all_errors* is False,
+        and an ExceptionGroup of all errors if *all_errors* is True.
+        """
+    
+        host, port = address
+        exceptions = []
+        for res in getaddrinfo(host, port, 0, SOCK_STREAM):
+            af, socktype, proto, canonname, sa = res
+            sock = None
+            try:
+                sock = socket(af, socktype, proto)
+                if timeout is not _GLOBAL_DEFAULT_TIMEOUT:
+                    sock.settimeout(timeout)
+                if source_address:
+                    sock.bind(source_address)
+>               sock.connect(sa)
+E               ConnectionRefusedError: [Errno 111] Connection refused
+
+/usr/lib/python3.12/socket.py:837: ConnectionRefusedError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-145/test_ordinary_maildir_survives0')
+
+    def test_ordinary_maildir_survives_bidirectional_takeover(tmp_path):
+        binary = Path(os.environ["LMYZMAIL_TAKEOVER_BINARY"]).resolve(strict=True)
+        assert binary.is_file()
+        runtime = TakeoverRuntime(tmp_path / "durable-takeover", shutdown_timeout=20)
+        message = (b"From: sender@sender.invalid\r\nTo: qa@example.test\r\n"
+                   b"Subject: Rust takeover inbound\r\nMessage-ID: <takeover-inbound@example.test>\r\n"
+                   b"MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n"
+                   b"Retained across Java Rust Java Rust.\r\n")
+        with binary.open("rb") as stream:
+            binary_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+        proof = {"scope": "ordinary ASCII mailbox; ambiguous names and pending outbound takeover remain separate gates",
+                 "binary_sha256": binary_sha256,
+                 "phases": []}
+        expected_raw = {}
+        try:
+>           runtime.start()
+
+tools/test_release_takeover.py:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/persistent_runtime.py:616: in start
+    self._start_application()
+tools/test_release_takeover.py:39: in _start_application
+    super()._start_application()
+blackbox/src/lmyzmail_blackbox/persistent_runtime.py:534: in _start_application
+    super()._start_application()
+blackbox/src/lmyzmail_blackbox/runtime.py:612: in _start_application
+    self._application.wait_for_tcp("127.0.0.1", ports.http, timeout=remaining)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ManagedProcess(name='java-oracle-persistent-0001', argv=['/home/lmyzzz/lmyzmail-rust/.blackbox/runtime/jdk22/bin/java'...OME': '/tmp/pytest-of-lmyzzz/pytest-145/test_ordinary_maildir_survives0/durable-takeover/xdg-data'}, inherit_env=False)
+host = '127.0.0.1', port = 48507
+
+    def wait_for_tcp(self, host: str, port: int, *, timeout: float) -> None:
+        if self._process is None:
+            raise RuntimeError(f"{self.name} has not started")
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError("TCP readiness timeout must be finite and positive")
+        deadline = time.monotonic() + timeout
+        last_error: OSError | None = None
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            exit_code = self._process.poll()
+            if exit_code is not None:
+                raise ProcessStartError(
+                    f"{self.name} exited with {exit_code}; tail:\n{self.log_tail()}"
+                )
+            try:
+                with socket.create_connection((host, port), timeout=min(0.25, remaining)):
+                    return
+            except OSError as error:
+                last_error = error
+                remaining = deadline - time.monotonic()
+                if remaining > 0:
+>                   time.sleep(min(0.05, remaining))
+E                   Failed: Timeout (>30.0s) from pytest-timeout.
+
+blackbox/src/lmyzmail_blackbox/processes.py:84: Failed
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/maildir-takeover-20261023-v5.xml -
+=========================== short test summary info ============================
+FAILED blackbox::test_ordinary_maildir_survives_bidirectional_takeover - Fail...
+1 failed, 1 passed in 57.94s
+{"sha256_after": "78ac1919e25812181202455ba28a12e33276f7ffb8b88c1b4e4ef08c05e3861e", "staged_sha256_after": "78ac1919e25812181202455ba28a12e33276f7ffb8b88c1b4e4ef08c05e3861e", "unchanged": true}

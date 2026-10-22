@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="14.805" timestamp="2026-10-23T00:44:27.180923+08:00" hostname="MSI"><testcase classname="" name="test_unique_legacy_ambiguous_names_and_collision_fail_closed" time="14.593"><failure message="AssertionError: assert 200 == 404&#10; +  where 200 = &lt;Response [200 OK]&gt;.status_code&#10; +    where &lt;Response [200 OK]&gt; = _raw(TakeoverRuntime(paths=HarnessPaths(repository=PosixPath('/home/lmyzzz/lmyzmail-rust'), runtime=PosixPath('/home/lmyzzz...9, 44635)), workspace=PosixPath('/tmp/pytest-of-lmyzzz/pytest-144/test_unique_legacy_ambiguous_n0/ambiguous-takeover')), 'legacy-session-token', ('spam', '20261022164437.581-1442428141271623-2.eml'))">tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-144/test_unique_legacy_ambiguous_n0')
+
+    @pytest.mark.timeout(240)
+    def test_unique_legacy_ambiguous_names_and_collision_fail_closed(tmp_path):
+        binary = Path(os.environ["LMYZMAIL_TAKEOVER_BINARY"]).resolve(strict=True)
+        with binary.open("rb") as stream:
+            binary_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+        proof = {"binary_sha256": binary_sha256,
+                 "scope": "legacy reads and ownership collision; new v2 rollback is a separate gate",
+                 "addresses": [], "phases": []}
+        runtime = TakeoverRuntime(tmp_path / "ambiguous-takeover", shutdown_timeout=20)
+        originals = {}
+        tokens = {}
+        references = {}
+        try:
+            runtime.start()
+            for number, address in enumerate(ADDRESSES):
+                tokens[address] = _seed(runtime, address)
+                references[address] = _deliver(runtime, address, number)
+                response = _raw(runtime, tokens[address], references[address])
+                # Frozen Java's writer preserves interior dots, while its reader
+                # replaces them. Independently capture the delivered Maildir bytes
+                # and retain that 404 as bug evidence; Rust must recover the mail.
+                expected_status = 404 if ".." in address else 200
+                assert response.status_code == expected_status, (address, response.text)
+                matches = list((runtime.workspace / "maildir").rglob(references[address][1]))
+                assert len(matches) == 1
+                originals[address] = matches[0].read_bytes()
+                if response.status_code == 200:
+                    assert response.content == originals[address]
+                proof["addresses"].append({"address": address,
+                    "java_raw_status": response.status_code,
+                    "raw_sha256": hashlib.sha256(originals[address]).hexdigest(),
+                    "bytes": len(originals[address])})
+            proof["phases"].append("java-creates-and-reads-four-legacy-address-classes")
+            runtime.rust_phase = True
+            runtime.restart_application()
+            for address in ADDRESSES:
+                response = _raw(runtime, tokens[address], references[address])
+                assert response.status_code == 200, (address, response.text)
+                assert response.content == originals[address]
+            proof["phases"].append("rust-byte-exact-legacy-takeover")
+    
+            # The early Rust v1 namespace shares a flat directory component with
+            # literal Java addresses starting with "v1-". Even an indexed filename
+            # must not let qa read v1-qa's legacy publication through that fallback.
+            v1_folder, v1_name = references[ADDRESSES[2]]
+            with _db(runtime) as db:
+                db.execute("INSERT INTO email_index (has_attachments,subdirectory,indexed_at,"
+                           "received_at,size_bytes,folder,from_address,message_id,subject,"
+                           "to_addresses,file_name,mailbox_address) "
+                           "SELECT has_attachments,subdirectory,indexed_at,received_at,size_bytes,"
+                           "folder,from_address,message_id,subject,to_addresses,file_name,%s "
+                           "FROM email_index WHERE mailbox_address=%s AND folder=%s AND file_name=%s",
+                           ("qa@example.test", ADDRESSES[2], v1_folder, v1_name))
+&gt;           assert _raw(runtime, LEGACY_SESSION_TOKEN, (v1_folder, v1_name)).status_code == 404
+E           AssertionError: assert 200 == 404
+E            +  where 200 = &lt;Response [200 OK]&gt;.status_code
+E            +    where &lt;Response [200 OK]&gt; = _raw(TakeoverRuntime(paths=HarnessPaths(repository=PosixPath('/home/lmyzzz/lmyzmail-rust'), runtime=PosixPath('/home/lmyzzz...9, 44635)), workspace=PosixPath('/tmp/pytest-of-lmyzzz/pytest-144/test_unique_legacy_ambiguous_n0/ambiguous-takeover')), 'legacy-session-token', ('spam', '20261022164437.581-1442428141271623-2.eml'))
+
+tools/test_ambiguous_takeover.py:136: AssertionError</failure></testcase></testsuite></testsuites>

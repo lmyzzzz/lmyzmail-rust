@@ -1,0 +1,5 @@
+{"external_candidate_binary": "/home/lmyzzz/lmyzmail-rust/target/x86_64-unknown-linux-gnu/release/lmyzmail", "sha256_before": "0f5df534c8209dac890605b4ee04eaab51d3f2d36af7c8cb4cd662a7621dff54"}
+.                                                                        [100%]
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/ambiguous-takeover-20261023-v3.xml -
+1 passed in 25.45s
+{"sha256_after": "0f5df534c8209dac890605b4ee04eaab51d3f2d36af7c8cb4cd662a7621dff54", "staged_sha256_after": "0f5df534c8209dac890605b4ee04eaab51d3f2d36af7c8cb4cd662a7621dff54", "unchanged": true}

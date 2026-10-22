@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="16.752" timestamp="2026-10-23T00:37:03.512958+08:00" hostname="MSI"><testcase classname="" name="test_unique_legacy_ambiguous_names_and_collision_fail_closed" time="16.543"><failure message="AssertionError: ('user..dots@example.test', '{&quot;error&quot;:&quot;not_found&quot;}')&#10;assert 404 == 200&#10; +  where 404 = &lt;Response [404 Not Found]&gt;.status_code">tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-142/test_unique_legacy_ambiguous_n0')
+
+    @pytest.mark.timeout(240)
+    def test_unique_legacy_ambiguous_names_and_collision_fail_closed(tmp_path):
+        binary = Path(os.environ["LMYZMAIL_TAKEOVER_BINARY"]).resolve(strict=True)
+        with binary.open("rb") as stream:
+            binary_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+        proof = {"binary_sha256": binary_sha256,
+                 "scope": "legacy reads and ownership collision; new v2 rollback is a separate gate",
+                 "addresses": [], "phases": []}
+        runtime = TakeoverRuntime(tmp_path / "ambiguous-takeover", shutdown_timeout=20)
+        originals = {}
+        tokens = {}
+        references = {}
+        try:
+            runtime.start()
+            for number, address in enumerate(ADDRESSES):
+                tokens[address] = _seed(runtime, address)
+                references[address] = _deliver(runtime, address, number)
+                response = _raw(runtime, tokens[address], references[address])
+                # Frozen Java's writer preserves interior dots, while its reader
+                # replaces them. Independently capture the delivered Maildir bytes
+                # and retain that 404 as bug evidence; Rust must recover the mail.
+                expected_status = 404 if ".." in address else 200
+                assert response.status_code == expected_status, (address, response.text)
+                matches = list((runtime.workspace / "maildir").rglob(references[address][1]))
+                assert len(matches) == 1
+                originals[address] = matches[0].read_bytes()
+                if response.status_code == 200:
+                    assert response.content == originals[address]
+                proof["addresses"].append({"address": address,
+                    "java_raw_status": response.status_code,
+                    "raw_sha256": hashlib.sha256(originals[address]).hexdigest(),
+                    "bytes": len(originals[address])})
+            proof["phases"].append("java-creates-and-reads-four-legacy-address-classes")
+            runtime.rust_phase = True
+            runtime.restart_application()
+            for address in ADDRESSES:
+                response = _raw(runtime, tokens[address], references[address])
+&gt;               assert response.status_code == 200, (address, response.text)
+E               AssertionError: ('user..dots@example.test', '{"error":"not_found"}')
+E               assert 404 == 200
+E                +  where 404 = &lt;Response [404 Not Found]&gt;.status_code
+
+tools/test_ambiguous_takeover.py:119: AssertionError</failure></testcase></testsuite></testsuites>

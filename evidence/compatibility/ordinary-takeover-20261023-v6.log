@@ -1,0 +1,5 @@
+{"external_candidate_binary": "/home/lmyzzz/lmyzmail-rust/.blackbox/release-legacy-writer-path-20261023/lmyzmail", "sha256_before": "78ac1919e25812181202455ba28a12e33276f7ffb8b88c1b4e4ef08c05e3861e"}
+.                                                                        [100%]
+- generated xml file: /home/lmyzzz/lmyzmail-rust/evidence/compatibility/ordinary-takeover-20261023-v6.xml -
+1 passed in 23.31s
+{"sha256_after": "78ac1919e25812181202455ba28a12e33276f7ffb8b88c1b4e4ef08c05e3861e", "staged_sha256_after": "78ac1919e25812181202455ba28a12e33276f7ffb8b88c1b4e4ef08c05e3861e", "unchanged": true}

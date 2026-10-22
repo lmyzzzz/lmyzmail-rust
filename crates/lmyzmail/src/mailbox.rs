@@ -1205,30 +1205,22 @@ impl MailboxService {
 
         // v1 was used by early Rust candidates and is injective, but a single
         // percent-encoded component can exceed Linux NAME_MAX. Keep it as a
-        // read-only bridge for data created by earlier Rust candidates.
-        let v1_base = self
-            .base_dir
-            .join(v1_sanitize_address_for_path(&mailbox))
-            .join(folder);
-        let v1_path = match subdirectory.filter(|value| *value > 0) {
-            Some(value) => v1_base.join(value.to_string()).join(file_name),
-            None => v1_base.join(file_name),
-        };
-        if let (Ok(normalized_base), Ok(normalized_path)) = (
-            tokio::fs::canonicalize(&v1_base).await,
-            tokio::fs::canonicalize(&v1_path).await,
-        ) {
-            if !normalized_path.starts_with(&normalized_base) {
-                return Err(MailboxError::InvalidInput("path traversal detected".into()));
-            }
-            return Ok(normalized_path);
-        }
+        // read-only bridge for data created by earlier Rust candidates, but
+        // prove ownership first: v1-qa@example.test is also a literal Java
+        // mailbox directory, so an index row alone cannot authorize that alias.
 
         // Frozen Java installations mapped several distinct mailbox names to
         // the same directory.  Read that alias only when the database proves
         // that no other registered mailbox shares it. This proof also applies
         // to new messages in the rollback-compatible directory layout.
-        let legacy_component = legacy_sanitize_address_for_path(&mailbox);
+        let mut legacy_components = vec![
+            v1_sanitize_address_for_path(&mailbox),
+            legacy_sanitize_address_for_path(&mailbox),
+        ];
+        let smtp_component = legacy_smtp_sanitize_address_for_path(&mailbox);
+        if !legacy_components.contains(&smtp_component) {
+            legacy_components.push(smtp_component);
+        }
         let proof_deadline = Instant::now() + DATABASE_TIMEOUT;
         let transaction = timeout_at(
             proof_deadline,
@@ -1241,7 +1233,7 @@ impl MailboxService {
         .await
         .map_err(|_| MailboxError::Database("legacy ownership snapshot timeout".into()))?
         .map_err(db_error)?;
-        let mut requested_owner_found = false;
+        let mut ownership = vec![(false, true); legacy_components.len()];
         let mut after_id = i64::MIN;
         loop {
             let owners = timeout_at(
@@ -1263,39 +1255,48 @@ impl MailboxService {
             for owner in &owners {
                 after_id = owner.get(0);
                 let raw_owner: String = owner.get(1);
-                observe_legacy_mailbox_owner(
-                    &mailbox,
-                    &legacy_component,
-                    &raw_owner,
-                    &mut requested_owner_found,
-                )?;
+                for (index, (component, (found, unique))) in
+                    legacy_components.iter().zip(&mut ownership).enumerate()
+                {
+                    let proof = if index == 0 {
+                        observe_v1_mailbox_owner(&mailbox, component, &raw_owner, found)
+                    } else {
+                        observe_legacy_mailbox_owner(&mailbox, component, &raw_owner, found)
+                    };
+                    if proof.is_err() {
+                        *unique = false;
+                    }
+                }
             }
             if owners.len() < LEGACY_MAILBOX_OWNERSHIP_PAGE_ROWS as usize {
                 break;
             }
         }
-        if !requested_owner_found {
-            return Err(MailboxError::NotFound);
-        }
         timeout_at(proof_deadline, transaction.commit())
             .await
             .map_err(|_| MailboxError::Database("legacy ownership snapshot timeout".into()))?
             .map_err(db_error)?;
-        let base = self.base_dir.join(legacy_component).join(folder);
-        let path = match subdirectory.filter(|value| *value > 0) {
-            Some(value) => base.join(value.to_string()).join(file_name),
-            None => base.join(file_name),
-        };
-        let normalized_base = tokio::fs::canonicalize(&base)
-            .await
-            .map_err(|_| MailboxError::NotFound)?;
-        let normalized_path = tokio::fs::canonicalize(&path)
-            .await
-            .map_err(|_| MailboxError::NotFound)?;
-        if !normalized_path.starts_with(&normalized_base) {
-            return Err(MailboxError::InvalidInput("path traversal detected".into()));
+        for (component, (found, unique)) in legacy_components.into_iter().zip(ownership) {
+            if !found || !unique {
+                continue;
+            }
+            let base = self.base_dir.join(component).join(folder);
+            let path = match subdirectory.filter(|value| *value > 0) {
+                Some(value) => base.join(value.to_string()).join(file_name),
+                None => base.join(file_name),
+            };
+            let (Ok(normalized_base), Ok(normalized_path)) = (
+                tokio::fs::canonicalize(&base).await,
+                tokio::fs::canonicalize(&path).await,
+            ) else {
+                continue;
+            };
+            if !normalized_path.starts_with(&normalized_base) {
+                return Err(MailboxError::InvalidInput("path traversal detected".into()));
+            }
+            return Ok(normalized_path);
         }
-        Ok(normalized_path)
+        Err(MailboxError::NotFound)
     }
 
     async fn decorations(
@@ -1742,13 +1743,45 @@ pub(crate) fn legacy_sanitize_address_for_path(address: &str) -> String {
     }
 }
 
+// Frozen MailFileStore's writer differs from MailReadService's reader: it
+// preserves interior ".." and replaces only leading/trailing dots. Keep this
+// read-only alias for already indexed files, under the same ownership proof.
+fn legacy_smtp_sanitize_address_for_path(address: &str) -> String {
+    let mut output = String::with_capacity(address.len());
+    for ch in address.trim().to_lowercase().chars() {
+        if ch <= '\u{1f}' || ch == '\u{7f}' {
+            continue;
+        }
+        output.push(
+            if matches!(ch, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') {
+                '_'
+            } else {
+                ch
+            },
+        );
+    }
+    if output.is_empty() {
+        return "unknown".into();
+    }
+    if output.starts_with('.') {
+        output.replace_range(..1, "_");
+    }
+    if output.ends_with('.') {
+        output.pop();
+        output.push('_');
+    }
+    output
+}
+
 fn observe_legacy_mailbox_owner(
     requested_mailbox: &str,
     requested_component: &str,
     raw_owner: &str,
     requested_owner_found: &mut bool,
 ) -> Result<(), MailboxError> {
-    if legacy_sanitize_address_for_path(raw_owner) != requested_component {
+    if legacy_sanitize_address_for_path(raw_owner) != requested_component
+        && legacy_smtp_sanitize_address_for_path(raw_owner) != requested_component
+    {
         return Ok(());
     }
     let owner = normalize_mailbox(raw_owner).map_err(|_| MailboxError::NotFound)?;
@@ -1756,6 +1789,24 @@ fn observe_legacy_mailbox_owner(
         return Err(MailboxError::NotFound);
     }
     *requested_owner_found = true;
+    Ok(())
+}
+
+fn observe_v1_mailbox_owner(
+    requested_mailbox: &str,
+    requested_component: &str,
+    raw_owner: &str,
+    requested_owner_found: &mut bool,
+) -> Result<(), MailboxError> {
+    if normalize_mailbox(raw_owner).ok().as_deref() == Some(requested_mailbox) {
+        *requested_owner_found = true;
+        return Ok(());
+    }
+    if legacy_sanitize_address_for_path(raw_owner) == requested_component
+        || legacy_smtp_sanitize_address_for_path(raw_owner) == requested_component
+    {
+        return Err(MailboxError::NotFound);
+    }
     Ok(())
 }
 
@@ -2386,6 +2437,47 @@ mod tests {
             &mut found,
         )
         .is_err());
+    }
+
+    #[test]
+    fn legacy_smtp_alias_proof_separates_interior_dots_and_checks_both_java_mappings() {
+        let requested = "user..dots@example.test";
+        let writer = legacy_smtp_sanitize_address_for_path(requested);
+        let reader = legacy_sanitize_address_for_path(requested);
+        assert_eq!(writer, requested);
+        assert_eq!(reader, "user__dots@example.test");
+        let mut found = false;
+        observe_legacy_mailbox_owner(requested, &writer, requested, &mut found).unwrap();
+        observe_legacy_mailbox_owner(requested, &writer, &reader, &mut found).unwrap();
+        assert!(found);
+        assert!(observe_legacy_mailbox_owner(requested, &reader, &reader, &mut found).is_err());
+
+        // A literal leading dot is rewritten by the frozen writer but not its
+        // reader. That alternate mapping must still participate in alias proof.
+        let requested = "_owner@example.test";
+        let component = legacy_smtp_sanitize_address_for_path(requested);
+        let mut found = false;
+        observe_legacy_mailbox_owner(requested, &component, requested, &mut found).unwrap();
+        assert!(
+            observe_legacy_mailbox_owner(requested, &component, ".owner@example.test", &mut found,)
+                .is_err()
+        );
+        assert!(found);
+    }
+
+    #[test]
+    fn v1_alias_requires_registered_owner_and_rejects_literal_java_owner() {
+        let requested = "qa@example.test";
+        let component = v1_sanitize_address_for_path(requested);
+        let mut found = false;
+        observe_v1_mailbox_owner(requested, &component, "other@example.test", &mut found).unwrap();
+        assert!(!found);
+        observe_v1_mailbox_owner(requested, &component, requested, &mut found).unwrap();
+        assert!(found);
+        assert!(
+            observe_v1_mailbox_owner(requested, &component, "v1-qa@example.test", &mut found,)
+                .is_err()
+        );
     }
 
     #[test]

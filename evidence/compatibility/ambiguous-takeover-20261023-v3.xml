@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="25.455" timestamp="2026-10-23T00:42:27.881619+08:00" hostname="MSI"><testcase classname="" name="test_unique_legacy_ambiguous_names_and_collision_fail_closed" time="25.287" /></testsuite></testsuites>

@@ -855,11 +855,46 @@ async fn shutdown_drops_listener_backlog_before_joining_active_connection() {
     active.read_exact(&mut greeting).await.unwrap();
     assert_eq!(&greeting, b"220 held\r\n");
     let mut backlogged = TcpStream::connect(proxy_addr).await.unwrap();
+    // connect() can finish on the client before Linux has consumed its final
+    // handshake ACK. Closing the listener in that interval drops a SYN_RECV
+    // child without a reset; the client can remain ESTABLISHED until it sends.
+    // Prove this test's promised established accept-backlog precondition before
+    // requesting shutdown. The original shutdown/reset deadline stays intact.
+    let server_endpoint = format!("0100007F:{:04X}", proxy_addr.port());
+    let client_endpoint = format!("0100007F:{:04X}", backlogged.local_addr().unwrap().port());
+    tokio::time::timeout(Duration::from_secs(2), async {
+        loop {
+            let table = std::fs::read_to_string("/proc/net/tcp").unwrap();
+            if table.lines().any(|row| {
+                let mut fields = row.split_ascii_whitespace();
+                fields.next();
+                fields.next() == Some(server_endpoint.as_str())
+                    && fields.next() == Some(client_endpoint.as_str())
+                    && fields.next() == Some("01")
+            }) {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("second connection never reached the established server accept backlog");
     shutdown.send(true).unwrap();
     let mut byte = [0_u8; 1];
-    let backlog_result = tokio::time::timeout(Duration::from_secs(2), backlogged.read(&mut byte))
-        .await
-        .expect("queued connection remained in the closed listener backlog");
+    let backlog_result =
+        tokio::time::timeout(Duration::from_secs(2), backlogged.read(&mut byte)).await;
+    if backlog_result.is_err() {
+        let endpoint = format!(":{:04X}", proxy_addr.port());
+        if let Ok(table) = std::fs::read_to_string("/proc/net/tcp") {
+            for row in table.lines().filter(|row| row.contains(&endpoint)) {
+                eprintln!("shutdown backlog socket: {row}");
+            }
+        }
+        eprintln!("shutdown backlog telemetry: {:#?}", telemetry.snapshot());
+        eprintln!("proxy task finished: {}", proxy_task.is_finished());
+    }
+    let backlog_result =
+        backlog_result.expect("queued connection remained in the closed listener backlog");
     assert!(backlog_result.is_err() || backlog_result.unwrap() == 0);
     drop(backlogged);
     drop(active);
