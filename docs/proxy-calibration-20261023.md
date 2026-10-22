@@ -103,3 +103,13 @@ and `stress-sender@lmyz.net/sent`. The expected counts, atomic publication,
 cleanup requirements and unrelated-tree exclusions are unchanged. The fixture
 and all 217 Python harness checks pass; actual service integration is verified
 separately and the original failed run is retained.
+
+The corrected original-endpoint 10 KiB integrations then passed separately for
+fsync off (`5114a495-d2eb-44ab-a30a-82defeb77b20`) and fsync on
+(`f01e863a-1398-4b68-b090-a62ab31f83a9`). Each made one endpoint call for 8
+messages, with zero harness batches, 8/8 passive SMTP verification, exactly
+8 Inbox and 8 Sent publications and their 16 removals, no observer writes and
+successful operational/cleanup checks. Root receipts record `DONE`, cleanup
+passed, no lazy unmount and no recovery. Both JSON reports explicitly retain
+`qualified=false`: these smokes do not run the formal preflight, large counts
+or same-process continuation, and are not formal acceptance evidence.

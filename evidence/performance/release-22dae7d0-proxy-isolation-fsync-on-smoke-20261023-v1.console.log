@@ -1,0 +1,23 @@
+{
+  "comparisons": [
+    {
+      "endpoint_invocations": 1,
+      "observer_verified_messages": 8,
+      "passed": true,
+      "queue_scheduler_observed": false,
+      "requested_messages": 8,
+      "same_process_continuation_messages": 0,
+      "same_process_continuation_passed": true,
+      "same_process_continuation_ratio": null,
+      "same_process_continuation_required": false,
+      "single_endpoint_invocation": true,
+      "target": "rust-candidate",
+      "throughput_messages_per_second": 11.160855,
+      "tier": "10KB"
+    }
+  ],
+  "output": "/home/lmyzzz/lmyzmail-rust/evidence/performance/.release-22dae7d0-proxy-isolation-fsync-on-smoke-20261023-v1.json.f01e863a-1398-4b68-b090-a62ab31f83a9.provisional.json",
+  "output_sha256": "edc0a716d60ba357067e03f57056c29f8a063d92a8eab280f51440fafa4c64ad",
+  "qualified": false,
+  "status": "passed"
+}

@@ -85,6 +85,12 @@ The 30-second smoke companion is retained as [`candidate-soak-v6-smoke-0eb2-v1.j
   Benchmark tooling repairs and all negative evidence are documented in
   [the calibration record](proxy-calibration-20261023.md). No current formal
   SMTP tier can be counted as passing from these diagnostic observations.
+  The first new smoke also exposed the harness's obsolete encoded Maildir
+  watch paths; a real-inotify negative regression reproduced the zero count.
+  Correcting the fixed stress addresses to their oracle-compatible raw paths
+  retained every count/publication/cleanup assertion. Both fsync modes then
+  passed independent 8-message integrations, each with 16 exact Maildir
+  publications/removals and successful root cleanup. These remain smokes.
 
 - The earlier release-candidate `292cf3b3` is available with full source/history and
   reproducible binary hash `958a7d7b448491e726e7c25461188bcc5e0b3300c32b8a0050206eb76afad570`.
