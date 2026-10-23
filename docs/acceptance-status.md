@@ -2,6 +2,19 @@
 
 This record is intentionally a status report, not a completion claim. The overall rewrite goal remains incomplete until every required protocol, rendering, model, security, stress, differential, release, and rollback gate has evidence.
 
+For the current actionable list, use the [independent remaining work items](goal-remaining.zh-CN.md).
+The documentation-to-route check also identified three missing successful
+handlers: threat-IP list, statistics and per-IP detail (G17–G19). The frozen
+72-route manifest declares them, but its count/uniqueness test does not exercise
+their success responses. Existing passed totals do not establish full route
+coverage; these remain product work.
+Historical attempts below remain retained; later passing evidence can close an
+earlier gap without changing its original failure record. The latest actual
+10 KiB v2 observer calibration completed eight 8000-message rounds and failed
+the unchanged 1% spread bound (off 3.0885%, on 2.9298%). Formal 250,000-message
+measurement did not begin. Cleanup passed with `qualified_cleanup=0`.
+See the [terminal calibration record](proxy-runtime-isolation-20261023.md#10-kib-v2-terminal-calibration-result).
+
 Release candidate `22dae7d0` and its complete source/history are available in
 `D:\MiscProjects\lmyzmail-rust\releases\20261023-rc.22dae7d0`.
 See [its validation supplement](release-22dae7d0-validation.md) for the exact
@@ -15,8 +28,9 @@ The latest 10 KiB formal attempt stopped during actual 8000-message calibration:
 all messages were observed, but the observer's full event-history snapshot took
 675 ms and failed the unchanged causal overhead gate. Incremental count snapshots
 now avoid that traversal; the final independent full audit remains mandatory.
-All 225 benchmark-tool checks pass. This repair needs a fresh real gated run;
-the failed attempt is retained and no 250,000 + 100,000 tier is qualified by it.
+All 225 benchmark-tool checks pass. The following v2 run improved snapshot
+overhead but still failed aggregate spread; both attempts are retained and no
+250,000 + 100,000 tier is qualified by them.
 See [the timing and repair evidence](proxy-runtime-isolation-20261023.md).
 
 The [2026-10-23 local follow-up](local-validation-20261023.md) fixes isolation

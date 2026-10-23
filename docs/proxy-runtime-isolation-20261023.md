@@ -348,3 +348,28 @@ fast median 1817 ns (1000 samples; max 15518 ns), full median 305774632 ns
 (7 samples; max 337847685 ns). These are standalone diagnostic measurements;
 only a new actual gated run can qualify the repaired observer. The service ELF
 remains `78a4c31145010e479ec64a9e0a2f3ac767b2860e32180100cad699a155c37790`.
+
+## 10 KiB v2 terminal calibration result
+
+Run `af39ea25-5192-42db-bd69-385bced43de6` is terminated. Its retained protected
+checkpoint has 35 JSONL records, 279,200,934 bytes and SHA-256
+`228b0c159f2952996f21d082803bbf0581305b90126d84575b45d9662c8742eb`.
+The original remains at
+`/var/lib/lmyzmail-benchmark/artifacts/af39ea25-5192-42db-bd69-385bced43de6.checkpoint`;
+it is not replaced by this summary or uploaded as an oversized Git object.
+
+All eight actual calibration rounds requested 8000 10 KiB messages. The report
+retains observer-gate off/on spreads `0.030884679683226064` and
+`0.029298289419937593`, both above the unchanged `0.01` bound. Median on/off
+ratio was `1.0095296262232085`; off/on median rates were `195.5027885` and
+`197.365857` messages/second. These are calibration observations, not qualified
+formal throughput. Product filesystem fsync was off in every round; observer
+gate off/on must not be confused with fsync mode.
+
+The report has `qualification=false`. The final checkpoint event is `failed`
+with `real gate calibration did not qualify: 10KB` and an empty
+`completed_target_tier_arms` list. No 250,000 + 100,000 formal arm started.
+The root journal receipt records `request=ABORT`, `cleanup=passed`,
+`qualified_cleanup=0`. Publication-intent/quarantine ENOENT diagnostics from
+the calibration lifecycle still require causal investigation; complete message
+counts alone do not establish harmlessness.
