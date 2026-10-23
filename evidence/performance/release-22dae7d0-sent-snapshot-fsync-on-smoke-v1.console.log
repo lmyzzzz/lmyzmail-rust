@@ -1,0 +1,23 @@
+{
+  "comparisons": [
+    {
+      "endpoint_invocations": 1,
+      "observer_verified_messages": 8,
+      "passed": true,
+      "queue_scheduler_observed": false,
+      "requested_messages": 8,
+      "same_process_continuation_messages": 0,
+      "same_process_continuation_passed": true,
+      "same_process_continuation_ratio": null,
+      "same_process_continuation_required": false,
+      "single_endpoint_invocation": true,
+      "target": "rust-candidate",
+      "throughput_messages_per_second": 11.205355,
+      "tier": "10KB"
+    }
+  ],
+  "output": "/home/lmyzzz/lmyzmail-rust/evidence/performance/.release-22dae7d0-sent-snapshot-fsync-on-smoke-v1.json.fa180dfb-2af0-4e5c-a141-113e3886c07e.provisional.json",
+  "output_sha256": "72080f1b37c96436dd6feef20c51ab1d6979525aaf15026fe39b630eee16f3a4",
+  "qualified": false,
+  "status": "passed"
+}

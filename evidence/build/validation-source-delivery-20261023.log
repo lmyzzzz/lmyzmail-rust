@@ -1,0 +1,66 @@
+/mnt/d/MiscProjects/lmyzmail-rust/releases/20261023-rc.22dae7d0/lmyzmail-0.1.0-rc.22dae7d0-history.bundle is okay
+The bundle contains these 4 refs:
+22dae7d0f8728f355fc6a31bdc65263bd21aa10d refs/heads/codex/blackbox-foundation
+22dae7d0f8728f355fc6a31bdc65263bd21aa10d HEAD
+22dae7d0f8728f355fc6a31bdc65263bd21aa10d main-worktree/HEAD
+bf6c0d53e3184fdae5e36793fe9a44dfd0529c3d worktrees/release-src-bf6c0d53/HEAD
+The bundle records a complete history.
+The bundle uses this hash algorithm: sha1
+/home/lmyzzz/lmyzmail-rust/.blackbox/releases/20261023-validation-current/lmyzmail-22dae7d0-validation-69c26e15-history.bundle is okay
+The bundle contains these 4 refs:
+69c26e15d1fd226ce861158d97ef26fa694cf0f4 refs/heads/codex/blackbox-foundation
+69c26e15d1fd226ce861158d97ef26fa694cf0f4 HEAD
+bf6c0d53e3184fdae5e36793fe9a44dfd0529c3d worktrees/release-src-bf6c0d53/HEAD
+22dae7d0f8728f355fc6a31bdc65263bd21aa10d worktrees/release-src-22dae7d0/HEAD
+The bundle records a complete history.
+The bundle uses this hash algorithm: sha1
+{
+  "acceptance_status": "docs/acceptance-status.md in the validation source archive",
+  "checked_product_pathspecs": [
+    "crates",
+    "native",
+    "vendor",
+    "models",
+    "Cargo.toml",
+    "Cargo.lock",
+    "rust-toolchain.toml",
+    ".cargo",
+    "config",
+    "deploy",
+    "tools/install-lmyzmail.sh",
+    "tools/uninstall-lmyzmail.sh"
+  ],
+  "complete_history_bundle": "lmyzmail-22dae7d0-validation-69c26e15-history.bundle",
+  "complete_source_archive": "lmyzmail-22dae7d0-validation-69c26e15-source.tar.gz",
+  "exact_git_archive_sha256": "e5f48673dcbdc5efcbdfb81f9864130d6550935c372f923f1ad667e7fba49e38",
+  "permitted_benchmark_changes": [
+    "crates/lmyzmail-benchmark-proxy/src/attestation.rs",
+    "crates/lmyzmail-benchmark-proxy/src/calibration.rs",
+    "crates/lmyzmail-benchmark-proxy/src/main.rs",
+    "crates/lmyzmail-benchmark-proxy/src/observer.rs",
+    "crates/lmyzmail-benchmark-proxy/src/proxy.rs",
+    "crates/lmyzmail-benchmark-proxy/tests/proxy_integration.rs"
+  ],
+  "production_goal_complete": false,
+  "runtime_sha256": "78a4c31145010e479ec64a9e0a2f3ac767b2860e32180100cad699a155c37790",
+  "runtime_source_commit": "22dae7d0f8728f355fc6a31bdc65263bd21aa10d",
+  "schema_version": 1,
+  "source_tracked_paths": 18280,
+  "status": "release-candidate-validation-supplement",
+  "unchanged_product_paths": [
+    "crates/lmyzmail",
+    "native",
+    "vendor",
+    "models",
+    "Cargo.toml",
+    "Cargo.lock",
+    "rust-toolchain.toml",
+    ".cargo",
+    "config",
+    "deploy",
+    "tools/install-lmyzmail.sh",
+    "tools/uninstall-lmyzmail.sh"
+  ],
+  "validation_source_commit": "69c26e15d1fd226ce861158d97ef26fa694cf0f4",
+  "verified_runtime_package": "/mnt/d/MiscProjects/lmyzmail-rust/releases/20261023-rc.22dae7d0"
+}

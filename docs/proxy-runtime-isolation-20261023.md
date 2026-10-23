@@ -286,3 +286,28 @@ the existing report assertion is unchanged. A regression uses the real builder
 and verifies both copies identify `/api/stress/start`. All 221 Python checks
 and Bash syntax validation passed. The observed aggregate spread failure is
 independent and is not retrospectively promoted by the schema repair.
+
+## Current tooling smoke and source delivery
+
+After the endpoint-identity repair, independent root-isolated 10 KiB smokes
+passed in both fsync modes: eight requested/verified messages, 16 exact Maildir
+publications/removals, zero retries or observer failures, passing endpoint and
+persistence audit, zero memory high/max/OOM events and successful root cleanup
+receipts. Their files use the prefix
+`release-22dae7d0-sent-snapshot-fsync-{on,off}-smoke-v1`.
+The smoke profile disables the pre-final persistence gate and is unqualified
+for formal volume acceptance; it must not be cited as gate-snapshot proof.
+The actual gate-on v9 calibration rounds provide that separate evidence.
+
+Complete source commit `69c26e15d1fd226ce861158d97ef26fa694cf0f4` and its complete
+Git history were exported to the versioned Windows supplement
+`releases/20261023-rc.22dae7d0/updates/20261023-69c26e15`.
+All 18,280 tracked paths and the exact decompressed Git archive stream were
+verified before delivery; all nine supplement checksums and complete-history
+bundle verification passed after copying. Windows SHA-256 independently
+confirmed source archive `25019ba817e448a2471f17a91372d6c6e913c222f14a6b4b0dc99a3686c47362`
+and history bundle `9a7a6efec4d4d2db0eb1b8421a69f6aafa75d25048fce58bccf6f1a597f04081`.
+The original runtime archive hash remains
+`c6a498736b9f8b13a67bc53ce85c6ca0a019ce1de08730eb3e152f3968f4f09a`.
+This exports versioned release artifacts, not the final development-workspace
+sync; the overall goal and its remaining formal SMTP/AVX-512 gates stay open.

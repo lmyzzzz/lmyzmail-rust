@@ -1,0 +1,9 @@
+schema_version=2
+run_id=fa180dfb-2af0-4e5c-a141-113e3886c07e
+request=DONE
+cleanup=passed
+lazy_unmount=0
+recovered=0
+qualified_cleanup=1
+provisional_sha256=72080f1b37c96436dd6feef20c51ab1d6979525aaf15026fe39b630eee16f3a4
+checkpoint_sha256=3d9c1977267211b57baf6f86764a9780bc9e3260232ef288e71629e386bbba65
