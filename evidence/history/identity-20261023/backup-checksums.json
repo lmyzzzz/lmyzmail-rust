@@ -1,0 +1,14 @@
+{
+  "checksums": {
+    "original-git.tar.gz": "e8e8cbb49da11a65b31704cd844a968ce75a7b116a79ec082f71a99d042ce61c",
+    "original-history.bundle": "e6061c82957f1d947a32422b13ebda5a4b786407dc9c23f7819e4b3d67fa72f8",
+    "uncommitted-work.tar.gz": "74d952d8dc1665ca11f710f09a41eb54fcdb282596926f4efdf0107d4df24dd5",
+    "before.json": "1c554cd28944dfc51c6d3c63002087c16487f92d6774af0fff5b0b0ec883c611",
+    "protected-work-manifest.json": "83a5024dc7ccaaa7c2235042e25a152a34097d307a7c5b78cad171ce8264e092",
+    "staged.patch": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "unstaged.patch": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status-before.z": "03ecbddce18a53dfdda1c8cfdbb17032014fa1282162da8ab5a44bf507c56ce8"
+  },
+  "protected_file_count": 143474,
+  "all_protected_archive_hashes_match": true
+}
