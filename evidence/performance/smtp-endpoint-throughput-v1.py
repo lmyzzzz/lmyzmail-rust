@@ -2961,6 +2961,7 @@ class MaildirPersistenceObserver:
             f"{ENDPOINT_RECEIVER}/inbox": self.receiver_root,
             f"{ENDPOINT_SENDER}/sent": self.sender_root,
         }
+        self._initialize_counts()
         self.condition = threading.Condition()
         self.stop_requested = threading.Event()
         self.error: BaseException | None = None
@@ -3005,6 +3006,23 @@ class MaildirPersistenceObserver:
             daemon=False,
         )
         self.thread.start()
+
+    def _initialize_counts(self) -> None:
+        scopes = getattr(
+            self, "scope_roots", {f"{ENDPOINT_RECEIVER}/inbox": self.receiver_root}
+        )
+        self.publication_counts = dict.fromkeys(scopes, 0)
+        self.removal_counts = dict.fromkeys(scopes, 0)
+        self.atomic_counts = dict.fromkeys(scopes, 0)
+        self.mechanism_counts = dict.fromkeys(
+            (
+                "atomic_rename",
+                "visible_create",
+                "direct_close_write",
+                "directory_reconciliation",
+            ),
+            0,
+        )
 
     def _add_watch(self, path: Path) -> None:
         resolved = path.resolve(strict=True)
@@ -3112,11 +3130,19 @@ class MaildirPersistenceObserver:
         if previous is not None:
             if precedence[mechanism] > precedence[previous]:
                 self.publication_mechanisms[relative] = mechanism
+                self.mechanism_counts[previous] -= 1
+                self.mechanism_counts[mechanism] += 1
+                if mechanism == "atomic_rename":
+                    self.atomic_counts[scope] += 1
                 self.event_digest.update(
                     f"upgrade\0{mechanism}\0{relative}\n".encode("utf-8")
                 )
             return
         self.publication_mechanisms[relative] = mechanism
+        self.publication_counts[scope] += 1
+        self.mechanism_counts[mechanism] += 1
+        if mechanism == "atomic_rename":
+            self.atomic_counts[scope] += 1
         publication_scopes = getattr(self, "publication_scopes", None)
         if publication_scopes is None:
             publication_scopes = {}
@@ -3159,6 +3185,7 @@ class MaildirPersistenceObserver:
         ):
             return
         self.removed_paths.add(relative)
+        self.removal_counts[self.publication_scopes[relative]] += 1
         self.removed = len(self.removed_paths)
         publications_by_parent = getattr(self, "publications_by_parent", {})
         parent = path.parent.relative_to(self.root).as_posix()
@@ -3241,6 +3268,8 @@ class MaildirPersistenceObserver:
         self.event_digest.update(f"overflow-reconcile\0{removed_delta}\n".encode("ascii"))
 
     def _evidence(self, *, require_cleanup: bool) -> dict[str, Any]:
+        # Recompute from the retained event records outside the causal gate.
+        # Fast snapshots never substitute for this independent final audit.
         scope_roots = getattr(
             self,
             "scope_roots",
@@ -3250,7 +3279,8 @@ class MaildirPersistenceObserver:
         for relative in self.publication_mechanisms:
             scope = self._scope_for_path(self.root / relative)
             if scope is not None:
-                publication_scopes.setdefault(relative, scope)
+                if publication_scopes.get(relative) != scope:
+                    raise RuntimeError("Maildir publication scope record drifted")
         publication_counts = {
             scope: sum(
                 observed_scope == scope
@@ -3265,23 +3295,6 @@ class MaildirPersistenceObserver:
             )
             for scope in scope_roots
         }
-        expected_publications = self.expected_messages * len(scope_roots)
-        publication_overflow_before_expected = getattr(
-            self, "publication_overflow_before_expected", 0
-        )
-        publication_passed = bool(
-            self.published == expected_publications
-            and publication_overflow_before_expected == 0
-            and all(
-                count == self.expected_messages for count in publication_counts.values()
-            )
-        )
-        cleanup_observed = bool(
-            self.removed == expected_publications
-            and all(
-                count == self.expected_messages for count in removal_counts.values()
-            )
-        )
         mechanism_counts = {
             mechanism: sum(
                 observed == mechanism
@@ -3302,6 +3315,41 @@ class MaildirPersistenceObserver:
             )
             for scope in scope_roots
         }
+        if (
+            publication_counts != self.publication_counts
+            or removal_counts != self.removal_counts
+            or mechanism_counts != self.mechanism_counts
+            or atomic_counts_by_scope != self.atomic_counts
+            or set(publication_scopes) != set(self.publication_mechanisms)
+            or not self.removed_paths.issubset(self.publication_mechanisms)
+            or self.published != len(self.publication_mechanisms)
+            or self.removed != len(self.removed_paths)
+        ):
+            raise RuntimeError("Maildir incremental count audit failed")
+        return self._count_evidence(require_cleanup=require_cleanup)
+
+    def _count_evidence(self, *, require_cleanup: bool) -> dict[str, Any]:
+        publication_counts = dict(self.publication_counts)
+        removal_counts = dict(self.removal_counts)
+        mechanism_counts = dict(self.mechanism_counts)
+        atomic_counts_by_scope = dict(self.atomic_counts)
+        expected_publications = self.expected_messages * len(publication_counts)
+        publication_overflow_before_expected = getattr(
+            self, "publication_overflow_before_expected", 0
+        )
+        publication_passed = bool(
+            self.published == expected_publications
+            and publication_overflow_before_expected == 0
+            and all(
+                count == self.expected_messages for count in publication_counts.values()
+            )
+        )
+        cleanup_observed = bool(
+            self.removed == expected_publications
+            and all(
+                count == self.expected_messages for count in removal_counts.values()
+            )
+        )
         return {
             "profile": "lmyzmail-maildir-inotify-publication-v9",
             "watch_scope_profile": "target-mailbox-folders-only-v1",
@@ -3367,6 +3415,17 @@ class MaildirPersistenceObserver:
                     f"Maildir persistence observer failed: {self.error!r}"
                 ) from self.error
             return self._evidence(require_cleanup=False)
+
+    def snapshot_counts(self) -> dict[str, Any]:
+        # The same condition protects both event mutations and this O(scopes)
+        # snapshot. No event-map traversal, path construction or disk I/O may
+        # run while the final SMTP 250 is held by the persistence gate.
+        with self.condition:
+            if self.error is not None:
+                raise RuntimeError(
+                    f"Maildir persistence observer failed: {self.error!r}"
+                ) from self.error
+            return self._count_evidence(require_cleanup=False)
 
     def _consume(self, payload: bytes) -> None:
         offset = 0
@@ -6664,7 +6723,7 @@ def _run_round(
             snapshot_started = time.monotonic_ns()
             postgres_snapshot = postgres_gate_snapshot.capture()
             maildir_snapshot_started = time.monotonic_ns()
-            maildir_at_gate = maildir_observer.snapshot()
+            maildir_at_gate = maildir_observer.snapshot_counts()
             maildir_snapshot_completed = time.monotonic_ns()
             snapshot_completed = time.monotonic_ns()
             gate_snapshot = {
@@ -6840,7 +6899,7 @@ def _run_round(
             maildir_observer.wait_for_publications(
                 MAXIMUM_POST_FINAL_PERSISTENCE_LAG_SECONDS
             )
-            maildir_timed_evidence = maildir_observer.snapshot()
+            maildir_timed_evidence = maildir_observer.snapshot_counts()
             last_publication_ns = maildir_timed_evidence.get(
                 "last_publication_monotonic_ns"
             )

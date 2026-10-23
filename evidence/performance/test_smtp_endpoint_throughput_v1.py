@@ -109,6 +109,9 @@ class _FakeMaildirObserver:
     def snapshot(self) -> dict[str, Any]:
         return self._evidence(cleanup=False)
 
+    def snapshot_counts(self) -> dict[str, Any]:
+        return self._evidence(cleanup=False)
+
     def stop(self) -> dict[str, Any]:
         return self._evidence(cleanup=True)
 
@@ -3664,6 +3667,7 @@ class RoundContractTests(unittest.TestCase):
             observer.expected_messages = 1
             observer.root = root
             observer.receiver_root = receiver
+            observer._initialize_counts()
             observer.published = 0
             observer.removed = 0
             observer.close_write_events = 0
@@ -3979,6 +3983,7 @@ class RoundContractTests(unittest.TestCase):
         observer.expected_messages = 1
         observer.root = root
         observer.receiver_root = receiver
+        observer._initialize_counts()
         observer.published = 0
         observer.removed = 0
         observer.last_publication_monotonic_ns = None
@@ -4020,6 +4025,7 @@ class RoundContractTests(unittest.TestCase):
         observer.expected_messages = 1
         observer.root = root
         observer.receiver_root = receiver
+        observer._initialize_counts()
         observer.published = 0
         observer.removed = 0
         observer.last_publication_monotonic_ns = None
@@ -4055,18 +4061,20 @@ class RoundContractTests(unittest.TestCase):
             observer.expected_messages = 1
             observer.root = root
             observer.receiver_root = receiver
-            observer.published = 1
+            observer._initialize_counts()
+            observer.published = 0
             observer.removed = 0
             observer.last_publication_monotonic_ns = runner.time.monotonic_ns()
             observer.close_write_events = 0
             observer.peak_live_files = 1
             relative = message.relative_to(root).as_posix()
             parent = message.parent.relative_to(root).as_posix()
-            observer.publication_mechanisms = {relative: "atomic_rename"}
+            observer.publication_mechanisms = {}
             observer.publications_by_parent = {parent: {relative}}
             observer.removed_paths = set()
             observer.event_digest = hashlib.sha256()
             observer.watches = {7: receiver}
+            observer._observe_publication(message)
             message.unlink()
 
             payload = observer._EVENT.pack(-1, observer._IN_Q_OVERFLOW, 0, 0)
@@ -4093,19 +4101,21 @@ class RoundContractTests(unittest.TestCase):
         observer.expected_messages = 1
         observer.root = root
         observer.receiver_root = receiver
-        observer.published = 1
+        observer._initialize_counts()
+        observer.published = 0
         observer.removed = 0
         observer.last_publication_monotonic_ns = runner.time.monotonic_ns()
         observer.close_write_events = 0
         observer.peak_live_files = 1
         relative = message.relative_to(root).as_posix()
-        observer.publication_mechanisms = {relative: "atomic_rename"}
+        observer.publication_mechanisms = {}
         observer.publications_by_parent = {
             shard.relative_to(root).as_posix(): {relative}
         }
         observer.removed_paths = set()
         observer.event_digest = hashlib.sha256()
         observer.watches = {7: shard}
+        observer._observe_publication(message)
         event = observer._EVENT.pack(
             7,
             observer._IN_DELETE_SELF | observer._IN_IGNORED,
@@ -4133,6 +4143,11 @@ class RoundContractTests(unittest.TestCase):
         )
         observer.root = root
         observer.receiver_root = receiver
+        observer._initialize_counts()
+        observer.publication_scopes = {
+            first.relative_to(root).as_posix(): f"{runner.ENDPOINT_RECEIVER}/inbox",
+            second.relative_to(root).as_posix(): f"{runner.ENDPOINT_RECEIVER}/inbox",
+        }
         observer.publication_mechanisms = NoIterationDict(
             {
                 first.relative_to(root).as_posix(): "atomic_rename",
@@ -4170,6 +4185,7 @@ class RoundContractTests(unittest.TestCase):
         observer.expected_messages = 3
         observer.root = root
         observer.receiver_root = receiver
+        observer._initialize_counts()
         observer.published = 0
         observer.removed = 0
         observer.close_write_events = 0
@@ -4509,8 +4525,8 @@ class RoundContractTests(unittest.TestCase):
                 super().__init__(*args, expected_messages=expected_messages)
                 self.complete = False
 
-            def snapshot(self) -> dict[str, Any]:
-                evidence = super().snapshot()
+            def snapshot_counts(self) -> dict[str, Any]:
+                evidence = super().snapshot_counts()
                 if not self.complete:
                     evidence["atomic_rename_publications"] = 1
                     evidence["publication_passed"] = False
@@ -4693,9 +4709,9 @@ class RoundContractTests(unittest.TestCase):
             def wait_for_publications(self, *_args: object) -> None:
                 events.append("maildir-visible")
 
-            def snapshot(self) -> dict[str, Any]:
+            def snapshot_counts(self) -> dict[str, Any]:
                 events.append("maildir-snapshot")
-                return super().snapshot()
+                return super().snapshot_counts()
 
             def wait_for_removals(self, *_args: object) -> None:
                 events.append("maildir-cleanup-visible")
@@ -6743,6 +6759,100 @@ class ProcessIoEvidenceTests(unittest.TestCase):
 
 
 class MaildirPersistenceObserverTests(unittest.TestCase):
+    def _observer(self, expected: int = 1) -> Any:
+        observer = object.__new__(runner.MaildirPersistenceObserver)
+        observer.root = Path("/maildir")
+        observer.receiver_root = observer.root / runner.ENDPOINT_RECEIVER / "inbox"
+        observer.sender_root = observer.root / runner.ENDPOINT_SENDER / "sent"
+        observer.scope_roots = {
+            f"{runner.ENDPOINT_RECEIVER}/inbox": observer.receiver_root,
+            f"{runner.ENDPOINT_SENDER}/sent": observer.sender_root,
+        }
+        observer._initialize_counts()
+        observer.expected_messages = expected
+        observer.condition = threading.Condition()
+        observer.error = None
+        observer.published = 0
+        observer.removed = 0
+        observer.close_write_events = 0
+        observer.peak_live_files = 0
+        observer.last_publication_monotonic_ns = None
+        observer.publication_mechanisms = {}
+        observer.publication_scopes = {}
+        observer.publications_by_parent = {}
+        observer.removed_paths = set()
+        observer.event_digest = hashlib.sha256()
+        return observer
+
+    def test_count_snapshots_match_full_audit_across_upgrades_and_removals(self) -> None:
+        observer = self._observer()
+        inbox = observer.receiver_root / "1" / "received.eml"
+        sent = observer.sender_root / "1" / "sent.eml"
+        for mechanism in (
+            "directory_reconciliation", "visible_create", "direct_close_write",
+            "atomic_rename", "atomic_rename", "visible_create",
+        ):
+            observer._observe_publication(inbox, mechanism)
+            self.assertEqual(observer.snapshot_counts(), observer.snapshot())
+        observer._observe_publication(sent, "visible_create")
+        self.assertTrue(observer.snapshot_counts()["publication_passed"])
+        self.assertEqual(observer.snapshot_counts(), observer.snapshot())
+        observer._observe_removal(sent)
+        observer._observe_removal(sent)
+        observer._observe_tree_removal(inbox.parent)
+        observer._observe_tree_removal(inbox.parent)
+        evidence = observer._evidence(require_cleanup=True)
+        self.assertTrue(evidence["passed"])
+        self.assertEqual(evidence["removal_events"], 2)
+        self.assertEqual(evidence["atomic_rename_publications"], 1)
+        self.assertEqual(evidence["visible_create_publications"], 1)
+
+    def test_gate_snapshot_does_not_traverse_event_history(self) -> None:
+        class NoTraversalDict(dict):
+            def __iter__(self) -> Any:
+                raise AssertionError("gate traversed event history")
+
+            def items(self) -> Any:
+                raise AssertionError("gate traversed event history")
+
+            def values(self) -> Any:
+                raise AssertionError("gate traversed event history")
+
+        observer = self._observer(8000)
+        for index in range(8000):
+            observer._observe_publication(observer.receiver_root / f"{index}.eml")
+            observer._observe_publication(observer.sender_root / f"{index}.eml")
+        expected = observer.snapshot()
+        observer.publication_mechanisms = NoTraversalDict(observer.publication_mechanisms)
+        observer.publication_scopes = NoTraversalDict(observer.publication_scopes)
+        with mock.patch.object(
+            observer, "_scope_for_path", side_effect=AssertionError("gate built paths")
+        ):
+            self.assertEqual(observer.snapshot_counts(), expected)
+
+    def test_final_audit_rejects_incremental_count_drift(self) -> None:
+        for field in (
+            "publication_counts", "removal_counts", "atomic_counts", "mechanism_counts"
+        ):
+            with self.subTest(field=field):
+                observer = self._observer()
+                observer._observe_publication(observer.receiver_root / "received.eml")
+                observer._observe_publication(observer.sender_root / "sent.eml")
+                counter = getattr(observer, field)
+                counter[next(iter(counter))] += 1
+                with self.assertRaisesRegex(RuntimeError, "incremental count audit"):
+                    observer._evidence(require_cleanup=True)
+
+    def test_fast_snapshot_preserves_error_and_publication_overflow_rejection(self) -> None:
+        observer = self._observer()
+        observer._observe_publication(observer.receiver_root / "received.eml")
+        observer._observe_publication(observer.sender_root / "sent.eml")
+        observer.publication_overflow_before_expected = 1
+        self.assertFalse(observer.snapshot_counts()["publication_passed"])
+        observer.error = OSError("injected observer failure")
+        with self.assertRaisesRegex(RuntimeError, "injected observer failure"):
+            observer.snapshot_counts()
+
     def test_overflow_reconciliation_can_complete_at_the_deadline(self) -> None:
         observer = object.__new__(runner.MaildirPersistenceObserver)
         observer.expected_messages = 1

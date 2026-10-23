@@ -311,3 +311,40 @@ The original runtime archive hash remains
 `c6a498736b9f8b13a67bc53ce85c6ca0a019ce1de08730eb3e152f3968f4f09a`.
 This exports versioned release artifacts, not the final development-workspace
 sync; the overall goal and its remaining formal SMTP/AVX-512 gates stay open.
+
+## 10 KiB v1 observer overhead and count snapshot repair
+
+Run `80beaaeb-3081-40e1-8bb0-6e37a957733c` passed synthetic preflight and
+the actual gate-off calibration (8000/8000; external 187.915366 msg/s).
+The gate-on calibration also observed all 8000 messages, exact PostgreSQL and
+Maildir counts, lossless snapshot round-trip and zero observer/retry failures.
+It failed the unchanged causal overhead gate: 681,219,232 ns hold and
+0.015931964 duration fraction, against 250,000,000 ns and 0.005 limits.
+The retained timing localizes 674,888,187 ns to the Maildir snapshot and only
+5,329,484 ns to the PostgreSQL query. No formal 250,000-message workload began.
+The console also contains fail-closed publication-intent and quarantine-scan
+ENOENT diagnostics; delivery/cleanup at calibration volume does not prove that
+those diagnostics are harmless at formal volume. Root cleanup passed, with
+`qualified_cleanup=0`. The protected checkpoint and workspace copy match SHA-256
+`c616925fa82b0a9aac28010dec2146c43c192996e126f03b69e7f26ee39c3d50`.
+
+The observer previously rebuilt paths and scanned all publication records while
+holding the final SMTP 250. It now maintains publication, removal, mechanism
+and atomic-publication counts per scope as events arrive. Mechanism upgrades
+transfer counts once, duplicate events do not increment them, and overflow
+removal reconciliation uses the same removal transition. The causal gate and
+post-final timestamp capture read these counts under the existing condition
+lock without traversing the event history. Final audit still independently
+recomputes every count from the retained paths and event records; any drift,
+including inconsistent record cardinality, fails the run. Errors and premature
+publication overflow still reject. Thresholds and formal workload sizes are
+unchanged; this is a benchmark-tool repair, not a product optimization.
+
+All 182 throughput and 43 launcher tests pass, including real inotify tests,
+the early-final-250 negative test, duplicate/upgrade/tree-removal equivalence,
+four independent counter-drift rejections, and a 16000-record traversal trap.
+A local microcheck at that history size found exact full/fast snapshot equality:
+fast median 1817 ns (1000 samples; max 15518 ns), full median 305774632 ns
+(7 samples; max 337847685 ns). These are standalone diagnostic measurements;
+only a new actual gated run can qualify the repaired observer. The service ELF
+remains `78a4c31145010e479ec64a9e0a2f3ac767b2860e32180100cad699a155c37790`.

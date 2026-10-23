@@ -11,6 +11,14 @@ results. The earlier `bf6c0d53` package and
 [its negative and corrected evidence](release-39379c04-validation.md) are retained.
 Packaging does not close the remaining gates.
 
+The latest 10 KiB formal attempt stopped during actual 8000-message calibration:
+all messages were observed, but the observer's full event-history snapshot took
+675 ms and failed the unchanged causal overhead gate. Incremental count snapshots
+now avoid that traversal; the final independent full audit remains mandatory.
+All 225 benchmark-tool checks pass. This repair needs a fresh real gated run;
+the failed attempt is retained and no 250,000 + 100,000 tier is qualified by it.
+See [the timing and repair evidence](proxy-runtime-isolation-20261023.md).
+
 The [2026-10-23 local follow-up](local-validation-20261023.md) fixes isolation
 of the two retained oracle fixtures and adds evidenced four-class legacy-name
 takeover and alias security regressions. The repaired source passed all 961
