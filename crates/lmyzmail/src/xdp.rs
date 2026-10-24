@@ -38,6 +38,7 @@ const MAX_BANNED_IPS_PER_FAMILY: usize = 100_000;
 const MAX_BANNED_IPS: usize = MAX_BANNED_IPS_PER_FAMILY * 2;
 const MAX_XDP_UNBAN_CANDIDATES: usize = MAX_BANNED_IPS;
 const XDP_UNBAN_CHUNK_SIZE: usize = 500;
+const MAX_IP_STATUS_BATCH: usize = 500;
 const MAX_PER_IP_STATS: usize = 100_000;
 const XDP_LOCK_DIRECTORY: &str = "/run/lmyzmail";
 const DEFAULT_XDP_PIN_PATH: &str = "/sys/fs/bpf/lmyzmail";
@@ -151,6 +152,12 @@ pub struct XdpPerIpStats {
 pub struct XdpIpStatsEntry {
     pub ip: IpAddr,
     pub stats: XdpPerIpStats,
+}
+
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq)]
+pub(crate) struct XdpIpStatus {
+    pub banned: bool,
+    pub whitelisted: bool,
 }
 
 pub(crate) struct XdpIpStatsRead {
@@ -389,6 +396,30 @@ impl XdpService {
         let ip = parse_ip(ip)?;
         self.dispatch(XDP_OPERATION_DEADLINE, cancellation, move |state| {
             Ok(state.banned.contains(&ip))
+        })
+        .await
+    }
+
+    pub(crate) async fn batch_status(
+        &self,
+        ips: Vec<String>,
+        cancellation: &CancellationToken,
+    ) -> Result<Vec<XdpIpStatus>, XdpError> {
+        if ips.len() > MAX_IP_STATUS_BATCH {
+            return Err(XdpError::InvalidInput(
+                "IP status batch exceeds 500 entries".into(),
+            ));
+        }
+        if cancellation.is_cancelled() {
+            return Err(XdpError::Cancelled);
+        }
+        if ips.is_empty() || !self.ready() {
+            return Ok(vec![XdpIpStatus::default(); ips.len()]);
+        }
+        // A page consumes one slot in the existing bounded pool, not up to 1000
+        // separate jobs. Hold one cache snapshot while enriching at most 500 rows.
+        self.dispatch(XDP_OPERATION_DEADLINE, cancellation, move |state| {
+            Ok(ips.iter().map(|ip| state.ip_status(ip)).collect())
         })
         .await
     }
@@ -777,6 +808,18 @@ impl NativeState {
 
     fn configured_whitelist_contains(&self, ip: IpAddr) -> bool {
         self.whitelist.iter().any(|network| network.contains(&ip))
+    }
+
+    fn ip_status(&self, ip: &str) -> XdpIpStatus {
+        match parse_ip(ip) {
+            Ok(ip) => XdpIpStatus {
+                banned: self.banned.contains(&ip),
+                whitelisted: self.configured_whitelist_contains(ip),
+            },
+            // Legacy rows can contain non-address text. Listing them must still
+            // succeed; such text cannot match a kernel ban or configured network.
+            Err(_) => XdpIpStatus::default(),
+        }
     }
 
     fn refresh_banned(&mut self) -> Result<Vec<IpAddr>, XdpError> {
@@ -2070,6 +2113,80 @@ mod tests {
         assert!(state.configured_whitelist_contains("192.0.2.44".parse().unwrap()));
         assert!(state.configured_whitelist_contains("2001:db8::44".parse().unwrap()));
         assert!(!state.configured_whitelist_contains("198.51.100.1".parse().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn list_batch_status_preserves_order_invalid_rows_and_bounds() {
+        let mut config = test_xdp_config();
+        config.whitelist = vec![
+            "192.0.2.0/24".parse().unwrap(),
+            "2001:db8::/32".parse().unwrap(),
+        ];
+        let service = XdpService::from_config(&config).unwrap();
+        let cancellation = CancellationToken::new();
+        let ips: Vec<String> = [
+            "198.51.100.9",
+            "192.0.2.5",
+            "2001:DB8::5",
+            "legacy-invalid",
+            "198.51.100.9",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+        assert_eq!(
+            service
+                .batch_status(ips.clone(), &cancellation)
+                .await
+                .unwrap(),
+            vec![XdpIpStatus::default(); 5]
+        );
+        {
+            let mut state = service.shared.native.lock().unwrap();
+            state.banned.insert("198.51.100.9".parse().unwrap());
+        }
+        // Exercise the bounded cache reader without initializing or mutating native BPF.
+        service.shared.ready.store(true, Ordering::Release);
+        let banned = XdpIpStatus {
+            banned: true,
+            whitelisted: false,
+        };
+        let whitelisted = XdpIpStatus {
+            banned: false,
+            whitelisted: true,
+        };
+        assert_eq!(
+            service.batch_status(ips, &cancellation).await.unwrap(),
+            vec![
+                banned,
+                whitelisted,
+                whitelisted,
+                XdpIpStatus::default(),
+                banned
+            ]
+        );
+        assert_eq!(
+            service
+                .batch_status(vec!["198.51.100.9".into(); 500], &cancellation)
+                .await
+                .unwrap(),
+            vec![banned; 500]
+        );
+        assert!(matches!(
+            service
+                .batch_status(vec![String::new(); 501], &cancellation)
+                .await,
+            Err(XdpError::InvalidInput(_))
+        ));
+        cancellation.cancel();
+        assert!(matches!(
+            service
+                .batch_status(vec![String::new()], &cancellation)
+                .await,
+            Err(XdpError::Cancelled)
+        ));
+        service.shared.ready.store(false, Ordering::Release);
+        service.shutdown().await.unwrap();
     }
 
     #[test]

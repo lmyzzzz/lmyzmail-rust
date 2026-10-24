@@ -1,0 +1,4 @@
+.....                                                                    [100%]
+Campaign audit: {"differences_requiring_review": [], "harness_definition_sha256": "ceadc4a4b62621210a9c7b61577fadff16133e6f4a3608bf8af46790c0aaddd8", "historical_observations_equal": 25, "old_golden_files_unchanged": 6901, "pytest_exitstatus": 0}
+
+5 passed, 3 deselected in 78.50s (0:01:18)

@@ -405,7 +405,8 @@ journalctl -u lmyzmail -n 100 --no-pager
 | DELETE | `/api/xdp-firewall/clear` | `write` | 清空封禁；谨慎使用 |
 | GET | `/api/cringe-ips/insults`<br>`/api/cringe-ips/export`<br>`/api/cringe-ips/above-score/{score}` | `read` | 分页搜索、导出、阈值筛选 |
 | GET | `/api/cringe-ips/{ip}/activities`<br>`/api/cringe-ips/{ip}/decay-estimate`<br>`/api/cringe-ips/decay-config` | `read` | 活动、衰减预测与配置 |
-| GET | `/api/cringe-ips`<br>`/api/cringe-ips/stats`<br>`/api/cringe-ips/{ip}` | `read` | 已声明但当前候选未实现成功处理；有效授权请求仍返回 404 |
+| GET | `/api/cringe-ips` | `read` | 风险 IP 分页列表；支持评分/计数/时间/IP 排序、搜索及 XDP 状态 |
+| GET | `/api/cringe-ips/stats`<br>`/api/cringe-ips/{ip}` | `read` | 已声明但当前候选未实现成功处理；有效授权请求仍返回 404 |
 | POST | `/api/cringe-ips/decay` | `write` | 触发分数衰减 |
 | GET | `/web/mail/list`<br>`/web/mail/list/{folder}` | `session` | page=0&size=50&starredOnly=false |
 | GET | `/web/mail/detail/{folder}/{file}`<br>`/web/mail/raw/{folder}/{file}`<br>`/web/mail/headers/{folder}/{file}`<br>`/web/mail/attachment/{folder}/{file}/{index}` | `session` | 详情、原文、头、单附件 |
@@ -420,7 +421,9 @@ journalctl -u lmyzmail -n 100 --no-pager
 | POST DELETE | `/web/userdata/labels/email/{folder}/{fileName}/{labelId}` | `session` | 添加/移除邮件标签 |
 
 
-当前明确缺口：分页风险 IP 列表（含 sortBy/sortDir）、统计摘要与单 IP 详情仍需补齐，不能把 404 当作这些查询的正式结果。三个路由分别对应剩余清单 G17–G19；页面存在不代表其所有数据面可用。
+风险 IP 列表使用 `page=0`、`size=50`、`sortBy=currentScore`、`sortDir=desc`、`search=` 作为默认值；`size` 上限为 500。排序字段使用白名单，无效字段回退到实时评分；只有 `asc`（不区分大小写）选择升序。搜索不区分大小写并保留 `%`、`_` 通配符，返回原始 `searchQuery`，响应包含每条 IP 的 `xdpBanned`、`whitelisted` 和总页数/总条数。畸形分页参数返回 400。
+
+当前明确缺口：统计摘要与单 IP 详情仍需补齐，不能把 404 当作这些查询的正式结果。它们对应剩余清单 G18–G19；面板的连接流程依赖统计摘要，因此列表接口修复不代表完整面板已经可用。列表修复及验证见[验收记录](docs/cringe-list-validation-20261024.md)。
 
 已实现的 insults 列表支持 `page`、`size`、`search`；导出使用 `minScore`、`scoreType`。用户数据 JSON 字段见[用户数据类型](crates/lmyzmail/src/userdata.rs)，Web 界面使用同一接口。
 

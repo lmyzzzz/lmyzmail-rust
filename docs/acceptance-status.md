@@ -3,11 +3,13 @@
 This record is intentionally a status report, not a completion claim. The overall rewrite goal remains incomplete until every required protocol, rendering, model, security, stress, differential, release, and rollback gate has evidence.
 
 For the current actionable list, use the [independent remaining work items](goal-remaining.zh-CN.md).
-The documentation-to-route check also identified three missing successful
-handlers: threat-IP list, statistics and per-IP detail (G17–G19). The frozen
-72-route manifest declares them, but its count/uniqueness test does not exercise
-their success responses. Existing passed totals do not establish full route
-coverage; these remain product work.
+The documentation-to-route check identified three missing successful handlers
+(G17–G19). The [2026-10-24 list repair](cringe-list-validation-20261024.md) adds
+the paginated threat-IP handler and focused oracle/candidate regressions.
+Statistics and per-IP detail (G18–G19) remain product work. The dashboard's
+connection flow still requires statistics before loading its list; full dashboard
+integration is not claimed by the list API repair. The frozen 72-route manifest's
+count/uniqueness test alone does not establish successful route behavior.
 Historical attempts below remain retained; later passing evidence can close an
 earlier gap without changing its original failure record. The latest actual
 10 KiB v2 observer calibration completed eight 8000-message rounds and failed

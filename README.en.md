@@ -405,7 +405,8 @@ These are all normal application routes; scanner-decoy paths use the separate re
 | DELETE | `/api/xdp-firewall/clear` | `write` | Clear bans; use carefully |
 | GET | `/api/cringe-ips/insults`<br>`/api/cringe-ips/export`<br>`/api/cringe-ips/above-score/{score}` | `read` | Paged search, export and score filtering |
 | GET | `/api/cringe-ips/{ip}/activities`<br>`/api/cringe-ips/{ip}/decay-estimate`<br>`/api/cringe-ips/decay-config` | `read` | Activities and decay estimate/configuration |
-| GET | `/api/cringe-ips`<br>`/api/cringe-ips/stats`<br>`/api/cringe-ips/{ip}` | `read` | Declared but successful handlers are absent in this candidate; authorized requests still return 404 |
+| GET | `/api/cringe-ips` | `read` | Paginated threat-IP list with score/count/time/IP sorting, search and XDP status |
+| GET | `/api/cringe-ips/stats`<br>`/api/cringe-ips/{ip}` | `read` | Declared but successful handlers are absent in this candidate; authorized requests still return 404 |
 | POST | `/api/cringe-ips/decay` | `write` | Trigger score decay |
 | GET | `/web/mail/list`<br>`/web/mail/list/{folder}` | `session` | page=0&size=50&starredOnly=false |
 | GET | `/web/mail/detail/{folder}/{file}`<br>`/web/mail/raw/{folder}/{file}`<br>`/web/mail/headers/{folder}/{file}`<br>`/web/mail/attachment/{folder}/{file}/{index}` | `session` | Detail, raw message, headers and attachment |
@@ -420,7 +421,9 @@ These are all normal application routes; scanner-decoy paths use the separate re
 | POST DELETE | `/web/userdata/labels/email/{folder}/{fileName}/{labelId}` | `session` | Assign/remove a message label |
 
 
-Known gaps: paginated threat-IP listing (including sortBy/sortDir), statistics and per-IP detail require implementation. Their current 404 is not a completed query contract. They map to G17–G19 in the remaining-work list; the dashboard page alone does not establish data functionality.
+Threat-IP listing defaults to `page=0`, `size=50`, `sortBy=currentScore`, `sortDir=desc` and `search=`; page size is capped at 500. Sort fields use an allowlist, with unknown fields falling back to current score. Only case-insensitive `asc` selects ascending order. Search ignores case and retains `%`/`_` wildcards. Responses preserve the original `searchQuery`, include `xdpBanned`/`whitelisted` per IP and report total rows/pages. Malformed pagination returns 400.
+
+Known gaps: statistics and per-IP detail still require implementation (G18–G19). Their current 404 is not a completed query contract. The dashboard connection flow depends on statistics, so the repaired list endpoint does not yet make the full dashboard usable. See the [list validation record](docs/cringe-list-validation-20261024.md).
 
 The implemented insults list accepts `page`, `size` and `search`; exports accept `minScore` and `scoreType`. User-data payloads follow the [user-data types](crates/lmyzmail/src/userdata.rs); the Web UI uses these same endpoints.
 

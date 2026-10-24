@@ -405,7 +405,8 @@ journalctl -u lmyzmail -n 100 --no-pager
 | DELETE | `/api/xdp-firewall/clear` | `write` | 停止一覧の消去。慎重に使用 |
 | GET | `/api/cringe-ips/insults`<br>`/api/cringe-ips/export`<br>`/api/cringe-ips/above-score/{score}` | `read` | ページ検索・出力・閾値による抽出 |
 | GET | `/api/cringe-ips/{ip}/activities`<br>`/api/cringe-ips/{ip}/decay-estimate`<br>`/api/cringe-ips/decay-config` | `read` | 活動・減衰予測・設定 |
-| GET | `/api/cringe-ips`<br>`/api/cringe-ips/stats`<br>`/api/cringe-ips/{ip}` | `read` | 宣言はあるが本候補版の成功処理は未実装。正しい認証でも 404 |
+| GET | `/api/cringe-ips` | `read` | IP 一覧のページング、スコア・件数・日時・IP による並べ替え、検索、XDP 状態 |
+| GET | `/api/cringe-ips/stats`<br>`/api/cringe-ips/{ip}` | `read` | 宣言はあるが本候補版の成功処理は未実装。正しい認証でも 404 |
 | POST | `/api/cringe-ips/decay` | `write` | スコア減衰を実行 |
 | GET | `/web/mail/list`<br>`/web/mail/list/{folder}` | `session` | page=0&size=50&starredOnly=false |
 | GET | `/web/mail/detail/{folder}/{file}`<br>`/web/mail/raw/{folder}/{file}`<br>`/web/mail/headers/{folder}/{file}`<br>`/web/mail/attachment/{folder}/{file}/{index}` | `session` | 詳細・原文・ヘッダー・添付 |
@@ -420,7 +421,9 @@ journalctl -u lmyzmail -n 100 --no-pager
 | POST DELETE | `/web/userdata/labels/email/{folder}/{fileName}/{labelId}` | `session` | メールへのラベル付与/解除 |
 
 
-既知の欠落は、IP 一覧（sortBy/sortDir を含む）、統計、IP 詳細です。現在の 404 を完了済み仕様として扱いません。残作業 G17–G19 に対応し、画面が存在しても全データ機能が動作するとは限りません。
+IP 一覧の既定値は `page=0`、`size=50`、`sortBy=currentScore`、`sortDir=desc`、`search=` です。ページサイズの上限は 500。並べ替え項目は許可リストで制限し、不明な項目は現在のスコアに戻します。大文字小文字を問わず `asc` のみ昇順です。検索は大文字小文字を区別せず、`%`・`_` のワイルドカードを保持します。応答には元の `searchQuery`、各 IP の `xdpBanned`・`whitelisted`、総件数・総ページ数を含みます。不正なページング引数は 400 になります。
+
+統計と IP 詳細は引き続き未実装です（G18–G19）。現在の 404 を完了済み仕様として扱いません。画面の接続処理は統計 API に依存するため、一覧 API の修復だけで画面全体が利用可能になったわけではありません。[一覧の検証記録](docs/cringe-list-validation-20261024.md)を参照してください。
 
 実装済み insults 一覧は `page`、`size`、`search`、出力は `minScore`、`scoreType` を受理します。ユーザーデータ JSON は[型定義](crates/lmyzmail/src/userdata.rs)に従い、Web UI も同じ API を使います。
 

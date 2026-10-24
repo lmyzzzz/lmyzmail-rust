@@ -1,0 +1,56 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___ test_cringe_list_empty_parameters_and_duplicate_first_values[candidate] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-179/test_cringe_list_empty_paramet0')
+kind = 'candidate'
+
+    @pytest.mark.integration
+    @pytest.mark.parametrize("kind", (
+        pytest.param("oracle", marks=pytest.mark.oracle),
+        pytest.param("candidate", marks=pytest.mark.candidate),
+    ))
+    @pytest.mark.timeout(180)
+    def test_cringe_list_empty_parameters_and_duplicate_first_values(
+        tmp_path: Path, kind: str,
+    ) -> None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime = (
+            PersistentJavaOracleRuntime(tmp_path / "java-list-query-edges")
+            if kind == "oracle" else _candidate(repository)
+        )
+        with runtime as started:
+            target = _OracleTarget(started) if kind == "oracle" else started
+            _seed_list(target)
+            assert target.ports is not None
+    
+            def request(query: str) -> bytes:
+                response = http_exchange(
+                    "127.0.0.1", target.ports.http, "GET", "/api/cringe-ips" + query,
+                    headers=_ADMIN_HEADERS, timeout=10.0,
+                )
+                assert response.status_code == 200
+                return response.body
+    
+            baseline = request("")
+>           assert request("?page=&size=&sortBy=&sortDir=&search=") == baseline
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tests/test_candidate_cringe_list_golden.py:303: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+query = '?page=&size=&sortBy=&sortDir=&search='
+
+    def request(query: str) -> bytes:
+        response = http_exchange(
+            "127.0.0.1", target.ports.http, "GET", "/api/cringe-ips" + query,
+            headers=_ADMIN_HEADERS, timeout=10.0,
+        )
+>       assert response.status_code == 200
+E       AssertionError: assert 400 == 200
+E        +  where 400 = RawHttpResponse(status_line=b'HTTP/1.1 400 Bad Request', status_code=400, headers=((b'content-type', b'text/plain; cha... raw=b'HTTP/1.1 400 Bad Request\r\ncontent-type: text/plain; charset=utf-8\r\ncontent-length: 12\r\n\r\nbad request\n').status_code
+
+blackbox/tests/test_candidate_cringe_list_golden.py:299: AssertionError
+=========================== short test summary info ============================
+FAILED blackbox/tests/test_candidate_cringe_list_golden.py::test_cringe_list_empty_parameters_and_duplicate_first_values[candidate]
+1 failed, 4 deselected in 1.74s

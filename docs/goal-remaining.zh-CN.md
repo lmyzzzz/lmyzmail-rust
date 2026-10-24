@@ -35,22 +35,27 @@
 | G14 | 完成 feature → 测试/证据的最终覆盖矩阵 | 可先整理，最终依赖 G01–G13、G17–G19 | 每个原始功能、配置、安全边界、malformed/超限/超时/断连、属性/模糊/故障注入、背压、渲染/模型及持久化要求都有明确证据路径、运行 hash 和结论；缺证据单列补齐，不能用总测试数或 stub 代替。 |
 | G15 | 对最终代码封版并更新 release/source/history | 产品修复结束，G14 对应结果齐全 | 对变更影响范围重跑 Rust/安全/差分和所需 golden；如产品改变，重做独立冻结可复现 release 和安装/升级/回滚验证。生成准确的源码包、历史、校验和、依赖与验收清单，保留旧发布和原证据。文档提交本身不要求无意义重编产品。 |
 | G16 | 将完整最终工作目录交付到 Windows 路径 | 全部 goal 验收条件真实通过后 | 安全同步全部最终源码、Git 历史、golden、证据和必要未提交工作到 `D:\MiscProjects\lmyzmail-rust`，校验对象/关键文件/状态和交付包，保留 WSL 原件。未完成时只交付版本化候选 artifacts，不宣称已完成最终同步。 |
-| G17 | 补齐 `GET /api/cringe-ips` 分页列表 | 无；可独立开发，不跑同机重压 | 恢复 page/size/sortBy/sortDir/search、分页元数据和 XDP enriched 字段。排序字段使用白名单，按冻结 oracle 对成功、空集、搜索、分页边界和权限做差分，并验证风险面板列表加载。 |
+| G17 | `GET /api/cringe-ips` 分页列表接口已修复 | 完整面板入口仍依赖 G18 | page/size/sortBy/sortDir/search、分页元数据、17 字段排序白名单和 XDP enriched 字段已有实现及差分回归；见[专项记录](cringe-list-validation-20261024.md)。面板先请求统计接口，完整连接/列表交互验收随 G18 补齐，不能将其冒充本次已通过。 |
 | G18 | 补齐 `GET /api/cringe-ips/stats` 统计摘要 | 无；可与 G17/G19 并行分工 | 历史/实时双评分和各统计字段与真实 PG fixture 的 oracle 响应一致；覆盖空库、已有数据、后端故障和权限，验证面板统计加载。 |
 | G19 | 补齐 `GET /api/cringe-ips/{ipAddress}` 单 IP 详情 | 无；与其他路由有共享文件，集成时协调 | 恢复清洗/旧值回查、XDP banned/whitelisted 字段和活动明细；验证 URI 编码、特殊/缺失 IP、跨字段一致性、权限和有界资源，完成 oracle 差分与面板详情验证。 |
 
 当前 275HX WSL 不暴露 AVX-512。用户确认暂无测试机并要求先完成本机可验收项；这授权继续本机工作，没有豁免 G09–G11。正式稳定性连续十轮仍不合格时应先推进其他独立项，而不是无限重跑或把失败标成通过。以上重压档位应收集 RSS、FD、任务、队列、延迟、错误和磁盘时间序列。
 
-## 本次文档核对发现的三条功能缺口
+## 文档核对发现的三条功能缺口及后续修复
 
 冻结的 [72 路由清单](../blackbox/manifests/http-routes.json)声明了 G17–G19。
 只读核对冻结 controller 的 `listCringeIPs/getStats/getIPDetail` 与候选
 `http.rs` 的路由匹配、`ParsedRequest` 和处理分支后，确认候选没有这三个
-成功处理器：带合法读 key 的请求会落入 `NotFound`。同文件
+成功处理器：当时带合法读 key 的请求会落入 `NotFound`。同文件
 `parse_cringe_ip_route` 目前只处理 activities 与 decay-estimate。
 `blackbox/tests/test_http_route_manifest.py` 只验证清单数量、唯一性和分类，
 不是这三条路由成功行为的证明。因此既有 961 / 315 等通过数不能关闭
-这些功能缺口。这里保留明确缺项，不修改 golden 或把 404 宣称为兼容成功。
+这些功能缺口。这里保留原发现，不修改 golden 或把 404 宣称为兼容成功。
+
+2026-10-24 已补齐 G17 的列表成功处理器及有界 PG/XDP 查询，新增独立
+Java golden，并保留修复前 404 的失败证据。G18/G19 的成功处理器仍未实现。
+页面 `fetchData` 首先请求 G18，失败时不会调用列表接口；因此本次接口修复
+与完整面板验收分别记录，后者仍需 G18 的真实统计响应，不使用 mock 掩盖。
 
 ## 最新校准终态
 

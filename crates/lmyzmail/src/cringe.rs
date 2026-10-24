@@ -171,6 +171,86 @@ impl CringeService {
         Self { pool }
     }
 
+    pub async fn list(
+        &self,
+        query: IpListQuery,
+        cancellation: &CancellationToken,
+    ) -> Result<IpPage, CringeError> {
+        let (page, size) = validated_page(query.page, query.size)?;
+        let offset = page * size;
+        // The frozen JPA repository rejects offsets above signed-int range with
+        // an internal error. Preserve that response without acquiring a DB slot.
+        if offset > i64::from(i32::MAX) {
+            return Err(CringeError::CapacityExceeded);
+        }
+        // Only these static identifiers enter SQL. Search text remains a bound parameter,
+        // including the LIKE wildcards supported by the existing repository contract.
+        let column = ip_sort_column(&query.sort_by);
+        // String.equalsIgnoreCase also folds the Unicode long s to ASCII S.
+        let direction = if matches!(query.sort_dir.as_str(), "aſc" | "Aſc" | "aſC" | "AſC")
+            || query.sort_dir.eq_ignore_ascii_case("asc")
+        {
+            "ASC"
+        } else {
+            "DESC"
+        };
+        let search = ip_search(&query.search);
+        let pattern = search.map(|search| format!("%{search}%"));
+        let deadline = Instant::now() + DATABASE_DEADLINE;
+        let client = self.client(deadline, cancellation).await?;
+        let connection = DatabaseConnection::new(client);
+        let cancel_token = connection.cancel_token();
+        let outcome = database_read(deadline, cancellation, &cancel_token, async {
+            // Hibernate's LIKE has no implicit escape character. PostgreSQL's
+            // default backslash escape would change valid search text such as \%.
+            let sql = format!(
+                "SELECT {IP_COLUMNS} FROM skibidi_cringe_ip \
+                 WHERE ($1::text IS NULL OR LOWER(ip_address) LIKE LOWER($1) ESCAPE '') \
+                 ORDER BY {column} {direction} LIMIT $2 OFFSET $3"
+            );
+            let rows = connection
+                .client()
+                .query(&sql, &[&pattern, &size, &offset])
+                .await
+                .map_err(database_error)?;
+            let count = rows.len() as i64;
+            // Spring's PageableExecutionUtils infers totals on a nonempty partial page
+            // (and on page zero), but counts for full pages and empty later pages.
+            let total_elements = if count < size && (page == 0 || count != 0) {
+                offset + count
+            } else {
+                let total = connection
+                    .client()
+                    .query_one(
+                        "SELECT COUNT(*) FROM skibidi_cringe_ip \
+                     WHERE ($1::text IS NULL OR LOWER(ip_address) LIKE LOWER($1) ESCAPE '')",
+                        &[&pattern],
+                    )
+                    .await
+                    .map_err(database_error)?
+                    .get::<_, i64>(0);
+                if count != 0 && offset + size > total {
+                    offset + count
+                } else {
+                    total
+                }
+            };
+            Ok(IpPage {
+                content: rows
+                    .iter()
+                    .map(|row| EnrichedCringeIp::from(cringe_ip_from_row(row)))
+                    .collect(),
+                page,
+                size,
+                total_elements,
+                total_pages: page_count(total_elements, size),
+                search_query: query.search,
+            })
+        })
+        .await;
+        connection.finish(outcome)
+    }
+
     pub async fn above_score(
         &self,
         min_score: i32,
@@ -1138,6 +1218,81 @@ pub struct PageQuery {
     pub search: String,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct IpListQuery {
+    pub page: i64,
+    pub size: i64,
+    pub sort_by: String,
+    pub sort_dir: String,
+    pub search: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IpPage {
+    pub content: Vec<EnrichedCringeIp>,
+    pub page: i64,
+    pub size: i64,
+    pub total_elements: i64,
+    pub total_pages: i64,
+    pub search_query: String,
+}
+
+// The list DTO intentionally differs from the score-query entity: its field order,
+// optional decay timestamp and absence of protocolMismatchCount are wire contracts.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnrichedCringeIp {
+    pub ip_address: String,
+    pub total_score: i32,
+    pub current_score: i32,
+    pub activity_count: i32,
+    pub self_spoofing_count: i32,
+    pub open_relay_count: i32,
+    pub auth_probe_count: i32,
+    pub illegal_domain_count: i32,
+    pub spamhaus_count: i32,
+    pub http_on_smtp_count: i32,
+    pub ssh_on_smtp_count: i32,
+    pub http_port_scanning_count: i32,
+    pub honeypot_hit_count: i32,
+    pub ssh_bruteforce_count: i32,
+    pub other_count: i32,
+    pub first_seen_at: String,
+    pub last_seen_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_decay_at: Option<String>,
+    pub xdp_banned: bool,
+    pub whitelisted: bool,
+}
+
+impl From<CringeIp> for EnrichedCringeIp {
+    fn from(ip: CringeIp) -> Self {
+        Self {
+            ip_address: ip.ip_address,
+            total_score: ip.total_score,
+            current_score: ip.current_score,
+            activity_count: ip.activity_count,
+            self_spoofing_count: ip.self_spoofing_count,
+            open_relay_count: ip.open_relay_count,
+            auth_probe_count: ip.auth_probe_count,
+            illegal_domain_count: ip.illegal_domain_count,
+            spamhaus_count: ip.spamhaus_count,
+            http_on_smtp_count: ip.http_on_smtp_count,
+            ssh_on_smtp_count: ip.ssh_on_smtp_count,
+            http_port_scanning_count: ip.http_port_scanning_count,
+            honeypot_hit_count: ip.honeypot_hit_count,
+            ssh_bruteforce_count: ip.ssh_bruteforce_count,
+            other_count: ip.other_count,
+            first_seen_at: ip.first_seen_at,
+            last_seen_at: ip.last_seen_at,
+            last_decay_at: ip.last_decay_at,
+            xdp_banned: false,
+            whitelisted: false,
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActivityPage {
@@ -1381,6 +1536,38 @@ fn validated_page(page: i64, size: i64) -> Result<(i64, i64), CringeError> {
 fn normalized_search(search: &str) -> Option<String> {
     let search = search.trim();
     (!search.is_empty()).then(|| search.to_owned())
+}
+
+fn ip_search(search: &str) -> Option<&str> {
+    // String.isBlank uses Character.isWhitespace; String.trim only removes <= U+0020.
+    // Rust trim would incorrectly discard NBSP and nonblank Unicode edge spaces.
+    let blank = search.chars().all(|c| {
+        (c.is_whitespace() && !matches!(c, '\u{85}' | '\u{a0}' | '\u{2007}' | '\u{202f}'))
+            || matches!(c, '\u{1c}'..='\u{1f}')
+    });
+    (!blank).then(|| search.trim_matches(|c| c <= '\u{20}'))
+}
+
+fn ip_sort_column(field: &str) -> &'static str {
+    match field {
+        "totalScore" => "total_score",
+        "activityCount" => "activity_count",
+        "lastSeenAt" => "last_seen_at",
+        "firstSeenAt" => "first_seen_at",
+        "selfSpoofingCount" => "self_spoofing_count",
+        "openRelayCount" => "open_relay_count",
+        "authProbeCount" => "auth_probe_count",
+        "illegalDomainCount" => "illegal_domain_count",
+        "spamhausCount" => "spamhaus_count",
+        "httpOnSmtpCount" => "http_on_smtp_count",
+        "sshOnSmtpCount" => "ssh_on_smtp_count",
+        "httpPortScanningCount" => "http_port_scanning_count",
+        "honeypotHitCount" => "honeypot_hit_count",
+        "sshBruteforceCount" => "ssh_bruteforce_count",
+        "otherCount" => "other_count",
+        "ipAddress" => "ip_address",
+        _ => "current_score",
+    }
 }
 
 async fn wait_database<T, E, F>(
@@ -1627,6 +1814,34 @@ mod tests {
         assert_eq!(page_count(0, 50), 0);
         assert_eq!(page_count(1, 50), 1);
         assert_eq!(page_count(51, 50), 2);
+    }
+
+    #[test]
+    fn list_search_preserves_nonblank_unicode_edges_like_java() {
+        assert_eq!(ip_search(" \t203.0 \r\n"), Some("203.0"));
+        assert_eq!(ip_search("\u{2003}\u{1c}"), None);
+        assert_eq!(
+            ip_search("\u{2003}DB8\u{2003}"),
+            Some("\u{2003}DB8\u{2003}")
+        );
+        assert_eq!(ip_search("\u{a0}DB8\u{a0}"), Some("\u{a0}DB8\u{a0}"));
+        assert_eq!(ip_search("\u{85}"), Some("\u{85}"));
+        assert_eq!(ip_search("%_"), Some("%_"));
+    }
+
+    proptest::proptest! {
+        #[test]
+        fn list_sort_identifier_is_always_a_static_allowed_column(field in ".*") {
+            let column = ip_sort_column(&field);
+            proptest::prop_assert!(IP_COLUMNS.split(", ").any(|allowed| allowed == column));
+        }
+
+        #[test]
+        fn list_paging_offset_remains_bounded(page in 0_i64..=i64::from(i32::MAX), size in 1_i64..=i64::from(i32::MAX)) {
+            let (page, size) = validated_page(page, size).unwrap();
+            proptest::prop_assert!(size <= 500);
+            proptest::prop_assert!(page.checked_mul(size).and_then(|offset| offset.checked_add(size)).is_some());
+        }
     }
 
     #[test]

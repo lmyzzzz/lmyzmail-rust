@@ -372,20 +372,22 @@
       "scope": "Only interruption, database-lock, pool-reuse, and commit-ambiguity behavior for authentication and mailbox-management PostgreSQL operations. Every healthy-path route, credential result, session row, mailbox row, status code, JSON body, API permission, rate limit, legacy schema, and configuration alias remains a differential requirement."
     },
     {
-      "candidate_requirement": "Reject cringe activity requests with a negative page, a non-positive size, or either value outside the frozen Java signed-int input domain. Return HTTP 400 with the stable invalid_request body before acquiring a PostgreSQL connection, while retaining the oracle's 200-row insults cap and 500-row activity cap for every valid value.",
+      "candidate_requirement": "Reject cringe list/activity requests with a negative page, a non-positive size, a malformed integer, or either value outside the frozen Java signed-int input domain. Return HTTP 400 with the stable invalid_request body before acquiring a PostgreSQL connection, while retaining the oracle's 200-row insults cap and 500-row list/activity cap for every valid value.",
       "evidence": {
         "candidate_test": "blackbox/tests/test_candidate_cringe_api_golden.py::test_rust_candidate_rejects_invalid_cringe_paging",
         "commit": "9f4215ea9295da4bf8416796c4bed065413e8b95",
         "controller_source": "src/main/java/net/lmyz/lmyzmail/cringe/api/SkibidiCringeIPController.java",
         "controller_source_sha256": "59fa65284de9f2820956aed0bc5fe19b69114d21951962986b867822302ad621",
         "oracle_golden": "blackbox/golden/java/managed-cringe-api-oracle-boundaries-v3/observations/http/cringe/invalid-paging.json",
+        "list_oracle_golden": "blackbox/golden/java/managed-cringe-list-v1-boundaries/observations/http/cringe/list-boundaries.json",
+        "list_candidate_test": "blackbox/tests/test_candidate_cringe_list_golden.py::test_candidate_cringe_list_matches_frozen_java",
         "service_source": "src/main/java/net/lmyz/lmyzmail/cringe/service/SkibidiCringeIPService.java",
         "service_source_sha256": "392c021dcc834005d6e08188d1aed03ca68399ceb665755c4f445ddd19644675"
       },
       "id": "cringe-pagination-input-validation",
       "oracle_behavior": "The frozen controller applies only an upper size cap and forwards page and size to PageRequest.of. Negative pages and zero sizes therefore reach Spring's argument guards and escape the route as internal failures instead of being classified as malformed client input.",
       "reason": "Malformed pagination must not enter repository execution or become an internal exception. Early validation also keeps offset arithmetic and query admission inside explicit integer and resource bounds.",
-      "scope": "Only negative pages, non-positive sizes, and page or size values outside the Java signed-int domain. Defaults, positive values, upper caps, offsets, page metadata, query ordering, rows, status codes, and bytes for every valid request remain compatibility requirements."
+      "scope": "Only negative pages, non-positive sizes, malformed integer text, and page or size values outside the Java signed-int domain. The added list boundary golden independently demonstrates these internal-error responses. Defaults, positive values, upper caps, offsets, page metadata, query ordering, rows, status codes, and bytes for every valid request remain compatibility requirements."
     },
     {
       "candidate_requirement": "Return at most the first 10000 score-ordered rows from each cringe above-score query and text export. Apply the limit in PostgreSQL after the same current-score or total-score threshold and descending order, then preserve the exact oracle entity or export bytes for the bounded prefix.",

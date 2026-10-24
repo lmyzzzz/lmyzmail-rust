@@ -1,0 +1,5 @@
+fe707de8fe38d61794a502f437372314c873721dc47a6c7b80f1c8ba43f7a860  target/x86_64-unknown-linux-gnu/release/lmyzmail
+fe707de8fe38d61794a502f437372314c873721dc47a6c7b80f1c8ba43f7a860  .blackbox/cringe-list-20261024-v4.elf
+3d3edba315707900b2667047454715b47128f5ffd15e082c8fe9c9e064661a6f  crates/lmyzmail/src/cringe.rs
+2188f322c31e90e8fba832de318a3bf8ffe9e68066cbdb2f18aecd48efe78ff2  crates/lmyzmail/src/http.rs
+9bc776821d7af6ac287783af7f3b74dd82c690ccc25c2552feba3ad3cd1237d2  crates/lmyzmail/src/xdp.rs

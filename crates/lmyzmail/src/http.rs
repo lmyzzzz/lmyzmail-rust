@@ -28,7 +28,7 @@ use url::Url;
 use crate::{
     auth::{AuthError, AuthService, CredentialOutcome, LoginOutcome},
     config::RuntimeConfig,
-    cringe::{CringeError, CringeService, PageQuery},
+    cringe::{CringeError, CringeService, IpListQuery, PageQuery},
     cringe_decay::{self, DecayEstimateError},
     mailbox::{
         AttachmentData, AttachmentMeta, EmailDetail, MAX_API_RAW_BYTES, MailboxError,
@@ -1257,6 +1257,25 @@ async fn handle_connection(
                 }
             }
         }
+        ParsedRequest::CringeInvalidInput => write_cringe_error(stream, CringeError::InvalidInput).await,
+        ParsedRequest::CringeList(query) => {
+            match cringe.list(query, cancellation).await {
+                Ok(mut page) => {
+                    let ips = page.content.iter().map(|ip| clean_ip_address(&ip.ip_address)).collect();
+                    match xdp.batch_status(ips, cancellation).await {
+                        Ok(statuses) => {
+                            for (ip, status) in page.content.iter_mut().zip(statuses) {
+                                ip.xdp_banned = status.banned;
+                                ip.whitelisted = status.whitelisted;
+                            }
+                            write_json_response(stream, Status::Ok, &page).await
+                        }
+                        Err(_) => write_json_error(stream, Status::InternalServerError, "internal_error").await,
+                    }
+                }
+                Err(error) => write_cringe_error(stream, error).await,
+            }
+        }
         ParsedRequest::CringeAbove { min_score, current } => {
             match cringe.above_score(min_score, current, cancellation).await {
                 Ok(items) => write_json_response(stream, Status::Ok, &items).await,
@@ -2399,6 +2418,24 @@ fn parse_cringe_insults(path: &str) -> ParsedRequest {
     ParsedRequest::CringeInsults(PageQuery { page, size, search })
 }
 
+fn parse_cringe_list(path: &str) -> ParsedRequest {
+    // The frozen request binder selects the first value and applies defaults to
+    // both absent and empty parameters. Do not let a duplicate override it.
+    let value = |key| query_value(path, key).filter(|value| !value.is_empty());
+    let page = value("page").map_or(Ok(0), |value| value.parse());
+    let size = value("size").map_or(Ok(50), |value| value.parse());
+    let (Ok(page), Ok(size)) = (page, size) else {
+        return ParsedRequest::CringeInvalidInput;
+    };
+    ParsedRequest::CringeList(IpListQuery {
+        page,
+        size,
+        sort_by: value("sortBy").unwrap_or_else(|| "currentScore".into()),
+        sort_dir: value("sortDir").unwrap_or_else(|| "desc".into()),
+        search: value("search").unwrap_or_default(),
+    })
+}
+
 fn query_value(path: &str, key: &str) -> Option<String> {
     let query = path.split_once('?').map(|(_, query)| query)?;
     url::form_urlencoded::parse(query.as_bytes())
@@ -2841,6 +2878,8 @@ enum ParsedRequest {
         domain: String,
         date: Option<String>,
     },
+    CringeInvalidInput,
+    CringeList(IpListQuery),
     CringeAbove {
         min_score: i32,
         current: bool,
@@ -3171,6 +3210,11 @@ fn parse_request(
             ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
             ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
             ApiPermission::Granted => ParsedRequest::XdpStats,
+        },
+        ("GET", "/api/cringe-ips") => match api_permission(config, api_key, false) {
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
+            ApiPermission::Granted => parse_cringe_list(path),
         },
         ("GET", "/api/cringe-ips/insults") => match api_permission(config, api_key, false) {
             ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
@@ -4996,6 +5040,50 @@ lmyzmail.public-registration-enabled=true\n",
     #[test]
     fn cringe_api_routes_preserve_read_write_permissions_and_query_fields() {
         let config = config_with_api_keys();
+        assert_eq!(
+            parse_cringe_list(
+                "/api/cringe-ips?page=&page=bad&size=&size=bad&sortBy=&sortBy=ipAddress&sortDir=&search=&search=hidden"
+            ),
+            parse_cringe_list("/api/cringe-ips")
+        );
+        assert_eq!(
+            parse_request(
+                b"GET /api/cringe-ips HTTP/1.1\r\nX-API-Key: read-key\r\n\r\n",
+                4096,
+                &config
+            ),
+            ParsedRequest::CringeList(IpListQuery {
+                page: 0,
+                size: 50,
+                sort_by: "currentScore".into(),
+                sort_dir: "desc".into(),
+                search: String::new()
+            })
+        );
+        assert_eq!(
+            parse_request(b"GET /api/cringe-ips?page=2&size=10&sortBy=totalScore&sortDir=ASC&search=+db8%25+ HTTP/1.1\r\nX-API-Key: read-key\r\n\r\n", 4096, &config),
+            ParsedRequest::CringeList(IpListQuery { page: 2, size: 10, sort_by: "totalScore".into(), sort_dir: "ASC".into(), search: " db8% ".into() })
+        );
+        assert_eq!(
+            parse_request(b"GET /api/cringe-ips HTTP/1.1\r\n\r\n", 4096, &config),
+            ParsedRequest::Unauthorized
+        );
+        assert_eq!(
+            parse_request(
+                b"GET /api/cringe-ips?page=bad HTTP/1.1\r\nX-API-Key: write-key\r\n\r\n",
+                4096,
+                &config
+            ),
+            ParsedRequest::ForbiddenRead
+        );
+        assert_eq!(
+            parse_request(
+                b"GET /api/cringe-ips?page=bad HTTP/1.1\r\nX-API-Key: read-key\r\n\r\n",
+                4096,
+                &config
+            ),
+            ParsedRequest::CringeInvalidInput
+        );
         assert_eq!(
             parse_request(
                 b"GET /api/cringe-ips/above-score/50?scoreType=current HTTP/1.1\r\nX-API-Key: read-key\r\n\r\n",

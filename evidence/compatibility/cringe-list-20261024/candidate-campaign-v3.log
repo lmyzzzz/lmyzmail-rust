@@ -1,0 +1,52 @@
+{"external_candidate_binary": "/home/lmyzzz/lmyzmail-rust/.blackbox/cringe-list-20261024-v3.elf", "sha256_before": "7796b5662c3bca4cde456cbe71b04cbca141b030a98bac317f21d61e783a86d9"}
+F.........                                                               [100%]
+Campaign audit: {"differences_requiring_review": [], "harness_definition_sha256": "761490cf4095b45c2ffcdcda994020e03d8e99f118520f9554806fe7d9044ec9", "historical_observations_equal": 25, "old_golden_files_unchanged": 6901, "pytest_exitstatus": 1}
+
+=================================== FAILURES ===================================
+________________ test_candidate_cringe_list_matches_frozen_java ________________
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(180)
+    def test_candidate_cringe_list_matches_frozen_java() -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+>           DifferentialRunner(repository, repository / _GOLDEN, _PROFILE).verify_candidate(
+                _SCENARIOS, candidate,
+            )
+
+blackbox/tests/test_candidate_cringe_list_golden.py:193: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:115: in verify_candidate
+    ).assert_observation(f"observations/{scenario.name}.json", observation)
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-cringe-list-v1'), attestation=Gold...c9', profile='managed-cringe-list', normalizers=('json-object-order:jdk-map-of:cringe-api-key-errors',)), record=False)
+relative_path = 'observations/http/cringe/list.json'
+observation = {'beyond': {'body_json': {'content': [], 'page': 2, 'searchQuery': '', 'size': 3, ...}, 'headers': [['content-type', '...gth': 83, 'sha256': '6770f840e395ff4ad4420b553da4e84eb036a83d151591e38e269cefa5804bd2'}, 'status_code': 200, ...}, ...}
+
+    def assert_observation(self, relative_path: str, observation: Any) -> None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+                raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+            self._write_exclusive(path, actual)
+        expected = path.read_bytes()
+        if expected != actual:
+>           raise GoldenMismatch(
+                f"golden mismatch for {relative_path}: expected sha256="
+                f"{hashlib.sha256(expected).hexdigest()}, actual sha256="
+                f"{hashlib.sha256(actual).hexdigest()}"
+            )
+E           lmyzmail_blackbox.errors.GoldenMismatch: golden mismatch for observations/http/cringe/list.json: expected sha256=ab62b2081e832ff0a6994c9af19580d97087191c5d47437a59d63afca34a8a1d, actual sha256=13c49ff9631d462c2b2f7b9606d223662754da7727ce19d76283e0fecc37899b
+
+blackbox/src/lmyzmail_blackbox/golden.py:181: GoldenMismatch
+=========================== short test summary info ============================
+FAILED blackbox/tests/test_candidate_cringe_list_golden.py::test_candidate_cringe_list_matches_frozen_java
+1 failed, 9 passed, 4 deselected in 43.37s
+{"sha256_after": "7796b5662c3bca4cde456cbe71b04cbca141b030a98bac317f21d61e783a86d9", "staged_sha256_after": "7796b5662c3bca4cde456cbe71b04cbca141b030a98bac317f21d61e783a86d9", "unchanged": true}
