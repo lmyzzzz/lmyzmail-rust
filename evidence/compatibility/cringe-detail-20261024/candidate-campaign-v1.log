@@ -1,0 +1,51 @@
+{"external_candidate_binary": "/home/lmyzzz/lmyzmail-rust/.blackbox/cringe-detail-20261024-v1.elf", "sha256_before": "c364ce4011309cbc3698b638a474ce36cbae95b4d97d2f42f757c38659dfd6dd"}
+.......F..........                                                       [100%]
+Campaign audit: {"differences_requiring_review": [], "harness_definition_sha256": "9a71a00a7aab7a81f9ff79c74cb31d58add4b1708a7727a442e257c30e132b0f", "historical_observations_equal": 39, "old_golden_files_unchanged": 6929, "pytest_exitstatus": 1}
+
+=================================== FAILURES ===================================
+__________ test_candidate_stats_concurrent_timeout_and_pool_recovery ___________
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(180)
+    def test_candidate_stats_concurrent_timeout_and_pool_recovery() -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository, "--lmyzmail.postgres.pool.max-size=1") as candidate:
+            _capture_stats(candidate)
+            with ThreadPoolExecutor(max_workers=8) as workers:
+                responses = list(workers.map(lambda _: _request(candidate), range(24)))
+            assert all(response.status_code == 200 for response in responses)
+            assert all(json.loads(response.body)["totalIPs"] == 6 for response in responses)
+            for table in ("skibidi_cringe_ip", "skibidi_cringe_ip_activity"):
+                with _connection(candidate) as blocker:
+                    blocker.execute(f"LOCK TABLE {table} IN ACCESS EXCLUSIVE MODE")
+                    start = time.monotonic()
+                    forbidden = _request(candidate, _WRITE_ONLY_HEADERS)
+                    assert forbidden.status_code == 403
+                    assert time.monotonic() - start < 2.0
+                    start = time.monotonic()
+>                   stalled = _request(candidate)
+                              ^^^^^^^^^^^^^^^^^^^
+
+blackbox/tests/test_candidate_cringe_stats_golden.py:276: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/tests/test_candidate_cringe_stats_golden.py:42: in _request
+    return http_exchange(
+blackbox/src/lmyzmail_blackbox/protocols.py:635: in http_exchange
+    return parse_http_response(raw, request_method=method)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+raw = b''
+
+    def parse_http_response(raw: bytes, *, request_method: str = "GET") -> RawHttpResponse:
+        separator = raw.find(b"\r\n\r\n")
+        if separator < 0:
+>           raise ProtocolError("HTTP response headers were not terminated")
+E           lmyzmail_blackbox.errors.ProtocolError: HTTP response headers were not terminated
+
+blackbox/src/lmyzmail_blackbox/protocols.py:490: ProtocolError
+=========================== short test summary info ============================
+FAILED blackbox/tests/test_candidate_cringe_stats_golden.py::test_candidate_stats_concurrent_timeout_and_pool_recovery
+1 failed, 17 passed, 11 deselected in 99.22s (0:01:39)
+{"sha256_after": "c364ce4011309cbc3698b638a474ce36cbae95b4d97d2f42f757c38659dfd6dd", "staged_sha256_after": "c364ce4011309cbc3698b638a474ce36cbae95b4d97d2f42f757c38659dfd6dd", "unchanged": true}

@@ -1,0 +1,202 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "e796e65d8ba4d718084df1b2178f1bb1803e7064ef91465cca6194e428d0ae7e",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "json-object-order:jdk-map-of:cringe-api-key-errors"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-cringe-stats-custom"
+  },
+  "observation": {
+    "empty": {
+      "body_json": {
+        "activeThreats": 0,
+        "batchStats": {
+          "batchCount": 0,
+          "immediateXdpBans": 0,
+          "pendingScoreEntries": 0,
+          "queueSize": 0,
+          "running": false,
+          "scoreCacheEntries": 0,
+          "totalDropped": 0,
+          "totalEnqueued": 0,
+          "totalFlushed": 0
+        },
+        "decayConfig": {
+          "amount": 7,
+          "hourlyRate": 4.666665802469296,
+          "interval": "PT1H30M0.001S"
+        },
+        "highRiskByCurrent": 0,
+        "highRiskByTotal": 0,
+        "totalActivities": 0,
+        "totalIPs": 0
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "358"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJ0b3RhbElQcyI6MCwiaGlnaFJpc2tCeVRvdGFsIjowLCJoaWdoUmlza0J5Q3VycmVudCI6MCwiYWN0aXZlVGhyZWF0cyI6MCwidG90YWxBY3Rpdml0aWVzIjowLCJiYXRjaFN0YXRzIjp7InJ1bm5pbmciOmZhbHNlLCJxdWV1ZVNpemUiOjAsInRvdGFsRW5xdWV1ZWQiOjAsInRvdGFsRmx1c2hlZCI6MCwidG90YWxEcm9wcGVkIjowLCJiYXRjaENvdW50IjowLCJpbW1lZGlhdGVYZHBCYW5zIjowLCJwZW5kaW5nU2NvcmVFbnRyaWVzIjowLCJzY29yZUNhY2hlRW50cmllcyI6MH0sImRlY2F5Q29uZmlnIjp7ImludGVydmFsIjoiUFQxSDMwTTAuMDAxUyIsImFtb3VudCI6NywiaG91cmx5UmF0ZSI6NC42NjY2NjU4MDI0NjkyOTZ9fQ==",
+        "length": 358,
+        "sha256": "4f98022b355f93693b4b855f7a9e8350f1f5665894a6d0e9953da7f3acd0f450"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "missing": {
+      "body_json": {
+        "error": "invalid_api_key",
+        "message": "Missing or invalid API key. Please provide a valid X-API-Key header."
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "108"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlcnJvciI6ImludmFsaWRfYXBpX2tleSIsIm1lc3NhZ2UiOiJNaXNzaW5nIG9yIGludmFsaWQgQVBJIGtleS4gUGxlYXNlIHByb3ZpZGUgYSB2YWxpZCBYLUFQSS1LZXkgaGVhZGVyLiJ9",
+        "length": 108,
+        "sha256": "56ef7c72c1f7117ee0b85b62a4f428bd437a03fcf3c8e9b0477f778dd5f1eaa1"
+      },
+      "status_code": 401,
+      "status_line": "HTTP/1.1 401 Unauthorized"
+    },
+    "populated": {
+      "body_json": {
+        "activeThreats": 4,
+        "batchStats": {
+          "batchCount": 0,
+          "immediateXdpBans": 0,
+          "pendingScoreEntries": 0,
+          "queueSize": 0,
+          "running": false,
+          "scoreCacheEntries": 0,
+          "totalDropped": 0,
+          "totalEnqueued": 0,
+          "totalFlushed": 0
+        },
+        "decayConfig": {
+          "amount": 7,
+          "hourlyRate": 4.666665802469296,
+          "interval": "PT1H30M0.001S"
+        },
+        "highRiskByCurrent": 2,
+        "highRiskByTotal": 2,
+        "totalActivities": 5,
+        "totalIPs": 6
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "358"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJ0b3RhbElQcyI6NiwiaGlnaFJpc2tCeVRvdGFsIjoyLCJoaWdoUmlza0J5Q3VycmVudCI6MiwiYWN0aXZlVGhyZWF0cyI6NCwidG90YWxBY3Rpdml0aWVzIjo1LCJiYXRjaFN0YXRzIjp7InJ1bm5pbmciOmZhbHNlLCJxdWV1ZVNpemUiOjAsInRvdGFsRW5xdWV1ZWQiOjAsInRvdGFsRmx1c2hlZCI6MCwidG90YWxEcm9wcGVkIjowLCJiYXRjaENvdW50IjowLCJpbW1lZGlhdGVYZHBCYW5zIjowLCJwZW5kaW5nU2NvcmVFbnRyaWVzIjowLCJzY29yZUNhY2hlRW50cmllcyI6MH0sImRlY2F5Q29uZmlnIjp7ImludGVydmFsIjoiUFQxSDMwTTAuMDAxUyIsImFtb3VudCI6NywiaG91cmx5UmF0ZSI6NC42NjY2NjU4MDI0NjkyOTZ9fQ==",
+        "length": 358,
+        "sha256": "5bfc7f7ac3dcb4b27fcb92aca80168ab4853e5255eae57c2499180e869a8aa94"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "read_only": {
+      "body_json": {
+        "activeThreats": 4,
+        "batchStats": {
+          "batchCount": 0,
+          "immediateXdpBans": 0,
+          "pendingScoreEntries": 0,
+          "queueSize": 0,
+          "running": false,
+          "scoreCacheEntries": 0,
+          "totalDropped": 0,
+          "totalEnqueued": 0,
+          "totalFlushed": 0
+        },
+        "decayConfig": {
+          "amount": 7,
+          "hourlyRate": 4.666665802469296,
+          "interval": "PT1H30M0.001S"
+        },
+        "highRiskByCurrent": 2,
+        "highRiskByTotal": 2,
+        "totalActivities": 5,
+        "totalIPs": 6
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "358"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJ0b3RhbElQcyI6NiwiaGlnaFJpc2tCeVRvdGFsIjoyLCJoaWdoUmlza0J5Q3VycmVudCI6MiwiYWN0aXZlVGhyZWF0cyI6NCwidG90YWxBY3Rpdml0aWVzIjo1LCJiYXRjaFN0YXRzIjp7InJ1bm5pbmciOmZhbHNlLCJxdWV1ZVNpemUiOjAsInRvdGFsRW5xdWV1ZWQiOjAsInRvdGFsRmx1c2hlZCI6MCwidG90YWxEcm9wcGVkIjowLCJiYXRjaENvdW50IjowLCJpbW1lZGlhdGVYZHBCYW5zIjowLCJwZW5kaW5nU2NvcmVFbnRyaWVzIjowLCJzY29yZUNhY2hlRW50cmllcyI6MH0sImRlY2F5Q29uZmlnIjp7ImludGVydmFsIjoiUFQxSDMwTTAuMDAxUyIsImFtb3VudCI6NywiaG91cmx5UmF0ZSI6NC42NjY2NjU4MDI0NjkyOTZ9fQ==",
+        "length": 358,
+        "sha256": "5bfc7f7ac3dcb4b27fcb92aca80168ab4853e5255eae57c2499180e869a8aa94"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "write_only": {
+      "body_json": {
+        "error": "permission_denied",
+        "message": "This API key does not have read permission"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "84"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+        "length": 84,
+        "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+      },
+      "status_code": 403,
+      "status_line": "HTTP/1.1 403 Forbidden"
+    }
+  },
+  "schema_version": 2
+}

@@ -21,7 +21,7 @@ lmyzmail は Linux x86_64 向けの単一プロセス型メールサーバーで
 
 ### メールと Web メール
 
-`/` で Web メールを開きます。メールボックスへのログイン、設定に応じた公開登録、受信/送信済み/迷惑メール等のフォルダー、ページ表示、HTML/テキスト表示、原文・ヘッダー、添付取得、JSON/multipart 送信、配送状態、送信枠、スター、ラベル、連絡先、ユーザー設定に対応します。`/cringe.html` では接続、リスク統計、一覧の並べ替え・検索・ページ送りを利用できます。IP 詳細は引き続き未実装です。メール・添付・ユーザーデータへのアクセスは認証されたメールボックスに限定されます。
+`/` で Web メールを開きます。メールボックスへのログイン、設定に応じた公開登録、受信/送信済み/迷惑メール等のフォルダー、ページ表示、HTML/テキスト表示、原文・ヘッダー、添付取得、JSON/multipart 送信、配送状態、送信枠、スター、ラベル、連絡先、ユーザー設定に対応します。`/cringe.html` では接続、リスク統計、一覧の並べ替え・検索・ページ送り、IP 詳細と活動履歴を利用できます。メール・添付・ユーザーデータへのアクセスは認証されたメールボックスに限定されます。
 
 受信 SMTP は EHLO、MAIL/RCPT、DATA、BDAT、PIPELINING、STARTTLS、SMTPUTF8、MIME、宛先ドメイン・メールボックス検証に対応します。DATA は `354` を受信してから本文を送ってください。この待受口は **SMTP AUTH による送信受付を提供しません**。AUTH は `502` を返します。認証付き送信には Web メールまたは HTTP API を使用し、このポートの AUTH にパスワードを送らないでください。
 
@@ -407,7 +407,7 @@ journalctl -u lmyzmail -n 100 --no-pager
 | GET | `/api/cringe-ips/{ip}/activities`<br>`/api/cringe-ips/{ip}/decay-estimate`<br>`/api/cringe-ips/decay-config` | `read` | 活動・減衰予測・設定 |
 | GET | `/api/cringe-ips` | `read` | IP 一覧のページング、スコア・件数・日時・IP による並べ替え、検索、XDP 状態 |
 | GET | `/api/cringe-ips/stats` | `read` | IP・活動数、累積/現在の危険度と減衰設定。活動は現在、直接書込モード |
-| GET | `/api/cringe-ips/{ip}` | `read` | 成功処理は未実装。正しい認証でも 404 |
+| GET | `/api/cringe-ips/{ip}` | `read` | IP 別スコア概要・XDP 状態・全活動履歴。該当なしは 404、資源上限超過は 500 |
 | POST | `/api/cringe-ips/decay` | `write` | スコア減衰を実行 |
 | GET | `/web/mail/list`<br>`/web/mail/list/{folder}` | `session` | page=0&size=50&starredOnly=false |
 | GET | `/web/mail/detail/{folder}/{file}`<br>`/web/mail/raw/{folder}/{file}`<br>`/web/mail/headers/{folder}/{file}`<br>`/web/mail/attachment/{folder}/{file}/{index}` | `session` | 詳細・原文・ヘッダー・添付 |
@@ -424,7 +424,9 @@ journalctl -u lmyzmail -n 100 --no-pager
 
 IP 一覧の既定値は `page=0`、`size=50`、`sortBy=currentScore`、`sortDir=desc`、`search=` です。ページサイズの上限は 500。並べ替え項目は許可リストで制限し、不明な項目は現在のスコアに戻します。大文字小文字を問わず `asc` のみ昇順です。検索は大文字小文字を区別せず、`%`・`_` のワイルドカードを保持します。応答には元の `searchQuery`、各 IP の `xdpBanned`・`whitelisted`、総件数・総ページ数を含みます。不正なページング引数は 400 になります。
 
-統計は `totalIPs`、累積スコア `>=50`、現在スコア `>=50`、現在スコア `>0`、活動テーブルの実際の行数を返します。`decayConfig` は ISO 期間文字列・減衰量・毎時率です。現在は活動を直接 commit するため、`batchStats.running=false` で、存在しないキュー・キャッシュ・バッチのカウンターはゼロです。旧実装のバッチモードと五つの設定キーは独立した未完了項目 G20 として残り、このゼロ値をバッチ対応の証拠にはしません。IP 詳細は G19 です。[統計・画面の検証](docs/cringe-stats-validation-20261024.md)と[一覧の検証](docs/cringe-list-validation-20261024.md)を参照してください。
+統計は `totalIPs`、累積スコア `>=50`、現在スコア `>=50`、現在スコア `>0`、活動テーブルの実際の行数を返します。`decayConfig` は ISO 期間文字列・減衰量・毎時率です。現在は活動を直接 commit するため、`batchStats.running=false` で、存在しないキュー・キャッシュ・バッチのカウンターはゼロです。旧実装のバッチモードと五つの設定キーは独立した未完了項目 G20 として残り、このゼロ値をバッチ対応の証拠にはしません。[統計・画面の検証](docs/cringe-stats-validation-20261024.md)と[一覧の検証](docs/cringe-list-validation-20261024.md)を参照してください。
+
+IP 詳細は `summary` と日時降順の `activities` を返し、ページ API の 500 件制限は適用しません。過去の保存値との互換性のため、制御文字・パーセント符号化の残片・前後の ASCII 空白を除いて検索し、該当しなければ元の文字列で再検索します。活動は必ず一致した保存値で取得します。詳細は活動 10000 件、活動 JSON 8 MiB、同時応答四つまでとし、超過時は成功ヘッダーを送る前にエラーを返します。履歴を黙って切り詰めません。大きな履歴にはページ API を使用してください。この資源保護による旧動作との差異と実画面の検証は[詳細の記録](docs/cringe-detail-validation-20261024.md)を参照してください。
 
 実装済み insults 一覧は `page`、`size`、`search`、出力は `minScore`、`scoreType` を受理します。ユーザーデータ JSON は[型定義](crates/lmyzmail/src/userdata.rs)に従い、Web UI も同じ API を使います。
 

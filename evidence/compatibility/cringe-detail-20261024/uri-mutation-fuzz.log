@@ -1,0 +1,1 @@
+{"binary_sha256": "94bd9883d4e24ccd34583c37be1d701fc23220f3dcef94c9137ab12b84dd921c", "database_unchanged": true, "health_probes": 66, "mutations": 4096, "result": "passed", "seconds": 4.726401281077415, "seed": 107913547812, "statuses": {"200": 13, "404": 2598, "500": 1485}}

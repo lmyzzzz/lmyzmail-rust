@@ -1,0 +1,6 @@
+{"external_candidate_binary": "/home/lmyzzz/lmyzmail-rust/.blackbox/cringe-detail-20261024-v3.elf", "sha256_before": "94bd9883d4e24ccd34583c37be1d701fc23220f3dcef94c9137ab12b84dd921c"}
+..................                                                       [100%]
+Campaign audit: {"differences_requiring_review": [], "harness_definition_sha256": "e796e65d8ba4d718084df1b2178f1bb1803e7064ef91465cca6194e428d0ae7e", "historical_observations_equal": 39, "old_golden_files_unchanged": 6945, "pytest_exitstatus": 0}
+
+18 passed, 11 deselected in 98.64s (0:01:38)
+{"sha256_after": "94bd9883d4e24ccd34583c37be1d701fc23220f3dcef94c9137ab12b84dd921c", "staged_sha256_after": "94bd9883d4e24ccd34583c37be1d701fc23220f3dcef94c9137ab12b84dd921c", "unchanged": true}

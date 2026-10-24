@@ -1,0 +1,220 @@
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+__________________ test_frozen_java_cringe_detail_golden[api] __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-188/test_frozen_java_cringe_detail0')
+record_java_golden = True, profile = 'api'
+
+    @pytest.mark.integration
+    @pytest.mark.oracle
+    @pytest.mark.parametrize("profile", tuple(_SCENARIOS))
+    @pytest.mark.timeout(180)
+    def test_frozen_java_cringe_detail_golden(tmp_path: Path, record_java_golden: bool, profile: str) -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with PersistentJavaOracleRuntime(tmp_path / ("java-detail-" + profile)) as oracle:
+            runner = DifferentialRunner(repository, repository / (_GOLDEN + "-" + profile), _PROFILE + "-" + profile, record_java=record_java_golden)
+            if record_java_golden:
+>               runner.record_from_java(_SCENARIOS[profile], _OracleTarget(oracle))
+
+blackbox/tests/test_candidate_cringe_detail_golden.py:256: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:94: in record_from_java
+    observation = scenario.capture(target)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+blackbox/tests/test_candidate_cringe_detail_golden.py:77: in _capture_detail
+    _seed(target)
+blackbox/tests/test_candidate_cringe_detail_golden.py:61: in _seed
+    connection.execute(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Connection [BAD] at 0x72a8a6ec9130>
+query = "INSERT INTO skibidi_cringe_ip_activity\n                (id,ip_address,activity_type,score,timestamp,response_message)\n                VALUES (%s,%s,'LEGACY',3,'2024-01-02T00:00:00Z',%s)"
+params = (930000, '\t203.0.113.88%2F\n', 'legacy activity 0')
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool = False,
+    ) -> Cursor[Row]:
+        """Execute a query and return a cursor to read its results."""
+        try:
+            cur = self.cursor()
+            if binary:
+                cur.format = BINARY
+    
+            return cur.execute(query, params, prepare=prepare)
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.CheckViolation: new row for relation "skibidi_cringe_ip_activity" violates check constraint "skibidi_cringe_ip_activity_activity_type_check"
+E           DETAIL:  Failing row contains (3, 930000, 2024-01-02 00:00:00+00, LEGACY, 	203.0.113.88%2F
+E           , null, legacy activity 0, null, null, null, null).
+
+.blackbox/venv/lib/python3.12/site-packages/psycopg/connection.py:257: CheckViolation
+________________ test_frozen_java_cringe_detail_golden[history] ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-188/test_frozen_java_cringe_detail1')
+record_java_golden = True, profile = 'history'
+
+    @pytest.mark.integration
+    @pytest.mark.oracle
+    @pytest.mark.parametrize("profile", tuple(_SCENARIOS))
+    @pytest.mark.timeout(180)
+    def test_frozen_java_cringe_detail_golden(tmp_path: Path, record_java_golden: bool, profile: str) -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with PersistentJavaOracleRuntime(tmp_path / ("java-detail-" + profile)) as oracle:
+            runner = DifferentialRunner(repository, repository / (_GOLDEN + "-" + profile), _PROFILE + "-" + profile, record_java=record_java_golden)
+            if record_java_golden:
+>               runner.record_from_java(_SCENARIOS[profile], _OracleTarget(oracle))
+
+blackbox/tests/test_candidate_cringe_detail_golden.py:256: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:94: in record_from_java
+    observation = scenario.capture(target)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+blackbox/tests/test_candidate_cringe_detail_golden.py:147: in _capture_history
+    _seed(target)
+blackbox/tests/test_candidate_cringe_detail_golden.py:61: in _seed
+    connection.execute(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Connection [BAD] at 0x72a8a6d43cb0>
+query = "INSERT INTO skibidi_cringe_ip_activity\n                (id,ip_address,activity_type,score,timestamp,response_message)\n                VALUES (%s,%s,'LEGACY',3,'2024-01-02T00:00:00Z',%s)"
+params = (930000, '\t203.0.113.88%2F\n', 'legacy activity 0')
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool = False,
+    ) -> Cursor[Row]:
+        """Execute a query and return a cursor to read its results."""
+        try:
+            cur = self.cursor()
+            if binary:
+                cur.format = BINARY
+    
+            return cur.execute(query, params, prepare=prepare)
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.CheckViolation: new row for relation "skibidi_cringe_ip_activity" violates check constraint "skibidi_cringe_ip_activity_activity_type_check"
+E           DETAIL:  Failing row contains (3, 930000, 2024-01-02 00:00:00+00, LEGACY, 	203.0.113.88%2F
+E           , null, legacy activity 0, null, null, null, null).
+
+.blackbox/venv/lib/python3.12/site-packages/psycopg/connection.py:257: CheckViolation
+______________ test_frozen_java_cringe_detail_golden[boundaries] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-188/test_frozen_java_cringe_detail2')
+record_java_golden = True, profile = 'boundaries'
+
+    @pytest.mark.integration
+    @pytest.mark.oracle
+    @pytest.mark.parametrize("profile", tuple(_SCENARIOS))
+    @pytest.mark.timeout(180)
+    def test_frozen_java_cringe_detail_golden(tmp_path: Path, record_java_golden: bool, profile: str) -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with PersistentJavaOracleRuntime(tmp_path / ("java-detail-" + profile)) as oracle:
+            runner = DifferentialRunner(repository, repository / (_GOLDEN + "-" + profile), _PROFILE + "-" + profile, record_java=record_java_golden)
+            if record_java_golden:
+>               runner.record_from_java(_SCENARIOS[profile], _OracleTarget(oracle))
+
+blackbox/tests/test_candidate_cringe_detail_golden.py:256: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:94: in record_from_java
+    observation = scenario.capture(target)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+blackbox/tests/test_candidate_cringe_detail_golden.py:162: in _capture_boundaries
+    _seed(target)
+blackbox/tests/test_candidate_cringe_detail_golden.py:61: in _seed
+    connection.execute(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Connection [BAD] at 0x72a8a6d68050>
+query = "INSERT INTO skibidi_cringe_ip_activity\n                (id,ip_address,activity_type,score,timestamp,response_message)\n                VALUES (%s,%s,'LEGACY',3,'2024-01-02T00:00:00Z',%s)"
+params = (930000, '\t203.0.113.88%2F\n', 'legacy activity 0')
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool = False,
+    ) -> Cursor[Row]:
+        """Execute a query and return a cursor to read its results."""
+        try:
+            cur = self.cursor()
+            if binary:
+                cur.format = BINARY
+    
+            return cur.execute(query, params, prepare=prepare)
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.CheckViolation: new row for relation "skibidi_cringe_ip_activity" violates check constraint "skibidi_cringe_ip_activity_activity_type_check"
+E           DETAIL:  Failing row contains (3, 930000, 2024-01-02 00:00:00+00, LEGACY, 	203.0.113.88%2F
+E           , null, legacy activity 0, null, null, null, null).
+
+.blackbox/venv/lib/python3.12/site-packages/psycopg/connection.py:257: CheckViolation
+__________________ test_frozen_java_cringe_detail_golden[ui] ___________________
+
+tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-188/test_frozen_java_cringe_detail3')
+record_java_golden = True, profile = 'ui'
+
+    @pytest.mark.integration
+    @pytest.mark.oracle
+    @pytest.mark.parametrize("profile", tuple(_SCENARIOS))
+    @pytest.mark.timeout(180)
+    def test_frozen_java_cringe_detail_golden(tmp_path: Path, record_java_golden: bool, profile: str) -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with PersistentJavaOracleRuntime(tmp_path / ("java-detail-" + profile)) as oracle:
+            runner = DifferentialRunner(repository, repository / (_GOLDEN + "-" + profile), _PROFILE + "-" + profile, record_java=record_java_golden)
+            if record_java_golden:
+>               runner.record_from_java(_SCENARIOS[profile], _OracleTarget(oracle))
+
+blackbox/tests/test_candidate_cringe_detail_golden.py:256: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:94: in record_from_java
+    observation = scenario.capture(target)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+blackbox/tests/test_candidate_cringe_detail_golden.py:181: in _capture_ui
+    _seed(target)
+blackbox/tests/test_candidate_cringe_detail_golden.py:61: in _seed
+    connection.execute(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Connection [BAD] at 0x72a8a6dac260>
+query = "INSERT INTO skibidi_cringe_ip_activity\n                (id,ip_address,activity_type,score,timestamp,response_message)\n                VALUES (%s,%s,'LEGACY',3,'2024-01-02T00:00:00Z',%s)"
+params = (930000, '\t203.0.113.88%2F\n', 'legacy activity 0')
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool = False,
+    ) -> Cursor[Row]:
+        """Execute a query and return a cursor to read its results."""
+        try:
+            cur = self.cursor()
+            if binary:
+                cur.format = BINARY
+    
+            return cur.execute(query, params, prepare=prepare)
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.CheckViolation: new row for relation "skibidi_cringe_ip_activity" violates check constraint "skibidi_cringe_ip_activity_activity_type_check"
+E           DETAIL:  Failing row contains (3, 930000, 2024-01-02 00:00:00+00, LEGACY, 	203.0.113.88%2F
+E           , null, legacy activity 0, null, null, null, null).
+
+.blackbox/venv/lib/python3.12/site-packages/psycopg/connection.py:257: CheckViolation
+=========================== short test summary info ============================
+FAILED blackbox/tests/test_candidate_cringe_detail_golden.py::test_frozen_java_cringe_detail_golden[api]
+FAILED blackbox/tests/test_candidate_cringe_detail_golden.py::test_frozen_java_cringe_detail_golden[history]
+FAILED blackbox/tests/test_candidate_cringe_detail_golden.py::test_frozen_java_cringe_detail_golden[boundaries]
+FAILED blackbox/tests/test_candidate_cringe_detail_golden.py::test_frozen_java_cringe_detail_golden[ui]
+4 failed, 4 deselected in 44.52s

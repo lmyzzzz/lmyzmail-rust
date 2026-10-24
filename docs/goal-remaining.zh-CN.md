@@ -2,11 +2,11 @@
 
 截至 2026-10-24。这是验收项的工作分解，不是完成声明。每个编号对应可单独领取、修复、验证的任务；依赖列决定执行顺序。重型 benchmark 在同机必须串行，避免相互干扰；源码/证据整理和异机 SIMD 验证可并行。
 
-当前 G18 修复后本机受测 ELF SHA-256：`0f65c82c2f0ffd2990fdec00a5f9baea6e8a381342ef9609750442794fb73302`；已有发行包未因此重新封版。历史证据里的提交 SHA 保留原值，统一作者后的 SHA 通过[映射表](../evidence/history/identity-20261023/commit-map.tsv)解析。
+当前 G19 修复后本机受测 ELF SHA-256：`94bd9883d4e24ccd34583c37be1d701fc23220f3dcef94c9137ab12b84dd921c`；已有发行包未因此重新封版。历史证据里的提交 SHA 保留原值，统一作者后的 SHA 通过[映射表](../evidence/history/identity-20261023/commit-map.tsv)解析。
 
 ## 已有证据，不重复列为缺项
 
-- 当前产品 961 项 Rust 测试和 strict Clippy 通过。
+- 历史完整 workspace 的 961 项 Rust 测试和 strict Clippy 已通过；本轮 lmyzmail crate 的 883 项测试及 workspace/all-target strict Clippy 通过，见[详情记录](cringe-detail-validation-20261024.md)。
 - fresh Java 107 项加独立 RBL，以及 candidate 126 项、188 项不重叠检查加独立 RBL 通过；6897 个历史 golden 不变，346 项新观察匹配。
 - Scalar/AVX2 邮件与 Minecraft 的 wire/pixel/frame golden、实际分派和本机性能有证据；XDP 的实际 attach、IPv4/IPv6 封禁/放行、重启和清理已通过。
 - 两个独立 target 的冻结构建生成相同 ELF，安装、升级、配置保留、卸载和版本化 Windows 包已验证。
@@ -37,9 +37,9 @@
 | G16 | 将完整最终工作目录交付到 Windows 路径 | 全部 goal 验收条件真实通过后 | 安全同步全部最终源码、Git 历史、golden、证据和必要未提交工作到 `D:\MiscProjects\lmyzmail-rust`，校验对象/关键文件/状态和交付包，保留 WSL 原件。未完成时只交付版本化候选 artifacts，不宣称已完成最终同步。 |
 | G17 | 分页列表与面板连接/列表交互已修复 | 无；详情功能另见 G19 | page/size/sortBy/sortDir/search、分页元数据、17 字段排序白名单和 XDP enriched 字段已有差分回归；[列表记录](cringe-list-validation-20261024.md)及[实际浏览器验证](cringe-stats-validation-20261024.md)。 |
 | G18 | 统计摘要成功处理器已补齐；完整批量模式兼容待 G20 | 数据计数及直接模式已验证；批量模式依赖 G20 | 空库/阈值边界/独立活动数、默认与自定义衰减配置、权限、并发、PG 超时及恢复有差分或回归证据，面板真实加载统计。当前 batchStats 只代表直接模式，不能关闭 G20。见[专项记录](cringe-stats-validation-20261024.md)。 |
-| G19 | 补齐 `GET /api/cringe-ips/{ipAddress}` 单 IP 详情 | 无；与其他路由有共享文件，集成时协调 | 恢复清洗/旧值回查、XDP banned/whitelisted 字段和活动明细；验证 URI 编码、特殊/缺失 IP、跨字段一致性、权限和有界资源，完成 oracle 差分与面板详情验证。 |
+| G19 | 单 IP 详情与真实面板详情交互已修复 | 无；默认批量模式另见 G20 | 清洗/原值回查、存储身份绑定的完整活动、XDP enrichment、URI/无效 UTF-8/畸形百分号、权限和字节/像素差分已覆盖；逐行编码，10000 条/8 MiB/四个响应硬上限，超限明确失败。见[详情记录](cringe-detail-validation-20261024.md)，不据此关闭 G20/G21 或全局稳定性验收。 |
 | G20 | 恢复风险活动批量写入模式及配置 | 可独立修复；G18 的批量状态验收依赖此项 | 当前 CringeService 仅直接写入；迁移旧默认 enabled=true、size、flush-interval、max-queue-size、shutdown-timeout 五项配置并支持新键优先。实现真实有界队列、批量事务、即时 XDP/分数缓存、容量/失败/取消/关机排空语义及真实 batchStats；先建立 batch-enabled Java golden，再覆盖入队/刷盘/丢弃/缓存/封禁/恢复，不能伪造 running=true 或用直接模式 golden 替代。 |
-| G21 | 定位单连接 PG 池首次锁超时后的偶发恢复失败 | 可独立定点诊断；与 G01/G02 不同，不要求全量代码审查 | 既有 above-score 回归出现超时后首个正常请求再次等待 8 秒并返回 500，同进程后续请求恢复；独立六轮探针第一轮亦复现，另一次双轮和单项复验通过。需关联池借还、维护任务、PG 活跃/等待查询及请求 deadline，修复或以证据明确原因并保持原断言通过；不能以重跑通过宣称已修复。证据见本轮 pool-recovery 日志。 |
+| G21 | 定位单连接 PG 池锁超时及恢复的偶发失败 | 可独立定点诊断；与 G01/G02 不同，不要求全量代码审查 | 既有 above-score 回归出现超时后首个正常请求再次等待 8 秒并返回 500，同进程后续请求恢复；独立六轮探针第一轮亦复现。本轮统计锁超时测试另出现空 HTTP 响应（EOF），尚不能确认与前者同因。需关联池借还、维护任务、PG 活跃/等待查询、取消/drain 和 HTTP deadline，修复或以证据明确原因并保持原断言通过；不能以重跑通过宣称已修复。原 pool-recovery 日志与[详情回归失败记录](cringe-detail-validation-20261024.md)均保留。 |
 
 当前 275HX WSL 不暴露 AVX-512。用户确认暂无测试机并要求先完成本机可验收项；这授权继续本机工作，没有豁免 G09–G11。正式稳定性连续十轮仍不合格时应先推进其他独立项，而不是无限重跑或把失败标成通过。以上重压档位应收集 RSS、FD、任务、队列、延迟、错误和磁盘时间序列。
 
@@ -49,7 +49,7 @@
 只读核对冻结 controller 的 `listCringeIPs/getStats/getIPDetail` 与候选
 `http.rs` 的路由匹配、`ParsedRequest` 和处理分支后，确认候选没有这三个
 成功处理器：当时带合法读 key 的请求会落入 `NotFound`。同文件
-`parse_cringe_ip_route` 目前只处理 activities 与 decay-estimate。
+`parse_cringe_ip_route` 当时只处理 activities 与 decay-estimate。
 `blackbox/tests/test_http_route_manifest.py` 只验证清单数量、唯一性和分类，
 不是这三条路由成功行为的证明。因此既有 961 / 315 等通过数不能关闭
 这些功能缺口。这里保留原发现，不修改 golden 或把 404 宣称为兼容成功。
@@ -57,7 +57,8 @@
 2026-10-24 先补齐 G17 的列表成功处理器，随后补齐 G18 的统计成功处理器，
 保留修复前 404 与原始 golden。真实 Playwright 连接、统计卡、列表排序、
 翻页、IPv6 搜索、空结果及断开已有独立 Java/Rust 对照，不使用 mock API。
-单 IP 详情 G19 仍缺失。进一步核对统计中的 batchStats 时发现候选尚无
+随后补齐 G19 单 IP 详情及真实点击、活动、关闭/重开与像素对照，见
+[详情记录](cringe-detail-validation-20261024.md)。进一步核对统计中的 batchStats 时发现候选尚无
 批量写入器，已有 oracle harness 明确设置 batch.enabled=false；本轮
 据此只证明直接模式兼容，不能推导默认批量模式已完成，新增 G20 保留该缺口。
 

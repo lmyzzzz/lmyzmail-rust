@@ -7,8 +7,10 @@ The documentation-to-route check identified three missing successful handlers
 (G17–G19). The [2026-10-24 list repair](cringe-list-validation-20261024.md) adds
 the paginated threat-IP handler and focused oracle/candidate regressions.
 The [statistics repair](cringe-stats-validation-20261024.md) adds the G18 success
-handler and real dashboard connection/list interaction checks. Per-IP detail
-(G19) remains absent. Stats compatibility is proven for direct writes only:
+handler and real dashboard connection/list interaction checks. The
+[detail repair](cringe-detail-validation-20261024.md) adds G19, raw-identity
+activity history, URI/error contracts, bounded responses and real detail UI
+pixel comparisons. Stats compatibility is proven for direct writes only:
 the existing oracle harness explicitly disables batching, and the candidate has
 no batch worker. Restoring default batch-enabled behavior, configuration and live
 counters is tracked separately as G20; this is not a completed compatibility gate.

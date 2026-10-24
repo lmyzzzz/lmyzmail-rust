@@ -92,6 +92,7 @@ def test_storage_manifests_are_strict_json_and_bind_frozen_sources() -> None:
         "auth-postgres-cancellation-and-pool-health",
         "cringe-pagination-input-validation",
         "cringe-score-query-row-cap",
+        "cringe-detail-response-budgets",
         "cringe-postgres-cancellation-and-pool-health",
         "htcpcp-connection-close-lifecycle",
         "htcpcp-absolute-request-deadline",

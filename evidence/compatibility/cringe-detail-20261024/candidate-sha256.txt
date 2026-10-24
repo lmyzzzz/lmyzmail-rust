@@ -1,0 +1,2 @@
+c364ce4011309cbc3698b638a474ce36cbae95b4d97d2f42f757c38659dfd6dd  target/x86_64-unknown-linux-gnu/release/lmyzmail
+c364ce4011309cbc3698b638a474ce36cbae95b4d97d2f42f757c38659dfd6dd  .blackbox/cringe-detail-20261024-v1.elf

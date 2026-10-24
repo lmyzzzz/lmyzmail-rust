@@ -4,7 +4,7 @@ use std::{
     future::Future,
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
     sync::{
-        OnceLock,
+        Arc, OnceLock,
         atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::Duration,
@@ -12,7 +12,9 @@ use std::{
 
 use chrono::{DateTime, Utc};
 use deadpool_postgres::{Object, Pool};
+use futures_util::TryStreamExt;
 use serde::Serialize;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::time::{Instant, timeout_at};
 use tokio_postgres::{CancelToken, IsolationLevel, NoTls, Row};
 use tokio_util::sync::CancellationToken;
@@ -21,6 +23,9 @@ const DATABASE_DEADLINE: Duration = Duration::from_secs(8);
 const DATABASE_CANCEL_DRAIN_TIMEOUT: Duration = Duration::from_secs(2);
 const MAX_PAGE_SIZE: i64 = 500;
 const MAX_EXPORT_ROWS: i64 = 10_000;
+const MAX_DETAIL_ROWS: usize = 10_000;
+const MAX_DETAIL_BYTES: usize = 8 * 1024 * 1024;
+const MAX_DETAIL_RESPONSES: usize = 4;
 const XDP_SYNC_PAGE_SIZE: i64 = 500;
 const MAX_XDP_EXISTING_BANS: usize = 200_000;
 const MAX_XDP_NEW_CANDIDATES: usize = 200_000;
@@ -41,6 +46,16 @@ const ACTIVITY_COLUMNS: &str = "id, ip_address, activity_type, score, timestamp,
 #[derive(Clone)]
 pub struct CringeService {
     pool: Pool,
+    detail_admission: Arc<Semaphore>,
+}
+
+pub struct IpDetail {
+    pub summary: EnrichedCringeIp,
+    pub activities_json: Vec<u8>,
+    // Admission covers serialization AND backpressured socket output. A slow
+    // reader cannot retain a large body after returning its database connection
+    // and admit an unbounded number of further materialized responses.
+    _permit: OwnedSemaphorePermit,
 }
 
 #[derive(Debug, Serialize)]
@@ -199,7 +214,102 @@ impl ActivityDetails {
 
 impl CringeService {
     pub fn new(pool: Pool) -> Self {
-        Self { pool }
+        Self {
+            pool,
+            detail_admission: Arc::new(Semaphore::new(MAX_DETAIL_RESPONSES)),
+        }
+    }
+
+    pub async fn detail(
+        &self,
+        cleaned: &str,
+        raw: &str,
+        cancellation: &CancellationToken,
+    ) -> Result<Option<IpDetail>, CringeError> {
+        let deadline = Instant::now() + DATABASE_DEADLINE;
+        let permit = wait_database(
+            Arc::clone(&self.detail_admission).acquire_owned(),
+            deadline,
+            cancellation,
+        )
+        .await?;
+        let client = self.client(deadline, cancellation).await?;
+        let connection = DatabaseConnection::new(client);
+        let cancel_token = connection.cancel_token();
+        let mut outcome = database_read(deadline, cancellation, &cancel_token, async {
+            let sql = format!("SELECT {IP_COLUMNS} FROM skibidi_cringe_ip WHERE ip_address=$1");
+            let mut row = connection
+                .client()
+                .query_opt(&sql, &[&cleaned])
+                .await
+                .map_err(database_error)?;
+            if row.is_none() && cleaned != raw {
+                row = connection
+                    .client()
+                    .query_opt(&sql, &[&raw])
+                    .await
+                    .map_err(database_error)?;
+            }
+            let Some(row) = row else { return Ok(None) };
+            let summary = EnrichedCringeIp::from(cringe_ip_from_row(&row));
+            // Keep Java's separate READ COMMITTED reads and raw stored identity.
+            // No normalized-IP join and no added timestamp tie-breaking order.
+            let sql = format!(
+                "SELECT {ACTIVITY_COLUMNS} FROM skibidi_cringe_ip_activity \
+                 WHERE ip_address=$1 ORDER BY timestamp DESC LIMIT {}",
+                MAX_DETAIL_ROWS + 1
+            );
+            let rows = connection
+                .client()
+                .query_raw(&sql, [&summary.ip_address])
+                .await
+                .map_err(database_error)?;
+            tokio::pin!(rows);
+            let mut json = Vec::with_capacity(16 * 1024);
+            json.push(b'[');
+            let mut count = 0;
+            while let Some(row) = rows.try_next().await.map_err(database_error)? {
+                if count == MAX_DETAIL_ROWS {
+                    return Err(CringeError::CapacityExceeded);
+                }
+                let encoded = serde_json::to_vec(&activity_from_row(&row))
+                    .map_err(|error| CringeError::Database(error.to_string()))?;
+                // Reserve the closing bracket before accepting a row. Bound
+                // Vec capacity as well as length; don't collect activity DTOs
+                // and then make a second complete JSON copy.
+                let needed = json.len() + usize::from(count != 0) + encoded.len() + 1;
+                if needed > MAX_DETAIL_BYTES {
+                    return Err(CringeError::CapacityExceeded);
+                }
+                if needed > json.capacity() {
+                    let capacity = needed.max(json.capacity() * 2).min(MAX_DETAIL_BYTES);
+                    json.reserve_exact(capacity - json.len());
+                }
+                if count != 0 {
+                    json.push(b',');
+                }
+                json.extend_from_slice(&encoded);
+                count += 1;
+                if count % 64 == 0 {
+                    tokio::task::yield_now().await;
+                }
+            }
+            json.push(b']');
+            Ok(Some((summary, json)))
+        })
+        .await;
+        // A capacity failure can drop a live RowStream. Its connection must
+        // never return to the pool with unfinished query messages.
+        if matches!(outcome.result, Err(CringeError::CapacityExceeded)) {
+            outcome.discard_connection = true;
+        }
+        Ok(connection
+            .finish(outcome)?
+            .map(|(summary, activities_json)| IpDetail {
+                summary,
+                activities_json,
+                _permit: permit,
+            }))
     }
 
     pub async fn stats(

@@ -1,0 +1,14 @@
+{"kind": "java", "path": "203.0.113.77%", "status": 500, "body": "{\"error\":\"internal_error\"}"}
+{"kind": "java", "path": "203.0.113.77%2", "status": 500, "body": "{\"error\":\"internal_error\"}"}
+{"kind": "java", "path": "203.0.113.77%GG", "status": 500, "body": "{\"error\":\"internal_error\"}"}
+{"kind": "java", "path": "203.0.113.77%0G", "status": 500, "body": "{\"error\":\"internal_error\"}"}
+{"kind": "java", "path": "203.0.113.77%20", "status": 200, "body": "detail"}
+{"kind": "java", "path": "203.0.113.77%", "key": "missing", "status": 500, "body": "{\"error\":\"internal_error\"}"}
+{"kind": "java", "path": "203.0.113.77%", "key": "write_only", "status": 500, "body": "{\"error\":\"internal_error\"}"}
+{"kind": "rust", "path": "203.0.113.77%", "status": 200, "body": "detail"}
+{"kind": "rust", "path": "203.0.113.77%2", "status": 200, "body": "detail"}
+{"kind": "rust", "path": "203.0.113.77%GG", "status": 404, "body": "{\"error\":\"not_found\"}"}
+{"kind": "rust", "path": "203.0.113.77%0G", "status": 404, "body": "{\"error\":\"not_found\"}"}
+{"kind": "rust", "path": "203.0.113.77%20", "status": 200, "body": "detail"}
+{"kind": "rust", "path": "203.0.113.77%", "key": "missing", "status": 401, "body": "{\"error\":\"invalid_api_key\",\"message\":\"Missing or invalid API key. Please provide a valid X-API-Key header.\"}"}
+{"kind": "rust", "path": "203.0.113.77%", "key": "write_only", "status": 403, "body": "{\"error\":\"permission_denied\",\"message\":\"This API key does not have read permission\"}"}

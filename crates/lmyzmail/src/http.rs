@@ -1258,6 +1258,7 @@ async fn handle_connection(
             }
         }
         ParsedRequest::CringeInvalidInput => write_cringe_error(stream, CringeError::InvalidInput).await,
+        ParsedRequest::CringePathDecodeError => write_json_error(stream, Status::InternalServerError, "internal_error").await,
         ParsedRequest::CringeStats => {
             match cringe.stats(&config.cringe_decay, cancellation).await {
                 Ok(stats) => write_json_response(stream, Status::Ok, &stats).await,
@@ -1279,6 +1280,33 @@ async fn handle_connection(
                         Err(_) => write_json_error(stream, Status::InternalServerError, "internal_error").await,
                     }
                 }
+                Err(error) => write_cringe_error(stream, error).await,
+            }
+        }
+        ParsedRequest::CringeDetail(ip_address) => {
+            match cringe.detail(&clean_ip_address(&ip_address), &ip_address, cancellation).await {
+                Ok(Some(mut detail)) => {
+                    let ips = vec![clean_ip_address(&detail.summary.ip_address)];
+                    match xdp.batch_status(ips, cancellation).await {
+                        Ok(statuses) => {
+                            let Some(status) = statuses.first() else {
+                                return write_json_error(stream, Status::InternalServerError, "internal_error").await;
+                            };
+                            detail.summary.xdp_banned = status.banned;
+                            detail.summary.whitelisted = status.whitelisted;
+                            let summary = serde_json::to_vec(&detail.summary).map_err(io::Error::other)?;
+                            let length = b"{\"summary\":".len() + summary.len()
+                                + b",\"activities\":".len() + detail.activities_json.len() + 1;
+                            write_response_head(&mut stream, Status::Ok, length, "application/json; charset=UTF-8").await?;
+                            for part in [b"{\"summary\":".as_slice(), &summary, b",\"activities\":", &detail.activities_json, b"}"] {
+                                stream.write_all(part).await?;
+                            }
+                            Ok(())
+                        }
+                        Err(_) => write_json_error(stream, Status::InternalServerError, "internal_error").await,
+                    }
+                }
+                Ok(None) => write_not_found(stream).await,
                 Err(error) => write_cringe_error(stream, error).await,
             }
         }
@@ -2509,7 +2537,19 @@ fn parse_cringe_export(path: &str) -> ParsedRequest {
 
 fn parse_cringe_ip_route(path: &str) -> ParsedRequest {
     let (route, _) = path.split_once('?').map_or((path, ""), |parts| parts);
+    if malformed_cringe_detail_path(route) {
+        return ParsedRequest::CringePathDecodeError;
+    }
     let suffix = route.strip_prefix("/api/cringe-ips/").unwrap_or_default();
+    if !suffix.is_empty() && !suffix.contains('/') {
+        let address = decode_cringe_detail_address(suffix);
+        // Netty decodes the path before route matching. An encoded slash is
+        // therefore another path segment, not part of a single-IP identity.
+        if address.contains('/') {
+            return ParsedRequest::NotFound;
+        }
+        return ParsedRequest::CringeDetail(address);
+    }
     let parts = suffix.split('/').collect::<Vec<_>>();
     if parts.len() == 2 && parts[1] == "activities" {
         let Ok(ip_address) = percent_decode_str(parts[0]).decode_utf8() else {
@@ -2546,13 +2586,62 @@ fn parse_cringe_ip_route(path: &str) -> ParsedRequest {
     ParsedRequest::NotFound
 }
 
+fn malformed_cringe_detail_path(route: &str) -> bool {
+    let Some(suffix) = route.strip_prefix("/api/cringe-ips/") else {
+        return false;
+    };
+    !suffix.contains('/')
+        && suffix.match_indices('%').any(|(index, _)| {
+            !suffix
+                .as_bytes()
+                .get(index + 1..index + 3)
+                .is_some_and(|digits| digits.iter().all(u8::is_ascii_hexdigit))
+        })
+}
+
+fn decode_cringe_detail_address(encoded: &str) -> String {
+    let bytes = percent_decode_str(encoded).collect::<Vec<_>>();
+    let mut remaining = bytes.as_slice();
+    let mut decoded = String::with_capacity(bytes.len());
+    loop {
+        match std::str::from_utf8(remaining) {
+            Ok(valid) => {
+                decoded.push_str(valid);
+                return decoded;
+            }
+            Err(error) => {
+                let (valid, invalid) = remaining.split_at(error.valid_up_to());
+                decoded.push_str(std::str::from_utf8(valid).expect("validated UTF-8 prefix"));
+                decoded.push('\u{fffd}');
+                // Frozen Netty uses Java's UTF-8 replacement grouping. Unlike
+                // Rust's lossy decoder, Java consumes an encoded surrogate as
+                // one malformed unit (also its two-byte truncated prefix).
+                // It still preserves a following non-continuation character.
+                let consumed = if invalid.first() == Some(&0xed)
+                    && invalid
+                        .get(1)
+                        .is_some_and(|byte| (0xa0..=0xbf).contains(byte))
+                {
+                    2 + usize::from(invalid.get(2).is_some_and(|byte| *byte & 0xc0 == 0x80))
+                } else {
+                    error.error_len().unwrap_or(invalid.len())
+                };
+                remaining = &invalid[consumed..];
+            }
+        }
+    }
+}
+
 fn clean_ip_address(value: &str) -> String {
     let mut cleaned = String::with_capacity(value.len());
-    let mut chars = value.chars().peekable();
+    // Java removes controls before its percent-artifact regex. Combining the
+    // passes changes "%<control>32" into "32" rather than removing "%32".
+    let without_controls: String = value
+        .chars()
+        .filter(|character| *character > '\u{1f}' && *character != '\u{7f}')
+        .collect();
+    let mut chars = without_controls.chars().peekable();
     while let Some(character) = chars.next() {
-        if character <= '\u{1f}' || character == '\u{7f}' {
-            continue;
-        }
         if character == '%' {
             for _ in 0..2 {
                 if chars.peek().is_some_and(|next| next.is_ascii_hexdigit()) {
@@ -2887,6 +2976,8 @@ enum ParsedRequest {
     CringeInvalidInput,
     CringeStats,
     CringeList(IpListQuery),
+    CringeDetail(String),
+    CringePathDecodeError,
     CringeAbove {
         min_score: i32,
         current: bool,
@@ -3256,6 +3347,12 @@ fn parse_request(
             }
         }
         ("GET", routing) if routing.starts_with("/api/cringe-ips/") => {
+            // Frozen Netty decodes the URI while constructing the request,
+            // before permission handling; malformed percent escapes return its
+            // internal_error response even when the API key is absent.
+            if malformed_cringe_detail_path(routing) {
+                return ParsedRequest::CringePathDecodeError;
+            }
             match api_permission(config, api_key, false) {
                 ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
                 ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
@@ -5344,6 +5441,76 @@ lmyzmail.public-registration-enabled=true\n",
     fn cringe_ip_cleaning_removes_control_and_encoded_garbage() {
         assert_eq!(clean_ip_address(" 203.0.113.77%0d\n"), "203.0.113.77");
         assert_eq!(clean_ip_address("203.0.113.77\u{85}"), "203.0.113.77\u{85}");
+        assert_eq!(clean_ip_address("203.0.113.77%\t32"), "203.0.113.77");
+        assert_eq!(
+            clean_ip_address(" %\0\x7fAf2001:DB8::AA%Z "),
+            "2001:DB8::AAZ"
+        );
+    }
+
+    #[test]
+    fn cringe_detail_routes_preserve_path_identity_and_permissions() {
+        let config = config_with_api_keys();
+        for (path, expected) in [
+            (
+                "2001%3ADB8%3A%3AAA",
+                ParsedRequest::CringeDetail("2001:DB8::AA".into()),
+            ),
+            ("plus+ip", ParsedRequest::CringeDetail("plus+ip".into())),
+            ("%FF", ParsedRequest::CringeDetail("\u{fffd}".into())),
+            ("%ED%A0%80", ParsedRequest::CringeDetail("\u{fffd}".into())),
+            ("%ED%A0", ParsedRequest::CringeDetail("\u{fffd}".into())),
+            ("%ED%A0A", ParsedRequest::CringeDetail("\u{fffd}A".into())),
+            (
+                "%ED%A0%FF",
+                ParsedRequest::CringeDetail("\u{fffd}\u{fffd}".into()),
+            ),
+            (
+                "%3Fip%23?query=ignored",
+                ParsedRequest::CringeDetail("?ip#".into()),
+            ),
+            ("203.0.113.77%2Fextra", ParsedRequest::NotFound),
+            ("203.0.113.77%", ParsedRequest::CringePathDecodeError),
+            ("203.0.113.77%2", ParsedRequest::CringePathDecodeError),
+            ("203.0.113.77%GG", ParsedRequest::CringePathDecodeError),
+            ("203.0.113.77%0G", ParsedRequest::CringePathDecodeError),
+        ] {
+            let request =
+                format!("GET /api/cringe-ips/{path} HTTP/1.1\r\nX-API-Key: read-key\r\n\r\n");
+            assert_eq!(parse_request(request.as_bytes(), 4096, &config), expected);
+        }
+        assert_eq!(
+            parse_request(
+                b"GET /api/cringe-ips/203.0.113.77% HTTP/1.1\r\n\r\n",
+                4096,
+                &config
+            ),
+            ParsedRequest::CringePathDecodeError
+        );
+        for (headers, expected) in [
+            ("", ParsedRequest::Unauthorized),
+            ("X-API-Key: write-key\r\n", ParsedRequest::ForbiddenRead),
+        ] {
+            let request = format!("GET /api/cringe-ips/203.0.113.77 HTTP/1.1\r\n{headers}\r\n");
+            assert_eq!(parse_request(request.as_bytes(), 4096, &config), expected);
+        }
+    }
+
+    proptest::proptest! {
+        #![proptest_config(proptest::test_runner::Config::with_cases(1024))]
+        #[test]
+        fn cringe_detail_unicode_path_roundtrip_and_cleaning(value in ".{1,512}") {
+            let encoded = percent_encoding::utf8_percent_encode(&value, percent_encoding::NON_ALPHANUMERIC).to_string();
+            let parsed = parse_cringe_ip_route(&format!("/api/cringe-ips/{encoded}"));
+            if value.contains('/') {
+                proptest::prop_assert_eq!(parsed, ParsedRequest::NotFound);
+            } else {
+                proptest::prop_assert_eq!(parsed, ParsedRequest::CringeDetail(value.clone()));
+            }
+            let cleaned = clean_ip_address(&value);
+            proptest::prop_assert!(!cleaned.chars().any(|c| c <= '\u{1f}' || c == '\u{7f}' || c == '%'), "cleaner retained a control or percent character");
+            proptest::prop_assert_eq!(clean_ip_address(&cleaned), cleaned);
+        }
     }
 
     #[test]

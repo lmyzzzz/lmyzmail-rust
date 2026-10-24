@@ -1,0 +1,65 @@
+{"external_candidate_binary": "/home/lmyzzz/lmyzmail-rust/.blackbox/cringe-stats-20261024-v1.elf", "sha256_before": "0f65c82c2f0ffd2990fdec00a5f9baea6e8a381342ef9609750442794fb73302"}
+F
+=================================== FAILURES ===================================
+____________ test_candidate_cringe_detail_matches_frozen_java[api] _____________
+
+profile = 'api'
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.parametrize("profile", ("api", "history", "ui"))
+    @pytest.mark.timeout(180)
+    def test_candidate_cringe_detail_matches_frozen_java(profile: str) -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository) as candidate:
+>           DifferentialRunner(repository, repository / (_GOLDEN + "-" + profile), _PROFILE + "-" + profile).verify_candidate(_SCENARIOS[profile], candidate)
+
+blackbox/tests/test_candidate_cringe_detail_golden.py:269: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:111: in verify_candidate
+    observation = scenario.capture(target)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+target = _LegacyCandidateRuntime(paths=HarnessPaths(repository=PosixPath('/home/lmyzzz/lmyzmail-rust'), runtime=PosixPath('/hom...mmand_template=('/home/lmyzzz/lmyzmail-rust/target/x86_64-unknown-linux-gnu/release/lmyzmail', '--config', '{config}'))
+
+    def _capture_detail(target: RuntimeTarget) -> dict[str, Any]:
+        _seed(target)
+        before = (_state(target), _activities_state(target))
+        observed: dict[str, Any] = {}
+        cases = {
+            "ipv4": "203.0.113.77", "null_decay": "198.51.100.9",
+            "ipv6_empty": "2001:DB8::AA", "ipv6_encoded": "2001%3ADB8%3A%3AAA",
+            "ipv6_case_sensitive": "2001:db8::aa", "missing": "192.0.2.123",
+            "legacy_fallback": quote(_RAW, safe=""),
+            "canonical_does_not_find_legacy": "203.0.113.88",
+            "canonical_precedence": quote(_COLLISION, safe=""),
+            "spaces_controls": "%20%09%7F203.0.113.77%0A%20",
+            "percent_garbage": "203.0.113.77%252F",
+            "percent_one_hex": "203.0.113.77%25A",
+            "percent_no_hex": "203.0.113.77%25",
+            "control_inside_percent": "203.0.113.77%25%0932",
+            "unicode_not_trimmed": "%C2%A0203.0.113.77%C2%A0",
+            "sql_text": quote("x' OR true --", safe=""),
+            "plus_literal": "plus+ip", "plus_encoded": "plus%2Bip", "space_encoded": "plus%20ip",
+            "question_hash_encoded": "%3Fip%23", "invalid_utf8": "%FF",
+            "encoded_slash": "203.0.113.77%2Fextra", "extra_segment": "203.0.113.77/extra",
+            "query_ignored": "203.0.113.77?unused=x",
+        }
+        for name, path in cases.items():
+            response = _request(target, path)
+            observed[name] = http_json_snapshot(response)
+        for name, headers in (("read_only", _READ_ONLY_HEADERS), ("no_key", ()), ("write_only", _WRITE_ONLY_HEADERS)):
+            response = _request(target, "203.0.113.77", headers)
+            observed[name] = http_json_snapshot(response, canonicalize_object_order=response.status_code != 200)
+        detail = json.loads(_request(target, "203.0.113.77").body)
+>       assert len(detail["activities"]) == 4
+                   ^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'activities'
+
+blackbox/tests/test_candidate_cringe_detail_golden.py:106: KeyError
+=========================== short test summary info ============================
+FAILED blackbox/tests/test_candidate_cringe_detail_golden.py::test_candidate_cringe_detail_matches_frozen_java[api]
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed, 5 deselected in 1.79s
+{"sha256_after": "0f65c82c2f0ffd2990fdec00a5f9baea6e8a381342ef9609750442794fb73302", "staged_sha256_after": "0f65c82c2f0ffd2990fdec00a5f9baea6e8a381342ef9609750442794fb73302", "unchanged": true}

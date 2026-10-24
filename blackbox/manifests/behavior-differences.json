@@ -418,6 +418,22 @@
       "scope": "Only cancellation, lock-wait, deadline, drain, and pool-reuse behavior after eight seconds. Every healthy query, shared-deadline sequence, row, page field, response byte, API permission, legacy schema, and successful PostgreSQL transaction semantic remains a differential requirement."
     },
     {
+      "candidate_requirement": "Limit each single-IP detail history to 10000 rows and 8 MiB of encoded activity JSON. Return internal_error before any successful response header on overflow; never truncate a successful history. Bound simultaneous materialized detail responses to four, retaining admission through socket output, and include admission, pool acquisition and database work in the existing eight-second deadline. Paginated activities remain available for larger histories.",
+      "evidence": {
+        "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+        "controller_source": "src/main/java/net/lmyz/lmyzmail/cringe/api/SkibidiCringeIPController.java",
+        "controller_source_sha256": "59fa65284de9f2820956aed0bc5fe19b69114d21951962986b867822302ad621",
+        "service_source": "src/main/java/net/lmyz/lmyzmail/cringe/service/SkibidiCringeIPService.java",
+        "service_source_sha256": "392c021dcc834005d6e08188d1aed03ca68399ceb665755c4f445ddd19644675",
+        "oracle_golden": "blackbox/golden/java/managed-cringe-detail-v3-boundaries/observations/http/cringe/detail-budgets.json",
+        "candidate_test": "blackbox/tests/test_candidate_cringe_detail_golden.py::test_candidate_detail_budgets_concurrency_and_cancellation"
+      },
+      "id": "cringe-detail-response-budgets",
+      "oracle_behavior": "The detail controller loads every activity for the stored identity into an unpaged List before serializing it, without a history row count, serialized byte or simultaneous response allocation limit. Independent oracle probes retain the full 10001-row history and an escaped-metadata response larger than 8 MiB.",
+      "reason": "An indefinitely growing security-event history must not cause unbounded heap allocation, duplicate serialization or unlimited concurrent response retention. Overflow must be explicit so clients cannot mistake a truncated security history for a complete one.",
+      "scope": "Only detail histories above either budget and bounded admission/deadline behavior under saturation. All in-budget successful response bytes, summary fields, complete activity ordering, clean-first/raw-fallback lookup, XDP enrichment, authorization and missing-IP behavior remain exact compatibility requirements."
+    },
+    {
       "candidate_requirement": "Classify every honeypot protocol from a bounded incremental buffer instead of the first socket read. Preserve undecided prefixes until enough bytes arrive or the initial deadline expires, and apply the configured maximum-read budget across TLS, RDP, and every VNC phase. Fragmented and coalesced forms of the same in-budget request must produce the same protocol response and exactly one activity record.",
       "evidence": {
         "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
