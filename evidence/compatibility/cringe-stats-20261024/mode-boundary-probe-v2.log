@@ -1,0 +1,2 @@
+{"target": "pre-fix-bd861a43", "status": 404, "body": "{\"error\":\"not_found\"}"}
+{"target": "frozen-java-batch-enabled", "status": 200, "body": "{\"totalIPs\":1,\"highRiskByTotal\":0,\"highRiskByCurrent\":0,\"activeThreats\":1,\"totalActivities\":1,\"batchStats\":{\"running\":true,\"queueSize\":0,\"totalEnqueued\":0,\"totalFlushed\":0,\"totalDropped\":0,\"batchCount\":0,\"immediateXdpBans\":0,\"pendingScoreEntries\":0,\"scoreCacheEntries\":0},\"decayConfig\":{\"interval\":\"PT24H\",\"amount\":10,\"hourlyRate\":0.4166666666666667}}"}

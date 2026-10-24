@@ -1,0 +1,29 @@
+{
+  "required_literal_or_example_keys": 273,
+  "results": [
+    {
+      "file": "README.md",
+      "lines": 525,
+      "documented_key_tokens": 279,
+      "routes": 74,
+      "links": 38,
+      "fenced_examples": 10
+    },
+    {
+      "file": "README.en.md",
+      "lines": 525,
+      "documented_key_tokens": 279,
+      "routes": 74,
+      "links": 38,
+      "fenced_examples": 10
+    },
+    {
+      "file": "README.ja.md",
+      "lines": 525,
+      "documented_key_tokens": 279,
+      "routes": 74,
+      "links": 38,
+      "fenced_examples": 10
+    }
+  ]
+}

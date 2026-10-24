@@ -1,0 +1,2 @@
+0f65c82c2f0ffd2990fdec00a5f9baea6e8a381342ef9609750442794fb73302  target/x86_64-unknown-linux-gnu/release/lmyzmail
+0f65c82c2f0ffd2990fdec00a5f9baea6e8a381342ef9609750442794fb73302  .blackbox/cringe-stats-20261024-v1.elf

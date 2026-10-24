@@ -1,0 +1,3310 @@
+{
+  "attestation": {
+    "harness": {
+      "definition_tree_sha256": "1ff47b6157eb2492aab3414937cdd5d2a28078341a8b0019cb00159411d36b14",
+      "input_sha256": {
+        "blackbox/manifests/playwright-files.sha256": "ac865a5a56bfe1660b316636aa5ae37ba30065544038e4aa3e209600e9fe7865",
+        "blackbox/manifests/playwright-links.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "blackbox/manifests/playwright-modes.lock": "ed09ac84bb68c84cd55c1879a6b913b215a325829855e2a089c2992d782b3605",
+        "blackbox/pyproject.toml": "61760b85d392cfebe2f3ceaef4e7514db5a58e2fa6f890708e0c7d1b75e343e7",
+        "blackbox/python-installed.lock": "1c0efb4631b4294395d5f5dc7edef4272ad66611fc0732d9361b13ca06eafaa6",
+        "blackbox/requirements.lock": "709e331f5bbe6d7117f209f4f934d8fc2cc63cd9e41df83d566184956b3e62ef",
+        "blackbox/runtime-extracted-links.lock": "adb81532c43d3f19ce0bc41bd62ff2015025a2c15a7ef5605e6fb7615df82c95",
+        "blackbox/runtime-extracted-modes.lock": "83853ae6cfb28b9ed795a7160fd99952288a68eee650bc4863a781236ecd70e0",
+        "blackbox/runtime-extracted.sha256": "b7c80d5e0632570959ad4f89c5eb275132b8ea06eece166a31a6d1684a07f79a",
+        "blackbox/runtime-packages.lock": "869d57ba8f22d5bf471f015eea5c3edf032023a137c641c0c726617c7b0f9f04"
+      }
+    },
+    "normalizers": [
+      "json-object-order:jdk-map-of:cringe-api-key-errors"
+    ],
+    "oracle": {
+      "commit": "5dac2ab2922c30c726c4a83d7626c95ad4e231c8",
+      "jar_sha256": "fe2d8fcefad9a4127398eeb5d911805ea10a8dce75ec70912fd3be909c8fbdfc"
+    },
+    "profile": "managed-cringe-list"
+  },
+  "observation": {
+    "beyond": {
+      "body_json": {
+        "content": [],
+        "page": 2,
+        "searchQuery": "",
+        "size": 3,
+        "totalElements": 4,
+        "totalPages": 2
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "82"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbXSwicGFnZSI6Miwic2l6ZSI6MywidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6Miwic2VhcmNoUXVlcnkiOiIifQ==",
+        "length": 82,
+        "sha256": "1195ce9966483c8df53ec00f6fc55d6c3c3969857d46c03ceb6bfa7e5719dcce"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "capped": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 4,
+            "authProbeCount": 22,
+            "currentScore": 48,
+            "firstSeenAt": "2024-01-02T00:00:00Z",
+            "honeypotHitCount": 28,
+            "httpOnSmtpCount": 25,
+            "httpPortScanningCount": 27,
+            "illegalDomainCount": 23,
+            "ipAddress": "198.51.100.9",
+            "lastSeenAt": "2024-01-02T01:00:00Z",
+            "openRelayCount": 21,
+            "otherCount": 30,
+            "selfSpoofingCount": 20,
+            "spamhausCount": 24,
+            "sshBruteforceCount": 29,
+            "sshOnSmtpCount": 26,
+            "totalScore": 22,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 6,
+            "authProbeCount": 32,
+            "currentScore": 47,
+            "firstSeenAt": "2024-01-03T00:00:00Z",
+            "honeypotHitCount": 38,
+            "httpOnSmtpCount": 35,
+            "httpPortScanningCount": 37,
+            "illegalDomainCount": 33,
+            "ipAddress": "2001:DB8::AA",
+            "lastDecayAt": "2024-01-03T00:30:00Z",
+            "lastSeenAt": "2024-01-03T01:00:00Z",
+            "openRelayCount": 31,
+            "otherCount": 40,
+            "selfSpoofingCount": 30,
+            "spamhausCount": 34,
+            "sshBruteforceCount": 39,
+            "sshOnSmtpCount": 36,
+            "totalScore": 33,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 500,
+        "totalElements": 4,
+        "totalPages": 1
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "1913"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX0seyJpcEFkZHJlc3MiOiIxOTguNTEuMTAwLjkiLCJ0b3RhbFNjb3JlIjoyMiwiY3VycmVudFNjb3JlIjo0OCwiYWN0aXZpdHlDb3VudCI6NCwic2VsZlNwb29maW5nQ291bnQiOjIwLCJvcGVuUmVsYXlDb3VudCI6MjEsImF1dGhQcm9iZUNvdW50IjoyMiwiaWxsZWdhbERvbWFpbkNvdW50IjoyMywic3BhbWhhdXNDb3VudCI6MjQsImh0dHBPblNtdHBDb3VudCI6MjUsInNzaE9uU210cENvdW50IjoyNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoyNywiaG9uZXlwb3RIaXRDb3VudCI6MjgsInNzaEJydXRlZm9yY2VDb3VudCI6MjksIm90aGVyQ291bnQiOjMwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDJUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDJUMDE6MDA6MDBaIiwieGRwQmFubmVkIjpmYWxzZSwid2hpdGVsaXN0ZWQiOmZhbHNlfSx7ImlwQWRkcmVzcyI6IjIwMDE6REI4OjpBQSIsInRvdGFsU2NvcmUiOjMzLCJjdXJyZW50U2NvcmUiOjQ3LCJhY3Rpdml0eUNvdW50Ijo2LCJzZWxmU3Bvb2ZpbmdDb3VudCI6MzAsIm9wZW5SZWxheUNvdW50IjozMSwiYXV0aFByb2JlQ291bnQiOjMyLCJpbGxlZ2FsRG9tYWluQ291bnQiOjMzLCJzcGFtaGF1c0NvdW50IjozNCwiaHR0cE9uU210cENvdW50IjozNSwic3NoT25TbXRwQ291bnQiOjM2LCJodHRwUG9ydFNjYW5uaW5nQ291bnQiOjM3LCJob25leXBvdEhpdENvdW50IjozOCwic3NoQnJ1dGVmb3JjZUNvdW50IjozOSwib3RoZXJDb3VudCI6NDAsImZpcnN0U2VlbkF0IjoiMjAyNC0wMS0wM1QwMDowMDowMFoiLCJsYXN0U2VlbkF0IjoiMjAyNC0wMS0wM1QwMTowMDowMFoiLCJsYXN0RGVjYXlBdCI6IjIwMjQtMDEtMDNUMDA6MzA6MDBaIiwieGRwQmFubmVkIjpmYWxzZSwid2hpdGVsaXN0ZWQiOmZhbHNlfSx7ImlwQWRkcmVzcyI6Ilx0MjAzLjAuMTEzLjg4JTJGXG4iLCJ0b3RhbFNjb3JlIjo0NCwiY3VycmVudFNjb3JlIjo0NiwiYWN0aXZpdHlDb3VudCI6OCwic2VsZlNwb29maW5nQ291bnQiOjQwLCJvcGVuUmVsYXlDb3VudCI6NDEsImF1dGhQcm9iZUNvdW50Ijo0MiwiaWxsZWdhbERvbWFpbkNvdW50Ijo0Mywic3BhbWhhdXNDb3VudCI6NDQsImh0dHBPblNtdHBDb3VudCI6NDUsInNzaE9uU210cENvdW50Ijo0NiwiaHR0cFBvcnRTY2FubmluZ0NvdW50Ijo0NywiaG9uZXlwb3RIaXRDb3VudCI6NDgsInNzaEJydXRlZm9yY2VDb3VudCI6NDksIm90aGVyQ291bnQiOjUwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDRUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDRUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTA0VDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjo1MDAsInRvdGFsRWxlbWVudHMiOjQsInRvdGFsUGFnZXMiOjEsInNlYXJjaFF1ZXJ5IjoiIn0=",
+        "length": 1913,
+        "sha256": "bbed4113526ae78e221c017a90e0a467384bb230bd87df9f12f542d026a16a08"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "default": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 4,
+            "authProbeCount": 22,
+            "currentScore": 48,
+            "firstSeenAt": "2024-01-02T00:00:00Z",
+            "honeypotHitCount": 28,
+            "httpOnSmtpCount": 25,
+            "httpPortScanningCount": 27,
+            "illegalDomainCount": 23,
+            "ipAddress": "198.51.100.9",
+            "lastSeenAt": "2024-01-02T01:00:00Z",
+            "openRelayCount": 21,
+            "otherCount": 30,
+            "selfSpoofingCount": 20,
+            "spamhausCount": 24,
+            "sshBruteforceCount": 29,
+            "sshOnSmtpCount": 26,
+            "totalScore": 22,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 6,
+            "authProbeCount": 32,
+            "currentScore": 47,
+            "firstSeenAt": "2024-01-03T00:00:00Z",
+            "honeypotHitCount": 38,
+            "httpOnSmtpCount": 35,
+            "httpPortScanningCount": 37,
+            "illegalDomainCount": 33,
+            "ipAddress": "2001:DB8::AA",
+            "lastDecayAt": "2024-01-03T00:30:00Z",
+            "lastSeenAt": "2024-01-03T01:00:00Z",
+            "openRelayCount": 31,
+            "otherCount": 40,
+            "selfSpoofingCount": 30,
+            "spamhausCount": 34,
+            "sshBruteforceCount": 39,
+            "sshOnSmtpCount": 36,
+            "totalScore": 33,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 50,
+        "totalElements": 4,
+        "totalPages": 1
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "1912"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX0seyJpcEFkZHJlc3MiOiIxOTguNTEuMTAwLjkiLCJ0b3RhbFNjb3JlIjoyMiwiY3VycmVudFNjb3JlIjo0OCwiYWN0aXZpdHlDb3VudCI6NCwic2VsZlNwb29maW5nQ291bnQiOjIwLCJvcGVuUmVsYXlDb3VudCI6MjEsImF1dGhQcm9iZUNvdW50IjoyMiwiaWxsZWdhbERvbWFpbkNvdW50IjoyMywic3BhbWhhdXNDb3VudCI6MjQsImh0dHBPblNtdHBDb3VudCI6MjUsInNzaE9uU210cENvdW50IjoyNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoyNywiaG9uZXlwb3RIaXRDb3VudCI6MjgsInNzaEJydXRlZm9yY2VDb3VudCI6MjksIm90aGVyQ291bnQiOjMwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDJUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDJUMDE6MDA6MDBaIiwieGRwQmFubmVkIjpmYWxzZSwid2hpdGVsaXN0ZWQiOmZhbHNlfSx7ImlwQWRkcmVzcyI6IjIwMDE6REI4OjpBQSIsInRvdGFsU2NvcmUiOjMzLCJjdXJyZW50U2NvcmUiOjQ3LCJhY3Rpdml0eUNvdW50Ijo2LCJzZWxmU3Bvb2ZpbmdDb3VudCI6MzAsIm9wZW5SZWxheUNvdW50IjozMSwiYXV0aFByb2JlQ291bnQiOjMyLCJpbGxlZ2FsRG9tYWluQ291bnQiOjMzLCJzcGFtaGF1c0NvdW50IjozNCwiaHR0cE9uU210cENvdW50IjozNSwic3NoT25TbXRwQ291bnQiOjM2LCJodHRwUG9ydFNjYW5uaW5nQ291bnQiOjM3LCJob25leXBvdEhpdENvdW50IjozOCwic3NoQnJ1dGVmb3JjZUNvdW50IjozOSwib3RoZXJDb3VudCI6NDAsImZpcnN0U2VlbkF0IjoiMjAyNC0wMS0wM1QwMDowMDowMFoiLCJsYXN0U2VlbkF0IjoiMjAyNC0wMS0wM1QwMTowMDowMFoiLCJsYXN0RGVjYXlBdCI6IjIwMjQtMDEtMDNUMDA6MzA6MDBaIiwieGRwQmFubmVkIjpmYWxzZSwid2hpdGVsaXN0ZWQiOmZhbHNlfSx7ImlwQWRkcmVzcyI6Ilx0MjAzLjAuMTEzLjg4JTJGXG4iLCJ0b3RhbFNjb3JlIjo0NCwiY3VycmVudFNjb3JlIjo0NiwiYWN0aXZpdHlDb3VudCI6OCwic2VsZlNwb29maW5nQ291bnQiOjQwLCJvcGVuUmVsYXlDb3VudCI6NDEsImF1dGhQcm9iZUNvdW50Ijo0MiwiaWxsZWdhbERvbWFpbkNvdW50Ijo0Mywic3BhbWhhdXNDb3VudCI6NDQsImh0dHBPblNtdHBDb3VudCI6NDUsInNzaE9uU210cENvdW50Ijo0NiwiaHR0cFBvcnRTY2FubmluZ0NvdW50Ijo0NywiaG9uZXlwb3RIaXRDb3VudCI6NDgsInNzaEJydXRlZm9yY2VDb3VudCI6NDksIm90aGVyQ291bnQiOjUwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDRUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDRUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTA0VDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjo1MCwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6MSwic2VhcmNoUXVlcnkiOiIifQ==",
+        "length": 1912,
+        "sha256": "238e5cee10b4bc6c631e93899ad671e9f8de293566a1f8bb397f634c5269551f"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "empty": {
+      "body_json": {
+        "content": [],
+        "page": 0,
+        "searchQuery": "",
+        "size": 50,
+        "totalElements": 0,
+        "totalPages": 0
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "83"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbXSwicGFnZSI6MCwic2l6ZSI6NTAsInRvdGFsRWxlbWVudHMiOjAsInRvdGFsUGFnZXMiOjAsInNlYXJjaFF1ZXJ5IjoiIn0=",
+        "length": 83,
+        "sha256": "6770f840e395ff4ad4420b553da4e84eb036a83d151591e38e269cefa5804bd2"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "first": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 4,
+            "authProbeCount": 22,
+            "currentScore": 48,
+            "firstSeenAt": "2024-01-02T00:00:00Z",
+            "honeypotHitCount": 28,
+            "httpOnSmtpCount": 25,
+            "httpPortScanningCount": 27,
+            "illegalDomainCount": 23,
+            "ipAddress": "198.51.100.9",
+            "lastSeenAt": "2024-01-02T01:00:00Z",
+            "openRelayCount": 21,
+            "otherCount": 30,
+            "selfSpoofingCount": 20,
+            "spamhausCount": 24,
+            "sshBruteforceCount": 29,
+            "sshOnSmtpCount": 26,
+            "totalScore": 22,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 6,
+            "authProbeCount": 32,
+            "currentScore": 47,
+            "firstSeenAt": "2024-01-03T00:00:00Z",
+            "honeypotHitCount": 38,
+            "httpOnSmtpCount": 35,
+            "httpPortScanningCount": 37,
+            "illegalDomainCount": 33,
+            "ipAddress": "2001:DB8::AA",
+            "lastDecayAt": "2024-01-03T00:30:00Z",
+            "lastSeenAt": "2024-01-03T01:00:00Z",
+            "openRelayCount": 31,
+            "otherCount": 40,
+            "selfSpoofingCount": 30,
+            "spamhausCount": 34,
+            "sshBruteforceCount": 39,
+            "sshOnSmtpCount": 36,
+            "totalScore": 33,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 3,
+        "totalElements": 4,
+        "totalPages": 2
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "1439"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX0seyJpcEFkZHJlc3MiOiIxOTguNTEuMTAwLjkiLCJ0b3RhbFNjb3JlIjoyMiwiY3VycmVudFNjb3JlIjo0OCwiYWN0aXZpdHlDb3VudCI6NCwic2VsZlNwb29maW5nQ291bnQiOjIwLCJvcGVuUmVsYXlDb3VudCI6MjEsImF1dGhQcm9iZUNvdW50IjoyMiwiaWxsZWdhbERvbWFpbkNvdW50IjoyMywic3BhbWhhdXNDb3VudCI6MjQsImh0dHBPblNtdHBDb3VudCI6MjUsInNzaE9uU210cENvdW50IjoyNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoyNywiaG9uZXlwb3RIaXRDb3VudCI6MjgsInNzaEJydXRlZm9yY2VDb3VudCI6MjksIm90aGVyQ291bnQiOjMwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDJUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDJUMDE6MDA6MDBaIiwieGRwQmFubmVkIjpmYWxzZSwid2hpdGVsaXN0ZWQiOmZhbHNlfSx7ImlwQWRkcmVzcyI6IjIwMDE6REI4OjpBQSIsInRvdGFsU2NvcmUiOjMzLCJjdXJyZW50U2NvcmUiOjQ3LCJhY3Rpdml0eUNvdW50Ijo2LCJzZWxmU3Bvb2ZpbmdDb3VudCI6MzAsIm9wZW5SZWxheUNvdW50IjozMSwiYXV0aFByb2JlQ291bnQiOjMyLCJpbGxlZ2FsRG9tYWluQ291bnQiOjMzLCJzcGFtaGF1c0NvdW50IjozNCwiaHR0cE9uU210cENvdW50IjozNSwic3NoT25TbXRwQ291bnQiOjM2LCJodHRwUG9ydFNjYW5uaW5nQ291bnQiOjM3LCJob25leXBvdEhpdENvdW50IjozOCwic3NoQnJ1dGVmb3JjZUNvdW50IjozOSwib3RoZXJDb3VudCI6NDAsImZpcnN0U2VlbkF0IjoiMjAyNC0wMS0wM1QwMDowMDowMFoiLCJsYXN0U2VlbkF0IjoiMjAyNC0wMS0wM1QwMTowMDowMFoiLCJsYXN0RGVjYXlBdCI6IjIwMjQtMDEtMDNUMDA6MzA6MDBaIiwieGRwQmFubmVkIjpmYWxzZSwid2hpdGVsaXN0ZWQiOmZhbHNlfV0sInBhZ2UiOjAsInNpemUiOjMsInRvdGFsRWxlbWVudHMiOjQsInRvdGFsUGFnZXMiOjIsInNlYXJjaFF1ZXJ5IjoiIn0=",
+        "length": 1439,
+        "sha256": "6b650c3e598c738d586649343c887a42d995f3416053dfba7f3e35c4b94191b0"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "invalid_sort": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 4,
+            "authProbeCount": 22,
+            "currentScore": 48,
+            "firstSeenAt": "2024-01-02T00:00:00Z",
+            "honeypotHitCount": 28,
+            "httpOnSmtpCount": 25,
+            "httpPortScanningCount": 27,
+            "illegalDomainCount": 23,
+            "ipAddress": "198.51.100.9",
+            "lastSeenAt": "2024-01-02T01:00:00Z",
+            "openRelayCount": 21,
+            "otherCount": 30,
+            "selfSpoofingCount": 20,
+            "spamhausCount": 24,
+            "sshBruteforceCount": 29,
+            "sshOnSmtpCount": 26,
+            "totalScore": 22,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 6,
+            "authProbeCount": 32,
+            "currentScore": 47,
+            "firstSeenAt": "2024-01-03T00:00:00Z",
+            "honeypotHitCount": 38,
+            "httpOnSmtpCount": 35,
+            "httpPortScanningCount": 37,
+            "illegalDomainCount": 33,
+            "ipAddress": "2001:DB8::AA",
+            "lastDecayAt": "2024-01-03T00:30:00Z",
+            "lastSeenAt": "2024-01-03T01:00:00Z",
+            "openRelayCount": 31,
+            "otherCount": 40,
+            "selfSpoofingCount": 30,
+            "spamhausCount": 34,
+            "sshBruteforceCount": 39,
+            "sshOnSmtpCount": 36,
+            "totalScore": 33,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 50,
+        "totalElements": 4,
+        "totalPages": 1
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "1912"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX0seyJpcEFkZHJlc3MiOiIxOTguNTEuMTAwLjkiLCJ0b3RhbFNjb3JlIjoyMiwiY3VycmVudFNjb3JlIjo0OCwiYWN0aXZpdHlDb3VudCI6NCwic2VsZlNwb29maW5nQ291bnQiOjIwLCJvcGVuUmVsYXlDb3VudCI6MjEsImF1dGhQcm9iZUNvdW50IjoyMiwiaWxsZWdhbERvbWFpbkNvdW50IjoyMywic3BhbWhhdXNDb3VudCI6MjQsImh0dHBPblNtdHBDb3VudCI6MjUsInNzaE9uU210cENvdW50IjoyNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoyNywiaG9uZXlwb3RIaXRDb3VudCI6MjgsInNzaEJydXRlZm9yY2VDb3VudCI6MjksIm90aGVyQ291bnQiOjMwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDJUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDJUMDE6MDA6MDBaIiwieGRwQmFubmVkIjpmYWxzZSwid2hpdGVsaXN0ZWQiOmZhbHNlfSx7ImlwQWRkcmVzcyI6IjIwMDE6REI4OjpBQSIsInRvdGFsU2NvcmUiOjMzLCJjdXJyZW50U2NvcmUiOjQ3LCJhY3Rpdml0eUNvdW50Ijo2LCJzZWxmU3Bvb2ZpbmdDb3VudCI6MzAsIm9wZW5SZWxheUNvdW50IjozMSwiYXV0aFByb2JlQ291bnQiOjMyLCJpbGxlZ2FsRG9tYWluQ291bnQiOjMzLCJzcGFtaGF1c0NvdW50IjozNCwiaHR0cE9uU210cENvdW50IjozNSwic3NoT25TbXRwQ291bnQiOjM2LCJodHRwUG9ydFNjYW5uaW5nQ291bnQiOjM3LCJob25leXBvdEhpdENvdW50IjozOCwic3NoQnJ1dGVmb3JjZUNvdW50IjozOSwib3RoZXJDb3VudCI6NDAsImZpcnN0U2VlbkF0IjoiMjAyNC0wMS0wM1QwMDowMDowMFoiLCJsYXN0U2VlbkF0IjoiMjAyNC0wMS0wM1QwMTowMDowMFoiLCJsYXN0RGVjYXlBdCI6IjIwMjQtMDEtMDNUMDA6MzA6MDBaIiwieGRwQmFubmVkIjpmYWxzZSwid2hpdGVsaXN0ZWQiOmZhbHNlfSx7ImlwQWRkcmVzcyI6Ilx0MjAzLjAuMTEzLjg4JTJGXG4iLCJ0b3RhbFNjb3JlIjo0NCwiY3VycmVudFNjb3JlIjo0NiwiYWN0aXZpdHlDb3VudCI6OCwic2VsZlNwb29maW5nQ291bnQiOjQwLCJvcGVuUmVsYXlDb3VudCI6NDEsImF1dGhQcm9iZUNvdW50Ijo0MiwiaWxsZWdhbERvbWFpbkNvdW50Ijo0Mywic3BhbWhhdXNDb3VudCI6NDQsImh0dHBPblNtdHBDb3VudCI6NDUsInNzaE9uU210cENvdW50Ijo0NiwiaHR0cFBvcnRTY2FubmluZ0NvdW50Ijo0NywiaG9uZXlwb3RIaXRDb3VudCI6NDgsInNzaEJydXRlZm9yY2VDb3VudCI6NDksIm90aGVyQ291bnQiOjUwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDRUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDRUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTA0VDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjo1MCwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6MSwic2VhcmNoUXVlcnkiOiIifQ==",
+        "length": 1912,
+        "sha256": "238e5cee10b4bc6c631e93899ad671e9f8de293566a1f8bb397f634c5269551f"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "last": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 1,
+        "searchQuery": "",
+        "size": 3,
+        "totalElements": 4,
+        "totalPages": 2
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "553"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiJcdDIwMy4wLjExMy44OCUyRlxuIiwidG90YWxTY29yZSI6NDQsImN1cnJlbnRTY29yZSI6NDYsImFjdGl2aXR5Q291bnQiOjgsInNlbGZTcG9vZmluZ0NvdW50Ijo0MCwib3BlblJlbGF5Q291bnQiOjQxLCJhdXRoUHJvYmVDb3VudCI6NDIsImlsbGVnYWxEb21haW5Db3VudCI6NDMsInNwYW1oYXVzQ291bnQiOjQ0LCJodHRwT25TbXRwQ291bnQiOjQ1LCJzc2hPblNtdHBDb3VudCI6NDYsImh0dHBQb3J0U2Nhbm5pbmdDb3VudCI6NDcsImhvbmV5cG90SGl0Q291bnQiOjQ4LCJzc2hCcnV0ZWZvcmNlQ291bnQiOjQ5LCJvdGhlckNvdW50Ijo1MCwiZmlyc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAwOjAwOjAwWiIsImxhc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAxOjAwOjAwWiIsImxhc3REZWNheUF0IjoiMjAyNC0wMS0wNFQwMDozMDowMFoiLCJ4ZHBCYW5uZWQiOmZhbHNlLCJ3aGl0ZWxpc3RlZCI6ZmFsc2V9XSwicGFnZSI6MSwic2l6ZSI6MywidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6Miwic2VhcmNoUXVlcnkiOiIifQ==",
+        "length": 553,
+        "sha256": "4bba66b3d5c291e55582d9b79d1c704941bafdfe91503ba64a7a8417f203c225"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "max_page": {
+      "body_json": {
+        "error": "internal_error"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "26"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlcnJvciI6ImludGVybmFsX2Vycm9yIn0=",
+        "length": 26,
+        "sha256": "b1fd618132befbb9c0fa6847793b9a066f5b17444df3d01fe2e43699f8c1eb08"
+      },
+      "status_code": 500,
+      "status_line": "HTTP/1.1 500 Internal Server Error"
+    },
+    "missing_key": {
+      "body_json": {
+        "error": "invalid_api_key",
+        "message": "Missing or invalid API key. Please provide a valid X-API-Key header."
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "108"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlcnJvciI6ImludmFsaWRfYXBpX2tleSIsIm1lc3NhZ2UiOiJNaXNzaW5nIG9yIGludmFsaWQgQVBJIGtleS4gUGxlYXNlIHByb3ZpZGUgYSB2YWxpZCBYLUFQSS1LZXkgaGVhZGVyLiJ9",
+        "length": 108,
+        "sha256": "56ef7c72c1f7117ee0b85b62a4f428bd437a03fcf3c8e9b0477f778dd5f1eaa1"
+      },
+      "status_code": 401,
+      "status_line": "HTTP/1.1 401 Unauthorized"
+    },
+    "read_only": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 4,
+            "authProbeCount": 22,
+            "currentScore": 48,
+            "firstSeenAt": "2024-01-02T00:00:00Z",
+            "honeypotHitCount": 28,
+            "httpOnSmtpCount": 25,
+            "httpPortScanningCount": 27,
+            "illegalDomainCount": 23,
+            "ipAddress": "198.51.100.9",
+            "lastSeenAt": "2024-01-02T01:00:00Z",
+            "openRelayCount": 21,
+            "otherCount": 30,
+            "selfSpoofingCount": 20,
+            "spamhausCount": 24,
+            "sshBruteforceCount": 29,
+            "sshOnSmtpCount": 26,
+            "totalScore": 22,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 6,
+            "authProbeCount": 32,
+            "currentScore": 47,
+            "firstSeenAt": "2024-01-03T00:00:00Z",
+            "honeypotHitCount": 38,
+            "httpOnSmtpCount": 35,
+            "httpPortScanningCount": 37,
+            "illegalDomainCount": 33,
+            "ipAddress": "2001:DB8::AA",
+            "lastDecayAt": "2024-01-03T00:30:00Z",
+            "lastSeenAt": "2024-01-03T01:00:00Z",
+            "openRelayCount": 31,
+            "otherCount": 40,
+            "selfSpoofingCount": 30,
+            "spamhausCount": 34,
+            "sshBruteforceCount": 39,
+            "sshOnSmtpCount": 36,
+            "totalScore": 33,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 50,
+        "totalElements": 4,
+        "totalPages": 1
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "1912"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX0seyJpcEFkZHJlc3MiOiIxOTguNTEuMTAwLjkiLCJ0b3RhbFNjb3JlIjoyMiwiY3VycmVudFNjb3JlIjo0OCwiYWN0aXZpdHlDb3VudCI6NCwic2VsZlNwb29maW5nQ291bnQiOjIwLCJvcGVuUmVsYXlDb3VudCI6MjEsImF1dGhQcm9iZUNvdW50IjoyMiwiaWxsZWdhbERvbWFpbkNvdW50IjoyMywic3BhbWhhdXNDb3VudCI6MjQsImh0dHBPblNtdHBDb3VudCI6MjUsInNzaE9uU210cENvdW50IjoyNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoyNywiaG9uZXlwb3RIaXRDb3VudCI6MjgsInNzaEJydXRlZm9yY2VDb3VudCI6MjksIm90aGVyQ291bnQiOjMwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDJUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDJUMDE6MDA6MDBaIiwieGRwQmFubmVkIjpmYWxzZSwid2hpdGVsaXN0ZWQiOmZhbHNlfSx7ImlwQWRkcmVzcyI6IjIwMDE6REI4OjpBQSIsInRvdGFsU2NvcmUiOjMzLCJjdXJyZW50U2NvcmUiOjQ3LCJhY3Rpdml0eUNvdW50Ijo2LCJzZWxmU3Bvb2ZpbmdDb3VudCI6MzAsIm9wZW5SZWxheUNvdW50IjozMSwiYXV0aFByb2JlQ291bnQiOjMyLCJpbGxlZ2FsRG9tYWluQ291bnQiOjMzLCJzcGFtaGF1c0NvdW50IjozNCwiaHR0cE9uU210cENvdW50IjozNSwic3NoT25TbXRwQ291bnQiOjM2LCJodHRwUG9ydFNjYW5uaW5nQ291bnQiOjM3LCJob25leXBvdEhpdENvdW50IjozOCwic3NoQnJ1dGVmb3JjZUNvdW50IjozOSwib3RoZXJDb3VudCI6NDAsImZpcnN0U2VlbkF0IjoiMjAyNC0wMS0wM1QwMDowMDowMFoiLCJsYXN0U2VlbkF0IjoiMjAyNC0wMS0wM1QwMTowMDowMFoiLCJsYXN0RGVjYXlBdCI6IjIwMjQtMDEtMDNUMDA6MzA6MDBaIiwieGRwQmFubmVkIjpmYWxzZSwid2hpdGVsaXN0ZWQiOmZhbHNlfSx7ImlwQWRkcmVzcyI6Ilx0MjAzLjAuMTEzLjg4JTJGXG4iLCJ0b3RhbFNjb3JlIjo0NCwiY3VycmVudFNjb3JlIjo0NiwiYWN0aXZpdHlDb3VudCI6OCwic2VsZlNwb29maW5nQ291bnQiOjQwLCJvcGVuUmVsYXlDb3VudCI6NDEsImF1dGhQcm9iZUNvdW50Ijo0MiwiaWxsZWdhbERvbWFpbkNvdW50Ijo0Mywic3BhbWhhdXNDb3VudCI6NDQsImh0dHBPblNtdHBDb3VudCI6NDUsInNzaE9uU210cENvdW50Ijo0NiwiaHR0cFBvcnRTY2FubmluZ0NvdW50Ijo0NywiaG9uZXlwb3RIaXRDb3VudCI6NDgsInNzaEJydXRlZm9yY2VDb3VudCI6NDksIm90aGVyQ291bnQiOjUwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDRUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDRUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTA0VDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjo1MCwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6MSwic2VhcmNoUXVlcnkiOiIifQ==",
+        "length": 1912,
+        "sha256": "238e5cee10b4bc6c631e93899ad671e9f8de293566a1f8bb397f634c5269551f"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "search_0": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": " 203.0 ",
+        "size": 50,
+        "totalElements": 2,
+        "totalPages": 1
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "1026"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX0seyJpcEFkZHJlc3MiOiJcdDIwMy4wLjExMy44OCUyRlxuIiwidG90YWxTY29yZSI6NDQsImN1cnJlbnRTY29yZSI6NDYsImFjdGl2aXR5Q291bnQiOjgsInNlbGZTcG9vZmluZ0NvdW50Ijo0MCwib3BlblJlbGF5Q291bnQiOjQxLCJhdXRoUHJvYmVDb3VudCI6NDIsImlsbGVnYWxEb21haW5Db3VudCI6NDMsInNwYW1oYXVzQ291bnQiOjQ0LCJodHRwT25TbXRwQ291bnQiOjQ1LCJzc2hPblNtdHBDb3VudCI6NDYsImh0dHBQb3J0U2Nhbm5pbmdDb3VudCI6NDcsImhvbmV5cG90SGl0Q291bnQiOjQ4LCJzc2hCcnV0ZWZvcmNlQ291bnQiOjQ5LCJvdGhlckNvdW50Ijo1MCwiZmlyc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAwOjAwOjAwWiIsImxhc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAxOjAwOjAwWiIsImxhc3REZWNheUF0IjoiMjAyNC0wMS0wNFQwMDozMDowMFoiLCJ4ZHBCYW5uZWQiOmZhbHNlLCJ3aGl0ZWxpc3RlZCI6ZmFsc2V9XSwicGFnZSI6MCwic2l6ZSI6NTAsInRvdGFsRWxlbWVudHMiOjIsInRvdGFsUGFnZXMiOjEsInNlYXJjaFF1ZXJ5IjoiIDIwMy4wICJ9",
+        "length": 1026,
+        "sha256": "5c850f3d165f096aece8a8f607f7ac4211bf2bcf0fdc92d52e545d53cc9a2464"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "search_1": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 6,
+            "authProbeCount": 32,
+            "currentScore": 47,
+            "firstSeenAt": "2024-01-03T00:00:00Z",
+            "honeypotHitCount": 38,
+            "httpOnSmtpCount": 35,
+            "httpPortScanningCount": 37,
+            "illegalDomainCount": 33,
+            "ipAddress": "2001:DB8::AA",
+            "lastDecayAt": "2024-01-03T00:30:00Z",
+            "lastSeenAt": "2024-01-03T01:00:00Z",
+            "openRelayCount": 31,
+            "otherCount": 40,
+            "selfSpoofingCount": 30,
+            "spamhausCount": 34,
+            "sshBruteforceCount": 39,
+            "sshOnSmtpCount": 36,
+            "totalScore": 33,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "db8",
+        "size": 50,
+        "totalElements": 1,
+        "totalPages": 1
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "550"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDAxOkRCODo6QUEiLCJ0b3RhbFNjb3JlIjozMywiY3VycmVudFNjb3JlIjo0NywiYWN0aXZpdHlDb3VudCI6Niwic2VsZlNwb29maW5nQ291bnQiOjMwLCJvcGVuUmVsYXlDb3VudCI6MzEsImF1dGhQcm9iZUNvdW50IjozMiwiaWxsZWdhbERvbWFpbkNvdW50IjozMywic3BhbWhhdXNDb3VudCI6MzQsImh0dHBPblNtdHBDb3VudCI6MzUsInNzaE9uU210cENvdW50IjozNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjozNywiaG9uZXlwb3RIaXRDb3VudCI6MzgsInNzaEJydXRlZm9yY2VDb3VudCI6MzksIm90aGVyQ291bnQiOjQwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDNUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDNUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAzVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjo1MCwidG90YWxFbGVtZW50cyI6MSwidG90YWxQYWdlcyI6MSwic2VhcmNoUXVlcnkiOiJkYjgifQ==",
+        "length": 550,
+        "sha256": "741d8066810b6ee97ea3da754c47e3e186400c5b849e81a8d21563e3c9e8fbfe"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "search_10": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 4,
+            "authProbeCount": 22,
+            "currentScore": 48,
+            "firstSeenAt": "2024-01-02T00:00:00Z",
+            "honeypotHitCount": 28,
+            "httpOnSmtpCount": 25,
+            "httpPortScanningCount": 27,
+            "illegalDomainCount": 23,
+            "ipAddress": "198.51.100.9",
+            "lastSeenAt": "2024-01-02T01:00:00Z",
+            "openRelayCount": 21,
+            "otherCount": 30,
+            "selfSpoofingCount": 20,
+            "spamhausCount": 24,
+            "sshBruteforceCount": 29,
+            "sshOnSmtpCount": 26,
+            "totalScore": 22,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 6,
+            "authProbeCount": 32,
+            "currentScore": 47,
+            "firstSeenAt": "2024-01-03T00:00:00Z",
+            "honeypotHitCount": 38,
+            "httpOnSmtpCount": 35,
+            "httpPortScanningCount": 37,
+            "illegalDomainCount": 33,
+            "ipAddress": "2001:DB8::AA",
+            "lastDecayAt": "2024-01-03T00:30:00Z",
+            "lastSeenAt": "2024-01-03T01:00:00Z",
+            "openRelayCount": 31,
+            "otherCount": 40,
+            "selfSpoofingCount": 30,
+            "spamhausCount": 34,
+            "sshBruteforceCount": 39,
+            "sshOnSmtpCount": 36,
+            "totalScore": 33,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "\t \r\n",
+        "size": 50,
+        "totalElements": 4,
+        "totalPages": 1
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "1919"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX0seyJpcEFkZHJlc3MiOiIxOTguNTEuMTAwLjkiLCJ0b3RhbFNjb3JlIjoyMiwiY3VycmVudFNjb3JlIjo0OCwiYWN0aXZpdHlDb3VudCI6NCwic2VsZlNwb29maW5nQ291bnQiOjIwLCJvcGVuUmVsYXlDb3VudCI6MjEsImF1dGhQcm9iZUNvdW50IjoyMiwiaWxsZWdhbERvbWFpbkNvdW50IjoyMywic3BhbWhhdXNDb3VudCI6MjQsImh0dHBPblNtdHBDb3VudCI6MjUsInNzaE9uU210cENvdW50IjoyNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoyNywiaG9uZXlwb3RIaXRDb3VudCI6MjgsInNzaEJydXRlZm9yY2VDb3VudCI6MjksIm90aGVyQ291bnQiOjMwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDJUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDJUMDE6MDA6MDBaIiwieGRwQmFubmVkIjpmYWxzZSwid2hpdGVsaXN0ZWQiOmZhbHNlfSx7ImlwQWRkcmVzcyI6IjIwMDE6REI4OjpBQSIsInRvdGFsU2NvcmUiOjMzLCJjdXJyZW50U2NvcmUiOjQ3LCJhY3Rpdml0eUNvdW50Ijo2LCJzZWxmU3Bvb2ZpbmdDb3VudCI6MzAsIm9wZW5SZWxheUNvdW50IjozMSwiYXV0aFByb2JlQ291bnQiOjMyLCJpbGxlZ2FsRG9tYWluQ291bnQiOjMzLCJzcGFtaGF1c0NvdW50IjozNCwiaHR0cE9uU210cENvdW50IjozNSwic3NoT25TbXRwQ291bnQiOjM2LCJodHRwUG9ydFNjYW5uaW5nQ291bnQiOjM3LCJob25leXBvdEhpdENvdW50IjozOCwic3NoQnJ1dGVmb3JjZUNvdW50IjozOSwib3RoZXJDb3VudCI6NDAsImZpcnN0U2VlbkF0IjoiMjAyNC0wMS0wM1QwMDowMDowMFoiLCJsYXN0U2VlbkF0IjoiMjAyNC0wMS0wM1QwMTowMDowMFoiLCJsYXN0RGVjYXlBdCI6IjIwMjQtMDEtMDNUMDA6MzA6MDBaIiwieGRwQmFubmVkIjpmYWxzZSwid2hpdGVsaXN0ZWQiOmZhbHNlfSx7ImlwQWRkcmVzcyI6Ilx0MjAzLjAuMTEzLjg4JTJGXG4iLCJ0b3RhbFNjb3JlIjo0NCwiY3VycmVudFNjb3JlIjo0NiwiYWN0aXZpdHlDb3VudCI6OCwic2VsZlNwb29maW5nQ291bnQiOjQwLCJvcGVuUmVsYXlDb3VudCI6NDEsImF1dGhQcm9iZUNvdW50Ijo0MiwiaWxsZWdhbERvbWFpbkNvdW50Ijo0Mywic3BhbWhhdXNDb3VudCI6NDQsImh0dHBPblNtdHBDb3VudCI6NDUsInNzaE9uU210cENvdW50Ijo0NiwiaHR0cFBvcnRTY2FubmluZ0NvdW50Ijo0NywiaG9uZXlwb3RIaXRDb3VudCI6NDgsInNzaEJydXRlZm9yY2VDb3VudCI6NDksIm90aGVyQ291bnQiOjUwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDRUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDRUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTA0VDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjo1MCwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6MSwic2VhcmNoUXVlcnkiOiJcdCBcclxuIn0=",
+        "length": 1919,
+        "sha256": "19e9e47c796f7e74158b357ddeb1ea749ea466c0f04e8a5fd03932371f72f845"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "search_2": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 6,
+            "authProbeCount": 32,
+            "currentScore": 47,
+            "firstSeenAt": "2024-01-03T00:00:00Z",
+            "honeypotHitCount": 38,
+            "httpOnSmtpCount": 35,
+            "httpPortScanningCount": 37,
+            "illegalDomainCount": 33,
+            "ipAddress": "2001:DB8::AA",
+            "lastDecayAt": "2024-01-03T00:30:00Z",
+            "lastSeenAt": "2024-01-03T01:00:00Z",
+            "openRelayCount": 31,
+            "otherCount": 40,
+            "selfSpoofingCount": 30,
+            "spamhausCount": 34,
+            "sshBruteforceCount": 39,
+            "sshOnSmtpCount": 36,
+            "totalScore": 33,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "DB8",
+        "size": 50,
+        "totalElements": 1,
+        "totalPages": 1
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "550"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDAxOkRCODo6QUEiLCJ0b3RhbFNjb3JlIjozMywiY3VycmVudFNjb3JlIjo0NywiYWN0aXZpdHlDb3VudCI6Niwic2VsZlNwb29maW5nQ291bnQiOjMwLCJvcGVuUmVsYXlDb3VudCI6MzEsImF1dGhQcm9iZUNvdW50IjozMiwiaWxsZWdhbERvbWFpbkNvdW50IjozMywic3BhbWhhdXNDb3VudCI6MzQsImh0dHBPblNtdHBDb3VudCI6MzUsInNzaE9uU210cENvdW50IjozNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjozNywiaG9uZXlwb3RIaXRDb3VudCI6MzgsInNzaEJydXRlZm9yY2VDb3VudCI6MzksIm90aGVyQ291bnQiOjQwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDNUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDNUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAzVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjo1MCwidG90YWxFbGVtZW50cyI6MSwidG90YWxQYWdlcyI6MSwic2VhcmNoUXVlcnkiOiJEQjgifQ==",
+        "length": 550,
+        "sha256": "79e4cebc76b90b8a411ffff507df07547e74cde494a948f75fe6b662fe40b2b3"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "search_3": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 4,
+            "authProbeCount": 22,
+            "currentScore": 48,
+            "firstSeenAt": "2024-01-02T00:00:00Z",
+            "honeypotHitCount": 28,
+            "httpOnSmtpCount": 25,
+            "httpPortScanningCount": 27,
+            "illegalDomainCount": 23,
+            "ipAddress": "198.51.100.9",
+            "lastSeenAt": "2024-01-02T01:00:00Z",
+            "openRelayCount": 21,
+            "otherCount": 30,
+            "selfSpoofingCount": 20,
+            "spamhausCount": 24,
+            "sshBruteforceCount": 29,
+            "sshOnSmtpCount": 26,
+            "totalScore": 22,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 6,
+            "authProbeCount": 32,
+            "currentScore": 47,
+            "firstSeenAt": "2024-01-03T00:00:00Z",
+            "honeypotHitCount": 38,
+            "httpOnSmtpCount": 35,
+            "httpPortScanningCount": 37,
+            "illegalDomainCount": 33,
+            "ipAddress": "2001:DB8::AA",
+            "lastDecayAt": "2024-01-03T00:30:00Z",
+            "lastSeenAt": "2024-01-03T01:00:00Z",
+            "openRelayCount": 31,
+            "otherCount": 40,
+            "selfSpoofingCount": 30,
+            "spamhausCount": 34,
+            "sshBruteforceCount": 39,
+            "sshOnSmtpCount": 36,
+            "totalScore": 33,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "%",
+        "size": 50,
+        "totalElements": 4,
+        "totalPages": 1
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "1913"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX0seyJpcEFkZHJlc3MiOiIxOTguNTEuMTAwLjkiLCJ0b3RhbFNjb3JlIjoyMiwiY3VycmVudFNjb3JlIjo0OCwiYWN0aXZpdHlDb3VudCI6NCwic2VsZlNwb29maW5nQ291bnQiOjIwLCJvcGVuUmVsYXlDb3VudCI6MjEsImF1dGhQcm9iZUNvdW50IjoyMiwiaWxsZWdhbERvbWFpbkNvdW50IjoyMywic3BhbWhhdXNDb3VudCI6MjQsImh0dHBPblNtdHBDb3VudCI6MjUsInNzaE9uU210cENvdW50IjoyNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoyNywiaG9uZXlwb3RIaXRDb3VudCI6MjgsInNzaEJydXRlZm9yY2VDb3VudCI6MjksIm90aGVyQ291bnQiOjMwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDJUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDJUMDE6MDA6MDBaIiwieGRwQmFubmVkIjpmYWxzZSwid2hpdGVsaXN0ZWQiOmZhbHNlfSx7ImlwQWRkcmVzcyI6IjIwMDE6REI4OjpBQSIsInRvdGFsU2NvcmUiOjMzLCJjdXJyZW50U2NvcmUiOjQ3LCJhY3Rpdml0eUNvdW50Ijo2LCJzZWxmU3Bvb2ZpbmdDb3VudCI6MzAsIm9wZW5SZWxheUNvdW50IjozMSwiYXV0aFByb2JlQ291bnQiOjMyLCJpbGxlZ2FsRG9tYWluQ291bnQiOjMzLCJzcGFtaGF1c0NvdW50IjozNCwiaHR0cE9uU210cENvdW50IjozNSwic3NoT25TbXRwQ291bnQiOjM2LCJodHRwUG9ydFNjYW5uaW5nQ291bnQiOjM3LCJob25leXBvdEhpdENvdW50IjozOCwic3NoQnJ1dGVmb3JjZUNvdW50IjozOSwib3RoZXJDb3VudCI6NDAsImZpcnN0U2VlbkF0IjoiMjAyNC0wMS0wM1QwMDowMDowMFoiLCJsYXN0U2VlbkF0IjoiMjAyNC0wMS0wM1QwMTowMDowMFoiLCJsYXN0RGVjYXlBdCI6IjIwMjQtMDEtMDNUMDA6MzA6MDBaIiwieGRwQmFubmVkIjpmYWxzZSwid2hpdGVsaXN0ZWQiOmZhbHNlfSx7ImlwQWRkcmVzcyI6Ilx0MjAzLjAuMTEzLjg4JTJGXG4iLCJ0b3RhbFNjb3JlIjo0NCwiY3VycmVudFNjb3JlIjo0NiwiYWN0aXZpdHlDb3VudCI6OCwic2VsZlNwb29maW5nQ291bnQiOjQwLCJvcGVuUmVsYXlDb3VudCI6NDEsImF1dGhQcm9iZUNvdW50Ijo0MiwiaWxsZWdhbERvbWFpbkNvdW50Ijo0Mywic3BhbWhhdXNDb3VudCI6NDQsImh0dHBPblNtdHBDb3VudCI6NDUsInNzaE9uU210cENvdW50Ijo0NiwiaHR0cFBvcnRTY2FubmluZ0NvdW50Ijo0NywiaG9uZXlwb3RIaXRDb3VudCI6NDgsInNzaEJydXRlZm9yY2VDb3VudCI6NDksIm90aGVyQ291bnQiOjUwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDRUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDRUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTA0VDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjo1MCwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6MSwic2VhcmNoUXVlcnkiOiIlIn0=",
+        "length": 1913,
+        "sha256": "5419429e4023b66a774db203149742bf30801a7bcf3d166b3a4a5ead55353a8c"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "search_4": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 4,
+            "authProbeCount": 22,
+            "currentScore": 48,
+            "firstSeenAt": "2024-01-02T00:00:00Z",
+            "honeypotHitCount": 28,
+            "httpOnSmtpCount": 25,
+            "httpPortScanningCount": 27,
+            "illegalDomainCount": 23,
+            "ipAddress": "198.51.100.9",
+            "lastSeenAt": "2024-01-02T01:00:00Z",
+            "openRelayCount": 21,
+            "otherCount": 30,
+            "selfSpoofingCount": 20,
+            "spamhausCount": 24,
+            "sshBruteforceCount": 29,
+            "sshOnSmtpCount": 26,
+            "totalScore": 22,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 6,
+            "authProbeCount": 32,
+            "currentScore": 47,
+            "firstSeenAt": "2024-01-03T00:00:00Z",
+            "honeypotHitCount": 38,
+            "httpOnSmtpCount": 35,
+            "httpPortScanningCount": 37,
+            "illegalDomainCount": 33,
+            "ipAddress": "2001:DB8::AA",
+            "lastDecayAt": "2024-01-03T00:30:00Z",
+            "lastSeenAt": "2024-01-03T01:00:00Z",
+            "openRelayCount": 31,
+            "otherCount": 40,
+            "selfSpoofingCount": 30,
+            "spamhausCount": 34,
+            "sshBruteforceCount": 39,
+            "sshOnSmtpCount": 36,
+            "totalScore": 33,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "_",
+        "size": 50,
+        "totalElements": 4,
+        "totalPages": 1
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "1913"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX0seyJpcEFkZHJlc3MiOiIxOTguNTEuMTAwLjkiLCJ0b3RhbFNjb3JlIjoyMiwiY3VycmVudFNjb3JlIjo0OCwiYWN0aXZpdHlDb3VudCI6NCwic2VsZlNwb29maW5nQ291bnQiOjIwLCJvcGVuUmVsYXlDb3VudCI6MjEsImF1dGhQcm9iZUNvdW50IjoyMiwiaWxsZWdhbERvbWFpbkNvdW50IjoyMywic3BhbWhhdXNDb3VudCI6MjQsImh0dHBPblNtdHBDb3VudCI6MjUsInNzaE9uU210cENvdW50IjoyNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoyNywiaG9uZXlwb3RIaXRDb3VudCI6MjgsInNzaEJydXRlZm9yY2VDb3VudCI6MjksIm90aGVyQ291bnQiOjMwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDJUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDJUMDE6MDA6MDBaIiwieGRwQmFubmVkIjpmYWxzZSwid2hpdGVsaXN0ZWQiOmZhbHNlfSx7ImlwQWRkcmVzcyI6IjIwMDE6REI4OjpBQSIsInRvdGFsU2NvcmUiOjMzLCJjdXJyZW50U2NvcmUiOjQ3LCJhY3Rpdml0eUNvdW50Ijo2LCJzZWxmU3Bvb2ZpbmdDb3VudCI6MzAsIm9wZW5SZWxheUNvdW50IjozMSwiYXV0aFByb2JlQ291bnQiOjMyLCJpbGxlZ2FsRG9tYWluQ291bnQiOjMzLCJzcGFtaGF1c0NvdW50IjozNCwiaHR0cE9uU210cENvdW50IjozNSwic3NoT25TbXRwQ291bnQiOjM2LCJodHRwUG9ydFNjYW5uaW5nQ291bnQiOjM3LCJob25leXBvdEhpdENvdW50IjozOCwic3NoQnJ1dGVmb3JjZUNvdW50IjozOSwib3RoZXJDb3VudCI6NDAsImZpcnN0U2VlbkF0IjoiMjAyNC0wMS0wM1QwMDowMDowMFoiLCJsYXN0U2VlbkF0IjoiMjAyNC0wMS0wM1QwMTowMDowMFoiLCJsYXN0RGVjYXlBdCI6IjIwMjQtMDEtMDNUMDA6MzA6MDBaIiwieGRwQmFubmVkIjpmYWxzZSwid2hpdGVsaXN0ZWQiOmZhbHNlfSx7ImlwQWRkcmVzcyI6Ilx0MjAzLjAuMTEzLjg4JTJGXG4iLCJ0b3RhbFNjb3JlIjo0NCwiY3VycmVudFNjb3JlIjo0NiwiYWN0aXZpdHlDb3VudCI6OCwic2VsZlNwb29maW5nQ291bnQiOjQwLCJvcGVuUmVsYXlDb3VudCI6NDEsImF1dGhQcm9iZUNvdW50Ijo0MiwiaWxsZWdhbERvbWFpbkNvdW50Ijo0Mywic3BhbWhhdXNDb3VudCI6NDQsImh0dHBPblNtdHBDb3VudCI6NDUsInNzaE9uU210cENvdW50Ijo0NiwiaHR0cFBvcnRTY2FubmluZ0NvdW50Ijo0NywiaG9uZXlwb3RIaXRDb3VudCI6NDgsInNzaEJydXRlZm9yY2VDb3VudCI6NDksIm90aGVyQ291bnQiOjUwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDRUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDRUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTA0VDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjo1MCwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6MSwic2VhcmNoUXVlcnkiOiJfIn0=",
+        "length": 1913,
+        "sha256": "44a6f6196d381f088d33cd28f6ce48a322be2fac5272ec19b9a9a8f67b513c96"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "search_5": {
+      "body_json": {
+        "content": [],
+        "page": 0,
+        "searchQuery": "no-such-ip",
+        "size": 50,
+        "totalElements": 0,
+        "totalPages": 0
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "93"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbXSwicGFnZSI6MCwic2l6ZSI6NTAsInRvdGFsRWxlbWVudHMiOjAsInRvdGFsUGFnZXMiOjAsInNlYXJjaFF1ZXJ5Ijoibm8tc3VjaC1pcCJ9",
+        "length": 93,
+        "sha256": "cac40029f5b13146cdaa6997454a6b87981f3662be91335538e67d39d999c75c"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "search_6": {
+      "body_json": {
+        "content": [],
+        "page": 0,
+        "searchQuery": "x' OR true --",
+        "size": 50,
+        "totalElements": 0,
+        "totalPages": 0
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "96"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbXSwicGFnZSI6MCwic2l6ZSI6NTAsInRvdGFsRWxlbWVudHMiOjAsInRvdGFsUGFnZXMiOjAsInNlYXJjaFF1ZXJ5IjoieCcgT1IgdHJ1ZSAtLSJ9",
+        "length": 96,
+        "sha256": "8a96cd5855c000446774ebe4f2beae795c8d51eb672752d5aaede00656c52ae4"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "search_7": {
+      "body_json": {
+        "content": [],
+        "page": 0,
+        "searchQuery": " DB8 ",
+        "size": 50,
+        "totalElements": 0,
+        "totalPages": 0
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "90"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbXSwicGFnZSI6MCwic2l6ZSI6NTAsInRvdGFsRWxlbWVudHMiOjAsInRvdGFsUGFnZXMiOjAsInNlYXJjaFF1ZXJ5IjoiwqBEQjjCoCJ9",
+        "length": 90,
+        "sha256": "40eef3cb0fc9dd83776f5b26cb64011a9f08a055a9132db7d54bd8c483e7e557"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "search_8": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 4,
+            "authProbeCount": 22,
+            "currentScore": 48,
+            "firstSeenAt": "2024-01-02T00:00:00Z",
+            "honeypotHitCount": 28,
+            "httpOnSmtpCount": 25,
+            "httpPortScanningCount": 27,
+            "illegalDomainCount": 23,
+            "ipAddress": "198.51.100.9",
+            "lastSeenAt": "2024-01-02T01:00:00Z",
+            "openRelayCount": 21,
+            "otherCount": 30,
+            "selfSpoofingCount": 20,
+            "spamhausCount": 24,
+            "sshBruteforceCount": 29,
+            "sshOnSmtpCount": 26,
+            "totalScore": 22,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 6,
+            "authProbeCount": 32,
+            "currentScore": 47,
+            "firstSeenAt": "2024-01-03T00:00:00Z",
+            "honeypotHitCount": 38,
+            "httpOnSmtpCount": 35,
+            "httpPortScanningCount": 37,
+            "illegalDomainCount": 33,
+            "ipAddress": "2001:DB8::AA",
+            "lastDecayAt": "2024-01-03T00:30:00Z",
+            "lastSeenAt": "2024-01-03T01:00:00Z",
+            "openRelayCount": 31,
+            "otherCount": 40,
+            "selfSpoofingCount": 30,
+            "spamhausCount": 34,
+            "sshBruteforceCount": 39,
+            "sshOnSmtpCount": 36,
+            "totalScore": 33,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": " ",
+        "size": 50,
+        "totalElements": 4,
+        "totalPages": 1
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "1915"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX0seyJpcEFkZHJlc3MiOiIxOTguNTEuMTAwLjkiLCJ0b3RhbFNjb3JlIjoyMiwiY3VycmVudFNjb3JlIjo0OCwiYWN0aXZpdHlDb3VudCI6NCwic2VsZlNwb29maW5nQ291bnQiOjIwLCJvcGVuUmVsYXlDb3VudCI6MjEsImF1dGhQcm9iZUNvdW50IjoyMiwiaWxsZWdhbERvbWFpbkNvdW50IjoyMywic3BhbWhhdXNDb3VudCI6MjQsImh0dHBPblNtdHBDb3VudCI6MjUsInNzaE9uU210cENvdW50IjoyNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoyNywiaG9uZXlwb3RIaXRDb3VudCI6MjgsInNzaEJydXRlZm9yY2VDb3VudCI6MjksIm90aGVyQ291bnQiOjMwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDJUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDJUMDE6MDA6MDBaIiwieGRwQmFubmVkIjpmYWxzZSwid2hpdGVsaXN0ZWQiOmZhbHNlfSx7ImlwQWRkcmVzcyI6IjIwMDE6REI4OjpBQSIsInRvdGFsU2NvcmUiOjMzLCJjdXJyZW50U2NvcmUiOjQ3LCJhY3Rpdml0eUNvdW50Ijo2LCJzZWxmU3Bvb2ZpbmdDb3VudCI6MzAsIm9wZW5SZWxheUNvdW50IjozMSwiYXV0aFByb2JlQ291bnQiOjMyLCJpbGxlZ2FsRG9tYWluQ291bnQiOjMzLCJzcGFtaGF1c0NvdW50IjozNCwiaHR0cE9uU210cENvdW50IjozNSwic3NoT25TbXRwQ291bnQiOjM2LCJodHRwUG9ydFNjYW5uaW5nQ291bnQiOjM3LCJob25leXBvdEhpdENvdW50IjozOCwic3NoQnJ1dGVmb3JjZUNvdW50IjozOSwib3RoZXJDb3VudCI6NDAsImZpcnN0U2VlbkF0IjoiMjAyNC0wMS0wM1QwMDowMDowMFoiLCJsYXN0U2VlbkF0IjoiMjAyNC0wMS0wM1QwMTowMDowMFoiLCJsYXN0RGVjYXlBdCI6IjIwMjQtMDEtMDNUMDA6MzA6MDBaIiwieGRwQmFubmVkIjpmYWxzZSwid2hpdGVsaXN0ZWQiOmZhbHNlfSx7ImlwQWRkcmVzcyI6Ilx0MjAzLjAuMTEzLjg4JTJGXG4iLCJ0b3RhbFNjb3JlIjo0NCwiY3VycmVudFNjb3JlIjo0NiwiYWN0aXZpdHlDb3VudCI6OCwic2VsZlNwb29maW5nQ291bnQiOjQwLCJvcGVuUmVsYXlDb3VudCI6NDEsImF1dGhQcm9iZUNvdW50Ijo0MiwiaWxsZWdhbERvbWFpbkNvdW50Ijo0Mywic3BhbWhhdXNDb3VudCI6NDQsImh0dHBPblNtdHBDb3VudCI6NDUsInNzaE9uU210cENvdW50Ijo0NiwiaHR0cFBvcnRTY2FubmluZ0NvdW50Ijo0NywiaG9uZXlwb3RIaXRDb3VudCI6NDgsInNzaEJydXRlZm9yY2VDb3VudCI6NDksIm90aGVyQ291bnQiOjUwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDRUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDRUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTA0VDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjo1MCwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6MSwic2VhcmNoUXVlcnkiOiLigIMifQ==",
+        "length": 1915,
+        "sha256": "ca4c66f23477557b51a28411b4e3e34ed0adddaa4aab806c066d6ac38b021fd9"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "search_9": {
+      "body_json": {
+        "content": [],
+        "page": 0,
+        "searchQuery": " DB8 ",
+        "size": 50,
+        "totalElements": 0,
+        "totalPages": 0
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "92"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbXSwicGFnZSI6MCwic2l6ZSI6NTAsInRvdGFsRWxlbWVudHMiOjAsInRvdGFsUGFnZXMiOjAsInNlYXJjaFF1ZXJ5Ijoi4oCDREI44oCDIn0=",
+        "length": 92,
+        "sha256": "235c3fd4db47fd95e23b82eb98ec8a403fee630c59a5854b9a919eb41e8f29ae"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_activityCount_DESC": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "553"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiJcdDIwMy4wLjExMy44OCUyRlxuIiwidG90YWxTY29yZSI6NDQsImN1cnJlbnRTY29yZSI6NDYsImFjdGl2aXR5Q291bnQiOjgsInNlbGZTcG9vZmluZ0NvdW50Ijo0MCwib3BlblJlbGF5Q291bnQiOjQxLCJhdXRoUHJvYmVDb3VudCI6NDIsImlsbGVnYWxEb21haW5Db3VudCI6NDMsInNwYW1oYXVzQ291bnQiOjQ0LCJodHRwT25TbXRwQ291bnQiOjQ1LCJzc2hPblNtdHBDb3VudCI6NDYsImh0dHBQb3J0U2Nhbm5pbmdDb3VudCI6NDcsImhvbmV5cG90SGl0Q291bnQiOjQ4LCJzc2hCcnV0ZWZvcmNlQ291bnQiOjQ5LCJvdGhlckNvdW50Ijo1MCwiZmlyc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAwOjAwOjAwWiIsImxhc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAxOjAwOjAwWiIsImxhc3REZWNheUF0IjoiMjAyNC0wMS0wNFQwMDozMDowMFoiLCJ4ZHBCYW5uZWQiOmZhbHNlLCJ3aGl0ZWxpc3RlZCI6ZmFsc2V9XSwicGFnZSI6MCwic2l6ZSI6MSwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6NCwic2VhcmNoUXVlcnkiOiIifQ==",
+        "length": 553,
+        "sha256": "c3584990ea6864a67d6950fecb5217a20cf6080e597655d0fdda7684ae51243b"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_activityCount_asc": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "546"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjoxLCJ0b3RhbEVsZW1lbnRzIjo0LCJ0b3RhbFBhZ2VzIjo0LCJzZWFyY2hRdWVyeSI6IiJ9",
+        "length": 546,
+        "sha256": "03c753f5ac844395262c2c29fec890ac7844d8c37ceeddcd90d20027e3576d63"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_authProbeCount_DESC": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "553"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiJcdDIwMy4wLjExMy44OCUyRlxuIiwidG90YWxTY29yZSI6NDQsImN1cnJlbnRTY29yZSI6NDYsImFjdGl2aXR5Q291bnQiOjgsInNlbGZTcG9vZmluZ0NvdW50Ijo0MCwib3BlblJlbGF5Q291bnQiOjQxLCJhdXRoUHJvYmVDb3VudCI6NDIsImlsbGVnYWxEb21haW5Db3VudCI6NDMsInNwYW1oYXVzQ291bnQiOjQ0LCJodHRwT25TbXRwQ291bnQiOjQ1LCJzc2hPblNtdHBDb3VudCI6NDYsImh0dHBQb3J0U2Nhbm5pbmdDb3VudCI6NDcsImhvbmV5cG90SGl0Q291bnQiOjQ4LCJzc2hCcnV0ZWZvcmNlQ291bnQiOjQ5LCJvdGhlckNvdW50Ijo1MCwiZmlyc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAwOjAwOjAwWiIsImxhc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAxOjAwOjAwWiIsImxhc3REZWNheUF0IjoiMjAyNC0wMS0wNFQwMDozMDowMFoiLCJ4ZHBCYW5uZWQiOmZhbHNlLCJ3aGl0ZWxpc3RlZCI6ZmFsc2V9XSwicGFnZSI6MCwic2l6ZSI6MSwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6NCwic2VhcmNoUXVlcnkiOiIifQ==",
+        "length": 553,
+        "sha256": "c3584990ea6864a67d6950fecb5217a20cf6080e597655d0fdda7684ae51243b"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_authProbeCount_asc": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "546"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjoxLCJ0b3RhbEVsZW1lbnRzIjo0LCJ0b3RhbFBhZ2VzIjo0LCJzZWFyY2hRdWVyeSI6IiJ9",
+        "length": 546,
+        "sha256": "03c753f5ac844395262c2c29fec890ac7844d8c37ceeddcd90d20027e3576d63"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_case_sensitive": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 6,
+            "authProbeCount": 32,
+            "currentScore": 47,
+            "firstSeenAt": "2024-01-03T00:00:00Z",
+            "honeypotHitCount": 38,
+            "httpOnSmtpCount": 35,
+            "httpPortScanningCount": 37,
+            "illegalDomainCount": 33,
+            "ipAddress": "2001:DB8::AA",
+            "lastDecayAt": "2024-01-03T00:30:00Z",
+            "lastSeenAt": "2024-01-03T01:00:00Z",
+            "openRelayCount": 31,
+            "otherCount": 40,
+            "selfSpoofingCount": 30,
+            "spamhausCount": 34,
+            "sshBruteforceCount": 39,
+            "sshOnSmtpCount": 36,
+            "totalScore": 33,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 4,
+            "authProbeCount": 22,
+            "currentScore": 48,
+            "firstSeenAt": "2024-01-02T00:00:00Z",
+            "honeypotHitCount": 28,
+            "httpOnSmtpCount": 25,
+            "httpPortScanningCount": 27,
+            "illegalDomainCount": 23,
+            "ipAddress": "198.51.100.9",
+            "lastSeenAt": "2024-01-02T01:00:00Z",
+            "openRelayCount": 21,
+            "otherCount": 30,
+            "selfSpoofingCount": 20,
+            "spamhausCount": 24,
+            "sshBruteforceCount": 29,
+            "sshOnSmtpCount": 26,
+            "totalScore": 22,
+            "whitelisted": false,
+            "xdpBanned": false
+          },
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 50,
+        "totalElements": 4,
+        "totalPages": 1
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "1912"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiJcdDIwMy4wLjExMy44OCUyRlxuIiwidG90YWxTY29yZSI6NDQsImN1cnJlbnRTY29yZSI6NDYsImFjdGl2aXR5Q291bnQiOjgsInNlbGZTcG9vZmluZ0NvdW50Ijo0MCwib3BlblJlbGF5Q291bnQiOjQxLCJhdXRoUHJvYmVDb3VudCI6NDIsImlsbGVnYWxEb21haW5Db3VudCI6NDMsInNwYW1oYXVzQ291bnQiOjQ0LCJodHRwT25TbXRwQ291bnQiOjQ1LCJzc2hPblNtdHBDb3VudCI6NDYsImh0dHBQb3J0U2Nhbm5pbmdDb3VudCI6NDcsImhvbmV5cG90SGl0Q291bnQiOjQ4LCJzc2hCcnV0ZWZvcmNlQ291bnQiOjQ5LCJvdGhlckNvdW50Ijo1MCwiZmlyc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAwOjAwOjAwWiIsImxhc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAxOjAwOjAwWiIsImxhc3REZWNheUF0IjoiMjAyNC0wMS0wNFQwMDozMDowMFoiLCJ4ZHBCYW5uZWQiOmZhbHNlLCJ3aGl0ZWxpc3RlZCI6ZmFsc2V9LHsiaXBBZGRyZXNzIjoiMjAwMTpEQjg6OkFBIiwidG90YWxTY29yZSI6MzMsImN1cnJlbnRTY29yZSI6NDcsImFjdGl2aXR5Q291bnQiOjYsInNlbGZTcG9vZmluZ0NvdW50IjozMCwib3BlblJlbGF5Q291bnQiOjMxLCJhdXRoUHJvYmVDb3VudCI6MzIsImlsbGVnYWxEb21haW5Db3VudCI6MzMsInNwYW1oYXVzQ291bnQiOjM0LCJodHRwT25TbXRwQ291bnQiOjM1LCJzc2hPblNtdHBDb3VudCI6MzYsImh0dHBQb3J0U2Nhbm5pbmdDb3VudCI6MzcsImhvbmV5cG90SGl0Q291bnQiOjM4LCJzc2hCcnV0ZWZvcmNlQ291bnQiOjM5LCJvdGhlckNvdW50Ijo0MCwiZmlyc3RTZWVuQXQiOiIyMDI0LTAxLTAzVDAwOjAwOjAwWiIsImxhc3RTZWVuQXQiOiIyMDI0LTAxLTAzVDAxOjAwOjAwWiIsImxhc3REZWNheUF0IjoiMjAyNC0wMS0wM1QwMDozMDowMFoiLCJ4ZHBCYW5uZWQiOmZhbHNlLCJ3aGl0ZWxpc3RlZCI6ZmFsc2V9LHsiaXBBZGRyZXNzIjoiMTk4LjUxLjEwMC45IiwidG90YWxTY29yZSI6MjIsImN1cnJlbnRTY29yZSI6NDgsImFjdGl2aXR5Q291bnQiOjQsInNlbGZTcG9vZmluZ0NvdW50IjoyMCwib3BlblJlbGF5Q291bnQiOjIxLCJhdXRoUHJvYmVDb3VudCI6MjIsImlsbGVnYWxEb21haW5Db3VudCI6MjMsInNwYW1oYXVzQ291bnQiOjI0LCJodHRwT25TbXRwQ291bnQiOjI1LCJzc2hPblNtdHBDb3VudCI6MjYsImh0dHBQb3J0U2Nhbm5pbmdDb3VudCI6MjcsImhvbmV5cG90SGl0Q291bnQiOjI4LCJzc2hCcnV0ZWZvcmNlQ291bnQiOjI5LCJvdGhlckNvdW50IjozMCwiZmlyc3RTZWVuQXQiOiIyMDI0LTAxLTAyVDAwOjAwOjAwWiIsImxhc3RTZWVuQXQiOiIyMDI0LTAxLTAyVDAxOjAwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX0seyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjo1MCwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6MSwic2VhcmNoUXVlcnkiOiIifQ==",
+        "length": 1912,
+        "sha256": "026eeba58bee793132a871c424d16dc3c2078089cdc327e669a26f8ec899e661"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_currentScore_DESC": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "546"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjoxLCJ0b3RhbEVsZW1lbnRzIjo0LCJ0b3RhbFBhZ2VzIjo0LCJzZWFyY2hRdWVyeSI6IiJ9",
+        "length": 546,
+        "sha256": "03c753f5ac844395262c2c29fec890ac7844d8c37ceeddcd90d20027e3576d63"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_currentScore_asc": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "553"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiJcdDIwMy4wLjExMy44OCUyRlxuIiwidG90YWxTY29yZSI6NDQsImN1cnJlbnRTY29yZSI6NDYsImFjdGl2aXR5Q291bnQiOjgsInNlbGZTcG9vZmluZ0NvdW50Ijo0MCwib3BlblJlbGF5Q291bnQiOjQxLCJhdXRoUHJvYmVDb3VudCI6NDIsImlsbGVnYWxEb21haW5Db3VudCI6NDMsInNwYW1oYXVzQ291bnQiOjQ0LCJodHRwT25TbXRwQ291bnQiOjQ1LCJzc2hPblNtdHBDb3VudCI6NDYsImh0dHBQb3J0U2Nhbm5pbmdDb3VudCI6NDcsImhvbmV5cG90SGl0Q291bnQiOjQ4LCJzc2hCcnV0ZWZvcmNlQ291bnQiOjQ5LCJvdGhlckNvdW50Ijo1MCwiZmlyc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAwOjAwOjAwWiIsImxhc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAxOjAwOjAwWiIsImxhc3REZWNheUF0IjoiMjAyNC0wMS0wNFQwMDozMDowMFoiLCJ4ZHBCYW5uZWQiOmZhbHNlLCJ3aGl0ZWxpc3RlZCI6ZmFsc2V9XSwicGFnZSI6MCwic2l6ZSI6MSwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6NCwic2VhcmNoUXVlcnkiOiIifQ==",
+        "length": 553,
+        "sha256": "c3584990ea6864a67d6950fecb5217a20cf6080e597655d0fdda7684ae51243b"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_firstSeenAt_DESC": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "553"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiJcdDIwMy4wLjExMy44OCUyRlxuIiwidG90YWxTY29yZSI6NDQsImN1cnJlbnRTY29yZSI6NDYsImFjdGl2aXR5Q291bnQiOjgsInNlbGZTcG9vZmluZ0NvdW50Ijo0MCwib3BlblJlbGF5Q291bnQiOjQxLCJhdXRoUHJvYmVDb3VudCI6NDIsImlsbGVnYWxEb21haW5Db3VudCI6NDMsInNwYW1oYXVzQ291bnQiOjQ0LCJodHRwT25TbXRwQ291bnQiOjQ1LCJzc2hPblNtdHBDb3VudCI6NDYsImh0dHBQb3J0U2Nhbm5pbmdDb3VudCI6NDcsImhvbmV5cG90SGl0Q291bnQiOjQ4LCJzc2hCcnV0ZWZvcmNlQ291bnQiOjQ5LCJvdGhlckNvdW50Ijo1MCwiZmlyc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAwOjAwOjAwWiIsImxhc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAxOjAwOjAwWiIsImxhc3REZWNheUF0IjoiMjAyNC0wMS0wNFQwMDozMDowMFoiLCJ4ZHBCYW5uZWQiOmZhbHNlLCJ3aGl0ZWxpc3RlZCI6ZmFsc2V9XSwicGFnZSI6MCwic2l6ZSI6MSwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6NCwic2VhcmNoUXVlcnkiOiIifQ==",
+        "length": 553,
+        "sha256": "c3584990ea6864a67d6950fecb5217a20cf6080e597655d0fdda7684ae51243b"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_firstSeenAt_asc": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "546"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjoxLCJ0b3RhbEVsZW1lbnRzIjo0LCJ0b3RhbFBhZ2VzIjo0LCJzZWFyY2hRdWVyeSI6IiJ9",
+        "length": 546,
+        "sha256": "03c753f5ac844395262c2c29fec890ac7844d8c37ceeddcd90d20027e3576d63"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_honeypotHitCount_DESC": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "553"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiJcdDIwMy4wLjExMy44OCUyRlxuIiwidG90YWxTY29yZSI6NDQsImN1cnJlbnRTY29yZSI6NDYsImFjdGl2aXR5Q291bnQiOjgsInNlbGZTcG9vZmluZ0NvdW50Ijo0MCwib3BlblJlbGF5Q291bnQiOjQxLCJhdXRoUHJvYmVDb3VudCI6NDIsImlsbGVnYWxEb21haW5Db3VudCI6NDMsInNwYW1oYXVzQ291bnQiOjQ0LCJodHRwT25TbXRwQ291bnQiOjQ1LCJzc2hPblNtdHBDb3VudCI6NDYsImh0dHBQb3J0U2Nhbm5pbmdDb3VudCI6NDcsImhvbmV5cG90SGl0Q291bnQiOjQ4LCJzc2hCcnV0ZWZvcmNlQ291bnQiOjQ5LCJvdGhlckNvdW50Ijo1MCwiZmlyc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAwOjAwOjAwWiIsImxhc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAxOjAwOjAwWiIsImxhc3REZWNheUF0IjoiMjAyNC0wMS0wNFQwMDozMDowMFoiLCJ4ZHBCYW5uZWQiOmZhbHNlLCJ3aGl0ZWxpc3RlZCI6ZmFsc2V9XSwicGFnZSI6MCwic2l6ZSI6MSwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6NCwic2VhcmNoUXVlcnkiOiIifQ==",
+        "length": 553,
+        "sha256": "c3584990ea6864a67d6950fecb5217a20cf6080e597655d0fdda7684ae51243b"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_honeypotHitCount_asc": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "546"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjoxLCJ0b3RhbEVsZW1lbnRzIjo0LCJ0b3RhbFBhZ2VzIjo0LCJzZWFyY2hRdWVyeSI6IiJ9",
+        "length": 546,
+        "sha256": "03c753f5ac844395262c2c29fec890ac7844d8c37ceeddcd90d20027e3576d63"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_httpOnSmtpCount_DESC": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "553"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiJcdDIwMy4wLjExMy44OCUyRlxuIiwidG90YWxTY29yZSI6NDQsImN1cnJlbnRTY29yZSI6NDYsImFjdGl2aXR5Q291bnQiOjgsInNlbGZTcG9vZmluZ0NvdW50Ijo0MCwib3BlblJlbGF5Q291bnQiOjQxLCJhdXRoUHJvYmVDb3VudCI6NDIsImlsbGVnYWxEb21haW5Db3VudCI6NDMsInNwYW1oYXVzQ291bnQiOjQ0LCJodHRwT25TbXRwQ291bnQiOjQ1LCJzc2hPblNtdHBDb3VudCI6NDYsImh0dHBQb3J0U2Nhbm5pbmdDb3VudCI6NDcsImhvbmV5cG90SGl0Q291bnQiOjQ4LCJzc2hCcnV0ZWZvcmNlQ291bnQiOjQ5LCJvdGhlckNvdW50Ijo1MCwiZmlyc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAwOjAwOjAwWiIsImxhc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAxOjAwOjAwWiIsImxhc3REZWNheUF0IjoiMjAyNC0wMS0wNFQwMDozMDowMFoiLCJ4ZHBCYW5uZWQiOmZhbHNlLCJ3aGl0ZWxpc3RlZCI6ZmFsc2V9XSwicGFnZSI6MCwic2l6ZSI6MSwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6NCwic2VhcmNoUXVlcnkiOiIifQ==",
+        "length": 553,
+        "sha256": "c3584990ea6864a67d6950fecb5217a20cf6080e597655d0fdda7684ae51243b"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_httpOnSmtpCount_asc": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "546"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjoxLCJ0b3RhbEVsZW1lbnRzIjo0LCJ0b3RhbFBhZ2VzIjo0LCJzZWFyY2hRdWVyeSI6IiJ9",
+        "length": 546,
+        "sha256": "03c753f5ac844395262c2c29fec890ac7844d8c37ceeddcd90d20027e3576d63"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_httpPortScanningCount_DESC": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "553"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiJcdDIwMy4wLjExMy44OCUyRlxuIiwidG90YWxTY29yZSI6NDQsImN1cnJlbnRTY29yZSI6NDYsImFjdGl2aXR5Q291bnQiOjgsInNlbGZTcG9vZmluZ0NvdW50Ijo0MCwib3BlblJlbGF5Q291bnQiOjQxLCJhdXRoUHJvYmVDb3VudCI6NDIsImlsbGVnYWxEb21haW5Db3VudCI6NDMsInNwYW1oYXVzQ291bnQiOjQ0LCJodHRwT25TbXRwQ291bnQiOjQ1LCJzc2hPblNtdHBDb3VudCI6NDYsImh0dHBQb3J0U2Nhbm5pbmdDb3VudCI6NDcsImhvbmV5cG90SGl0Q291bnQiOjQ4LCJzc2hCcnV0ZWZvcmNlQ291bnQiOjQ5LCJvdGhlckNvdW50Ijo1MCwiZmlyc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAwOjAwOjAwWiIsImxhc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAxOjAwOjAwWiIsImxhc3REZWNheUF0IjoiMjAyNC0wMS0wNFQwMDozMDowMFoiLCJ4ZHBCYW5uZWQiOmZhbHNlLCJ3aGl0ZWxpc3RlZCI6ZmFsc2V9XSwicGFnZSI6MCwic2l6ZSI6MSwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6NCwic2VhcmNoUXVlcnkiOiIifQ==",
+        "length": 553,
+        "sha256": "c3584990ea6864a67d6950fecb5217a20cf6080e597655d0fdda7684ae51243b"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_httpPortScanningCount_asc": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "546"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjoxLCJ0b3RhbEVsZW1lbnRzIjo0LCJ0b3RhbFBhZ2VzIjo0LCJzZWFyY2hRdWVyeSI6IiJ9",
+        "length": 546,
+        "sha256": "03c753f5ac844395262c2c29fec890ac7844d8c37ceeddcd90d20027e3576d63"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_illegalDomainCount_DESC": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "553"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiJcdDIwMy4wLjExMy44OCUyRlxuIiwidG90YWxTY29yZSI6NDQsImN1cnJlbnRTY29yZSI6NDYsImFjdGl2aXR5Q291bnQiOjgsInNlbGZTcG9vZmluZ0NvdW50Ijo0MCwib3BlblJlbGF5Q291bnQiOjQxLCJhdXRoUHJvYmVDb3VudCI6NDIsImlsbGVnYWxEb21haW5Db3VudCI6NDMsInNwYW1oYXVzQ291bnQiOjQ0LCJodHRwT25TbXRwQ291bnQiOjQ1LCJzc2hPblNtdHBDb3VudCI6NDYsImh0dHBQb3J0U2Nhbm5pbmdDb3VudCI6NDcsImhvbmV5cG90SGl0Q291bnQiOjQ4LCJzc2hCcnV0ZWZvcmNlQ291bnQiOjQ5LCJvdGhlckNvdW50Ijo1MCwiZmlyc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAwOjAwOjAwWiIsImxhc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAxOjAwOjAwWiIsImxhc3REZWNheUF0IjoiMjAyNC0wMS0wNFQwMDozMDowMFoiLCJ4ZHBCYW5uZWQiOmZhbHNlLCJ3aGl0ZWxpc3RlZCI6ZmFsc2V9XSwicGFnZSI6MCwic2l6ZSI6MSwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6NCwic2VhcmNoUXVlcnkiOiIifQ==",
+        "length": 553,
+        "sha256": "c3584990ea6864a67d6950fecb5217a20cf6080e597655d0fdda7684ae51243b"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_illegalDomainCount_asc": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "546"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjoxLCJ0b3RhbEVsZW1lbnRzIjo0LCJ0b3RhbFBhZ2VzIjo0LCJzZWFyY2hRdWVyeSI6IiJ9",
+        "length": 546,
+        "sha256": "03c753f5ac844395262c2c29fec890ac7844d8c37ceeddcd90d20027e3576d63"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_ipAddress_DESC": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "546"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjoxLCJ0b3RhbEVsZW1lbnRzIjo0LCJ0b3RhbFBhZ2VzIjo0LCJzZWFyY2hRdWVyeSI6IiJ9",
+        "length": 546,
+        "sha256": "03c753f5ac844395262c2c29fec890ac7844d8c37ceeddcd90d20027e3576d63"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_ipAddress_asc": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "553"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiJcdDIwMy4wLjExMy44OCUyRlxuIiwidG90YWxTY29yZSI6NDQsImN1cnJlbnRTY29yZSI6NDYsImFjdGl2aXR5Q291bnQiOjgsInNlbGZTcG9vZmluZ0NvdW50Ijo0MCwib3BlblJlbGF5Q291bnQiOjQxLCJhdXRoUHJvYmVDb3VudCI6NDIsImlsbGVnYWxEb21haW5Db3VudCI6NDMsInNwYW1oYXVzQ291bnQiOjQ0LCJodHRwT25TbXRwQ291bnQiOjQ1LCJzc2hPblNtdHBDb3VudCI6NDYsImh0dHBQb3J0U2Nhbm5pbmdDb3VudCI6NDcsImhvbmV5cG90SGl0Q291bnQiOjQ4LCJzc2hCcnV0ZWZvcmNlQ291bnQiOjQ5LCJvdGhlckNvdW50Ijo1MCwiZmlyc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAwOjAwOjAwWiIsImxhc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAxOjAwOjAwWiIsImxhc3REZWNheUF0IjoiMjAyNC0wMS0wNFQwMDozMDowMFoiLCJ4ZHBCYW5uZWQiOmZhbHNlLCJ3aGl0ZWxpc3RlZCI6ZmFsc2V9XSwicGFnZSI6MCwic2l6ZSI6MSwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6NCwic2VhcmNoUXVlcnkiOiIifQ==",
+        "length": 553,
+        "sha256": "c3584990ea6864a67d6950fecb5217a20cf6080e597655d0fdda7684ae51243b"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_lastSeenAt_DESC": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "553"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiJcdDIwMy4wLjExMy44OCUyRlxuIiwidG90YWxTY29yZSI6NDQsImN1cnJlbnRTY29yZSI6NDYsImFjdGl2aXR5Q291bnQiOjgsInNlbGZTcG9vZmluZ0NvdW50Ijo0MCwib3BlblJlbGF5Q291bnQiOjQxLCJhdXRoUHJvYmVDb3VudCI6NDIsImlsbGVnYWxEb21haW5Db3VudCI6NDMsInNwYW1oYXVzQ291bnQiOjQ0LCJodHRwT25TbXRwQ291bnQiOjQ1LCJzc2hPblNtdHBDb3VudCI6NDYsImh0dHBQb3J0U2Nhbm5pbmdDb3VudCI6NDcsImhvbmV5cG90SGl0Q291bnQiOjQ4LCJzc2hCcnV0ZWZvcmNlQ291bnQiOjQ5LCJvdGhlckNvdW50Ijo1MCwiZmlyc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAwOjAwOjAwWiIsImxhc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAxOjAwOjAwWiIsImxhc3REZWNheUF0IjoiMjAyNC0wMS0wNFQwMDozMDowMFoiLCJ4ZHBCYW5uZWQiOmZhbHNlLCJ3aGl0ZWxpc3RlZCI6ZmFsc2V9XSwicGFnZSI6MCwic2l6ZSI6MSwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6NCwic2VhcmNoUXVlcnkiOiIifQ==",
+        "length": 553,
+        "sha256": "c3584990ea6864a67d6950fecb5217a20cf6080e597655d0fdda7684ae51243b"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_lastSeenAt_asc": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "546"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjoxLCJ0b3RhbEVsZW1lbnRzIjo0LCJ0b3RhbFBhZ2VzIjo0LCJzZWFyY2hRdWVyeSI6IiJ9",
+        "length": 546,
+        "sha256": "03c753f5ac844395262c2c29fec890ac7844d8c37ceeddcd90d20027e3576d63"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_openRelayCount_DESC": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "553"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiJcdDIwMy4wLjExMy44OCUyRlxuIiwidG90YWxTY29yZSI6NDQsImN1cnJlbnRTY29yZSI6NDYsImFjdGl2aXR5Q291bnQiOjgsInNlbGZTcG9vZmluZ0NvdW50Ijo0MCwib3BlblJlbGF5Q291bnQiOjQxLCJhdXRoUHJvYmVDb3VudCI6NDIsImlsbGVnYWxEb21haW5Db3VudCI6NDMsInNwYW1oYXVzQ291bnQiOjQ0LCJodHRwT25TbXRwQ291bnQiOjQ1LCJzc2hPblNtdHBDb3VudCI6NDYsImh0dHBQb3J0U2Nhbm5pbmdDb3VudCI6NDcsImhvbmV5cG90SGl0Q291bnQiOjQ4LCJzc2hCcnV0ZWZvcmNlQ291bnQiOjQ5LCJvdGhlckNvdW50Ijo1MCwiZmlyc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAwOjAwOjAwWiIsImxhc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAxOjAwOjAwWiIsImxhc3REZWNheUF0IjoiMjAyNC0wMS0wNFQwMDozMDowMFoiLCJ4ZHBCYW5uZWQiOmZhbHNlLCJ3aGl0ZWxpc3RlZCI6ZmFsc2V9XSwicGFnZSI6MCwic2l6ZSI6MSwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6NCwic2VhcmNoUXVlcnkiOiIifQ==",
+        "length": 553,
+        "sha256": "c3584990ea6864a67d6950fecb5217a20cf6080e597655d0fdda7684ae51243b"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_openRelayCount_asc": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "546"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjoxLCJ0b3RhbEVsZW1lbnRzIjo0LCJ0b3RhbFBhZ2VzIjo0LCJzZWFyY2hRdWVyeSI6IiJ9",
+        "length": 546,
+        "sha256": "03c753f5ac844395262c2c29fec890ac7844d8c37ceeddcd90d20027e3576d63"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_otherCount_DESC": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "553"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiJcdDIwMy4wLjExMy44OCUyRlxuIiwidG90YWxTY29yZSI6NDQsImN1cnJlbnRTY29yZSI6NDYsImFjdGl2aXR5Q291bnQiOjgsInNlbGZTcG9vZmluZ0NvdW50Ijo0MCwib3BlblJlbGF5Q291bnQiOjQxLCJhdXRoUHJvYmVDb3VudCI6NDIsImlsbGVnYWxEb21haW5Db3VudCI6NDMsInNwYW1oYXVzQ291bnQiOjQ0LCJodHRwT25TbXRwQ291bnQiOjQ1LCJzc2hPblNtdHBDb3VudCI6NDYsImh0dHBQb3J0U2Nhbm5pbmdDb3VudCI6NDcsImhvbmV5cG90SGl0Q291bnQiOjQ4LCJzc2hCcnV0ZWZvcmNlQ291bnQiOjQ5LCJvdGhlckNvdW50Ijo1MCwiZmlyc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAwOjAwOjAwWiIsImxhc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAxOjAwOjAwWiIsImxhc3REZWNheUF0IjoiMjAyNC0wMS0wNFQwMDozMDowMFoiLCJ4ZHBCYW5uZWQiOmZhbHNlLCJ3aGl0ZWxpc3RlZCI6ZmFsc2V9XSwicGFnZSI6MCwic2l6ZSI6MSwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6NCwic2VhcmNoUXVlcnkiOiIifQ==",
+        "length": 553,
+        "sha256": "c3584990ea6864a67d6950fecb5217a20cf6080e597655d0fdda7684ae51243b"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_otherCount_asc": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "546"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjoxLCJ0b3RhbEVsZW1lbnRzIjo0LCJ0b3RhbFBhZ2VzIjo0LCJzZWFyY2hRdWVyeSI6IiJ9",
+        "length": 546,
+        "sha256": "03c753f5ac844395262c2c29fec890ac7844d8c37ceeddcd90d20027e3576d63"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_selfSpoofingCount_DESC": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "553"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiJcdDIwMy4wLjExMy44OCUyRlxuIiwidG90YWxTY29yZSI6NDQsImN1cnJlbnRTY29yZSI6NDYsImFjdGl2aXR5Q291bnQiOjgsInNlbGZTcG9vZmluZ0NvdW50Ijo0MCwib3BlblJlbGF5Q291bnQiOjQxLCJhdXRoUHJvYmVDb3VudCI6NDIsImlsbGVnYWxEb21haW5Db3VudCI6NDMsInNwYW1oYXVzQ291bnQiOjQ0LCJodHRwT25TbXRwQ291bnQiOjQ1LCJzc2hPblNtdHBDb3VudCI6NDYsImh0dHBQb3J0U2Nhbm5pbmdDb3VudCI6NDcsImhvbmV5cG90SGl0Q291bnQiOjQ4LCJzc2hCcnV0ZWZvcmNlQ291bnQiOjQ5LCJvdGhlckNvdW50Ijo1MCwiZmlyc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAwOjAwOjAwWiIsImxhc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAxOjAwOjAwWiIsImxhc3REZWNheUF0IjoiMjAyNC0wMS0wNFQwMDozMDowMFoiLCJ4ZHBCYW5uZWQiOmZhbHNlLCJ3aGl0ZWxpc3RlZCI6ZmFsc2V9XSwicGFnZSI6MCwic2l6ZSI6MSwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6NCwic2VhcmNoUXVlcnkiOiIifQ==",
+        "length": 553,
+        "sha256": "c3584990ea6864a67d6950fecb5217a20cf6080e597655d0fdda7684ae51243b"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_selfSpoofingCount_asc": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "546"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjoxLCJ0b3RhbEVsZW1lbnRzIjo0LCJ0b3RhbFBhZ2VzIjo0LCJzZWFyY2hRdWVyeSI6IiJ9",
+        "length": 546,
+        "sha256": "03c753f5ac844395262c2c29fec890ac7844d8c37ceeddcd90d20027e3576d63"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_spamhausCount_DESC": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "553"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiJcdDIwMy4wLjExMy44OCUyRlxuIiwidG90YWxTY29yZSI6NDQsImN1cnJlbnRTY29yZSI6NDYsImFjdGl2aXR5Q291bnQiOjgsInNlbGZTcG9vZmluZ0NvdW50Ijo0MCwib3BlblJlbGF5Q291bnQiOjQxLCJhdXRoUHJvYmVDb3VudCI6NDIsImlsbGVnYWxEb21haW5Db3VudCI6NDMsInNwYW1oYXVzQ291bnQiOjQ0LCJodHRwT25TbXRwQ291bnQiOjQ1LCJzc2hPblNtdHBDb3VudCI6NDYsImh0dHBQb3J0U2Nhbm5pbmdDb3VudCI6NDcsImhvbmV5cG90SGl0Q291bnQiOjQ4LCJzc2hCcnV0ZWZvcmNlQ291bnQiOjQ5LCJvdGhlckNvdW50Ijo1MCwiZmlyc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAwOjAwOjAwWiIsImxhc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAxOjAwOjAwWiIsImxhc3REZWNheUF0IjoiMjAyNC0wMS0wNFQwMDozMDowMFoiLCJ4ZHBCYW5uZWQiOmZhbHNlLCJ3aGl0ZWxpc3RlZCI6ZmFsc2V9XSwicGFnZSI6MCwic2l6ZSI6MSwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6NCwic2VhcmNoUXVlcnkiOiIifQ==",
+        "length": 553,
+        "sha256": "c3584990ea6864a67d6950fecb5217a20cf6080e597655d0fdda7684ae51243b"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_spamhausCount_asc": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "546"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjoxLCJ0b3RhbEVsZW1lbnRzIjo0LCJ0b3RhbFBhZ2VzIjo0LCJzZWFyY2hRdWVyeSI6IiJ9",
+        "length": 546,
+        "sha256": "03c753f5ac844395262c2c29fec890ac7844d8c37ceeddcd90d20027e3576d63"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_sshBruteforceCount_DESC": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "553"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiJcdDIwMy4wLjExMy44OCUyRlxuIiwidG90YWxTY29yZSI6NDQsImN1cnJlbnRTY29yZSI6NDYsImFjdGl2aXR5Q291bnQiOjgsInNlbGZTcG9vZmluZ0NvdW50Ijo0MCwib3BlblJlbGF5Q291bnQiOjQxLCJhdXRoUHJvYmVDb3VudCI6NDIsImlsbGVnYWxEb21haW5Db3VudCI6NDMsInNwYW1oYXVzQ291bnQiOjQ0LCJodHRwT25TbXRwQ291bnQiOjQ1LCJzc2hPblNtdHBDb3VudCI6NDYsImh0dHBQb3J0U2Nhbm5pbmdDb3VudCI6NDcsImhvbmV5cG90SGl0Q291bnQiOjQ4LCJzc2hCcnV0ZWZvcmNlQ291bnQiOjQ5LCJvdGhlckNvdW50Ijo1MCwiZmlyc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAwOjAwOjAwWiIsImxhc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAxOjAwOjAwWiIsImxhc3REZWNheUF0IjoiMjAyNC0wMS0wNFQwMDozMDowMFoiLCJ4ZHBCYW5uZWQiOmZhbHNlLCJ3aGl0ZWxpc3RlZCI6ZmFsc2V9XSwicGFnZSI6MCwic2l6ZSI6MSwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6NCwic2VhcmNoUXVlcnkiOiIifQ==",
+        "length": 553,
+        "sha256": "c3584990ea6864a67d6950fecb5217a20cf6080e597655d0fdda7684ae51243b"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_sshBruteforceCount_asc": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "546"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjoxLCJ0b3RhbEVsZW1lbnRzIjo0LCJ0b3RhbFBhZ2VzIjo0LCJzZWFyY2hRdWVyeSI6IiJ9",
+        "length": 546,
+        "sha256": "03c753f5ac844395262c2c29fec890ac7844d8c37ceeddcd90d20027e3576d63"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_sshOnSmtpCount_DESC": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "553"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiJcdDIwMy4wLjExMy44OCUyRlxuIiwidG90YWxTY29yZSI6NDQsImN1cnJlbnRTY29yZSI6NDYsImFjdGl2aXR5Q291bnQiOjgsInNlbGZTcG9vZmluZ0NvdW50Ijo0MCwib3BlblJlbGF5Q291bnQiOjQxLCJhdXRoUHJvYmVDb3VudCI6NDIsImlsbGVnYWxEb21haW5Db3VudCI6NDMsInNwYW1oYXVzQ291bnQiOjQ0LCJodHRwT25TbXRwQ291bnQiOjQ1LCJzc2hPblNtdHBDb3VudCI6NDYsImh0dHBQb3J0U2Nhbm5pbmdDb3VudCI6NDcsImhvbmV5cG90SGl0Q291bnQiOjQ4LCJzc2hCcnV0ZWZvcmNlQ291bnQiOjQ5LCJvdGhlckNvdW50Ijo1MCwiZmlyc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAwOjAwOjAwWiIsImxhc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAxOjAwOjAwWiIsImxhc3REZWNheUF0IjoiMjAyNC0wMS0wNFQwMDozMDowMFoiLCJ4ZHBCYW5uZWQiOmZhbHNlLCJ3aGl0ZWxpc3RlZCI6ZmFsc2V9XSwicGFnZSI6MCwic2l6ZSI6MSwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6NCwic2VhcmNoUXVlcnkiOiIifQ==",
+        "length": 553,
+        "sha256": "c3584990ea6864a67d6950fecb5217a20cf6080e597655d0fdda7684ae51243b"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_sshOnSmtpCount_asc": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "546"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjoxLCJ0b3RhbEVsZW1lbnRzIjo0LCJ0b3RhbFBhZ2VzIjo0LCJzZWFyY2hRdWVyeSI6IiJ9",
+        "length": 546,
+        "sha256": "03c753f5ac844395262c2c29fec890ac7844d8c37ceeddcd90d20027e3576d63"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_totalScore_DESC": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 8,
+            "authProbeCount": 42,
+            "currentScore": 46,
+            "firstSeenAt": "2024-01-04T00:00:00Z",
+            "honeypotHitCount": 48,
+            "httpOnSmtpCount": 45,
+            "httpPortScanningCount": 47,
+            "illegalDomainCount": 43,
+            "ipAddress": "\t203.0.113.88%2F\n",
+            "lastDecayAt": "2024-01-04T00:30:00Z",
+            "lastSeenAt": "2024-01-04T01:00:00Z",
+            "openRelayCount": 41,
+            "otherCount": 50,
+            "selfSpoofingCount": 40,
+            "spamhausCount": 44,
+            "sshBruteforceCount": 49,
+            "sshOnSmtpCount": 46,
+            "totalScore": 44,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "553"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiJcdDIwMy4wLjExMy44OCUyRlxuIiwidG90YWxTY29yZSI6NDQsImN1cnJlbnRTY29yZSI6NDYsImFjdGl2aXR5Q291bnQiOjgsInNlbGZTcG9vZmluZ0NvdW50Ijo0MCwib3BlblJlbGF5Q291bnQiOjQxLCJhdXRoUHJvYmVDb3VudCI6NDIsImlsbGVnYWxEb21haW5Db3VudCI6NDMsInNwYW1oYXVzQ291bnQiOjQ0LCJodHRwT25TbXRwQ291bnQiOjQ1LCJzc2hPblNtdHBDb3VudCI6NDYsImh0dHBQb3J0U2Nhbm5pbmdDb3VudCI6NDcsImhvbmV5cG90SGl0Q291bnQiOjQ4LCJzc2hCcnV0ZWZvcmNlQ291bnQiOjQ5LCJvdGhlckNvdW50Ijo1MCwiZmlyc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAwOjAwOjAwWiIsImxhc3RTZWVuQXQiOiIyMDI0LTAxLTA0VDAxOjAwOjAwWiIsImxhc3REZWNheUF0IjoiMjAyNC0wMS0wNFQwMDozMDowMFoiLCJ4ZHBCYW5uZWQiOmZhbHNlLCJ3aGl0ZWxpc3RlZCI6ZmFsc2V9XSwicGFnZSI6MCwic2l6ZSI6MSwidG90YWxFbGVtZW50cyI6NCwidG90YWxQYWdlcyI6NCwic2VhcmNoUXVlcnkiOiIifQ==",
+        "length": 553,
+        "sha256": "c3584990ea6864a67d6950fecb5217a20cf6080e597655d0fdda7684ae51243b"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "sort_totalScore_asc": {
+      "body_json": {
+        "content": [
+          {
+            "activityCount": 2,
+            "authProbeCount": 12,
+            "currentScore": 49,
+            "firstSeenAt": "2024-01-01T00:00:00Z",
+            "honeypotHitCount": 18,
+            "httpOnSmtpCount": 15,
+            "httpPortScanningCount": 17,
+            "illegalDomainCount": 13,
+            "ipAddress": "203.0.113.77",
+            "lastDecayAt": "2024-01-01T00:30:00Z",
+            "lastSeenAt": "2024-01-01T01:00:00Z",
+            "openRelayCount": 11,
+            "otherCount": 20,
+            "selfSpoofingCount": 10,
+            "spamhausCount": 14,
+            "sshBruteforceCount": 19,
+            "sshOnSmtpCount": 16,
+            "totalScore": 11,
+            "whitelisted": false,
+            "xdpBanned": false
+          }
+        ],
+        "page": 0,
+        "searchQuery": "",
+        "size": 1,
+        "totalElements": 4,
+        "totalPages": 4
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "546"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJjb250ZW50IjpbeyJpcEFkZHJlc3MiOiIyMDMuMC4xMTMuNzciLCJ0b3RhbFNjb3JlIjoxMSwiY3VycmVudFNjb3JlIjo0OSwiYWN0aXZpdHlDb3VudCI6Miwic2VsZlNwb29maW5nQ291bnQiOjEwLCJvcGVuUmVsYXlDb3VudCI6MTEsImF1dGhQcm9iZUNvdW50IjoxMiwiaWxsZWdhbERvbWFpbkNvdW50IjoxMywic3BhbWhhdXNDb3VudCI6MTQsImh0dHBPblNtdHBDb3VudCI6MTUsInNzaE9uU210cENvdW50IjoxNiwiaHR0cFBvcnRTY2FubmluZ0NvdW50IjoxNywiaG9uZXlwb3RIaXRDb3VudCI6MTgsInNzaEJydXRlZm9yY2VDb3VudCI6MTksIm90aGVyQ291bnQiOjIwLCJmaXJzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDBaIiwibGFzdFNlZW5BdCI6IjIwMjQtMDEtMDFUMDE6MDA6MDBaIiwibGFzdERlY2F5QXQiOiIyMDI0LTAxLTAxVDAwOjMwOjAwWiIsInhkcEJhbm5lZCI6ZmFsc2UsIndoaXRlbGlzdGVkIjpmYWxzZX1dLCJwYWdlIjowLCJzaXplIjoxLCJ0b3RhbEVsZW1lbnRzIjo0LCJ0b3RhbFBhZ2VzIjo0LCJzZWFyY2hRdWVyeSI6IiJ9",
+        "length": 546,
+        "sha256": "03c753f5ac844395262c2c29fec890ac7844d8c37ceeddcd90d20027e3576d63"
+      },
+      "status_code": 200,
+      "status_line": "HTTP/1.1 200 OK"
+    },
+    "write_only": {
+      "body_json": {
+        "error": "permission_denied",
+        "message": "This API key does not have read permission"
+      },
+      "headers": [
+        [
+          "content-type",
+          "application/json; charset=UTF-8"
+        ],
+        [
+          "content-length",
+          "84"
+        ]
+      ],
+      "normalized_body_wire": {
+        "base64": "eyJlcnJvciI6InBlcm1pc3Npb25fZGVuaWVkIiwibWVzc2FnZSI6IlRoaXMgQVBJIGtleSBkb2VzIG5vdCBoYXZlIHJlYWQgcGVybWlzc2lvbiJ9",
+        "length": 84,
+        "sha256": "057a84585e709029e92959518673836664fdfecbc99411255a4a743a7b5e3853"
+      },
+      "status_code": 403,
+      "status_line": "HTTP/1.1 403 Forbidden"
+    }
+  },
+  "schema_version": 2
+}

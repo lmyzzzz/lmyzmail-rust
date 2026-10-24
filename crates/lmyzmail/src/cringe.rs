@@ -43,6 +43,37 @@ pub struct CringeService {
     pool: Pool,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CringeStats {
+    #[serde(rename = "totalIPs")]
+    total_ips: i64,
+    high_risk_by_total: i64,
+    high_risk_by_current: i64,
+    active_threats: i64,
+    total_activities: i64,
+    batch_stats: DirectWriteStats,
+    decay_config: crate::cringe_decay::StatsDecayConfig,
+}
+
+// All current activity producers await their own transaction (including COMMIT
+// reconciliation). There is no batch worker, pending-score map or score cache.
+// These are therefore the actual direct-mode statistics, matching the frozen
+// service with batch.enabled=false; never report a running worker that is absent.
+#[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DirectWriteStats {
+    running: bool,
+    queue_size: u32,
+    total_enqueued: u64,
+    total_flushed: u64,
+    total_dropped: u64,
+    batch_count: u64,
+    immediate_xdp_bans: u64,
+    pending_score_entries: u32,
+    score_cache_entries: u32,
+}
+
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 struct ActivityIncrements {
     self_spoofing: i32,
@@ -169,6 +200,48 @@ impl ActivityDetails {
 impl CringeService {
     pub fn new(pool: Pool) -> Self {
         Self { pool }
+    }
+
+    pub async fn stats(
+        &self,
+        config: &crate::config::CringeDecayConfig,
+        cancellation: &CancellationToken,
+    ) -> Result<CringeStats, CringeError> {
+        let deadline = Instant::now() + DATABASE_DEADLINE;
+        let client = self.client(deadline, cancellation).await?;
+        let connection = DatabaseConnection::new(client);
+        let cancel_token = connection.cancel_token();
+        let outcome = database_read(deadline, cancellation, &cancel_token, async {
+            // Preserve the five independent READ COMMITTED repository reads.
+            // Only one count row is materialized at a time, under one deadline
+            // including pool admission and cancellation/draining on lock waits.
+            let mut counts = [0_i64; 5];
+            for (count, sql) in counts.iter_mut().zip([
+                "SELECT COUNT(*) FROM skibidi_cringe_ip",
+                "SELECT COUNT(*) FROM skibidi_cringe_ip WHERE total_score >= 50",
+                "SELECT COUNT(*) FROM skibidi_cringe_ip WHERE current_score >= 50",
+                "SELECT COUNT(*) FROM skibidi_cringe_ip WHERE current_score > 0",
+                "SELECT COUNT(*) FROM skibidi_cringe_ip_activity",
+            ]) {
+                *count = connection
+                    .client()
+                    .query_one(sql, &[])
+                    .await
+                    .map_err(database_error)?
+                    .get(0);
+            }
+            Ok(CringeStats {
+                total_ips: counts[0],
+                high_risk_by_total: counts[1],
+                high_risk_by_current: counts[2],
+                active_threats: counts[3],
+                total_activities: counts[4],
+                batch_stats: DirectWriteStats::default(),
+                decay_config: crate::cringe_decay::stats_config(config),
+            })
+        })
+        .await;
+        connection.finish(outcome)
     }
 
     pub async fn list(

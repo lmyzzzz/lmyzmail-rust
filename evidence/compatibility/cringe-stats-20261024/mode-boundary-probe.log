@@ -1,0 +1,90 @@
+{"target": "pre-fix-bd861a43", "status": 404, "body": "{\"error\":\"not_found\"}"}
+Traceback (most recent call last):
+  File "/home/lmyzzz/lmyzmail-rust/.blackbox/probe-stats-modes-20261024.py", line 30, in <module>
+    with BatchOracle(Path(temporary) / "oracle") as oracle:
+  File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/persistent_runtime.py", line 719, in __enter__
+    return self.start()
+           ^^^^^^^^^^^^
+  File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/persistent_runtime.py", line 616, in start
+    self._start_application()
+  File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/persistent_runtime.py", line 534, in _start_application
+    super()._start_application()
+  File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/runtime.py", line 612, in _start_application
+    self._application.wait_for_tcp("127.0.0.1", ports.http, timeout=remaining)
+  File "/home/lmyzzz/lmyzmail-rust/blackbox/src/lmyzmail_blackbox/processes.py", line 74, in wait_for_tcp
+    raise ProcessStartError(
+lmyzmail_blackbox.errors.ProcessStartError: java-oracle-persistent-0001 exited with 1; tail:
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.5.4)
+
+2026-10-24T09:07:48.195Z  INFO 2607858 --- [           main] net.lmyz.lmyzmail.BotmailApplication     : Starting BotmailApplication v2.8.0 using Java 22.0.2 with PID 2607858 (/home/lmyzzz/lmyzmail-rust/oracle/artifacts/lmyzmail-java-oracle.jar started by lmyzzz in /tmp/lmyzmail-stats-batch-probe-9jfkuo0m/oracle)
+2026-10-24T09:07:48.197Z  INFO 2607858 --- [           main] net.lmyz.lmyzmail.BotmailApplication     : No active profile set, falling back to 1 default profile: "default"
+2026-10-24T09:07:48.721Z  INFO 2607858 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-10-24T09:07:48.721Z  INFO 2607858 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-10-24T09:07:48.849Z  INFO 2607858 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 123 ms. Found 13 JPA repository interfaces.
+2026-10-24T09:07:49.548Z  INFO 2607858 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 0 (http)
+2026-10-24T09:07:49.562Z  INFO 2607858 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-10-24T09:07:49.562Z  INFO 2607858 --- [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.43]
+2026-10-24T09:07:49.589Z  INFO 2607858 --- [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-10-24T09:07:49.590Z  INFO 2607858 --- [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1344 ms
+2026-10-24T09:07:49.717Z  INFO 2607858 --- [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-10-24T09:07:49.747Z  INFO 2607858 --- [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.22.Final
+2026-10-24T09:07:49.775Z  INFO 2607858 --- [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-10-24T09:07:49.937Z  INFO 2607858 --- [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-10-24T09:07:49.952Z  INFO 2607858 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-10-24T09:07:50.004Z  INFO 2607858 --- [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@3b64f131
+2026-10-24T09:07:50.005Z  INFO 2607858 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-10-24T09:07:50.019Z  WARN 2607858 --- [           main] org.hibernate.orm.deprecation            : HHH90000025: PostgreSQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-10-24T09:07:50.033Z  INFO 2607858 --- [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
+	Database driver: undefined/unknown
+	Database version: 16.2
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-10-24T09:07:50.836Z  INFO 2607858 --- [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-10-24T09:07:50.875Z  INFO 2607858 --- [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-10-24T09:07:51.061Z  INFO 2607858 --- [           main] n.l.lmyzmail.asciiart.AsciiArtLibrary    : libasciiart 1.0.0 loaded, CPU SIMD capability: AVX2
+2026-10-24T09:07:51.072Z  INFO 2607858 --- [           main] n.l.l.a.AsciiArtAutoConfiguration        : Minecraft Map Color API initialized, palette size: 140
+2026-10-24T09:07:51.078Z  INFO 2607858 --- [           main] n.l.l.a.AsciiArtAutoConfiguration        : Mail Render API initialized (litehtml + cairo)
+2026-10-24T09:07:51.079Z  INFO 2607858 --- [           main] n.l.l.a.AsciiArtAutoConfiguration        : ASCII Art SIMD: configured=AUTO (resolved to AVX2), hardware_max=AVX2
+2026-10-24T09:07:51.131Z  INFO 2607858 --- [           main] n.l.l.c.pipeline.RulePipeline            : Rule pipeline initialized: envelope=2, header=3, body=5, final=0
+2026-10-24T09:07:51.132Z  INFO 2607858 --- [           main] n.l.l.contentfilter.ContentSpamScanner   : Content spam scanner initialized with 15 rules, thresholds: suspicious=5.0, spam=10.0, keywords: spam=16, phishing=7
+2026-10-24T09:07:51.270Z  INFO 2607858 --- [           main] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-10-24T09:07:51.789Z  INFO 2607858 --- [           main] n.l.l.util.native_.XdpFirewallService    : XDP Firewall is disabled by configuration
+2026-10-24T09:07:51.815Z  WARN 2607858 --- [           main] ConfigServletWebServerApplicationContext : Exception encountered during context initialization - cancelling refresh attempt: org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'skibidiCringeIPController' defined in URL [jar:nested:/home/lmyzzz/lmyzmail-rust/oracle/artifacts/lmyzmail-java-oracle.jar/!BOOT-INF/classes/!/net/lmyz/lmyzmail/cringe/api/SkibidiCringeIPController.class]: Unsatisfied dependency expressed through constructor parameter 0: Error creating bean with name 'skibidiCringeIPService' defined in URL [jar:nested:/home/lmyzzz/lmyzmail-rust/oracle/artifacts/lmyzmail-java-oracle.jar/!BOOT-INF/classes/!/net/lmyz/lmyzmail/cringe/service/SkibidiCringeIPService.class]: Unsatisfied dependency expressed through constructor parameter 3: Error creating bean with name 'cringeBatchWriteService' defined in URL [jar:nested:/home/lmyzzz/lmyzmail-rust/oracle/artifacts/lmyzmail-java-oracle.jar/!BOOT-INF/classes/!/net/lmyz/lmyzmail/cringe/service/CringeBatchWriteService.class]: Unsatisfied dependency expressed through constructor parameter 0: Error creating bean with name 'botmail.cringe.batch-net.lmyz.lmyzmail.cringe.config.CringeBatchProperties': Could not bind properties to 'CringeBatchProperties' : prefix=botmail.cringe.batch, ignoreInvalidFields=false, ignoreUnknownFields=true
+2026-10-24T09:07:51.816Z  INFO 2607858 --- [           main] j.LocalContainerEntityManagerFactoryBean : Closing JPA EntityManagerFactory for persistence unit 'default'
+2026-10-24T09:07:51.817Z  INFO 2607858 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown initiated...
+2026-10-24T09:07:51.819Z  INFO 2607858 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown completed.
+2026-10-24T09:07:51.821Z  INFO 2607858 --- [           main] o.apache.catalina.core.StandardService   : Stopping service [Tomcat]
+2026-10-24T09:07:51.829Z  INFO 2607858 --- [           main] .s.b.a.l.ConditionEvaluationReportLogger : 
+
+Error starting ApplicationContext. To display the condition evaluation report re-run your application with 'debug' enabled.
+2026-10-24T09:07:51.843Z ERROR 2607858 --- [           main] o.s.b.d.LoggingFailureAnalysisReporter   : 
+
+***************************
+APPLICATION FAILED TO START
+***************************
+
+Description:
+
+Failed to bind properties under 'botmail.cringe.batch.enabled' to boolean:
+
+    Property: botmail.cringe.batch.enabled
+    Value: "false,true"
+    Origin: "botmail.cringe.batch.enabled" from property source "commandLineArgs"
+    Reason: failed to convert java.lang.String to boolean (caused by java.lang.IllegalArgumentException: Invalid boolean value 'false,true')
+
+Action:
+
+Update your application's configuration
+
+

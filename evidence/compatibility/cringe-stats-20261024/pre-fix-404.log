@@ -1,0 +1,90 @@
+{"external_candidate_binary": "/home/lmyzzz/lmyzmail-rust/.blackbox/cringe-list-20261024-v4.elf", "sha256_before": "fe707de8fe38d61794a502f437372314c873721dc47a6c7b80f1c8ba43f7a860"}
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________ test_candidate_cringe_stats_matches_frozen_java[default] ___________
+
+profile = 'default'
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.parametrize("profile", ("default", "custom", "dashboard"))
+    @pytest.mark.timeout(180)
+    def test_candidate_cringe_stats_matches_frozen_java(profile: str) -> None:
+        repository = Path(__file__).resolve().parents[2]
+        overrides = (
+            "--botmail.cringe.decay.interval=1h", "--botmail.cringe.decay.amount=3",
+            "--lmyzmail.cringe.decay.interval=5400001ms", "--lmyzmail.cringe.decay.amount=7",
+        ) if profile == "custom" else ()
+        with _candidate(repository, *overrides) as candidate:
+            DifferentialRunner(
+                repository, repository / (_GOLDEN + "-" + profile), _PROFILE + "-" + profile,
+>           ).verify_candidate(_UI if profile == "dashboard" else _STATS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tests/test_candidate_cringe_stats_golden.py:254: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:111: in verify_candidate
+    observation = scenario.capture(target)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+target = _LegacyCandidateRuntime(paths=HarnessPaths(repository=PosixPath('/home/lmyzzz/lmyzmail-rust'), runtime=PosixPath('/hom...mmand_template=('/home/lmyzzz/lmyzmail-rust/target/x86_64-unknown-linux-gnu/release/lmyzmail', '--config', '{config}'))
+
+    def _capture_stats(target: RuntimeTarget) -> dict[str, Any]:
+        with _connection(target) as connection:
+            connection.execute("DELETE FROM skibidi_cringe_ip_activity")
+            connection.execute("DELETE FROM skibidi_cringe_ip")
+        observed = {"empty": http_json_snapshot(_request(target))}
+        _seed_cringe_fixture(target)
+        with _connection(target) as connection:
+            connection.execute(
+                "UPDATE skibidi_cringe_ip SET total_score=-1,current_score=51 "
+                "WHERE ip_address='203.0.113.77'"
+            )
+            connection.execute(
+                "UPDATE skibidi_cringe_ip SET total_score=0,current_score=0 "
+                "WHERE ip_address='198.51.100.9'"
+            )
+            for i, (total, current) in enumerate(((1, -1), (49, 50), (50, 49), (51, 1))):
+                connection.execute(
+                    """INSERT INTO skibidi_cringe_ip (
+                        ip_address,total_score,current_score,activity_count,
+                        first_seen_at,last_seen_at,last_decay_at,
+                        self_spoofing_count,open_relay_count,auth_probe_count,
+                        illegal_domain_count,spamhaus_count,http_on_smtp_count,
+                        ssh_on_smtp_count,http_port_scanning_count,honeypot_hit_count,
+                        other_count,pps_overlimit_count,syn_flood_count,ssh_bruteforce_count)
+                    SELECT 'stats-' || %s, %s, %s, 100,
+                           first_seen_at,last_seen_at,last_decay_at,
+                           self_spoofing_count,open_relay_count,auth_probe_count,
+                           illegal_domain_count,spamhaus_count,http_on_smtp_count,
+                           ssh_on_smtp_count,http_port_scanning_count,honeypot_hit_count,
+                           other_count,pps_overlimit_count,syn_flood_count,ssh_bruteforce_count
+                    FROM skibidi_cringe_ip WHERE ip_address='203.0.113.77'""",
+                    (str(i), total, current),
+                )
+        before = _state(target)
+        for label, headers in (
+            ("populated", _ADMIN_HEADERS), ("read_only", _READ_ONLY_HEADERS),
+            ("missing", ()), ("write_only", _WRITE_ONLY_HEADERS),
+        ):
+            response = _request(target, headers)
+            observed[label] = http_json_snapshot(
+                response, canonicalize_object_order=response.status_code != 200,
+            )
+        assert _state(target) == before
+        body = json.loads(_request(target).body)
+>       assert {key: body[key] for key in (
+                     ^^^^^^^^^
+            "totalIPs", "highRiskByTotal", "highRiskByCurrent", "activeThreats", "totalActivities",
+        )} == dict(zip(
+            ("totalIPs", "highRiskByTotal", "highRiskByCurrent", "activeThreats", "totalActivities"),
+            (6, 2, 2, 4, 5), strict=True,
+        ))
+E       KeyError: 'totalIPs'
+
+blackbox/tests/test_candidate_cringe_stats_golden.py:92: KeyError
+=========================== short test summary info ============================
+FAILED blackbox/tests/test_candidate_cringe_stats_golden.py::test_candidate_cringe_stats_matches_frozen_java[default]
+1 failed in 2.05s
+{"sha256_after": "fe707de8fe38d61794a502f437372314c873721dc47a6c7b80f1c8ba43f7a860", "staged_sha256_after": "fe707de8fe38d61794a502f437372314c873721dc47a6c7b80f1c8ba43f7a860", "unchanged": true}

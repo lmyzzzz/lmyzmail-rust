@@ -21,7 +21,7 @@ The current release is a **0.1.0 release candidate**. Reproducible builds, insta
 
 ### Mail and Webmail
 
-Open `/` for Webmail. It provides mailbox login, configurable public registration, inbox/sent/spam and other mail folders, pagination, HTML/plain-text messages, raw source/headers, attachment download, JSON or multipart sending, delivery state, quotas, stars, labels, contacts and preferences. `/cringe.html` provides the threat dashboard page; successful list, statistics and per-IP detail handlers remain incomplete, as listed below. Message, attachment and user-data access is scoped to the authenticated mailbox.
+Open `/` for Webmail. It provides mailbox login, configurable public registration, inbox/sent/spam and other mail folders, pagination, HTML/plain-text messages, raw source/headers, attachment download, JSON or multipart sending, delivery state, quotas, stars, labels, contacts and preferences. `/cringe.html` supports connection, threat statistics, list sorting, search and pagination. Per-IP detail remains incomplete, as listed below. Message, attachment and user-data access is scoped to the authenticated mailbox.
 
 Inbound SMTP implements EHLO, MAIL/RCPT, DATA, BDAT, PIPELINING, STARTTLS, SMTPUTF8, MIME and recipient-domain/mailbox validation. DATA clients must wait for `354` before sending the body. This listener **does not provide SMTP AUTH submission**: AUTH returns `502`. Authenticated sending uses Webmail or HTTP APIs; do not send mailbox passwords to this port's AUTH command.
 
@@ -406,7 +406,8 @@ These are all normal application routes; scanner-decoy paths use the separate re
 | GET | `/api/cringe-ips/insults`<br>`/api/cringe-ips/export`<br>`/api/cringe-ips/above-score/{score}` | `read` | Paged search, export and score filtering |
 | GET | `/api/cringe-ips/{ip}/activities`<br>`/api/cringe-ips/{ip}/decay-estimate`<br>`/api/cringe-ips/decay-config` | `read` | Activities and decay estimate/configuration |
 | GET | `/api/cringe-ips` | `read` | Paginated threat-IP list with score/count/time/IP sorting, search and XDP status |
-| GET | `/api/cringe-ips/stats`<br>`/api/cringe-ips/{ip}` | `read` | Declared but successful handlers are absent in this candidate; authorized requests still return 404 |
+| GET | `/api/cringe-ips/stats` | `read` | IP/activity counts, independent historical/current risk thresholds and decay configuration; current activity writes use direct mode |
+| GET | `/api/cringe-ips/{ip}` | `read` | Successful handler is absent in this candidate; authorized requests still return 404 |
 | POST | `/api/cringe-ips/decay` | `write` | Trigger score decay |
 | GET | `/web/mail/list`<br>`/web/mail/list/{folder}` | `session` | page=0&size=50&starredOnly=false |
 | GET | `/web/mail/detail/{folder}/{file}`<br>`/web/mail/raw/{folder}/{file}`<br>`/web/mail/headers/{folder}/{file}`<br>`/web/mail/attachment/{folder}/{file}/{index}` | `session` | Detail, raw message, headers and attachment |
@@ -423,7 +424,7 @@ These are all normal application routes; scanner-decoy paths use the separate re
 
 Threat-IP listing defaults to `page=0`, `size=50`, `sortBy=currentScore`, `sortDir=desc` and `search=`; page size is capped at 500. Sort fields use an allowlist, with unknown fields falling back to current score. Only case-insensitive `asc` selects ascending order. Search ignores case and retains `%`/`_` wildcards. Responses preserve the original `searchQuery`, include `xdpBanned`/`whitelisted` per IP and report total rows/pages. Malformed pagination returns 400.
 
-Known gaps: statistics and per-IP detail still require implementation (G18–G19). Their current 404 is not a completed query contract. The dashboard connection flow depends on statistics, so the repaired list endpoint does not yet make the full dashboard usable. See the [list validation record](docs/cringe-list-validation-20261024.md).
+The statistics endpoint counts `totalIPs`, historical scores `>=50`, current scores `>=50`, current scores `>0`, and actual activity rows. `decayConfig` contains an ISO duration string, amount and hourly rate. Activity producers currently commit directly: `batchStats.running=false`, and queue/cache/batch counters are zero because no batch worker exists. Legacy batch-enabled operation and its five configuration keys remain an explicit gap (G20); these zero values do not prove batch-mode support. Per-IP detail remains G19. See the [statistics/dashboard validation](docs/cringe-stats-validation-20261024.md) and [list validation](docs/cringe-list-validation-20261024.md).
 
 The implemented insults list accepts `page`, `size` and `search`; exports accept `minScore` and `scoreType`. User-data payloads follow the [user-data types](crates/lmyzmail/src/userdata.rs); the Web UI uses these same endpoints.
 

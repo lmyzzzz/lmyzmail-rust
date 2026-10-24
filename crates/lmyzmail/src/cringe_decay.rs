@@ -42,6 +42,22 @@ pub struct DecayConfigInfo {
     retention_days: u32,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StatsDecayConfig {
+    interval: String,
+    amount: i32,
+    hourly_rate: f64,
+}
+
+pub fn stats_config(config: &CringeDecayConfig) -> StatsDecayConfig {
+    StatsDecayConfig {
+        interval: java_duration(config.interval),
+        amount: config.amount,
+        hourly_rate: f64::from(config.amount) / (config.interval.as_millis() as f64 / 3_600_000.0),
+    }
+}
+
 impl From<&CringeDecayConfig> for DecayConfigInfo {
     fn from(config: &CringeDecayConfig) -> Self {
         let interval_millis = config.interval.as_millis() as f64;

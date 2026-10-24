@@ -21,7 +21,7 @@ lmyzmail 是面向 Linux x86_64 的单进程邮件服务器：SMTP 收发、Webm
 
 ### 邮件与 Webmail
 
-在 HTTP 根路径 `/` 打开 Webmail。支持邮箱登录、按配置开放注册、收件箱/已发送/垃圾邮件等文件夹、分页、HTML/纯文本邮件、原始邮件与头查看、附件下载、JSON 或 multipart 附件发送、发送状态、配额、星标、标签、联系人和用户偏好。`/cringe.html` 提供风险分数与活动面板页面；列表、统计与单 IP 详情的成功响应处理仍未完成，见下方接口缺口。邮件详情、附件和用户数据都绑定当前邮箱会话。
+在 HTTP 根路径 `/` 打开 Webmail。支持邮箱登录、按配置开放注册、收件箱/已发送/垃圾邮件等文件夹、分页、HTML/纯文本邮件、原始邮件与头查看、附件下载、JSON 或 multipart 附件发送、发送状态、配额、星标、标签、联系人和用户偏好。`/cringe.html` 支持连接、风险统计、列表排序、搜索和翻页；单 IP 详情仍待补齐。邮件详情、附件和用户数据都绑定当前邮箱会话。
 
 入站 SMTP 支持 EHLO、MAIL/RCPT、DATA、BDAT、PIPELINING、STARTTLS、SMTPUTF8、MIME、收件域和邮箱检查。DATA 客户端必须先等 `354` 再传正文。这个监听器**不是 SMTP AUTH submission 服务**：AUTH 返回 `502`；认证发信走 Webmail 或 HTTP API。不要把账户密码交给该端口的 AUTH 命令。
 
@@ -406,7 +406,8 @@ journalctl -u lmyzmail -n 100 --no-pager
 | GET | `/api/cringe-ips/insults`<br>`/api/cringe-ips/export`<br>`/api/cringe-ips/above-score/{score}` | `read` | 分页搜索、导出、阈值筛选 |
 | GET | `/api/cringe-ips/{ip}/activities`<br>`/api/cringe-ips/{ip}/decay-estimate`<br>`/api/cringe-ips/decay-config` | `read` | 活动、衰减预测与配置 |
 | GET | `/api/cringe-ips` | `read` | 风险 IP 分页列表；支持评分/计数/时间/IP 排序、搜索及 XDP 状态 |
-| GET | `/api/cringe-ips/stats`<br>`/api/cringe-ips/{ip}` | `read` | 已声明但当前候选未实现成功处理；有效授权请求仍返回 404 |
+| GET | `/api/cringe-ips/stats` | `read` | IP/活动总数、历史/实时风险统计与衰减配置；当前风险活动使用直接写入模式 |
+| GET | `/api/cringe-ips/{ip}` | `read` | 当前候选未实现成功处理；有效授权请求仍返回 404 |
 | POST | `/api/cringe-ips/decay` | `write` | 触发分数衰减 |
 | GET | `/web/mail/list`<br>`/web/mail/list/{folder}` | `session` | page=0&size=50&starredOnly=false |
 | GET | `/web/mail/detail/{folder}/{file}`<br>`/web/mail/raw/{folder}/{file}`<br>`/web/mail/headers/{folder}/{file}`<br>`/web/mail/attachment/{folder}/{file}/{index}` | `session` | 详情、原文、头、单附件 |
@@ -423,7 +424,7 @@ journalctl -u lmyzmail -n 100 --no-pager
 
 风险 IP 列表使用 `page=0`、`size=50`、`sortBy=currentScore`、`sortDir=desc`、`search=` 作为默认值；`size` 上限为 500。排序字段使用白名单，无效字段回退到实时评分；只有 `asc`（不区分大小写）选择升序。搜索不区分大小写并保留 `%`、`_` 通配符，返回原始 `searchQuery`，响应包含每条 IP 的 `xdpBanned`、`whitelisted` 和总页数/总条数。畸形分页参数返回 400。
 
-当前明确缺口：统计摘要与单 IP 详情仍需补齐，不能把 404 当作这些查询的正式结果。它们对应剩余清单 G18–G19；面板的连接流程依赖统计摘要，因此列表接口修复不代表完整面板已经可用。列表修复及验证见[验收记录](docs/cringe-list-validation-20261024.md)。
+统计摘要返回 `totalIPs`、历史分数 `>=50`、实时分数 `>=50`、实时分数 `>0` 及活动表真实行数；`decayConfig` 包含 ISO 周期字符串、减分量和每小时速率。当前活动直接提交事务，因此 `batchStats.running=false`，不存在的队列、缓存及批处理计数均为零。旧实现默认的批量写入模式及其五项配置尚未移植，已单列 G20，不能把零计数当成批量模式已实现的证据。单 IP 详情仍是 G19。统计和真实面板验证见[本轮记录](docs/cringe-stats-validation-20261024.md)，列表契约见[列表记录](docs/cringe-list-validation-20261024.md)。
 
 已实现的 insults 列表支持 `page`、`size`、`search`；导出使用 `minScore`、`scoreType`。用户数据 JSON 字段见[用户数据类型](crates/lmyzmail/src/userdata.rs)，Web 界面使用同一接口。
 

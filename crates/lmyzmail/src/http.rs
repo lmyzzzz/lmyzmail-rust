@@ -1258,6 +1258,12 @@ async fn handle_connection(
             }
         }
         ParsedRequest::CringeInvalidInput => write_cringe_error(stream, CringeError::InvalidInput).await,
+        ParsedRequest::CringeStats => {
+            match cringe.stats(&config.cringe_decay, cancellation).await {
+                Ok(stats) => write_json_response(stream, Status::Ok, &stats).await,
+                Err(error) => write_cringe_error(stream, error).await,
+            }
+        }
         ParsedRequest::CringeList(query) => {
             match cringe.list(query, cancellation).await {
                 Ok(mut page) => {
@@ -2879,6 +2885,7 @@ enum ParsedRequest {
         date: Option<String>,
     },
     CringeInvalidInput,
+    CringeStats,
     CringeList(IpListQuery),
     CringeAbove {
         min_score: i32,
@@ -3220,6 +3227,11 @@ fn parse_request(
             ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
             ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
             ApiPermission::Granted => parse_cringe_insults(path),
+        },
+        ("GET", "/api/cringe-ips/stats") => match api_permission(config, api_key, false) {
+            ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
+            ApiPermission::Forbidden => ParsedRequest::ForbiddenRead,
+            ApiPermission::Granted => ParsedRequest::CringeStats,
         },
         ("GET", "/api/cringe-ips/export") => match api_permission(config, api_key, false) {
             ApiPermission::Unauthorized => ParsedRequest::Unauthorized,
@@ -5084,6 +5096,14 @@ lmyzmail.public-registration-enabled=true\n",
             ),
             ParsedRequest::CringeInvalidInput
         );
+        for (headers, expected) in [
+            ("X-API-Key: read-key\r\n", ParsedRequest::CringeStats),
+            ("X-API-Key: write-key\r\n", ParsedRequest::ForbiddenRead),
+            ("", ParsedRequest::Unauthorized),
+        ] {
+            let request = format!("GET /api/cringe-ips/stats HTTP/1.1\r\n{headers}\r\n");
+            assert_eq!(parse_request(request.as_bytes(), 4096, &config), expected);
+        }
         assert_eq!(
             parse_request(
                 b"GET /api/cringe-ips/above-score/50?scoreType=current HTTP/1.1\r\nX-API-Key: read-key\r\n\r\n",

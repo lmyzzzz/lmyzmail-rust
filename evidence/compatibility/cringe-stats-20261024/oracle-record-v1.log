@@ -1,0 +1,184 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+________________ test_frozen_java_cringe_stats_golden[default] _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-183/test_frozen_java_cringe_stats_0')
+record_java_golden = True, profile = 'default'
+
+    @pytest.mark.integration
+    @pytest.mark.oracle
+    @pytest.mark.parametrize("profile", ("default", "custom", "dashboard"))
+    @pytest.mark.timeout(180)
+    def test_frozen_java_cringe_stats_golden(
+        tmp_path: Path, record_java_golden: bool, profile: str,
+    ) -> None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime_type = _CustomDecayOracle if profile == "custom" else PersistentJavaOracleRuntime
+        with runtime_type(tmp_path / ("java-cringe-stats-" + profile)) as oracle:
+            runner = DifferentialRunner(
+                repository, repository / (_GOLDEN + "-" + profile), _PROFILE + "-" + profile,
+                record_java=record_java_golden,
+            )
+            scenarios = _UI if profile == "dashboard" else _STATS
+            if record_java_golden:
+>               runner.record_from_java(scenarios, _OracleTarget(oracle))
+
+blackbox/tests/test_candidate_cringe_stats_golden.py:224: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:94: in record_from_java
+    observation = scenario.capture(target)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+blackbox/tests/test_candidate_cringe_stats_golden.py:64: in _capture_stats
+    connection.execute(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Connection [BAD] at 0x76af96569070>
+query = "INSERT INTO skibidi_cringe_ip\n                SELECT 'stats-' || %s, %s, %s, 100,\n                       first_seen...mit_count,syn_flood_count,ssh_bruteforce_count\n                FROM skibidi_cringe_ip WHERE ip_address='203.0.113.77'"
+params = ('0', 1, -1)
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool = False,
+    ) -> Cursor[Row]:
+        """Execute a query and return a cursor to read its results."""
+        try:
+            cur = self.cursor()
+            if binary:
+                cur.format = BINARY
+    
+            return cur.execute(query, params, prepare=prepare)
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.DatatypeMismatch: column "activity_count" is of type integer but expression is of type text
+E           LINE 2:                 SELECT 'stats-' || $1, $2, $3, 100,
+E                                          ^
+E           HINT:  You will need to rewrite or cast the expression.
+
+.blackbox/venv/lib/python3.12/site-packages/psycopg/connection.py:257: DatatypeMismatch
+_________________ test_frozen_java_cringe_stats_golden[custom] _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-183/test_frozen_java_cringe_stats_1')
+record_java_golden = True, profile = 'custom'
+
+    @pytest.mark.integration
+    @pytest.mark.oracle
+    @pytest.mark.parametrize("profile", ("default", "custom", "dashboard"))
+    @pytest.mark.timeout(180)
+    def test_frozen_java_cringe_stats_golden(
+        tmp_path: Path, record_java_golden: bool, profile: str,
+    ) -> None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime_type = _CustomDecayOracle if profile == "custom" else PersistentJavaOracleRuntime
+        with runtime_type(tmp_path / ("java-cringe-stats-" + profile)) as oracle:
+            runner = DifferentialRunner(
+                repository, repository / (_GOLDEN + "-" + profile), _PROFILE + "-" + profile,
+                record_java=record_java_golden,
+            )
+            scenarios = _UI if profile == "dashboard" else _STATS
+            if record_java_golden:
+>               runner.record_from_java(scenarios, _OracleTarget(oracle))
+
+blackbox/tests/test_candidate_cringe_stats_golden.py:224: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:94: in record_from_java
+    observation = scenario.capture(target)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+blackbox/tests/test_candidate_cringe_stats_golden.py:64: in _capture_stats
+    connection.execute(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Connection [BAD] at 0x76af965b0590>
+query = "INSERT INTO skibidi_cringe_ip\n                SELECT 'stats-' || %s, %s, %s, 100,\n                       first_seen...mit_count,syn_flood_count,ssh_bruteforce_count\n                FROM skibidi_cringe_ip WHERE ip_address='203.0.113.77'"
+params = ('0', 1, -1)
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool = False,
+    ) -> Cursor[Row]:
+        """Execute a query and return a cursor to read its results."""
+        try:
+            cur = self.cursor()
+            if binary:
+                cur.format = BINARY
+    
+            return cur.execute(query, params, prepare=prepare)
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.DatatypeMismatch: column "activity_count" is of type integer but expression is of type text
+E           LINE 2:                 SELECT 'stats-' || $1, $2, $3, 100,
+E                                          ^
+E           HINT:  You will need to rewrite or cast the expression.
+
+.blackbox/venv/lib/python3.12/site-packages/psycopg/connection.py:257: DatatypeMismatch
+_______________ test_frozen_java_cringe_stats_golden[dashboard] ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-lmyzzz/pytest-183/test_frozen_java_cringe_stats_2')
+record_java_golden = True, profile = 'dashboard'
+
+    @pytest.mark.integration
+    @pytest.mark.oracle
+    @pytest.mark.parametrize("profile", ("default", "custom", "dashboard"))
+    @pytest.mark.timeout(180)
+    def test_frozen_java_cringe_stats_golden(
+        tmp_path: Path, record_java_golden: bool, profile: str,
+    ) -> None:
+        repository = Path(__file__).resolve().parents[2]
+        runtime_type = _CustomDecayOracle if profile == "custom" else PersistentJavaOracleRuntime
+        with runtime_type(tmp_path / ("java-cringe-stats-" + profile)) as oracle:
+            runner = DifferentialRunner(
+                repository, repository / (_GOLDEN + "-" + profile), _PROFILE + "-" + profile,
+                record_java=record_java_golden,
+            )
+            scenarios = _UI if profile == "dashboard" else _STATS
+            if record_java_golden:
+>               runner.record_from_java(scenarios, _OracleTarget(oracle))
+
+blackbox/tests/test_candidate_cringe_stats_golden.py:224: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:94: in record_from_java
+    observation = scenario.capture(target)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+blackbox/tests/test_candidate_cringe_stats_golden.py:121: in _capture_dashboard
+    connection.execute(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <psycopg.Connection [BAD] at 0x76af9653f8c0>
+query = "INSERT INTO skibidi_cringe_ip\n                SELECT '192.0.2.' || %s,100+%s,100+%s,activity_count,\n               ...mit_count,syn_flood_count,ssh_bruteforce_count\n                FROM skibidi_cringe_ip WHERE ip_address='203.0.113.77'"
+params = ('0', 0, 0)
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool = False,
+    ) -> Cursor[Row]:
+        """Execute a query and return a cursor to read its results."""
+        try:
+            cur = self.cursor()
+            if binary:
+                cur.format = BINARY
+    
+            return cur.execute(query, params, prepare=prepare)
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.DatatypeMismatch: column "activity_count" is of type integer but expression is of type text
+E           LINE 2:                 SELECT '192.0.2.' || $1,100+$2,100+$3,activi...
+E                                          ^
+E           HINT:  You will need to rewrite or cast the expression.
+
+.blackbox/venv/lib/python3.12/site-packages/psycopg/connection.py:257: DatatypeMismatch
+=========================== short test summary info ============================
+FAILED blackbox/tests/test_candidate_cringe_stats_golden.py::test_frozen_java_cringe_stats_golden[default]
+FAILED blackbox/tests/test_candidate_cringe_stats_golden.py::test_frozen_java_cringe_stats_golden[custom]
+FAILED blackbox/tests/test_candidate_cringe_stats_golden.py::test_frozen_java_cringe_stats_golden[dashboard]
+3 failed, 4 deselected in 33.21s

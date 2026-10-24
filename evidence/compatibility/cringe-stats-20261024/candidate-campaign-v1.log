@@ -1,0 +1,108 @@
+{"external_candidate_binary": "/home/lmyzzz/lmyzmail-rust/.blackbox/cringe-stats-20261024-v1.elf", "sha256_before": "0f65c82c2f0ffd2990fdec00a5f9baea6e8a381342ef9609750442794fb73302"}
+...........FF.                                                           [100%]
+Campaign audit: {"differences_requiring_review": [], "harness_definition_sha256": "1ff47b6157eb2492aab3414937cdd5d2a28078341a8b0019cb00159411d36b14", "historical_observations_equal": 28, "old_golden_files_unchanged": 6910, "pytest_exitstatus": 1}
+
+=================================== FAILURES ===================================
+______ test_rust_candidate_cancels_stalled_cringe_query_and_recovers_pool ______
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(180)
+    def test_rust_candidate_cancels_stalled_cringe_query_and_recovers_pool() -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with _candidate(repository, "--lmyzmail.postgres.pool.max-size=1") as candidate:
+            assert candidate.ports is not None
+            blocker = psycopg.connect(
+                host="127.0.0.1",
+                port=candidate.ports.postgres,
+                user="lmyzmail_test",
+                dbname="lmyzmail",
+                connect_timeout=5,
+            )
+            try:
+                blocker.execute("LOCK TABLE skibidi_cringe_ip IN ACCESS EXCLUSIVE MODE")
+                started = time.monotonic()
+                stalled = http_exchange(
+                    "127.0.0.1",
+                    candidate.ports.http,
+                    "GET",
+                    "/api/cringe-ips/above-score/0",
+                    headers=_ADMIN_HEADERS,
+                    timeout=15.0,
+                )
+                elapsed = time.monotonic() - started
+                assert stalled.status_code == 500
+                assert json.loads(stalled.body) == {"error": "internal_error"}
+                assert 7.0 <= elapsed <= 11.0
+            finally:
+                blocker.rollback()
+                blocker.close()
+    
+            healthy = http_exchange(
+                "127.0.0.1",
+                candidate.ports.http,
+                "GET",
+                "/api/cringe-ips/above-score/0",
+                headers=_ADMIN_HEADERS,
+                timeout=10.0,
+            )
+>           assert healthy.status_code == 200
+E           assert 500 == 200
+E            +  where 500 = RawHttpResponse(status_line=b'HTTP/1.1 500 Internal Server Error', status_code=500, headers=((b'content-type', b'appli...Server Error\r\ncontent-type: application/json; charset=UTF-8\r\ncontent-length: 26\r\n\r\n{"error":"internal_error"}').status_code
+
+blackbox/tests/test_candidate_cringe_api_golden.py:800: AssertionError
+_____________ test_rust_candidate_xdp_disabled_matches_frozen_java _____________
+
+    @pytest.mark.integration
+    @pytest.mark.candidate
+    @pytest.mark.timeout(120)
+    def test_rust_candidate_xdp_disabled_matches_frozen_java() -> None:
+        repository = Path(__file__).resolve().parents[2]
+        candidate = (
+            CandidateRuntime.from_environment()
+            if os.environ.get("LMYZMAIL_CANDIDATE_COMMAND_JSON") is not None
+            else CandidateRuntime(
+                command_template=(
+                    str(repository / "target/x86_64-unknown-linux-gnu/release/lmyzmail"),
+                    "--config",
+                    "{config}",
+                )
+            )
+        )
+        with candidate:
+            DifferentialRunner(
+                repository,
+                repository / "blackbox/golden/java/managed-xdp-disabled-v12",
+                "managed-xdp-disabled",
+>           ).verify_candidate(XDP_SCENARIOS, candidate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+blackbox/tools/test_candidate_xdp.py:34: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+blackbox/src/lmyzmail_blackbox/differential.py:109: in verify_candidate
+    self._assert_suite_manifest(scenarios, record=False)
+blackbox/src/lmyzmail_blackbox/differential.py:67: in _assert_suite_manifest
+    store.assert_observation(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = GoldenStore(root=PosixPath('/home/lmyzzz/lmyzmail-rust/blackbox/golden/java/managed-xdp-disabled-v12'), attestation=Go...d2a28078341a8b0019cb00159411d36b14', profile='managed-xdp-disabled', normalizers=('suite-manifest-v1',)), record=False)
+relative_path = 'suite.json'
+observation = {'profile': 'managed-xdp-disabled', 'scenarios': [{'contract': {'authentication': 'admin API key', 'configuration': 'b...ket'}, 'name': 'http/xdp/parameter-errors', 'normalizers': ['header:date:http-date', 'json-object-order:jdk-map-of']}]}
+
+    def assert_observation(self, relative_path: str, observation: Any) -> None:
+        path = self._resolve(relative_path)
+        actual = self._envelope(observation)
+        if not path.exists():
+            if not self.record:
+>               raise GoldenMismatch(
+                    f"missing golden {relative_path}; "
+                    "an attested Java recording session is required"
+                )
+E               lmyzmail_blackbox.errors.GoldenMismatch: missing golden suite.json; an attested Java recording session is required
+
+blackbox/src/lmyzmail_blackbox/golden.py:174: GoldenMismatch
+=========================== short test summary info ============================
+FAILED blackbox/tests/test_candidate_cringe_api_golden.py::test_rust_candidate_cancels_stalled_cringe_query_and_recovers_pool
+FAILED blackbox/tools/test_candidate_xdp.py::test_rust_candidate_xdp_disabled_matches_frozen_java
+2 failed, 12 passed, 7 deselected in 69.21s (0:01:09)
+{"sha256_after": "0f65c82c2f0ffd2990fdec00a5f9baea6e8a381342ef9609750442794fb73302", "staged_sha256_after": "0f65c82c2f0ffd2990fdec00a5f9baea6e8a381342ef9609750442794fb73302", "unchanged": true}
